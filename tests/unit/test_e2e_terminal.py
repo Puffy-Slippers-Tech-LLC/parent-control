@@ -83,6 +83,51 @@ sub record_info { }
 '''
 
 
+OPEN_PROBE = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+our $fault = shift;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub send_key { push @main::events, ['key', @_]; }
+sub record_info { }
+package main;
+require onpc_terminal;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'unit', review => 0,
+    exchange => sub {
+        my ($stage) = @_;
+        push @events, ['seen', $stage];
+        die 'not-ready' if $stage eq $fault;
+        return {};
+    });
+my $proof = $journey->seen($fault eq 'wrong' ? 'other' : 'desktop');
+@events = ();
+my $ok = eval { onpc_terminal::open($journey, $proof); 1; };
+my $replay = eval { onpc_terminal::open($journey, $proof); 1; };
+print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
+'''
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong', 'system-prompt',
+                                   'terminal-wrong-surface', 'terminal-opened'])
+def test_open_shortcut_requires_desktop_and_observed_readiness_without_replay(fault):
+    result = json.loads(run_perl(OPEN_PROBE, fault).stdout)
+    assert result['ok'] == (fault == '')
+    assert not result['replay']
+    expected = [
+        ['seen', 'system-prompt'], ['seen', 'terminal-wrong-surface'],
+        ['key', 'ctrl-alt-t'], ['seen', 'terminal-opened'],
+    ]
+    if fault == 'wrong':
+        expected = []
+    elif fault:
+        expected = expected[:expected.index(['seen', fault]) + 1]
+    assert result['events'] == expected
+
+
 @pytest.mark.parametrize('fault', ['', 'wrong', 'uncertain'])
 def test_submit_fixed_command_once_after_fresh_focus_without_wait_or_replay(fault):
     result = json.loads(run_perl(SUBMIT_PROBE, fault).stdout)

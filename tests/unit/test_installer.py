@@ -18,6 +18,7 @@ from tests.support.paths import ROOT
     ("dpkg-parsechangelog", 2, "reading package version"),
     ("dpkg-architecture", 3, "reading package architecture"),
     ("package", 1, "locating built package"),
+    ("apt-update", 100, "refreshing APT package indexes"),
     ("apt", 100, "installing package with APT"),
 ])
 def test_installer_hands_off_to_apt_and_preserves_failures(
@@ -30,7 +31,9 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
         "dpkg-architecture": "#!/bin/sh\necho amd64\n",
         "apt": (
             "#!/bin/sh\n"
-            'printf "%s\\n" "$@" > "$APT_ARGUMENTS"\n'
+            'printf "%s\\n" "$*" >> "$APT_ARGUMENTS"\n'
+            'if [ "$1" = update ] && [ "$APT_FAILURE" = apt-update ]; then echo "apt update diagnostic" >&2; exit 100; fi\n'
+            'if [ "$1" = install ] && [ "$APT_FAILURE" = apt ]; then echo "apt diagnostic" >&2; exit 100; fi\n'
             "echo 'APT transaction'\n"
             "echo 'Processing triggers for desktop-file-utils ...'\n"
             "echo 'Processing triggers for libc-bin ...'\n"
@@ -38,7 +41,7 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
         ),
     }.items():
         command = bin_dir / name
-        if failure == name:
+        if failure == name and failure != "apt":
             source = (
                 f"#!/bin/sh\necho '{name} diagnostic' >&2\nexit {status}\n"
             )
@@ -58,15 +61,17 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
          "installdeb", f"CURDIR={tmp_path}", f"LIBEXECDIR={bin_dir}",
          f"APT={bin_dir / 'apt'}"],
         env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}",
-             "APT_ARGUMENTS": str(arguments)},
+             "APT_ARGUMENTS": str(arguments), "APT_FAILURE": failure or ""},
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10,
     )
     if failure is None:
         assert result.returncode == 0, result.stdout
-        assert result.stdout.count("APT transaction") == 1
+        assert result.stdout.count("APT transaction") == 2
         assert "Processing triggers for libc-bin" in result.stdout
         assert arguments.read_text().splitlines() == [
-            "install", "--reinstall", str(output / "oh-no-parent-control_1.0_amd64.deb")]
+            "update -o APT::Update::Error-Mode=any",
+            f"install --reinstall {output / 'oh-no-parent-control_1.0_amd64.deb'}",
+        ]
         assert result.stdout.rstrip().endswith("Processing triggers for libc-bin ...")
         assert "REBOOT REQUIRED" not in result.stdout
         assert "PASS:" not in result.stdout
@@ -78,8 +83,12 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
         assert f"Error {status}" in result.stdout
         assert "PASS:" not in result.stdout
         assert "REBOOT REQUIRED" not in result.stdout
-        if failure in {"dpkg-parsechangelog", "dpkg-architecture", "apt"}:
+        if failure in {"dpkg-parsechangelog", "dpkg-architecture"}:
             assert f"{failure} diagnostic" in result.stdout
+        if failure == "apt-update":
+            assert arguments.read_text().splitlines() == ["update -o APT::Update::Error-Mode=any"]
+        if failure == "apt":
+            assert arguments.read_text().splitlines()[0] == "update -o APT::Update::Error-Mode=any"
         if failure in {"dpkg-parsechangelog", "dpkg-architecture", "package"}:
             assert "Installing " not in result.stdout
             assert "APT transaction" not in result.stdout
@@ -90,6 +99,8 @@ class PackageDeploymentTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
         self.assertTrue(recipe.rstrip().endswith('exec $(APT) install --reinstall "$$deb_file"'))
+        self.assertLess(recipe.index("$(APT) update -o APT::Update::Error-Mode=any"),
+                        recipe.index('exec $(APT) install --reinstall "$$deb_file"'))
         removal = makefile.split("uninstalldeb:\n", 1)[1].split("\n\n", 1)[0]
         self.assertEqual(removal.strip(), '$(APT) remove oh-no-parent-control')
         self.assertIn("@set -e", recipe)

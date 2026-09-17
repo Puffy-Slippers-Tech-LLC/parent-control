@@ -1967,10 +1967,10 @@ class Application(Adw.Application):
         if window is None:
             window = Adw.ApplicationWindow(application=self,
                 title="Administrator access required", default_width=820,
-                default_height=356, css_classes=["management-denied"])
+                default_height=320, css_classes=["management-denied"])
             self._ensure_stylesheet(window)
-            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=48,
-                margin_top=64, margin_bottom=42, margin_start=36, margin_end=32)
+            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=32,
+                margin_top=32, margin_bottom=24, margin_start=24, margin_end=32)
             message = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24,
                 vexpand=True, valign=Gtk.Align.CENTER)
             logo = Gtk.Image.new_from_file(str(branding_asset_path("app_logo.png")))

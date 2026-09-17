@@ -4,26 +4,17 @@ use warnings;
 use onpc_progress ();
 use testapi ();
 
-# FILE01/SEARCH05: the caller owns desktop entry and system-prompt dismissal.
-# The query is nonsecret; a fresh launchable result gates Enter. Input readiness
-# is observed separately and is also usable for independently opened terminals.
+# FILE01: terminal opening is environment preparation, using the desktop's
+# direct shortcut. Input readiness is observed separately and is also usable
+# for independently opened terminals.
 sub open {
     my ($journey, $desktop) = @_;
     die 'terminal:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey';
-    onpc_progress::operation('Opening Terminal through public app search');
+    onpc_progress::operation('Opening Terminal with Ctrl+Alt+T');
     $journey->consume_observation('desktop', $desktop);
     $journey->seen('system-prompt');
-    testapi::send_key('super-a');
-    my $field = $journey->seen('terminal-search-field');
-    $journey->consume_observation('terminal-search-field', $field);
-    $journey->click_target($field);
-    my $focused = $journey->seen('terminal-search-focused');
-    $journey->consume_observation('terminal-search-focused', $focused);
     $journey->seen('terminal-wrong-surface');
-    testapi::type_string('Terminal');
-    my $result = $journey->seen('terminal-search-result');
-    $journey->consume_observation('terminal-search-result', $result);
-    testapi::send_key('ret');
+    testapi::send_key('ctrl-alt-t');
     return $journey->seen('terminal-opened');
 }
 

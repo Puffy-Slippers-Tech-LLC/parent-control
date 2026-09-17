@@ -34,7 +34,33 @@ prompts, operate settings, launch applications, read messages and use windows.
 Never replace those steps with product methods, saved-data reads/writes,
 process inspection, service checks or synthetic grants. Existing runner
 ownership, secret handling, installation setup and cleanup remain supporting
-machinery, not customer assertions.
+machinery, not customer assertions. Apply the distinction below to each action.
+
+### Environment preparation and customer interaction
+
+Use the most reliable and efficient supported mechanism for actions that only
+prepare the environment and do not exercise or observe a product feature.
+Keep these operations in reusable building blocks. A system shortcut or an
+existing scoped harness operation is appropriate; app-grid navigation is not
+required merely to open a supporting tool. For example, FILE01 opens Terminal
+with Ctrl+Alt+T before case 6 types the installed Parent command into it.
+Session logout may likewise use a supported direct mechanism when it only
+prepares the next scenario entry.
+
+When a user uses, observes or experiences a product feature, perform the real
+graphical interaction and independently observe its public result. In case 6,
+typing the Parent command, reading its denial and checking that management is
+unavailable remain customer actions and observations. If a recipe tests a
+particular launcher, logout, retained session, enforcement or login transition,
+that route and its visible results are part of acceptance and must be preserved.
+Classify by the action's role in the scenario, not by which application owns it.
+
+Preparation must retain account/session identity, ownership, input-safety and
+cleanup checks. It cannot use private product state, synthesize outcomes or
+bypass the behavior under test. Observe readiness after invocation; a successful
+shortcut or harness call alone is not evidence of a customer result.
+
+### Block contracts
 
 - **A — atomic:** one input operation or one public observation. Its local
   target, safety and result checks do not silently log in, launch an app,
@@ -299,7 +325,7 @@ these blocks, not copies of them.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| FILE01 | C | Open the normal desktop terminal and observe its usable input surface. | SEARCH05(terminal) → UI01 → UI02. Qualified by E2E-004/terminal. | ready |
+| FILE01 | C | Open the normal desktop terminal as environment preparation and observe its usable input surface. | `onpc_terminal::open(journey, desktop)` consumes the desktop proof, checks system-prompt dismissal and wrong-surface refusal, then UI05(Ctrl+Alt+T) → UI01/UI02(terminal input). `focus` independently qualifies focus before command input. E2E-004/terminal. No app-grid search. | ready |
 | FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | UI21(terminal input) → UI06(command) → UI05(Enter). Qualified by E2E-004/terminal. | ready |
 | FILE06 | C | Observe the declared terminal result: real administrator challenge, command completion/notice, or launch-denial output. Read only its bounded approved output projection. Generic prompts, command echo and arbitrary failures are insufficient. | UI01 → UI10 → UI03. Qualified denial branch: E2E-004/terminal. | ready |
 | FILE07 | C | Navigate an open file manager/chooser to one declared customer directory. Use its normal Location shortcut, enter the directory and observe the destination. | UI05(Location shortcut) → UI16(location field) → UI05(Enter) → UI01 → UI03(destination). Directory identity comes from prepared synthetic fixtures or the selected save location. | pending |

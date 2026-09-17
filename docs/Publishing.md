@@ -454,8 +454,11 @@ does not launch a desktop process from the root maintainer script. If the hook
 defers marker creation for Livepatch, `postinst` still records the reboot needed
 by our PAM/display-manager integration. Configuration retries avoid duplicate
 entries and retain the activation comparison if the hook fails.
-`make installdeb` locates the built `.deb` and hands off to ordinary
-`apt install --reinstall <deb>`; `make uninstalldeb` runs `apt remove oh-no-parent-control`.
+`make installdeb` locates the built `.deb`, refreshes APT package indexes, and
+hands off to ordinary `apt install --reinstall <deb>`; `make uninstalldeb` runs
+`apt remove oh-no-parent-control`. The refresh fails if any configured repository
+cannot update, so installation does not retry removed dependency versions from
+stale indexes.
 Both use only the package payload, installed maintainer scripts, and package
 manager integration. They must never add checkout-side setup, cleanup, notices,
 or success messages. Installation forces reinstallation of the supplied local

@@ -29,13 +29,16 @@ There are **200 tasks: 82 block/capability tasks, 107 customer scenario tasks an
 11 separate system-qualification tasks**. All start unchecked. No implementation
 or live acceptance is claimed by writing this plan.
 
-The documentation rewrite expands the current inventory to **46 families /
-222 cases**: **210 customer cases** (4 ready, 206 pending), **11 retained
-engineering fault obligations**, and **1 ready harness case**. It adds 65
-pending customer cases without changing readiness or runnable bindings.
-The catalogue now has **174 blocks: 60 ready, 114 pending**. The queue has
-**293 rows**: the original 200 plus 27 scoped capabilities, one metadata-compatibility task and 65 customer
-scenario tasks. Task 154 is retained deferred future mute work and does not
+The current inventory has **50 families / 252 cases**: **240 customer cases**
+(4 ready, 236 pending), **11 retained engineering fault obligations**, and
+**1 ready harness case**. The latest review adds 30 pending cases (223–252):
+eight delayed-approval combinations, sixteen temporary-permission launch
+combinations and six continuous household routines. Readiness and runnable
+bindings are unchanged.
+The catalogue now has **178 blocks: 60 ready, 118 pending**. The queue has
+**328 rows**: the original 200 plus 32 scoped capabilities, one
+metadata-compatibility task and 95 added customer scenario tasks.
+Task 154 is retained deferred future mute work and does not
 block completion of current-release customer scope. No row is completed by
 this document update.
 
@@ -173,8 +176,10 @@ normal UI actions. Follow [functional validation](E2E-Building-Blocks.md#functio
 assert usable results, not pixels, geometry, colors or screenshot similarity.
 Fresh fixture children start with limits off. A kiosk choice/approval task must
 first enable its declared target through Parent with UI17/PARENT08, then use
-DESK03 to reach GDM; REQUEST01/FLOW04 never change policy implicitly. Empty or
-disabled-child cases keep their explicitly unavailable state.
+DESK03 to reach GDM; REQUEST01/FLOW04 never change policy implicitly. Empty,
+disabled-child and no-parent profiles keep their explicitly unavailable state.
+Case 55 reads the absent eligible-parent list and its explanation with default
+limits off; it does not require management entry on a parentless computer.
 Do not replace steps with product methods, private saved data, process probes,
 synthetic grants or internal faults. Account/asset preparation and harness
 ownership/secret/cleanup checks retain their existing exceptions.
@@ -298,7 +303,7 @@ After cleanup:
 The plan is finished when every active row is checked and all explicit gates
 have been resolved, with every original obligation either passing in its proper
 suite or explicitly retained under an agreed ownership/scope decision. Do not
-describe unresolved/merely transferred work as done, or all 222 IDs as customer
+describe unresolved/merely transferred work as done, or all 252 IDs as customer
 passes. SEC01/GDM10 remain the two intentionally consumerless legacy deferrals.
 
 ## Explicit gates
@@ -314,6 +319,8 @@ passes. SEC01/GDM10 remain the two intentionally consumerless legacy deferrals.
 | 187o/187k / 176–178 cases | Public return within the five-second cooldown | Prove the interval from visible approval; do not change product timing. |
 | 188p–189k / 208–213 cases | Actual publicly reproducible diagnostic-collection failure and recovery | No established public trigger is assumed. Retry-only cases do not require sending authorization; without-logs cases do. |
 | 191 / 196–204 cases | Declared natural calendar window and readable time precision | Schedule before the attempt; never change the clock or exceed the declared run bound. |
+| 265–272 / cases 223–230 | Public precision and time margins distinguish elapsed approval from a frozen estimate | The 45-second decision interval and dominant-balance bounds are recipe data; overlapping result bounds leave the assertion unqualified. |
+| 289–294 / cases 247–252 | Complete finite history, synthetic saved work and qualified real-game actions | Every cycle/round must pass in one attempt within 5400 seconds. No per-cycle restore, resumed run, hidden top-up or final-state-only acceptance. |
 
 The specification already defines the UI boundary as 0–1439. Task 040a qualifies
 that contract and supplies case 158; documentation is not live acceptance. A
@@ -343,10 +350,11 @@ Task 192 is host-only maintenance for the changed inventory contract. Its
 completion requires the existing inventory regressions and coverage generation,
 not a VM run, and gives no block or customer acceptance credit.
 
-The documentation-only validation found three outdated expectations in
+The existing metadata-compatibility debt includes three outdated expectations in
 [the inventory tests](../../tests/unit/test_e2e_inventory.py): 152 pending cases
-instead of 217, red-text customer acceptance, and E2E-033 classified as an
-injected-fault scenario. Ten fixture errors share a fixture that unconditionally
+(the current inventory has 247), red-text customer acceptance, and E2E-033
+classified as an injected-fault scenario. The previously recorded ten fixture
+errors share a fixture that unconditionally
 removes backend evidence already absent from customer families. Its copied
 contract-file list must also include each selected family's current references.
 
@@ -354,6 +362,8 @@ Reconcile those metadata assertions and fixtures in a code-authorized session,
 preserving matrix closure, stable IDs, ready selection, missing-file refusal,
 forbidden backend evidence, exact notice text and the separate fault obligations.
 Do not change product expectations or weaken ownership/credential checks.
+Also retain the new complete matrices, the public-only repeated histories and
+the distinction between declaring 252 cases and qualifying only five bindings.
 Run `tools/run-unit-tests 'tests/unit/test_e2e_inventory.py' -q`, then regenerate
 coverage. No test code is changed or skipped by this documentation session.
 
@@ -416,15 +426,18 @@ current blocker directly to an affected row when necessary.
 | [ ] | 036 | [Navigate the file manager and copy or rename fixtures](E2E-Tasks/036-files.md) | 009 | FILE07/04/05; FIX04 synthetic files | 35–55 |
 | [ ] | 037 | [Select multiple files or cancel through a real chooser](E2E-Tasks/037-file-chooser.md) | 036, 029 | FILE03 open/cancel | 25–45 |
 | [ ] | 038 | [Add, inspect, preview and remove attachments](E2E-Tasks/038-attachments.md) | 037, 029 | FEED06, FEED07, FEED12, FEED13 | 40–60 |
-| [ ] | 039 | [E2E-031: attachments](E2E-Tasks/039-case-154.md) | 038, 030 | Cases 154 | 35–55 |
+| [ ] | 195 | [Open one customer-selected document or archive](E2E-Building-Blocks.md#customer-terminal-files-and-application-use) | 036, 009 | FILE08; first consumers 154/155 | 25–50 |
+| [ ] | 196 | [Edit and save an open synthetic document](E2E-Building-Blocks.md#customer-terminal-files-and-application-use) | 195, 009 | FILE09; first consumer 154; reused by 247–252 | 25–50 |
+| [ ] | 039 | [E2E-031: attachments](E2E-Tasks/039-case-154.md) | 038, 030, 195, 196 | Cases 154 | 35–55 |
 | [ ] | 016 | [Observe public transitions during input](E2E-Tasks/016-trace.md) | 004, 009, 029 | UI22 | 40–60 |
 | [ ] | 031a | [Observe diagnostic collection from its start](E2E-Tasks/031a-feedback-collection.md) | 016, 030, 031 | FEED09 collection trace | 25–45 |
 | [ ] | 037a | [Save to a customer-selected location through the chooser](E2E-Tasks/037a-save-chooser.md) | 037, 031a | FILE03 save | 20–40 |
 | [ ] | 044a | [Return to an already-open window on one desktop](E2E-Tasks/044a-window-switch.md) | 001, 009, 029 | DESK10 same-desktop window switching | 20–40 |
-| [ ] | 045 | [Save and open customer-selected diagnostics](E2E-Tasks/045-diagnostic-export.md) | 037a, 044a | FEED08 | 25–45 |
+| [ ] | 045 | [Save and open customer-selected diagnostics](E2E-Tasks/045-diagnostic-export.md) | 037a, 044a, 195 | FEED08 | 25–45 |
 | [ ] | 046 | [E2E-031: diagnostic-export](E2E-Tasks/046-case-155.md) | 045, 030 | Cases 155 | 35–55 |
 | [ ] | 040 | [Choose ordinary daily allowances](E2E-Tasks/040-allowance.md) | 009, 010, 017 | PARENT05/06 valid ordinary values | 25–45 |
-| [ ] | 041 | [Read remaining time and configure time controls](E2E-Tasks/041-time-explanation.md) | 040, 017 | PARENT09, FLOW02 | 25–45 |
+| [ ] | 194 | [Read an already expanded time explanation](E2E-Building-Blocks.md#app-grid-search-and-parent-launch) | 040 | PARENT20; PARENT09 delegates its read; first consumer 7 | 25–50 |
+| [ ] | 041 | [Read remaining time and configure time controls](E2E-Tasks/041-time-explanation.md) | 040, 017, 194 | PARENT09, FLOW02 | 25–45 |
 | [ ] | 043 | [Qualify fresh child login and time denial](E2E-Tasks/043-unlock.md) | 004, 041 | GDM06/07, DESK01 and FLOW15 child fresh entry/denial; DESK11 rejected-GDM return | 30–50 |
 | [ ] | 052 | [Read the child desktop countdown](E2E-Tasks/052-countdown.md) | 041, 043 | TIME01 child-desktop snapshots | 20–40 |
 | [ ] | 061 | [E2E-015: kiosk-approved](E2E-Tasks/061-case-49.md) | 021, 041, 043, 052 | Cases 49 | 30–55 |
@@ -462,6 +475,7 @@ current blocker directly to an affected row when necessary.
 | [ ] | 077 | [Read and filter the public app catalogue](E2E-Tasks/077-catalogue.md) | 009, 010, 035 | PARENT12, PARENT10, PARENT11 | 35–55 |
 | [ ] | 078 | [Edit, save, cancel or reset one match rule](E2E-Tasks/078-match-editor.md) | 077, 017 | PARENT13, PARENT15 | 25–45 |
 | [ ] | 079 | [Choose app access and compose policy editing](E2E-Tasks/079-policy.md) | 078, 077, 041, 035, 047a, 036 | PARENT16, FLOW03, FLOW19; native APP02/FLOW08 policy results | 40–60 |
+| [ ] | 197 | [Compose approval and return on both forms](E2E-Building-Blocks.md#reusable-journey-fragments) | 048b, 021, 043a, 052 | FLOW20; explicit new/open entry and fresh/retained child return; first consumer 223 | 25–50 |
 | [ ] | 053 | [E2E-005: daily-only-new](E2E-Tasks/053-case-7.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 7 | 40–60 |
 | [ ] | 054 | [E2E-005: daily-only-retained](E2E-Tasks/054-case-8.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 8 | 40–60 |
 | [ ] | 055 | [E2E-005: grant-only-new](E2E-Tasks/055-case-9.md) | 041, 021, 043a, 044, 047a, 052, 079 | Cases 9 | 40–60 |
@@ -489,14 +503,28 @@ current blocker directly to an affected row when necessary.
 | [ ] | 226 | [E2E-041: search-filters](E2E-Scenario-Recipes.md#e2e-041) | 079 | Cases 184 | 30–55 |
 | [ ] | 229 | [E2E-041: shared-launchers](E2E-Scenario-Recipes.md#e2e-041) | 079, 047 | Cases 187 | 30–55 |
 | [ ] | 230 | [E2E-041: special-paths](E2E-Scenario-Recipes.md#e2e-041) | 079, 036 | Cases 188 | 30–55 |
+| [ ] | 265 | [E2E-048: daily-only-child-overlay](E2E-Scenario-Recipes.md#e2e-048) | 197, 065, 194 | Cases 223 | 30–55 |
+| [ ] | 266 | [E2E-048: daily-only-kiosk](E2E-Scenario-Recipes.md#e2e-048) | 197, 065, 194 | Cases 224 | 30–55 |
+| [ ] | 267 | [E2E-048: grant-only-child-overlay](E2E-Scenario-Recipes.md#e2e-048) | 197, 065, 194 | Cases 225 | 30–55 |
+| [ ] | 268 | [E2E-048: grant-only-kiosk](E2E-Scenario-Recipes.md#e2e-048) | 197, 065, 194 | Cases 226 | 30–55 |
+| [ ] | 271 | [E2E-048: grant-dominant-child-overlay](E2E-Scenario-Recipes.md#e2e-048) | 197, 065, 194 | Cases 229 | 30–55 |
+| [ ] | 272 | [E2E-048: grant-dominant-kiosk](E2E-Scenario-Recipes.md#e2e-048) | 197, 065, 194 | Cases 230 | 30–55 |
+| [ ] | 273 | [E2E-049: native-grid-child-overlay](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047 | Cases 231 | 30–55 |
+| [ ] | 274 | [E2E-049: native-grid-kiosk](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047 | Cases 232 | 30–55 |
+| [ ] | 279 | [E2E-049: native-command-child-overlay](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047 | Cases 237 | 30–55 |
+| [ ] | 280 | [E2E-049: native-command-kiosk](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047 | Cases 238 | 30–55 |
 | [ ] | 036a | [Launch native fixtures from the file manager](E2E-Tasks/036a-native-file-routes.md) | 036, 035, 079 | APP01/02/03 native file-manager route | 30–50 |
 | [ ] | 096 | [E2E-019: native-file-manager-allowed-enabled / native-file-manager-allowed-disabled](E2E-Tasks/096-case-74-75.md) | 079, 047, 041, 036a | Cases 74, 75 | 35–55 |
 | [ ] | 097 | [E2E-019: native-file-manager-hard-blocked-enabled / native-file-manager-hard-blocked-disabled](E2E-Tasks/097-case-76-77.md) | 079, 047, 041, 036a | Cases 76, 77 | 35–55 |
 | [ ] | 098 | [E2E-019: native-file-manager-soft-blocked-enabled / native-file-manager-soft-blocked-disabled](E2E-Tasks/098-case-78-79.md) | 079, 047, 041, 036a | Cases 78, 79 | 35–55 |
+| [ ] | 277 | [E2E-049: native-file-manager-child-overlay](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 036a | Cases 235 | 30–55 |
+| [ ] | 278 | [E2E-049: native-file-manager-kiosk](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 036a | Cases 236 | 30–55 |
 | [ ] | 036b | [Launch native fixtures from the desktop](E2E-Tasks/036b-native-desktop-route.md) | 036, 035, 079 | APP01/02/03 native desktop route | 30–50 |
 | [ ] | 093 | [E2E-019: native-desktop-allowed-enabled / native-desktop-allowed-disabled](E2E-Tasks/093-case-68-69.md) | 079, 047, 041, 036b | Cases 68, 69 | 35–55 |
 | [ ] | 094 | [E2E-019: native-desktop-hard-blocked-enabled / native-desktop-hard-blocked-disabled](E2E-Tasks/094-case-70-71.md) | 079, 047, 041, 036b | Cases 70, 71 | 35–55 |
 | [ ] | 095 | [E2E-019: native-desktop-soft-blocked-enabled / native-desktop-soft-blocked-disabled](E2E-Tasks/095-case-72-73.md) | 079, 047, 041, 036b | Cases 72, 73 | 35–55 |
+| [ ] | 275 | [E2E-049: native-desktop-child-overlay](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 036b | Cases 233 | 30–55 |
+| [ ] | 276 | [E2E-049: native-desktop-kiosk](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 036b | Cases 234 | 30–55 |
 | [ ] | 102 | [Compose expiry recovery through kiosk approval](E2E-Tasks/102-replacement.md) | 062, 021, 047, 079, 065 | FLOW11 | 35–55 |
 | [ ] | 103 | [E2E-009: excluded](E2E-Tasks/103-case-23.md) | 102, 079, 065 | Cases 23 | 35–55 |
 | [ ] | 104 | [E2E-009: included](E2E-Tasks/104-case-24.md) | 102, 079, 065 | Cases 24 | 35–55 |
@@ -509,6 +537,10 @@ current blocker directly to an affected row when necessary.
 | [ ] | 113 | [E2E-019: snap-command-allowed-enabled / snap-command-allowed-disabled](E2E-Tasks/113-case-92-93.md) | 079, 047, 041, 109 | Cases 92, 93 | 35–55 |
 | [ ] | 114 | [E2E-019: snap-command-hard-blocked-enabled / snap-command-hard-blocked-disabled](E2E-Tasks/114-case-94-95.md) | 079, 047, 041, 109 | Cases 94, 95 | 35–55 |
 | [ ] | 115 | [E2E-019: snap-command-soft-blocked-enabled / snap-command-soft-blocked-disabled](E2E-Tasks/115-case-96-97.md) | 079, 047, 041, 109 | Cases 96, 97 | 35–55 |
+| [ ] | 281 | [E2E-049: snap-grid-child-overlay](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 109 | Cases 239 | 30–55 |
+| [ ] | 282 | [E2E-049: snap-grid-kiosk](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 109 | Cases 240 | 30–55 |
+| [ ] | 283 | [E2E-049: snap-command-child-overlay](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 109 | Cases 241 | 30–55 |
+| [ ] | 284 | [E2E-049: snap-command-kiosk](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 109 | Cases 242 | 30–55 |
 | [ ] | 116 | [Qualify supported Flatpak launch routes](E2E-Tasks/116-flatpak.md) | 079, 047 | FIX04 and APP01/02/03 Flatpak scope | 35–55 |
 | [ ] | 117 | [E2E-019: flatpak-grid-allowed-enabled / flatpak-grid-allowed-disabled](E2E-Tasks/117-case-98-99.md) | 079, 047, 041, 116 | Cases 98, 99 | 35–55 |
 | [ ] | 118 | [E2E-019: flatpak-grid-hard-blocked-enabled / flatpak-grid-hard-blocked-disabled](E2E-Tasks/118-case-100-101.md) | 079, 047, 041, 116 | Cases 100, 101 | 35–55 |
@@ -516,6 +548,10 @@ current blocker directly to an affected row when necessary.
 | [ ] | 120 | [E2E-019: flatpak-command-allowed-enabled / flatpak-command-allowed-disabled](E2E-Tasks/120-case-104-105.md) | 079, 047, 041, 116 | Cases 104, 105 | 35–55 |
 | [ ] | 121 | [E2E-019: flatpak-command-hard-blocked-enabled / flatpak-command-hard-blocked-disabled](E2E-Tasks/121-case-106-107.md) | 079, 047, 041, 116 | Cases 106, 107 | 35–55 |
 | [ ] | 122 | [E2E-019: flatpak-command-soft-blocked-enabled / flatpak-command-soft-blocked-disabled](E2E-Tasks/122-case-108-109.md) | 079, 047, 041, 116 | Cases 108, 109 | 35–55 |
+| [ ] | 285 | [E2E-049: flatpak-grid-child-overlay](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 116 | Cases 243 | 30–55 |
+| [ ] | 286 | [E2E-049: flatpak-grid-kiosk](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 116 | Cases 244 | 30–55 |
+| [ ] | 287 | [E2E-049: flatpak-command-child-overlay](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 116 | Cases 245 | 30–55 |
+| [ ] | 288 | [E2E-049: flatpak-command-kiosk](E2E-Scenario-Recipes.md#e2e-049) | 197, 079, 047, 116 | Cases 246 | 30–55 |
 | [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006, 044a, 028 | LIFE04 fixture update; PARENT15 retained-editor save; LIFE01 catalogue refresh | 25–45 |
 | [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 079, 006, 044, 047, 123 | Cases 110 | 35–55 |
 | [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006, 044a, 028 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; LIFE01 catalogue refresh | 30–50 |
@@ -525,6 +561,8 @@ current blocker directly to an affected row when necessary.
 | [ ] | 128 | [E2E-024: grant-dominant-windowed](E2E-Tasks/128-case-130.md) | 126, 079, 065, 048b | Cases 130 | 40–60 |
 | [ ] | 132 | [Compose a daily-dominant profile without clearing the grant](E2E-Tasks/132-time-profiles-dominant.md) | 065, 048a | FLOW13 daily-dominant scope | 25–45 |
 | [ ] | 133 | [E2E-024: daily-dominant-windowed](E2E-Tasks/133-case-128.md) | 126, 079, 065, 048b, 132 | Cases 128 | 40–60 |
+| [ ] | 269 | [E2E-048: daily-dominant-child-overlay](E2E-Scenario-Recipes.md#e2e-048) | 197, 132, 194 | Cases 227 | 30–55 |
+| [ ] | 270 | [E2E-048: daily-dominant-kiosk](E2E-Scenario-Recipes.md#e2e-048) | 197, 132, 194 | Cases 228 | 30–55 |
 | [ ] | 129 | [Play fullscreen to natural lock](E2E-Tasks/129-game-fullscreen.md) | 126 | APP05/FLOW10 fullscreen play | 30–50 |
 | [ ] | 130 | [E2E-023: fullscreen](E2E-Tasks/130-case-127.md) | 129, 079, 043 | Cases 127 | 40–60 |
 | [ ] | 129a | [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md) | 129, 048a, 044a | DESK12 fullscreen reveal; overlay/game return | 25–45 |
@@ -561,6 +599,13 @@ current blocker directly to an affected row when necessary.
 | [ ] | 163 | [E2E-022: reboot-expired](E2E-Tasks/163-case-121.md) | 155, 079, 047, 065, 052a, 007 | Cases 121 | 40–60 |
 | [ ] | 164 | [E2E-022: idle-active](E2E-Tasks/164-case-122.md) | 155, 079, 047, 065, 052a | Cases 122 | 40–60 |
 | [ ] | 165 | [E2E-022: idle-expired](E2E-Tasks/165-case-123.md) | 155, 079, 047, 065, 052a | Cases 123 | 40–60 |
+| [ ] | 289 | [E2E-050: overlay-first-retained](E2E-Scenario-Recipes.md#e2e-050) | 197, 196, 079, 050, 065, 102, 155, 129a, 047a | Cases 247 | 40–60 + continuous run |
+| [ ] | 290 | [E2E-050: overlay-first-fresh](E2E-Scenario-Recipes.md#e2e-050) | 197, 196, 079, 050, 065, 102, 155, 129a, 047a | Cases 248 | 40–60 + continuous run |
+| [ ] | 291 | [E2E-050: kiosk-first-retained](E2E-Scenario-Recipes.md#e2e-050) | 197, 196, 079, 050, 065, 102, 155, 129a, 047a | Cases 249 | 40–60 + continuous run |
+| [ ] | 292 | [E2E-050: kiosk-first-fresh](E2E-Scenario-Recipes.md#e2e-050) | 197, 196, 079, 050, 065, 102, 155, 129a, 047a | Cases 250 | 40–60 + continuous run |
+| [ ] | 198 | [Manage from the second administrator's own Parent window](E2E-Building-Blocks.md#reusable-journey-fragments) | 044, 079, 194 | FLOW01/FLOW15 other-parent management entry and two independent Parent windows; first consumer 251 | 25–50 |
+| [ ] | 293 | [E2E-051: jordan](E2E-Scenario-Recipes.md#e2e-051) | 197, 198, 196, 079, 050, 065, 155, 126, 047a | Cases 251 | 40–60 + continuous run |
+| [ ] | 294 | [E2E-051: riley](E2E-Scenario-Recipes.md#e2e-051) | 197, 198, 196, 079, 050, 065, 155, 126, 047a | Cases 252 | 40–60 + continuous run |
 | [ ] | 166 | [Suspend and wake through normal controls](E2E-Tasks/166-suspend.md) | 052a, 003, 043a | LIFE03 | 35–55 |
 | [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079, 047, 065, 052a, 166 | Cases 124 | 40–60 |
 | [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 155, 079, 047, 065, 052a, 166 | Cases 125 | 40–60 |

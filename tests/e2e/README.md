@@ -334,7 +334,7 @@ titles, steps, variants or readiness. Edit the source inventory, not that docume
 
 The [customer recipes](../../docs/TestAutomation/E2E-Scenario-Recipes.md) bind
 all customer steps to public actions, finite matrices and independent setup.
-The inventory has 222 cases: 210 customer cases, 11 retained engineering fault
+The inventory has 252 cases: 240 customer cases, 11 retained engineering fault
 obligations and one harness case. Displaced backend assertions remain under the
 [engineering reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation).
 Existing inventory-test fixture updates are tracked by

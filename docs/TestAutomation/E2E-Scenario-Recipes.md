@@ -7,11 +7,13 @@ owns atomic operations and composites; the [execution plan](E2E-Execution-Plan.m
 owns implementation order and live completion. Do not copy these recipes into
 task documents or silently substitute different inputs.
 
-There are **46 families and 222 persistent cases**: **210 customer cases**
-(4 ready, 206 pending), **11 engineering fault obligations**, and **1 ready
+There are **50 families and 252 persistent cases**: **240 customer cases**
+(4 ready, 236 pending), **11 engineering fault obligations**, and **1 ready
 harness qualification**. E2E-034 is a retired harness identifier and is not
-reused. This rewrite adds 65 pending cases (158–222), preserves IDs 1–157 and
-the five existing executable bindings, and claims no new installed acceptance.
+reused. Cases 223–252 add delayed approvals, temporary app access by launch
+route, and repeated household routines. IDs 1–222 and the five existing
+executable bindings retain their readiness. This review claims no new installed
+acceptance.
 
 ## Independent entry, actions and observations
 
@@ -50,6 +52,7 @@ does not permit hidden setup or automatic repair after a failed step.
 | leave-child | New-session variant: DESK04 after a successful visit. Retained variant: DESK03. After denial: DESK11. |
 | repeat / watch | Iterate the finite table with new observations each time. watch(observer){input} = UI25 start and readiness → the named input once → UI26 finish; UI22 is this declared composite. |
 | AppSet | FLOW19: P → FLOW03 for each explicitly named app/rule → G. Default assets are A (Always Allowed), H (Hard Blocked), S (Soft Blocked), N (nonmatching allowed). |
+| approve-and-return | FLOW20(surface, child, approver, duration, soft choice, child entry): from the child's desktop for overlay or GDM for station, prepare the form, approve once and read the child's resulting countdown. It never changes daily allowance or saved app rules. |
 
 The current source surface, retained desktops and open windows are explicit
 outputs of this case's preceding blocks. Thread this ledger through every call.
@@ -64,8 +67,24 @@ app checks if used, 012–014, 021–025, 036, 038 and 039. Omit unused assets a
 checks: countdown-only E2E-011 does not acquire an app-policy dependency.
 Riley's activity is prepared with FLOW14 before an isolation action and revisited
 with FLOW09 afterward. Only E2E-006/007/010/021/038 own retained other-user
-continuity; E2E-019 owns other-user launch independence. Other cases do not
+continuity in the short cases; E2E-050/051 own continuity over repeated changes.
+E2E-019 owns other-user launch independence. Other cases do not
 append a generic unseen “other users unchanged” assertion.
+
+Every expanded recipe also binds its entry and finish from the tables below.
+`P`, `C`, `G` and a slash-separated block list are notation, not permission to
+skip navigation: `PARENT03/PARENT12` means both reads, on their respective pages.
+Before calling C from Parent use G; before calling P from a child desktop use
+the declared leave-child route. A GDM-only operation such as REQUEST01 or
+FLOW06 likewise uses G first when the current declared source is a desktop or
+lock screen. These transitions are part of the expanded recipe, never fallback
+inputs after failure. After sign-out/reboot invalidate old window
+observations and use fresh entry. Never call P or read private state to inspect
+an inactive child invisibly. In particular, returning after an expired grant
+can restore blocks and close apps: finish a no-restoration observation **before**
+leaving that child desktop. All scenarios finish with their final public result
+recorded and no unanswered authentication prompt; ordinary exit blocks close
+remaining forms before the common outer cleanup.
 
 Activities must have recognizable public state, such as an unfinished synthetic
 document or a real offline game level. APP03 proves interaction changes that
@@ -102,7 +121,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | Daily presets (158) | 0, 15, 30, 45, and every 30-minute increment from 60 through 1410: 50 offered presets. Select/read each; no login per value. |
 | Daily custom (158) | Accept 0, 1, 15, 1439. Reject empty, abc, −1, 0.5, 1440, 1441. Start invalid attempts with saved 15; reopen and read 15 afterward. The API's 1440 allowance belongs to engineering tests. |
 | Daily saving (159) | Save 2 by pause, 3 by Enter, 4 by leaving focus. Then type valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, save 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Qualify the public window-count projection with this consumer. Close/reopen and repeat the value read. Do not assert a minimum visible Saving animation duration. |
-| E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real approval before edits; combined: positive daily plus real grant. Enabled edits: daily-only/combined 4→5 minutes; grant-only 0→4→0. Re-read actual D; if prior use has exhausted it, fail preparation rather than inject usage. |
+| E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0→5 minutes; grant-only 0→4→0. At zero, daily-only must deny access while combined retains its grant. Re-read actual D and the original grant deadline; if navigation exhausts a required margin, fail preparation rather than inject usage. |
 | Request presets (38/41) | 5, 15, 30, 60, 120, 240 minutes. Read every footer and matching prompt, cancel each review, then approve representative 5. |
 | Request custom (39/42) | Accept 0.1, 0.5, 1.25, 1440; reject empty, abc, −1, 0, 0.09, 1440.1 and comma decimal 1,5. Valid prompts reflect whole seconds (6, 30, 75, 86400). Approve representative 1.25. |
 | Rest of the day (40/43) | First approve a 1440-minute fixed grant, read its later deadline, then choose/approve Rest of the day. Read PARENT09 before and after: the replacement interval is shorter and the footer says until midnight. Calendar cases own the exact deadline check. No 24-hour wait. |
@@ -110,7 +129,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | Short time | Natural daily tests use 2–4 minutes and verify positive D before entry. Grant-only uses 2 minutes; replacement uses 3. Active reboot/update uses 15–20 minutes. These are preparation choices, not bypasses of observed balances. |
 | E2E-038 daily dominant | Start with daily 4 minutes and a real 0.1-minute addition including soft apps. Enter, open S, switch away, and wait until displayed G is 60–90 seconds while D remains at least 120 seconds. Return before grant expiry. No later screen/app save occurs before the tested action. FLOW18 checks the inequalities; wrong timing fails preparation. |
 | Station restriction routes | Super/Overview, Super-A/app grid, ordinary terminal shortcut; inspect available controls for Parent/settings launch. If no search field appears, no query is typed. About/report restrictions have their own cases. |
-| App transitions (13–16) | Allowed→Soft closes; Soft→Hard closes any matching activity still available; Hard→Allowed enables launches; Allowed→Hard closes. Open work under Allowed before closure checks. A soft→hard live-activity branch uses real soft approval while limits on, or opens S then toggles off (which preserves the running app) for limits-off. Unchanged blocks are covered by case 169. |
+| App transitions (13–16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in limits-off cases temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
 | Match/control/route matrix | Preserve all four precise/pattern × on/off cases and all 48 route × rule × on/off cases. Alias, special-path, update and file-pattern data run only in their owning cases. |
 
 The 50-preset set includes 46 half-hour entries plus the four shorter presets.
@@ -121,6 +140,53 @@ that arbitrary inputs, elapsed durations and user histories can be enumerated.
 Setup is shared code, not prior execution. Group implementation work, but run
 each numeric variant as an independent attempt. Long calendar and retry-expiry
 cases have their own queue gates and budgets.
+
+### Explicit time preparation
+
+FLOW13 is a setup composition within this case, not an inherited fixture. It
+starts in Parent for the selected child, verifies G=0, and uses only the
+following public operations. If a recipe explicitly starts with an existing
+grant, either preserve it or confirm Revoke as that recipe says; never silently
+clear it. Allowances are total daily minutes, **not** a fresh balance. Read D
+after every allowance save and fail preparation if the required margin is
+absent. These ordinary profiles avoid midnight; calendar cases supply their
+own scheduled profile.
+
+| Profile | Allowance and real approval | Required visible result / finish |
+| --- | --- | --- |
+| daily-only | Enable, save 4 minutes; no approval. | D>0, G=0; GDM. E2E-008 uses 2 minutes. |
+| grant-only | Enable, save 0; station approval for 2 minutes. | D=0, G>0; GDM. Replacement requests use 3 minutes unless a table overrides them. |
+| combined / grant-dominant | Enable, save 4; station request for 2 additional minutes. | G>D>0 by a distinguishable margin; GDM. |
+| daily-dominant | Enable, save 0; approve 2 minutes; while still enabled save 6. | D>G>0 by a distinguishable margin; GDM. This allowance save restores soft launch blocks; it does not establish a soft exception. |
+| daily-dominant with soft exception | FLOW18: save 4, request 0.1 including soft apps, then spend time on the parent's retained desktop until G is 60–90 seconds and D≥120 seconds. | Return while G>0; finish on the child desktop. No policy save follows approval. |
+
+Non-expiry form/catalogue cases use 30 daily minutes unless they need zero;
+they observe the remaining margin rather than waiting for all that time.
+E2E-037 uses 6 minutes so its final natural exhaustion is bounded. Lifecycle
+active profiles use a 20-minute grant, expired profiles 2 minutes. Their saved
+choices are Jordan custom 1.25/soft included, Riley custom 2.5/soft excluded,
+station approver Jamie, overlays Sam. Grant preparation changes request choices:
+after that approval, explicitly reselect the intended saved values and Cancel,
+without submitting, **before** capturing persistence expectations. Entering a
+disabled or exhausted child's overlay is never a preparation shortcut.
+
+### Coverage and execution policy
+
+Exhaust every declared finite interacting matrix. For values that share the
+same result mechanism, enumerate boundary/representative inputs inside the
+owning case instead of multiplying unrelated dimensions. E2E-019 owns baseline
+launch rules; E2E-049 owns temporary exceptions on those same eight routes and
+both request surfaces. E2E-048 owns elapsed time during authentication; gameplay
+extension remains E2E-024. Long routines own the **ordered history**, not another
+count of their individual transitions. Swapping an arbitrary display name or
+running every feedback value with every app route adds no distinct behavior.
+
+Use one installed snapshot preparation per invocation, independent restoration
+per numeric case, and shared block code. Batch read-only values on the current
+surface; do not batch independent cases into one mutable desktop. Each sequence
+checks its intermediate result before the next change can conceal a defect.
+Failed input is never repaired/replayed, and an incomplete stress loop cannot
+pass from its final state. No random loops or open-ended soak are declared.
 
 ## Family compositions
 
@@ -175,8 +241,8 @@ Bindings: time = daily-only / grant-only / combined; session = new / retained.
 Bindings: control = enabled / disabled; match = precise / pattern.
 
 1. P0 → FLOW02(control, usable allowance) → FLOW03(permissive match setup) → G → FLOW14(child,Riley activities) → P.
-2. For each transition in the app table: PARENT16 → PARENT08; record its expected running-app effect before leaving Parent.
-3. C(retained) → APP02(existing result) → FLOW08(matching and nonmatching) → FLOW09(Riley). Reopen apps under Allowed before the next closure check; final P → LIFE01(Parent) → PARENT02 → PARENT12.
+2. For each transition in the app table, prepare its explicitly required open activity, then P → PARENT16 → PARENT08 → C(retained) → APP02(existing result) → FLOW08(matching and nonmatching) → FLOW09(Riley). Finish each iteration's checks before the next save; phase step-2 owns the entire finite loop.
+3. P → LIFE01(Parent) → PARENT02 → PARENT12 → UI12(final Allowed rule). This phase does not replay the transitions.
 
 ### E2E-007
 
@@ -234,7 +300,7 @@ Bindings: time = daily-only / grant-only / combined.
 
 Bindings: soft-apps = excluded / included; approver = first / second.
 
-1. FLOW13(positive daily time, soft included) → C → FLOW08(soft) → APP04 → REQUEST02 twice → REQUEST03(fixed child,one form).
+1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST02 twice → REQUEST03(fixed child,one form).
 2. REQUEST04(approver,duration) → REQUEST06(soft choice) → REQUEST08 → REQUEST09 → AUTH01(exact prompt).
 3. AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) → TIME01 → APP02(soft effect) → FLOW08(hard/soft). After TIME03(cooldown): REQUEST02 → REQUEST09 → AUTH02(cancel) → REQUEST11(cancel) → REQUEST12(cancel).
 
@@ -283,9 +349,9 @@ Bindings: request = approved / denied / cancelled.
 
 Bindings: accounts = multiple / no-child / no-parent / ineligible-parent / disabled-child.
 
-1. Account profile is the declared setup. Enable each available target except disabled-child using FLOW16; G → REQUEST01.
+1. Account profile is the declared setup. Enable available targets with FLOW16 except disabled-child and no-parent. No-parent starts directly at GDM with default limits off: no inaccessible administrator setup or hidden enabled-policy fixture is needed to inspect its empty parent list. G → REQUEST01.
 2. Open each enabled selector: UI04 → UI13(exact eligible set) → UI05(Escape); REQUEST04(each declared choice). Disabled/empty uses UI02/03 without input.
-3. REQUEST03 → REQUEST08. Available: REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11. Unavailable: UI02(disabled) → UI11(prompt).
+3. REQUEST03 → REQUEST08. Available: REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11. Unavailable: UI02(disabled) → UI11(prompt). No-parent specifically requires the missing-eligible-parent explanation and empty parent list; it makes no isolated screen-time enforcement claim with its also-disabled child.
 
 ### E2E-018
 
@@ -333,7 +399,7 @@ Bindings: transaction = save / approve-without-soft / approve-with-soft / revoke
 
 Bindings: boundary = app-restart / sign-out-in / reboot / idle / suspend-wake; grant = active / expired.
 
-1. FLOW16 → FLOW03 → prepare both request surfaces with FLOW04/REQUEST12 → FLOW13(grant-only) → C → TIME01 → FLOW08(allowed) → APP04.
+1. FLOW16 → FLOW03 → FLOW13(grant-only with boundary-specific duration) → prepare both request surfaces with FLOW04/REQUEST12 to restore the declared saved choices after grant issuance → REQUEST03(capture before exit) → C → TIME01 → FLOW08(allowed) → APP04.
 2. app-restart: LIFE01(Parent), request exit/entry on both surfaces; sign-out: DESK04; reboot: LIFE02; idle: TIME03; suspend: LIFE03. Routes use the current session ledger.
 3. TIME03 only for remaining expired wait; active return requires the original positive deadline.
 4. P → PARENT03/PARENT12 → UI12 before edits. request-entry → REQUEST03 → UI12 before editing. Expired child denial → DESK11 → REQUEST01 → REQUEST03 before FLOW06 replacement. C → TIME01 → FLOW08; APP04 only on retained desktops.
@@ -377,7 +443,7 @@ Bindings: soft-apps = excluded / included; entry = new-login / retained-unlock.
 
 Bindings: activation = process / session / reboot.
 
-1. V(parent,fresh) → LIFE04(earlier release install) → LIFE05(notice) → FLOW16 → FLOW03 → prepare both forms with FLOW04/REQUEST03/REQUEST12 → FLOW06(long grant) → C → FLOW08.
+1. V(parent,fresh) → LIFE04(earlier release install) → LIFE05(notice) → FLOW16 → FLOW03 → FLOW06(20-minute grant) → prepare both forms with FLOW04/REQUEST03/REQUEST12 and capture the intended saved values after that approval → C → FLOW08.
 2. P → LIFE04(update package) → LIFE05(exact affected users/surfaces).
 3. P → PARENT03/PARENT12 → UI12 → ABOUT01(version) → UI18; request-entry(each) → REQUEST03 → UI12 before edits; C → TIME01 → FLOW08.
 
@@ -390,7 +456,7 @@ Bindings: lifecycle = continuous.
 1. V(parent,fresh) → LIFE04(install) → FILE06(notice) → LIFE02.
 2. FLOW16 → FLOW03 → both forms FLOW04/REQUEST03/REQUEST12 → FLOW06 → C → FLOW08.
 3. P → LIFE04(remove) → FILE06(notice) → LIFE02 → C(fresh) → FLOW08(formerly blocked,usable).
-4. P → LIFE04(reinstall) → LIFE05 → read Parent/request retained choices before editing → FLOW16/FLOW03(reapply) → C → FLOW08. P → LIFE04(purge) → LIFE05 → LIFE04(reinstall) → LIFE05 → PARENT03/REQUEST03(fresh defaults).
+4. V(parent,fresh after the removal reboot) → LIFE04(reinstall) → LIFE05 → P(new window) → PARENT03/PARENT09/PARENT12(retained choices,zero grant) → request-entry(kiosk) → REQUEST03 → REQUEST12(cancel) → FLOW16/FLOW03(reapply) → C → FLOW08. P → LIFE04(purge) → LIFE05 → LIFE04(reinstall) → LIFE05 → P(new window) → PARENT03(defaults) → G → REQUEST01 → REQUEST03(fresh shared defaults). A removed product has no Parent window to launch; package work uses the ordinary administrator desktop/terminal. A disabled child has no overlay entry until limits are publicly enabled.
 
 ### E2E-030
 
@@ -457,7 +523,7 @@ Bindings: balance = daily-positive / zero-total.
 
 Bindings: boundary = sign-out-in / reboot.
 
-1. FLOW16(each child,ample daily) → C(first) → PANEL03 → PANEL01(default off) → PANEL02(on).
+1. FLOW16(each child,6 daily minutes) → C(first) → PANEL03 → PANEL01(default off) → PANEL02(on).
 2. REQUEST02 → REQUEST12(cancel) → TIME01; DESK04 → C(fresh) or LIFE02 → C(fresh); PANEL01 → UI02(on) → UI05(Escape).
 3. C(second) → PANEL01(off) → UI05(Escape); C(first) → PANEL01 → PANEL02(off) → PANEL01 → PANEL02(on) → FLOW08(allowed) → TIME04.
 
@@ -468,8 +534,8 @@ Bindings: boundary = sign-out-in / reboot.
 Bindings: restore = none / unlock / fresh-login / allowance-edit / toggle / app-save / revoke.
 
 1. FLOW18(daily-dominant,soft exception) → FLOW08(allowed) → APP04; prepare Riley's activity with FLOW14 before FLOW18.
-2. TIME02/TIME03 until G=0 while D>0; APP03(soft); then perform exactly the restoration table's block sequence.
-3. PARENT09 when needed → C → APP02(expected existing apps) → FLOW08(new hard/soft launches) → FLOW09(Riley).
+2. Use the last public grant interval and TIME03 elapsed time to cross its latest possible expiry while the child remains active and TIME01 still shows positive daily access. APP03(soft); then perform exactly the restoration table's block sequence. Do not visit Parent to learn that G reached zero.
+3. On the resulting child desktop, APP02(expected existing apps) → FLOW08(new hard/soft launches), **then** FLOW09(Riley). A Parent read is permitted inside a restoring action that already calls P, or after all child-result checks. There is no implicit extra unlock before those checks.
 
 ### E2E-039
 
@@ -487,7 +553,7 @@ Bindings: flow = overlay-lock / overlay-switch / overlay-signout / overlay-close
 
 Bindings: change = add-child / remove-selected / remove-last-child / ineligible-approver / missing-remembered-child.
 
-1. ACCOUNT01 → ACCOUNT02 only for declared initial spare account preparation; P or request-entry → PARENT03/REQUEST03(capture).
+1. V(parent,fresh) → ACCOUNT01 → ACCOUNT02 only for declared initial spare account preparation. Use FLOW16(on,30) for every child whose request form will be inspected, then P or request-entry → PARENT03/REQUEST03(capture). For removal cases all removed children are logged out first; no personal account is borrowed from another test.
 2. ACCOUNT01 → ACCOUNT02(variant change). Parent stays open; request windows exit with REQUEST12 before the change.
 3. DESK10(Parent) → UI13/PARENT19 → PARENT03 → UI12, or request-entry → REQUEST03 → UI13(eligible fallback).
 
@@ -507,9 +573,9 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 
 Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 
-1. P or request-entry(surface) → PARENT03/REQUEST03(capture); command-help V(parent) → FILE01.
-2. Parent INFO01(each link); overlay ABOUT01 → ABOUT02 → INFO01(each link); kiosk ABOUT01 → UI03 → UI11(external actions); command INFO02(each fixed command/manual).
-3. UI18(each opened information window) → PARENT03/REQUEST03 → UI12. INFO02 ends at the terminal.
+1. Parent P0 → PARENT03(capture); overlay/station FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help V(parent) → FILE01.
+2. Parent/overlay INFO01(Help) → ABOUT01; overlay additionally ABOUT02 → UI18(license viewer). Then INFO01(website,privacy,support,legal as offered). Kiosk ABOUT01 → UI03 → UI11(external actions). Command INFO02(each fixed command/manual). Parent's complete license-reading path remains owned by case 151.
+3. UI18(About, only where opened) → PARENT03 or REQUEST03 → UI12. INFO01 has already closed each external destination; do not close it twice. INFO02 ends at the terminal.
 
 ### E2E-043
 
@@ -527,8 +593,8 @@ Bindings: surface = child-overlay / kiosk.
 
 Bindings: calendar = ordinary / spring-forward / fall-back; time = daily-reset / rest-of-day / fixed-grant.
 
-1. TIME05 → FLOW13(calendar profile) → PARENT09/REQUEST08(capture) → C → TIME01.
-2. TIME03(to declared real boundary) with APP03 where active use is needed; TIME05 → PARENT09 → UI12(calendar arithmetic).
+1. V(parent,fresh) → TIME05 → FLOW13(calendar profile) → P → PARENT09(capture) → request-entry/REQUEST08/REQUEST12 only for the declared grant estimate → C → TIME01.
+2. TIME03(to declared real boundary) with APP03 where active use is needed; observe the child's expected countdown or lock first. G → V(parent,retained) → TIME05 → P → PARENT09 → UI12(calendar arithmetic). A child that locked at midnight cannot operate desktop calendar controls until legitimately admitted again.
 3. C → TIME01 or GDM06(time denial), as specified by the calendar table; FLOW08(allowed) when usable.
 
 ### E2E-045
@@ -537,7 +603,7 @@ Bindings: calendar = ordinary / spring-forward / fall-back; time = daily-reset /
 
 Bindings: surface = parent / child-overlay / kiosk.
 
-1. P → PARENT13 → UI16(rejected pattern) → PARENT15(error), or request-entry → FLOW05 → reopen before cooldown → REQUEST09(error).
+1. Parent: P → PARENT04(App Limits) → PARENT10(declared app) → PARENT13 → UI16(rejected pattern) → PARENT15(error). Request surfaces: FLOW16(on,30) → request-entry → FLOW04(custom=0.5,soft=false) → FLOW05 → reopen before cooldown → REQUEST09(error). These are the explicit public-error prefixes reused by E2E-047; its setup does not manufacture a report.
 2. FEED15(review) → FEED03 → UI16(synthetic body) → FEED05 → UI02/11(surface actions) → UI18(report) → UI01(original destination).
 3. Repeat the same public error: FEED15(decline) where offered → UI11(report). Parent's report window simply closes; no nonexistent report switch is assumed.
 
@@ -560,6 +626,175 @@ Bindings: flow = no-reply / background / app-exit / retry-expired / overlay-stop
 1. P → FEED01 or public-error prefix → FEED15. UI16 → FEED03 → FEED05; LIFE06(disconnect) for retry branches → DESK10(report) → FEED11.
 2. Perform the precise send-lifetime subrecipe below; FEED09 supplies sending/retry/success observations.
 3. Use FEED14 only for observed thanks; FEED03 checks cleared/preserved/reset draft as specified, and LIFE06 restores connectivity.
+
+### E2E-048
+
+**Approve after the displayed estimate has aged.** Cases 223–230.
+
+Bindings: balance = daily-only / grant-only / daily-dominant / grant-dominant;
+surface = child-overlay / kiosk. Each balance has both surfaces, in that order.
+
+1. FLOW13 with the delayed-approval table below → P → PARENT09(capture D,G) → G.
+   Overlay C → REQUEST02; station REQUEST01. FLOW04(entry=open,custom=0.5,
+   soft=false,approver=Jamie for daily-only/grant-only, Sam otherwise) →
+   REQUEST08(capture estimate and time) → REQUEST09 → AUTH01.
+2. TIME03(45 seconds, same requesting session and prompt) → AUTH01(fresh) →
+   AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic).
+3. C only for station → TIME01 → P → PARENT09 → UI12(expected interval from
+   public starting balances and elapsed active/away time). After five seconds
+   from success, return to the same form and use FLOW20 for an immediate
+   second 0.5-minute request. Read its increment too; a waiting estimate must
+   neither freeze the earlier balance nor extend a grant twice.
+
+| Balance | Public preparation for this family | Expected effect while waiting |
+| --- | --- | --- |
+| daily-only | Daily 6, no grant. | Overlay consumes daily time; station leaves that child's daily time unconsumed. |
+| grant-only | Daily 0, approve 4 minutes. | Grant elapses on both surfaces. |
+| daily-dominant | Daily 0, approve 4, then daily 10 while still enabled. | Daily dominates throughout; its use depends on the requesting surface as above. |
+| grant-dominant | Daily 6, request 4 additional minutes. | Grant remains dominant and elapses on both surfaces. |
+
+At the prompt require at least 120 seconds of usable time and a dominant-balance
+gap exceeding 90 seconds where both balances are positive. Predeclare the
+comparison intervals, including navigation/authentication/confirmation time.
+The elapsed 45 seconds must be distinguishable from a frozen estimate with the
+available display precision. No other user changes settings during the prompt.
+This is normal time spent deciding a request, not an artificially delayed
+authentication service. Zero-time overlay entry is impossible; zero-time station
+approval belongs to 50/126–127. Exact equal positive operands that cannot be
+distinguished publicly remain arithmetic unit coverage; both-zero is covered by
+those station cases.
+
+### E2E-049
+
+**Change temporary app permission on every supported launch route.** Cases 231–246.
+
+Bindings: route = native-grid / native-desktop / native-file-manager /
+native-command / snap-grid / snap-command / flatpak-grid / flatpak-command;
+surface = child-overlay / kiosk. Each route has both surfaces, in that order.
+
+1. FLOW16(Jordan,on,30) → AppSet(A,H,S for the declared route) → C(fresh) →
+   FLOW08(A usable,H/S denied). Leave A with APP03 → APP04. All later child
+   returns retain this desktop; S supports a separate new-window launch.
+2. Run four rows, each as request-entry(surface) → FLOW20(entry=open) →
+   APP02/APP04(existing activities) → FLOW08(S via declared route). Requests
+   add 0.5 minutes: **Jamie/include → Sam/exclude → Sam/include → Jamie/exclude**.
+   Included opens S and records a new activity; excluded requires its closure.
+   After each row A remains usable and a new H launch remains denied. If the
+   blocked grid entry is hidden, observe that and use the recipe's explicit
+   command denial witness; an included grid entry must become launchable.
+3. P → PARENT12(A,H,S) → UI12(original saved choices). Temporary approval
+   must not rewrite the parent's access selections. Finish after the last
+   excluded result; no natural wait for the long combined grant.
+
+This completes route × request-surface coverage and both approvers × both
+soft-app choices inside each case. Baseline rule permutations remain in 62–109;
+this family owns alternating **temporary** permission, existing-window effects
+and fresh launches on that route. Do not reproduce every allowance boundary or
+game-display mode here.
+
+### E2E-050
+
+**Alternate homework, games and time sources over repeated sessions.** Cases 247–250.
+
+Bindings: surface-order = overlay-first / kiosk-first; departure = retained /
+fresh. Order is overlay-first-retained, overlay-first-fresh,
+kiosk-first-retained, kiosk-first-fresh. Each case is one uninterrupted attempt
+with **three complete cycles**, not three dependent tests. Budget: 5400 seconds
+including setup and cleanup; expected active journey 25–50 minutes. Start with
+enough time before local midnight to finish. Never move the clock.
+
+1. FLOW16(Jordan,on,0) → AppSet(W Always Allowed editor, S Soft Blocked real
+   offline game, H Hard Blocked). Prepare Riley's unrestricted W activity with
+   FLOW14. No grant exists. Stage a synthetic notes file for Jordan; FILE08
+   opens it and FILE09 records each cycle's distinct text when access permits.
+2. Execute every row of the repeated-routine table below for cycle **1, 2, 3**.
+   `first`/`second` are the variant's form order. The six approvals in rows
+   2/3/4/5/7/8 use Jamie/Sam/Jamie/Sam/Jamie/Sam in cycles 1/3 and the reverse
+   parents in cycle 2. Every request uses a fresh system prompt. Before editing,
+   REQUEST03 compares shared fields with that child's latest choices on either
+   form, and the parent selector with this surface's own remembered parent.
+3. P → LIFE01(Parent) → PARENT02(Jordan) → PARENT03/PARENT09/PARENT12 reads
+   enabled/zero allowance/zero grant and the original W/S/H choices. Visit
+   Riley with FLOW09. Only now end the attempt.
+
+| Cycle row | Exact composition / finite input | Required result before the next row |
+| --- | --- | --- |
+| 1 Homework on daily time | FLOW16(on, allowance=12×cycle) → PARENT09 → C → FILE08(W file if not open) → FILE09(replace with `homework cycle N`, Save) → APP04 → FLOW08(S/H denied). | D≥120 seconds, G=0; usable work and blocked game. Reopen the saved file after a fresh login; only retained entry compares an old window. |
+| 2 Earn game time | request-entry(first) → FLOW20(1 minute,include) → FLOW08(S usable) → APP05(windowed,level 1 in cycles 1/3; fullscreen,level 1 in cycle 2) → APP03 → APP04. | New time follows max(D,G)+60; W survives any retained return; game is playable. |
+| 3 More game time | request-entry(second) → FLOW20(0.5,include); retained S: APP04 → APP03; S ended by declared logout: FLOW08(S usable) → APP05(cycle mode,level 1) → APP03 → APP04. Then FLOW08(H denied). | Repeated inclusion extends current time without closing an existing game. Fresh departure ends old windows normally and requires a new playable game. |
+| 4 Return to homework | request-entry(first) → FLOW20(0.5,exclude) → APP02(S closed) → FLOW08(S denied); FILE08(W) if this case's logout ended that window; FILE09(W,`work again cycle N`,Save). | Same-session/retained S closes; after fresh departure verify denied new launch, not closure by approval. Work remains usable. |
+| 5 Grant-only game break | request-entry(second) → FLOW20(0.5,include) → FLOW08(S usable) → APP04; P → PARENT06(12×cycle+1) → PARENT08/PARENT09 → PARENT06(0) → PARENT08/PARENT09 → C. | Both enabled allowance edits preserve the original grant deadline; D becomes zero. Existing retained S stays open, new S/H launches are denied. Check this before another approval. |
+| 6 Turn limits off, then on | P → UI17(off) → PARENT08 → C → TIME01(absent) → FLOW08(H/S denied); P → UI17(on) → PARENT08/PARENT09 → C(time denial). | Off removes time restriction but preserves app blocks. On with saved zero clears all old grant time; correct credentials alone cannot enter. No hidden-app claim behind the lock. |
+| 7 Short approved visit to natural exhaustion | G → FLOW20(kiosk,2 minutes,include in cycles 1/3; exclude in cycle 2) → FILE08/APP04(W) → FLOW08(S expected) → APP03 → TIME04 → DESK08(time denial). | Actual activity ends in a natural lock. A retained work window is still not inspected behind that lock. |
+| 8 Recover, then finish this cycle | G → FLOW20(kiosk,3 minutes,opposite soft choice to row 7,retained unlock) → APP04(W captured in row 7) → APP03; APP02(S closed) when row 7 left S open and replacement excludes it; FLOW08(S expected,H denied). Then leave-child → P → PARENT17/PARENT18(confirm) → PARENT09 → C(time denial) → G → FLOW09(Riley). | Both variants retain their row-7 work through this natural lock. Replacement permission has the declared game result; unused grant revocation leaves D=G=0. Riley's same activity works. No grant is carried into the next cycle. |
+
+At **each departure from Jordan to another account/station**, retained uses
+DESK03 and fresh uses DESK04 while access is positive. The latter case therefore
+tests saved work and new windows after departure, not survival through logout.
+After natural lock both variants have a retained locked desktop: replacement
+approval uses retained unlock, then the next departure again follows the
+variant. Overlay requests alone never log out. Declare each window's lifetime
+in the ledger and branch APP04 versus FILE08 from that recorded action, not
+from whichever app happens to appear. Use a supported new-instance launch for
+S when an old S window is being preserved. For fullscreen, DESK12's qualified
+normal reveal route is mandatory. If navigation exhausts a required margin,
+preserve the failure instead of inserting an unplanned grant.
+
+### E2E-051
+
+**Alternate two children's work and game routines without mixing their choices.**
+Cases 251–252; first child = Jordan / Riley.
+
+One continuous attempt per case, four rounds, two child visits in every round;
+5400-second bound, expected 20–45 minutes. Each child has W Allowed, S Soft and
+H Hard; use distinguishable W text and different game progress. All departures
+retain desktops. Parents Jamie and Sam alternate management visits, each using
+their own normally opened Parent window. A later visit reselects the named
+child and reads current settings before changing anything; neither parent
+assumes its earlier displayed values are still current.
+
+Number the management visits 1–8 in actual visit order: Jamie manages odd
+visits, Sam even visits. Approval uses Sam on overlay and Jamie at the station,
+independently of the managing parent. These are explicit selected-parent inputs
+to FLOW20; no remembered selection is silently substituted.
+
+1. AppSet for both children → FLOW16(each,on,30) → G. For each child:
+   FLOW15(fresh) → FILE08(own synthetic notes file) → FILE09(`child role initial`,Save)
+   → APP04(capture own W) → DESK03. These independently supplied W observations
+   are the inputs to later FLOW09 visits, not an earlier test's windows.
+   Set Jordan's request custom 1.25/soft included, Riley's custom 2.5/soft
+   excluded, station approver Jamie, overlays Sam, using FLOW04/REQUEST12.
+2. For each round below visit the variant's first child then the other;
+   reverse that visit order on even rounds. For the selected child:
+   P → PARENT03/PARENT09/PARENT12(capture both children separately) →
+   FLOW16(selected allowance,final off) → UI17(on) → PARENT08/PARENT09.
+   This explicit off/on change clears that child's prior grant. Follow the
+   table's time/permission route, then FILE09(own W,`child role round N`,Save)
+   → APP04 → FLOW08(S expected,H denied); when included, APP05(windowed,level 1)
+   → APP03 → APP04 records playable game progress. Return to Parent, select the peer,
+   read **before** any edit and compare with the peer's last observation;
+   FLOW09(peer,W) and REQUEST03 on its declared next request-entry verify
+   independent work and remembered choices. Close that form with REQUEST12.
+3. After round 4, confirm Revoke for **only** the grant-only child. It can no
+   longer unlock; the daily-only peer still uses W with its configured S rule.
+   PARENT03/PARENT09/PARENT12 on both children and FLOW09(peer) finish the case.
+
+| Round | Jordan | Riley |
+| --- | --- | --- |
+| 1 | Daily 12; overlay request 1.25,exclude: homework. | Daily 0; kiosk request 15,include: game. |
+| 2 | Daily 0; kiosk request 15,exclude: homework. | Daily 24; overlay request 2.5,include: game. |
+| 3 | Daily 36; overlay request 1.25,include: game. | Daily 0; kiosk request 15,exclude: homework. |
+| 4 | Daily 0; kiosk request 15,include: game. | Daily 48; no grant, S remains blocked: homework. |
+
+Use FLOW20 for each actual approval, then explicitly save the child's preferred
+custom value (1.25 or 2.5) and the row's soft choice with FLOW04/REQUEST12 without
+another approval. This separates a 15-minute grant from remembered custom text.
+Before peer-comparison visits require its usable balance to exceed 120 seconds;
+allow only elapsed-time reduction of its grant and measured active daily use.
+No unexpected allowance, app-rule or request-choice change is tolerated. If a
+peer naturally expires before this check, that is a failed preparation margin,
+not evidence of cross-child interference and not an invitation to grant time
+silently. Work/game names describe activities, not nonexistent product modes.
 
 ## Additional finite branch recipes
 
@@ -650,7 +885,7 @@ collector read is never substituted.
 | 152 formatting/draft | Synthetic heading, bold, italic, underline, strike, numbered/bulleted list, quote, code block, link and remove-formatting. FEED04/UI24 reads actual public range attributes, not only a pressed toolbar control. Include one file and a synthetic reply address for close/reopen preservation. App exit/relaunch resets text, formatting, address and files. |
 | 153 text/email | Empty, whitespace, ordinary ASCII, exactly 5000 and 5001 UTF-16 units, and mixed emoji at those boundaries. Empty/valid synthetic/malformed reply addresses. Include a hidden control character and the declared excessive-formatting document; read rejection without submitting valid content. Exact hidden-character and formatting fixtures come from the current specification/maintained transport limits, and must be reviewed before binding. |
 | 154 attachments | Chooser Cancel; one file then Remove; 5 files accepted and a sixth rejected; per-file 5 MiB accepted and 5 MiB+1 rejected. With diagnostics excluded, two files totaling 8 MiB accepted and 8 MiB+1 rejected. One invalid file in a multi-selection adds none and preserves existing attachments. Names of 180 characters accepted, 181 and hidden controls rejected; an empty filename is not creatable through normal file tools and remains technical validation. |
-| 154 original file change | Attach synthetic file, alter its original through the ordinary editor, then remove/re-add to read the new name/size where changed. Frozen bytes are inspected only if the app offers a genuine public attachment preview; otherwise retain byte immutability under transport tests, not a fabricated preview. |
+| 154 original file change | FEED06 attaches the synthetic text file; FILE08 opens its original in the ordinary editor and FILE09 saves longer declared synthetic text. DESK10(feedback) → FEED07 reads the original attachment's unchanged name/size, then FEED13 → FEED06 re-adds it → FEED07 reads the larger size. Frozen contents are inspected only if the app offers a genuine public preview; otherwise byte immutability remains transport coverage. |
 | 155 diagnostic ZIP | Observe collection, then save via FILE03. Cancel preserves draft and prepared archive. Choose a visibly unwritable destination, read the save error, then choose a writable location. Open the saved ZIP in a normal archive viewer; read the system-information entry and Parent/Child/Kiosk/Broker folders, empty folders where applicable, and the actual bounded contents. Do not open original product logs. |
 | 155 privacy | FEED05 reads what is sent, optional logs/files/email and retention disclosure. Review exported synthetic data for forbidden personal values. Absence in one archive is not a proof of every producer's sanitization; all privacy, date-retention and byte bounds keep their engineering tests. |
 
@@ -728,6 +963,10 @@ reuse it to reach a later distinct outcome.
 | Expired soft exception and restoring actions; pending requests/cooldown | 164–170; 171–178 |
 | About/help; local feedback; success/retry; error report/recovery/lifetimes | 151 and 190–193; 152–155; 156–157; 205–222 |
 | Local operation offline; real calendar boundaries | 194–195; 196–204 |
+| Approval after a decision delay, both surfaces and four balance profiles | 223–230 |
+| Temporary soft permission by route and request surface, both parents | 231–246 |
+| Repeated work/game/time-source history and retained/fresh departures | 247–250; three complete cycles each |
+| Alternating two-parent/two-child routines and final targeted revocation | 251–252; four complete rounds each |
 
 The [engineering reconciliation](E2E-Building-Blocks.md#inventory-reconciliation)
 retains every displaced internal assertion, including fault cases 140–150,

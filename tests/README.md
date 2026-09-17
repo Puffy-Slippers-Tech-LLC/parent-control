@@ -15,6 +15,16 @@ problem. A fresh chat does not require rerunning unaffected tests.
 
 ## All established regressions
 
+Every test execution through `tools/run-tests` uses the same live dashboard and
+final summary: category results, actual host branches and joins, durations and
+overall wall time. Only selected categories appear; unused branches are omitted.
+For example, `tools/run-tests unit -k 'grant' static shell` runs the selected unit
+tests followed by shell checks in one report. Each category keeps its own
+arguments, and all selections are validated before execution. Arbitrary category
+groups run serially; the established aggregates retain their parallel schedules.
+Help, listing and collection-only commands keep their inspection output and take
+one category at a time. Raw test output remains in the linked report streams.
+
 Run `tools/run-tests host` to execute discovery, isolated cleanup prerequisites
 and all host jobs, stopping at **Join host branches**. This uses the same host
 plan as both complete aggregates. It does not inspect or authorize the VM, run

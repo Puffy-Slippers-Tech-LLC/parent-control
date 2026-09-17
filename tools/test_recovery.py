@@ -6,7 +6,7 @@ import test_activity
 import test_retention
 
 
-def before_run(root, argv):
+def before_run(root, argv, *, categories=None):
     # Help/collection and owned aggregate children must remain read-only here.
     if not argv or argv[0].startswith('-') or '--list' in argv or '--help' in argv:
         return 0
@@ -20,7 +20,8 @@ def before_run(root, argv):
                 state = store.read(fd)
                 pending = ('recovery-required' in os.listdir(fd) or
                            bool(state and not state['finished']))
-    vm = argv[0] in ('all', 'all-verify', 'system', 'e2e', 'integration')
+    vm = any(kind in ('all', 'all-verify', 'system', 'e2e', 'integration')
+             for kind in (categories or [argv[0]]))
     if not pending and not vm:
         return 0
     # This runs only recovery plus its mandatory cleanup-safety prerequisite;

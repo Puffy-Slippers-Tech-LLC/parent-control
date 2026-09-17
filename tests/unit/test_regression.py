@@ -231,12 +231,12 @@ def test_branch_frame_shows_both_running_counts_queue_and_real_wall_time():
     first = frame(160)
     assert '├─ Host branch 1 — running' in first
     assert '├─ Host branch 2 — running' in first
-    assert '├─ Host branch 3 — idle' in first
-    assert '├─ Host branch 4 — idle' in first
-    assert first.count('├─ Host branch ') == 4
+    assert 'Host branch 3' not in first
+    assert 'Host branch 4' not in first
+    assert first.count('├─ Host branch ') == 2
     styled = '\n'.join(dashboard.render(160))
     assert '\033[1m├─ Host branch 1 — running - 1.0m\033[0m' in styled
-    assert '\033[90m├─ Host branch 3 — idle - 0.0m\033[0m' in styled
+    assert 'No categories assigned' not in styled
     assert '│  └─ [Running] UI - 30% (3/10) - 1.0m' in first
     assert '│  └─ [Running] Unit - 40% (8/20) - 40s' in first
     assert first.index('Unassigned host work') < first.index('[Waiting] Components')
@@ -271,7 +271,7 @@ def test_branch_totals_and_join_time_freeze_before_later_work():
         frame = dashboard.ANSI.sub('', styled)
         assert 'Host branch 1 — finished - 2.5m' in frame
         assert 'Host branch 2 — finished - 2.0m' in frame
-        assert 'Host branch 3 — finished - 0.0m' in frame
+        assert 'Host branch 3' not in frame
         assert '\n│\n└─ Join host branches — passed — 4.0m wall time' in frame
         assert '\n\nOverall - 75% (3/4)' in frame
     dashboard.cleanup_started = dashboard.started

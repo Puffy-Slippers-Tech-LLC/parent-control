@@ -190,10 +190,12 @@ def worker(root, argv, run, owner):
     original = sys.stdout
     sys.stdout = SessionOutput(run, original)
     try:
-        from test_commands import _main
+        from test_commands import _main, selections
         with test_activity.activity(root):
             from test_recovery import before_run
-            before_run(root, argv)
+            categories = ([kind for kind, _ in selections(root, argv)]
+                          if argv and not argv[0].startswith('-') else [])
+            before_run(root, argv, categories=categories)
             status = _main(argv, detached=True)
     finally:
         finished.set()

@@ -20,13 +20,13 @@ Extend the existing account-fixture route for exactly these profiles and preserv
 
 ## Live VM acceptance
 
-In separate live attempts, inspect each profile's exact offered children/approvers. For each declared valid target, select it, reach the correctly bound real authentication prompt and cancel normally. Verify ineligible approvers are excluded. Pass fixture ownership/cleanup regressions before these runs.
+In separate live attempts, enable each valid target through Parent using UI17/PARENT08, then Switch User into the station. Inspect each profile's exact offered children/approvers, select each declared valid target, reach its correctly bound real prompt and cancel normally. Verify ineligible approvers are excluded. Pass fixture ownership/cleanup regressions before these runs.
 
 Run affected safety/adapter checks, then use the complete first consumer if runnable.
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_kiosk_choices
+tools/run-tests integration check_e2e_eligible_kiosk_fixtures
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

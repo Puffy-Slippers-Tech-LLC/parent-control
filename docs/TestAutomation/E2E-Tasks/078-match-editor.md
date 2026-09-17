@@ -5,12 +5,12 @@ a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#exec
 
 ## Scope and prerequisites
 
-Deliver **PARENT13/15 ordinary Save/Cancel/Reset and local invalid drafts**. First scheduled consumer: [E2E-041, case 185](../E2E-Scenario-Recipes.md#e2e-041).
+Deliver **PARENT13/15 ordinary Save/Cancel/Reset and local invalid drafts**. First scheduled consumer: [E2E-045, case 205](../E2E-Scenario-Recipes.md#e2e-045).
 Read the named [block contracts](../E2E-Building-Blocks.md#app-grid-search-and-parent-launch) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-- **077** — PARENT12, PARENT10, PARENT11.
+- **077** — PARENT10, PARENT11.
 - **017** — PARENT08 snapshot saved/control states.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.

@@ -12,8 +12,8 @@ Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-cu
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-- **150o** — FEED11, FEED09 success and FEED14 overlay.
-- **152** — FEED09 Parent retry/recovery over qualified LIFE06.
+- **150o** — FEED11, FEED09 success and FEED14 overlay; gate in brief.
+- **152** — FEED09 Parent retry/recovery over qualified LIFE06; gate in brief.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -29,7 +29,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_error_report
+tools/run-tests integration check_e2e_confirm_stopping_a_sending_overlay_report
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

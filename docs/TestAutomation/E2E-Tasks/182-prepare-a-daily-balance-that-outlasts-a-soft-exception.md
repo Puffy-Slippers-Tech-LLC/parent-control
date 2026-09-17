@@ -29,7 +29,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_expired_soft
+tools/run-tests integration check_e2e_prepare_a_daily_balance_that_outlasts_a_soft_exception
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

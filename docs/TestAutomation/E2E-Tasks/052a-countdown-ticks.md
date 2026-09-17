@@ -10,7 +10,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-- **052** — TIME01 child-desktop snapshots.
+- **052** — TIME01 child-desktop presence and limits-off absence.
 - **051** — FLOW13 daily-only, fresh/same Parent entry with observed G=0.
 - **052c** — TIME03.
 
@@ -28,7 +28,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_countdown
+tools/run-tests integration check_e2e_countdown_ticks
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

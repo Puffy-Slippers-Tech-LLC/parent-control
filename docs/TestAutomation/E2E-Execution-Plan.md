@@ -20,7 +20,7 @@ The inventory contains **252 cases in 50 families**: **240 customer cases**
 **1, 3, 4, 5 and 151**. The catalogue contains **178 blocks: 60 ready and
 118 pending**. These are current implementation declarations, not new VM results.
 
-The active queue has **338 tasks**: **124 scoped capabilities**, **202 scenario
+The active queue has **346 tasks**: **132 scoped capabilities**, **202 scenario
 tasks covering all 236 pending customer cases**, **11 system tasks** and
 **1 metadata-maintenance task**. Related pairs share a brief only when they use
 the same implementation; each case still runs independently. The
@@ -89,21 +89,47 @@ continuous acceptance; 247–252 have the recipes' 5400-second run bound.
 
 Every dependency must precede its consumer. Include the public operations needed
 to **prepare and observe qualification**, not just the composite's direct callees.
-The queue separates repeated-stage support from authentication, trace leaves from
-UI22, app-policy editing from denial observations and FLOW19, and route/surface
-extensions from their unrelated siblings.
+An already-ready block covers only its documented surface, route and branch.
+Name a missing scope in this queue before implementing a consumer that needs it.
+A small task may deliver closely related leaves and their composite, in that order.
 
-After a capability finishes, run **all newly eligible scenarios before another
-capability**, in numeric case order. The table is arranged this way. For example,
-terminal support immediately enables case 6; station entry/exit completes the
-installation prerequisites; allowance setup enables case 161; boundary support
-enables case 158; chooser/attachment support completes case 152. No family-wide
-“all blocks first” phase exists.
+The queue separates app-row observations needed by installation from catalogue
+search/filter editing; match-rule customer launches follow policy-result
+qualification. Snap and Flatpak command routes qualify before their grid
+extensions. Account creation, removal and role changes have separate slices.
+Collection failure, Retry recovery and without-logs submission are separate:
+failure alone can qualify the without-logs prerequisite.
 
-After any split or scope change, recheck dependency order, scenario eligibility,
-all 236 pending customer case IDs appearing exactly once, retained system IDs
-140–150, and task-file links. A scenario never depends on another scenario's run.
-An unrelated earlier unchecked row is not a prerequisite.
+Qualification programs have a fixed selector for each slice and reuse shared
+helpers. They must not grow into a family-wide run that requires unfinished
+siblings. A complete first consumer can supply the slice's live acceptance;
+register no partial scenario merely to avoid a focused qualification.
+
+After a capability finishes, schedule **all newly eligible scenarios before
+another capability**, in numeric case order. Each scenario row is a separate
+next-task selection; this does not expand one session into every ready sibling.
+The table follows that rule: terminal support enables case 6; station choices
+enable case 57; installation plus app-row reading enables case 2; allowance setup
+enables case 161; each command/grid extension releases its own launch cases.
+Create and validate a useful small batch of blocks, then deliver the scenarios
+it enables before continuing. A capability's estimate includes its own targeted
+live qualification, not implementation of all its future consumers.
+
+After any split or scope change, recheck:
+
+- Unique stable task IDs, matching master/brief prerequisites, and every dependency
+  earlier than its consumer, including setup, exits and observations.
+- Every newly eligible scenario ahead of the next capability; grouped cases
+  retain separate attempts and a coverage refresh after each.
+- All 236 initially pending customer case IDs assigned exactly once across
+  completed and remaining rows, plus the separate system obligations 140–150.
+  Keep the five established ready cases and deferred task 154 outside that count.
+- A current brief for every unchecked row, working links, and no dependency on
+  a completed brief or previous VM state.
+
+A scenario never depends on another scenario's run. An unrelated earlier
+unchecked row is not a prerequisite. Keep the frozen case assignment when
+updating ready/pending totals; completion must shrink remaining work.
 
 ## Live verification contract
 
@@ -142,9 +168,11 @@ Finish functional edits and verified inputs before running; keep source and
 documents unchanged through collection and cleanup.
 
 For a **capability task**, pass every outcome in its brief on the live VM.
-Prefer its complete runnable consumer. Otherwise implement/reuse the named fixed
-`check_e2e_...` qualification in the existing guarded envelope. Those names are
-planned selectors, not claims of existing passing commands. Any new entry is an
+Prefer its complete runnable consumer. Otherwise implement/reuse the brief's
+fixed, slice-specific `check_e2e_...` qualification in the existing guarded
+envelope. Those names are planned selectors, not claims of existing passing
+commands. Reuse shared code, with only this slice's declared inputs and outcomes
+in its qualification; do not dispatch unrelated future variants. Any new entry is an
 argument-free `tests/integration/check_[a-z][a-z0-9_]*.py` with applicable cleanup
 tests, selected through `tools/run-tests integration <name>`. Reuse verified
 asset staging; `tools/run-tests artifacts build` supplies current inputs when
@@ -185,7 +213,7 @@ dependent work; they do not justify changing expected behavior.
 | Feedback sending, task 150 and report-surface extensions | Explicit authorization for the reviewed synthetic submissions and supported dedicated recipient profile. This planning request grants no sending authorization. |
 | Pending approval exits, cases 171–175 | The declared normal leave/close action is reachable while authentication is pending. |
 | Cooldown and request-error reports | Re-entry and Request fit the actual five-second cooldown; no product timing change. |
-| Collection recovery, cases 208–213 | A genuine reproducible public failure and recovery; no deterministic trigger is currently established. Retry-only work requires no sending authorization. |
+| Collection failure, cases 208–213 | A genuine reproducible public failure; no deterministic trigger is currently established. Retry additionally requires normal recovery. Without-logs submission requires sending authorization, not a successful Retry. |
 | Calendar cases 196–204 | The actual date/timezone/window and adequate public precision; schedule before the bounded attempt. |
 | Delayed approvals 223–230 | Public precision and the recipe's margins distinguish elapsed approval from a frozen estimate. |
 | Real apps, games and continuous routines | Declared supported assets and accessible results, with every cycle/round intact. |
@@ -226,8 +254,10 @@ After the attempt has released its guard and cleanup has passed:
    with plain text. No later task may need the deleted brief or earlier VM state.
    Preserve normal runner artifacts; create no task archive, evidence report or
    accumulated history. Keep only a useful current blocker/continuation pointer.
-5. Validate changed Markdown with `tools/read-only links '<file.md>' ...`.
-   Report concise results and the next eligible task.
+5. Validate changed Markdown with `tools/read-only links '<file.md>' ...` and
+   recheck the queue invariants above. Report concise results and the next
+   eligible task. An ordinary later session needs only this master, that task's
+   brief and its maintained source/contract references.
 
 Current-release work is complete when all active rows are checked or explicitly
 excluded by an authorized scope decision, all active gates are resolved, and
@@ -249,21 +279,22 @@ All task briefs are independent of predecessor documents and attempts.
 | [ ] | 185c | [Read installed command help and manuals](E2E-Tasks/185c-read-installed-command-help-and-manuals.md) | 001 | INFO02 | 20–40 |
 | [ ] | 235 | [E2E-042: command-help](E2E-Tasks/235-case-193.md) | 185c | Cases 193 | 30–55 |
 | [ ] | 003 | [Open session controls and switch or sign out](E2E-Tasks/003-desktop-session.md) | Baseline | DESK02, DESK03, DESK04 | 35–55 |
-| [ ] | 004a | [Give repeated public operations distinct stages](E2E-Tasks/004a-give-repeated-public-operations-distinct-stages.md) | Baseline | JourneyPlan repeated invocation IDs and assertion placement | 30–50 |
-| [ ] | 004 | [Allow distinct single-use authentication challenges](E2E-Tasks/004-challenges.md) | 003, 004a | UI19/GDM05 distinct single-use authentication challenges | 40–60 |
-| [ ] | 005a | [Start a graphical journey before product installation](E2E-Tasks/005a-product-free-entry.md) | 001, 004 | Product-free graphical start and verified package staging | 30–50 |
-| [ ] | 005 | [Qualify terminal administrator password input](E2E-Tasks/005-terminal-auth.md) | 005a | AUTH03; FILE06 package challenge/completion | 40–60 |
-| [ ] | 006 | [Perform a customer package operation](E2E-Tasks/006-package-command.md) | 005 | LIFE04 install only | 35–55 |
-| [ ] | 007 | [Observe a deliberate customer reboot](E2E-Tasks/007-customer-reboot.md) | 006 | LIFE02 | 40–60 |
 | [ ] | 011 | [Enter and read the request station](E2E-Tasks/011-kiosk-entry.md) | Baseline | REQUEST01, REQUEST03 | 35–55 |
 | [ ] | 013 | [Observe request results and exits](E2E-Tasks/013-request-exit.md) | 011 | REQUEST11/12 kiosk Cancel and Escape | 25–45 |
-| [ ] | 008 | [E2E-002: clean](E2E-Tasks/008-case-2.md) | 007, 013 | Cases 2 | 40–60 |
 | [ ] | 010 | [Set one public toggle explicitly](E2E-Tasks/010-toggle.md) | Baseline | UI17 | 25–45 |
 | [ ] | 017 | [Observe Parent save results](E2E-Tasks/017-parent-save.md) | 010 | PARENT08 snapshot saved/control states | 25–45 |
 | [ ] | 012 | [Select kiosk accounts and read availability](E2E-Tasks/012-request-choices.md) | 011, 017, 003 | REQUEST04 kiosk child/approver; REQUEST08 unavailable state | 25–45 |
 | [ ] | 018 | [E2E-017: disabled-child](E2E-Tasks/018-case-57.md) | 012, 013 | Cases 57 | 30–50 |
 | [ ] | 024 | [Prepare empty kiosk account profiles](E2E-Tasks/024-kiosk-fixtures.md) | 012 | FIX03 no-child/no-approver profiles | 40–60 |
 | [ ] | 026 | [E2E-017: no-child / no-parent](E2E-Tasks/026-case-54-55.md) | 024, 013 | Cases 54, 55 | 30–50 |
+| [ ] | 004a | [Give repeated public operations distinct stages](E2E-Tasks/004a-give-repeated-public-operations-distinct-stages.md) | Baseline | JourneyPlan repeated invocation IDs and assertion placement | 30–50 |
+| [ ] | 004 | [Allow distinct single-use authentication challenges](E2E-Tasks/004-challenges.md) | 003, 004a | UI19/GDM05 distinct single-use authentication challenges | 40–60 |
+| [ ] | 005a | [Start a graphical journey before product installation](E2E-Tasks/005a-product-free-entry.md) | 001, 004 | Product-free graphical start and verified package staging | 30–50 |
+| [ ] | 005 | [Qualify terminal administrator password input](E2E-Tasks/005-terminal-auth.md) | 005a | AUTH03; FILE06 package challenge/completion | 40–60 |
+| [ ] | 006 | [Perform a customer package operation](E2E-Tasks/006-package-command.md) | 005 | LIFE04 install only | 35–55 |
+| [ ] | 007 | [Observe a deliberate customer reboot](E2E-Tasks/007-customer-reboot.md) | 006 | LIFE02 | 40–60 |
+| [ ] | 077a | [Read app rows and initial access choices](E2E-Tasks/077a-app-row-observations.md) | Baseline | PARENT12; UI13 complete public app-row observations | 20–40 |
+| [ ] | 008 | [E2E-002: clean](E2E-Tasks/008-case-2.md) | 007, 013, 077a | Cases 2 | 40–60 |
 | [ ] | 029 | [Open feedback and read synthetic drafts](E2E-Tasks/029-feedback-read.md) | Baseline | FEED01, FEED03 | 25–45 |
 | [ ] | 009 | [Replace a nonsecret field value](E2E-Tasks/009-text.md) | 029 | UI16 | 25–45 |
 | [ ] | 040 | [Choose ordinary daily allowances](E2E-Tasks/040-allowance.md) | 009, 017 | PARENT05/06 valid ordinary values | 25–45 |
@@ -312,27 +343,25 @@ All task briefs are independent of predecessor documents and attempts.
 | [ ] | 185p | [Read Parent information links](E2E-Tasks/185p-read-parent-information-links.md) | 044a | INFO01 Parent | 25–45 |
 | [ ] | 232 | [E2E-042: parent-links](E2E-Tasks/232-case-190.md) | 185p | Cases 190 | 30–55 |
 | [ ] | 150 | [Submit one authorized synthetic report and read success](E2E-Tasks/150-feedback-send.md) | 038, 031a, 052c | FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief | 30–50 |
-| [ ] | 151 | [E2E-032: success](E2E-Tasks/151-case-156.md) | 150 | Cases 156 | 35–55 |
-| [ ] | 256 | [E2E-047: no-reply](E2E-Tasks/256-case-214.md) | 150 | Cases 214 | 30–55 |
+| [ ] | 151 | [E2E-032: success](E2E-Tasks/151-case-156.md) | 150 | Cases 156; gate in brief | 35–55 |
+| [ ] | 256 | [E2E-047: no-reply](E2E-Tasks/256-case-214.md) | 150 | Cases 214; gate in brief | 30–55 |
 | [ ] | 193 | [Operate public connectivity controls](E2E-Tasks/193-operate-public-connectivity-controls.md) | 003, 010, 044a | LIFE06 | 25–45 |
 | [ ] | 152 | [Change connectivity through public network controls](E2E-Tasks/152-network.md) | 150, 193 | FEED09 Parent retry/recovery over qualified LIFE06; gate in brief | 35–55 |
-| [ ] | 153 | [E2E-033: retry](E2E-Tasks/153-case-157.md) | 152 | Cases 157 | 35–55 |
-| [ ] | 257 | [E2E-047: background](E2E-Tasks/257-case-215.md) | 152 | Cases 215 | 30–55 |
-| [ ] | 258 | [E2E-047: app-exit](E2E-Tasks/258-case-216.md) | 152, 030a | Cases 216 | 30–55 |
-| [ ] | 259 | [E2E-047: retry-expired](E2E-Tasks/259-case-217.md) | 152 | Cases 217 | 35–60 incl. retry |
+| [ ] | 153 | [E2E-033: retry](E2E-Tasks/153-case-157.md) | 152 | Cases 157; gate in brief | 35–55 |
+| [ ] | 257 | [E2E-047: background](E2E-Tasks/257-case-215.md) | 152 | Cases 215; gate in brief | 30–55 |
+| [ ] | 258 | [E2E-047: app-exit](E2E-Tasks/258-case-216.md) | 152, 030a | Cases 216; gate in brief | 30–55 |
+| [ ] | 259 | [E2E-047: retry-expired](E2E-Tasks/259-case-217.md) | 152 | Cases 217; gate in brief | 35–60 incl. retry |
 | [ ] | 035 | [Prepare one native app and operate it publicly](E2E-Tasks/035-native-app.md) | 001, 009 | FIX04 native asset; APP01/02/03 native grid/command usable scope | 40–60 |
-| [ ] | 077 | [Read and filter the public app catalogue](E2E-Tasks/077-catalogue.md) | 010, 035 | PARENT12, PARENT10, PARENT11 | 35–55 |
+| [ ] | 077 | [Search and filter the public app catalogue](E2E-Tasks/077-catalogue.md) | 010, 035, 077a | PARENT10, PARENT11 | 35–55 |
 | [ ] | 226 | [E2E-041: search-filters](E2E-Tasks/226-case-184.md) | 077, 180 | Cases 184 | 30–55 |
 | [ ] | 078 | [Edit, save, cancel or reset one match rule](E2E-Tasks/078-match-editor.md) | 077, 017 | PARENT13/15 ordinary Save/Cancel/Reset and local invalid drafts | 25–45 |
 | [ ] | 079 | [Save app access choices and compose one rule edit](E2E-Tasks/079-policy.md) | 078 | PARENT16 and FLOW03 public app-policy editing | 40–60 |
 | [ ] | 186 | [Review a rejected Parent rule's report](E2E-Tasks/186-review-a-rejected-parent-rule-s-report.md) | 078, 030 | PARENT15 failed-save; FEED15 Parent and report-close binding | 25–45 |
-| [ ] | 227 | [E2E-041: match-editor](E2E-Tasks/227-case-185.md) | 186, 180 | Cases 185 | 30–55 |
-| [ ] | 228 | [E2E-041: match-reopen](E2E-Tasks/228-case-186.md) | 186, 079, 028, 180 | Cases 186 | 30–55 |
 | [ ] | 247 | [E2E-045: parent](E2E-Tasks/247-case-205.md) | 186 | Cases 205 | 30–55 |
 | [ ] | 150p | [Send an authorized Parent error report](E2E-Tasks/150p-parent-error-send.md) | 150, 186 | FEED11, FEED09 success and FEED14 Parent error-report; gate in brief | 20–40 |
-| [ ] | 264 | [E2E-047: parent-error-success](E2E-Tasks/264-case-222.md) | 150p | Cases 222 | 30–55 |
+| [ ] | 264 | [E2E-047: parent-error-success](E2E-Tasks/264-case-222.md) | 150p | Cases 222; gate in brief | 30–55 |
 | [ ] | 043 | [Qualify fresh child login and time denial](E2E-Tasks/043-unlock.md) | 004, 041 | GDM06/07, DESK01 and FLOW15 child fresh entry/denial; DESK11 rejected-GDM return | 30–50 |
-| [ ] | 052 | [Read the child desktop countdown](E2E-Tasks/052-countdown.md) | 043 | TIME01 child-desktop snapshots | 20–40 |
+| [ ] | 052 | [Observe the child countdown or its absence](E2E-Tasks/052-countdown.md) | 043 | TIME01 child-desktop presence and limits-off absence | 25–45 |
 | [ ] | 061 | [E2E-015: kiosk-approved](E2E-Tasks/061-case-49.md) | 180, 021, 052 | Cases 49 | 30–55 |
 | [ ] | 070 | [Double-click kiosk Request and observe one prompt](E2E-Tasks/070-double-request.md) | 020, 016a | UI20; REQUEST10 kiosk binding | 35–55 |
 | [ ] | 074 | [E2E-014: kiosk-predefined](E2E-Tasks/074-case-41.md) | 180, 070, 052 | Cases 41 | 40–60 |
@@ -351,9 +380,9 @@ All task briefs are independent of predecessor documents and attempts.
 | [ ] | 042 | [Observe and qualify an intended lock challenge](E2E-Tasks/042-lock-recipient.md) | 003 | DESK05, DESK06, DESK07 | 40–60 |
 | [ ] | 043a | [Qualify retained unlock and return from the lock screen](E2E-Tasks/043a-retained-unlock.md) | 043, 042 | GDM02 retained-child lock entry; DESK08/11 | 35–55 |
 | [ ] | 044 | [Visit retained users and existing windows](E2E-Tasks/044-retained-entry.md) | 043a, 044a | DESK09; FLOW15 and FLOW01 retained scopes | 40–60 |
-| [ ] | 073 | [E2E-014: child-overlay-rest-of-day](E2E-Tasks/073-case-40.md) | 180, 070a, 052, 044 | Cases 40 | 40–60 |
-| [ ] | 076 | [E2E-014: kiosk-rest-of-day](E2E-Tasks/076-case-43.md) | 180, 070, 052, 044 | Cases 43 | 40–60 |
-| [ ] | 155 | [Compare per-child choices across request surfaces](E2E-Tasks/155-cross-surface.md) | 048a, 044, 180 | FLOW12 current choices; task 154 retains deferred mute qualification | 35–55 |
+| [ ] | 073 | [E2E-014: child-overlay-rest-of-day](E2E-Tasks/073-case-40.md) | 180, 070a, 052, 044, 052c | Cases 40 | 40–60 |
+| [ ] | 076 | [E2E-014: kiosk-rest-of-day](E2E-Tasks/076-case-43.md) | 180, 070, 052, 044, 052c | Cases 43 | 40–60 |
+| [ ] | 155 | [Compare per-child choices across request surfaces](E2E-Tasks/155-cross-surface.md) | 048a, 044, 180 | FLOW12 current choices | 35–55 |
 | [ ] | 156 | [E2E-018: overlay-to-kiosk-first / overlay-to-kiosk-second](E2E-Tasks/156-case-58-59.md) | 155 | Cases 58, 59 | 40–60 |
 | [ ] | 157 | [E2E-018: kiosk-to-overlay-first / kiosk-to-overlay-second](E2E-Tasks/157-case-60-61.md) | 155 | Cases 60, 61 | 40–60 |
 | [ ] | 047a | [Compose retained app visits for distinct users](E2E-Tasks/047a-retained-app-visits.md) | 047, 044 | FLOW09 and FLOW14 distinct-user retention | 30–50 |
@@ -375,12 +404,12 @@ All task briefs are independent of predecessor documents and attempts.
 | [ ] | 204 | [E2E-037: sign-out-in](E2E-Tasks/204-case-162.md) | 181m, 048a, 062, 044 | Cases 162 | 30–55 |
 | [ ] | 205 | [E2E-037: reboot](E2E-Tasks/205-case-163.md) | 181m, 048a, 062, 044, 007 | Cases 163 | 30–55 |
 | [ ] | 197 | [Compose approval and return to the child](E2E-Tasks/197-compose-approval-and-return-to-the-child.md) | 048b, 044, 052 | FLOW20 overlay/kiosk, new/open form and fresh/retained child | 25–45 |
-| [ ] | 265 | [E2E-048: daily-only-child-overlay](E2E-Tasks/265-case-223.md) | 197, 052c, 051 | Cases 223 | 30–55 |
-| [ ] | 266 | [E2E-048: daily-only-kiosk](E2E-Tasks/266-case-224.md) | 197, 052c, 051 | Cases 224 | 30–55 |
-| [ ] | 267 | [E2E-048: grant-only-child-overlay](E2E-Tasks/267-case-225.md) | 197, 052c, 065 | Cases 225 | 30–55 |
-| [ ] | 268 | [E2E-048: grant-only-kiosk](E2E-Tasks/268-case-226.md) | 197, 052c, 065 | Cases 226 | 30–55 |
-| [ ] | 271 | [E2E-048: grant-dominant-child-overlay](E2E-Tasks/271-case-229.md) | 197, 052c, 065 | Cases 229 | 30–55 |
-| [ ] | 272 | [E2E-048: grant-dominant-kiosk](E2E-Tasks/272-case-230.md) | 197, 052c, 065 | Cases 230 | 30–55 |
+| [ ] | 265 | [E2E-048: daily-only-child-overlay](E2E-Tasks/265-case-223.md) | 197, 052c, 051 | Cases 223; gate in brief | 30–55 |
+| [ ] | 266 | [E2E-048: daily-only-kiosk](E2E-Tasks/266-case-224.md) | 197, 052c, 051 | Cases 224; gate in brief | 30–55 |
+| [ ] | 267 | [E2E-048: grant-only-child-overlay](E2E-Tasks/267-case-225.md) | 197, 052c, 065 | Cases 225; gate in brief | 30–55 |
+| [ ] | 268 | [E2E-048: grant-only-kiosk](E2E-Tasks/268-case-226.md) | 197, 052c, 065 | Cases 226; gate in brief | 30–55 |
+| [ ] | 271 | [E2E-048: grant-dominant-child-overlay](E2E-Tasks/271-case-229.md) | 197, 052c, 065 | Cases 229; gate in brief | 30–55 |
+| [ ] | 272 | [E2E-048: grant-dominant-kiosk](E2E-Tasks/272-case-230.md) | 197, 052c, 065 | Cases 230; gate in brief | 30–55 |
 | [ ] | 079a | [Observe native policy denial and existing-window closure](E2E-Tasks/079a-observe-native-policy-denial-and-existing-window-closure.md) | 079, 047, 044 | APP02 and FLOW08 native grid/command policy results | 35–55 |
 | [ ] | 053 | [E2E-005: daily-only-new](E2E-Tasks/053-case-7.md) | 079a, 180, 052 | Cases 7 | 40–60 |
 | [ ] | 054 | [E2E-005: daily-only-retained](E2E-Tasks/054-case-8.md) | 079a, 180, 052 | Cases 8 | 40–60 |
@@ -394,6 +423,8 @@ All task briefs are independent of predecessor documents and attempts.
 | [ ] | 099 | [E2E-019: native-command-allowed-enabled / native-command-allowed-disabled](E2E-Tasks/099-case-80-81.md) | 079a, 180 | Cases 80, 81 | 35–55 |
 | [ ] | 100 | [E2E-019: native-command-hard-blocked-enabled / native-command-hard-blocked-disabled](E2E-Tasks/100-case-82-83.md) | 079a, 180 | Cases 82, 83 | 35–55 |
 | [ ] | 101 | [E2E-019: native-command-soft-blocked-enabled / native-command-soft-blocked-disabled](E2E-Tasks/101-case-84-85.md) | 079a, 180 | Cases 84, 85 | 35–55 |
+| [ ] | 227 | [E2E-041: match-editor](E2E-Tasks/227-case-185.md) | 186, 180, 079a | Cases 185 | 30–55 |
+| [ ] | 228 | [E2E-041: match-reopen](E2E-Tasks/228-case-186.md) | 186, 079, 028, 180, 079a | Cases 186 | 30–55 |
 | [ ] | 229 | [E2E-041: shared-launchers](E2E-Tasks/229-case-187.md) | 079a, 180 | Cases 187 | 30–55 |
 | [ ] | 079b | [Compose a named app-rule set](E2E-Tasks/079b-compose-a-named-app-rule-set.md) | 079, 044 | FLOW19 | 15–30 |
 | [ ] | 080 | [E2E-006: enabled-precise](E2E-Tasks/080-case-13.md) | 079a, 079b, 047a, 065, 028 | Cases 13 | 40–60 |
@@ -441,28 +472,30 @@ All task briefs are independent of predecessor documents and attempts.
 | [ ] | 095 | [E2E-019: native-desktop-soft-blocked-enabled / native-desktop-soft-blocked-disabled](E2E-Tasks/095-case-72-73.md) | 180, 036b | Cases 72, 73 | 35–55 |
 | [ ] | 275 | [E2E-049: native-desktop-child-overlay](E2E-Tasks/275-case-233.md) | 197, 079b, 180, 036b | Cases 233 | 30–55 |
 | [ ] | 276 | [E2E-049: native-desktop-kiosk](E2E-Tasks/276-case-234.md) | 197, 079b, 180, 036b | Cases 234 | 30–55 |
-| [ ] | 109 | [Qualify supported Snap app launch routes](E2E-Tasks/109-snap.md) | 079a | FIX04 and APP01/02/03 Snap scope | 35–55 |
-| [ ] | 110 | [E2E-019: snap-grid-allowed-enabled / snap-grid-allowed-disabled](E2E-Tasks/110-case-86-87.md) | 180, 109 | Cases 86, 87 | 35–55 |
-| [ ] | 111 | [E2E-019: snap-grid-hard-blocked-enabled / snap-grid-hard-blocked-disabled](E2E-Tasks/111-case-88-89.md) | 180, 109 | Cases 88, 89 | 35–55 |
-| [ ] | 112 | [E2E-019: snap-grid-soft-blocked-enabled / snap-grid-soft-blocked-disabled](E2E-Tasks/112-case-90-91.md) | 180, 109 | Cases 90, 91 | 35–55 |
+| [ ] | 109 | [Qualify Snap fixtures and command launches](E2E-Tasks/109-snap.md) | 079a | FIX04 Snap assets; APP01/02/03/04 and FLOW08 command route | 35–55 |
 | [ ] | 113 | [E2E-019: snap-command-allowed-enabled / snap-command-allowed-disabled](E2E-Tasks/113-case-92-93.md) | 180, 109 | Cases 92, 93 | 35–55 |
 | [ ] | 114 | [E2E-019: snap-command-hard-blocked-enabled / snap-command-hard-blocked-disabled](E2E-Tasks/114-case-94-95.md) | 180, 109 | Cases 94, 95 | 35–55 |
 | [ ] | 115 | [E2E-019: snap-command-soft-blocked-enabled / snap-command-soft-blocked-disabled](E2E-Tasks/115-case-96-97.md) | 180, 109 | Cases 96, 97 | 35–55 |
-| [ ] | 281 | [E2E-049: snap-grid-child-overlay](E2E-Tasks/281-case-239.md) | 197, 079b, 180, 109 | Cases 239 | 30–55 |
-| [ ] | 282 | [E2E-049: snap-grid-kiosk](E2E-Tasks/282-case-240.md) | 197, 079b, 180, 109 | Cases 240 | 30–55 |
 | [ ] | 283 | [E2E-049: snap-command-child-overlay](E2E-Tasks/283-case-241.md) | 197, 079b, 180, 109 | Cases 241 | 30–55 |
 | [ ] | 284 | [E2E-049: snap-command-kiosk](E2E-Tasks/284-case-242.md) | 197, 079b, 180, 109 | Cases 242 | 30–55 |
-| [ ] | 116 | [Qualify supported Flatpak launch routes](E2E-Tasks/116-flatpak.md) | 079a | FIX04 and APP01/02/03 Flatpak scope | 35–55 |
-| [ ] | 117 | [E2E-019: flatpak-grid-allowed-enabled / flatpak-grid-allowed-disabled](E2E-Tasks/117-case-98-99.md) | 180, 116 | Cases 98, 99 | 35–55 |
-| [ ] | 118 | [E2E-019: flatpak-grid-hard-blocked-enabled / flatpak-grid-hard-blocked-disabled](E2E-Tasks/118-case-100-101.md) | 180, 116 | Cases 100, 101 | 35–55 |
-| [ ] | 119 | [E2E-019: flatpak-grid-soft-blocked-enabled / flatpak-grid-soft-blocked-disabled](E2E-Tasks/119-case-102-103.md) | 180, 116 | Cases 102, 103 | 35–55 |
+| [ ] | 109a | [Qualify Snap app-grid launches](E2E-Tasks/109a-snap-grid.md) | 109 | APP01/02/03/04 and FLOW08 Snap app-grid route | 25–45 |
+| [ ] | 110 | [E2E-019: snap-grid-allowed-enabled / snap-grid-allowed-disabled](E2E-Tasks/110-case-86-87.md) | 180, 109a | Cases 86, 87 | 35–55 |
+| [ ] | 111 | [E2E-019: snap-grid-hard-blocked-enabled / snap-grid-hard-blocked-disabled](E2E-Tasks/111-case-88-89.md) | 180, 109a | Cases 88, 89 | 35–55 |
+| [ ] | 112 | [E2E-019: snap-grid-soft-blocked-enabled / snap-grid-soft-blocked-disabled](E2E-Tasks/112-case-90-91.md) | 180, 109a | Cases 90, 91 | 35–55 |
+| [ ] | 281 | [E2E-049: snap-grid-child-overlay](E2E-Tasks/281-case-239.md) | 197, 079b, 180, 109a | Cases 239 | 30–55 |
+| [ ] | 282 | [E2E-049: snap-grid-kiosk](E2E-Tasks/282-case-240.md) | 197, 079b, 180, 109a | Cases 240 | 30–55 |
+| [ ] | 116 | [Qualify Flatpak fixtures and command launches](E2E-Tasks/116-flatpak.md) | 079a | FIX04 Flatpak assets; APP01/02/03/04 and FLOW08 command route | 35–55 |
 | [ ] | 120 | [E2E-019: flatpak-command-allowed-enabled / flatpak-command-allowed-disabled](E2E-Tasks/120-case-104-105.md) | 180, 116 | Cases 104, 105 | 35–55 |
 | [ ] | 121 | [E2E-019: flatpak-command-hard-blocked-enabled / flatpak-command-hard-blocked-disabled](E2E-Tasks/121-case-106-107.md) | 180, 116 | Cases 106, 107 | 35–55 |
 | [ ] | 122 | [E2E-019: flatpak-command-soft-blocked-enabled / flatpak-command-soft-blocked-disabled](E2E-Tasks/122-case-108-109.md) | 180, 116 | Cases 108, 109 | 35–55 |
-| [ ] | 285 | [E2E-049: flatpak-grid-child-overlay](E2E-Tasks/285-case-243.md) | 197, 079b, 180, 116 | Cases 243 | 30–55 |
-| [ ] | 286 | [E2E-049: flatpak-grid-kiosk](E2E-Tasks/286-case-244.md) | 197, 079b, 180, 116 | Cases 244 | 30–55 |
 | [ ] | 287 | [E2E-049: flatpak-command-child-overlay](E2E-Tasks/287-case-245.md) | 197, 079b, 180, 116 | Cases 245 | 30–55 |
 | [ ] | 288 | [E2E-049: flatpak-command-kiosk](E2E-Tasks/288-case-246.md) | 197, 079b, 180, 116 | Cases 246 | 30–55 |
+| [ ] | 116a | [Qualify Flatpak app-grid launches](E2E-Tasks/116a-flatpak-grid.md) | 116 | APP01/02/03/04 and FLOW08 Flatpak app-grid route | 25–45 |
+| [ ] | 117 | [E2E-019: flatpak-grid-allowed-enabled / flatpak-grid-allowed-disabled](E2E-Tasks/117-case-98-99.md) | 180, 116a | Cases 98, 99 | 35–55 |
+| [ ] | 118 | [E2E-019: flatpak-grid-hard-blocked-enabled / flatpak-grid-hard-blocked-disabled](E2E-Tasks/118-case-100-101.md) | 180, 116a | Cases 100, 101 | 35–55 |
+| [ ] | 119 | [E2E-019: flatpak-grid-soft-blocked-enabled / flatpak-grid-soft-blocked-disabled](E2E-Tasks/119-case-102-103.md) | 180, 116a | Cases 102, 103 | 35–55 |
+| [ ] | 285 | [E2E-049: flatpak-grid-child-overlay](E2E-Tasks/285-case-243.md) | 197, 079b, 180, 116a | Cases 243 | 30–55 |
+| [ ] | 286 | [E2E-049: flatpak-grid-kiosk](E2E-Tasks/286-case-244.md) | 197, 079b, 180, 116a | Cases 244 | 30–55 |
 | [ ] | 102 | [Compose expiry recovery through kiosk approval](E2E-Tasks/102-replacement.md) | 062, 079a, 065 | FLOW11 | 35–55 |
 | [ ] | 103 | [E2E-009: excluded](E2E-Tasks/103-case-23.md) | 102, 079b | Cases 23 | 35–55 |
 | [ ] | 104 | [E2E-009: included](E2E-Tasks/104-case-24.md) | 102, 079b | Cases 24 | 35–55 |
@@ -475,20 +508,20 @@ All task briefs are independent of predecessor documents and attempts.
 | [ ] | 128 | [E2E-024: grant-dominant-windowed](E2E-Tasks/128-case-130.md) | 126, 048b, 079b | Cases 130 | 40–60 |
 | [ ] | 132 | [Compose a daily-dominant profile without clearing the grant](E2E-Tasks/132-time-profiles-dominant.md) | 065 | FLOW13 daily-dominant scope | 25–45 |
 | [ ] | 133 | [E2E-024: daily-dominant-windowed](E2E-Tasks/133-case-128.md) | 126, 048b, 079b, 132 | Cases 128 | 40–60 |
-| [ ] | 269 | [E2E-048: daily-dominant-child-overlay](E2E-Tasks/269-case-227.md) | 197, 052c, 132 | Cases 227 | 30–55 |
-| [ ] | 270 | [E2E-048: daily-dominant-kiosk](E2E-Tasks/270-case-228.md) | 197, 052c, 132 | Cases 228 | 30–55 |
+| [ ] | 269 | [E2E-048: daily-dominant-child-overlay](E2E-Tasks/269-case-227.md) | 197, 052c, 132 | Cases 227; gate in brief | 30–55 |
+| [ ] | 270 | [E2E-048: daily-dominant-kiosk](E2E-Tasks/270-case-228.md) | 197, 052c, 132 | Cases 228; gate in brief | 30–55 |
 | [ ] | 129 | [Play fullscreen to natural lock](E2E-Tasks/129-game-fullscreen.md) | 126 | APP05/FLOW10 fullscreen play | 30–50 |
 | [ ] | 130 | [E2E-023: fullscreen](E2E-Tasks/130-case-127.md) | 102, 079b, 129 | Cases 127 | 40–60 |
 | [ ] | 129a | [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md) | 129, 048a | DESK12 fullscreen reveal; overlay/game return | 25–45 |
 | [ ] | 134 | [E2E-024: daily-dominant-fullscreen](E2E-Tasks/134-case-129.md) | 048b, 079b, 132, 129a | Cases 129 | 40–60 |
 | [ ] | 131 | [E2E-024: grant-dominant-fullscreen](E2E-Tasks/131-case-131.md) | 048b, 079b, 129a | Cases 131 | 40–60 |
-| [ ] | 289 | [E2E-050: overlay-first-retained](E2E-Tasks/289-case-247.md) | 197, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 247 | 40–60 + continuous run |
-| [ ] | 290 | [E2E-050: overlay-first-fresh](E2E-Tasks/290-case-248.md) | 197, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 248 | 40–60 + continuous run |
-| [ ] | 291 | [E2E-050: kiosk-first-retained](E2E-Tasks/291-case-249.md) | 197, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 249 | 40–60 + continuous run |
-| [ ] | 292 | [E2E-050: kiosk-first-fresh](E2E-Tasks/292-case-250.md) | 197, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 250 | 40–60 + continuous run |
+| [ ] | 289 | [E2E-050: overlay-first-retained](E2E-Tasks/289-case-247.md) | 197, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 247; gate in brief | 40–60 + continuous run |
+| [ ] | 290 | [E2E-050: overlay-first-fresh](E2E-Tasks/290-case-248.md) | 197, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 248; gate in brief | 40–60 + continuous run |
+| [ ] | 291 | [E2E-050: kiosk-first-retained](E2E-Tasks/291-case-249.md) | 197, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 249; gate in brief | 40–60 + continuous run |
+| [ ] | 292 | [E2E-050: kiosk-first-fresh](E2E-Tasks/292-case-250.md) | 197, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 250; gate in brief | 40–60 + continuous run |
 | [ ] | 198 | [Manage from the second parent's own window](E2E-Tasks/198-manage-from-the-second-parent-s-own-window.md) | 044, 079 | FLOW15/FLOW01 other-parent management entry | 30–50 |
-| [ ] | 293 | [E2E-051: jordan](E2E-Tasks/293-case-251.md) | 197, 198, 196, 079b, 079a, 155, 126, 047a | Cases 251 | 40–60 + continuous run |
-| [ ] | 294 | [E2E-051: riley](E2E-Tasks/294-case-252.md) | 197, 198, 196, 079b, 079a, 155, 126, 047a | Cases 252 | 40–60 + continuous run |
+| [ ] | 293 | [E2E-051: jordan](E2E-Tasks/293-case-251.md) | 197, 198, 196, 079b, 079a, 155, 126, 047a | Cases 251; gate in brief | 40–60 + continuous run |
+| [ ] | 294 | [E2E-051: riley](E2E-Tasks/294-case-252.md) | 197, 198, 196, 079b, 079a, 155, 126, 047a | Cases 252; gate in brief | 40–60 + continuous run |
 | [ ] | 166 | [Suspend and wake through normal controls](E2E-Tasks/166-suspend.md) | 052a, 065 | LIFE03 | 35–55 |
 | [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079b, 079a, 065, 166 | Cases 124 | 40–60 |
 | [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 155, 079b, 079a, 065, 166 | Cases 125 | 40–60 |
@@ -510,66 +543,71 @@ All task briefs are independent of predecessor documents and attempts.
 | [ ] | 211 | [E2E-038: app-save](E2E-Tasks/211-case-169.md) | 182, 047a | Cases 169 | 30–55 |
 | [ ] | 212 | [E2E-038: revoke](E2E-Tasks/212-case-170.md) | 182, 047a | Cases 170 | 30–55 |
 | [ ] | 183a | [Lock during pending overlay approval](E2E-Tasks/183a-lock-during-pending-overlay-approval.md) | 048b, 044, 052c | FLOW17 overlay lock; gate in brief | 25–55 |
-| [ ] | 213 | [E2E-039: overlay-lock](E2E-Tasks/213-case-171.md) | 183a, 180, 079b, 079a | Cases 171 | 30–55 |
+| [ ] | 213 | [E2E-039: overlay-lock](E2E-Tasks/213-case-171.md) | 183a, 180, 079b, 079a | Cases 171; gate in brief | 30–55 |
 | [ ] | 183b | [Switch User during pending overlay approval](E2E-Tasks/183b-switch-user-during-pending-overlay-approval.md) | 048b, 044, 052c | FLOW17 overlay Switch User; gate in brief | 25–55 |
-| [ ] | 214 | [E2E-039: overlay-switch](E2E-Tasks/214-case-172.md) | 183b, 180, 079b, 079a | Cases 172 | 30–55 |
+| [ ] | 214 | [E2E-039: overlay-switch](E2E-Tasks/214-case-172.md) | 183b, 180, 079b, 079a | Cases 172; gate in brief | 30–55 |
 | [ ] | 183c | [Sign out during pending overlay approval](E2E-Tasks/183c-sign-out-during-pending-overlay-approval.md) | 048b, 044, 052c | FLOW17 overlay sign-out; gate in brief | 25–55 |
-| [ ] | 215 | [E2E-039: overlay-signout](E2E-Tasks/215-case-173.md) | 183c, 180, 079b, 079a | Cases 173 | 30–55 |
+| [ ] | 215 | [E2E-039: overlay-signout](E2E-Tasks/215-case-173.md) | 183c, 180, 079b, 079a | Cases 173; gate in brief | 30–55 |
 | [ ] | 183d | [Close the overlay during pending approval](E2E-Tasks/183d-close-the-overlay-during-pending-approval.md) | 048b, 044, 028, 052c | FLOW17 overlay app-close; gate in brief | 25–55 |
-| [ ] | 216 | [E2E-039: overlay-close](E2E-Tasks/216-case-174.md) | 183d, 180, 079b, 079a | Cases 174 | 30–55 |
+| [ ] | 216 | [E2E-039: overlay-close](E2E-Tasks/216-case-174.md) | 183d, 180, 079b, 079a | Cases 174; gate in brief | 30–55 |
 | [ ] | 183e | [Close the station during pending approval](E2E-Tasks/183e-close-the-station-during-pending-approval.md) | 020, 014, 180, 044, 052c | FLOW17 kiosk app-close; gate in brief | 25–55 |
-| [ ] | 217 | [E2E-039: kiosk-close](E2E-Tasks/217-case-175.md) | 183e, 079b, 079a | Cases 175 | 30–55 |
+| [ ] | 217 | [E2E-039: kiosk-close](E2E-Tasks/217-case-175.md) | 183e, 079b, 079a | Cases 175; gate in brief | 30–55 |
 | [ ] | 184a | [Open Users settings and qualify its authentication](E2E-Tasks/184a-open-users-settings-and-qualify-its-authentication.md) | 004 | AUTH04 Users Unlock; ACCOUNT01 | 30–50 |
-| [ ] | 184 | [Change disposable accounts through Users settings](E2E-Tasks/184-change-disposable-accounts-through-users-settings.md) | 184a, 009 | ACCOUNT02; AUTH04 account-creation password fields | 25–55 |
+| [ ] | 184 | [Add a disposable child through Users settings](E2E-Tasks/184-change-disposable-accounts-through-users-settings.md) | 184a, 009 | ACCOUNT02 add-child; AUTH04 account-creation password fields | 30–50 |
 | [ ] | 221 | [E2E-040: add-child](E2E-Tasks/221-case-179.md) | 184, 017, 044a | Cases 179 | 30–55 |
-| [ ] | 222 | [E2E-040: remove-selected](E2E-Tasks/222-case-180.md) | 184, 017, 044a | Cases 180 | 30–55 |
-| [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 184, 017, 044a | Cases 181 | 30–55 |
-| [ ] | 224 | [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md) | 184, 155 | Cases 182 | 30–55 |
-| [ ] | 225 | [E2E-040: missing-remembered-child](E2E-Tasks/225-case-183.md) | 184, 014, 180, 044 | Cases 183 | 30–55 |
+| [ ] | 184b | [Remove a logged-out spare child through Users](E2E-Tasks/184b-remove-disposable-child.md) | 184 | ACCOUNT02 remove-child | 25–40 |
+| [ ] | 222 | [E2E-040: remove-selected](E2E-Tasks/222-case-180.md) | 184b, 017, 044a | Cases 180 | 30–55 |
+| [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 184b, 017, 044a | Cases 181 | 30–55 |
+| [ ] | 225 | [E2E-040: missing-remembered-child](E2E-Tasks/225-case-183.md) | 184b, 014, 180, 044 | Cases 183 | 30–55 |
+| [ ] | 184c | [Change a spare approver's role through Users](E2E-Tasks/184c-change-spare-account-role.md) | 184a, 009 | ACCOUNT02 change-role | 25–40 |
+| [ ] | 224 | [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md) | 184c, 155 | Cases 182 | 30–55 |
 | [ ] | 187o | [Read overlay cooldown errors and report choices](E2E-Tasks/187o-read-overlay-cooldown-errors-and-report-choices.md) | 048b, 044, 052c, 030 | REQUEST09 cooldown and FEED15 overlay; gate in brief | 30–50 |
-| [ ] | 218 | [E2E-039: overlay-cooldown](E2E-Tasks/218-case-176.md) | 187o, 180, 079b, 079a | Cases 176 | 30–55 |
-| [ ] | 248 | [E2E-045: child-overlay](E2E-Tasks/248-case-206.md) | 187o, 180 | Cases 206 | 30–55 |
+| [ ] | 218 | [E2E-039: overlay-cooldown](E2E-Tasks/218-case-176.md) | 187o, 180, 079b, 079a | Cases 176; gate in brief | 30–55 |
+| [ ] | 248 | [E2E-045: child-overlay](E2E-Tasks/248-case-206.md) | 187o, 180 | Cases 206; gate in brief | 30–55 |
 | [ ] | 150o | [Send an authorized overlay error report](E2E-Tasks/150o-send-an-authorized-overlay-error-report.md) | 150, 187o | FEED11, FEED09 success and FEED14 overlay; gate in brief | 25–45 |
-| [ ] | 262 | [E2E-047: overlay-success](E2E-Tasks/262-case-220.md) | 150o | Cases 220 | 30–55 |
+| [ ] | 262 | [E2E-047: overlay-success](E2E-Tasks/262-case-220.md) | 150o | Cases 220; gate in brief | 30–55 |
 | [ ] | 187k | [Read station cooldown errors and report choices](E2E-Tasks/187k-read-station-cooldown-errors-and-report-choices.md) | 021, 044, 052c, 030 | REQUEST09 cooldown and FEED15 kiosk; gate in brief | 30–50 |
-| [ ] | 219 | [E2E-039: kiosk-cooldown-same](E2E-Tasks/219-case-177.md) | 187k, 180, 079b, 079a | Cases 177 | 30–55 |
-| [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Tasks/220-case-178.md) | 187k, 180, 079b, 079a, 024a | Cases 178 | 30–55 |
-| [ ] | 249 | [E2E-045: kiosk](E2E-Tasks/249-case-207.md) | 187k, 180 | Cases 207 | 30–55 |
+| [ ] | 219 | [E2E-039: kiosk-cooldown-same](E2E-Tasks/219-case-177.md) | 187k, 180, 079b, 079a | Cases 177; gate in brief | 30–55 |
+| [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Tasks/220-case-178.md) | 187k, 180, 079b, 079a, 024a | Cases 178; gate in brief | 30–55 |
+| [ ] | 249 | [E2E-045: kiosk](E2E-Tasks/249-case-207.md) | 187k, 180 | Cases 207; gate in brief | 30–55 |
 | [ ] | 150k | [Send an authorized kiosk error report](E2E-Tasks/150k-send-an-authorized-kiosk-error-report.md) | 150, 187k | FEED11, FEED09 success and FEED14 kiosk; gate in brief | 25–45 |
-| [ ] | 263 | [E2E-047: kiosk-success](E2E-Tasks/263-case-221.md) | 150k | Cases 221 | 30–55 |
-| [ ] | 188p | [Retry failed Parent diagnostic collection](E2E-Tasks/188p-retry-failed-parent-diagnostic-collection.md) | 186, 031a | FEED16 Parent; gate in brief | 25–55 |
-| [ ] | 250 | [E2E-046: parent-retry](E2E-Tasks/250-case-208.md) | 188p | Cases 208 | 30–55 |
-| [ ] | 188o | [Retry failed overlay diagnostic collection](E2E-Tasks/188o-retry-failed-overlay-diagnostic-collection.md) | 187o, 031a | FEED16 overlay; gate in brief | 25–55 |
-| [ ] | 252 | [E2E-046: child-overlay-retry](E2E-Tasks/252-case-210.md) | 188o | Cases 210 | 30–55 |
-| [ ] | 188k | [Retry failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 187k, 031a | FEED16 kiosk; gate in brief | 25–55 |
-| [ ] | 254 | [E2E-046: kiosk-retry](E2E-Tasks/254-case-212.md) | 188k | Cases 212 | 30–55 |
+| [ ] | 263 | [E2E-047: kiosk-success](E2E-Tasks/263-case-221.md) | 150k | Cases 221; gate in brief | 30–55 |
+| [ ] | 188p | [Observe failed Parent diagnostic collection](E2E-Tasks/188p-retry-failed-parent-diagnostic-collection.md) | 031a | FEED09 Parent collection failure and usable controls; gate in brief | 25–40 |
 | [ ] | 189p | [Send a Parent report without unavailable logs](E2E-Tasks/189p-send-a-parent-report-without-unavailable-logs.md) | 188p, 150 | FEED11 without-logs and FEED09/14 Parent result; gate in brief | 25–55 |
-| [ ] | 251 | [E2E-046: parent-without-logs](E2E-Tasks/251-case-209.md) | 189p | Cases 209 | 30–55 |
-| [ ] | 189o | [Send a overlay report without unavailable logs](E2E-Tasks/189o-send-a-overlay-report-without-unavailable-logs.md) | 188o, 150 | FEED11 without-logs and FEED09/14 overlay result; gate in brief | 25–55 |
-| [ ] | 253 | [E2E-046: child-overlay-without-logs](E2E-Tasks/253-case-211.md) | 189o | Cases 211 | 30–55 |
+| [ ] | 251 | [E2E-046: parent-without-logs](E2E-Tasks/251-case-209.md) | 189p | Cases 209; gate in brief | 30–55 |
+| [ ] | 188r | [Retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md) | 188p | FEED16 Parent collection recovery; gate in brief | 25–40 |
+| [ ] | 250 | [E2E-046: parent-retry](E2E-Tasks/250-case-208.md) | 188r | Cases 208; gate in brief | 30–55 |
+| [ ] | 188o | [Observe failed overlay diagnostic collection](E2E-Tasks/188o-retry-failed-overlay-diagnostic-collection.md) | 187o, 031a | FEED09 overlay collection failure and usable controls; gate in brief | 25–40 |
+| [ ] | 189o | [Send an overlay report without unavailable logs](E2E-Tasks/189o-send-a-overlay-report-without-unavailable-logs.md) | 188o, 150 | FEED11 without-logs and FEED09/14 overlay result; gate in brief | 25–55 |
+| [ ] | 253 | [E2E-046: child-overlay-without-logs](E2E-Tasks/253-case-211.md) | 189o | Cases 211; gate in brief | 30–55 |
+| [ ] | 188s | [Retry failed overlay diagnostic collection](E2E-Tasks/188s-overlay-collection-retry.md) | 188o | FEED16 overlay collection recovery; gate in brief | 25–40 |
+| [ ] | 252 | [E2E-046: child-overlay-retry](E2E-Tasks/252-case-210.md) | 188s | Cases 210; gate in brief | 30–55 |
+| [ ] | 188k | [Observe failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 187k, 031a | FEED09 kiosk collection failure and usable controls; gate in brief | 25–40 |
 | [ ] | 189k | [Send a kiosk report without unavailable logs](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md) | 188k, 150 | FEED11 without-logs and FEED09/14 kiosk result; gate in brief | 25–55 |
-| [ ] | 255 | [E2E-046: kiosk-without-logs](E2E-Tasks/255-case-213.md) | 189k | Cases 213 | 30–55 |
+| [ ] | 255 | [E2E-046: kiosk-without-logs](E2E-Tasks/255-case-213.md) | 189k | Cases 213; gate in brief | 30–55 |
+| [ ] | 188t | [Retry failed kiosk diagnostic collection](E2E-Tasks/188t-kiosk-collection-retry.md) | 188k | FEED16 kiosk collection recovery; gate in brief | 25–40 |
+| [ ] | 254 | [E2E-046: kiosk-retry](E2E-Tasks/254-case-212.md) | 188t | Cases 212; gate in brief | 30–55 |
 | [ ] | 190o | [Confirm stopping a sending overlay report](E2E-Tasks/190o-confirm-stopping-a-sending-overlay-report.md) | 150o, 152 | FEED09 retry and FEED17/18 overlay; gate in brief | 25–55 |
-| [ ] | 260 | [E2E-047: overlay-stop](E2E-Tasks/260-case-218.md) | 190o | Cases 218 | 30–55 |
+| [ ] | 260 | [E2E-047: overlay-stop](E2E-Tasks/260-case-218.md) | 190o | Cases 218; gate in brief | 30–55 |
 | [ ] | 190k | [Confirm stopping a sending kiosk report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 150k, 152 | FEED09 retry and FEED17/18 kiosk; gate in brief | 25–55 |
-| [ ] | 261 | [E2E-047: kiosk-stop](E2E-Tasks/261-case-219.md) | 190k | Cases 219 | 30–55 |
+| [ ] | 261 | [E2E-047: kiosk-stop](E2E-Tasks/261-case-219.md) | 190k | Cases 219; gate in brief | 30–55 |
 | [ ] | 191 | [Read local calendar and timezone](E2E-Tasks/191-read-local-calendar-and-timezone.md) | 003, 044a, 052c | TIME05 including DESK12 clock binding | 25–45 |
-| [ ] | 238 | [E2E-044: ordinary-daily-reset](E2E-Tasks/238-case-196.md) | 191, 065, 062 | Cases 196 | Scheduled window; ≤60 |
-| [ ] | 239 | [E2E-044: ordinary-rest-of-day](E2E-Tasks/239-case-197.md) | 191, 065, 062 | Cases 197 | Scheduled window; ≤60 |
-| [ ] | 240 | [E2E-044: ordinary-fixed-grant](E2E-Tasks/240-case-198.md) | 191, 065, 062 | Cases 198 | Scheduled window; ≤60 |
-| [ ] | 241 | [E2E-044: spring-forward-daily-reset](E2E-Tasks/241-case-199.md) | 191, 065, 062 | Cases 199 | Scheduled window; ≤60 |
-| [ ] | 242 | [E2E-044: spring-forward-rest-of-day](E2E-Tasks/242-case-200.md) | 191, 065, 062 | Cases 200 | Scheduled window; ≤60 |
-| [ ] | 243 | [E2E-044: spring-forward-fixed-grant](E2E-Tasks/243-case-201.md) | 191, 065, 062 | Cases 201 | Scheduled window; ≤60 |
-| [ ] | 244 | [E2E-044: fall-back-daily-reset](E2E-Tasks/244-case-202.md) | 191, 065, 062 | Cases 202 | Scheduled window; ≤60 |
-| [ ] | 245 | [E2E-044: fall-back-rest-of-day](E2E-Tasks/245-case-203.md) | 191, 065, 062 | Cases 203 | Scheduled window; ≤60 |
-| [ ] | 246 | [E2E-044: fall-back-fixed-grant](E2E-Tasks/246-case-204.md) | 191, 065, 062 | Cases 204 | Scheduled window; ≤60 |
+| [ ] | 238 | [E2E-044: ordinary-daily-reset](E2E-Tasks/238-case-196.md) | 191, 065, 062 | Cases 196; gate in brief | Scheduled window; ≤60 |
+| [ ] | 239 | [E2E-044: ordinary-rest-of-day](E2E-Tasks/239-case-197.md) | 191, 065, 062 | Cases 197; gate in brief | Scheduled window; ≤60 |
+| [ ] | 240 | [E2E-044: ordinary-fixed-grant](E2E-Tasks/240-case-198.md) | 191, 065, 062 | Cases 198; gate in brief | Scheduled window; ≤60 |
+| [ ] | 241 | [E2E-044: spring-forward-daily-reset](E2E-Tasks/241-case-199.md) | 191, 065, 062 | Cases 199; gate in brief | Scheduled window; ≤60 |
+| [ ] | 242 | [E2E-044: spring-forward-rest-of-day](E2E-Tasks/242-case-200.md) | 191, 065, 062 | Cases 200; gate in brief | Scheduled window; ≤60 |
+| [ ] | 243 | [E2E-044: spring-forward-fixed-grant](E2E-Tasks/243-case-201.md) | 191, 065, 062 | Cases 201; gate in brief | Scheduled window; ≤60 |
+| [ ] | 244 | [E2E-044: fall-back-daily-reset](E2E-Tasks/244-case-202.md) | 191, 065, 062 | Cases 202; gate in brief | Scheduled window; ≤60 |
+| [ ] | 245 | [E2E-044: fall-back-rest-of-day](E2E-Tasks/245-case-203.md) | 191, 065, 062 | Cases 203; gate in brief | Scheduled window; ≤60 |
+| [ ] | 246 | [E2E-044: fall-back-fixed-grant](E2E-Tasks/246-case-204.md) | 191, 065, 062 | Cases 204; gate in brief | Scheduled window; ≤60 |
 | [ ] | 143 | [Qualify distinct retained desktops for one child](E2E-Tasks/143-multi-desktop.md) | 047a, 079a, 050, 048b | FLOW14 same-child multi-desktop scope; gate in brief | 20–40 |
-| [ ] | 144 | [E2E-007: zero-multiple](E2E-Tasks/144-case-18.md) | 079b, 065, 143 | Cases 18 | 40–60 |
-| [ ] | 145 | [E2E-007: remaining-multiple](E2E-Tasks/145-case-20.md) | 079b, 065, 143 | Cases 20 | 40–60 |
-| [ ] | 146 | [E2E-021: save](E2E-Tasks/146-case-112.md) | 143, 079b, 065 | Cases 112 | 40–60 |
-| [ ] | 147 | [E2E-021: approve-without-soft](E2E-Tasks/147-case-113.md) | 143, 079b, 065 | Cases 113 | 40–60 |
-| [ ] | 148 | [E2E-021: approve-with-soft](E2E-Tasks/148-case-114.md) | 143, 079b, 065 | Cases 114 | 40–60 |
-| [ ] | 149 | [E2E-021: revoke](E2E-Tasks/149-case-115.md) | 143, 079b, 065 | Cases 115 | 40–60 |
+| [ ] | 144 | [E2E-007: zero-multiple](E2E-Tasks/144-case-18.md) | 079b, 065, 143 | Cases 18; gate in brief | 40–60 |
+| [ ] | 145 | [E2E-007: remaining-multiple](E2E-Tasks/145-case-20.md) | 079b, 065, 143 | Cases 20; gate in brief | 40–60 |
+| [ ] | 146 | [E2E-021: save](E2E-Tasks/146-case-112.md) | 143, 079b, 065 | Cases 112; gate in brief | 40–60 |
+| [ ] | 147 | [E2E-021: approve-without-soft](E2E-Tasks/147-case-113.md) | 143, 079b, 065 | Cases 113; gate in brief | 40–60 |
+| [ ] | 148 | [E2E-021: approve-with-soft](E2E-Tasks/148-case-114.md) | 143, 079b, 065 | Cases 114; gate in brief | 40–60 |
+| [ ] | 149 | [E2E-021: revoke](E2E-Tasks/149-case-115.md) | 143, 079b, 065 | Cases 115; gate in brief | 40–60 |
 | [ ] | 169 | [Preserve and qualify E2E-028/startup-enforcement](E2E-Tasks/169-system-140.md) | Baseline | System obligation 140 | 30–60 |
 | [ ] | 170 | [Preserve and qualify E2E-028/startup-broker](E2E-Tasks/170-system-141.md) | Baseline | System obligation 141 | 30–60 |
 | [ ] | 171 | [Preserve and qualify E2E-028/zero-time-exposure](E2E-Tasks/171-system-142.md) | Baseline | System obligation 142 | 30–60 |

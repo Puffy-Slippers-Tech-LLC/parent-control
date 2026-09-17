@@ -5,7 +5,7 @@ a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#exec
 
 ## Scope and prerequisites
 
-Deliver **REQUEST11/12 kiosk Cancel and Escape**. First scheduled consumer: [E2E-002, case 2](../E2E-Scenario-Recipes.md#e2e-002).
+Deliver **REQUEST11/12 kiosk Cancel and Escape**. First scheduled consumer: [E2E-017, case 57](../E2E-Scenario-Recipes.md#e2e-017).
 Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):

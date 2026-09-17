@@ -8,12 +8,12 @@ a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#exec
 Deliver **FEED11 without-logs and FEED09/14 Parent result**. First scheduled consumer: [E2E-046, case 209](../E2E-Scenario-Recipes.md#e2e-046).
 Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments) and only the selected consumer's recipe.
 
-**Gate:** Both the genuine public collection-failure route and explicit authorization for this synthetic submission must be available.
+**Gate:** The genuine public collection-failure route and explicit authorization for this synthetic submission must be available. Successful collection recovery/Retry is not a prerequisite.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-- **188p** — FEED16 Parent.
-- **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback.
+- **188p** — FEED09 Parent collection failure and usable controls.
+- **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -29,7 +29,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_collection_recovery
+tools/run-tests integration check_e2e_send_a_parent_report_without_unavailable_logs
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

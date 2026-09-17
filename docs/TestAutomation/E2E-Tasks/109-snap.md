@@ -1,11 +1,11 @@
-# 109 — Qualify supported Snap app launch routes
+# 109 — Qualify Snap fixtures and command launches
 
 Estimate: 35–55 minutes for a focused implementation/validation cycle; not
 a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
 ## Scope and prerequisites
 
-Deliver **FIX04 and APP01/02/03 Snap scope**. First scheduled consumer: [E2E-019, case 86](../E2E-Scenario-Recipes.md#e2e-019).
+Deliver **FIX04 Snap assets; APP01/02/03/04 and FLOW08 command route**. First scheduled consumer: [E2E-019, case 92](../E2E-Scenario-Recipes.md#e2e-019).
 Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope), [related block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
@@ -16,17 +16,17 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Extend FIX04 through supported preparation for one real pinned Snap fixture. Bind grid and command APP01/02/03/SEARCH selectors and normal visible effects, including hidden launcher versus explicit command denial.
+Bind supported pinned Snap A/H/S fixtures and their public activity projections through FIX04. Qualify the fixed command route in APP01/02/03, then APP04 identity/activity comparison and FLOW08. Register a supported new-window command so returning an existing window cannot pass a fresh-launch check. Reuse the native adapters where their public contract applies.
 
 ## Live VM acceptance
 
-On the VM launch/use the real Snap through both routes, then apply a Parent block and observe route-specific hidden/denied behavior. Missing package/support is a named prerequisite; do not replace Snap with a native mock.
+On the VM, use the declared Snap command to launch each required fixture and observe normal input effects. Capture S, open a distinguishable second instance and prove the earlier activity remains. Through Parent, apply Hard and Soft blocks and require explicit command denial and the expected closure, with A still usable. A missing supported asset, new-instance route or public observation blocks the affected consumer.
 
 Run affected safety/adapter checks, then use the complete first consumer if runnable.
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_app_routes
+tools/run-tests integration check_e2e_snap
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

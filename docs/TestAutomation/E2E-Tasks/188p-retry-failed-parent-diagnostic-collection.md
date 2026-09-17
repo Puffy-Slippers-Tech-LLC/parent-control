@@ -1,35 +1,34 @@
-# 188p — Retry failed Parent diagnostic collection
+# 188p — Observe failed Parent diagnostic collection
 
-Estimate: 25–55 minutes for a focused implementation/validation cycle; not
+Estimate: 25–40 minutes for a focused implementation/validation cycle; not
 a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
 ## Scope and prerequisites
 
-Deliver **FEED16 Parent**. First scheduled consumer: [E2E-046, case 208](../E2E-Scenario-Recipes.md#e2e-046).
+Deliver **FEED09 Parent collection failure and usable controls**. First scheduled consumer: [E2E-046, case 209](../E2E-Scenario-Recipes.md#e2e-046).
 Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
 
-**Gate:** No deterministic public collection-failure/recovery trigger is established. Leave pending until an exact normal customer trigger is qualified; no internal fault injection.
+**Gate:** No deterministic public collection-failure trigger is established. Leave pending until an exact normal customer trigger is qualified; no internal fault injection. Recovery is required only by the separate Retry slice.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-- **186** — PARENT15 failed-save; FEED15 Parent and report-close binding.
 - **031a** — FEED09 collection trace.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Bind FEED09 failure/Retry/ready states on Parent, then compose FEED16 from a caller-supplied, publicly observed failed collection and genuine recovery. Preserve the synthetic draft and enabled editing/Close controls. No sending is part of this slice.
+Bind FEED09's unavailable/partial collection explanation and editing/Close controls on Parent. Arm the public observer before entry. Enter ordinary feedback with FEED01. Record the exact genuine public prerequisite failure; a lost Internet connection alone does not fail local collection.
 
 ## Live VM acceptance
 
-On the VM, observe collection actually fail on Parent; inspect usable editing and Close, enter the declared synthetic draft, restore the public prerequisite and activate Retry once. Require successful collection and unchanged draft. Merely opening a report or disconnecting Internet does not establish a local-collection failure.
+On the VM, observe collection actually fail on Parent with its read-only trace already active. Read the failure explanation, enter a synthetic draft through the usable editor and close normally through the usable Close action. No successful recovery or submission is needed to qualify this failure-state slice.
 
 Run affected safety/adapter checks, then use the complete first consumer if runnable.
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_collection_recovery
+tools/run-tests integration check_e2e_parent_collection_failure
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

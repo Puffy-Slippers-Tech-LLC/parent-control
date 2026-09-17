@@ -53,7 +53,8 @@ broker's kiosk method has a broader contract; see
 ## Parent controls and shared information
 
 Manually launching `/usr/bin/oh-no-parent-control-parent` as a standard user
-shows **Administrator access required**, explaining that an administrator must
+shows a branded **Administrator Required** notice with the packaged app logo,
+explaining that an administrator must
 sign in to manage parental controls. Only the broker's exact `AccessDenied`
 reply selects this notice. No management window or authentication challenge is
 created; Close exits. Broker outages retain the startup error-report flow.

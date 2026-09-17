@@ -1,3 +1,48 @@
+.management-denied {
+  background: #fafafa;
+  color: #242424;
+  border-radius: 22px;
+}
+
+.management-denied-brand {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.management-denied-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.management-denied-divider {
+  background: #d2d2d2;
+  min-width: 1px;
+}
+
+.management-denied-message {
+  color: #555555;
+  font-size: 22px;
+}
+
+.management-denied-close {
+  background: #df5833;
+  color: #ffffff;
+  border-radius: 12px;
+  border: none;
+  box-shadow: none;
+  padding: 14px 36px;
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.management-denied-close:hover {
+  background: #cf4d2b;
+}
+
+.management-denied-close:active {
+  background: #bc4324;
+}
+
 .preferences-page {
   background: linear-gradient(145deg, #fcfcfd, #f6f7f9);
 }

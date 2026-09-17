@@ -23,6 +23,20 @@ from regression_ui import HOST_ARGS as UI_HOST_ARGS, buckets as ui_buckets
 from regression_cleanup import buckets as cleanup_buckets
 
 
+CATEGORY_NAMES = {
+    'unit': 'Unit and contracts', 'component': 'Private D-Bus components',
+    'ui': 'UI inventory', 'fixture-runtime': 'Fixture runtime',
+    'source': 'Source and traceability', 'static': 'Static checks',
+    'child-node': 'Child Node', 'child-gjs': 'Child GJS',
+    'backend': 'Backend prerequisites', 'publish': 'Publishing tests',
+    'system': 'Installed-system tests', 'e2e': 'Ready E2E scenarios',
+    'traceability': 'Traceability', 'coverage': 'Python coverage',
+    'check': 'Make check', 'component-all': 'Component checks',
+    'fixtures': 'Test fixtures', 'artifacts': 'Package build A',
+    'integration': 'Integration checks', 'fast': 'Fast tests',
+}
+
+
 def authorization():
     from dev_privileges import check
     check('/usr/local/libexec/onpc-test-runner')
@@ -114,10 +128,12 @@ class Dashboard:
         phase_elapsed = getattr(self, phase + '_elapsed')
         phase_started = getattr(self, phase + '_started')
         for branch in range(1, HOST_WORKERS + 1):
-            if lines:
-                lines.append('│')
             assigned = sorted((item for item in items if item.branch == branch),
                               key=lambda item: item.launch_order)
+            if not assigned:
+                continue
+            if lines:
+                lines.append('│')
             active = any(item.state == 'Running' for item in assigned)
             state = 'running' if active else 'idle' if phase_elapsed is None else 'finished'
             style = {'running': '\033[1m', 'idle': '\033[90m',
@@ -126,8 +142,6 @@ class Dashboard:
             elapsed = sum(item.elapsed + (now - item.started if item.started is not None else 0)
                           for item in assigned)
             lines.append(f'{style}├─ Host branch {branch} — {state} - {elapsed / 60:.1f}m\033[0m')
-            if not assigned:
-                lines.append('│  └─ No categories assigned')
             for index, item in enumerate(assigned):
                 connector = '└─ ' if index == len(assigned) - 1 else '├─ '
                 lines.append('│  ' + connector + self.category(item, now))
@@ -530,7 +544,7 @@ class Execution:
 
 class Run:
     def __init__(self, root, report, control, *, verify_backing_bytes=True, host_only=False,
-                 host_builds=False, serial_builds=False, continue_on_errors=False):
+                 host_builds=False, serial_builds=False, continue_on_errors=False, scope=None):
         self.root, self.report, self.control = root, report, control
         self.continue_on_errors = continue_on_errors
         self.verify_backing_bytes = verify_backing_bytes
@@ -539,10 +553,11 @@ class Run:
         self.includes_vm = not (host_only or host_builds)
         self.verification_mode = ('not applicable; host-only run' if not self.includes_vm else
                                   'full' if verify_backing_bytes else 'metadata-only; backing bytes not verified')
-        self.report.write('\nScope: ' + ('host branches only' if host_only else
-                          'host branches and package qualification' if host_builds else 'complete regression') + '\n')
-        self.report.write('\nBuild scheduling: ' + ('after host join (serial comparison)' if serial_builds else
-                          'qualified host companions') + '\n')
+        self.report.write('\nScope: ' + (scope or ('host branches only' if host_only else
+                          'host branches and package qualification' if host_builds else 'complete regression')) + '\n')
+        if scope is None:
+            self.report.write('\nBuild scheduling: ' + ('after host join (serial comparison)' if serial_builds else
+                              'qualified host companions') + '\n')
         self.report.write('\nVM backing verification: ' + self.verification_mode + '\n')
         self.categories = [Category('Discovery and prerequisites', 1)]
         self.dashboard = Dashboard(self.categories)
@@ -718,19 +733,16 @@ class Run:
         self.inputs = source_identity(self.root)
         self.report.write('\nSource inputs SHA-256: ' + self.inputs + '\n')
         discovery = self.categories[0]
-        suites = [('Unit and contracts', 'unit', []),
-                  ('Private D-Bus components', 'component', []),
-                  ('UI inventory', 'ui', list(UI_HOST_ARGS)),
-                  ('Fixture runtime', 'fixture-runtime', [])]
+        suites = [(CATEGORY_NAMES[kind], kind, args) for kind, args in (
+            ('unit', []), ('component', []), ('ui', list(UI_HOST_ARGS)), ('fixture-runtime', []))]
         suite_items = [Category(name) for name, _, _ in suites]
-        fixed = [('Source and traceability', 'source'), ('Static checks', 'static'),
-                 ('Child Node', 'child-node'), ('Child GJS', 'child-gjs'),
-                 ('Backend prerequisites', 'backend'), ('Publishing tests', 'publish')]
+        fixed = [(CATEGORY_NAMES[kind], kind) for kind in (
+            'source', 'static', 'child-node', 'child-gjs', 'backend', 'publish')]
         fixed_items = [Category(name, 1) for name, _ in fixed]
         builds = [Category(name, 1) for name in ('Package build A', 'Package build B',
                                                'Package reproducibility')]
-        system = Category('Installed-system tests')
-        graphical = Category('Ready E2E scenarios')
+        system = Category(CATEGORY_NAMES['system'])
+        graphical = Category(CATEGORY_NAMES['e2e'])
         safety = Category('Cleanup safety prerequisites')
         self.categories.extend([safety, *suite_items, *fixed_items[:-1]])
         if not self.host_only:
@@ -917,7 +929,7 @@ def recover_initial_checks(root, state):
 
 
 def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
-         continue_on_errors=False):
+         continue_on_errors=False, selections=None):
     import test_retention
     root = root or Path(__file__).resolve().parents[1]
     # Keep repeated interrupts cooperative through storage rotation/finalization,
@@ -929,12 +941,13 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=F
                 return 130
             status = retained_main(root, verify_backing_bytes=verify_backing_bytes,
                                    host_only=host_only, host_builds=host_builds,
-                                   serial_builds=serial_builds, continue_on_errors=continue_on_errors)
+                                   serial_builds=serial_builds, continue_on_errors=continue_on_errors,
+                                   selections=selections)
         return 130 if storage_control.stopped.is_set() else status
 
 
 def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
-                  continue_on_errors=False):
+                  continue_on_errors=False, selections=None):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -943,9 +956,13 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
     with Control().installed() as control:
         try:
             report = Report(root)
-            run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes, host_only=host_only,
-                      host_builds=host_builds, serial_builds=serial_builds,
-                      continue_on_errors=continue_on_errors)
+            if selections is None:
+                run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes, host_only=host_only,
+                          host_builds=host_builds, serial_builds=serial_builds,
+                          continue_on_errors=continue_on_errors)
+            else:
+                from regression_selection import SelectedRun
+                run = SelectedRun(root, report, control, selections)
             run.run()
             status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
         except (Exception, KeyboardInterrupt) as error:
@@ -996,6 +1013,8 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
                     except OSError:
                         status = 1
                         print('Regression final evidence could not be synced; result is failed.', file=sys.stderr)
+    if report is not None:
+        print(f'Report: {report.directory / "report.md"}', flush=True)
     if report is not None and (status == 1 or (run is not None and any(
             item.failures or item.state == 'Failed' for item in run.categories))):
         print('\nCopy this prompt into a new Codex session:\n')

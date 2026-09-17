@@ -39,6 +39,32 @@ CATEGORIES = {
     'host-builds': 'host jobs plus publishing and fresh reproducibility builds; --serial-builds for comparison; --continue-on-errors disables stop on first error; no VM',
 }
 
+AGGREGATES = ('all', 'all-verify', 'host', 'host-builds')
+
+
+def selections(root, argv):
+    """Split validated category/argument groups without consuming option values.
+
+    Prefer a valid single selection (notably ``static all`` and ``unit -k
+    component``). Only split at another category when the complete group is
+    invalid, and validate every group before starting any work.
+    """
+    try:
+        validate_one(root, argv)
+        return [(argv[0], argv[1:])]
+    except ValueError as error:
+        if argv[0] not in AGGREGATES:
+            for index in range(1, len(argv)):
+                if argv[index] not in CATEGORIES or argv[index] in AGGREGATES:
+                    continue
+                try:
+                    validate_one(root, argv[:index])
+                    rest = selections(root, argv[index:])
+                except ValueError:
+                    continue
+                return [(argv[0], argv[1:index]), *rest]
+        raise error
+
 
 def aggregate_arguments(category, args):
     allowed = {'--continue-on-errors'}
@@ -190,6 +216,13 @@ def _main(argv=None, *, detached=False):
         if os.geteuid() == 0:
             raise ValueError('use this launcher as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
+        if detached:
+            selected = selections(root, argv)
+            if selected[0][0] not in AGGREGATES and not any(
+                    '--list' in args or '--help' in args or '-h' in args or '--collect-only' in args
+                    for _, args in selected):
+                from regression import main as regression_main
+                return regression_main(root, selections=selected)
         category, args = argv[0], argv[1:]
         if category in ('all', 'all-verify', 'host', 'host-builds'):
             aggregate_arguments(category, args)
@@ -222,9 +255,7 @@ def _main(argv=None, *, detached=False):
             from regression_process import host_run, category_run
             if category in ('unit', 'component', 'ui'):
                 return host_run(root, category, args[1:])
-            if category not in ('child-node', 'child-gjs', 'static', 'backend',
-                                'traceability', 'fixtures', 'fixture-runtime', 'source',
-                                'artifacts', 'integration', 'system', 'e2e', 'publish'):
+            if category not in CATEGORIES:
                 raise ValueError('unsupported unattended category')
             return category_run(root, category, args[1:])
         if category in ('unit', 'component'):
@@ -278,9 +309,7 @@ def _main(argv=None, *, detached=False):
         return 2
 
 
-def validate(root, argv):
-    if not argv or argv in (['--help'], ['-h'], ['--list']):
-        return
+def validate_one(root, argv):
     category, args = argv[0], argv[1:]
     if category in ('all', 'all-verify', 'host', 'host-builds'):
         aggregate_arguments(category, args)
@@ -291,6 +320,15 @@ def validate(root, argv):
         host.pytest_command(root, args, category)
     else:
         plan(root, category, args)
+
+
+def validate(root, argv):
+    if not argv or argv in (['--help'], ['-h'], ['--list']):
+        return
+    selected = selections(root, argv)
+    if len(selected) > 1 and any('--list' in args or '--help' in args or '-h' in args or '--collect-only' in args
+                                 for _, args in selected):
+        raise ValueError('listing/help requires a single category')
 
 
 def main(argv=None):

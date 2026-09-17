@@ -13,6 +13,7 @@ import installed_journey as journeys
 import installed_setup
 import parent_about
 import parent_access
+import parent_terminal
 import parent_discovery
 from private_artifacts import EvidenceError, PrivateCollector
 from recording import ScenarioRecorder
@@ -60,8 +61,8 @@ def test_shared_system_prompt_rendezvous_retains_request_and_refuses_uncertain_i
 
 
 @pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN,
-                                 parent_discovery.EMPTY_PLAN, parent_access.PLAN],
-                         ids=['parent', 'different-consumer', 'discovery', 'empty', 'standard-access'])
+                                 parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN],
+                         ids=['parent', 'different-consumer', 'discovery', 'empty', 'standard-access', 'terminal'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -76,6 +77,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-003/none'
     if plan is parent_access.PLAN:
         selector = 'E2E-004/app-grid'
+    if plan is parent_terminal.PLAN:
+        selector = 'E2E-004/terminal'
     contract = evidence.EvidenceContract(inventory_path=inventory, root=ROOT,
         selector=selector, run_id='shared-controller-test', inputs=inputs)
     directory = tmp_path / 'raw'

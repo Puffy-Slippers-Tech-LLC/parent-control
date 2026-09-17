@@ -32,6 +32,13 @@ OPERATIONS = frozenset({
 STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
 })
+TERMINAL_OPERATIONS = frozenset({
+    'standard-terminal-search', 'standard-terminal-input',
+    'standard-terminal-focused', 'standard-terminal-wrong-surface',
+    'standard-terminal-closed', 'standard-management-denied', 'standard-denial-closed',
+})
+OPERATIONS |= TERMINAL_OPERATIONS
+STANDARD_OPERATIONS |= TERMINAL_OPERATIONS
 PRODUCT = 'Oh No! Parent Control'
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
@@ -361,7 +368,7 @@ class AccessibleUI:
             self.target(label, ('label',), root=root)
             return True
         if projection == 'search-query':
-            require(expected in ('', PRODUCT[:1], PRODUCT) and len(expected) <= maximum,
+            require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal') and len(expected) <= maximum,
                     'ui:search-binding')
             require(root.get_role_name() in ('text', 'entry') and self.showing(root)
                     and self.has_state(root, self.api.StateType.EDITABLE), 'ui:search-field')
@@ -495,6 +502,61 @@ class AccessibleUI:
         """SEARCH04's registered launchable branch, without launching."""
         require(product == PRODUCT, 'ui:search-binding')
         return self.labelled_button(product)
+
+    def terminal_input(self, *, focused=False):
+        """FILE01/UI21: a unique terminal in its active application window.
+
+        No previous launch is required. Overview and inactive/background windows
+        cannot authorize input. Window titles may contain private shell paths;
+        select by the public terminal role and never export those titles.
+        """
+        nodes = list(self.nodes(strict=True))
+        terminals = [node for node in nodes if node.get_role_name() == 'terminal'
+                     and self.showing(node)]
+        require(len(terminals) <= 1, 'ui:ambiguous-terminal')
+        if not terminals:
+            return None
+        field = terminals[0]
+        if not self.has_state(field, self.api.StateType.SENSITIVE):
+            return None
+        window = field.get_parent()
+        for _ in range(16):
+            if window is None:
+                return None
+            if window.get_role_name() in ('frame', 'window'):
+                break
+            window = window.get_parent()
+        else:
+            return None
+        if not self.showing(window) or not self.has_state(window, self.api.StateType.ACTIVE):
+            return None
+        if self.find('Overview') is not None:
+            return None
+        if focused and not self.has_state(field, self.api.StateType.FOCUSED):
+            return None
+        return field
+
+    def management_denied(self):
+        """FILE06: the specific visible refusal, never generic error or echo."""
+        root = self.target('Administrator access required', ('frame',))
+        self.target('Only an administrator can manage parental controls. '
+                    'Sign in with an administrator account to open the Parent App.',
+                    ('label',), root=root)
+        self.target('Close', ('button', 'push button'), root=root, sensitive=True)
+        require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:denial-not-active')
+        self.management_absent()
+
+    def management_absent(self):
+        """UI11: complete fresh exclusion; stale or missing trees refuse."""
+        root = self.api.get_desktop(0)
+        require(root is not None, 'ui:missing-surface')
+        for node in self.nodes(root, strict=True):
+            require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-surface')
+            if self.showing(node):
+                require(not (node.get_role_name() in ('frame', 'window')
+                             and node.get_name() == PRODUCT), 'ui:management-exposed')
+                require(node.get_name() not in ('Screen Limits', 'App Limits',
+                                               'Screen time limit'), 'ui:management-exposed')
 
     def search_result(self, product, expected, *, stable_seconds=2):
         """SEARCH04: observe the explicit registered result, without launching."""
@@ -632,7 +694,7 @@ class AccessibleUI:
 
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
-        require(expected in ('', PRODUCT[:1], PRODUCT), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal'), 'ui:search-binding')
         overview = self.find('Overview')
         self.search_status = 'overview-missing'
         if overview is None:
@@ -904,6 +966,28 @@ class AccessibleUI:
             self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
         elif operation == 'standard-system-prompt':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
+        elif operation == 'standard-terminal-search':
+            self.wait_search(lambda: self.search_query('Terminal'), 'terminal-search-entered')
+            self.labelled_button('Terminal')
+        elif operation == 'standard-terminal-input':
+            field = self.wait(self.terminal_input, 'terminal-input')
+            result['pointer'] = self.pointer_target(field)
+        elif operation == 'standard-terminal-focused':
+            self.wait(lambda: self.terminal_input(focused=True), 'terminal-focus')
+        elif operation == 'standard-terminal-wrong-surface':
+            # Positive Overview evidence makes a missing terminal meaningful.
+            self.search_ready('overview', focused=True)
+            require(self.terminal_input(focused=True) is None, 'ui:terminal-wrong-surface')
+        elif operation == 'standard-terminal-closed':
+            self.desktop_result(EXISTING_CHILD, 'success')
+            self.wait(lambda: not any(node.get_role_name() == 'terminal' and self.showing(node)
+                for node in self.nodes(strict=True)), 'terminal-closed')
+        elif operation == 'standard-management-denied':
+            self.management_denied()
+        elif operation == 'standard-denial-closed':
+            self.wait(lambda: self.find('Administrator access required', ('frame',)) is None
+                and self.terminal_input(focused=True), 'denial-closed')
+            self.management_absent()
         elif operation == 'standard-app-grid':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
             field = self.search_ready('overview')

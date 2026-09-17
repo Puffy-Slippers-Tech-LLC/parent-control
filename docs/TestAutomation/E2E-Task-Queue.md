@@ -17,7 +17,7 @@ when appending a current blocker. All unchecked rows need independent briefs.
 | Done | ID | Task | Requires | Delivered scope | Minutes |
 | --- | --- | --- | --- | --- | --- |
 | [x] | 192 | Align inventory regression fixtures with the current metadata | Baseline | Host-only metadata compatibility; no product readiness change | 25–45 |
-| [ ] | 001 | [Visible terminal launch, submission and denial](E2E-Tasks/001-terminal.md) | Baseline | FILE01, FILE02, FILE06 | 25–45 |
+| [x] | 001 | Visible terminal launch, submission and denial | Baseline | FILE01, FILE02, FILE06 | 25–45 |
 | [ ] | 002 | [E2E-004: terminal](E2E-Tasks/002-case-6.md) | 001 | Cases 6 | 30–55 |
 | [ ] | 185c | [Read installed command help and manuals](E2E-Tasks/185c-read-installed-command-help-and-manuals.md) | 001 | INFO02 | 20–40 |
 | [ ] | 235 | [E2E-042: command-help](E2E-Tasks/235-case-193.md) | 185c | Cases 193 | 30–55 |

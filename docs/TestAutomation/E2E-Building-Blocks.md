@@ -299,9 +299,9 @@ these blocks, not copies of them.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| FILE01 | C | Open the normal desktop terminal and observe its usable input surface. | SEARCH05(terminal) → UI01 → UI02. First pending scenario consumer: E2E-004/terminal. | pending |
-| FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | UI21(terminal input) → UI06(command) → UI05(Enter). Do not Ctrl-A a terminal or accept command echo as output. | pending |
-| FILE06 | C | Observe the declared terminal result: real administrator challenge, command completion/notice, or launch-denial output. Read only its bounded approved output projection. Generic prompts, command echo and arbitrary failures are insufficient. | UI01 → UI10 → UI03. A challenge returns control immediately to the caller. First consumers: E2E-004/terminal and customer package operations. | pending |
+| FILE01 | C | Open the normal desktop terminal and observe its usable input surface. | SEARCH05(terminal) → UI01 → UI02. Qualified by E2E-004/terminal. | ready |
+| FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | UI21(terminal input) → UI06(command) → UI05(Enter). Qualified by E2E-004/terminal. | ready |
+| FILE06 | C | Observe the declared terminal result: real administrator challenge, command completion/notice, or launch-denial output. Read only its bounded approved output projection. Generic prompts, command echo and arbitrary failures are insufficient. | UI01 → UI10 → UI03. Qualified denial branch: E2E-004/terminal. | ready |
 | FILE07 | C | Navigate an open file manager/chooser to one declared customer directory. Use its normal Location shortcut, enter the directory and observe the destination. | UI05(Location shortcut) → UI16(location field) → UI05(Enter) → UI01 → UI03(destination). Directory identity comes from prepared synthetic fixtures or the selected save location. | pending |
 | FILE03 | C | Choose files, save a named file, or cancel in an already open chooser. Mode and selected files are explicit. Observe selection/closure; the caller observes its later result separately. | Open: FILE07(directory) → UI14(first file) → UI05 for declared additional modifier/navigation selection → UI13(exact selected set) → UI04(Open) → UI11(chooser). Save: FILE07 → UI16(filename) → UI04(Save) → UI11. Cancel: UI04(Cancel) → UI11. No unmodified second selection that silently drops earlier files. | pending |
 | FILE04 | C | Open the file manager, navigate to a customer directory and observe its declared named entries. | SEARCH05(file manager) → FILE07(directory) → UI13(entries). | pending |
@@ -579,7 +579,7 @@ The same preparation is available independently:
 If the task being implemented requires the app to be pre-installed as a
 prerequisite and the task's job itself is post-installation operations (for
 example, a building block that clicks a control in the Parent app), call
-`./tools/prepare-appsnapshot --overwrite false`. Do not monitor the tool's output
+`./tools/prepare-appsnapshot --overwrite false` (if app code is changed, `--overwrite` must be `true`. non-app code such as docs, tests don't count). Do not monitor the tool's output
 or report incremental progress; wait for it to complete with success or failure,
 then proceed with the task's own job only on success. Installation is delegated
 to this tool. A retained snapshot is a setup prerequisite, not customer acceptance

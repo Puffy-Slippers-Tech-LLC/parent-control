@@ -214,7 +214,7 @@
       },
       "variants": [
         {"coverage_id": 5, "id": "app-grid", "owner": "parent-navigation", "parameters": {"launch": "app-grid"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_access.py", "test_id": "app-grid"}},
-        {"coverage_id": 6, "id": "terminal", "owner": "parent-navigation", "parameters": {"launch": "terminal"}, "status": "pending", "pending_reason": "Implementation must implement this complete journey and its assertions.", "executable": null}
+        {"coverage_id": 6, "id": "terminal", "owner": "parent-navigation", "parameters": {"launch": "terminal"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_terminal.py", "test_id": "terminal"}}
       ]
     },
     {

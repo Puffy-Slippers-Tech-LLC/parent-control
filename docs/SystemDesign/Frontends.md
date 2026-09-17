@@ -52,6 +52,14 @@ broker's kiosk method has a broader contract; see
 
 ## Parent controls and shared information
 
+Manually launching `/usr/bin/oh-no-parent-control-parent` as a standard user
+shows **Administrator access required**, explaining that an administrator must
+sign in to manage parental controls. Only the broker's exact `AccessDenied`
+reply selects this notice. No management window or authentication challenge is
+created; Close exits. Broker outages retain the startup error-report flow.
+This Parent-only change activates on the next app process (`none` package
+activation); it changes no saved data or child/kiosk behavior.
+
 Screen Limits offers presets 0, 15, 30 and 45 minutes, then half-hour increments
 from 60 through 1410, and custom whole minutes 0–1439. The broker/schema also
 accept 1440, but that is not an offered Parent UI value. Custom edits debounce

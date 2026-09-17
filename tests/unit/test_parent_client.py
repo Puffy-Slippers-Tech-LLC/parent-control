@@ -7,6 +7,7 @@ from parent.oh_no_parent_control_parent.client import (
     INTERFACE,
     OBJECT_PATH,
     BrokerClient,
+    management_access_denied,
 )
 
 
@@ -42,6 +43,16 @@ class FakeConnection:
 
 
 class ParentClientTests(unittest.TestCase):
+    def test_management_denial_requires_exact_broker_error_identity(self):
+        for name in (f"{BUS_NAME}.Error.AccessDenied", f"{BUS_NAME}.Error.Failed",
+                     "org.freedesktop.DBus.Error.ServiceUnknown",
+                     "org.freedesktop.DBus.Error.AccessDenied"):
+            with self.subTest(name=name):
+                error = Gio.DBusError.new_for_dbus_error(name, "private-account-detail")
+                self.assertEqual(management_access_denied(error),
+                                 name == f"{BUS_NAME}.Error.AccessDenied")
+        self.assertFalse(management_access_denied(RuntimeError("AccessDenied")))
+
     def test_time_status_works_without_accountsservice_authorization(self):
         connection = FakeConnection()
 

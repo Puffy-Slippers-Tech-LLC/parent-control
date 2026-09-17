@@ -237,7 +237,7 @@ Implementation status: Ready: 5; pending: 6.
 Bindings: launch = app-grid / terminal.
 
 1. V(standard,fresh) → SEARCH01 or FILE01, selected by launch.
-2. Grid: UI21 → SEARCH03 → SEARCH04(unavailable), no Enter. Terminal: FILE02(parent command) → FILE06(management denied) → UI11(management).
+2. Grid: UI21 → SEARCH03 → SEARCH04(unavailable), no Enter. Terminal: FILE02(parent command) → FILE06(specific GUI management denial) → UI11(management). Read **Administrator access required** and its administrator-sign-in explanation, then dismiss the denial and close the terminal. Generic startup errors and command echo cannot establish access denial.
 
 ### E2E-005
 

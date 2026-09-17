@@ -10,6 +10,7 @@ use onpc_gdm ();
 use onpc_vt6 ();
 use onpc_parent_about ();
 use onpc_parent_access ();
+use onpc_parent_terminal ();
 use onpc_parent_discovery ();
 use onpc_journey ();
 use onpc_flow00 ();
@@ -58,6 +59,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_parent_about::run(\&exchange, $ready->{parent_review} ? 1 : 0);
+        return;
+    }
+    if ($ready->{parent_terminal}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_terminal::run(\&exchange);
         return;
     }
     if ($ready->{parent_access}) {

@@ -58,6 +58,13 @@ OPERATION_LABELS = {
     'standard-search-started': 'Checking the first search character',
     'standard-search-entered': 'Checking the complete Parent search query',
     'standard-parent-unavailable': 'Checking Parent is unavailable to the standard account',
+    'standard-terminal-search': 'Finding Terminal in public app search',
+    'standard-terminal-input': 'Finding the active terminal input surface',
+    'standard-terminal-focused': 'Checking terminal input focus',
+    'standard-terminal-wrong-surface': 'Refusing terminal input on the app search surface',
+    'standard-terminal-closed': 'Checking the terminal window is closed',
+    'standard-management-denied': 'Reading administrator-access denial and checking management is absent',
+    'standard-denial-closed': 'Checking denial dismissal returns to Terminal',
 }
 
 
@@ -164,7 +171,7 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation == 'standard-app-grid':
+        if operation in ('standard-app-grid', 'standard-terminal-input'):
             require(type(result) is dict and set(result) == {*expected, 'pointer'}, 'ui:response')
             point = result['pointer']
             expected['pointer'] = self.point(point)

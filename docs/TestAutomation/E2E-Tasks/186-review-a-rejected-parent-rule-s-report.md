@@ -5,7 +5,7 @@ a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#exec
 
 ## Scope and prerequisites
 
-Deliver **PARENT15 failed-save; FEED15 Parent and report-close binding**. First scheduled consumer: [E2E-041, case 185](../E2E-Scenario-Recipes.md#e2e-041).
+Deliver **PARENT15 failed-save; FEED15 Parent and report-close binding**. First scheduled consumer: [E2E-045, case 205](../E2E-Scenario-Recipes.md#e2e-045).
 Read the named [block contracts](../E2E-Building-Blocks.md#app-grid-search-and-parent-launch), [related block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
@@ -27,7 +27,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_error_report
+tools/run-tests integration check_e2e_review_a_rejected_parent_rule_s_report
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

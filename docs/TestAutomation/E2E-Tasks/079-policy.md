@@ -5,7 +5,7 @@ a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#exec
 
 ## Scope and prerequisites
 
-Deliver **PARENT16 and FLOW03 public app-policy editing**. First scheduled consumer: [E2E-041, case 186](../E2E-Scenario-Recipes.md#e2e-041).
+Deliver **PARENT16 and FLOW03 public app-policy editing**. First scheduled consumer: [E2E-005, case 7](../E2E-Scenario-Recipes.md#e2e-005).
 Read the named [block contracts](../E2E-Building-Blocks.md#app-grid-search-and-parent-launch), [related block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
@@ -26,7 +26,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_app_routes
+tools/run-tests integration check_e2e_policy
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

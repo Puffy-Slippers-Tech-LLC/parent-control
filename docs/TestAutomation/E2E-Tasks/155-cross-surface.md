@@ -5,7 +5,7 @@ a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#exec
 
 ## Scope and prerequisites
 
-Deliver **FLOW12 current choices; task 154 retains deferred mute qualification**. First scheduled consumer: [E2E-018, case 58](../E2E-Scenario-Recipes.md#e2e-018).
+Deliver **FLOW12 current choices**. First scheduled consumer: [E2E-018, case 58](../E2E-Scenario-Recipes.md#e2e-018).
 Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
@@ -28,7 +28,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_remembered_choices
+tools/run-tests integration check_e2e_cross_surface
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

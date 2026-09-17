@@ -12,8 +12,8 @@ Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-cu
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
-- **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback.
-- **187k** — REQUEST09 cooldown and FEED15 kiosk.
+- **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief.
+- **187k** — REQUEST09 cooldown and FEED15 kiosk; gate in brief.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -29,7 +29,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_error_report
+tools/run-tests integration check_e2e_send_an_authorized_kiosk_error_report
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

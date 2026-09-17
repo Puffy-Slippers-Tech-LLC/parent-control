@@ -1,23 +1,24 @@
-# 077 — Read and filter the public app catalogue
+# 077 — Search and filter the public app catalogue
 
 Estimate: 35–55 minutes for a focused implementation/validation cycle; not
 a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
 ## Scope and prerequisites
 
-Deliver **PARENT12, PARENT10, PARENT11**. First scheduled consumer: [E2E-041, case 184](../E2E-Scenario-Recipes.md#e2e-041).
+Deliver **PARENT10, PARENT11**. First scheduled consumer: [E2E-041, case 184](../E2E-Scenario-Recipes.md#e2e-041).
 Read the named [block contracts](../E2E-Building-Blocks.md#app-grid-search-and-parent-launch) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
 
 - **010** — UI17.
 - **035** — FIX04 native asset; APP01/02/03 native grid/command usable scope.
+- **077a** — PARENT12; UI13 complete public app-row observations.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Implement row observation, then public search with exact bounded result sets, then both access/match filter popovers using UI17. Empty expected results are explicit; search reads no installed catalogue backend.
+Reuse PARENT12 and the complete app-row reader. Bind native fixture identities, then implement public search with exact bounded result sets and both access/match filter popovers using UI17. Empty expected results are explicit; search reads no installed catalogue backend.
 
 ## Live VM acceptance
 

@@ -1,11 +1,11 @@
-# 052 — Read the child desktop countdown
+# 052 — Observe the child countdown or its absence
 
-Estimate: 20–40 minutes for a focused implementation/validation cycle; not
+Estimate: 25–45 minutes for a focused implementation/validation cycle; not
 a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
 ## Scope and prerequisites
 
-Deliver **TIME01 child-desktop snapshots**. First scheduled consumer: [E2E-015, case 49](../E2E-Scenario-Recipes.md#e2e-015).
+Deliver **TIME01 child-desktop presence and limits-off absence**. First scheduled consumer: [E2E-015, case 49](../E2E-Scenario-Recipes.md#e2e-015).
 Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
@@ -16,11 +16,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Register bounded child-desktop countdown text and return an explicit observation for the caller's expected balance. Qualify this public projection independently of lock entry, retained unlock, absence on other surfaces and tick measurement.
+Register bounded child-desktop countdown text and complete absence observations on the positively identified child desktop. Return an immutable observation for the caller's expected balance or limits-off state. Qualify this surface independently of lock/GDM absence and tick measurement.
 
 ## Live VM acceptance
 
-Prepare positive child time publicly on the VM, enter the child fresh and read the displayed countdown within declared elapsed-time/rounding bounds. Repeat from an independently reached child desktop. A wrong account or surface must refuse this projection; absence on lock, GDM and other-user surfaces is qualified separately.
+In separate live attempts, prepare positive daily time or disabled limits through Parent, then enter the child fresh. Require the countdown within declared elapsed-time/rounding bounds for enabled limits, and stable absence on the recognized usable desktop for disabled limits. Independently reached child entry must work; wrong accounts, stale or incomplete reads refuse.
 
 Run affected safety/adapter checks, then use the complete first consumer if runnable.
 Otherwise implement/reuse the planned fixed qualification:

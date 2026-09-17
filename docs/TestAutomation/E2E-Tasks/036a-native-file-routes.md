@@ -17,17 +17,17 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Bind the file manager's offered launch action to the exact native fixture, including applicable space/version/copy/rename inputs. Observe its usable or blocked result through the existing app projections. Qualify this route independently of desktop-launch availability.
+Bind the file manager's offered launch action to the declared native fixture and independently observe its usable or blocked result. Register a supported separate-window launch for later retained-activity comparisons. Reuse the prepared standard fixture; special-path and AppImage copying stay with their own consumers.
 
 ## Live VM acceptance
 
-On the live VM, launch the declared fixture from the file manager and perform one normal action with a visible result. Apply a public Parent block and observe the declared denial/absence. Repeat with the applicable copied/renamed target. No alternative launch route can stand in for this action.
+On the live VM, launch the declared native fixture from the file manager and perform a normal action with a visible result. Open a distinguishable new window beside an earlier activity. Save Hard and Soft rules in Parent, then require this route's declared denied result and expected window closure. No alternative route substitutes for this action.
 
 Run affected safety/adapter checks, then use the complete first consumer if runnable.
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_app_routes
+tools/run-tests integration check_e2e_native_file_routes
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

@@ -1,11 +1,11 @@
-# 184 — Change disposable accounts through Users settings
+# 184 — Add a disposable child through Users settings
 
-Estimate: 25–55 minutes for a focused implementation/validation cycle; not
+Estimate: 30–50 minutes for a focused implementation/validation cycle; not
 a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
 
 ## Scope and prerequisites
 
-Deliver **ACCOUNT02; AUTH04 account-creation password fields**. First scheduled consumer: [E2E-040, case 179](../E2E-Scenario-Recipes.md#e2e-040).
+Deliver **ACCOUNT02 add-child; AUTH04 account-creation password fields**. First scheduled consumer: [E2E-040, case 179](../E2E-Scenario-Recipes.md#e2e-040).
 Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
 
 Required implemented capabilities (IDs identify master rows; no predecessor brief is needed):
@@ -17,17 +17,17 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Bind the finite add/remove/change-role operations for disposable spare accounts. Nonsecret fields use UI16/UI15; each creation password field needs its own fresh AUTH04/UI19 proof. Preserve the active administrator and station; remove only logged-out spares.
+Bind the finite add-child wizard and its standard-user role. Nonsecret fields use UI16/UI15; each creation password field gets two fresh AUTH04 proofs and one UI19 input. Refuse unregistered identities before input. Preserve the active administrator and station.
 
 ## Live VM acceptance
 
-In independent live attempts, add a spare child, change a spare account's role and remove a logged-out spare through Users. Read each resulting row/list; cancellation preserves the earlier list. Qualify creation-secret recipient checks before live input. Parent/request refresh is checked by the scenario consumers.
+On the live VM, add one registered spare standard child through Users and independently read its resulting row/list. Qualify creation-secret recipient checks before input. In a separate attempt, cancel the wizard and require the original list unchanged. Parent discovery is checked by the complete scenario.
 
 Run affected safety/adapter checks, then use the complete first consumer if runnable.
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_accounts
+tools/run-tests integration check_e2e_change_disposable_accounts_through_users_settings
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

@@ -12,7 +12,7 @@ Required implemented capabilities (IDs identify master rows; no predecessor brie
 
 - **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052** — TIME01 child-desktop snapshots.
+- **052** — TIME01 child-desktop presence and limits-off absence.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -28,7 +28,7 @@ Run affected safety/adapter checks, then use the complete first consumer if runn
 Otherwise implement/reuse the planned fixed qualification:
 
 ```sh
-tools/run-tests integration check_e2e_request_exit
+tools/run-tests integration check_e2e_compose_approval_and_return_to_the_child
 ```
 
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)

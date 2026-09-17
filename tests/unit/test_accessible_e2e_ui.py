@@ -259,6 +259,38 @@ def test_ui_transport_allows_greeter_boot_wait_inside_worker_deadline(operation,
     transport.call.assert_called_once()
 
 
+def test_greeter_reply_through_real_transport_and_command_stream(monkeypatch, tmp_path):
+    import os
+    import owned_commands
+    import vm_transport
+    import watch_activity
+
+    result = {'interface': 'AT-SPI', 'navigation': ['home', 'down', 'down', 'down'],
+              'operation': 'gdm-other-list', 'outcome': 'passed'}
+    raw = (json.dumps(result) + '\n').encode()
+    commands = owned_commands.Commands()
+    commands.directory = tmp_path
+    transcript = watch_activity.Transcript()
+    monkeypatch.setattr(watch_activity, 'current', lambda: transcript)
+    def spawn(argv, **kwargs):
+        kwargs['stdout'].write(raw)
+        kwargs['stdout'].flush()
+        kwargs['stderr'].write(b'User has no time limits enabled\n')
+        kwargs['stderr'].flush()
+        return SimpleNamespace(pid=123, returncode=0, communicate=Mock())
+    monkeypatch.setattr(owned_commands.subprocess, 'Popen', spawn)
+    # A real disposable descriptor exercises close without owning a process.
+    monkeypatch.setattr(owned_commands.os, 'pidfd_open', lambda _: os.open('/dev/null', os.O_RDONLY))
+    transport = vm_transport.Transport({'directory': str(tmp_path), 'hostname': 'fixture.invalid',
+        'run': 'a' * 32, 'domain_uuid': 'b' * 32}, commands, guard=Mock())
+    prompt = Mock()
+    assert UiObservations(transport, system_prompt=prompt).observe('gdm-other-list') == result
+    prompt.assert_not_called()
+    assert commands.progress is None
+    assert (tmp_path / 'command-0001.txt').read_bytes() == raw
+    assert 'navigation' not in transcript.text
+
+
 @pytest.mark.parametrize('appearance', [
     {'x': 30, 'y': 90, 'font': 'default', 'color': 'blue', 'scale': 1},
     {'x': 811, 'y': 213, 'font': 'different', 'color': 'purple', 'scale': 2.5},

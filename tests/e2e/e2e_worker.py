@@ -237,6 +237,19 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
         result['evidence_directory'] = str(collector.path)
         def fail(category, code, error):
             nonlocal first_error
+            if first_error is None:
+                # Retain source locations, never exception text, locals or guest
+                # output. Generic worker codes otherwise hide controller bugs.
+                locations = []
+                trace = error.__traceback__
+                while trace is not None:
+                    source = Path(trace.tb_frame.f_code.co_filename)
+                    if source.is_relative_to(ROOT):
+                        name = source.relative_to(ROOT).as_posix()
+                        if name in expected_inputs:
+                            locations.append({'source': name, 'line': trace.tb_lineno})
+                    trace = trace.tb_next
+                result['failure_locations'] = locations[-12:]
             first_error = first_error or error
             failures.record(category, code, monotonic_seconds=time.monotonic() - started)
             ledger.fail_outcome(category, 'e2e:' + code)

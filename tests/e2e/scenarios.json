@@ -72,7 +72,7 @@
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Lifecycle.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "fixture-credentials-via-secret-api"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
           {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
@@ -1595,7 +1595,7 @@
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Package-Removal.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture"],
       "phases": {
         "setup": [
           {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}

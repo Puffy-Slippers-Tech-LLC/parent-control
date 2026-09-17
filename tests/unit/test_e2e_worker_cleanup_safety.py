@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -42,6 +43,7 @@ def attempt(tmp_path, monkeypatch):
               for name, data in runtime.distribution_inputs().items()}
     ledger = system_runner.RunLedger()
     options = dict(expected_inputs=inputs, observe=Mock(), validate=Mock())
+    inputs['tests/e2e/e2e_worker.py'] = hashlib.sha256(Path(runtime.__file__).read_bytes()).hexdigest()
     lease = Mock(state={'run': 'a' * 32})
     def run(**changes):
         return runtime.run_distribution(directory, lease, ledger, **{**options, **changes})
@@ -173,6 +175,9 @@ def test_failure_is_persisted_before_cleanup_without_raw_exception(attempt, boun
     assert attempt.events[-2:] == ['server-close', 'worker-result']
     assert 'private-canary' not in json.dumps(final)
     assert final['outcome'] == 'failed'
+    assert final['failure_locations']
+    assert all(location['source'] == 'tests/e2e/e2e_worker.py'
+               and type(location['line']) is int for location in final['failure_locations'])
     if boundary != 'spawn':
         assert caught.value.onpc_worker_result['worker_stopped'] is True
         assert caught.value.onpc_worker_result['callback_closed'] is True

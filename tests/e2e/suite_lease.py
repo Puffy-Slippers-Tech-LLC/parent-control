@@ -245,6 +245,10 @@ class Suite:
             self.prepare_installed(directory, assets, selection, root=root, overwrite=True)
             self.lease.restore_installed = needs_installed(case)
             self.lease.stop()
+        expected = (self.lease.installed_name if needs_installed(case)
+                    else self.lease.capture.state['proof']['name'])
+        system.require(expected is not None and self.lease._restored_name == expected,
+                       'suite:case-snapshot-not-restored')
         self.lease.prepare()
         self.lease.restore_installed = needs_installed(self.next_case)
 

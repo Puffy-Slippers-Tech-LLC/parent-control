@@ -11,7 +11,7 @@ from unittest.mock import Mock
 import pytest
 
 import backing_verification as backing
-import prepare_host as baseline
+import prepare_baseline as baseline
 import provenance
 from vt6_authentication import Authentication
 from tests.support.e2e_provenance import source

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 
-import prepare_host as host
+import prepare_baseline as host
 
 
 @pytest.mark.parametrize("failure", [KeyboardInterrupt, subprocess.TimeoutExpired("qemu-img", 1)])

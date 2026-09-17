@@ -35,7 +35,7 @@ import xml.etree.ElementTree as ET
 if __name__ == '__main__':
     sys.dont_write_bytecode = True
 
-import prepare_host as baseline
+import prepare_baseline as baseline
 
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = '/var/tmp/onpc-system-input'
@@ -404,7 +404,7 @@ class SourceView:
 
 
 class Lease:
-    """Serializes prepare-host/system runners; durable state refuses interrupted ownership."""
+    """Serializes prepare-baseline/system runners; durable state refuses interrupted ownership."""
 
     def __init__(self, source, commands, inspect, *, directory=baseline.BASELINES,
                  anchor=baseline.ANCHOR, ledger=None, graphics_type='spice', finalize=None,

@@ -20,8 +20,9 @@ environment label describes the supported OS, independently of the VM name.
 Use matching source and configuration in the host and guest checkouts; their
 filesystem locations may differ. From the checkout root **inside the product-free
 Ubuntu 26.04 VM**, run `./setup.sh --prepare-vm` (or `make prepare-vm`), then shut
-down the guest. On the host, run `./setup.sh --prepare-host`. Host preparation
-captures and verifies the configured domain and refreshes the installed helpers
+down the guest. On the host, run `./setup.sh --prepare-baseline`. Host preparation
+requires the VM to be off, deletes any existing baseline without restoring it,
+captures and verifies the current guest, and refreshes the installed helpers
 with its finalized UUID. All existing virtualization, product-residue, disk,
 snapshot, share-isolation and ownership checks still apply.
 
@@ -48,7 +49,7 @@ pinning is refreshed by host preparation); no product activation or data migrati
 | Libvirt connection and domain | `qemu:///system`; `name` in the shared config, currently `oh-no-parent-control` |
 | Host/guest preparation checkout | The checkout containing the invoked `setup.sh`; guest preparation requires that checkout's root. Installed host helpers retain their checkout pin. |
 | Disk-chain anchor | `disk_anchor` in the shared config, currently `/Data/virt-manager/oh-no-parent-control.qcow2`; resolve and validate the actual active chain. |
-| Retained product-free baseline | Internal `onpc-baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_host.py](prepare_host.py). Previously captured baselines retain the name defined by `PREVIOUS_SNAPSHOT`; preparation and restoration validate their saved proof and preserve them. |
+| Retained product-free baseline | Internal `onpc-baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_baseline.py](prepare_baseline.py). Runners also accept the previous name defined by `PREVIOUS_SNAPSHOT`; explicit preparation replaces it with `onpc-baseline`. |
 | Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/<configured-name>/` |
 | Provenance and active attempt | Immutable finalized `phase.json`; separate mutable `system-run.json`. |
 | Guest preparation record | Root-owned mode-0600 `/etc/oh-no-parent-control-test-baseline.json` |
@@ -98,21 +99,20 @@ by installing tools. This
 test-environment change needs a prepared and accepted product-free baseline;
 there is no product-data migration or package activation (`none`).
 
-**Existing accepted baseline:** ordinary `--prepare-host` preserves it; rerunning
-that command is not a replacement operation. Do not delete controller state or
-recreate its named snapshot to bypass a mismatch. Replacing an accepted baseline
-requires a separately authorized, ownership-checked maintenance operation. This
-change does not automatically replace the current baseline. Local preparation,
-bootstrap and refusal tests cover the new contract; live qualification and
-wall-time comparison remain pending a prepared baseline.
+**Existing accepted baseline:** `--prepare-baseline` explicitly replaces it.
+The VM must already be off; preparation fails instead of shutting it down.
+Under the shared lease, it deletes the old snapshot without restoring it and
+captures the current prepared guest. Ownership checks and incomplete-attempt
+refusals still apply, and the old journal is archived. Ordinary `./setup.sh`
+never invokes baseline preparation. Tests continue to reuse the accepted baseline.
 
 For an explicitly requested replacement environment, consult the maintained
-`prepare_vm.py` and `prepare_host.py` guards before provisioning. Existing
+`prepare_vm.py` and `prepare_baseline.py` guards before provisioning. Existing
 `./setup.sh --prepare-vm` is guest-only account and test-tool preparation;
-`./setup.sh --prepare-host` is host-only baseline creation/reconciliation, followed
+`./setup.sh --prepare-baseline` is host-only baseline replacement, followed
 by refreshing helpers with the finalized VM identity. Run ordinary `./setup.sh`
 on a replacement host first to install its dependencies and policies. The
-Makefile's `prepare-vm` and `prepare-host` targets only delegate to these modes.
+Makefile's `prepare-vm` and `prepare-baseline` targets only delegate to these modes.
 They remain tooling, not daily `test-*`
 targets, and are never called automatically to repair a missing accepted
 baseline. Guest preparation suppresses Ubuntu's optional welcome/opt-in wizard
@@ -122,8 +122,7 @@ does not enroll accounts in optional services. This tooling change activates
 on the next login after running `./setup.sh --prepare-vm`; it needs no package activation
 or saved product-data migration. An already open wizard must be closed.
 Prepare the guest before product installation, then capture and
-validate its product-free baseline on the host. Preserve any existing baseline;
-replacement of a resource requires a deliberate ownership-reviewed operation.
+validate its product-free baseline on the host using the explicit preparation mode.
 
 ## Reset boundary and host preservation
 
@@ -167,21 +166,22 @@ baseline record and must not overwrite it.
 
 `snapshot:metadata-missing` means libvirt has no snapshot matching either
 supported baseline name. A finalized journal does not recreate that metadata,
-and rerunning preparation cannot repair its absence. Retain the disk and journal;
+and ordinary tests cannot repair its absence. Retain the disk and journal;
 recovery needs the original metadata from a verified backup and reconciliation
-with the saved disk proof, or separately authorized baseline replacement. An
+with the saved disk proof, or explicit baseline replacement. An
 unrelated snapshot is not a substitute for the recorded baseline.
 
-After explicitly authorizing replacement and manually deleting the old baseline,
-run guest preparation and shut down the guest, then use
-`./setup.sh --replace-missing-baseline`. Refresh an older installed setup dispatcher
-first with `./setup.sh --test-tools-only`. The replacement mode requires unchanged
+To replace a baseline, prepare and shut down the guest, then run
+`./setup.sh --prepare-baseline`; manual deletion is unnecessary. Refresh an older
+installed setup dispatcher first with `./setup.sh --test-tools-only`.
+The retained `./setup.sh --replace-missing-baseline` recovery mode handles an
+already deleted baseline without replacing an existing one. It requires unchanged
 source identities, no remaining baseline metadata or internal disk record, and no
 incomplete test attempt. Under the shared controller lock it retains the original
 journal as `retired-<operation>.json` before beginning a new capture. Guest
 validation and disk verification still apply. Retries resume the new operation
-or preserve its finalized snapshot. Ordinary `--prepare-host` never retires a
-baseline. Development activation is on the next invocation after helper refresh;
+or preserve its finalized snapshot. Explicit `--prepare-baseline` replaces a
+finalized snapshot on each invocation. Development activation is on the next invocation after helper refresh;
 no product service or saved-data change is involved.
 
 An incomplete prior system run prevents a new run. Use only a supported,

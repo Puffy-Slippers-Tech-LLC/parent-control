@@ -9,7 +9,7 @@ import sys
 import time
 
 from owned_commands import require
-from prepare_host import URI
+from prepare_baseline import URI
 
 
 def attach(api, expected, mode):

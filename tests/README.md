@@ -462,7 +462,7 @@ covers the current UI, nested-Shell, VM controller and persistent caller paths:
 tools/run-unit-tests \
   tests/unit/test_ui_cleanup_safety.py \
   tests/unit/test_child_preview_cleanup_safety.py \
-  tests/unit/test_prepare_host_cleanup_safety.py \
+  tests/unit/test_prepare_baseline_cleanup_safety.py \
   tests/unit/test_system_runner_cleanup_safety.py \
   tests/unit/test_system_caller_cleanup_safety.py \
   tests/unit/test_system_agent_cleanup_safety.py -q

@@ -18,7 +18,7 @@ import struct
 import sys
 
 from owned_commands import require
-from prepare_host import URI
+from prepare_baseline import URI
 
 
 def log(event):

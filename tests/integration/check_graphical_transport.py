@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 from owned_commands import Commands, require
-import prepare_host as host
+import prepare_baseline as host
 
 
 def receive_probe(directory, commands):

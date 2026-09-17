@@ -806,7 +806,7 @@ def test_shell_review_copies_rotate_with_their_aggregate(tmp_path):
 
 @pytest.mark.parametrize('phase', ['complete', 'running', 'cleanup-requested'])
 def test_privileged_guard_reads_the_shared_recovery_journal(tmp_path, monkeypatch, phase):
-    import prepare_host as baseline
+    import prepare_baseline as baseline
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     monkeypatch.setattr(baseline, 'BASELINES', tmp_path)
@@ -823,7 +823,7 @@ def test_privileged_guard_reads_the_shared_recovery_journal(tmp_path, monkeypatc
 
 
 def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch):
-    import prepare_host as baseline
+    import prepare_baseline as baseline
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     directory = tmp_path / 'named-vm'

@@ -21,7 +21,7 @@ import sys
 def retention_guard(root):
     """Read recovery state under the existing VM lease; never repair it here."""
     sys.path.insert(0, str(root / 'tests/integration'))
-    import prepare_host as baseline
+    import prepare_baseline as baseline
     baseline.canonical(baseline.BASELINES)
     lock_path = baseline.baseline_lock_path(baseline.BASELINES)
     fd = os.open(lock_path, os.O_RDWR | os.O_NOFOLLOW)

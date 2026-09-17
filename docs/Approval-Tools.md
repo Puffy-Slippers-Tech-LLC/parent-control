@@ -63,7 +63,7 @@ changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
 checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
 dependencies and host policies. Explicit baseline preparation is also routed
-through the master: `./setup.sh --prepare-host`; see
+through the master: `./setup.sh --prepare-baseline`; see
 [VM prerequisites](../tests/integration/Environment.md).
 The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
 plugin and GTK 4 VTE viewer packages without requesting package upgrades; ordinary test commands
@@ -188,7 +188,7 @@ matches literal argument prefixes; the strictest decision wins.
 
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
-`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools` or `prepare-host`, with no extra
+`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools` or `prepare-baseline`, with no extra
 paths or arguments. Its
 dedicated Polkit action defaults to denial and grants only active local members
 of `sudo`. `setup.sh` checks this authorization without requesting interaction

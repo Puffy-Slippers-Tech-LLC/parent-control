@@ -12,7 +12,7 @@ import pytest
 
 
 from tests.support.paths import ROOT
-import prepare_host as host
+import prepare_baseline as host
 import prepare_vm as guest
 
 from tests.support.vm_baseline import UUID, SCRIPT_DIGEST, Source, Images, xml, snapshot_xml, rig
@@ -97,6 +97,88 @@ def deleted_baseline(rig):
     rig.source.baseline_xml = None
     rig.commands.snapshots = []
     return saved
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_explicit_preparation_refuses_running_vm_without_mutation(rig, existing):
+    if existing:
+        rig.capture().run()
+    rig.source.off = False
+    before = rig.top.read_bytes()
+    saved = state(rig) if existing else None
+    shutdowns = rig.source.shutdown_calls
+    with pytest.raises(host.CaptureError, match='guard:source-running'):
+        rig.capture().run(refresh=True)
+    assert rig.top.read_bytes() == before
+    assert not rig.source.deletions
+    assert rig.source.shutdown_calls == shutdowns
+    assert (state(rig) if existing else None) == saved
+    assert rig.directory.exists() == existing
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_explicit_preparation_captures_current_guest_without_restore(rig, existing):
+    saved = None
+    if existing:
+        rig.capture().run()
+        saved = (rig.directory / 'phase.json').read_bytes()
+    rig.source.off = True
+    rig.top.write_bytes(b'current prepared guest')
+    shutdowns = rig.source.shutdown_calls
+    def inspect_current(*args):
+        assert rig.top.read_bytes() == b'current prepared guest'
+        assert rig.source.baseline_xml is None
+        assert len(rig.source.deletions) == int(existing)
+        return {'prepared': True}
+    rig.inspect.side_effect = inspect_current
+    rig.capture().run(refresh=True)
+    assert len(rig.source.creations) == 1 + int(existing)
+    assert rig.source.shutdown_calls == shutdowns
+    assert state(rig)['phase'] == 'finalized'
+    if saved:
+        assert (rig.directory / f"retired-{json.loads(saved)['operation']}.json").read_bytes() == saved
+
+
+def test_explicit_preparation_replaces_snapshot_without_existing_journal(rig):
+    rig.source.off = True
+    rig.source.create_baseline(rig.source.layout, 'previous baseline')
+    rig.capture().run(refresh=True)
+    assert len(rig.source.deletions) == 1
+    assert len(rig.source.creations) == 2
+    assert state(rig)['phase'] == 'finalized'
+
+
+def test_explicit_preparation_retries_failed_capture_without_restoring(rig):
+    rig.capture().run()
+    rig.inspect.side_effect = host.CaptureError('guest:not-prepared')
+    with pytest.raises(host.CaptureError, match='guest:not-prepared'):
+        rig.capture().run(refresh=True)
+    assert len(rig.source.deletions) == 1
+    assert rig.source.baseline_xml is None
+    operation = state(rig)['operation']
+    rig.inspect.side_effect = None
+    rig.capture().run(refresh=True)
+    assert state(rig)['operation'] == operation
+    assert state(rig)['phase'] == 'finalized'
+
+
+def test_explicit_preparation_refuses_incomplete_attempt_before_deletion(rig):
+    rig.capture().run()
+    attempt = rig.directory / 'system-run.json'
+    attempt.write_text('{"phase": "running"}')
+    attempt.chmod(0o600)
+    with pytest.raises(host.CaptureError, match='state:interrupted-run'):
+        rig.capture().run(refresh=True)
+    assert not rig.source.deletions
+    assert len(rig.source.creations) == 1
+
+
+def test_explicit_preparation_stops_after_snapshot_deletion_failure(rig, monkeypatch):
+    rig.capture().run()
+    monkeypatch.setattr(rig.source, 'delete_baseline', Mock(side_effect=host.CaptureError('delete:failed')))
+    with pytest.raises(host.CaptureError, match='delete:failed'):
+        rig.capture().run(refresh=True)
+    assert len(rig.source.creations) == 1
 
 
 def test_explicit_replacement_archives_deleted_baseline_and_repeats_safely(rig):
@@ -542,6 +624,27 @@ def test_libvirt_finds_retained_snapshot_and_refuses_ambiguous_names(rig, name):
         source.baseline()
 
 
+@pytest.mark.parametrize('running', [False, True])
+def test_libvirt_deletes_only_baseline_without_reverting(rig, running):
+    api, domain = libvirt_fixture(rig)
+    domain.state.return_value = (1 if running else 5, 0)
+    baseline = domain.listAllSnapshots.return_value[0]
+    unrelated = Mock()
+    unrelated.getName.return_value = 'unrelated-snapshot'
+    domain.listAllSnapshots.return_value.append(unrelated)
+    source = host.LibvirtSource(api)
+    if running:
+        with pytest.raises(host.CaptureError, match='snapshot:source-changed'):
+            source.delete_baseline(rig.source.layout)
+        baseline.delete.assert_not_called()
+    else:
+        source.delete_baseline(rig.source.layout)
+        baseline.delete.assert_called_once_with(0)
+    unrelated.delete.assert_not_called()
+    domain.revertToSnapshot.assert_not_called()
+    domain.shutdown.assert_not_called()
+
+
 def test_libvirt_creates_offline_internal_snapshot_with_metadata(rig):
     api, domain = libvirt_fixture(rig)
     domain.state.return_value = (5, 0)
@@ -679,14 +782,15 @@ def test_capture_accepts_installed_product_on_host(monkeypatch):
     residue = Mock(return_value="package")
     monkeypatch.setattr(guest, "find_residue", residue)
     source = Mock()
+    source.snapshot.return_value = ({}, True)
     monkeypatch.setattr(host, "LibvirtSource", Mock(return_value=source))
     capture = Mock()
-    capture.run.side_effect = lambda: worker.start.assert_called_once_with()
+    capture.run.side_effect = lambda **kwargs: worker.start.assert_called_once_with()
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
 
     assert host.main([]) == 0
     residue.assert_not_called()
-    capture.run.assert_called_once_with()
+    capture.run.assert_called_once_with(refresh=True)
     source.close.assert_called_once_with()
 
 
@@ -724,9 +828,11 @@ def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
     monkeypatch.setattr(host.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(host.os, "geteuid", lambda: 0)
     monkeypatch.setattr(host.os, "getegid", lambda: 0)
-    monkeypatch.setattr(host, "LibvirtSource", Mock())
+    source = Mock()
+    source.snapshot.return_value = ({}, True)
+    monkeypatch.setattr(host, "LibvirtSource", Mock(return_value=source))
     capture = Mock()
-    def blocked_capture():
+    def blocked_capture(**kwargs):
         request.set()
         assert answered.wait(5), "libvirt dispatch stopped during capture"
     capture.run.side_effect = blocked_capture

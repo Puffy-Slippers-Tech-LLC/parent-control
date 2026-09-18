@@ -76,16 +76,16 @@ AREA_SELECTED_HELPERS = {
 PHASE_DEPENDENCIES = {
     'installed': (),
     'rebooted': ('installed',),
-    'authorization': ('installed', 'rebooted'),
-    'enforcement': ('installed', 'rebooted'),
-    'session': ('installed', 'rebooted'),
+    'authorization': (),
+    'enforcement': (),
+    'session': (),
 }
 PHASE_PREREQUISITES = {
     'installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
     'rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
-    'authorization': ('rebooted-phase', 'authorization-accounts'),
-    'enforcement': ('rebooted-phase', 'native-enforcement-fixture'),
-    'session': ('rebooted-phase', 'one-shot-gdm-grant-fixture-and-second-reboot'),
+    'authorization': ('retained-app-snapshot', 'authorization-accounts'),
+    'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
+    'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),
 }
 require = baseline.require
 Error = baseline.CaptureError
@@ -229,7 +229,8 @@ def case_phases(area, case_id):
     return package[case_id]
 
 
-def resolve_selection(area=None, test=None, *, inventories=None, qualification_failure=False):
+def resolve_selection(area=None, test=None, *, inventories=None, qualification_failure=False,
+                      fresh_install=False):
     """Resolve an exact selection and all test-phase prerequisites on the host."""
     require(area is None or area != '', 'selection:empty-area')
     require(test is None or test != '', 'selection:empty-test')
@@ -257,8 +258,11 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
 
     terminal_phases = {phase for name, cases in chosen.items() for case in cases
                        for phase in case_phases(name, case)}
+    dependencies = {phase for item in terminal_phases for phase in PHASE_DEPENDENCIES[item]}
+    if fresh_install:
+        dependencies.update(('installed', 'rebooted'))
     phases = tuple(phase for phase in PHASE_ORDER if phase in terminal_phases or
-                   any(phase in PHASE_DEPENDENCIES[item] for item in terminal_phases))
+                   phase in dependencies)
 
     executions = []
     for phase in phases:
@@ -272,10 +276,10 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
                 if phase in case_phases('package', case):
                     executions.append(CaseExecution(phase, 'package', case, True))
 
-    prerequisites = []
+    prerequisites = ['accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap']
     for phase in phases:
         for item in PHASE_PREREQUISITES[phase]:
-            if item not in prerequisites:
+            if item not in prerequisites and not (fresh_install and item == 'retained-app-snapshot'):
                 prerequisites.append(item)
     if test and (test in ('test_authenticated_request_rejects_deleted_target',
                          'test_requester_disconnect_during_approval',
@@ -314,6 +318,13 @@ def print_selection(selection, stream=None):
         print(f'    {name}:', file=stream)
         for case in cases:
             print(f'      {case}', file=stream)
+
+
+def announce_selection(selection):
+    """Publish the resolved total before any VM work, including focused runs."""
+    from tools.regression_events import emit
+    emit('collection', total=len(selection.executions), nodeids=[
+        item.phase + '::' + item.case_id for item in selection.executions])
 
 
 def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
@@ -1140,6 +1151,7 @@ def capture_session_screen(lease, output):
     lease.guard()
     time.sleep(1)
     lease.guard()
+    output.mkdir(mode=0o700, exist_ok=True)
     stream = lease.source.connection.newStream(0)
     try:
         mime = lease.source.domain.screenshot(stream, 0, 0)
@@ -1173,7 +1185,7 @@ def run_pytest(vm, run, phase, selection):
         vm.commands.progress = previous
 
 
-def installed_run(vm, lease, directory, selection, ledger=None):
+def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False):
     ledger = ledger or RunLedger()
     run = lease.state['run']
     outcome = 'failed'
@@ -1182,16 +1194,25 @@ def installed_run(vm, lease, directory, selection, ledger=None):
         with ledger.measure('bootstrap'):
             vm.ready()
             vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
-        lease.save('package-install')
         previous = directory / 'input/previous-package.deb'
-        if previous.exists():
+        require(not already_installed or (not previous.exists() and
+                not any(phase in selection.phases for phase in ('installed', 'rebooted'))),
+                'selection:installation-requires-baseline')
+        if already_installed:
+            lease.save('snapshot-readiness')
+            with ledger.measure('bootstrap'):
+                vm.call(guest_command(run, 'verify-installed'), timeout=660)
+        elif previous.exists():
+            lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'install-previous'), timeout=2400)
             lease.save('previous-package-reboot')
             with ledger.measure('reboot'):
                 vm.reboot()
-        with ledger.measure('install'):
-            vm.call(guest_command(run, 'upgrade' if previous.exists() else 'install'), timeout=2400)
+        if not already_installed:
+            lease.save('package-install')
+            with ledger.measure('install'):
+                vm.call(guest_command(run, 'upgrade' if previous.exists() else 'install'), timeout=2400)
         if 'installed' in selection.phases:
             lease.save('pytest-installed')
             with ledger.measure('test'):
@@ -1393,6 +1414,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     source = None
     lease = None
+    suite = None
     directory = None
     manifest = None
     passed = False
@@ -1404,7 +1426,8 @@ def main(argv=None):
     try:
         if args.list:
             selection = resolve_selection(args.area, args.test,
-                                          qualification_failure=args.qualification_failure)
+                                          qualification_failure=args.qualification_failure,
+                                          fresh_install=args.previous_artifacts is not None)
             print_selection(selection)
             return 0
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
@@ -1412,7 +1435,8 @@ def main(argv=None):
             require(os.geteuid() == os.getegid() == 0,
                     'guard:root; run from a root shell on the VM host')
         selection = resolve_selection(args.area, args.test,
-                                      qualification_failure=args.qualification_failure)
+                                      qualification_failure=args.qualification_failure,
+                                      fresh_install=args.previous_artifacts is not None)
         log(f'selection:scope={selection.scope} phases={len(selection.phases)} '
             f'executions={len(selection.executions)}')
         for name in HOST_EXECUTABLES:
@@ -1422,6 +1446,7 @@ def main(argv=None):
         if args.check_tools:
             log('tools:available')
             return 0
+        announce_selection(selection)
         with ledger.measure('preparation'):
             assets = artifact_source(args.artifacts)
             previous_assets = artifact_source(args.previous_artifacts) if args.previous_artifacts else None
@@ -1456,43 +1481,16 @@ def main(argv=None):
                 api.virEventRunDefaultImpl()
         threading.Thread(target=events, daemon=True, name='libvirt-events').start()
         source = baseline.LibvirtSource(api)
-        lease = Lease(source, commands, lambda disk, digest: baseline.inspect_guest(guestfs, disk, digest),
-                      ledger=ledger, graphics_type='vnc',
-                      verify_backing_bytes=not args.skip_backing_verification)
+        from system_snapshots import create_suite, run_attempts
+        suite = create_suite(source, guestfs, commands,
+                             verify_backing_bytes=not args.skip_backing_verification)
+        _, _, lease = suite.acquire(ledger)
         # SIGTERM follows the same finally/lease cleanup as an interactive interruption.
         def interrupted(*_):
             raise KeyboardInterrupt
         signal.signal(signal.SIGTERM, interrupted)
-        with lease:
-            with ledger.measure('preparation'):
-                lease.prepare()
-            with ledger.measure('bootstrap'):
-                host_key = bootstrap(commands, lease, directory, guestfs)
-                lease.start()
-                hostname = address(source)
-            (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
-            config = {
-                'directory': str(directory), 'hostname': hostname, 'run': lease.state['run'],
-                'domain_uuid': source.uuid, 'domain_id': lease.view.domain_id,
-            }
-            from vm_transport import Transport
-            vm = Transport(config, commands, guard=lambda _: lease.guard())
-            lease.guard()
-            from e2e_watch import running_display
-            with running_display(lease):
-                installed_run(vm, lease, directory, selection, ledger)
-            try:
-                result = json.loads((directory / 'guest-results/result.json').read_text())
-                require(result['outcome'] == 'passed' and result['package_sha256'] ==
-                        manifest['artifacts']['package']['sha256'] and
-                        result['selected_inputs_sha256'] == selected_inputs_sha256,
-                        'pytest:guest-evidence')
-            except (OSError, json.JSONDecodeError, KeyError, TypeError, Error) as error:
-                category = ('pytest:guest-evidence' if isinstance(error, Error)
-                            else 'collection:missing-or-invalid-guest-result')
-                ledger.fail_outcome('collection', category)
-                raise Error(category) from error
-            lease.guard()
+        run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
+                     fresh_install=args.previous_artifacts is not None)
         ledger.pass_outcome('infrastructure')
         passed = True
         category = 'all-checks-passed'
@@ -1507,6 +1505,19 @@ def main(argv=None):
             log(f'exception-type={type(error).__name__}')
         log(category)
     finally:
+        if suite is not None:
+            try:
+                with ledger.measure('cleanup'):
+                    suite.close()
+            except (Exception, KeyboardInterrupt) as error:
+                cleanup_category = error_category(error)
+                ledger.fail_outcome('cleanup', cleanup_category)
+                if passed:
+                    category = cleanup_category
+                passed = False
+            finally:
+                if suite.source is not None:
+                    source = None  # Suite.close owns closure, including failed audits.
         if host_before is not None:
             try:
                 with ledger.measure('cleanup'):
@@ -1537,4 +1548,6 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
+    # Shared snapshot helpers import this controller by its module name.
+    sys.modules['system_runner'] = sys.modules[__name__]
     raise SystemExit(main())

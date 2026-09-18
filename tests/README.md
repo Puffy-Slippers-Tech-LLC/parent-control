@@ -23,33 +23,53 @@ tests followed by shell checks in one report. Each category keeps its own
 arguments, and all selections are validated before execution. Arbitrary category
 groups run serially; the established aggregates retain their parallel schedules.
 Help, listing and collection-only commands keep their inspection output and take
-one category at a time. Raw test output remains in the linked report streams.
+one category at a time. `tools/run-tests --help` prints usage, including how
+the `all` aggregate breaks down into separately runnable pieces. `tools/run-tests --list`
+prints the JSON category inventory. Raw test output remains in the linked report streams.
 
-Run `tools/run-tests host` to execute discovery, isolated cleanup prerequisites
-and all host jobs, stopping at **Join host branches**. This uses the same host
-plan as both complete aggregates. It does not inspect or authorize the VM, run
-publishing checks, or build packages. Its report is explicitly marked host-only;
-a passing host run is not a complete regression pass. It accepts no selectors.
+The complete partition is **host + system + e2e = all**. Combine any of these
+categories in one invocation; execution always orders host first, then system,
+then E2E. For example:
 
-Run `tools/run-tests host-builds` to qualify the host schedule including publishing,
-two fresh package builds and comparison, without VM discovery, authorization or
-execution. `tools/run-tests host-builds --serial-builds` executes the same scope
-with publishing/builds after the host join for an unchanged-input comparison.
-These are partial qualification results, not complete regression passes. No other
-arguments are accepted; both commands hold the same checkout activity lock.
+```sh
+tools/run-tests host
+tools/run-tests system e2e
+tools/run-tests e2e
+tools/run-tests host system
+tools/run-tests host system e2e
+```
 
-Aggregates (`all`, `all-verify`, `host`, `host-builds`) stop at the first reported
+`host` includes discovery, isolated cleanup prerequisites, unit, component, UI,
+fixture runtime, source/traceability, static, child Node/GJS, backend checks,
+publishing checks, two fresh package builds and reproducibility comparison.
+It uses the complete aggregate's existing four-branch scheduling and stops at
+**Join host branches**, without VM discovery, authorization or execution.
+If unfinished prior work requires VM recovery, `host` refuses and preserves the
+evidence rather than touching the VM.
+
+`system` and `e2e` remain sequential VM categories. A combined run shares one
+report and reuses host's qualified package. Without `host`, the runner builds one
+required package input automatically. After running host and E2E, only system
+remains. Focused category commands remain available for diagnosis; they are not
+additional phases of `all`.
+
+`host-builds` remains a compatibility alias for `host`. Its `--serial-builds`
+option runs publishing/builds after the host join for scheduling comparisons.
+
+Complete categories and aggregates stop at the first reported
 failure by default, with the same cooperative cleanup, final evidence and failure
 investigation prompt as Ctrl+C. Use `tools/run-tests all --continue-on-errors`
 (or the corresponding aggregate) to continue independent tests after failures.
 Safety and infrastructure refusals still stop the run. Reattachment preserves
 the original options. The flag takes no value and can accompany `--serial-builds`.
 
-Run `make test-all` (`tools/run-tests all`) for development without backing-file
-byte scans, or `make test-all-verify` (`tools/run-tests all-verify`) for the
-full verification at system attempt and E2E suite boundaries. Both retain ownership
-locks, snapshot/chain checks, guest inspection and cleanup;
-reports explicitly record the verification policy. Direct system/E2E runs still
+Run `make test-all` (`tools/run-tests all`, also the default with no arguments)
+for development without backing-file byte scans, or `make test-all-verify`
+(`tools/run-tests all-verify`) for the full verification at system attempt and
+E2E suite boundaries. Both retain ownership locks, snapshot/chain checks, guest
+inspection and cleanup;
+reports explicitly record the verification policy. Combinations including `host`
+use `all`'s policy; VM-only combinations and direct system/E2E runs still
 verify backing bytes unless `--skip-backing-verification` is explicitly selected.
 Both aggregate targets automatically discover all ready E2E variants, including
 the installed Parent About/license scenario. For E2E-only runs, use
@@ -65,10 +85,12 @@ is active or has an unread successful result, every invocation warns and attache
 ignoring all new arguments—even another category, invalid options, `--help`,
 `--list`, or no arguments. The original selection and options remain in effect.
 A failed or incomplete idle session can be replaced by an explicit new selection;
-its output is preserved and startup recovery runs before the new checks.
-Invoke without arguments to replay any unread result. After delivery, the next
-invocation starts a fresh run. Session output and ownership
-records live under `artifacts/test-sessions/`. Runs started before reconnect support
+its output is preserved and startup recovery runs before new VM checks. Host-only
+execution refuses pending VM recovery.
+Invoke without arguments to replay any unread result. After delivery, or when
+no session exists, an invocation without arguments starts the `all` aggregate.
+Session output and ownership records live under `artifacts/test-sessions/`.
+Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
 using the new fast mode. Neither aggregate accepts suite selectors. The terminal shows
@@ -163,9 +185,19 @@ Source contents and modes are compared at category boundaries and final
 acceptance; detected edits invalidate the run. These checks do not freeze the
 checkout or prove immunity to an edit-and-revert between boundaries.
 
-Installed-system functional areas already share one package installation and
-one outer VM attempt, including the reboots their assertions require. Keep that
-full selection together. Multi-case E2E runs retain one exclusive VM lease and
+The aggregate dispatches each complete `system` or ready `e2e` selection in one
+invocation through the shared VM launcher. Prerequisite checks run once at each
+suite's startup, not between cases or phases. Both controllers use the shared
+event writer for live counts and failures. A failure event is reported immediately;
+automatic aggregate cancellation waits for the controller to finish evidence
+collection, restoration and its final audit. Explicit user cancellation remains
+available through the normal owned-process channel.
+
+Installed-system runs retain one exclusive VM lease. Package installation/reboot
+checks keep their lifecycle together on `onpc-baseline`; each post-install area
+restores the same retained version snapshot used by E2E, preparing it only when
+missing. Explicit upgrade attempts keep the upgraded state throughout their
+selected checks. Multi-case E2E runs retain one exclusive VM lease and
 connection across fresh-baseline cases. Full baseline/chain verification and
 offline guest inspection run before the first case and after the last case or
 failure. At case completion, the runner force-reverts the recorded guest directly
@@ -175,8 +207,8 @@ disk path/inode, snapshot metadata and isolation checks remain active. Each case
 still provisions its own declared inputs and gets its own worker and evidence;
 no product state continues between cases. Case results remain candidates until
 the suite audit, host preservation check and actual lock/connection release pass.
-Any case or transition failure stops the suite. Single-case and installed-system
-runs retain their full independent attempt lifecycle.
+Any case or transition failure stops the suite. Single-case runs retain their
+full independent attempt lifecycle.
 
 The command collects current unit/contract, private-D-Bus, UI and fixture runtime
 cases; runs cleanup prerequisites in isolation before protected operations;

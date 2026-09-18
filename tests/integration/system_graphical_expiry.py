@@ -227,6 +227,7 @@ def verify(record):
     publish = record
     observations = []
     output = guest.PAYLOAD / 'results'
+    output.mkdir(mode=0o700, exist_ok=True)
     def record(name, value):
         observations.append((name, value))
         pending = output / 'session-observations.pending'

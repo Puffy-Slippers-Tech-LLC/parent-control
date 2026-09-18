@@ -42,6 +42,29 @@ def workers(tmp_path, monkeypatch):
         child.wait(timeout=20)
 
 
+def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
+    run, started = session.select(tmp_path, [])
+    assert started
+    current = json.loads((tmp_path / 'artifacts/test-sessions/current.json').read_text())
+    assert current['argv'] == ['all']
+    wait_for(tmp_path / 'arguments')
+    assert (tmp_path / 'arguments').read_text() == 'all'
+    (tmp_path / 'release').touch()
+    assert session.follow(run, io.StringIO()) == 7
+
+
+@pytest.mark.parametrize('argv', [['--help'], ['-h']])
+def test_help_prints_usage_without_starting_a_session(tmp_path, workers, capsys, argv):
+    assert session.select(tmp_path, argv) == (None, False)
+    assert workers == []
+    assert not (tmp_path / 'artifacts/test-sessions/current.json').exists()
+    assert session.main(tmp_path, argv) == 0
+    output = capsys.readouterr().out
+    assert output == test_commands.usage() + '\n'
+    assert 'host and e2e' in output
+    assert workers == []
+
+
 def test_continue_on_errors_survives_detach_and_ignores_new_arguments(tmp_path, workers):
     run, started = session.select(tmp_path, ['all', '--continue-on-errors'])
     assert started

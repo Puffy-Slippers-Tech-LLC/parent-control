@@ -34,7 +34,7 @@ def test_qualification_is_frozen_labeled_and_only_loaded_for_authorization(tmp_p
     normal_digest = runner.stage_selected_inputs(normal, tmp_path / 'normal')
     fault_digest = runner.stage_selected_inputs(qualified, tmp_path / 'fault')
     assert normal.executions == qualified.executions
-    assert len(qualified.executions) == 5
+    assert len(qualified.executions) == 1
     assert normal_digest != fault_digest
     identity = json.loads((tmp_path / 'fault/selected-inputs.json').read_text())
     assert identity['selection']['qualification_failure'] is True
@@ -127,11 +127,11 @@ def test_guarded_failure_classification_preserves_scope_and_original_error(tmp_p
     lease.state = {'run': RUN}
     original = runner.CommandError('command:failed:ssh')
     vm.commands.last_returncode = 1
-    vm.call.side_effect = [b'', b'', b'', b'', original,
+    vm.call.side_effect = [b'', original,
                            runner.CommandError('collection:failed') if fault == 'collection' else b'']
     ledger = runner.RunLedger()
     with pytest.raises(runner.CommandError) as caught:
-        runner.installed_run(vm, lease, tmp_path, selected, ledger)
+        runner.installed_run(vm, lease, tmp_path, selected, ledger, already_installed=True)
     assert caught.value is original
     category = runner.record_caught_failure(ledger, original)
     assert category == (runner.QUALIFICATION_FAILURE if fault == 'fixed'
@@ -150,5 +150,5 @@ def test_missing_injected_fault_cannot_become_a_passing_run(tmp_path):
     lease.state = {'run': RUN}
     ledger = runner.RunLedger()
     with pytest.raises(runner.Error, match='harness:qualification-fault-missing'):
-        runner.installed_run(vm, lease, tmp_path, selected, ledger)
+        runner.installed_run(vm, lease, tmp_path, selected, ledger, already_installed=True)
     assert ledger.outcomes['infrastructure']['category'] == 'harness:qualification-fault-missing'

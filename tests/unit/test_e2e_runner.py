@@ -286,8 +286,14 @@ def test_invalid_id_list_refuses_before_execution(value):
 
 
 @pytest.mark.parametrize('status', [0, 7])
-def test_default_builds_artifacts_then_dispatches_only_e2e(monkeypatch, tmp_path, status):
+def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, status):
     import tempfile
+    import regression
+    # Bare e2e now belongs to the complete-phase aggregate. Keep this direct
+    # launcher check on the explicit ready selection and forbid a real aggregate
+    # from acquiring the enclosing test run's retention lock.
+    aggregate = Mock(side_effect=AssertionError('unexpected aggregate dispatch'))
+    monkeypatch.setattr(regression, 'main', aggregate)
     with tempfile.TemporaryDirectory(prefix='onpc-e2e-command-test-') as directory:
         build = Mock(return_value=SimpleNamespace(returncode=status))
         execute = Mock()
@@ -295,18 +301,20 @@ def test_default_builds_artifacts_then_dispatches_only_e2e(monkeypatch, tmp_path
         monkeypatch.setattr(commands.subprocess, 'run', build)
         monkeypatch.setattr(commands.os, 'execve', execute)
         monkeypatch.setattr(dev_privileges, 'check', Mock())
-        commands._main(['e2e'])
+        result = commands._main(['e2e', '--ready'])
+        aggregate.assert_not_called()
         build.assert_called_once()
         assert build.call_args.args[0] == [
             '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
             '--output', directory]
         if status:
+            assert result == status
             execute.assert_not_called()
         else:
             execute.assert_called_once()
             assert execute.call_args.args[1] == [
                 '/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
-                'e2e', '--artifacts=' + directory]
+                'e2e', '--ready', '--artifacts=' + directory]
 
 
 def test_make_selector_never_becomes_recipe_shell_code(tmp_path, cli_checkout):

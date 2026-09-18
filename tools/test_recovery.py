@@ -22,6 +22,9 @@ def before_run(root, argv, *, categories=None):
                            bool(state and not state['finished']))
     vm = any(kind in ('all', 'all-verify', 'system', 'e2e', 'integration')
              for kind in (categories or [argv[0]]))
+    if pending and not vm and argv[0] in ('host', 'host-builds'):
+        raise ValueError('retention: unfinished run requires VM recovery; host will not touch the VM; '
+                         'use tools/run-tests integration check_test_recovery first')
     if not pending and not vm:
         return 0
     return cleanup(root)

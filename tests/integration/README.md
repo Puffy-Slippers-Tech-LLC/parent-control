@@ -34,7 +34,8 @@ The runner exclusively leases the VM, validates the finalized baseline and
 recorded disk/domain identities, restores only outside a complete attempt,
 detaches writable host shares/transfer channels before boot, and leaves the VM
 off with its prior persistent domain configuration restored after cleanup.
-It creates no new VM, snapshot, disk copy or overlay. A real reboot within an
+It reuses the E2E version snapshot, creating it only when missing, and creates no
+new VM, disk copy or overlay. A real reboot within an
 attempt preserves guest state and must produce a new boot identity.
 
 The host and guest tooling sources are `setup.sh`,
@@ -105,6 +106,20 @@ tools/run-tests system --list --area authorization
 tools/run-tests system --list --area authorization --test 'test_real_selected_parent_authentication[child1]'
 ```
 
+Bare `tools/run-tests system` builds its required package input automatically;
+combinations including `host` reuse host's qualified input.
+
+Installation/reboot package checks start from `onpc-baseline`. Authorization,
+enforcement and session checks restore the retained `onpc-v<release>` app snapshot
+before each area, using the same shared preparation as
+`tools/prepare-appsnapshot --overwrite false` and E2E. A missing version snapshot
+is installed, rebooted and captured once; an existing snapshot is kept unchanged.
+Each restored area refreshes its guarded helpers and verifies installed package
+readiness before its tests, without reinstalling. Completed app snapshots remain
+available after tests; final cleanup still audits and restores the outer baseline.
+Partial post-install selections no longer run fresh-install assertions as
+prerequisites. Full runs retain all explicit package lifecycle checks.
+
 The `session` area runs installed PAM expiry checks, then a one-shot GDM
 autologin fixture across a second reboot. It observes real scope creation,
 expiry locking, extension recovery, PAM admission and authenticated broker
@@ -125,7 +140,9 @@ verification. The controller installs and boots the prior package, requires its
 payload unchanged and its reboot marker cleared, then uses APT `--reinstall`
 for the selected new payload. Identical package digests are refused. The update
 must request a new product reboot, and normal installed/reboot assertions run
-against the new bytes. `update-activation.json` records both package digests and
+against the new bytes. Explicit updates keep their selected post-install checks
+in the same baseline-based attempt, so restoring a cached app cannot bypass the
+upgrade under test. `update-activation.json` records both package digests and
 the same-version reinstall observation. Neither package is installed on the host.
 
 `test_native_whitespace_policy_is_uid_scoped` runs the same transitions and
@@ -136,7 +153,7 @@ rules; intervening allow stages require that denial to be absent. The launch
 probe accepts only maintained fixture variants and uses
 direct `execv` after credential verification. Private rule filenames and public
 property names include the variant to retain both cases in a combined run.
-Inspect its four package/reboot prerequisites with
+Inspect its retained-app-snapshot prerequisite with
 `tools/run-tests system --list --area enforcement --test test_native_whitespace_policy_is_uid_scoped`.
 Host regressions cover the scenario and failure witnesses; the full installed
 run linked above also passed this case.
@@ -152,7 +169,7 @@ restored stages reject retained pattern rules. The launch probe selects only
 the fixed `pattern`, `pattern-future`, and `pattern-unrelated` targets, preserving
 the same guest/credential checks and owned one-shot process. Fixture setup
 refuses existing paths; files remain in the guest for outer baseline cleanup.
-Inspect the case and its four package/reboot prerequisites with
+Inspect the case and its retained-app-snapshot prerequisite with
 `tools/run-tests system --list --area enforcement --test test_native_future_pattern_is_uid_scoped`.
 Host regressions establish scenario behavior, catalog parsing and rule witnesses;
 the full installed run linked above also passed its kernel enforcement checks.
@@ -345,8 +362,8 @@ remain required. Host-safe regressions cover failures and both system/E2E
 composition; real transport qualification awaits a newly prepared baseline.
 
 `test_remote_accounts_are_excluded` provisions real RFC2307 LDAP users through
-`system_remote_accounts.py` only after the guest guard and package/reboot
-prerequisites. It refuses existing directory configuration and UID/name
+`system_remote_accounts.py` only after the guest guard and restored-app readiness
+checks. It refuses existing directory configuration and UID/name
 collisions, verifies prepared OpenLDAP/SSSD packages, configures the dormant
 OpenLDAP package through `dpkg-reconfigure --frontend=noninteractive`, uses LDAP's public
 `cn=config` interface with root peer credentials, and enables NSS enumeration.

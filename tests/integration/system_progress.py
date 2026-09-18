@@ -3,7 +3,7 @@
 import json
 import sys
 
-PREFIX = 'ONPC-TEST-EVENT '
+from tools.regression_events import PREFIX, write_event
 
 
 class Progress:
@@ -29,7 +29,7 @@ class Progress:
                     result['detail'] = ('Installed test failed; traceback is flushed in '
                                         'guest results/regression-failures.jsonl and collected '
                                         'in this attempt’s private guest-results directory.')
-                print('\n' + PREFIX + json.dumps(result), file=sys.stdout, flush=True)
+                write_event(sys.stdout, **result)
             except (ValueError, TypeError, AttributeError):
                 continue
         # An unrelated malformed diagnostic cannot accumulate unbounded memory.

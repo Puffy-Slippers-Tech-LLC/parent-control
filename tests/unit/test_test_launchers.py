@@ -1,4 +1,5 @@
 """Boundary and execution tests for all approved test category routes."""
+import json
 import os
 import runpy
 import subprocess
@@ -257,6 +258,34 @@ def test_backend_readiness_is_a_fixed_host_safe_command():
         commands.plan(ROOT, 'backend', ['--command=id'])
 
 
+@pytest.mark.parametrize('argv', [['--help'], ['-h']])
+def test_help_prints_complete_categories_and_combinations(capsys, argv):
+    assert commands._main(argv) == 0
+    text = capsys.readouterr().out
+    assert text == commands.usage() + '\n'
+    assert text.startswith('Usage: tools/run-tests')
+    assert 'host and e2e' in text
+    assert 'all = host + system + e2e' in text
+    assert 'tools/run-tests system e2e' in text
+    assert 'tools/run-tests host system e2e' in text
+    assert 'two package builds and reproducibility' in text
+    assert not text.lstrip().startswith('{')
+
+
+def test_list_still_prints_category_json(capsys):
+    assert commands._main(['--list']) == 0
+    assert json.loads(capsys.readouterr().out) == commands.CATEGORIES
+
+
+def test_empty_argv_dispatches_the_all_aggregate(monkeypatch):
+    import regression
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(regression, 'main', execute)
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    assert commands._main([]) == 7
+    execute.assert_called_once_with(ROOT, verify_backing_bytes=False)
+
+
 @pytest.mark.parametrize('category,verify', [('all', False), ('all-verify', True)])
 def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category, verify):
     import regression
@@ -297,7 +326,7 @@ def test_host_aggregate_dispatch_and_invalid_arguments(monkeypatch):
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
     assert commands._main(['host']) == 7
-    execute.assert_called_once_with(ROOT, host_only=True)
+    execute.assert_called_once_with(ROOT, phases=('host',), verify_backing_bytes=False)
     execute.reset_mock()
     for args in (['--skip-backing-verification'], ['--component=ui'], ['--unattended']):
         assert commands._main(['host', *args]) == 2
@@ -312,9 +341,40 @@ def test_host_build_qualification_is_fixed_and_never_dispatches_vm(monkeypatch, 
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
     args = ['--serial-builds'] if serial else []
     assert commands._main(['host-builds', *args]) == 7
-    execute.assert_called_once_with(ROOT, host_builds=True, serial_builds=serial)
+    execute.assert_called_once_with(ROOT, phases=('host',), serial_builds=serial)
     execute.reset_mock()
     for extra in (['--serial'], ['--serial-builds', '--serial-builds'], ['--area', 'session'],
                   ['--skip-backing-verification'], ['--command=id']):
         assert commands._main(['host-builds', *extra]) == 2
     execute.assert_not_called()
+
+
+@pytest.mark.parametrize('argv', [
+    ['host'], ['system'], ['e2e'], ['host', 'system'], ['host', 'e2e'],
+    ['system', 'e2e'], ['host', 'system', 'e2e'], ['e2e', 'host', 'system'],
+    ['e2e', 'system'], ['system', 'host'], ['e2e', 'host'],
+])
+@pytest.mark.parametrize('detached', [False, True])
+def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, detached):
+    import regression
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(regression, 'main', execute)
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    phases = tuple(kind for kind in ('host', 'system', 'e2e') if kind in argv)
+    for flag in ([], ['--continue-on-errors']):
+        commands.validate(ROOT, [*argv, *flag])
+        assert commands.selections(ROOT, [*argv, *flag]) == [(kind, []) for kind in phases]
+        assert commands._main([*argv, *flag], detached=detached) == 7
+        options = {'continue_on_errors': True} if flag else {}
+        execute.assert_called_with(ROOT, phases=phases, verify_backing_bytes='host' not in phases,
+                                   **options)
+
+
+@pytest.mark.parametrize('argv', [
+    ['host', 'host'], ['system', 'e2e', 'system'], ['all', 'host'],
+    ['host', 'system', '--bad'], ['host', 'system', '--list'],
+    ['host', 'system', '--continue-on-errors', '--continue-on-errors'],
+])
+def test_invalid_complete_combinations_are_refused_before_work(argv):
+    with pytest.raises(ValueError):
+        commands.validate(ROOT, argv)

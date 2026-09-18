@@ -173,6 +173,48 @@ def test_e2e_qualification_remains_one_command_check():
     assert not regression_selection.SelectedRun.events('e2e', ['--qualify-install'])
 
 
+@pytest.mark.parametrize('status', [0, 1])
+def test_focused_system_report_counts_real_controller_inventory_and_completion(
+        tmp_path, monkeypatch, capsys, source_identity, status):
+    import system_runner
+    from system_progress import Progress
+    from tests.support.vm_runner import INVENTORIES
+    from tools import regression_events
+    selection = system_runner.resolve_selection('authorization',
+        'test_method_role_matrix[ListManagedUsers-child1]', inventories=INVENTORIES)
+    monkeypatch.setattr(regression.Run, 'wait_for_resources', lambda *_: None)
+
+    class Stream:
+        def __init__(self, output):
+            self.output = output
+
+        def write(self, value):
+            self.output(value.encode())
+
+        def flush(self):
+            pass
+
+    def execute(self, command, *, output, **kwargs):
+        with monkeypatch.context() as patch:
+            stream = Stream(output)
+            patch.setattr(regression_events.sys, '__stdout__', stream)
+            system_runner.announce_selection(selection)
+            patch.setattr(regression_events.sys, 'stdout', stream)
+            Progress('authorization', selection.executions)((regression.PREFIX + json.dumps({
+                'kind': 'finished', 'nodeid': 'test_authorization.py::' + selection.test}) + '\n').encode())
+        return status
+
+    monkeypatch.setattr(regression.Control, 'run', execute)
+    assert regression.retained_main(tmp_path, selections=[('system', ['--area', 'authorization'])]) == status
+    terminal = regression.Dashboard.ANSI.sub('', capsys.readouterr().out)
+    assert 'Installed-system tests - 100% (1/1)' in terminal
+    assert '(1/?)' not in terminal
+    report_dir, = (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').iterdir()
+    item, = json.loads((report_dir / 'progress.json').read_text())
+    assert item['total'] == item['done'] == 1
+    assert item['state'] == ('Passed' if status == 0 else 'Failed')
+
+
 def test_later_vm_selection_still_requires_startup_recovery(tmp_path, monkeypatch):
     monkeypatch.setattr(test_activity, 'descriptors', lambda: (99,))
     recovery = Mock(return_value=0)

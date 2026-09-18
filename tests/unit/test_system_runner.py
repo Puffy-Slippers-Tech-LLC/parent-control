@@ -264,22 +264,17 @@ def test_host_collection_rejects_failed_empty_or_duplicate_registries(result, ca
         runner.collect_area_cases('package', invoke=invoke)
 
 
-def test_authorization_selection_includes_exact_package_phase_prerequisites():
+def test_authorization_selection_uses_retained_app_snapshot():
     case = 'test_method_role_matrix[ListManagedUsers-child1]'
     selection = runner.resolve_selection('authorization', case, inventories=INVENTORIES)
     assert selection.scope == 'partial'
-    assert selection.phases == ('installed', 'rebooted', 'authorization')
+    assert selection.phases == ('authorization',)
     assert [(item.phase, item.case_id, item.prerequisite) for item in selection.executions] == [
-        ('installed', 'test_installed_package', True),
-        ('installed', 'test_first_install_requests_reboot', True),
-        ('rebooted', 'test_installed_package', True),
-        ('rebooted', 'test_reboot_applies_installation', True),
         ('authorization', case, False),
     ]
     assert selection.prerequisites == (
-        'accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install',
-        'installed-phase', 'guest-reboot', 'boot-readiness', 'rebooted-phase',
-        'authorization-accounts',
+        'accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap',
+        'retained-app-snapshot', 'authorization-accounts',
     )
     assert selection.available == {'authorization': INVENTORIES['authorization']}
 
@@ -336,7 +331,7 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
     }
 
 
-def test_authorization_selected_inputs_include_prerequisite_test_and_helper(tmp_path):
+def test_authorization_selected_inputs_include_selected_test_and_helper(tmp_path):
     selection = runner.resolve_selection(
         'authorization', 'test_method_role_matrix[ListManagedUsers-child1]',
         inventories=INVENTORIES)
@@ -344,8 +339,9 @@ def test_authorization_selected_inputs_include_prerequisite_test_and_helper(tmp_
     identity = json.loads((tmp_path / 'selected-inputs.json').read_text())
 
     assert digest == hashlib.sha256((tmp_path / 'selected-inputs.json').read_bytes()).hexdigest()
-    assert {'test_install_smoke.py', 'test_authorization.py', 'system_caller.py'} <= set(
+    assert {'test_authorization.py', 'system_caller.py'} <= set(
         identity['files'])
+    assert 'test_install_smoke.py' not in identity['files']
     assert identity['selection']['executions'][-1]['case_id'] == selection.test
 
 
@@ -407,7 +403,8 @@ def test_list_mode_returns_before_artifact_root_tool_or_vm_checks(monkeypatch, c
     output = capsys.readouterr().out
     assert 'mode: list-only (no root, artifacts, VM, or guest fixtures)' in output
     assert f'authorization::{case} [selected]' in output
-    assert 'installed::test_installed_package [prerequisite]' in output
+    assert 'retained-app-snapshot' in output
+    assert 'installed::test_installed_package' not in output
 
 
 def test_selected_execution_reaches_normal_guarded_prerequisite_checks(monkeypatch, capsys):
@@ -418,7 +415,7 @@ def test_selected_execution_reaches_normal_guarded_prerequisite_checks(monkeypat
     monkeypatch.setattr(runner.os, 'getegid', lambda: 0)
     assert runner.main(['--area', 'authorization']) == 1
     output = capsys.readouterr().err
-    assert 'selection:scope=partial phases=3 executions=6' in output
+    assert 'selection:scope=partial phases=1 executions=2' in output
     assert 'tools:missing' in output
     assert 'selection:execution-not-implemented' not in output
 
@@ -478,11 +475,8 @@ def test_selected_pytest_command_forwards_only_resolved_case_and_prerequisites()
     command = runner.pytest_command(RUN, 'authorization', selection)
     assert command[-1] == f'{runner.PAYLOAD}/test_authorization.py::{case}'
     assert not any('real_selected_parent_authentication' in item for item in command)
-    installed = runner.pytest_command(RUN, 'installed', selection)
-    assert installed[-2:] == [
-        f'{runner.PAYLOAD}/test_install_smoke.py::test_installed_package',
-        f'{runner.PAYLOAD}/test_install_smoke.py::test_first_install_requests_reboot',
-    ]
+    with pytest.raises(runner.Error, match='pytest:unselected-phase'):
+        runner.pytest_command(RUN, 'installed', selection)
 
 
 def test_readiness_timeout_is_bounded_without_fixed_sleep(monkeypatch):
@@ -590,7 +584,10 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
 
 
 @pytest.mark.parametrize('lost', [False, True])
-def test_session_capture_checks_ownership_before_and_after_stream(tmp_path, monkeypatch, lost):
+@pytest.mark.parametrize('fresh', [False, True])
+def test_session_capture_checks_ownership_before_and_after_stream(tmp_path, monkeypatch, lost, fresh):
+    if fresh:
+        tmp_path = tmp_path / 'guest-results'
     monkeypatch.setattr(runner.time, 'sleep', lambda _seconds: None)
     lease = Mock()
     lease.source.domain.screenshot.return_value = 'image/png'
@@ -653,17 +650,17 @@ def test_junit_reconciliation_rejects_incomplete_or_unhealthy_identities(tmp_pat
 @pytest.mark.parametrize('case', INVENTORIES['enforcement'])
 def test_enforcement_selection_freezes_helpers_and_only_package_prerequisites(tmp_path, case):
     selection = runner.resolve_selection('enforcement', case, inventories=INVENTORIES)
-    assert selection.phases == ('installed', 'rebooted', 'enforcement')
+    assert selection.phases == ('enforcement',)
     assert [(item.area, item.case_id) for item in selection.executions if not item.prerequisite] == [
         ('enforcement', case)]
-    assert len(selection.executions) == 5
+    assert len(selection.executions) == 1
     assert 'native-enforcement-fixture' in selection.prerequisites
     assert 'authorization-accounts' not in selection.prerequisites
     digest = runner.stage_selected_inputs(selection, tmp_path)
     manifest = json.loads((tmp_path / 'selected-inputs.json').read_text())
     assert len(digest) == 64
-    assert {'test_enforcement.py', 'system_enforcement.py', 'system_caller.py',
-            'test_install_smoke.py'} <= manifest['files'].keys()
+    assert {'test_enforcement.py', 'system_enforcement.py', 'system_caller.py'} <= manifest['files'].keys()
+    assert 'test_install_smoke.py' not in manifest['files']
     assert 'test_authorization.py' not in manifest['files']
     command = runner.pytest_command(RUN, 'enforcement', selection)
     assert command[-1] == f'{runner.PAYLOAD}/test_enforcement.py::{case}'
@@ -732,8 +729,8 @@ def test_partial_selection_evidence_records_expected_and_executed_ids(tmp_path):
     assert result['scope'] == 'partial'
     assert result['area'] == 'authorization'
     assert result['test'] == case
-    assert result['junit_collection'] == {
-        'installed': 'collected', 'rebooted': 'collected', 'authorization': 'collected'}
+    assert result['junit_collection'] == {'authorization': 'collected'}
+    assert len(result['expected_executions']) == len(result['executed_cases']) == 1
     assert result['expected_executions'][-1] == {
         'phase': 'authorization', 'area': 'authorization', 'case_id': case,
         'prerequisite': False,

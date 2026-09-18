@@ -26,6 +26,32 @@ from private_artifacts import EvidenceError, PrivateCollector
 REAL_BOOTSTRAP = execution.system.bootstrap
 
 
+@pytest.mark.parametrize('kind,fields', [
+    ('collection', {'total': 1, 'nodeids': ['case']}),
+    ('finished', {'nodeid': 'case'}),
+    ('failure', {'nodeid': 'case', 'when': 'call', 'detail': 'first line\nsecond: café'}),
+])
+def test_progress_record_survives_diagnostics_between_writes(monkeypatch, kind, fields):
+    from regression import PREFIX
+    chunks = []
+    diagnostic = 'e2e-watch: [progress-disabled]\n'
+
+    class InterleavedOutput:
+        def write(self, value):
+            chunks.extend((value, diagnostic))
+            return len(value)
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(execution.sys, 'stdout', InterleavedOutput())
+    execution.emit_progress(kind, **fields)
+    lines = ''.join(chunks).splitlines()
+    events = [json.loads(line[len(PREFIX):]) for line in lines if line.startswith(PREFIX)]
+    assert events == [dict(kind=kind, **fields)]
+    assert diagnostic.strip() in lines
+
+
 @pytest.fixture(autouse=True)
 def fixture_password(monkeypatch):
     monkeypatch.setattr('test_account_password.read_password', lambda *args: 'fixture-password')

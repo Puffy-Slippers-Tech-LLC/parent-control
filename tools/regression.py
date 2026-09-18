@@ -405,9 +405,11 @@ class Report:
 class Execution:
     """A single category's decoder, durable output and result, coordinator-only."""
 
-    def __init__(self, run, item, *, collect=False, events=False, units=None):
+    def __init__(self, run, item, *, collect=False, events=False, units=None,
+                 defer_failure_stop=False):
         self.run, self.item = run, item
         self.collect, self.events, self.units = collect, events, units
+        self.defer_failure_stop = defer_failure_stop
         self.pending = b''
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
         self.captured, self.finished, self.failed = [], set(), set()
@@ -469,10 +471,10 @@ class Execution:
             self.run.report.snapshot(self.run.categories, force=event['kind'] == 'failure')
             if event['kind'] == 'failure':
                 self.run.report.checkpoint(force=True)
-                if not self.run.continue_on_errors:
+                if not self.run.continue_on_errors and not self.defer_failure_stop:
                     self.run.control.stop()
             self.run.dashboard.draw()
-            if self.fixture_failed:
+            if self.fixture_failed and not self.defer_failure_stop:
                 # Refuse new branches as soon as the durable event arrives.
                 # Waiting for pytest to exit permits unrelated work to start
                 # while a fixture has already lost storage or cleanup safety.
@@ -544,17 +546,19 @@ class Execution:
 
 class Run:
     def __init__(self, root, report, control, *, verify_backing_bytes=True, host_only=False,
-                 host_builds=False, serial_builds=False, continue_on_errors=False, scope=None):
+                 host_builds=False, serial_builds=False, continue_on_errors=False, scope=None,
+                 phases=None):
         self.root, self.report, self.control = root, report, control
         self.continue_on_errors = continue_on_errors
         self.verify_backing_bytes = verify_backing_bytes
-        self.host_only = host_only
-        self.host_builds, self.serial_builds = host_builds, serial_builds
-        self.includes_vm = not (host_only or host_builds)
+        self.phases = phases if phases is not None else (
+            ('host',) if host_only or host_builds else ('host', 'system', 'e2e'))
+        self.serial_builds = serial_builds
+        self.includes_vm = any(kind in self.phases for kind in ('system', 'e2e'))
         self.verification_mode = ('not applicable; host-only run' if not self.includes_vm else
                                   'full' if verify_backing_bytes else 'metadata-only; backing bytes not verified')
-        self.report.write('\nScope: ' + (scope or ('host branches only' if host_only else
-                          'host branches and package qualification' if host_builds else 'complete regression')) + '\n')
+        self.report.write('\nScope: ' + (scope or ('complete regression' if
+                          self.phases == ('host', 'system', 'e2e') else ' + '.join(self.phases))) + '\n')
         if scope is None:
             self.report.write('\nBuild scheduling: ' + ('after host join (serial comparison)' if serial_builds else
                               'qualified host companions') + '\n')
@@ -592,7 +596,11 @@ class Run:
             if self.control.stopped.is_set():
                 item.state = 'Interrupted'
                 return 130, ''
-        execution = Execution(self, item, collect=collect, events=events, units=units)
+        # VM controllers own failure handling, collection and the final suite
+        # audit. Report their events immediately without cancelling that cleanup.
+        # finish() still stops subsequent work after the controller exits.
+        execution = Execution(self, item, collect=collect, events=events, units=units,
+                              defer_failure_stop=len(command) > 1 and command[1] in ('system', 'e2e'))
 
         def tick():
             # Serial builders and VM controllers also need observations during
@@ -732,6 +740,8 @@ class Run:
     def run(self):
         self.inputs = source_identity(self.root)
         self.report.write('\nSource inputs SHA-256: ' + self.inputs + '\n')
+        if 'host' not in self.phases:
+            return self.run_vm_only()
         discovery = self.categories[0]
         suites = [(CATEGORY_NAMES[kind], kind, args) for kind, args in (
             ('unit', []), ('component', []), ('ui', list(UI_HOST_ARGS)), ('fixture-runtime', []))]
@@ -741,14 +751,12 @@ class Run:
         fixed_items = [Category(name, 1) for name, _ in fixed]
         builds = [Category(name, 1) for name in ('Package build A', 'Package build B',
                                                'Package reproducibility')]
-        system = Category(CATEGORY_NAMES['system'])
-        graphical = Category(CATEGORY_NAMES['e2e'])
+        system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
+        graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
         safety = Category('Cleanup safety prerequisites')
         self.categories.extend([safety, *suite_items, *fixed_items[:-1]])
-        if not self.host_only:
-            self.categories.extend([fixed_items[-1], *builds])
-        if self.includes_vm:
-            self.categories.extend([system, graphical])
+        self.categories.extend([fixed_items[-1], *builds])
+        self.categories.extend(item for item in (system, graphical) if item is not None)
         discovery.state = 'Running'
         discovery.started = time.monotonic()
         self.dashboard.draw(force=True)
@@ -793,7 +801,7 @@ class Run:
                     for bucket, item in zip(buckets, bucket_items))
         jobs.extend(Job(kind, item, self.command(kind), estimate=1)
                     for (_, kind), item in zip(fixed, fixed_items) if kind != 'publish')
-        package_jobs = self.build_jobs(fixed_items[-1], builds) if not self.host_only else []
+        package_jobs = self.build_jobs(fixed_items[-1], builds)
         if not self.serial_builds:
             jobs.extend(package_jobs)
         self.host_jobs(jobs)
@@ -819,9 +827,29 @@ class Run:
             self.check_inputs()
             return
         if any(job.item.state != 'Passed' for job in package_jobs):
-            system.state = graphical.state = 'Blocked'
-            system.wait_reason = graphical.wait_reason = 'package qualification failed'
+            for item in (system, graphical):
+                if item is not None:
+                    item.state, item.wait_reason = 'Blocked', 'package qualification failed'
             self.report.snapshot(self.categories)
+            return
+        self.vm_tests(system, graphical, ready)
+
+    def run_vm_only(self):
+        """Build one required input; keep all selected VM work sequential."""
+        discovery = self.categories[0]
+        build = Category('Package input build', 1)
+        system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
+        graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
+        self.categories.extend([build, *(item for item in (system, graphical) if item is not None)])
+        discovery.state, discovery.started = 'Running', time.monotonic()
+        ready = self.discover_vm(system, graphical)
+        if self.control.stopped.is_set():
+            return
+        authorization()
+        discovery.done, discovery.state = 1, 'Passed'
+        discovery.stop_timer()
+        self.host_jobs([Job('artifacts', build, self.command('artifacts', 'build'), key='build-a')])
+        if self.control.stopped.is_set() or build.state != 'Passed':
             return
         self.vm_tests(system, graphical, ready)
 
@@ -850,13 +878,16 @@ class Run:
                           'this gate after validating unchanged source inputs.\n')
 
     def discover_vm(self, system, graphical):
-        status, listing = self.execute(system, self.command('system', '--list'), collect=True)
-        if self.control.stopped.is_set():
+        if system is not None:
+            status, listing = self.execute(system, self.command('system', '--list'), collect=True)
+            if self.control.stopped.is_set():
+                return []
+            match = re.search(r'expected-executions: (\d+)', listing)
+            if status or match is None:
+                raise ValueError('installed-system inventory failed')
+            system.total = int(match[1])
+        if graphical is None:
             return []
-        match = re.search(r'expected-executions: (\d+)', listing)
-        if status or match is None:
-            raise ValueError('installed-system inventory failed')
-        system.total = int(match[1])
         status, listing = self.execute(graphical, self.command('e2e', '--list', '--ready'), collect=True)
         if self.control.stopped.is_set():
             return []
@@ -865,24 +896,26 @@ class Run:
         inventory = json.loads(listing[listing.index('{'):])
         ready = [case['case_id'] for case in inventory['cases']]
         graphical.total = len(ready)
+        graphical.nodeids = tuple(ready)
         self.report.write('\nReady E2E variants: ' + ', '.join(ready) + '\n'
                           'Pending variants excluded: ' + str(len(inventory['excluded_pending_cases'])) + '\n')
         return ready
 
     def vm_tests(self, system, graphical, ready):
-        status, _ = self.execute(system, self.command('system', '--artifacts', self.artifacts['build-a']), events=True)
-        if self.control.stopped.is_set():
-            return
-        if status:
-            raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
-        for case in ready:
-            status, _ = self.execute(graphical, self.command('e2e', '--artifacts', self.artifacts['build-a'],
-                                                           '--scenario', case), units=1)
+        if system is not None:
+            status, _ = self.execute(system, self.command('system', '--artifacts', self.artifacts['build-a']), events=True)
+            if self.control.stopped.is_set():
+                return
             if status:
-                # Never start another VM attempt after an unproven cleanup.
-                break
-        graphical.state = ('Interrupted' if self.control.stopped.is_set() else
-                           'Passed' if graphical.done == graphical.total and not graphical.failures else 'Failed')
+                raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
+        if graphical is not None and ready:
+            # One dispatcher invocation keeps prerequisite checks and the VM
+            # lease at suite scope. The controller reports each case and stops
+            # on case/transition failure; its final status includes suite cleanup.
+            self.execute(graphical, self.command('e2e', '--artifacts', self.artifacts['build-a'],
+                                                 '--ready'), events=True)
+        elif graphical is not None:
+            graphical.state = 'Interrupted' if self.control.stopped.is_set() else 'Failed'
         self.check_inputs()
 
 
@@ -929,7 +962,7 @@ def recover_initial_checks(root, state):
 
 
 def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
-         continue_on_errors=False, selections=None):
+         continue_on_errors=False, selections=None, phases=None):
     import test_retention
     root = root or Path(__file__).resolve().parents[1]
     # Keep repeated interrupts cooperative through storage rotation/finalization,
@@ -942,12 +975,12 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=F
             status = retained_main(root, verify_backing_bytes=verify_backing_bytes,
                                    host_only=host_only, host_builds=host_builds,
                                    serial_builds=serial_builds, continue_on_errors=continue_on_errors,
-                                   selections=selections)
+                                   selections=selections, phases=phases)
         return 130 if storage_control.stopped.is_set() else status
 
 
 def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
-                  continue_on_errors=False, selections=None):
+                  continue_on_errors=False, selections=None, phases=None):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -959,7 +992,7 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
             if selections is None:
                 run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes, host_only=host_only,
                           host_builds=host_builds, serial_builds=serial_builds,
-                          continue_on_errors=continue_on_errors)
+                          continue_on_errors=continue_on_errors, phases=phases)
             else:
                 from regression_selection import SelectedRun
                 run = SelectedRun(root, report, control, selections)

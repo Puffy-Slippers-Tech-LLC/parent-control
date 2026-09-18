@@ -39,6 +39,22 @@ TERMINAL_OPERATIONS = frozenset({
 })
 OPERATIONS |= TERMINAL_OPERATIONS
 STANDARD_OPERATIONS |= TERMINAL_OPERATIONS
+HELP_BINDINGS = {
+    'parent-help': ('oh-no-parent-control-parent', 'help',
+                    'Administrator-facing GTK 4/libadwaita parent-control application.'),
+    'station-help': ('oh-no-parent-control', 'help',
+                     'Libadwaita application for the GNOME Kiosk request station.'),
+    'parent-manual': ('oh-no-parent-control-parent', 'manual',
+                      'configure controls for managed users'),
+    'station-manual': ('oh-no-parent-control', 'manual',
+                       'run the parent-control request station'),
+}
+HELP_OPERATIONS = frozenset({
+    'help-system-prompt', 'help-terminal-input', 'help-terminal-focused',
+    'help-terminal-wrong-surface', 'help-terminal-closed', 'help-shell-ready',
+    *('help-content-' + key for key in HELP_BINDINGS),
+})
+OPERATIONS |= HELP_OPERATIONS
 PRODUCT = 'Oh No! Parent Control'
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
@@ -548,6 +564,53 @@ class AccessibleUI:
         # Never retry the action, even if the resulting observation times out.
         self.wait(lambda: self.terminal_input(focused=True), 'terminal-focus')
 
+    def help_terminal_text(self):
+        """INFO02's bounded local projection; never export terminal contents."""
+        field = self.terminal_input(focused=True)
+        if field is None:
+            return None
+        text = field.get_text_iface()
+        require(text is not None, 'ui:terminal-text-unavailable')
+        count = self.api.Text.get_character_count(text)
+        require(0 <= count <= 65536, 'ui:terminal-text-bound')
+        # Only the current finite help/manual display and trailing shell prompt.
+        return self.api.Text.get_text(text, max(0, count - 8192), count)
+
+    @staticmethod
+    def help_shell_prompt(value):
+        import re
+        # Fixture's normal shell prompt, read publicly and never retained.
+        return bool(value and re.search(r'(?:^|\n)onpc-parent-jamie@[^\s:]+:[^\n]*\$\s*', value))
+
+    def help_product_absent(self):
+        self.management_absent()
+        for node in self.nodes(strict=True):
+            require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-surface')
+            if self.showing(node):
+                require(node.get_name() not in ('Request More Time', 'Request Access',
+                    'Request', 'Send Feedback', 'Administrator access required'),
+                    'ui:help-product-window')
+
+    def help_content(self, binding):
+        import re
+        require(binding in HELP_BINDINGS, 'ui:help-binding')
+        command, kind, identity = HELP_BINDINGS[binding]
+        value = self.help_terminal_text()
+        if value is None:
+            return False
+        normalized = ' '.join(value.split())
+        if kind == 'help':
+            found = (re.search(r'(?:^|\n)usage: ' + re.escape(command) + r'\s', value)
+                     and identity in normalized and '--help' in value
+                     and 'show this help message and exit' in normalized
+                     and self.help_shell_prompt(value))
+        else:
+            found = (command.upper() + '(1)' in value and identity in normalized
+                     and all(section in value for section in ('NAME', 'SYNOPSIS', 'DESCRIPTION'))
+                     and not self.help_shell_prompt(value))
+        self.help_product_absent()
+        return bool(found)
+
     def management_denied(self):
         """FILE06: the specific visible refusal, never generic error or echo."""
         root = self.target('Administrator access required', ('frame',))
@@ -976,6 +1039,26 @@ class AccessibleUI:
                 self.greeter_list()
         elif operation in ('desktop', 'standard-desktop'):
             self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
+        elif operation == 'help-system-prompt':
+            self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
+        elif operation == 'help-terminal-input':
+            self.wait(self.terminal_input, 'terminal-input')
+        elif operation == 'help-terminal-focused':
+            self.focus_terminal()
+            self.wait(lambda: self.help_shell_prompt(self.help_terminal_text()), 'help-shell-ready')
+        elif operation == 'help-terminal-wrong-surface':
+            self.desktop_result(PARENT, 'success')
+            require(self.help_terminal_text() is None, 'ui:help-wrong-surface')
+        elif operation == 'help-terminal-closed':
+            self.desktop_result(PARENT, 'success')
+            self.wait(lambda: not any(node.get_role_name() == 'terminal' and self.showing(node)
+                for node in self.nodes(strict=True)), 'terminal-closed')
+            self.help_product_absent()
+        elif operation == 'help-shell-ready':
+            self.wait(lambda: self.help_shell_prompt(self.help_terminal_text()), 'help-shell-ready')
+            self.help_product_absent()
+        elif operation.startswith('help-content-'):
+            self.wait(lambda: self.help_content(operation.removeprefix('help-content-')), 'help-content')
         elif operation == 'standard-system-prompt':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
         elif operation == 'standard-terminal-input':

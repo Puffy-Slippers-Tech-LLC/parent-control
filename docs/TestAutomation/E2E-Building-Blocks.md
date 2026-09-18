@@ -9,17 +9,17 @@ next task in docs/TestAutomation/E2E-Execution-Plan.md”. Start with its Next t
 pointer and read only that brief's relevant catalogue rows and source callables;
 do not load the full queue, this catalogue or unrelated task briefs. This
 catalogue remains the source of block contracts and current qualification status.
-The inventory currently has **6 ready and 246 pending variants**; ready cases
-are **1, 3, 4, 5, 6 and 151**.
-Case 1 qualifies the harness; the other five are customer journeys.
+The inventory currently has **7 ready and 245 pending variants**; ready cases
+are **1, 3, 4, 5, 6, 151 and 193**.
+Case 1 qualifies the harness; the other six are customer journeys.
 Every catalogue row has an implementation status; existing
 behavior that still needs extraction is `pending` even when its scenario is
-already `ready`. There are **178 blocks: 60 ready and 118 pending**, including
+already `ready`. There are **178 blocks: 61 ready and 117 pending**, including
 four fixture operations and explicitly scoped harness/credential-safety blocks.
 
 The [recipes](E2E-Scenario-Recipes.md) account for **240 customer cases**,
 **11 engineering fault obligations (140–150)** and **harness case 1**.
-Cases 158–252 remain pending. Declaration and block readiness do not establish
+Cases 158–252 remain pending except the qualified case 193. Declaration and block readiness do not establish
 an installed pass.
 The reconciliation below retains displaced engineering obligations separately.
 
@@ -393,7 +393,7 @@ binding does not extend an existing callable's qualified scope.
 | PANEL02 | C | Set the animation choice in an already open menu, then close the menu and verify return to the desktop. | UI17(choice) → UI05(Escape) → UI11(menu) → DESK01. E2E-037. | pending |
 | PANEL03 | C | Reveal and read the countdown's hover explanation. | DESK12(countdown) → UI07 → UI27 → UI03(tooltip). E2E-011/037. | pending |
 | INFO01 | C | Follow one declared Help/About link and read the identifying browser, mail-composer or legal-viewer destination; return without submitting mail. Kiosk asserts unavailable external actions instead. | UI04(link) → UI01(destination) → UI03(identity) → UI18(destination); kiosk UI11 on recognized About. E2E-042. | pending |
-| INFO02 | C | Read one installed product help command or command manual in a normal terminal. | FILE01 → FILE02(fixed help/man command) → FILE06(content); UI11(product window); UI05(q) for a manual. E2E-042. | pending |
+| INFO02 | C | Read one installed product help command or command manual in a normal terminal. | `onpc_command_help::run` binds both installed `--help` commands and both manuals to fresh terminal entries, bounded identifying-content projections, normal `q` exits and product-window absence. E2E-042/command-help (case 193). Other information surfaces remain pending. | ready |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: UI01 → FEED03; decline UI11(report) → UI01(destination). E2E-045. | pending |
 | FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Without-logs submission reuses FEED11; it is not hidden inside retry. E2E-046. | pending |
 | FEED17 | C | Attempt normal Close on a sending error report and read the stop-sending confirmation. Do not yet stop or exit. | UI04(Close) → UI01(confirmation) → UI03. E2E-047. | pending |

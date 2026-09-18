@@ -14,6 +14,7 @@ import installed_setup
 import parent_about
 import parent_access
 import parent_terminal
+import command_help
 import parent_discovery
 from private_artifacts import EvidenceError, PrivateCollector
 from recording import ScenarioRecorder
@@ -61,8 +62,9 @@ def test_shared_system_prompt_rendezvous_retains_request_and_refuses_uncertain_i
 
 
 @pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN,
-                                 parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN],
-                         ids=['parent', 'different-consumer', 'discovery', 'empty', 'standard-access', 'terminal'])
+                                 parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN,
+                                 command_help.PLAN],
+                         ids=['parent', 'different-consumer', 'discovery', 'empty', 'standard-access', 'terminal', 'help'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -79,6 +81,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-004/app-grid'
     if plan is parent_terminal.PLAN:
         selector = 'E2E-004/terminal'
+    if plan is command_help.PLAN:
+        selector = 'E2E-042/command-help'
     contract = evidence.EvidenceContract(inventory_path=inventory, root=ROOT,
         selector=selector, run_id='shared-controller-test', inputs=inputs)
     directory = tmp_path / 'raw'
@@ -195,6 +199,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             elif plan is parent_discovery.EMPTY_PLAN:
                 expected_steps.append('step-3')
                 actions['prepare-empty'].assert_called_once()
+            elif plan is command_help.PLAN:
+                expected_steps.append('step-3')
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)
             assert steps[-2]['assertion_ids'] == ['visible-result']

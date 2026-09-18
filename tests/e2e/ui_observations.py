@@ -59,7 +59,7 @@ OPERATION_LABELS = {
     'standard-search-entered': 'Checking the complete Parent search query',
     'standard-parent-unavailable': 'Checking Parent is unavailable to the standard account',
     'standard-terminal-input': 'Finding the active terminal input surface',
-    'standard-terminal-focused': 'Checking terminal input focus',
+    'standard-terminal-focused': 'Focusing terminal input and checking its focus',
     'standard-terminal-wrong-surface': 'Refusing terminal input on the desktop',
     'standard-terminal-closed': 'Checking the terminal window is closed',
     'standard-management-denied': 'Reading administrator-access denial and checking management is absent',
@@ -170,7 +170,7 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation in ('standard-app-grid', 'standard-terminal-input'):
+        if operation == 'standard-app-grid':
             require(type(result) is dict and set(result) == {*expected, 'pointer'}, 'ui:response')
             point = result['pointer']
             expected['pointer'] = self.point(point)

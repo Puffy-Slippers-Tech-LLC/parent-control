@@ -19,14 +19,13 @@ sub open {
 }
 
 # UI21: the supplied input observation is single-use; a fresh check must prove
-# focus after the pointer click before any command can be typed.
+# focus after the public accessibility focus action before any command is typed.
 sub focus {
     onpc_progress::operation('Focusing the terminal input surface');
     my ($journey, $input, $entry) = @_;
     die 'terminal:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && ($entry eq 'opened' || $entry eq 'input');
     $journey->consume_observation('terminal-' . $entry, $input);
-    $journey->click_target($input);
     return $journey->seen($entry eq 'opened' ? 'terminal-opened-focused' : 'terminal-focused');
 }
 

@@ -201,6 +201,11 @@ class InstalledJourney:
                 'run': context.lease.state['run']}
             transport = Transport(config, context.commands, guard=lambda _: context.lease.guard())
             transport.probe_ready(timeout=180)
+            # The snapshot's installed app persists, but its helper payload
+            # belongs to the snapshot-creation run. Bootstrap has already bound
+            # the guard marker to this attempt's package and selected inputs.
+            from installed_setup import InstalledSetup
+            InstalledSetup(context.directory, context.verified, transport).provision(guard)
             observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport

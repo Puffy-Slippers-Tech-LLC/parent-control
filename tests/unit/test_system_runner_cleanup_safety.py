@@ -1,6 +1,7 @@
 """Run in isolation before any live system runner: all process/VM calls mocked."""
 
 import signal
+import stat
 import os
 import subprocess
 from unittest.mock import Mock, patch
@@ -10,6 +11,65 @@ import pytest
 import system_runner as runner
 from tests.support.vm_baseline import local_preparation_source, rig
 from tests.support.vm_runner import lease_rig
+
+
+@pytest.mark.parametrize('failure', [None, 'missing', 'parent', 'symlink', 'file',
+                                   'owner', 'writable', 'archive', 'archive-link',
+                                   'move', 'readback', 'run'])
+def test_snapshot_payload_retirement_preserves_evidence_and_refuses_unsafe_paths(monkeypatch, failure):
+    run = 'a' * 32
+    payload = runner.PAYLOAD
+    monkeypatch.setattr(runner.uuid, 'uuid4', Mock(return_value=Mock(hex='b' * 32)))
+    archive = payload + '-snapshot-' + run + '-' + 'b' * 32
+    files = {payload + '/removed-helper.py': b'old helper',
+             payload + '/__pycache__/removed-helper.pyc': b'old cache',
+             payload + '/private/install.log': b'prior evidence'}
+    original = dict(files)
+    directories = {payload}
+    if failure == 'missing':
+        directories.clear()
+        files.clear()
+        original.clear()
+    if failure == 'archive':
+        directories.add(archive)
+    info = {'st_mode': stat.S_IFDIR | 0o700, 'st_uid': 0, 'st_gid': 0}
+    if failure == 'file': info['st_mode'] = stat.S_IFREG | 0o600
+    if failure == 'owner': info['st_uid'] = 1000
+    if failure == 'writable': info['st_mode'] |= 0o020
+    g = Mock()
+    g.realpath.side_effect = lambda path: '/elsewhere' if failure == 'parent' else path
+    g.exists.side_effect = lambda path: path in directories or path in files
+    g.is_symlink.side_effect = lambda path: (
+        failure == 'symlink' and path == payload or failure == 'archive-link' and path == archive)
+    g.lstatns.return_value = info
+
+    def move(source, destination):
+        assert (source, destination) == (payload, archive)
+        if failure == 'move':
+            raise OSError('move refused')
+        if failure == 'readback':
+            return
+        directories.remove(source)
+        directories.add(destination)
+        for path, content in list(files.items()):
+            files[destination + path.removeprefix(source)] = content
+            del files[path]
+
+    g.mv.side_effect = move
+    if failure not in (None, 'missing'):
+        with pytest.raises((runner.Error, OSError)):
+            runner.retire_snapshot_payload(g, '../invalid' if failure == 'run' else run)
+        assert files == original
+        if failure not in ('move', 'readback'):
+            g.mv.assert_not_called()
+    else:
+        runner.retire_snapshot_payload(g, run)
+        assert payload not in directories
+        assert files == {archive + path.removeprefix(payload): content
+                         for path, content in original.items()}
+        if failure == 'missing':
+            g.mv.assert_not_called()
+    g.rm_rf.assert_not_called()
 
 
 def test_terminal_spawn_failure_closes_both_owned_descriptors(monkeypatch):

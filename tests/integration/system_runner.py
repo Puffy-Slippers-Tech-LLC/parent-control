@@ -912,6 +912,24 @@ def mounted_guest(guestfs, lease, *, readonly=False):
     lease.guard(off=True)
 
 
+def retire_snapshot_payload(g, run):
+    """Keep old fixture evidence outside the next attempt's executable input tree."""
+    require(re.fullmatch(r'[0-9a-f]{32}', run or ''), 'bootstrap:payload-run')
+    require(g.realpath('/var/tmp') == '/var/tmp' and not g.is_symlink(PAYLOAD),
+            'bootstrap:payload-path')
+    if not g.exists(PAYLOAD):
+        return
+    info = g.lstatns(PAYLOAD)
+    require(stat.S_ISDIR(info['st_mode']) and info['st_uid'] == info['st_gid'] == 0
+            and not stat.S_IMODE(info['st_mode']) & 0o022, 'bootstrap:payload-owner')
+    # Snapshot creation and later cases can share one lease/run identity.
+    previous = PAYLOAD + '-snapshot-' + run + '-' + uuid.uuid4().hex
+    require(not g.exists(previous) and not g.is_symlink(previous),
+            'bootstrap:payload-archive-exists')
+    g.mv(PAYLOAD, previous)
+    require(not g.exists(PAYLOAD) and g.exists(previous), 'bootstrap:payload-retirement')
+
+
 def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
     lease.guard(off=True)
@@ -947,6 +965,10 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
             marker['scope'] = 'graphical-observation-only'
         else:
             marker['package_sha256'] = baseline.digest(directory / 'input/package.deb')
+            # A restored installation snapshot may contain helpers, bytecode
+            # and assets removed from the new input manifest. Start fresh;
+            # overwriting just the files still declared would retain them.
+            retire_snapshot_payload(g, lease.state['run'])
         require(marker['machine_id'] != marker['host_machine_id'], 'bootstrap:host-identity')
         g.write('/etc/onpc-system-test.json', baseline.encode(marker))
         g.chown(0, 0, '/etc/onpc-system-test.json')

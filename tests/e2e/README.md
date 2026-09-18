@@ -62,7 +62,15 @@ subsequent visible account and allowance controls before the journey advances.
 
 A customer family's `installed-digest-verified-product` prerequisite selects
 verified package setup before its journey. Mechanical startup/fault assertions
-remain separate. E2E-003/existing-and-new uses a durable controller action to
+remain separate. On each restored installed snapshot, setup refreshes the
+digest-verified helper payload before acknowledging customer input. The package,
+helpers and selected-input document must match the current attempt's bootstrap
+marker even when the snapshot was created by an earlier run; refreshing this
+payload does not reinstall the product or reboot the guest. Offline bootstrap
+first moves any old payload to a run-specific sibling directory, preserving it
+for diagnosis while keeping removed helpers and cached modules out of the new
+input tree. New and changed files come from the full current manifest.
+E2E-003/existing-and-new uses a durable controller action to
 create one eligible local account only after the existing child is visible.
 E2E-003/none uses a bounded action after the administrator finds the launchable
 Parent result through normal app search

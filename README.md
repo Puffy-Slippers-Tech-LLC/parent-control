@@ -42,6 +42,9 @@ real value in `.envrc.example`.
 | Refresh Codex rules | `./setup.sh --codex-rules-only` |
 | Show all setup modes | `./setup.sh --help` |
 
+Full setup and `--test-tools-only` install the `tools/watch-e2e` desktop identity,
+supplied app logo and refreshed icon cache for the viewer's dock icon.
+
 Restart Codex after refreshing rules; trust this checkout.
 
 ## Preview while editing

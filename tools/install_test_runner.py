@@ -29,7 +29,8 @@ def watch_terminal_available():
 def install_missing_dependencies():
     """Fill missing launcher prerequisites with no requested upgrades or removals."""
     packages = [package for executable, package in
-                (('/usr/bin/rg', 'ripgrep'), ('/usr/bin/curl', 'curl'))
+                (('/usr/bin/rg', 'ripgrep'), ('/usr/bin/curl', 'curl'),
+                 ('/usr/bin/gtk-update-icon-cache', 'gtk-update-icon-cache'))
                 if not os.access(executable, os.X_OK)]
     if importlib.util.find_spec('pytest_cov') is None:
         packages.append('python3-pytest-cov')
@@ -141,6 +142,35 @@ def repair_checkout_bytecode(root):
             print('test-runner-install: restored checkout bytecode directory ownership')
 
 
+def install_watch_desktop(root, *, data_root=Path('/usr/local/share')):
+    """Give the development viewer its own GNOME dock/window identity."""
+    from gi.repository import GLib
+
+    application_id = 'org.onpc.E2EWatch'
+    # Exec has its own quoting layer inside the desktop file's string encoding.
+    executable = str(root / 'tools/watch-e2e').replace('%', '%%')
+    for character in ('\\', '"', '`', '$'):
+        executable = executable.replace(character, '\\' + character)
+    entry = GLib.KeyFile()
+    for key, value in {
+        'Type': 'Application', 'Name': 'E2E VM — View only',
+        'Exec': '"' + executable + '"', 'Icon': application_id,
+        'StartupWMClass': application_id, 'NoDisplay': 'true',
+        'Terminal': 'false',
+    }.items():
+        entry.set_string('Desktop Entry', key, value)
+    theme = data_root / 'icons/hicolor'
+    install_file(theme / '48x48/apps' / (application_id + '.png'),
+                 (root / 'data/app_logo_titlebar.png').read_bytes(), 0o644)
+    # A pre-existing cache hides new icons in an existing apps directory.
+    # Local hicolor additions use the system theme's index.theme; -t supports
+    # that layout. Rebuilding also notifies running theme consumers.
+    subprocess.run(['/usr/bin/gtk-update-icon-cache', '--force', '--ignore-theme-index',
+                    str(theme)], check=True)
+    install_file(data_root / 'applications' / (application_id + '.desktop'),
+                 entry.to_data()[0].encode(), 0o644)
+
+
 def main():
     if len(sys.argv) != 1 or os.geteuid() != 0:
         raise SystemExit('test-runner-install: run as root without arguments')
@@ -152,6 +182,7 @@ def main():
     for name, data in rendered.items():
         compile(data, name, 'exec')
     install_missing_dependencies()
+    install_watch_desktop(root)
     for name, data in rendered.items():
         install_file(Path('/usr/local/libexec') / name, data, 0o755)
     policy = 'com.puffyslippers.onpc.development.policy'

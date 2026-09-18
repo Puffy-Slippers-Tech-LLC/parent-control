@@ -5,13 +5,56 @@ import fcntl
 import mmap
 import os
 import socket
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 import e2e_watch_protocol as protocol
 from e2e_watch_collector import Display
 from e2e_watch_viewer import Feed
+
+
+def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
+    from e2e_watch_viewer import desktop_launch_command
+    monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
+    monkeypatch.setenv('SNAP', '/snap/code/current')
+    monkeypatch.setenv('LD_PRELOAD', '/editor/injected.so')
+    command = desktop_launch_command()
+    assert command[0] == '/usr/bin/systemd-run'
+    assert '--user' in command and '--service-type=exec' in command
+    assert '--scope' not in command
+    assert '--wait' in command and '--collect' in command
+    assert '--setenv=WAYLAND_DISPLAY=wayland-test' in command
+    assert not any('SNAP' in item or 'LD_PRELOAD' in item for item in command)
+    assert command[-3] == '--'
+    assert command[-2].endswith('/tools/watch-e2e')
+    assert command[-1] == '--desktop-session'
+
+
+def test_snap_launch_propagates_service_failure_without_opening_editor_owned_window(monkeypatch):
+    import e2e_watch_viewer as viewer
+    monkeypatch.setattr('sys.argv', ['watch-e2e'])
+    monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
+    monkeypatch.setattr(viewer.Path, 'read_text', lambda self: 'snap.code.code (complain)\n')
+    launch = Mock(return_value=Mock(returncode=7))
+    window = Mock(side_effect=AssertionError('Viewer must start from the user manager'))
+    monkeypatch.setattr(viewer.subprocess, 'run', launch)
+    monkeypatch.setattr(viewer, 'application', window)
+    assert viewer.main() == 7
+    assert launch.call_count == 1
+    window.assert_not_called()
+
+
+def test_snap_identity_after_delegation_refuses_instead_of_launching_forever(monkeypatch):
+    import e2e_watch_viewer as viewer
+    monkeypatch.setattr('sys.argv', ['watch-e2e', '--desktop-session'])
+    monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
+    monkeypatch.setattr(viewer.Path, 'read_text', lambda self: 'snap.code.code (complain)\n')
+    launch = Mock(side_effect=AssertionError('Do not retry delegation'))
+    monkeypatch.setattr(viewer.subprocess, 'run', launch)
+    with pytest.raises(ValueError, match='desktop-session-still-has-snap-identity'):
+        viewer.main()
+    launch.assert_not_called()
 
 
 @pytest.fixture

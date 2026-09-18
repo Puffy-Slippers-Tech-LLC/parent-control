@@ -2,16 +2,19 @@
 
 import json
 import os
+from pathlib import Path
 import re
 import socket
 import stat
 import struct
+import subprocess
 import time
 
 from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames, require
 
 WAITING = 'Waiting for an E2E VM. You can leave this window open.'
 TITLE = 'E2E VM — View only'
+APPLICATION_ID = 'org.onpc.E2EWatch'
 
 
 def duration_text(seconds):
@@ -167,6 +170,14 @@ def application(feed=None):
         raise RuntimeError('watch-e2e needs GTK 4 VTE; run ./setup.sh --test-tools-only') from error
     from gi.repository import Gdk, Gio, GLib, Graphene, Gtk, Pango, Vte
 
+    # A terminal launched by an editor can pass its desktop/startup identity
+    # down to us. Give this separate window its own shell association.
+    for name in ('GIO_LAUNCHED_DESKTOP_FILE', 'GIO_LAUNCHED_DESKTOP_FILE_PID',
+                 'DESKTOP_STARTUP_ID', 'XDG_ACTIVATION_TOKEN'):
+        os.environ.pop(name, None)
+    GLib.set_prgname(APPLICATION_ID)
+    GLib.set_application_name(TITLE)
+
     class Screen(Gtk.Widget):
         def __init__(self):
             super().__init__(hexpand=True, vexpand=True)
@@ -215,7 +226,7 @@ def application(feed=None):
 
     class Viewer(Gtk.Application):
         def __init__(self):
-            super().__init__(application_id='org.onpc.E2EWatch', flags=Gio.ApplicationFlags.NON_UNIQUE)
+            super().__init__(application_id=APPLICATION_ID, flags=Gio.ApplicationFlags.NON_UNIQUE)
             self.feed = feed if feed is not None else Feed()
             self.window = None
             self.metadata = {}
@@ -224,6 +235,11 @@ def application(feed=None):
             if self.window is not None:
                 return
             self.window = Gtk.ApplicationWindow(application=self, title=TITLE)
+            self.window.set_icon_name(APPLICATION_ID)
+            header = Gtk.HeaderBar(decoration_layout=':minimize,maximize,close')
+            header.pack_start(Gtk.Image(
+                icon_name=APPLICATION_ID, pixel_size=32, valign=Gtk.Align.CENTER))
+            self.window.set_titlebar(header)
             self.window.set_default_size(1050, 820)
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             self.screen = Screen()
@@ -333,9 +349,36 @@ def application(feed=None):
     return Viewer()
 
 
+def desktop_launch_command():
+    """Start through the user manager, without an editor's Snap process label.
+
+    A scope would retain the caller as parent and inherit its AppArmor label.
+    A user service starts from the desktop user manager instead. Forward only
+    the desktop connection variables, not the editor's Snap/loader environment.
+    """
+    command = ['/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+               '--wait', '--pipe', '--service-type=exec']
+    for name in ('DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY',
+                 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS'):
+        if name in os.environ:
+            command.append('--setenv=' + name + '=' + os.environ[name])
+    return command + ['--', str(Path(__file__).resolve().with_name('watch-e2e')),
+                      '--desktop-session']
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description='Watch E2E output. Close this window whenever you want.')
-    parser.parse_args()
+    parser.add_argument('--desktop-session', action='store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
     require(os.getuid() != 0, 'launch-as-your-desktop-user')
+    # Mutter derives Snap identity from this kernel label, not environment
+    # variables or GTK's application ID. Do not modify the security profile.
+    try:
+        snap_parent = Path('/proc/self/attr/current').read_text().startswith('snap.')
+    except FileNotFoundError:
+        snap_parent = False
+    if snap_parent:
+        require(not args.desktop_session, 'desktop-session-still-has-snap-identity')
+        return subprocess.run(desktop_launch_command(), check=False).returncode
     return application().run(['watch-e2e'])

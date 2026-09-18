@@ -75,6 +75,14 @@ OPERATION_LABELS.update({
     **{'help-content-' + key: 'Reading installed ' + key.replace('-', ' ')
        for key in accessible_ui.HELP_BINDINGS},
 })
+OPERATION_LABELS.update({
+    'session-menu-toggle': 'Locating the desktop system menu',
+    'session-menu-power': 'Locating the Power Off Menu',
+    'session-menu': 'Opening the desktop session menu',
+    'switch-user': 'Choosing Switch User from the session menu',
+    'logout': 'Choosing Log Out from the session menu',
+    'logout-confirm': 'Confirming Log Out',
+})
 
 
 @dataclass(frozen=True)
@@ -180,7 +188,7 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation == 'standard-app-grid':
+        if operation in ('standard-app-grid', *accessible_ui.SESSION_POINTER_OPERATIONS):
             require(type(result) is dict and set(result) == {*expected, 'pointer'}, 'ui:response')
             point = result['pointer']
             expected['pointer'] = self.point(point)

@@ -139,3 +139,19 @@ class ParentAccessQualification(ParentJourneyQualification):
     def journey(context, progress):
         from parent_access import ParentAccessJourney
         return ParentAccessJourney(context, progress, review=True)
+
+
+class DesktopLogoutQualification(ParentJourneyQualification):
+    @staticmethod
+    def journey(context, progress):
+        from desktop_session import DesktopSessionJourney, LOGOUT_PLAN
+        context.installed_snapshot = 'desktop-session'
+        return DesktopSessionJourney(context, progress, LOGOUT_PLAN)
+
+
+class DesktopSwitchQualification(ParentJourneyQualification):
+    @staticmethod
+    def journey(context, progress):
+        from desktop_session import DesktopSessionJourney, SWITCH_PLAN
+        context.installed_snapshot = 'desktop-session'
+        return DesktopSessionJourney(context, progress, SWITCH_PLAN)

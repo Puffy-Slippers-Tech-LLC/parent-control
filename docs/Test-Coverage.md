@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">10201</span>/<span style="color: gray">0</span>/10201 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">10261</span>/<span style="color: gray">0</span>/10261 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
 | UI | <span style="color: green">152</span>/<span style="color: gray">0</span>/152 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
@@ -14,8 +14,8 @@
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | One check per executable test script; Node subtests not expanded |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One check per executable test script |
 | Integration qualification | <span style="color: green">18</span>/<span style="color: gray">0</span>/18 | One check per installed-runner check_*.py entry point |
-| E2E | <span style="color: green">6</span>/<span style="color: gray">246</span>/252 | One exact scenario variant |
-| **Total** | **<span style="color: green">10764</span>/<span style="color: gray">246</span>/11010** | All entries above, including pending E2E |
+| E2E | <span style="color: green">7</span>/<span style="color: gray">245</span>/252 | One exact scenario variant |
+| **Total** | **<span style="color: green">10825</span>/<span style="color: gray">245</span>/11070** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">5</span>/<span style="color: gray">235</span>/240 |
+| customer-journey | <span style="color: green">6</span>/<span style="color: gray">234</span>/240 |
 | fault-recovery | <span style="color: green">0</span>/<span style="color: gray">11</span>/11 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
@@ -41,6 +41,7 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
 | [6](#scenario-6) | Standard user cannot manage policy (launch: terminal) | `E2E-004/terminal` | ready |
 | [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
+| [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
 | <span style="color: gray">[2](#scenario-2)</span> | <span style="color: gray">Install the app and begin managing a child</span> | <span style="color: gray">`E2E-002/clean`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
@@ -227,7 +228,6 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[190](#scenario-190)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: parent links)</span> | <span style="color: gray">`E2E-042/parent-links`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[191](#scenario-191)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: child overlay)</span> | <span style="color: gray">`E2E-042/child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[192](#scenario-192)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: kiosk)</span> | <span style="color: gray">`E2E-042/kiosk`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[193](#scenario-193)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: command help)</span> | <span style="color: gray">`E2E-042/command-help`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[194](#scenario-194)</span> | <span style="color: gray">Use local controls and approvals while offline (surface: child overlay)</span> | <span style="color: gray">`E2E-043/child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[195](#scenario-195)</span> | <span style="color: gray">Use local controls and approvals while offline (surface: kiosk)</span> | <span style="color: gray">`E2E-043/kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[196](#scenario-196)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset)</span> | <span style="color: gray">`E2E-044/ordinary-daily-reset`</span> | <span style="color: gray">pending</span> |
@@ -368,6 +368,20 @@ Variant: surface: parent
 
 - Log in as Parent, launch the installed app from the app grid, select an existing child, open About, read its product/version information and open the installed license text.
 - Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy.
+
+### Scenario 193
+
+**Read Help, About and command usage on each surface (surface: command help)**
+
+Case: `E2E-042/command-help` · Category: customer-journey · Status: **ready**
+
+Variant: surface: command help
+
+**Steps:**
+
+- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal.
+- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals.
+- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
 
 <div style="color: gray">
 
@@ -4114,26 +4128,6 @@ Pending: Customer recipe is documented; required public blocks and full installe
 Case: `E2E-042/kiosk` · Category: customer-journey · Status: **pending**
 
 Variant: surface: kiosk
-
-**Steps:**
-
-- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal.
-- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals.
-- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 193
-
-**Read Help, About and command usage on each surface (surface: command help)**
-
-Case: `E2E-042/command-help` · Category: customer-journey · Status: **pending**
-
-Variant: surface: command help
 
 **Steps:**
 

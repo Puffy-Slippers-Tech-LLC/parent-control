@@ -39,6 +39,7 @@ def checkout(tmp_path):
                      'tests/integration/test_account_password.py',
                      'tests/e2e/scenarios.json', 'tests/e2e/controller_qualification.py',
                      'tests/e2e/parent_about.py', 'tests/e2e/parent_discovery.py',
+                     'tests/e2e/command_help.py',
                      'tests/requirements.json',
                      'docs/TestAutomation/E2E-Building-Blocks.md'):
         target = tmp_path / relative
@@ -71,7 +72,7 @@ def cli_checkout(checkout):
 def test_full_listing_keeps_pending_cases_and_exact_digest():
     plan = runner['preflight'](['--list'])
     assert len(plan['cases']) == 252
-    assert len(plan['pending_cases']) == 246
+    assert len(plan['pending_cases']) == 245
     assert plan['scope'] == 'full'
     assert plan['mode'] == 'list-only'
     assert plan['inventory_sha256'] == hashlib.sha256(
@@ -246,8 +247,8 @@ def test_public_ready_listing_and_installed_dispatcher_share_selection(cli_check
     assert listing['scope'] == 'partial' and listing['ready_only'] is True
     assert [c['case_id'] for c in listing['cases']] == [
         'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',
-        'E2E-004/app-grid', 'E2E-004/terminal', 'E2E-030/parent']
-    assert len(listing['excluded_pending_cases']) == 246
+        'E2E-004/app-grid', 'E2E-004/terminal', 'E2E-030/parent', 'E2E-042/command-help']
+    assert len(listing['excluded_pending_cases']) == 245
     import tempfile
     with tempfile.TemporaryDirectory(prefix='onpc-ready-test-') as directory:
         command = dispatcher['selection'](ROOT, ['e2e', '--ready', '--artifacts=' + directory])

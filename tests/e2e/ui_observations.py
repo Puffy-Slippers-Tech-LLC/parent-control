@@ -65,6 +65,16 @@ OPERATION_LABELS = {
     'standard-management-denied': 'Reading administrator-access denial and checking management is absent',
     'standard-denial-closed': 'Checking denial dismissal returns to Terminal',
 }
+OPERATION_LABELS.update({
+    'help-system-prompt': 'Checking for a login-keyring prompt',
+    'help-terminal-input': 'Finding the active terminal input surface',
+    'help-terminal-focused': 'Checking focused shell input before reading command help',
+    'help-terminal-wrong-surface': 'Refusing help input on the desktop',
+    'help-terminal-closed': 'Checking Terminal and product windows are closed',
+    'help-shell-ready': 'Checking normal terminal input after command documentation',
+    **{'help-content-' + key: 'Reading installed ' + key.replace('-', ' ')
+       for key in accessible_ui.HELP_BINDINGS},
+})
 
 
 @dataclass(frozen=True)

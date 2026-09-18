@@ -11,10 +11,10 @@ rows and common entry/time rules it uses; the master's Next task pointer avoids
 loading unrelated task briefs or the full scheduling queue.
 
 There are **50 families and 252 persistent cases**: **240 customer cases**
-(5 ready, 235 pending), **11 engineering fault obligations**, and **1 ready
+(6 ready, 234 pending), **11 engineering fault obligations**, and **1 ready
 harness qualification**. E2E-034 is retired and is not reused. Cases **3, 4, 5, 6
 and 151** are the ready customer bindings; case **1** is ready harness
-qualification. Overall, **6 bindings are ready and 246 are pending**.
+qualification. Case **193** is the ready command-help binding. Overall, **7 bindings are ready and 245 are pending**.
 
 Each family below records current implementation status. After a complete
 scenario and terminal cleanup pass, run `tools/generate_test_coverage.sh`
@@ -653,7 +653,8 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 
 ### E2E-042
 
-Implementation status: All cases pending.
+Implementation status: Command-help (case 193) passed its complete installed
+consumer and cleanup. Cases 190–192 remain pending.
 
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.
 
@@ -662,6 +663,19 @@ Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 1. Parent P0 → PARENT03(capture); overlay/station FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help V(parent) → FILE01.
 2. Parent/overlay INFO01(Help) → ABOUT01; overlay additionally ABOUT02 → UI18(license viewer). Then INFO01(website,privacy,support,legal as offered). Kiosk ABOUT01 → UI03 → UI11(external actions). Command INFO02(each fixed command/manual). Parent's complete license-reading path remains owned by case 151.
 3. UI18(About, only where opened) → PARENT03 or REQUEST03 → UI12. INFO01 has already closed each external destination; do not close it twice. INFO02 ends at the terminal.
+
+Command-help binds INFO02 to `/usr/bin/oh-no-parent-control-parent --help`,
+`/usr/bin/oh-no-parent-control --help`, `man oh-no-parent-control-parent` and
+`man oh-no-parent-control`, in that order. Each starts at focused normal shell
+input in a fresh Terminal window. Read each help's usage, identifying description
+and help option; read each manual's command identity, purpose, NAME, SYNOPSIS and
+DESCRIPTION. Use `q` to leave each manual. Check the returned shell prompt and
+absence of management/request windows before closing Terminal normally. The
+first entry uses FILE01; later entries independently open Terminal. Refuse the
+desktop as command input before opening any terminal. Public observations have
+the adapter's 45-second deadline and retain only semantic results, never raw
+terminal text. The complete consumer is `command_help::execute` and
+`onpc_command_help::run`.
 
 ### E2E-043
 

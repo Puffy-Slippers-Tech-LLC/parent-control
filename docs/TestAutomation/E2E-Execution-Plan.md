@@ -15,7 +15,11 @@ the [queue](E2E-Task-Queue.md) is its canonical checklist.
   Prerequisites: 001 — FILE01, FILE02, FILE06.
   Acceptance: implementation and verification confirmed complete by the developer.
 
-Next task: **185c — [Read installed command help and manuals](E2E-Tasks/185c-read-installed-command-help-and-manuals.md)**.
+- [x] **185c — Read installed command help and manuals (INFO02)**.
+  Prerequisites: 001 — FILE01, FILE02, FILE06.
+  Acceptance: case 193 passed its complete installed consumer and cleanup.
+
+Next task: **235 — [E2E-042: command-help](E2E-Tasks/235-case-193.md)**.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale
@@ -24,9 +28,9 @@ pointer never overrides the queue. Keep only current continuation information.
 ## Current scope
 
 The inventory has **252 cases in 50 families**: **240 customer cases**
-(5 ready, 235 pending), **11 engineering obligations (140–150)** and **1 ready
-harness case**. Preserve runnable cases **1, 3, 4, 5, 6 and 151**. The catalogue has
-**178 blocks: 60 ready and 118 pending**. These are declarations, not new VM passes.
+(6 ready, 234 pending), **11 engineering obligations (140–150)** and **1 ready
+harness case**. Preserve runnable cases **1, 3, 4, 5, 6, 151 and 193**. The catalogue has
+**178 blocks: 61 ready and 117 pending**. These are declarations, not new VM passes.
 
 The queue has **349 active tasks**: **135 capability slices**, **202 scenario
 tasks covering all 236 initially pending customer cases**, **11 system tasks**

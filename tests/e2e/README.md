@@ -289,8 +289,9 @@ and accessibility checks. Ambiguous identities and failed reads stop immediately
 The controller allows 390 seconds for that observation, within the worker's
 420-second checkpoint deadline; no input is replayed or product probe substituted.
 The current ready set contains the E2E-001 harness smoke,
-E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid and E2E-030/parent:
-**five runnable variants, four customer variants**. Another 217 variants are
+E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid, E2E-004/terminal,
+E2E-030/parent and E2E-042/command-help:
+**seven runnable variants, six customer variants**. Another 245 variants are
 pending. Readiness does not certify a passing run.
 
 E2E-004/app-grid composes the shared installed setup, standard-user login,
@@ -324,6 +325,11 @@ earns no executed coverage. The terminal variant is implemented by
 Parent executable once, observes the specific administrator-access denial and
 absence of management controls, then dismisses the denial and closes Terminal.
 Case 6 implementation and verification are confirmed complete by the developer.
+E2E-042/command-help is implemented by `command_help.PLAN` and
+`onpc_command_help::run`: as the administrator it opens a normal Terminal,
+refuses desktop command input, then reads both installed `--help` commands and
+both manuals, exits each manual with `q`, and closes Terminal with no product
+window. Case 193 passed its complete installed journey, collection and cleanup.
 Omitting both `--ready` and `--scenario` requests the whole inventory and still
 refuses while any variant is pending. A ready-suite pass is partial coverage.
 

@@ -9,7 +9,6 @@ import pytest
 from accessible_ui import HELP_BINDINGS, UiError
 from tests.support.accessible_ui import Node, ui_for
 from tests.support.perl import run_perl
-from tests.unit.test_parent_about_worker import PROBE as PARENT_PROBE
 
 PROMPT = 'onpc-parent-jamie@fixture:~$ '
 
@@ -107,10 +106,46 @@ def test_only_registered_commands_follow_fresh_proofs_without_replay(binding, fa
     assert result['events'] == expected
 
 
+RUN_PROBE = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { 'sut' }
+sub reset_consoles { }
+sub select_console { }
+sub get_var { $_[0] eq 'NOVIDEO' ? '1' : $_[1] }
+sub get_required_var { 'unit-fixture-value' }
+sub type_password { push @main::events, ['secret']; }
+sub type_string { push @main::events, ['text', $_[0]]; }
+sub send_key { push @main::events, ['key', $_[0]]; }
+sub save_screenshot { die 'explicit capture forbidden'; }
+sub record_info { }
+sub console { bless {}, 'Console' }
+sub power { push @main::events, ['power', $_[0]]; }
+sub check_shutdown { 1 }
+package Console;
+sub disable { }
+package main;
+require onpc_command_help;
+my $ok = eval {
+    onpc_command_help::run(sub {
+        push @events, ['stage', $_[0]];
+        return {observed => $_[0]} if $_[0] =~ /recipient-(?:qualified|rechecked)\z/;
+        return {ui_keys => ['home', 'down']} if $_[0] =~ /(?:greeter|list)$/;
+        return {observed => $_[0]};
+    });
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+
+
 def test_complete_worker_matches_ordered_plan_and_exits_each_manual_normally():
     from command_help import PLAN
-    probe = PARENT_PROBE.replace('onpc_parent_about', 'onpc_command_help')
-    result = json.loads(run_perl(probe, '0', '').stdout)
+    result = json.loads(run_perl(RUN_PROBE).stdout)
     assert result['ok']
     assert [event[1] for event in result['events'] if event[0] == 'stage'] == list(PLAN.screen_tags)
     assert result['events'].count(['key', 'q']) == 2

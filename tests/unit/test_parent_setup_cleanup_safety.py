@@ -1,6 +1,7 @@
 """First Parent setup refuses changed inputs and never retries partial setup."""
 
 import json
+import shutil
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -47,6 +48,67 @@ def test_suite_setup_installs_and_reboots_without_product_validation(setup):
     assert vm.call.call_args.args[0][-1] == 'install-suite'
 
 
+@pytest.mark.parametrize('failure', [None, 'copy', 'changed-source'])
+def test_reused_snapshot_refreshes_guarded_payload_before_customer_input(
+        setup, tmp_path, monkeypatch, failure):
+    import installed_journey as journeys
+    import parent_discovery
+
+    adapter, vm, payload = setup
+    guest_payload = tmp_path / 'snapshot-payload'
+    guest_payload.mkdir()
+    for name in ('package.deb', 'system_guest.py', 'e2e_dynamic_account.py',
+                 'selected-inputs.json', 'transfer-sha256.json'):
+        (guest_payload / name).write_bytes(b'previous snapshot input')
+    reply = tmp_path / 'setup-detached.reply.json'
+
+    def copy(download, source, destination):
+        assert not reply.exists()
+        assert download is False
+        assert destination == installed_setup.system.PAYLOAD + '/'
+        if failure == 'copy':
+            raise RuntimeError('transfer interrupted')
+        shutil.copytree(source, guest_payload, dirs_exist_ok=True)
+
+    vm.copy.side_effect = copy
+    vm.config = {}
+    monkeypatch.setattr(journeys, 'Transport', Mock(return_value=vm))
+    monkeypatch.setattr(journeys.system, 'address', Mock(return_value='fixture-host'))
+    lease = adapter.verified.lease
+    lease.source = SimpleNamespace(uuid='fixture-uuid')
+    lease.view = SimpleNamespace(domain_id=7)
+    lease.guard = Mock()
+    context = SimpleNamespace(directory=tmp_path, verified=adapter.verified,
+        lease=lease, host_key='fixture-key', commands=Mock(), installed_snapshot='onpc-v1.1')
+    journey = journeys.InstalledJourney(context, Mock(), parent_discovery.PLAN,
+                                      actions={'create-account': Mock()})
+    for stage in ('ready', 'setup-detached'):
+        (tmp_path / (stage + '.request.json')).write_text(
+            json.dumps({'stage': stage, 'screenshot': None}))
+    journey.step(Mock())
+    if failure == 'changed-source':
+        (payload / 'e2e_dynamic_account.py').write_bytes(b'unverified helper')
+    if failure:
+        with pytest.raises((RuntimeError, EvidenceError)):
+            journey.step(Mock())
+        assert not reply.exists()
+        with pytest.raises(EvidenceError, match='previous-failure'):
+            journey.step(Mock())
+        if failure == 'changed-source':
+            vm.copy.assert_not_called()
+    else:
+        journey.step(Mock())
+        assert json.loads(reply.read_text()) == {'setup_complete': True}
+        assert installed_setup.system.baseline.digest(guest_payload / 'package.deb') == (
+            adapter.verified.inputs['package_sha256'])
+        for name, expected in json.loads((guest_payload / 'transfer-sha256.json').read_text()).items():
+            assert installed_setup.system.baseline.digest(guest_payload / name) == expected
+        assert (guest_payload / 'selected-inputs.json').read_bytes() == (
+            payload / 'selected-inputs.json').read_bytes()
+    vm.call.assert_not_called()
+    vm.reboot.assert_not_called()
+
+
 def test_guest_suite_install_does_not_check_existing_product_state(monkeypatch):
     monkeypatch.setattr(system_guest, 'guard', lambda: {'selected_inputs_sha256': 'a' * 64})
     monkeypatch.setattr(system_guest, 'sha', lambda _: 'a' * 64)
@@ -57,6 +119,44 @@ def test_guest_suite_install_does_not_check_existing_product_state(monkeypatch):
     system_guest.install_suite()
     install.assert_called_once_with()
     before.assert_not_called()
+
+
+@pytest.mark.parametrize('changed', ['package.deb', 'e2e_dynamic_account.py',
+                                   'selected-inputs.json', 'fixtures/new-input.txt'])
+def test_provision_uses_current_manifest_even_when_package_is_unchanged(setup, tmp_path, changed):
+    adapter, vm, payload = setup
+    guest_payload = tmp_path / 'guest-payload'
+    shutil.copytree(payload, guest_payload)
+    old_package = (guest_payload / 'package.deb').read_bytes()
+    selected_path = payload / 'selected-inputs.json'
+    selected = json.loads(selected_path.read_text())
+    if changed == 'selected-inputs.json':
+        selected['selection'] = {'consumer': 'E2E-003/none'}
+    else:
+        target = payload / changed
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b'current input revision')
+        if changed in selected['files']:
+            entry = selected['files'][changed]
+            entry['sha256'] = installed_setup.system.baseline.digest(target)
+            adapter.verified.source_files[entry['source']] = entry['sha256']
+    selected_path.write_text(json.dumps(selected))
+    inventory = {p.relative_to(payload).as_posix(): installed_setup.system.baseline.digest(p)
+                 for p in payload.rglob('*') if p.is_file() and p.name != 'transfer-sha256.json'}
+    (payload / 'transfer-sha256.json').write_text(json.dumps(inventory))
+    adapter.verified.inputs['package_sha256'] = inventory['package.deb']
+    vm.copy.side_effect = lambda _up, source, _destination: shutil.copytree(
+        source, guest_payload, dirs_exist_ok=True)
+
+    adapter.provision(Mock())
+
+    assert (guest_payload / changed).read_bytes() == (payload / changed).read_bytes()
+    assert {p.relative_to(guest_payload).as_posix(): installed_setup.system.baseline.digest(p)
+            for p in guest_payload.rglob('*') if p.is_file() and p.name != 'transfer-sha256.json'} == inventory
+    if changed != 'package.deb':
+        assert (guest_payload / 'package.deb').read_bytes() == old_package
+    vm.call.assert_not_called()
+    vm.reboot.assert_not_called()
 
 
 @pytest.mark.parametrize('boundary', ['copy', 'call', 'reboot'])

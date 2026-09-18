@@ -536,6 +536,18 @@ class AccessibleUI:
             return None
         return field
 
+    def focus_terminal(self):
+        # Application SCREEN extents are not reliable global coordinates on
+        # Wayland. Focus the qualified public component without translating
+        # its window-local geometry into framebuffer pointer input.
+        field = self.wait(self.terminal_input, 'terminal-input')
+        if not self.has_state(field, self.api.StateType.FOCUSED):
+            component = field.get_component_iface()
+            require(component is not None, 'ui:terminal-focus-unavailable')
+            require(component.grab_focus(), 'ui:terminal-focus-refused')
+        # Never retry the action, even if the resulting observation times out.
+        self.wait(lambda: self.terminal_input(focused=True), 'terminal-focus')
+
     def management_denied(self):
         """FILE06: the specific visible refusal, never generic error or echo."""
         root = self.target('Administrator access required', ('frame',))
@@ -967,10 +979,9 @@ class AccessibleUI:
         elif operation == 'standard-system-prompt':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
         elif operation == 'standard-terminal-input':
-            field = self.wait(self.terminal_input, 'terminal-input')
-            result['pointer'] = self.pointer_target(field)
+            self.wait(self.terminal_input, 'terminal-input')
         elif operation == 'standard-terminal-focused':
-            self.wait(lambda: self.terminal_input(focused=True), 'terminal-focus')
+            self.focus_terminal()
         elif operation == 'standard-terminal-wrong-surface':
             # Positive desktop evidence makes a missing terminal meaningful.
             self.desktop_result(EXISTING_CHILD, 'success')

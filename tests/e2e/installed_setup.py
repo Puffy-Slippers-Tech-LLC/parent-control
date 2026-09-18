@@ -36,7 +36,8 @@ class InstalledSetup:
         self.directory, self.verified, self.transport = directory, verified, transport
         self.attempted = False
 
-    def run(self, guard, *, verify=True):
+    def provision(self, guard):
+        """Refresh this attempt's guarded helpers, including on reused snapshots."""
         require(not self.attempted, 'setup:already-attempted')
         self.attempted = True
         guard()
@@ -54,8 +55,12 @@ class InstalledSetup:
             require(inventory[target] == entry['sha256'] ==
                     self.verified.source_files[entry['source']], 'setup:helper-changed')
         self.transport.copy(False, str(payload) + '/', system.PAYLOAD + '/')
-        run = self.verified.lease.state['run']
         guard()
+        self.verified.recheck()
+
+    def run(self, guard, *, verify=True):
+        self.provision(guard)
+        run = self.verified.lease.state['run']
         self.transport.call(system.guest_command(run, 'install-setup' if verify else 'install-suite'),
                             timeout=1200)
         guard()

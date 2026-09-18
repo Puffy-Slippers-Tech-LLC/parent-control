@@ -85,6 +85,7 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
         (tmp_path / 'input/package.deb').write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     g, files = bootstrap_guest()
+    retire = Mock()
     guestfs.GuestFS.return_value = g
     authorized = '/root/.ssh/authorized_keys'
     prior = b'ssh-ed25519 QkJC prior-key\n'
@@ -104,12 +105,18 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
     g.close.side_effect = close
     (tmp_path / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB onpc-system-test\n')
     if failure:
-        with pytest.raises((runner.CommandError, runner.Error, ValueError)):
+        with patch.object(runner, 'retire_snapshot_payload', retire), pytest.raises(
+                (runner.CommandError, runner.Error, ValueError)):
             runner.bootstrap(commands, lease, tmp_path, guestfs, observation_only=observation_only)
         assert g.close.call_count == (2 if failure == 'readback' else 1)
     else:
-        assert runner.bootstrap(commands, lease, tmp_path, guestfs,
-                                observation_only=observation_only) == 'ssh-ed25519 public-test-key'
+        with patch.object(runner, 'retire_snapshot_payload', retire):
+            assert runner.bootstrap(commands, lease, tmp_path, guestfs,
+                                    observation_only=observation_only) == 'ssh-ed25519 public-test-key'
+        if observation_only:
+            retire.assert_not_called()
+        else:
+            retire.assert_called_once_with(g, RUN)
         assert files[authorized] == prior + (tmp_path / 'ssh-key.pub').read_bytes()
         marker = json.loads(files['/etc/onpc-system-test.json'])
         assert ('package_sha256' in marker) != observation_only

@@ -96,7 +96,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     monkeypatch.setattr(journeys.system, 'address', Mock(return_value='fixture-host'))
     monkeypatch.setattr(journeys, 'Transport', Mock())
     setup = Mock(return_value={'package_verified': True, 'setup_reboot_verified': True})
-    monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock(return_value=SimpleNamespace(run=setup)))
+    provision = Mock()
+    monkeypatch.setattr(installed_setup, 'InstalledSetup',
+                        Mock(return_value=SimpleNamespace(run=setup, provision=provision)))
     boot = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
     def observe_ui(operation):
@@ -163,6 +165,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 reply = json.loads((directory / (stage + '.reply.json')).read_bytes())
                 if stage == 'ready':
                     assert reply == {plan.worker_mode: True}
+                    provision.assert_not_called()
+                else:
+                    provision.assert_called_once()
                 if plan is parent_access.PLAN and stage == 'app-grid':
                     assert reply == {'observed': stage, 'ui_pointer': {'x': 700, 'y': 80}}
                 if plan is parent_access.PLAN and stage == 'system-prompt':
@@ -234,6 +239,7 @@ def test_review_requires_a_named_qualification_mode(tmp_path):
 
 
 def test_stage_action_runs_after_worker_guard_and_before_durable_reply(tmp_path, monkeypatch):
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock())
     plan = replace(SYNTHETIC, screen_tags={"created": "onpc-example-created"},
                    phases={"ready": "setup", "setup-detached": "setup", "created": "step-1"},
                    stage_actions={"created": "create-account"})

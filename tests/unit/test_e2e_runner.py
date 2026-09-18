@@ -16,11 +16,27 @@ runner = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))
 dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
 import test_commands as commands
 import dev_privileges
+import test_account_password
+REAL_READ_PASSWORD = test_account_password.read_password
+
+
+@pytest.fixture(autouse=True)
+def fixture_password(monkeypatch):
+    monkeypatch.setattr(test_account_password, 'read_password', lambda *args: 'fixture-password')
+
+
+def test_missing_password_refuses_before_inventory_or_vm(checkout, monkeypatch):
+    monkeypatch.setattr(test_account_password, 'read_password', REAL_READ_PASSWORD)
+    (checkout / '.envrc').unlink()
+    (checkout / 'tests/e2e/scenarios.json').write_text('must not be read')
+    with pytest.raises(ValueError, match='TEST_ACCOUNT_PASSWORD'):
+        runner['preflight']([], root=checkout)
 
 
 @pytest.fixture
 def checkout(tmp_path):
     for relative in ('tests/e2e/runner.py', 'tests/e2e/inventory.py',
+                     'tests/integration/test_account_password.py',
                      'tests/e2e/scenarios.json', 'tests/e2e/controller_qualification.py',
                      'tests/e2e/parent_about.py', 'tests/e2e/parent_discovery.py',
                      'tests/requirements.json',
@@ -28,6 +44,8 @@ def checkout(tmp_path):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / relative).read_bytes())
+    (tmp_path / '.envrc').write_text("TEST_ACCOUNT_PASSWORD='fixture-password'\n")
+    (tmp_path / '.envrc').chmod(0o600)
     return tmp_path
 
 

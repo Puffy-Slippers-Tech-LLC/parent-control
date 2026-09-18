@@ -33,6 +33,9 @@ sys.exit(7 if os.environ.get('ONPC_SETUP_FAIL') == name else 0)
     for name in ('install_test_runner.py', 'install_graphical_test_policy.py', 'install_codex_rules.py'):
         (root / 'tools' / name).write_text(stub)
     (root / 'tests/integration/prepare_baseline.py').write_text(stub)
+    shutil.copy2(ROOT / 'tests/integration/test_account_password.py', root / 'tests/integration/test_account_password.py')
+    (root / '.envrc').write_text("export TEST_ACCOUNT_PASSWORD='fixture-password'\n")
+    (root / '.envrc').chmod(0o600)
     shutil.copy2(ROOT / 'tools/onpc-setup', root / 'tools/onpc-setup')
     (root / 'tools/setup_privileges.py').write_text('''import os, pathlib, runpy, sys
 if os.environ.get('ONPC_SETUP_DENIED'):
@@ -44,7 +47,7 @@ dispatcher = runpy.run_path(str(root / 'tools/onpc-setup'))
 command = dispatcher['command'](root, sys.argv[1:])
 os.execv(command[0], command)
 ''')
-    for name in ('tools/setup_dependencies.sh', 'tools/setup_checkout.sh', 'tests/integration/prepare-vm'):
+    for name in ('tools/setup_dependencies.sh', 'tools/setup_checkout.sh'):
         module = Path(name).name + '.py'
         (root / name).write_text(
             '#!/bin/bash\n'
@@ -91,7 +94,6 @@ DEPS = [('setup_dependencies.sh.py', []), ('setup_checkout.sh.py', [])]
     (['--prepare-baseline'], [('prepare_baseline.py', []), *TOOLS]),
     (['--replace-missing-baseline'], [('prepare_baseline.py', ['--replace-missing']), *TOOLS]),
     (['--bootstrap-tools'], [('install_test_runner.py', []), *RULES]),
-    (['--prepare-vm'], [('prepare-vm.py', [])]),
     (['--install-extension'], [('make', ['--no-print-directory', '_install-development-extension'])]),
 ])
 def test_modes_repeat_complete_scope_from_any_working_directory(checkout, mode, expected):
@@ -124,6 +126,7 @@ def test_failure_stops_dependent_setup_and_can_be_retried(checkout, mode, failur
 
 @pytest.mark.parametrize('args,code', [
     (['--help'], 0), (['--unknown'], 2), (['--test-tools-only', '--prepare-baseline'], 2),
+    (['--prepare-vm'], 2),
 ])
 def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, code):
     result, events = run_setup(checkout, *args)
@@ -178,7 +181,6 @@ def test_unsafe_existing_installation_never_requests_authentication(checkout, mo
 
 @pytest.mark.parametrize('target,mode', [
     ('prepare-baseline', '--prepare-baseline'),
-    ('prepare-vm', '--prepare-vm'),
     ('install-extension', '--install-extension'),
 ])
 def test_make_setup_aliases_only_delegate_to_master(checkout, target, mode):
@@ -188,3 +190,12 @@ def test_make_setup_aliases_only_delegate_to_master(checkout, target, mode):
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == mode
+
+
+def test_missing_password_fails_before_privilege_dispatch_or_any_setup(checkout):
+    (checkout / '.envrc').unlink()
+    result, events = run_setup(checkout, '--prepare-baseline', denied=True)
+    assert result.returncode == 1
+    assert 'TEST_ACCOUNT_PASSWORD' in result.stderr
+    assert not events
+    assert not (checkout / 'authentication.log').exists()

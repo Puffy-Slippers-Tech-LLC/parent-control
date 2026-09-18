@@ -1,3 +1,4 @@
 # make a copy of this file as .envrc, find the values in password manager's "Oh No Parent Control" record
 
 export APT_PACKAGE_PRIVATE_KEY_PASSPHRASE='REPLACE_WITH_REAL_PASSPHRASE'
+export TEST_ACCOUNT_PASSWORD='REPLACE_WITH_TEST_PASSWORD'

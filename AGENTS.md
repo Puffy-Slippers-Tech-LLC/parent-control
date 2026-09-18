@@ -141,8 +141,15 @@
   prerequisites. Ordinary setup preserves accepted baselines. Cover orchestration
   repeat/failure behavior and update master help/docs. Explicit `--prepare-baseline`
   requires an off VM, deletes the existing baseline without restoring it and
-  captures the current guest. Neither it nor guest-only `--prepare-vm` runs during
-  ordinary host setup.
+  provisions the current guest's accounts/tools during a controlled boot, then
+  captures it off. Explicit preparation accepts the current maintained disk
+  chain of the same recorded VM and preserves all non-automation snapshots;
+  ordinary test/recovery paths retain their exact source-identity checks.
+  Existing account UIDs/homes are preserved; passwords and
+  account metadata are reconciled. Baseline preparation and E2E require the
+  literal `TEST_ACCOUNT_PASSWORD` in the host's private `.envrc` before VM work.
+  E2E never changes passwords. `prepare-vm` is removed; ordinary host setup never
+  prepares a baseline.
 - Refresh helpers and Polkit/Codex rules with `./setup.sh --test-tools-only`;
   rules alone with `./setup.sh --codex-rules-only`. Global read rules live in
   `config/codex-read-only.rules`. Codex needs a restart with this checkout trusted;

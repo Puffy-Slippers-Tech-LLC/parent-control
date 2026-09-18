@@ -373,7 +373,8 @@ def test_secret_staging_failure_closes_callback_without_spawning(attempt, monkey
     assert 'private-canary' not in json.dumps(report(attempt))
 
 
-def test_unprovisioned_credentials_refuse_before_callback_or_worker(attempt):
+def test_unprovisioned_credentials_refuse_before_callback_or_worker(attempt, monkeypatch):
+    monkeypatch.setattr('fixture_credentials.read_password', lambda: 'fixture-password')
     from fixture_credentials import FixtureCredentials
     with pytest.raises(ValueError, match='credential:provisioning-required'):
         attempt.run(credentials=FixtureCredentials())
@@ -383,6 +384,7 @@ def test_unprovisioned_credentials_refuse_before_callback_or_worker(attempt):
 
 
 def test_provisioned_fixture_registry_scans_worker_reports_and_stages_same_values(attempt, monkeypatch):
+    monkeypatch.setattr('fixture_credentials.read_password', lambda: 'fixture-password')
     from fixture_credentials import FixtureCredentials
     from private_artifacts import PrivateCollector, EvidenceError
     credentials = FixtureCredentials()

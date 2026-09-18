@@ -23,7 +23,7 @@ Cases 158–252 remain pending except the qualified case 193. Declaration and bl
 an installed pass.
 The reconciliation below retains displaced engineering obligations separately.
 
-Retain shared-helper regressions for all six ready cases and require each
+Retain shared-helper regressions for all seven ready cases and require each
 migrated consumer's complete installed acceptance.
 
 ## How to implement one block
@@ -325,8 +325,8 @@ these blocks, not copies of them.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| FILE01 | C | Open the normal desktop terminal as environment preparation and observe its usable input surface. | `onpc_terminal::open(journey, desktop)` consumes the desktop proof, checks system-prompt dismissal and wrong-surface refusal, then UI05(Ctrl+Alt+T) → UI01/UI02(terminal input). `focus` independently qualifies focus before command input. E2E-004/terminal. No app-grid search. | ready |
-| FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | UI21(terminal input) → UI06(command) → UI05(Enter). Qualified by E2E-004/terminal. | ready |
+| FILE01 | C | Open the normal desktop terminal as environment preparation and observe its usable input surface. | `onpc_terminal::open(journey, desktop)` consumes the desktop proof, checks system-prompt dismissal and wrong-surface refusal, then UI05(Ctrl+Alt+T) → UI01/UI02(terminal input). `focus` independently qualifies focus before command input. E2E-004/terminal and E2E-042/command-help (first entry). No app-grid search. | ready |
+| FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | UI21(terminal input) → UI06(command) → UI05(Enter). Qualified by E2E-004/terminal and E2E-042/command-help's registered help/man submissions. | ready |
 | FILE06 | C | Observe the declared terminal result: real administrator challenge, command completion/notice, or launch-denial output. Read only its bounded approved output projection. Generic prompts, command echo and arbitrary failures are insufficient. | `onpc_terminal::observe_denial` → `AccessibleUI.management_denied` and `management_absent`. Qualified specific GUI denial and management exclusion: E2E-004/terminal (case 6). Package challenge/completion and help-content branches remain pending. | ready |
 | FILE07 | C | Navigate an open file manager/chooser to one declared customer directory. Use its normal Location shortcut, enter the directory and observe the destination. | UI05(Location shortcut) → UI16(location field) → UI05(Enter) → UI01 → UI03(destination). Directory identity comes from prepared synthetic fixtures or the selected save location. | pending |
 | FILE03 | C | Choose files, save a named file, or cancel in an already open chooser. Mode and selected files are explicit. Observe selection/closure; the caller observes its later result separately. | Open: FILE07(directory) → UI14(first file) → UI05 for declared additional modifier/navigation selection → UI13(exact selected set) → UI04(Open) → UI11(chooser). Save: FILE07 → UI16(filename) → UI04(Save) → UI11. Cancel: UI04(Cancel) → UI11. No unmodified second selection that silently drops earlier files. | pending |
@@ -559,8 +559,8 @@ Each case then starts from the snapshot required by its purpose:
 
 - Installed-app validation must declare `installed-digest-verified-product` and
   restore the suite's version snapshot, without installing or rebooting as case
-  setup. This covers E2E-003's two ready variants, both E2E-004 launch routes and
-  E2E-030/parent.
+  setup. This covers E2E-003's two ready variants, both E2E-004 launch routes,
+  E2E-030/parent and E2E-042/command-help.
 - Cases testing installation, removal or package behavior may declare
   `declared-package-lifecycle-fixture` and start from `onpc-baseline`, with
   installation performed as part of the tested package behavior.

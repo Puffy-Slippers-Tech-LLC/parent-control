@@ -11,15 +11,15 @@ the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-- [x] **002 — E2E-004: terminal (case 6)**.
-  Prerequisites: 001 — FILE01, FILE02, FILE06.
-  Acceptance: implementation and verification confirmed complete by the developer.
-
 - [x] **185c — Read installed command help and manuals (INFO02)**.
   Prerequisites: 001 — FILE01, FILE02, FILE06.
   Acceptance: case 193 passed its complete installed consumer and cleanup.
 
-Next task: **235 — [E2E-042: command-help](E2E-Tasks/235-case-193.md)**.
+- [x] **235 — E2E-042: command-help (case 193)**.
+  Prerequisites: 185c — INFO02.
+  Acceptance: case 193 passed its complete installed journey, collection and cleanup.
+
+Next task: **003 — [Open session controls and switch or sign out](E2E-Tasks/003-desktop-session.md)**.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale

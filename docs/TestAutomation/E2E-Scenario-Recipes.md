@@ -12,9 +12,9 @@ loading unrelated task briefs or the full scheduling queue.
 
 There are **50 families and 252 persistent cases**: **240 customer cases**
 (6 ready, 234 pending), **11 engineering fault obligations**, and **1 ready
-harness qualification**. E2E-034 is retired and is not reused. Cases **3, 4, 5, 6
-and 151** are the ready customer bindings; case **1** is ready harness
-qualification. Case **193** is the ready command-help binding. Overall, **7 bindings are ready and 245 are pending**.
+harness qualification**. E2E-034 is retired and is not reused. Cases **3, 4, 5, 6,
+151 and 193** are the ready customer bindings; case **1** is ready harness
+qualification. Overall, **7 bindings are ready and 245 are pending**.
 
 Each family below records current implementation status. After a complete
 scenario and terminal cleanup pass, run `tools/generate_test_coverage.sh`
@@ -653,8 +653,8 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 
 ### E2E-042
 
-Implementation status: Command-help (case 193) passed its complete installed
-consumer and cleanup. Cases 190–192 remain pending.
+Implementation status: Ready: 193. Command-help passed its complete installed
+journey, collection and cleanup. Cases 190–192 remain pending.
 
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.
 

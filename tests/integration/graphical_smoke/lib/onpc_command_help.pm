@@ -16,17 +16,18 @@ my %commands = (
 
 # FILE02 leaf: finite nonsecret bindings, fresh single-use focused shell proof.
 sub submit {
+    onpc_progress::operation('Submitting installed command documentation');
     my ($journey, $binding, $entry) = @_;
     die 'help:binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && defined($binding) && exists($commands{$binding});
     $journey->consume_observation($binding . '-entry', $entry);
-    onpc_progress::operation('Submitting installed command documentation: ' . $binding);
     testapi::type_string($commands{$binding});
     testapi::send_key('ret');
 }
 
 # INFO02: independently observed Terminal, no command interface or input replay.
 sub read_installed {
+    onpc_progress::operation('Reading installed command documentation');
     my ($journey, $binding, $entry) = @_;
     submit($journey, $binding, $entry);
     my $content = $journey->seen($binding . '-content');
@@ -36,6 +37,7 @@ sub read_installed {
 }
 
 sub run {
+    onpc_progress::operation('Checking installed command documentation');
     my ($exchange) = @_;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'command-help', review => 0);
     my $desktop = onpc_parent::login_functional($journey);

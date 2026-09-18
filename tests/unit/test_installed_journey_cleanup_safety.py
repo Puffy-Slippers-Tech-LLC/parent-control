@@ -15,7 +15,9 @@ import parent_about
 import parent_access
 import parent_terminal
 import command_help
+import desktop_session
 import parent_discovery
+import accessible_ui
 from private_artifacts import EvidenceError, PrivateCollector
 from recording import ScenarioRecorder
 from tests.support.paths import ROOT
@@ -63,8 +65,11 @@ def test_shared_system_prompt_rendezvous_retains_request_and_refuses_uncertain_i
 
 @pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN,
                                  parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN,
-                                 command_help.PLAN],
-                         ids=['parent', 'different-consumer', 'discovery', 'empty', 'standard-access', 'terminal', 'help'])
+                                 command_help.PLAN, desktop_session.LOGOUT_PLAN,
+                                 desktop_session.SWITCH_PLAN],
+                         ids=['parent', 'different-consumer', 'discovery', 'empty',
+                              'standard-access', 'terminal', 'help', 'desktop-logout',
+                              'desktop-switch'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -108,7 +113,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     def observe_ui(operation):
         import accessible_ui
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation == 'standard-app-grid':
+        if operation in ('standard-app-grid', *accessible_ui.SESSION_POINTER_OPERATIONS):
             result['pointer'] = {'x': 700, 'y': 80}
         if operation in accessible_ui.SETTINGS_OPERATIONS:
             result['settings'] = {'child': accessible_ui.CHILD_IDENTITIES[
@@ -176,6 +181,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                     assert reply == {'observed': stage, 'ui_pointer': {'x': 700, 'y': 80}}
                 if plan is parent_access.PLAN and stage == 'system-prompt':
                     assert reply == {'observed': stage}
+                tag = plan.screen_tags.get(stage, '')
+                if tag.startswith('ui:') and tag[3:] in accessible_ui.SESSION_POINTER_OPERATIONS:
+                    assert reply == {'observed': stage, 'ui_pointer': {'x': 700, 'y': 80}}
                 acknowledged.append(stage)
             assert [s['stage'] for s in options['validate']()] == list(plan.screen_tags)
             return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)

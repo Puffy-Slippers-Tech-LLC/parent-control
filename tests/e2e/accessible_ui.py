@@ -55,6 +55,19 @@ HELP_OPERATIONS = frozenset({
     *('help-content-' + key for key in HELP_BINDINGS),
 })
 OPERATIONS |= HELP_OPERATIONS
+SESSION_OPERATIONS = frozenset({
+    'session-menu-toggle', 'session-menu-power', 'session-menu',
+    'switch-user', 'logout', 'logout-confirm',
+})
+SESSION_POINTER_OPERATIONS = frozenset({
+    'session-menu-toggle', 'session-menu-power', 'switch-user', 'logout', 'logout-confirm',
+})
+OPERATIONS |= SESSION_OPERATIONS
+SESSION_ACTION_NAMES = {
+    'switch-user': 'Switch User…',
+    'logout': 'Log Out…',
+}
+SESSION_ACTION_ROLES = ('menu item', 'button', 'push button')
 PRODUCT = 'Oh No! Parent Control'
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
@@ -177,7 +190,7 @@ class AccessibleUI:
                 if name is not None or contains is not None:
                     safe_roles = {'button', 'push button', 'toggle button', 'label', 'icon',
                                   'text', 'entry', 'panel', 'frame', 'dialog', 'link', 'combo box',
-                                  'list box', 'list item', 'menu item', 'check box', 'switch'}
+                                  'list box', 'list item', 'menu', 'menu item', 'check box', 'switch'}
                     self.last_roles.add(role if role in safe_roles else 'other')
                 if roles and role not in roles:
                     continue
@@ -248,20 +261,24 @@ class AccessibleUI:
             require(component is not None and component.scroll_to(self.api.ScrollType.ANYWHERE),
                     'ui:scroll-refused')
 
-    def find_labelled_button(self, name, *, root=None):
-        """One fresh lookup by button name or its showing label's ancestry."""
-        button = self.find(name, ('button', 'push button'), sensitive=True, root=root)
-        if button is not None:
-            return button
+    def find_labelled_control(self, name, roles, *, root=None):
+        """One fresh lookup by public name or its showing label's ancestry."""
+        control = self.find(name, roles, sensitive=True, root=root)
+        if control is not None:
+            return control
         node = self.find(name, ('label',), root=root)
         for _ in range(16):
             if node is None or node == root:
                 return None
-            if node.get_role_name() in ('button', 'push button'):
+            if node.get_role_name() in roles:
                 return node if self.showing(node) and self.has_state(
                     node, self.api.StateType.SENSITIVE) else None
             node = node.get_parent()
         return None
+
+    def find_labelled_button(self, name, *, root=None):
+        """One fresh lookup by button name or its showing label's ancestry."""
+        return self.find_labelled_control(name, ('button', 'push button'), root=root)
 
     def labelled_button(self, name):
         return self.wait(lambda: self.find_labelled_button(name), 'labelled-button')
@@ -648,6 +665,33 @@ class AccessibleUI:
                 'ui:desktop-binding')
         return self.target('Activities', ('toggle button', 'button', 'push button'))
 
+    def session_menu_toggle(self):
+        """DESK02 entry: locate the system menu. GNOME Shell exposes no AT-SPI action."""
+        self.desktop_result(PARENT, 'success')
+        return self.stable_pointer(lambda: self.find(
+            'System', ('menu', 'toggle button', 'button', 'push button'), sensitive=True))
+
+    def session_menu_power(self):
+        """DESK02: locate Power Off Menu after the system menu is open."""
+        return self.stable_pointer(lambda: self.find(
+            'Power Off Menu', ('button', 'push button'), sensitive=True))
+
+    def session_menu(self):
+        """DESK02: observe Switch User and Log Out after Power Off Menu is open."""
+        for name in SESSION_ACTION_NAMES.values():
+            self.wait(lambda n=name: self.find_labelled_control(n, SESSION_ACTION_ROLES), 'target')
+
+    def choose_session_action(self, action):
+        """Point at one already observed session-menu action; do not observe GDM."""
+        require(action in SESSION_ACTION_NAMES, 'ui:session-action-binding')
+        name = SESSION_ACTION_NAMES[action]
+        return self.stable_pointer(lambda: self.find_labelled_control(name, SESSION_ACTION_ROLES))
+
+    def logout_confirm(self):
+        """DESK04 confirmation: the Log Out button, not the menu item with an ellipsis."""
+        return self.stable_pointer(lambda: self.find(
+            'Log Out', ('button', 'push button'), sensitive=True))
+
     def greeter_list(self, name=PARENT):
         # GDM01: the positive account surface and absence must be fresh together.
         self.observe_absence('greeter', 'password', name=name, mode='snapshot')
@@ -970,6 +1014,57 @@ class AccessibleUI:
                 'ui:pointer-bounds')
         return point
 
+    def pointer_glyph(self, node):
+        """Click the smallest showing box so a popup parent cannot pull the point off the glyph."""
+        require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
+                'ui:pointer-target-unusable')
+        boxes = []
+        for child in self.nodes(node):
+            if not self.showing(child):
+                continue
+            component = getattr(child, 'get_component_iface', lambda: None)()
+            if component is None:
+                continue
+            rect = component.get_extents(self.api.CoordType.SCREEN)
+            if rect.width < 8 or rect.height < 8:
+                continue
+            boxes.append(rect)
+        require(boxes, 'ui:pointer-unavailable')
+        rect = min(boxes, key=lambda item: item.width * item.height)
+        point = {'x': rect.x + rect.width // 2, 'y': rect.y + rect.height // 2}
+        require(all(type(value) is int and 0 <= value <= 32767 for value in point.values()),
+                'ui:pointer-bounds')
+        return point
+
+    def stable_pointer(self, locate, *, stable_seconds=0.4):
+        """Return a pointer only after the located control stops moving."""
+        last = None
+        since = None
+
+        def ready():
+            nonlocal last, since
+            node = locate()
+            if node is None:
+                last = since = None
+                return None
+            point = self.pointer_glyph(node)
+            now = time.monotonic()
+            if point != last:
+                last, since = point, now
+                if self.timeout <= 0:
+                    return point
+                return None
+            if now - since < stable_seconds:
+                return None
+            return point
+
+        try:
+            return self.wait(ready, 'target')
+        except UiError as error:
+            if str(error) == 'ui:timeout:target':
+                raise UiError('ui:timeout:target:roles=' + ','.join(sorted(self.last_roles))) from None
+            raise
+
     def handle_system_prompt(self):
         """Pause a desktop wait for one normal Cancel click, then observe closure.
 
@@ -1131,6 +1226,16 @@ class AccessibleUI:
         elif operation == 'parent-returned':
             self.window_closed('about', 'parent')
             result['settings'] = self.settings()
+        elif operation == 'session-menu-toggle':
+            result['pointer'] = self.session_menu_toggle()
+        elif operation == 'session-menu-power':
+            result['pointer'] = self.session_menu_power()
+        elif operation == 'session-menu':
+            self.session_menu()
+        elif operation in SESSION_ACTION_NAMES:
+            result['pointer'] = self.choose_session_action(operation)
+        elif operation == 'logout-confirm':
+            result['pointer'] = self.logout_confirm()
         return result
 
 

@@ -636,15 +636,27 @@ class Qualification:
 def main(*, assets=None, provision_credentials=False, serial=False, install=False,
          install_refusal=False, vt6_prompt=False, vt6_auth=False, parent_setup=False,
          parent_input=False, parent_standard_input=False, parent_about=False,
-         parent_access=False):
+         parent_access=False, desktop_session_logout=False, desktop_session_switch=False):
+    require(type(desktop_session_logout) is bool and (not desktop_session_logout or (
+            assets is not None and provision_credentials and not any((
+                serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
+                parent_input, parent_standard_input, parent_about, parent_access,
+                desktop_session_switch)))), 'smoke:desktop-session-logout-prerequisites')
+    require(type(desktop_session_switch) is bool and (not desktop_session_switch or (
+            assets is not None and provision_credentials and not any((
+                serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
+                parent_input, parent_standard_input, parent_about, parent_access,
+                desktop_session_logout)))), 'smoke:desktop-session-switch-prerequisites')
     require(type(parent_access) is bool and (not parent_access or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_setup, parent_input, parent_standard_input,
-                parent_about)))), 'smoke:parent-access-prerequisites')
+                parent_about, desktop_session_logout, desktop_session_switch)))),
+            'smoke:parent-access-prerequisites')
     require(type(parent_about) is bool and (not parent_about or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_setup, parent_input,
-                parent_standard_input)))), 'smoke:parent-about-prerequisites')
+                parent_standard_input, desktop_session_logout, desktop_session_switch)))),
+            'smoke:parent-about-prerequisites')
     require(type(parent_input) is bool and (not parent_input or parent_setup),
             'smoke:parent-input-prerequisites')
     require(type(parent_standard_input) is bool
@@ -704,6 +716,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         result['scope'] = 'installed-parent-about-qualification'
     if parent_access:
         result['scope'] = 'installed-parent-access-qualification'
+    if desktop_session_logout:
+        result['scope'] = 'installed-desktop-logout-qualification'
+    if desktop_session_switch:
+        result['scope'] = 'installed-desktop-switch-qualification'
     started = time.monotonic()
     def interrupted(*_):
         raise KeyboardInterrupt
@@ -721,7 +737,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 runner.stage_assets(runner.artifact_source(assets), staged, commands)
                 staged.chmod(0o700)
                 result['source_preflight'] = preflight_source(staged)
-            if parent_setup or parent_about or parent_access:
+            if parent_setup or parent_about or parent_access or desktop_session_logout or desktop_session_switch:
                 installed_setup.stage(directory, staged, result['inputs_sha256'])
             else:
                 (directory / 'input').mkdir(mode=0o700)
@@ -751,6 +767,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             if parent_access:
                 from parent_setup_qualification import ParentAccessQualification
                 qualification_class = ParentAccessQualification
+            if desktop_session_logout:
+                from parent_setup_qualification import DesktopLogoutQualification
+                qualification_class = DesktopLogoutQualification
+            if desktop_session_switch:
+                from parent_setup_qualification import DesktopSwitchQualification
+                qualification_class = DesktopSwitchQualification
             qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
                                           staged, credentials, serial, install, install_refusal, vt6_prompt,
                                           vt6_auth)

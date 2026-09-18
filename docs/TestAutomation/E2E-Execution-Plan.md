@@ -11,15 +11,17 @@ the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-- [x] **185c — Read installed command help and manuals (INFO02)**.
-  Prerequisites: 001 — FILE01, FILE02, FILE06.
-  Acceptance: case 193 passed its complete installed consumer and cleanup.
-
 - [x] **235 — E2E-042: command-help (case 193)**.
   Prerequisites: 185c — INFO02.
   Acceptance: case 193 passed its complete installed journey, collection and cleanup.
 
-Next task: **003 — [Open session controls and switch or sign out](E2E-Tasks/003-desktop-session.md)**.
+- [x] **003 — Open session controls and switch or sign out (DESK02, DESK03, DESK04)**.
+  Prerequisites: Baseline.
+  Acceptance: live VM qualification `tools/run-tests integration check_e2e_desktop_session`
+  passed confirmed Log Out and Switch User, each observing GDM, with cleanup.
+  First scheduled consumer E2E-017 case 57 remains pending.
+
+Next task: **011 — [Enter and read the request station](E2E-Tasks/011-kiosk-entry.md)**.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale

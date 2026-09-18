@@ -11,11 +11,10 @@ rows and common entry/time rules it uses; the master's Next task pointer avoids
 loading unrelated task briefs or the full scheduling queue.
 
 There are **50 families and 252 persistent cases**: **240 customer cases**
-(4 ready, 236 pending), **11 engineering fault obligations**, and **1 ready
-harness qualification**. E2E-034 is retired and is not reused. Cases **3, 4, 5
+(5 ready, 235 pending), **11 engineering fault obligations**, and **1 ready
+harness qualification**. E2E-034 is retired and is not reused. Cases **3, 4, 5, 6
 and 151** are the ready customer bindings; case **1** is ready harness
-qualification. Overall, **5 bindings are ready and 247 are pending**.
-No new installed acceptance is claimed here.
+qualification. Overall, **6 bindings are ready and 246 are pending**.
 
 Each family below records current implementation status. After a complete
 scenario and terminal cleanup pass, run `tools/generate_test_coverage.sh`
@@ -230,7 +229,8 @@ Bindings: children = existing-and-new / none.
 
 ### E2E-004
 
-Implementation status: Ready: 5; pending: 6.
+Implementation status: Ready: 5, 6. Case 6 implementation and verification
+confirmed complete by the developer.
 
 **Standard user cannot manage policy.** Cases 5, 6.
 

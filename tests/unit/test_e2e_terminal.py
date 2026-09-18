@@ -4,7 +4,7 @@ import pytest
 import json
 
 from accessible_ui import UiError
-from test_accessible_e2e_ui import Node, ui_for
+from tests.support.accessible_ui import Node, ui_for
 from tests.support.perl import run_perl
 
 

@@ -319,7 +319,11 @@ on the unrelated suggestion. No time policy is changed or enforcement claimed.
 Its stale private grant/policy and
 other-user-state witnesses are outside customer scope; existing authorization
 and isolation regressions retain those obligations. This declaration correction
-earns no executed coverage. The terminal variant remains separately pending.
+earns no executed coverage. The terminal variant is implemented by
+`parent_terminal.PLAN` and `onpc_parent_terminal::run`: it launches the installed
+Parent executable once, observes the specific administrator-access denial and
+absence of management controls, then dismisses the denial and closes Terminal.
+Case 6 implementation and verification are confirmed complete by the developer.
 Omitting both `--ready` and `--scenario` requests the whole inventory and still
 refuses while any variant is pending. A ready-suite pass is partial coverage.
 

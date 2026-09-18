@@ -11,11 +11,11 @@ the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-- [x] **001 — Visible terminal launch, submission and denial**.
-  Prerequisites: existing qualified source and the guarded attempt envelope.
-  Acceptance: live VM terminal qualification for FILE01, FILE02 and FILE06 passed.
+- [x] **002 — E2E-004: terminal (case 6)**.
+  Prerequisites: 001 — FILE01, FILE02, FILE06.
+  Acceptance: implementation and verification confirmed complete by the developer.
 
-Next task: **002 — [E2E-004: terminal](E2E-Tasks/002-case-6.md)**.
+Next task: **185c — [Read installed command help and manuals](E2E-Tasks/185c-read-installed-command-help-and-manuals.md)**.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale
@@ -25,7 +25,7 @@ pointer never overrides the queue. Keep only current continuation information.
 
 The inventory has **252 cases in 50 families**: **240 customer cases**
 (5 ready, 235 pending), **11 engineering obligations (140–150)** and **1 ready
-harness case**. Preserve runnable cases **1, 3, 4, 5 and 151**. The catalogue has
+harness case**. Preserve runnable cases **1, 3, 4, 5, 6 and 151**. The catalogue has
 **178 blocks: 60 ready and 118 pending**. These are declarations, not new VM passes.
 
 The queue has **349 active tasks**: **135 capability slices**, **202 scenario

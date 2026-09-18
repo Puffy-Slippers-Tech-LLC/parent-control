@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Counting unit |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">9984</span>/<span style="color: gray">0</span>/9984 | Collected pytest cases, including parameter combinations |
+| Unit, property and contract | <span style="color: green">10201</span>/<span style="color: gray">0</span>/10201 | Collected pytest cases, including parameter combinations |
 | Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
-| UI | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Collected pytest cases, including parameter combinations |
+| UI | <span style="color: green">152</span>/<span style="color: gray">0</span>/152 | Collected pytest cases, including parameter combinations |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Registered cases; repeated phases and prerequisites counted once |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | One check per executable test script; Node subtests not expanded |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One check per executable test script |
 | Integration qualification | <span style="color: green">18</span>/<span style="color: gray">0</span>/18 | One check per installed-runner check_*.py entry point |
 | E2E | <span style="color: green">6</span>/<span style="color: gray">246</span>/252 | One exact scenario variant |
-| **Total** | **<span style="color: green">10546</span>/<span style="color: gray">246</span>/10792** | All entries above, including pending E2E |
+| **Total** | **<span style="color: green">10764</span>/<span style="color: gray">246</span>/11010** | All entries above, including pending E2E |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 

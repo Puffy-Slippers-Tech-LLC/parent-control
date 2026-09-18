@@ -114,18 +114,30 @@ def test_selected_summary_counts_timing_evidence_and_failure(tmp_path, monkeypat
         assert 'Join host branches — passed' in terminal
 
 
-@pytest.mark.parametrize('args, count', [(['--id', '151'], 1),
-                                       (['--scenario', 'E2E-003'], 2),
-                                       ([], 5)])
+@pytest.mark.parametrize('args, expected_ids', [
+    (['--id', '151'], ['E2E-030/parent']),
+    (['--scenario', 'E2E-003'], ['E2E-003/existing-and-new', 'E2E-003/none']),
+    ([], None),
+])
 @pytest.mark.parametrize('failure', [None, 'case', 'cleanup'])
 def test_vm_only_summary_counts_scenarios(tmp_path, monkeypatch, capsys, source_identity,
-                                        args, count, failure):
+                                        args, expected_ids, failure):
+    if expected_ids is None:
+        # All-ready scope grows with the catalogue. Derive the expectation
+        # independently of the resolver, retaining exact membership checks.
+        document = json.loads((ROOT / 'tests/e2e/scenarios.json').read_text())
+        expected_ids = [scenario['id'] + '/' + variant['id']
+                        for scenario in document['scenarios']
+                        for variant in scenario['variants']
+                        if variant['status'] == 'ready']
+    count = len(expected_ids)
+    assert count > 0
     monkeypatch.setattr(regression.Run, 'wait_for_resources', lambda *_: None)
     resolve = regression_selection.e2e_case_ids
     monkeypatch.setattr(regression_selection, 'e2e_case_ids',
                         lambda root, args: resolve(ROOT, args))
     ids = list(resolve(ROOT, args))
-    assert len(ids) == count
+    assert ids == expected_ids
     completed = ids[:1] if failure == 'case' else ids
     def execute(self, command, *, output, **kwargs):
         # This is before the child builds packages, checks prerequisites, or

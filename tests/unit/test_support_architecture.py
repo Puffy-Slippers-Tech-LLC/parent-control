@@ -7,8 +7,31 @@ import pytest
 from tests.support.paths import ROOT
 
 CASE_PATHS = tuple(sorted((ROOT / "tests").rglob("test_*.py")))
-CASE_MODULES = {path.stem for path in CASE_PATHS}
 SUPPORT_PATHS = tuple(sorted((ROOT / "tests/support").rglob("*.py")))
+
+
+def case_module_names(paths):
+    # Integration contains executable harness helpers, not pytest case modules.
+    # Keep inspecting those files below, but allow tests to import their APIs.
+    return {path.stem for path in paths
+            if path.relative_to(ROOT / "tests").parts[0] != "integration"}
+
+
+CASE_MODULES = case_module_names(CASE_PATHS)
+
+
+@pytest.mark.parametrize("directory,expected", [
+    ("integration", set()),
+    ("unit", {"test_account_password"}),
+    ("component", {"test_account_password"}),
+    ("ui", {"test_account_password"}),
+    ("fixtures", {"test_account_password"}),
+    ("system", {"test_account_password"}),
+    ("e2e", {"test_account_password"}),
+])
+def test_case_module_classification_distinguishes_harness_helpers(directory, expected):
+    path = ROOT / "tests" / directory / "test_account_password.py"
+    assert case_module_names([path]) == expected
 
 
 @pytest.mark.parametrize("path", (*CASE_PATHS, *SUPPORT_PATHS),

@@ -1,12 +1,14 @@
 package onpc_parent_terminal;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_terminal ();
 
 sub run {
+    onpc_progress::operation('Checking Parent access from a terminal');
     my ($exchange) = @_;
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-terminal', review => 0);

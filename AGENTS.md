@@ -104,7 +104,9 @@
 - Plain `make build`, `make check` and targets in `config/codex-tests.rules` are
   authorized. Use validated launchers for options; privileged Make and direct
   system-test/setup targets remain restricted.
-- Discover categories with `tools/run-tests --list`. Use `tools/run-unit-tests`
+- Discover categories with `tools/run-tests --list`; `tools/run-tests --help`
+  prints usage and the `all` composition. With no arguments, `tools/run-tests`
+  starts `all` unless a previous session is still active or unread. Use `tools/run-unit-tests`
   for unit/property/contracts, `tools/run-tests component` for private D-Bus,
   and fixed categories for other suites. Privileged integration/system/E2E uses
   `tools/run-tests <category>` or installed `onpc-test-runner`; unimplemented

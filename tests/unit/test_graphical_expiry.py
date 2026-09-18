@@ -9,6 +9,26 @@ import pytest
 import system_graphical_expiry as expiry
 
 
+@pytest.mark.parametrize('fresh', [False, True])
+def test_verify_retains_observations_before_later_failure(tmp_path, monkeypatch, fresh):
+    output = tmp_path / 'results'
+    if not fresh:
+        output.mkdir()
+    monkeypatch.setattr(expiry.guest, 'PAYLOAD', tmp_path)
+    monkeypatch.setattr(expiry.guest, 'guard', Mock())
+    monkeypatch.setattr(expiry, 'FIXTURE', tmp_path)
+    monkeypatch.setattr(expiry, 'identities', lambda: {'child': 1001})
+    observations = [['prerequisite', 'verified']]
+    (tmp_path / 'prerequisites.json').write_text(json.dumps(observations))
+    monkeypatch.setattr(expiry, 'wait_for', Mock(side_effect=RuntimeError('later failure')))
+    publish = Mock()
+    with pytest.raises(RuntimeError, match='later failure'):
+        expiry.verify(publish)
+    assert json.loads((output / 'session-observations.json').read_text()) == observations
+    assert not (output / 'session-observations.pending').exists()
+    publish.assert_called_once_with('prerequisite', 'verified')
+
+
 @pytest.fixture
 def seed_rig(monkeypatch, tmp_path):
     monkeypatch.setattr(expiry, 'FIXTURE', tmp_path)

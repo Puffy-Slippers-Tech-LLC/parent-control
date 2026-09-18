@@ -65,6 +65,11 @@ def prepare(root):
 
 
 def select(root, argv):
+    from test_commands import HELP_ARGV, validate
+    directory = root / 'artifacts/test-sessions'
+    # Help is inspection: do not create a session tree when nothing is attached.
+    if argv in HELP_ARGV and not (directory / 'current.json').exists():
+        return None, False
     directory = prepare(root)
     with lock(directory / 'gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
@@ -84,13 +89,18 @@ def select(root, argv):
                 broken = True
             if active or (not (run / 'delivered').exists() and (not argv or not broken)):
                 return run, False
+            if argv in HELP_ARGV:
+                return None, False
             if broken and not (run / 'delivered').exists():
                 print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',
                       file=sys.stderr, flush=True)
+        elif argv in HELP_ARGV:
+            return None, False
         # Reconnection wins over all new arguments, including help and invalid
         # selections. Validate only when starting a new run, under the same gate.
-        from test_commands import validate
-        validate(root, argv)
+        # Idle invocations with no arguments start the complete aggregate.
+        requested = list(argv) or ['all']
+        validate(root, requested)
         # The regular activity lock also excludes older runners and other tests.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
         with test_activity.activity(root):
@@ -99,11 +109,11 @@ def select(root, argv):
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:
                 fcntl.flock(owner, fcntl.LOCK_EX)
                 command = ['/usr/bin/python3', '-u', '-B', str(Path(__file__).resolve()),
-                           str(root), str(run), str(owner), *argv]
+                           str(root), str(run), str(owner), *requested]
                 # Publish before spawning: terminal loss immediately after
                 # Popen must not leave a live worker without reconnect metadata.
                 temporary = directory / 'current.tmp'
-                temporary.write_text(json.dumps({'run': run.name, 'argv': argv}))
+                temporary.write_text(json.dumps({'run': run.name, 'argv': requested}))
                 temporary.replace(current)
                 subprocess.Popen(command, cwd=root, env=test_launcher.environment(root),
                                  stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
@@ -149,6 +159,9 @@ def follow(run, stream=None):
 
 def main(root, argv):
     run, started = select(root, argv)
+    if run is None:
+        from test_commands import _main
+        return _main(argv)
     if not started:
         print('WARNING: A previous run is in the background or has an unread result; '
               'ignoring all new arguments and attaching to it.', file=sys.stderr, flush=True)

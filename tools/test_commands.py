@@ -30,16 +30,85 @@ CATEGORIES = {
     'fixtures': 'build, verify PATH; generated build output',
     'artifacts': 'build, verify PATH, compare FIRST SECOND; generated build output',
     'integration': 'installed dispatcher for check_* basenames; no script arguments',
-    'system': 'guarded installed runner; --artifacts, --previous-artifacts, --area, --test, --list',
+    'system': 'sequential installed VM tests; bare category builds inputs; focused --artifacts, --previous-artifacts, --area, --test, --list',
     'e2e': 'all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)',
     'fast': 'reserved for the make test-fast target',
-    'all': 'all established regression suites without backing-file byte scans; --continue-on-errors disables stop on first error',
+    'all': 'complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error',
     'all-verify': 'all established regression suites with full backing-file verification; --continue-on-errors disables stop on first error',
-    'host': 'discovery, cleanup prerequisites and host jobs; --continue-on-errors disables stop on first error; no VM',
-    'host-builds': 'host jobs plus publishing and fresh reproducibility builds; --serial-builds for comparison; --continue-on-errors disables stop on first error; no VM',
+    'host': 'all host tests, publishing and two reproducibility builds in four branches; no VM; combines with system and e2e',
+    'host-builds': 'compatibility alias for host; optional --serial-builds for scheduling comparison',
 }
 
 AGGREGATES = ('all', 'all-verify', 'host', 'host-builds')
+PHASES = ('host', 'system', 'e2e')
+HELP_ARGV = (['--help'], ['-h'])
+
+
+def usage():
+    """Human-readable launcher help. ``--list`` remains the JSON inventory."""
+    width = max(map(len, CATEGORIES))
+    listing = '\n'.join(f'  {name:<{width}}  {detail}' for name, detail in CATEGORIES.items())
+    return f'''Usage: tools/run-tests [category [args ...]] ...
+       tools/run-tests --help
+       tools/run-tests --list
+
+With no arguments, start the all aggregate unless a previous run is still
+active or has an unread result; then this invocation attaches to that run.
+
+Inspection
+  --help, -h   this usage, including how all breaks down into pieces
+  --list       JSON map of category names to one-line descriptions
+
+Complete categories (combine in any order; execute host, then system, then e2e)
+  host         all host/dev-machine work in four balanced branches, including
+               publishing, two package builds and reproducibility; no VM
+  system       installed-system VM tests, sequential
+  e2e          ready GUI-driven VM scenarios, sequential
+
+  all = host + system + e2e
+
+  tools/run-tests host
+  tools/run-tests system e2e
+  tools/run-tests e2e
+  tools/run-tests host system
+  tools/run-tests host system e2e    (same as all)
+
+  Combined categories share one report and reuse host's package artifacts.
+  Without host, VM categories build one required package automatically.
+  After host and e2e, only system remains.
+
+Aggregate aliases (no suite selectors)
+  all          complete established regression; default with no arguments;
+               metadata-only VM backing verification
+  all-verify   same work as all, with full VM backing-file byte scans
+  host-builds  compatibility alias for host
+  --continue-on-errors   continue independent tests after failures
+  --serial-builds        host-builds only: publish/builds after the host join
+
+  Host includes cleanup-safety prerequisites, unit, component, ui,
+  fixture-runtime, source/traceability, static, child-node, child-gjs,
+  backend, publish, package builds A/B and their comparison.
+  Combinations containing host use all's VM verification policy. VM-only
+  runs verify backing bytes. Focused system/e2e options remain available.
+  Other commands below are focused checks or diagnostic/qualification routes,
+  not extra phases of all. Pending E2E variants remain excluded.
+
+Categories
+{listing}'''
+
+
+def phase_arguments(argv):
+    """Recognize complete phases without consuming focused category options."""
+    if not argv or argv[0] not in PHASES or any(
+            arg not in (*PHASES, '--continue-on-errors') for arg in argv):
+        return None
+    if len(argv) != len(set(argv)):
+        raise ValueError('categories and flags must not be repeated')
+    phases = tuple(kind for kind in PHASES if kind in argv)
+    options = {'phases': phases, 'verify_backing_bytes': 'host' not in phases}
+    if '--continue-on-errors' in argv:
+        options['continue_on_errors'] = True
+    return options
 
 
 def selections(root, argv):
@@ -49,6 +118,9 @@ def selections(root, argv):
     component``). Only split at another category when the complete group is
     invalid, and validate every group before starting any work.
     """
+    phases = phase_arguments(argv)
+    if phases is not None:
+        return [(kind, []) for kind in phases['phases']]
     try:
         validate_one(root, argv)
         return [(argv[0], argv[1:])]
@@ -204,18 +276,27 @@ def plan(root, category, argv):
         if category == 'artifacts' and action == 'compare' and len(argv) == 3:
             return [[*command, '--compare', *map(artifact_path, argv[1:])]], False
         raise ValueError('invalid artifact operation')
-    raise ValueError('unknown test category; use --list')
+    raise ValueError('unknown test category; use --help or --list')
 
 
 def _main(argv=None, *, detached=False):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or argv in (['--help'], ['-h'], ['--list']):
+    if argv in HELP_ARGV:
+        print(usage())
+        return 0
+    if argv == ['--list']:
         print(json.dumps(CATEGORIES, indent=2))
         return 0
+    if not argv:
+        argv = ['all']
     try:
         if os.geteuid() == 0:
             raise ValueError('use this launcher as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
+        phases = phase_arguments(argv)
+        if phases is not None:
+            from regression import main as regression_main
+            return regression_main(root, **phases)
         if detached:
             selected = selections(root, argv)
             if selected[0][0] not in AGGREGATES and not any(
@@ -228,10 +309,8 @@ def _main(argv=None, *, detached=False):
             aggregate_arguments(category, args)
             from regression import main as regression_main
             options = {'continue_on_errors': True} if '--continue-on-errors' in args else {}
-            if category == 'host':
-                return regression_main(root, host_only=True, **options)
             if category == 'host-builds':
-                return regression_main(root, host_builds=True, serial_builds='--serial-builds' in args, **options)
+                return regression_main(root, phases=('host',), serial_builds='--serial-builds' in args, **options)
             return regression_main(root, verify_backing_bytes=category == 'all-verify', **options)
         if detached:
             from regression_process import host_run, category_run
@@ -323,7 +402,7 @@ def validate_one(root, argv):
 
 
 def validate(root, argv):
-    if not argv or argv in (['--help'], ['-h'], ['--list']):
+    if not argv or argv in HELP_ARGV or argv == ['--list']:
         return
     selected = selections(root, argv)
     if len(selected) > 1 and any('--list' in args or '--help' in args or '-h' in args or '--collect-only' in args

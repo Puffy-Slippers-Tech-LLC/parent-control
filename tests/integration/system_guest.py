@@ -393,6 +393,16 @@ def verify_setup():
     print('onpc-system: stage=feature-setup outcome=passed', flush=True)
 
 
+def verify_installed():
+    """Check the restored app against this attempt's package, without installing."""
+    guard()
+    installed()
+    required = Path('/run/reboot-required.pkgs')
+    require(not required.exists() or 'oh-no-parent-control' not in required.read_text().splitlines(),
+            'snapshot-reboot-required')
+    print('onpc-system: stage=snapshot-readiness outcome=passed', flush=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
@@ -401,11 +411,11 @@ def main(argv=None):
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
                              ['install-previous'], ['upgrade'], ['install-setup'],
-                             ['verify-setup'], ['install-suite']), 'invalid-command')
+                             ['verify-setup'], ['install-suite'], ['verify-installed']), 'invalid-command')
             {'guard': guard, 'before-install': before_install, 'install': install,
              'install-previous': install_previous, 'upgrade': upgrade,
              'install-setup': install_setup, 'verify-setup': verify_setup,
-             'install-suite': install_suite}[argv[0]]()
+             'install-suite': install_suite, 'verify-installed': verify_installed}[argv[0]]()
         return 0
     except Exception as error:
         category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'

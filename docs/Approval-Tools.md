@@ -204,7 +204,8 @@ an unsafe existing helper. These
 development-only changes activate on invocation (`none`) and change no product
 data. Codex restarts do not change Polkit authentication policy.
 
-Use `tools/run-tests --list` for the category inventory. Paths are relative to
+Use `tools/run-tests --help` for usage and the `all` composition, or
+`tools/run-tests --list` for the JSON category inventory. Paths are relative to
 the checkout. Quote globs and parametrized pytest IDs so Codex sees a literal
 argument; the launcher expands file patterns without a shell.
 
@@ -227,9 +228,10 @@ argument; the launcher expands file patterns without a shell.
 | Graphical journeys and harness scenarios | `tools/run-tests e2e` / `tools/run-tests e2e --id 1,3,4` / `tools/run-tests e2e --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Guarded cleanup-safety prerequisites remain mandatory. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
 | Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
-| Established regressions | `make test-all` / `tools/run-tests all` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors |
-| Host regression branches | `tools/run-tests host [--continue-on-errors]` | Same discovery, cleanup gate and host queue; stops after joining branches, without VM discovery/authorization, publishing or package builds |
-| Host and build qualification | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same host tests plus publishing, two fresh builds and comparison; no VM discovery/authorization or execution; `--serial-builds` retains builds after the host join for a serial comparison |
+| Established regressions | `make test-all` / `tools/run-tests all` / `tools/run-tests` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. No arguments starts `all` when idle; an active or unread session still attaches. |
+| Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
+| Combined complete categories | `tools/run-tests host system e2e` | Equals `all`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; VM-only selections build their required input automatically |
+| Host compatibility alias | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same scope as `host`; `--serial-builds` retains publishing/builds after the host join for a scheduling comparison |
 | Local publishing checks | `tools/run-tests publish` | Shared source/sbuild/Lintian module included in `test-all` and `test-all-verify`; no selectors or publication |
 | Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
 
@@ -252,7 +254,8 @@ prompt. After changing rules, run `./setup.sh --codex-rules-only` and restart
 Codex with this checkout trusted. Setup maintains these target grants for clean
 machines without changing personal user rules.
 
-The `all`, `all-verify`, `host` and `host-builds` aggregates stop on the first
+The complete `host`, `system`, `e2e` selections and their combinations, plus
+the `all`, `all-verify` and `host-builds` aliases, stop on the first
 reported test failure by default, using the Ctrl+C cooperative shutdown path:
 owned children finish cleanup, evidence is finalized, and the failure investigation
 prompt is printed. Add the valueless `--continue-on-errors` flag to continue
@@ -268,7 +271,10 @@ help, listing, different categories and invalid selections, are ignored. After
 the result is delivered, the next invocation validates and starts fresh work.
 An explicit selection can replace an idle failed/incomplete session immediately,
 preserving its output and reconciling residual state before starting tests.
-An invocation without arguments still replays its unread result.
+An invocation without arguments still replays its unread result. When idle, no
+arguments starts the `all` aggregate. `--help` prints usage without starting a
+session unless an existing run is attached first.
+
 Internal workers inherit the verified checkout activity lock and execute their
 assigned work without reattaching to their own session. Older runs without
 session metadata still refuse competing launches through that lock.
@@ -337,7 +343,8 @@ commands do not produce complete customer-journey evidence. The existing
 `integration check_graphical_recovery` remains the separate narrow recovery
 route for an interrupted graphical runner, under its recorded identity checks.
 `tools/run-tests` invokes `integration check_test_recovery` automatically for
-idle unfinished retention or before a new VM category. This uses the same
+idle unfinished retention or before a new VM category. Host-only aggregates
+refuse unfinished retention requiring recovery, without touching the VM. This uses the same
 identity-checked recovery, mandatory cleanup prerequisites and exclusive leases;
 it archives recovery markers after validation and leaves evidence in normal
 retention. It never signals an unrecorded process or bypasses a failed VM audit.

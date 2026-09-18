@@ -179,7 +179,8 @@ def test_automatic_vm_recovery_keeps_guard_refusals(tmp_path, monkeypatch, fault
                      ['guard', 'recover'] if fault else ['guard', 'recover', 'guard'])
 
 
-@pytest.mark.parametrize('argv', [[], ['--help'], ['system', '--list'], ['unit', 'selected']])
+@pytest.mark.parametrize('argv', [[], ['--help'], ['system', '--list'], ['unit', 'selected'],
+                                  ['host'], ['host-builds']])
 def test_clean_host_or_listing_does_not_request_recovery(tmp_path, monkeypatch, argv):
     import test_recovery
     import regression_process
@@ -187,6 +188,23 @@ def test_clean_host_or_listing_does_not_request_recovery(tmp_path, monkeypatch, 
     monkeypatch.setattr(regression_process, 'category_run',
                         lambda *args, **kwargs: pytest.fail('unnecessary recovery'))
     assert test_recovery.before_run(tmp_path, argv) == 0
+
+
+@pytest.mark.parametrize('category', ['host', 'host-builds'])
+def test_host_refuses_pending_vm_recovery_without_touching_vm(tmp_path, monkeypatch, category):
+    import test_recovery
+    import test_retention as live_retention
+    monkeypatch.setattr(test_recovery.test_activity, 'descriptors', lambda: (123,))
+    store = live_retention.Store(tmp_path / 'artifacts/test-retention')
+    with store.session():
+        live_retention.preserve_for_recovery()
+    original = (store.path / 'current.json').read_bytes()
+    monkeypatch.setattr(test_recovery, 'cleanup',
+                        lambda *_: pytest.fail('host attempted VM recovery'))
+    with pytest.raises(ValueError, match='host will not touch the VM'):
+        test_recovery.before_run(tmp_path, [category])
+    assert (store.path / 'current.json').read_bytes() == original
+    assert (store.path / 'recovery-required').exists()
 
 
 @pytest.fixture

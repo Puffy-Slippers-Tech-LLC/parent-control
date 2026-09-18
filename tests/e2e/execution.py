@@ -23,6 +23,7 @@ from private_artifacts import EvidenceError, PrivateCollector, require
 from provenance import VerifiedInputs, preflight_source
 from recording import ScenarioRecorder
 from tools.e2e_progress import Progress
+from tools.regression_events import write_event
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
@@ -334,7 +335,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
 def emit_progress(kind, **fields):
     # Dashboard telemetry only; the post-close report and exit status remain
     # authoritative, including failures after the last scenario completes.
-    print('\nONPC-TEST-EVENT ' + json.dumps(dict(kind=kind, **fields)), flush=True)
+    write_event(sys.stdout, kind, **fields)
 
 
 def main(plan):

@@ -71,6 +71,32 @@ def test_event_record_stays_complete_when_diagnostics_follow_each_write(
         execution.close()
 
 
+@pytest.mark.parametrize('kind', ['finished', 'failure'])
+def test_system_progress_survives_diagnostics_between_writes(monkeypatch, kind):
+    chunks = []
+    diagnostic = 'e2e-watch: [progress-disabled]\n'
+
+    class InterleavedOutput:
+        def write(self, value):
+            chunks.extend((value, diagnostic))
+            return len(value)
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(sys, 'stdout', InterleavedOutput())
+    parser = Progress('installed', [SimpleNamespace(case_id='case')])
+    parser((regression.PREFIX + json.dumps(dict(kind=kind, nodeid='test.py::case',
+                                              detail='private guest diagnostic')) + '\n').encode())
+    lines = ''.join(chunks).splitlines()
+    events = [json.loads(line[len(regression.PREFIX):]) for line in lines
+              if line.startswith(regression.PREFIX)]
+    assert len(events) == 1
+    assert events[0]['kind'] == kind and events[0]['nodeid'] == 'installed::case'
+    assert 'private guest diagnostic' not in ''.join(chunks)
+    assert diagnostic.strip() in lines
+
+
 def test_event_burst_keeps_output_live_without_per_case_disk_barriers(report, tmp_path, monkeypatch):
     now = [100.0]
     monkeypatch.setattr(regression.time, 'monotonic', lambda: now[0])
@@ -672,7 +698,10 @@ def test_skipped_pytest_case_prevents_false_green(monkeypatch, capsys):
     assert events == [('failure', dict(nodeid='test_skipped', when='setup', detail='missing prerequisite'))]
 
 
-def test_private_guest_failure_is_fsynced_before_public_event(tmp_path, monkeypatch):
+@pytest.mark.parametrize('fresh', [False, True])
+def test_private_guest_failure_is_fsynced_before_public_event(tmp_path, monkeypatch, fresh):
+    if fresh:
+        tmp_path = tmp_path / 'results'
     monkeypatch.setenv('ONPC_REGRESSION_EVENTS', '1')
     monkeypatch.setenv('ONPC_REGRESSION_PRIVATE', str(tmp_path))
     events = []
@@ -946,16 +975,86 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     assert all(event['state'] == 'Passed' for event in finishes.values())
 
 
+@pytest.mark.parametrize('category', ['system', 'e2e'])
+@pytest.mark.parametrize('failure', [None, 'case', 'suite-cleanup', 'incomplete', 'interrupted'])
+@pytest.mark.parametrize('continue_on_errors', [False, True])
+def test_vm_aggregate_uses_one_suite_and_retains_progress_and_final_failure(
+        report, tmp_path, monkeypatch, category, failure, continue_on_errors):
+    run = regression.Run(tmp_path, report, Control(), phases=(category,),
+                         continue_on_errors=continue_on_errors)
+    run.dashboard.stream = io.StringIO()
+    run.artifacts['build-a'] = '/tmp/onpc-test-artifacts-fixture'
+    monkeypatch.setattr(run, 'wait_for_resources', lambda *args: None)
+    cases = [f'E2E-999/case-{index}' for index in range(6)]
+    item = regression.Category(regression.CATEGORY_NAMES[category])
+    system, graphical = (item, None) if category == 'system' else (None, item)
+    run.categories.append(item)
+    calls = []
+
+    def execute(command, *, output, **kwargs):
+        calls.append(command)
+        assert command[1] == category
+        assert ('--ready' in command) == (category == 'e2e')
+        assert not any(option in command for option in ('--scenario', '--area', '--test'))
+        if '--list' in command:
+            if category == 'system':
+                output(f'expected-executions: {len(cases)}\n'.encode())
+            else:
+                output(json.dumps(dict(cases=[dict(case_id=case) for case in cases],
+                                       excluded_pending_cases=[])).encode() + b'\n')
+            return 0
+
+        def event(kind, **fields):
+            output((regression_events.PREFIX + json.dumps(dict(kind=kind, **fields)) + '\n').encode())
+
+        event('collection', total=len(cases), nodeids=cases)
+        for index, case in enumerate(cases):
+            if failure == 'case' and index == 3:
+                event('failure', nodeid=case, when='call', detail='case failed')
+            event('finished', nodeid=case)
+            assert item.done == index + 1
+            if failure == 'interrupted' and index == 3:
+                run.control.interrupt()
+                break
+            if failure in ('case', 'incomplete') and index == 3:
+                break
+        # The controller still owns suite restoration/audit after reporting a
+        # failed case. No automatic STOP may reach it before that work exits.
+        assert run.control.stopped.is_set() == (failure == 'interrupted')
+        output(b'suite cleanup and final audit complete\n')
+        return 130 if failure == 'interrupted' else int(failure in ('case', 'suite-cleanup'))
+
+    monkeypatch.setattr(run.control, 'run', execute)
+    ready = run.discover_vm(system, graphical)
+    if graphical is not None:
+        assert ready == cases and graphical.nodeids == tuple(cases)
+    # System failure refuses any subsequent E2E suite even in continue mode.
+    refused = category == 'system' and continue_on_errors and failure in ('case', 'suite-cleanup')
+    with pytest.raises(ValueError, match='subsequent VM attempts refused') if refused else nullcontext():
+        run.vm_tests(system, graphical, ready)
+    assert len(calls) == 2  # One read-only inventory and one complete suite.
+    assert item.done == (4 if failure in ('case', 'incomplete', 'interrupted') else 6)
+    assert item.state == ('Passed' if failure is None else
+                          'Interrupted' if failure == 'interrupted' else 'Failed')
+    assert item.failures == int(failure == 'case')
+    assert run.control.stopped.is_set() == (failure == 'interrupted' or
+                                          (failure is not None and not continue_on_errors))
+
+
 @pytest.mark.parametrize('fail_unit,fail_publish,fail_safety', [
     (False, False, False), (True, False, False), (False, True, False), (False, False, True)])
 @pytest.mark.parametrize('verify_backing_bytes', [True, False])
-@pytest.mark.parametrize('scope', ['all', 'host', 'host-builds', 'host-builds-serial'])
+@pytest.mark.parametrize('scope', ['all', 'host', 'host-builds', 'host-builds-serial',
+                                  'host system', 'host e2e', 'system', 'e2e', 'system e2e'])
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         report, tmp_path, monkeypatch, fail_unit, fail_publish, fail_safety, verify_backing_bytes, scope):
-    host_only = scope == 'host'
     host_builds = scope.startswith('host-builds')
+    phases = (('host', 'system', 'e2e') if scope == 'all' else
+              ('host',) if host_builds else tuple(scope.split()))
+    includes_host = 'host' in phases
+    includes_vm = any(kind in phases for kind in ('system', 'e2e'))
     def authorize():
-        assert scope == 'all', 'host-only execution must not require privileged tooling'
+        assert includes_vm, 'host-only execution must not require privileged tooling'
     monkeypatch.setattr(regression, 'authorization', authorize)
     monkeypatch.setattr(regression, 'source_identity', lambda _: 'current-inputs')
     monkeypatch.setattr(regression, 'Admission', lambda **_: SimpleNamespace(
@@ -989,7 +1088,8 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                     output(b'expected-executions: 2\n')
                 else:
                     assert '--ready' in command
-                    output(json.dumps(dict(cases=[dict(case_id='E2E-999/future', status='ready')],
+                    output(json.dumps(dict(cases=[dict(case_id=case, status='ready') for case in
+                                                 ('E2E-999/first', 'E2E-999/second')],
                                            excluded_pending_cases=['E2E-998/wait'])).encode() + b'\n')
             elif '--collect-only' in command:
                 event('collection', total=2, **({'nodeids': ui_ids} if category == 'ui' else
@@ -1011,12 +1111,18 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                 output(f'run-tests: output=/tmp/onpc-test-artifacts-fake{self.builds}\n'.encode())
             elif category == 'publish':
                 return int(fail_publish)
+            elif category == 'e2e':
+                assert '--ready' in command and '--scenario' not in command
+                nodes = ['E2E-999/first', 'E2E-999/second']
+                event('collection', total=len(nodes), nodeids=nodes)
+                for node in nodes:
+                    event('finished', nodeid=node)
             return 0
     control = Commands()
     run = regression.Run(tmp_path, report, control, verify_backing_bytes=verify_backing_bytes,
-                         host_only=host_only, host_builds=host_builds,
+                         phases=phases,
                          serial_builds=scope == 'host-builds-serial', continue_on_errors=True)
-    if fail_safety:
+    if fail_safety and includes_host:
         with pytest.raises(ValueError, match='cleanup safety prerequisites failed'):
             run.run()
         executed = [call for call in control.calls if '--collect-only' not in call and '--list' not in call]
@@ -1025,41 +1131,54 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                                            for arg in call) for call in executed)
         return
     run.run()
-    expected_failure = int(fail_unit or (fail_publish and not host_only))
+    if not includes_host:
+        executed = [call for call in control.calls if '--list' not in call]
+        assert [call[1] for call in executed] == ['artifacts', *phases]
+        assert all(item.state == 'Passed' for item in run.categories)
+        assert control.builds == 1
+        assert all(run.artifacts['build-a'] in call for call in executed[1:])
+        return
+    expected_failure = int(fail_unit or fail_publish)
     assert [item.state for item in run.categories].count('Failed') == expected_failure
     assert sum(item.failures for item in run.categories) == expected_failure
-    if not fail_publish or host_only:
+    if not fail_publish:
         assert all(item.done == item.total for item in run.categories)
     ui = [item for item in run.categories if item.name.startswith('UI — ')]
     assert len(ui) == 2 and sum(item.done for item in ui) == 2
-    if host_only:
-        assert not any(call[1] in ('system', 'e2e', 'publish', 'artifacts') for call in control.calls)
-        if not fail_unit:
+    if not includes_vm:
+        assert not any(call[1] in ('system', 'e2e') for call in control.calls)
+        if not fail_unit and not fail_publish:
             assert 'Join host branches — passed' in run.dashboard.ANSI.sub('', '\n'.join(
                 run.dashboard.render(0)))
-        assert 'Scope: host branches only' in (report.directory / 'report.md').read_text()
-        return
+        assert 'Scope: host' in (report.directory / 'report.md').read_text()
     if fail_publish:
         assert len([call for call in control.calls if 'artifacts' in call and 'build' in call]) == 2
         assert len([call for call in control.calls if 'compare' in call]) == 1
-        assert not any(('system' in call and '--list' not in call)
-                       or '--scenario' in call for call in control.calls)
+        assert not any(call[1] in ('system', 'e2e') and '--list' not in call
+                       for call in control.calls)
         return
     assert len([call for call in control.calls if 'compare' in call]) == 1
     assert len([call for call in control.calls if 'publish' in call]) == 1
     package = [call for call in control.calls if 'artifacts' in call]
     assert package[-1][-2:] == [run.artifacts['build-a'], run.artifacts['build-b']]
     assert set(package[-1][-2:]) == {'/tmp/onpc-test-artifacts-fake1', '/tmp/onpc-test-artifacts-fake2'}
-    if host_builds:
+    if not includes_vm:
         assert not any(call[1] in ('system', 'e2e') for call in control.calls)
         return
-    e2e = [call for call in control.calls if 'e2e' in call and '--scenario' in call]
-    assert len(e2e) == 1 and e2e[0][e2e[0].index('--scenario') + 1] == 'E2E-999/future'
+    e2e = [call for call in control.calls if 'e2e' in call and '--list' not in call]
+    assert len(e2e) == int('e2e' in phases)
+    if e2e:
+        assert '--ready' in e2e[0] and '--scenario' not in e2e[0]
     assert not any('E2E-998/wait' in call for call in control.calls)
     # The full installed selection shares one setup/installation, not one
     # invocation per area or per collected functional test.
     system = [call for call in control.calls if 'system' in call and '--list' not in call]
-    assert len(system) == 1 and '--area' not in system[0] and '--test' not in system[0]
+    assert len(system) == int('system' in phases)
+    if system:
+        assert '--area' not in system[0] and '--test' not in system[0]
+    executed = [call[1] for call in control.calls if '--list' not in call]
+    first_vm = next(index for index, kind in enumerate(executed) if kind in ('system', 'e2e'))
+    assert executed[first_vm:] == [kind for kind in phases if kind != 'host']
     for call in control.calls:
         expected_skip = (not verify_backing_bytes and call[1] in ('system', 'e2e')
                          and '--list' not in call)

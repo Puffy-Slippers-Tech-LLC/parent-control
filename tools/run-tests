@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Run a validated project test category. Use --list to see the entry points."""
+"""Run a validated project test category. Use --help for usage; --list for JSON."""
 from pathlib import Path
 import sys
 

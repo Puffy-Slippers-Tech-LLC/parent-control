@@ -87,7 +87,15 @@ Follow package reboot notices. Log out of the kiosk session before removal; remo
 | Child GJS | `tools/run-tests child-gjs` |
 | Python branch coverage | `tools/run-tests coverage` |
 | Requirement mappings | `tools/run-tests traceability stage` |
+| Complete established regressions | `tools/run-tests` or `tools/run-tests all` |
+| All host tests and package qualification, four branches, no VM | `tools/run-tests host` |
+| Sequential installed-system and GUI E2E VM tests | `tools/run-tests system e2e` |
+| Usage and `all` composition | `tools/run-tests --help` |
 | Available categories | `tools/run-tests --list` |
+
+`host + system + e2e = all`. Any combination is accepted; host runs first,
+then system and E2E sequentially, sharing package inputs and one report.
+`tools/run-tests host system e2e` is equivalent to `all`.
 
 Select test files as needed. Quote patterns and parametrized test IDs:
 

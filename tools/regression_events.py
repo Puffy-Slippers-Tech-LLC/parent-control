@@ -8,12 +8,16 @@ from pathlib import Path
 PREFIX = 'ONPC-TEST-EVENT '
 
 
-def emit(kind, **fields):
+def write_event(stream, kind, **fields):
     # Keep both delimiters in the record write. print() writes its trailing
     # newline separately, allowing background diagnostics to join the JSON.
     record = '\n' + PREFIX + json.dumps(dict(kind=kind, **fields), ensure_ascii=True) + '\n'
-    sys.__stdout__.write(record)
-    sys.__stdout__.flush()
+    stream.write(record)
+    stream.flush()
+
+
+def emit(kind, **fields):
+    write_event(sys.__stdout__, kind, **fields)
 
 
 def pytest_collection_finish(session):
@@ -32,6 +36,7 @@ def pytest_runtest_logreport(report):
         private = os.environ.get('ONPC_REGRESSION_PRIVATE')
         if private:
             path = Path(private) / 'regression-failures.jsonl'
+            path.parent.mkdir(mode=0o700, exist_ok=True)
             with path.open('a', encoding='utf-8') as stream:
                 os.fchmod(stream.fileno(), 0o600)
                 stream.write(json.dumps(dict(nodeid=report.nodeid, when=report.when,

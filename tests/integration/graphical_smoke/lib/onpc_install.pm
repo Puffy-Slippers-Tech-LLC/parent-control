@@ -139,13 +139,16 @@ sub _run {
         die 'install:password-boundary' unless $proof->{sudo_install_process_verified}
             && $proof->{terminal_echo_disabled}
             && (!$refusal || $proof->{installation_refused});
+        my $password = testapi::get_required_var('_SECRET_ONPC_PARENT_PASSWORD');
+        die 'install:password-value' unless defined($password) && !ref($password)
+            && $password =~ /\A[\x20-\x7e]{1,256}\z/;
         if ($refusal) {
-            # Fixture passwords are random lowercase hex. This fixed non-hex
-            # value is therefore guaranteed wrong and is never caller input or
-            # a secret. Submit it exactly once, observe sudo's first re-prompt,
-            # then cancel instead of granting any retry.
+            # A user-selected fixture password can equal either fixed token.
+            # Compare privately, then submit one guaranteed incorrect value.
+            my $invalid = $password eq 'onpc-deliberate-refusal'
+                ? 'onpc-deliberate-refusal-alternate' : 'onpc-deliberate-refusal';
             $stage = 'refusal-input';
-            testapi::type_password('onpc-deliberate-refusal');
+            testapi::type_password($invalid);
             testapi::type_string("\n");
             $stage = 'refusal-reprompt';
             die 'install:refusal-reprompt' unless testapi::wait_serial($password_prompt,
@@ -168,9 +171,6 @@ sub _run {
                 'No retry, package, reboot marker or live installer remained after refusal.');
             return 1;
         }
-        my $password = testapi::get_required_var('_SECRET_ONPC_PARENT_PASSWORD');
-        die 'install:password-value' unless defined($password) && !ref($password)
-            && $password =~ /\A[\x20-\x7e]{1,256}\z/;
         $stage = 'password-input';
         testapi::type_password($password);
         testapi::type_string("\n");

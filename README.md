@@ -19,7 +19,7 @@ human authorization.
 
 First setup may require administrator authentication. Rerun to refresh dependencies and tooling.
 
-For release signing, create `.envrc` only if absent:
+For VM tests and release signing, create `.envrc` only if absent:
 
 ```sh
 cp .envrc.example ./.envrc
@@ -27,6 +27,12 @@ chmod 600 ./.envrc
 ```
 
 Set `APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` in `.envrc` from Keeper's “Oh No Parent Control” entry. Keep the value out of `.envrc.example` and version control. See [signing setup](docs/Publishing.md#noninteractive-signing).
+
+Also set `TEST_ACCOUNT_PASSWORD` to your chosen password for all four VM test
+accounts. Baseline preparation and E2E tests require this literal assignment
+in the private `.envrc` file; neither uses an environment-variable fallback.
+You can use the same password to log in manually. Do not commit it or put the
+real value in `.envrc.example`.
 
 | Task | Command |
 | --- | --- |
@@ -100,7 +106,21 @@ Reference: [test commands and artifacts](tests/README.md).
 
 ## Run VM and graphical E2E tests
 
-Follow [VM setup](tests/integration/Environment.md). Run `make prepare-vm` (`./setup.sh --prepare-vm`) inside the source guest to prepare accounts and reusable test tools, shut it down, then run `./setup.sh --prepare-baseline` on the host. This explicit command deletes the existing baseline without restoring it and captures the current guest state. Ordinary `./setup.sh` never prepares a baseline.
+Follow [VM setup](tests/integration/Environment.md). With the source VM off, run
+`make prepare-baseline` on the host. It validates `.envrc` first, prepares the
+guest accounts and reusable tools during a controlled boot, then captures the
+powered-off guest. Existing accounts keep their UIDs and homes; their password,
+picture, display name, role, shell and unlocked status are reconciled with the
+fixture definitions. Existing keyrings are backed up so GNOME can create ones
+matching the shared password. Repeating this command replaces the baseline
+without restoring it. Ordinary `./setup.sh` never prepares a baseline.
+
+For manual maintenance, restore your own snapshot (for example `1 - Clean`),
+make your changes, shut down the VM, and replace your snapshot as usual. Then
+run `make prepare-baseline`. It accepts the current disk chain of the same VM
+without another confirmation, preserves your snapshots, and replaces only the
+automation-owned `onpc-baseline`. It never restores a snapshot during preparation.
+
 For an explicitly authorized replacement after manual baseline deletion, prepare
 and shut down the guest, then run `./setup.sh --replace-missing-baseline`. This
 retains the old controller record and validates the new guest before capture.

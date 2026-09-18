@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import dataclasses
-import getpass
 import hashlib
 import json
 import os
@@ -41,23 +40,19 @@ INTERACTIVE_SHELL = "/bin/bash"
 FORBIDDEN_CHILD_GROUPS = frozenset({"adm", "sudo"})
 KIOSK_USER = "oh-no-parent-control"
 SCRIPT_FILES = (
-    "tests/integration/prepare-vm",
     "tests/integration/prepare_vm.py",
     "tests/integration/guest_test_dependencies.py",
     "tests/integration/vm_config.py",
+    "tests/integration/baseline_guest_entry.py",
+    "tests/integration/test_account_password.py",
     "config/test-vm.json",
+    "common/oh_no_parent_control_ui/test_identities.py",
 )
 
 
 IDENTITIES = TEST_IDENTITIES
 
 REQUIRED_CHECKOUT_ENTRIES = (
-    ".git",
-    "AGENTS.md",
-    "Makefile",
-    "debian/control",
-    "docs/System-Design.md",
-    "tests/integration/prepare-vm",
     "tests/integration/prepare_vm.py",
     "tests/integration/guest_test_dependencies.py",
     "tests/integration/vm_config.py",
@@ -285,7 +280,7 @@ def validate_environment(
 ) -> GuestIdentity:
     runner = runner or Runner()
     if (os.geteuid() if euid is None else euid) != 0:
-        raise PreparationError("guard:root", "root privileges required; run ./setup.sh --prepare-vm inside the source VM")
+        raise PreparationError("guard:root", "use make prepare-baseline on the development host")
 
     virtual = runner.run(["systemd-detect-virt", "--vm"], check=False)
     virtualization = virtual.stdout.strip()
@@ -472,6 +467,8 @@ def reconcile_accounts(
         ])
 
     password_input = "".join(f"{identity.username}:{password}\n" for identity in IDENTITIES)
+    for identity in IDENTITIES:
+        preserve_keyrings(identity, lookup_user=lookup_user)
     runner.run(["chpasswd"], input_text=password_input)
 
     verified: dict[str, dict[str, int | str]] = {}
@@ -687,8 +684,50 @@ def prepare_test_dependencies(*, runner, root=Path('/')):
     print('prepare-vm: [stage:dependencies] reusable test tools verified', file=sys.stderr)
 
 
-def main() -> int:
+def preserve_keyrings(identity, *, lookup_user=pwd.getpwnam, homes=Path('/home')):
+    """Rename only a pinned fixture directory; preserve every encrypted byte."""
+    import secrets
+    account = lookup_user(identity.username)
+    descriptor = os.open(homes, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
+        for name in (identity.username, '.local', 'share'):
+            try:
+                following = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                    dir_fd=descriptor)
+            except FileNotFoundError:
+                return
+            except OSError:
+                raise PreparationError('account:keyring-path', 'unsafe fixture keyring directory') from None
+            os.close(descriptor)
+            descriptor = following
+            info = os.fstat(descriptor)
+            if info.st_uid != account.pw_uid or info.st_mode & 0o022:
+                raise PreparationError('account:keyring-path', 'unsafe fixture keyring directory')
+        try:
+            before = os.stat('keyrings', dir_fd=descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        if not stat.S_ISDIR(before.st_mode) or before.st_uid != account.pw_uid:
+            raise PreparationError('account:keyring-path', 'unsafe fixture keyring directory')
+        name = 'onpc-keyring-backup-' + secrets.token_hex(12)
+        os.mkdir(name, mode=0o700, dir_fd=descriptor)
+        backup = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+        try:
+            os.fchown(backup, account.pw_uid, account.pw_gid)
+            os.rename('keyrings', 'keyrings', src_dir_fd=descriptor, dst_dir_fd=backup)
+            after = os.stat('keyrings', dir_fd=backup, follow_symlinks=False)
+            if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+                raise PreparationError('account:keyring-changed', 'fixture keyring changed during preparation')
+        finally:
+            os.close(backup)
+    finally:
+        os.close(descriptor)
+
+
+def main(password=None) -> int:
+    try:
+        from test_account_password import validate
+        password = validate(password)
         print("prepare-vm: [stage:guard] validating configured source guest", file=sys.stderr)
         runner = Runner()
         guest = validate_environment(runner=runner)
@@ -698,14 +737,12 @@ def main() -> int:
         print(f"prepare-vm: [stage:hostname] setting test guest hostname to {HOSTNAME}", file=sys.stderr)
         runner.run(["hostnamectl", "set-hostname", HOSTNAME])
         guest = dataclasses.replace(guest, hostname=HOSTNAME)
-        print("prepare-vm: [stage:password] enter the shared test-account password once", file=sys.stderr)
-        password = getpass.getpass("Shared test-account password: ")
         print("prepare-vm: [stage:accounts] reconciling four fixed test identities", file=sys.stderr)
         accounts = reconcile_accounts(existing, password, runner=runner)
         password = ""
         print("prepare-vm: [stage:record] writing verified preparation record", file=sys.stderr)
         write_marker(MARKER, marker_document(guest, accounts, digest))
-    except (PreparationError, subprocess.SubprocessError, KeyError, OSError) as error:
+    except (PreparationError, subprocess.SubprocessError, KeyError, OSError, ValueError) as error:
         if isinstance(error, PreparationError):
             detail = str(error)
         elif isinstance(error, subprocess.SubprocessError):

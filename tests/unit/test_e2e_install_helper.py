@@ -24,7 +24,6 @@ package testapi;
 sub get_var { return $main::mode eq 'video' ? 0 : 1; }
 sub current_console { return $main::mode eq 'console' ? 'sut' : 'onpc-serial'; }
 sub get_required_var {
-    die 'refusal must not read the real password' if $main::mode eq 'refusal';
     return $main::mode eq 'control' ? "unsafe\n" : 'private-canary';
 }
 sub type_string {
@@ -184,6 +183,17 @@ def test_fixed_install_input_requires_phase_and_independent_password_proof(mode)
         assert 'install-complete' not in events
         assert data['diagnostics'][-1] == ['install-refusal-complete',
             'No retry, package, reboot marker or live installer remained after refusal.']
+
+
+def test_refusal_token_cannot_accidentally_authenticate_a_user_selected_password():
+    probe = PROBE.replace("return $main::mode eq 'control' ? \"unsafe\\n\" : 'private-canary';",
+                          "return 'onpc-deliberate-refusal';")
+    probe = probe.replace("($main::mode eq 'refusal' ? 'onpc-deliberate-refusal' : 'private-canary')",
+                          "($main::mode eq 'refusal' ? 'onpc-deliberate-refusal-alternate' : 'private-canary')")
+    data = json.loads(run_perl(probe, 'refusal').stdout)
+    assert data['ok']
+    assert data['events'].count('refusal-password') == 1
+    assert 'password' not in data['events']
 
 
 @pytest.mark.parametrize(('mode', 'expected'), [

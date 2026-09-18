@@ -12,7 +12,6 @@ SHELL_FILES = [
     ROOT / "setup.sh",
     ROOT / "tools/setup_dependencies.sh",
     ROOT / "tools/setup_checkout.sh",
-    ROOT / "tests/integration/prepare-vm",
     *(ROOT / "tests/integration/guest" / name for name in ("collect", "run", "setup", "verify")),
 ]
 

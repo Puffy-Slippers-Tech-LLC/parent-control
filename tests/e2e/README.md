@@ -671,7 +671,8 @@ This proves emitted terminal output, not a graphical rendering or reboot.
 
 The sibling `tools/run-tests e2e --qualify-install-refusal --artifacts
 /tmp/onpc-<verified-build>` route deliberately submits one fixed non-secret,
-non-hex password after the same recipient proof. It requires the first re-prompt,
+incorrect password after the same recipient proof, choosing between two fixed
+values so it cannot equal the configured shared password. It requires the first re-prompt,
 cancels instead of sending a retry, and then follows only the proved getty/login
 lineage to establish that the fixture shell has no installer child. A final
 read-only probe also requires the package payload and reboot marker to remain
@@ -1200,19 +1201,24 @@ codes only. This does **not** disable automatic os-autoinst screenshots; all raw
 captures remain private and unapproved for export. Trusted distribution code
 must use the helper; this is not a sandbox against code calling testapi directly.
 
-`FixtureCredentials` generates independent random passwords for the four
-canonical fixture roles. The baseline does not retain its manually supplied
-setup password. Provisioning uses the maintained
-[virt-customize password-file interface](https://libguestfs.org/virt-customize.1.html)
-on the exclusively held offline disk, with networking disabled. It validates
-fixture UIDs and shells against accepted baseline records, stages 0600 files in
-a pinned 0700 directory, and refuses repeated provisioning. Only these four
-password hashes may change: password aging, unrelated shadow entries (including
-root), and the entire passwd file must remain identical. The pinned OpenSSL
-verifier receives each password on stdin and returns its hash only in memory.
+`FixtureCredentials` reads the literal `TEST_ACCOUNT_PASSWORD` from the host
+checkout's private mode-0600 `.envrc`. All four canonical fixture roles share
+that password, which also works for manual login. Execution preflight rejects
+missing configuration before artifact builds, privilege checks or VM access;
+there is no generated-password or environment-variable fallback.
+
+On the exclusively held offline disk, credential verification checks the
+fixture UIDs, homes and shells against accepted baseline records and verifies
+the existing password hashes through libcrypt. This step opens the disk read-only:
+it changes no account passwords, keyrings or other guest data. A mismatch
+requires rerunning `make prepare-baseline` on the host. Baseline preparation
+preserves account UIDs/homes and backs up old keyrings before setting the
+configured shared password; E2E never changes it.
+
 Failures expose fixed codes, invalidate worker access, and leave restoration to
-the outer lease. Private password files and raw backend output are not exportable
-evidence; their values are registered before provisioning and capture.
+the outer lease. Passwords are registered for redaction before capture and
+passed through the existing private worker secret interface, never command-line
+arguments, public reports or logs.
 
 Distribution staging now accepts strictly paired PNG/JSON needles under
 `needles/onpc-<surface>-<role>-{account,masked-password}.*`, with matching tags, bounded

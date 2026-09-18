@@ -17,24 +17,31 @@ verifies that the chain ends at the configured anchor. VM selection has no
 environment-variable or command-line override. The E2E inventory's `ubuntu26.04`
 environment label describes the supported OS, independently of the VM name.
 
-Use matching source and configuration in the host and guest checkouts; their
-filesystem locations may differ. From the checkout root **inside the product-free
-Ubuntu 26.04 VM**, run `./setup.sh --prepare-vm` (or `make prepare-vm`), then shut
-down the guest. On the host, run `./setup.sh --prepare-baseline`. Host preparation
-requires the VM to be off, deletes any existing baseline without restoring it,
-captures and verifies the current guest, and refreshes the installed helpers
-with its finalized UUID. All existing virtualization, product-residue, disk,
-snapshot, share-isolation and ownership checks still apply.
+Set a literal `TEST_ACCOUNT_PASSWORD` in the host checkout's private mode-0600
+`.envrc`, then run `make prepare-baseline` (or `./setup.sh --prepare-baseline`)
+on the development host with the product-free Ubuntu 26.04 VM off. Missing,
+empty, placeholder or unsafe credentials fail before privilege dispatch or VM
+access. The old `make prepare-vm` target and setup mode have been removed.
 
-For a guest checkout on a `noexec` shared mount, use `make prepare-vm` or
-`/bin/bash ./setup.sh --prepare-vm`. The Make target invokes Bash explicitly;
-direct execution of `./setup.sh` is blocked by that mount even with executable
-file permissions.
+Under the shared lease, preparation stages the maintained guest modules and a
+temporary root-only password file, then boots the guest with a one-shot systemd
+service ordered before the display manager. The guest consumes and removes the
+password file, reconciles accounts and tools, records success and powers off.
+The host removes the temporary service, independently inspects the guest, and
+captures its baseline. The guest log remains at
+`/var/lib/onpc-baseline-preparation/preparation.log`; it contains no password.
+There is no guest checkout or interactive password prompt to maintain.
+Existing virtualization, product-residue, disk, snapshot and ownership guards
+still apply. Preparation refuses a running source VM and never adopts a
+replacement instance. An interrupted preparation can be retried once the same
+guest is off; failures cannot capture an old success record.
 
 Each VM name gets its own controller-state subdirectory. Existing unscoped
 baseline records and other VMs' directories remain intact; they are never
 silently adopted or retired when the configuration changes. A replaced VM with
-the same configured name still fails the recorded UUID/disk checks. All names
+the same configured name still fails the recorded UUID check. Ordinary runners
+also require the recorded disk identities; explicit preparation can accept a
+changed disk chain after manual maintenance on that same VM. All names
 share the existing controller lock in the state root. Finish tests and stop any
 maintenance attempt before changing the selected VM. Configuration
 and loader sources are included in the preparation digest, so changing them
@@ -47,7 +54,7 @@ pinning is refreshed by host preparation); no product activation or data migrati
 | Resource | Contract |
 | --- | --- |
 | Libvirt connection and domain | `qemu:///system`; `name` in the shared config, currently `oh-no-parent-control` |
-| Host/guest preparation checkout | The checkout containing the invoked `setup.sh`; guest preparation requires that checkout's root. Installed host helpers retain their checkout pin. |
+| Host/guest preparation checkout | The checkout containing the invoked `setup.sh`; maintained guest modules are staged privately inside the VM. Installed host helpers retain their checkout pin. |
 | Disk-chain anchor | `disk_anchor` in the shared config, currently `/Data/virt-manager/oh-no-parent-control.qcow2`; resolve and validate the actual active chain. |
 | Retained product-free baseline | Internal `onpc-baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_baseline.py](prepare_baseline.py). Runners also accept the previous name defined by `PREVIOUS_SNAPSHOT`; explicit preparation replaces it with `onpc-baseline`. |
 | Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/<configured-name>/` |
@@ -66,8 +73,7 @@ Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
 [../ui/requirements.txt](../ui/requirements.txt). Missing tooling is a
 prerequisite failure, not permission for a test to install host packages.
 The shared [guest tool inventory](guest_test_dependencies.py) is installed by
-`make prepare-vm` (or `./setup.sh --prepare-vm`) **inside the
-source guest, before baseline capture**. The Make aliases only delegate to
+the host's `make prepare-baseline` during its controlled guest boot. The Make aliases only delegate to
 `setup.sh`. Dependencies are pinned OpenSSH server, pytest, OpenLDAP server/client
 and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
 Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
@@ -76,17 +82,31 @@ authentication configuration. Repeats with matching packages skip APT refresh
 and installation. Failed prerequisites prevent a new success record.
 Account preparation is repeatable: existing test accounts retain their UIDs and
 homes, and absent administrator-group memberships need no removal. Each run
-reconciles and verifies the fixed roles and prompts for the shared test password
-to set on all four accounts. Failed runs can be retried after resolving the
+reconciles and verifies the configured picture, display name, shell, roles and
+unlocked status, and sets the shared password from the host's `.envrc` on all
+four accounts. Failed runs can be retried after resolving the
 reported prerequisite; the product-free guest guards still apply.
+
+Existing login keyrings are preserved under unique
+`~/.local/share/onpc-keyring-backup-*/keyrings` directories during preparation.
+Their encrypted contents remain available, while GNOME can create an active
+keyring matching the new password on the next login. Account UIDs and homes are
+retained; missing accounts are created. Repeating preparation without an
+intervening login creates no additional keyring backup.
+
+E2E reads the same `.envrc` password, verifies it against the prepared accounts
+without writing to the guest, and uses it for login. Missing configuration fails
+before build/VM work; a password that differs from the baseline is refused with
+an instruction to run preparation again. E2E never rotates account passwords or
+resets keyrings. See
+[credential staging](../e2e/README.md#credential-staging-and-password-capture-boundary).
 
 LDAP/SSSD remain unconfigured: preparation refuses existing configuration,
 requests OpenLDAP's supported no-configuration installation and disables
 automatic directory-service startup. Existing configuration is never deleted.
 Remote identities are created only by the selected test through
 `dpkg-reconfigure` and LDAP's public APIs. Installed NSS libraries alone do not
-create remote users. Product installation and its dependencies, temporary
-credentials, run markers, policy mutations, assertions and real installation/
+create remote users. Product installation and its dependencies, run markers, policy mutations, assertions and real installation/
 expiry reboots remain runtime work.
 
 The preparation record is schema **2**, including the expected tool inventory;
@@ -106,23 +126,29 @@ captures the current prepared guest. Ownership checks and incomplete-attempt
 refusals still apply, and the old journal is archived. Ordinary `./setup.sh`
 never invokes baseline preparation. Tests continue to reuse the accepted baseline.
 
+**Manual snapshot maintenance:** restore any snapshot you manage (such as
+`1 - Clean`), perform maintenance, shut down, and delete/retake your snapshot.
+Then run `make prepare-baseline`. The command uses the current guest disk state
+without choosing or restoring any snapshot. A changed active image or backing
+chain on the same recorded VM is accepted automatically, provided the chain
+still ends at the configured anchor. Only the automation baseline is retired;
+manually managed snapshots are preserved. Its previous provenance is archived
+before capture. No extra confirmation or replacement flag is required for this
+workflow. The VM-off, same-UUID, idle-controller and product-free checks remain
+prerequisites.
+
 For an explicitly requested replacement environment, consult the maintained
-`prepare_vm.py` and `prepare_baseline.py` guards before provisioning. Existing
-`./setup.sh --prepare-vm` is guest-only account and test-tool preparation;
-`./setup.sh --prepare-baseline` is host-only baseline replacement, followed
-by refreshing helpers with the finalized VM identity. Run ordinary `./setup.sh`
-on a replacement host first to install its dependencies and policies. The
-Makefile's `prepare-vm` and `prepare-baseline` targets only delegate to these modes.
-They remain tooling, not daily `test-*`
-targets, and are never called automatically to repair a missing accepted
-baseline. Guest preparation suppresses Ubuntu's optional welcome/opt-in wizard
-for all four test accounts by creating their GNOME Initial Setup first-login
-and Ubuntu 26.04 upgrade completion markers, as the respective account. It
-does not enroll accounts in optional services. This tooling change activates
-on the next login after running `./setup.sh --prepare-vm`; it needs no package activation
-or saved product-data migration. An already open wizard must be closed.
-Prepare the guest before product installation, then capture and
-validate its product-free baseline on the host using the explicit preparation mode.
+`prepare_vm.py`, `baseline_guest.py` and `prepare_baseline.py` guards.
+Run ordinary `./setup.sh` on a replacement host first to install dependencies
+and policies. Baseline preparation remains explicit and is never called
+automatically by tests to repair a missing baseline.
+
+Guest preparation suppresses Ubuntu's optional welcome/opt-in wizard for all
+four accounts by creating their GNOME Initial Setup first-login and Ubuntu
+26.04 upgrade completion markers as the respective account. It does not enroll
+accounts in optional services. This test tooling change requires a fresh
+explicit preparation before tests; it needs no package activation or product
+data migration.
 
 ## Reset boundary and host preservation
 
@@ -187,7 +213,9 @@ no product service or saved-data change is involved.
 An incomplete prior system run prevents a new run. Use only a supported,
 identity-verified recovery path for that recorded attempt; if recovery is not
 implemented for its state, diagnose and repair the controller before reuse.
-Changed/replaced identities prevent mutation of the replacement. A preparation
+Changed/replaced identities prevent recovery from mutating a replacement.
+Explicit preparation after a completed operation accepts manual disk maintenance
+on the same VM as described above. A preparation
 interruption may be reconciled by the preparation controller only within its
 recorded original operation; this is not permission to recapture an accepted
 baseline. Normal test failure cleanup does not turn a failed attempt into a

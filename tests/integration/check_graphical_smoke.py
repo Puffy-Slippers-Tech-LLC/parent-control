@@ -666,6 +666,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             and (not (install or install_refusal) or (assets is not None and serial
             and provision_credentials)), 'smoke:installation-prerequisites')
     require(type(serial) is bool and (not serial or provision_credentials), 'smoke:serial-credentials')
+    credentials = FixtureCredentials() if provision_credentials else None
     require(assets is not None or len(sys.argv) == 1, 'smoke:invalid-arguments')
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
     require(Path.cwd() == ROOT == runner.baseline.guest_contract.CHECKOUT, 'smoke:checkout')
@@ -681,7 +682,6 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
               'evidence_directory': str(directory), 'steps': []}
     if assets is not None:
         result['scope'] = 'credential-free-asset-transfer-qualification'
-    credentials = FixtureCredentials() if provision_credentials else None
     if credentials is not None:
         result['scope'] = 'fixture-authentication-qualification'
     if serial:

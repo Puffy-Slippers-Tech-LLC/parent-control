@@ -116,6 +116,56 @@ def test_explicit_preparation_refuses_running_vm_without_mutation(rig, existing)
     assert rig.directory.exists() == existing
 
 
+@pytest.mark.parametrize('metadata', [True, False])
+def test_explicit_preparation_accepts_retaken_manual_snapshot_on_same_vm(rig, metadata):
+    rig.capture().run()
+    saved = (rig.directory / 'phase.json').read_bytes()
+    previous_disk = rig.top.read_bytes()
+    maintained = rig.top.with_name('1 - Clean')
+    maintained.write_bytes(b'manual maintenance')
+    rig.source.layout['disk'] = str(maintained)
+    rig.commands.top = maintained
+    rig.commands.snapshots = []
+    if not metadata:
+        rig.source.baseline_xml = None
+    rig.capture().run(refresh=True)
+    assert state(rig)['source']['layout']['disk'] == str(maintained)
+    assert state(rig)['phase'] == 'finalized'
+    assert rig.top.read_bytes() == previous_disk
+    assert (rig.directory / f"retired-{json.loads(saved)['operation']}.json").read_bytes() == saved
+    assert len(rig.source.creations) == 2
+    # Repeat from the new source without another option or authorization.
+    rig.capture().run(refresh=True)
+    assert len(rig.source.creations) == 3
+
+
+@pytest.mark.parametrize('fault', ['runner', 'uuid', 'unfinished', 'active-run', 'foreign-snapshot'])
+def test_changed_source_still_refuses_unsafe_or_unowned_replacement(rig, fault):
+    rig.capture().run()
+    maintained = rig.top.with_name('1 - Clean')
+    maintained.write_bytes(b'manual maintenance')
+    rig.source.layout['disk'] = str(maintained)
+    rig.commands.top = maintained
+    rig.commands.snapshots = []
+    if fault == 'uuid': rig.source.layout['uuid'] = '00000000-0000-0000-0000-000000000000'
+    if fault == 'unfinished':
+        record = state(rig)
+        record['phase'] = 'source-off'
+        (rig.directory / 'phase.json').write_bytes(host.encode(record))
+    if fault == 'active-run':
+        path = rig.directory / 'system-run.json'
+        path.write_text('{"phase":"running"}')
+        path.chmod(0o600)
+    if fault == 'foreign-snapshot':
+        rig.source.baseline_xml = rig.source.baseline_xml.replace('Prepared product-free', 'Other')
+    before = (rig.directory / 'phase.json').read_bytes()
+    with pytest.raises(host.CaptureError):
+        rig.capture().run(refresh=fault != 'runner')
+    assert (rig.directory / 'phase.json').read_bytes() == before
+    assert maintained.read_bytes() == b'manual maintenance'
+    assert not rig.source.deletions
+
+
 @pytest.mark.parametrize('existing', [False, True])
 def test_explicit_preparation_captures_current_guest_without_restore(rig, existing):
     saved = None
@@ -771,6 +821,7 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
 
 
 def test_capture_accepts_installed_product_on_host(monkeypatch):
+    monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
     monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     monkeypatch.setattr(host, 'prepare_state_root', Mock())
     worker = Mock()
@@ -802,6 +853,7 @@ def test_absent_baseline_is_listed_without_error_lookup(rig):
 
 
 def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
+    monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
     monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     monkeypatch.setattr(host, 'prepare_state_root', Mock())
     api = Mock()

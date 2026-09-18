@@ -14,9 +14,8 @@ Usage: ./setup.sh [MODE]
   --test-tools-only     Refresh test helpers/policies/rules; repair old bytecode ownership
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
-  --prepare-baseline    Replace the test VM baseline from its current state; VM must be off
+  --prepare-baseline    Prepare guest accounts/tools and replace its baseline; VM must be off
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
-  --prepare-vm          Prepare accounts and reusable tools INSIDE the configured VM
   --install-extension   Install the development extension for the current user
   -h, --help            Show this help
 
@@ -31,7 +30,7 @@ if (( $# > 1 )); then
 fi
 readonly mode="${1-}"
 case "$mode" in
-    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--codex-rules-only|--bootstrap-tools|--prepare-baseline|--replace-missing-baseline|--prepare-vm|--install-extension) ;;
+    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--codex-rules-only|--bootstrap-tools|--prepare-baseline|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -96,12 +95,9 @@ case "$mode" in
     --install-extension)
         make --no-print-directory _install-development-extension
         ;;
-    --prepare-vm)
-        # Guest identity is validated before account changes. Never run host
-        # dependency/policy installation or baseline capture in this mode.
-        /bin/bash "$script_dir/tests/integration/prepare-vm"
-        ;;
     --prepare-baseline|--replace-missing-baseline)
+        # Validate before privilege dispatch, tools refresh or any VM access.
+        /usr/bin/python3 -B "$script_dir/tests/integration/test_account_password.py"
         # Explicit preparation replaces the baseline without restoring it.
         # The controller rejects running, concurrent or replaced resources.
         echo 'setup: [stage:prepare-baseline]'

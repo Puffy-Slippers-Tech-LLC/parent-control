@@ -338,6 +338,11 @@ def emit_progress(kind, **fields):
 
 
 def main(plan):
+    # Read configuration before artifacts, progress threads or a VM lease.
+    from test_account_password import read_password
+    password = read_password()
+    from watch_activity import secret
+    secret(password)
     require(os.geteuid() == os.getegid() == 0, 'execution:root-required')
     require(Path.cwd() == ROOT == system.baseline.guest_contract.CHECKOUT,
             'execution:checkout')
@@ -362,7 +367,7 @@ def main(plan):
     try:
         # This final report owns the invocation outcome. Per-case acceptance
         # files are candidates until release, close and report validation pass.
-        collector = PrivateCollector(run_id='invocation-' + uuid.uuid4().hex, secrets=[])
+        collector = PrivateCollector(run_id='invocation-' + uuid.uuid4().hex, secrets=[password])
         try:
             report['evidence_directory'] = str(collector.path)
             collector.save_report('invocation-started', report)

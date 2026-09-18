@@ -14,6 +14,9 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tests/integration'))
+import test_account_password as password_config
+sys.path.pop(0)
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -45,6 +48,8 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-install', action='store_true')
     qualification.add_argument('--qualify-install-refusal', action='store_true')
     args = parser.parse_args(argv)
+    if not args.list:
+        password_config.read_password(root)
     if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
         if args.skip_backing_verification:
             raise ValueError('e2e:qualification-requires-backing-verification')

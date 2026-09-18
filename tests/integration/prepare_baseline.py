@@ -412,10 +412,11 @@ def baseline_lock_path(directory):
 
 class Capture:
     def __init__(self, source, commands, inspect, *, anchor=ANCHOR, directory=BASELINES,
-                 script_digest=None, verify_backing_bytes=True):
+                 script_digest=None, verify_backing_bytes=True, prepare_guest=None):
         require(type(verify_backing_bytes) is bool, 'guard:invalid-verification-policy')
         self.verify_backing_bytes = verify_backing_bytes
         self.source, self.commands, self.inspect = source, commands, inspect
+        self.prepare_guest = prepare_guest
         self.anchor, self.directory = anchor, directory
         self.script_digest = script_digest or guest_contract.preparation_digest()
         self.state = None
@@ -579,21 +580,16 @@ class Capture:
     def refuse_existing_snapshot(self):
         require(self.source.baseline() is None and self.disk_snapshot() is None, "snapshot:already-exists")
 
-    def replace_missing_baseline(self):
-        """Retire only an explicitly deleted baseline under the shared lock.
-
-        Keep the old journal durably before publishing the new operation. A
-        retry after publication resumes that operation; a finalized replacement
-        is verified normally, never recaptured.
-        """
-        self.revalidate(off=True)
-        self.refuse_existing_snapshot()
+    def require_idle_attempt(self):
         attempt = self.directory / 'system-run.json'
         if os.path.lexists(attempt):
             identity(attempt, private=True, mode=0o600)
             previous = parse_json(attempt.read_bytes())
             require(isinstance(previous, dict) and previous.get('phase') == 'complete',
                     'state:interrupted-run; preserve state for recovery')
+
+    def archive_state(self):
+        """Preserve provenance durably before explicit baseline replacement."""
         archive = self.directory / f"retired-{self.state['operation']}.json"
         raw = (self.directory / 'phase.json').read_bytes()
         if os.path.lexists(archive):
@@ -607,6 +603,44 @@ class Capture:
                 os.fsync(stream.fileno())
             os.replace(temporary, archive)
         sync_directory(self.directory)
+
+    def replace_prepared_source(self, inventory):
+        """Explicit preparation adopts maintenance on the same configured VM.
+
+        Ordinary runners still require exact recorded disks. This path neither
+        restores nor deletes user snapshots; only the named automation baseline
+        is retired, after matching its metadata against its original record.
+        """
+        require(self.state['phase'] == 'finalized', 'state:unfinished-preparation')
+        require(inventory['layout']['uuid'] == self.state['source']['layout']['uuid'],
+                'guard:source-changed')
+        self.require_idle_attempt()
+        current, off = self.inventory()
+        require(off and current == inventory, 'guard:source-changed')
+        previous_xml = self.source.baseline()
+        if previous_xml is not None:
+            proof = snapshot_proof(previous_xml, self.state['source']['layout'], self.description())
+            require(all(self.state['proof'].get(key) == value for key, value in proof.items()),
+                    'snapshot:changed')
+        else:
+            require(self.disk_snapshot() is None, 'snapshot:unowned-disk-record')
+        self.archive_state()
+        current, off = self.inventory()
+        require(off and current == inventory, 'guard:source-changed')
+        self.source.delete_baseline(inventory['layout'])
+        self.refuse_existing_snapshot()
+        self.state = {**self.state, 'operation': uuid.uuid4().hex, 'source': inventory,
+                      'source_digests': None, 'guest': None, 'proof': None,
+                      'script_digest': self.script_digest}
+        self.save('validation')
+        log('replacement:maintained-source-accepted')
+
+    def replace_missing_baseline(self):
+        """Retire only an explicitly deleted baseline under the shared lock."""
+        self.revalidate(off=True)
+        self.refuse_existing_snapshot()
+        self.require_idle_attempt()
+        self.archive_state()
         self.revalidate(off=True)
         self.refuse_existing_snapshot()
         self.state = {**self.state, 'operation': uuid.uuid4().hex,
@@ -638,14 +672,11 @@ class Capture:
                               "source": inventory, "source_digests": None, "guest": None,
                               "operation": uuid.uuid4().hex, "proof": None, "script_digest": self.script_digest}
                 self.save("validation")
+            if refresh and self.state['source'] != inventory:
+                self.replace_prepared_source(inventory)
             self.revalidate(off=refresh)
             if refresh:
-                attempt = self.directory / 'system-run.json'
-                if os.path.lexists(attempt):
-                    identity(attempt, private=True, mode=0o600)
-                    previous = parse_json(attempt.read_bytes())
-                    require(isinstance(previous, dict) and previous.get('phase') == 'complete',
-                            'state:interrupted-run; preserve state for recovery')
+                self.require_idle_attempt()
                 if self.state['phase'] in ('validation', 'finalized'):
                     self.revalidate(off=True)
                     self.source.delete_baseline(self.state['source']['layout'])
@@ -760,6 +791,10 @@ class Capture:
             require(self.state["script_digest"] == self.script_digest, "guest:script-digest")
             if self.state["phase"] == "snapshot-requested":
                 self.revalidate(off=True, hashes=True)
+            if self.prepare_guest is not None and self.state['phase'] == 'source-off':
+                log('stage:guest-preparation')
+                self.prepare_guest(self)
+                self.revalidate(off=True)
             log("stage:source-digests")
             self.state["source_digests"] = [digest(item["path"]) for item in self.state["source"]["chain"]]
             log("stage:offline-inspection")
@@ -800,6 +835,11 @@ def main(argv=None):
     source = None
     capture = None
     try:
+        from test_account_password import read_password
+        try:
+            password = read_password()
+        except ValueError as error:
+            raise CaptureError(str(error)) from None
         require(Path.cwd() == guest_contract.CHECKOUT and Path(__file__).resolve() ==
                 guest_contract.CHECKOUT / "tests/integration/prepare_baseline.py", "guard:checkout")
         require(shutil.which("qemu-img") is not None and shutil.which("virsh") is not None, "tools:missing; run ./setup.sh")
@@ -829,7 +869,9 @@ def main(argv=None):
         source = LibvirtSource(modules["libvirt"])
         require(source.snapshot()[1], "guard:source-running")
         prepare_state_root()
-        capture = Capture(source, Commands(), lambda disk, sha: inspect_guest(modules["guestfs"], disk, sha))
+        from baseline_guest import prepare
+        capture = Capture(source, Commands(), lambda disk, sha: inspect_guest(modules["guestfs"], disk, sha),
+                          prepare_guest=lambda held: prepare(held, modules['guestfs'], password))
         if args.replace_missing:
             capture.run(replace_missing=True)
         else:

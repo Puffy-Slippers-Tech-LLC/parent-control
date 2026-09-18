@@ -179,6 +179,11 @@ prepare-baseline:
 
 .PHONY: prepare-baseline
 
+# Prepare the current app version's snapshot through the guarded helper.
+.PHONY: prepare-appsnapshot
+prepare-appsnapshot:
+	@tools/prepare-appsnapshot
+
 # Host controller only. The package is installed and checked with pytest inside the
 # fixed snapshot-backed VM. Run from a root shell on the development/VM host.
 check-system:
@@ -205,11 +210,6 @@ check-e2e:
 	@/usr/bin/python3 -B tests/e2e/runner.py --from-make
 
 .PHONY: check-e2e
-
-# Guest-only preparation also goes through the master with explicit selection.
-.PHONY: prepare-vm
-prepare-vm:
-	@/bin/bash ./setup.sh --prepare-vm
 
 TEST_ENV = PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=broker:kiosk:$${PYTHONPATH:-}
 PYTEST = $(TEST_ENV) $(PYTHON) -m pytest

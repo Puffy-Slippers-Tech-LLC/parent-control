@@ -111,12 +111,11 @@ def test_main_sets_hostname_before_recording_baseline(monkeypatch, hostname_fail
     monkeypatch.setattr(prepare, "preflight_accounts", lambda: {})
     monkeypatch.setattr(prepare, "preparation_digest", lambda: "digest")
     monkeypatch.setattr(prepare, "prepare_test_dependencies", lambda **kwargs: None)
-    monkeypatch.setattr(prepare.getpass, "getpass", lambda prompt: "test-password")
     monkeypatch.setattr(prepare, "reconcile_accounts", lambda *args, **kwargs: [])
     monkeypatch.setattr(prepare, "marker_document", lambda guest, *args: guest)
     monkeypatch.setattr(prepare, "write_marker", lambda path, document: records.append(document))
 
-    assert prepare.main() == (1 if hostname_fails else 0)
+    assert prepare.main('test-password') == (1 if hostname_fails else 0)
     assert commands == [["hostnamectl", "set-hostname", prepare.HOSTNAME]]
     if hostname_fails:
         assert records == []
@@ -500,14 +499,12 @@ def test_dependency_failure_prevents_account_changes_and_success_record(monkeypa
     monkeypatch.setattr(prepare, 'preparation_digest', Mock())
     monkeypatch.setattr(prepare, 'prepare_test_dependencies', Mock(side_effect=
                         prepare.PreparationError('guest-tools:failure', 'test failure')))
-    accounts, marker, password = Mock(), Mock(), Mock()
+    accounts, marker = Mock(), Mock()
     monkeypatch.setattr(prepare, 'reconcile_accounts', accounts)
     monkeypatch.setattr(prepare, 'write_marker', marker)
-    monkeypatch.setattr(prepare.getpass, 'getpass', password)
-    assert prepare.main() == 1
+    assert prepare.main('fixture-password') == 1
     accounts.assert_not_called()
     marker.assert_not_called()
-    password.assert_not_called()
 
 
 @pytest.mark.parametrize('change', ['missing', 'wrong-version', 'unconfigured', 'duplicate'])

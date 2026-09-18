@@ -58,5 +58,5 @@ def verify_packages(status, packages=PACKAGES):
             raise ValueError('guest-tools:package-not-configured')
         found[name] = fields.get('Version')
     if found != expected:
-        raise ValueError('guest-tools:missing-or-mismatched-package; run make prepare-vm before baseline capture')
+        raise ValueError('guest-tools:missing-or-mismatched-package; run make prepare-baseline on the host')
     return found

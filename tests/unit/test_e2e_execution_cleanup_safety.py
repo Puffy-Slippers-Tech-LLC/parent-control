@@ -25,6 +25,12 @@ import suite_lease
 from private_artifacts import EvidenceError, PrivateCollector
 REAL_BOOTSTRAP = execution.system.bootstrap
 
+
+@pytest.fixture(autouse=True)
+def fixture_password(monkeypatch):
+    monkeypatch.setattr('test_account_password.read_password', lambda *args: 'fixture-password')
+    monkeypatch.setattr('fixture_credentials.read_password', lambda *args: 'fixture-password')
+
 CALLBACK = '''
 def execute(recorder, context):
     context.run_worker(observe=lambda: None, validate=lambda: None)

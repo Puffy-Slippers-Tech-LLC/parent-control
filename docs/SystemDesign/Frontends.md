@@ -50,6 +50,74 @@ loaded and the selected child's saved screen-time toggle is enabled. The
 broker's kiosk method has a broader contract; see
 [grant transactions](Broker.md#authorization-and-grant-transactions).
 
+## Public automation identities
+
+The shared GTK `set_automation_id`/`describe_control` helpers assign a
+GtkBuilder object ID as well as the widget's CSS name. GTK 4.22 publishes the
+Builder ID through the public AT-SPI `AccessibleId` property. The child
+extension's platform-specific `describeControl` helper publishes the same
+property through the Shell actor's public ATK object. The CSS or Clutter actor
+name alone is not an accessibility identity. Labels and descriptions remain
+human-readable and are not selector fallbacks. See the
+[GTK implementation](https://gitlab.gnome.org/GNOME/gtk/-/blob/gtk-4-22/gtk/gtkwidget.c),
+[AT-SPI provider](https://gitlab.gnome.org/GNOME/gtk/-/blob/gtk-4-22/gtk/a11y/gtkatspicontext.c),
+and [ATK accessible-ID contract](https://gnome.pages.gitlab.gnome.org/at-spi2-core/atk/method.Object.set_accessible_id.html).
+
+ID-addressable GTK menu buttons also publish a `menu.popup` action through
+their public widget action group. GTK's generic menu-button AT-SPI interface
+does not expose its activate signal as a click action and may list inherited
+application actions. Consumers explicitly select the unique `menu.popup`
+action after ID lookup, then observe the opened menu. They never select an
+arbitrary inherited action or target the internal toggle by tree position.
+This accessibility addition activates with the next frontend process (`none`)
+and requires no saved-data migration.
+
+The Parent child selector additionally publishes `child.focus-<uid>` actions.
+Consumers first resolve `parent-child-choice-<uid>` using the declared fixture
+account UID, then verify its label, request focus through the matching action
+and reacquire the focused ID. Enter commits selection separately;
+`parent-child-selected-<uid>` supplies independent selected-child readback.
+Menu and filter identifiers are explicit semantic keys, independent of their
+display labels.
+
+Request account choices use their account UID within separate child and
+approver namespaces, independently of list order. Each selector keeps its ID
+fixed and publishes the selected display value in its accessible description,
+so readback does not traverse labels or depend on list layout. Duration choices
+distinguish zero seconds (rest of day) from custom duration. GTK metadata
+changes activate with the next frontend process (`none` package activation).
+Child panel metadata activates with the next graphical session
+(`session-renewal`). Neither requires a saved-data migration.
+
+The ID provider does not establish compliance for every consumer. Setup/login
+and retained legacy tests still require migration where they select by names,
+roles, structure or geometry. External GDM, authentication dialogs, GTK file
+choosers and document viewers require their own public stable IDs before those
+consumers can be qualified; image or name matching cannot substitute. GTK
+versions that do not publish Builder IDs likewise cannot qualify the ID-based
+adapter. Existing passing tests do not waive those gaps.
+
+The child panel publishes `child-request-button` for the primary request action
+and `child-countdown-animation-toggle` for its context-menu setting. The latter
+is also reachable with the standard keyboard context-menu action, so automation
+can resolve and focus both controls by ID without pointer coordinates.
+
+The feedback editor publishes the GTK-level `feedback-webview` identity. Its
+in-memory document also assigns stable DOM IDs and accessible labels to the
+actual generated contenteditable editor, formatting controls, style choices and
+link editor. WebKitGTK publishes those explicit IDs in the public AT-SPI
+`GetAttributes` map (`toolkit=WebKitGTK`, `id=<control ID>`). Its `AccessibleId`
+property instead holds a transient accessibility object number; looking for
+DOM IDs there incorrectly reports missing descendants even when the tree is
+present. See the [WebKitGTK provider implementation](https://github.com/WebKit/WebKit/blob/webkitgtk-2.52.6/Source/WebCore/accessibility/atspi/AccessibilityObjectAtspi.cpp).
+The preview and standalone guest readers share `public_automation_id`, which
+normalizes this provider contract to the same control IDs used by consumers.
+It reads only public AT-SPI metadata; missing IDs and duplicate matches still
+refuse input. A provider that truly exposes only the outer WebView remains
+blocked. Automation must not substitute DOM structure, labels, roles,
+JavaScript evaluation or geometry. The ID-reader correction itself is test-only
+and requires no product installation, package activation or saved-data migration.
+
 ## Parent controls and shared information
 
 Manually launching `/usr/bin/oh-no-parent-control-parent` as a standard user
@@ -189,18 +257,13 @@ The rendering contract follows GTK's
 Mutter's [DisplayConfig interface](https://github.com/GNOME/mutter/blob/50.1/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml).
 Viewer fitting is a presentation zoom: it does not change the virtual screen.
 The 100% pixels mode sizes the captured image in host physical pixels and allows
-scrolling. The fidelity regression compares decoded viewer frames from preview
-and production `RequestWindow` paths with identical broker data, clock and RNG
-inputs supplied only by the test. The comparison permits at most two 8-bit RGB
-levels in fewer than 0.5% of pixels, retaining native GPU rendering rather than
-forcing a different renderer for screenshot equality. It also checks exact
-screen and transformed control geometry and retains per-case pixel metrics.
-It also checks real pointer and keyboard delivery, source
-dimensions after viewer resizing, and the absence of extra monitors. These
-comparisons cover rendering in the same environment, not a complete installed
-GNOME kiosk/child session or different user font/theme/color settings.
-This reproduces layout and compositor scaling, but does not certify identical
-color output, GPU rasterization or physical panel appearance on another machine.
+scrolling. Automated request-form checks use public IDs to select accounts and
+durations, submit at supported scales and verify the submitted values. The screen
+dialog checks validate its public scale choices, invalid-dimension feedback and
+cancel/recovery behavior. These checks do not compare pixels, geometry or viewer
+frames. Manual preview rendering and retained images remain useful review aids;
+they establish neither functional acceptance nor installed kiosk/child-session
+qualification. The viewer's manual input support is not an automation route.
 
 Both request surfaces use a compact 14-pixel logical base font and GTK's monitor
 scaling for HiDPI. Screen dimensions do not add a second zoom to the rendered

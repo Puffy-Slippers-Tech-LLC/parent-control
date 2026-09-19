@@ -518,33 +518,25 @@ def test_inventory_package_lifecycle_cases_use_clean_baseline():
     from tests.support.paths import ROOT
     inventory = json.loads((ROOT / 'tests/e2e/scenarios.json').read_text())
     families = {family['id']: family for family in inventory['scenarios']}
-    for name in ('E2E-001', 'E2E-002', 'E2E-026', 'E2E-027'):
+    clean_baseline = {'E2E-001', 'E2E-002', 'E2E-026', 'E2E-027'}
+    assert clean_baseline <= families.keys()
+    for name in clean_baseline:
         assert not suite_lease.needs_installed(families[name])
-    for name in ('E2E-003', 'E2E-004', 'E2E-028', 'E2E-030'):
+    for name in families.keys() - clean_baseline:
         assert suite_lease.needs_installed(families[name])
 
 
-def test_all_ready_cases_restore_their_declared_snapshot_without_case_install(prepared_suite):
+def test_no_unqualified_provider_case_is_ready_for_snapshot_dispatch(prepared_suite):
     import inventory
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     document, _ = inventory.read_json(inventory.INVENTORY)
     cases = inventory.resolve_selection(document, ready_only=True)['cases']
-    assert [case['coverage_id'] for case in cases] == [1, 3, 4, 5, 6, 151, 193]
-    for index, case in enumerate(cases):
-        owner.next_case = cases[index + 1] if index + 1 < len(cases) else None
-        lease.ledger = system.RunLedger()
-        with lease:
-            owner.prepare_case(case, directory, directory, {}, root=directory)
-            expected = baseline_name if case['category'] == 'runner-smoke' else 'onpc-v1.1'
-            assert lease._restored_name == expected
-            setup.run.assert_called_once_with(lease.guard, verify=False)
-            lease.start()
-            lease.stop()
-    lease.audit()
-    assert [event for event in events if event[0] == 'restore'] == [
-        ('restore', baseline_name), ('restore', baseline_name),
-        *[('restore', 'onpc-v1.1')] * 6, ('restore', baseline_name)]
-    assert 'onpc-v1.1' in names
+    assert cases == []
+    with pytest.raises(inventory.InventoryError, match='selection:no-ready-cases'):
+        inventory.resolve_selection(document, ready_only=True, require_runnable=True)
+    setup.run.assert_not_called()
+    assert [event for event in events if event[0] == 'restore'] == []
+    assert set(names) == {baseline_name}
 
 
 def test_wrong_transition_snapshot_refuses_before_case_provisioning(prepared_suite):

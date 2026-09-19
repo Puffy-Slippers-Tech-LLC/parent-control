@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from common.oh_no_parent_control_ui.diagnostic_events import configure_console, log_version
 import os
@@ -20,7 +21,11 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 from common.oh_no_parent_control_ui.about import (
     AboutDialog, app_name, branding_asset_path, open_help,
 )
-from common.oh_no_parent_control_ui.accessibility import describe_control
+from common.oh_no_parent_control_ui.accessibility import (
+    add_dialog_button,
+    describe_control,
+    set_automation_id,
+)
 from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.feedback import FeedbackDialog
 from common.oh_no_parent_control_ui.errors import (
@@ -121,6 +126,11 @@ def _time_status_subtitle(status):
     )
 
 
+def _app_automation_key(app_id):
+    """Return a stable, non-identifying ID fragment for a launcher identity."""
+    return hashlib.sha256(app_id.encode("utf-8")).hexdigest()[:16]
+
+
 class DailyLimitPopover(Gtk.Popover):
     """Keep the scrollable allowance menu beside its button on short windows."""
 
@@ -156,9 +166,123 @@ class DailyLimitPopover(Gtk.Popover):
         return minimum, natural, minimum_baseline, natural_baseline
 
 
+class ParentAccountSelector(Gtk.MenuButton):
+    """ID-addressable child selector without GTK's anonymous list rows."""
+
+    def __init__(self, on_selected):
+        super().__init__(
+            hexpand=True, valign=Gtk.Align.CENTER,
+            css_classes=["account-picker"],
+        )
+        self._on_selected = on_selected
+        self._users = ()
+        self._selected = Gtk.INVALID_LIST_POSITION
+        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        choices_scroll = Gtk.ScrolledWindow(
+            child=self._choices, propagate_natural_height=True,
+            max_content_height=420, hscrollbar_policy=Gtk.PolicyType.NEVER,
+        )
+        set_automation_id(choices_scroll, "parent-child-choices")
+        popover = Gtk.Popover(child=choices_scroll)
+        set_automation_id(popover, "parent-child-popover")
+        self.set_popover(popover)
+        self._show_selection()
+
+    @staticmethod
+    def _content(label, icon_file, automation_id):
+        row = Gtk.Box(spacing=14, valign=Gtk.Align.CENTER)
+        set_automation_id(row, automation_id)
+        avatar = Adw.Avatar(
+            size=50, show_initials=True, text=label,
+            css_classes=["account-avatar"],
+        )
+        texture = None
+        if icon_file:
+            try:
+                texture = Gdk.Texture.new_from_filename(icon_file)
+            except GLib.Error:
+                pass
+        avatar.set_custom_image(texture)
+        row.append(avatar)
+        row.append(Gtk.Label(
+            label=label, xalign=0, hexpand=True, ellipsize=3,
+            css_classes=["account-name"],
+        ))
+        return row
+
+    def set_users(self, users, selected):
+        users = tuple(users)
+        if len({uid for uid, _label, _icon in users}) != len(users):
+            raise ValueError("child selector requires unique account UIDs")
+        self._users = users
+        while child := self._choices.get_first_child():
+            self._choices.remove(child)
+        focus_actions = Gio.SimpleActionGroup()
+        for index, (uid, label, icon_file) in enumerate(users):
+            choice = Gtk.Button(
+                child=self._content(
+                    label, icon_file, f"parent-child-choice-{uid}-content",
+                ),
+                css_classes=["parent-account-choice"],
+            )
+            describe_control(
+                choice, f"Child account: {label}",
+                f"Manage screen time and app policy for {label}.",
+                automation_id=f"parent-child-choice-{uid}",
+            )
+            target = choice.weak_ref()
+            focus_action = Gio.SimpleAction.new(f"focus-{uid}", None)
+
+            def focus(_action, _parameter, target=target):
+                button = target()
+                if button is not None and button.is_sensitive():
+                    button.grab_focus()
+
+            focus_action.connect("activate", focus)
+            focus_actions.add_action(focus_action)
+            choice.connect("clicked", self._choose, index)
+            self._choices.append(choice)
+        # GtkMenuButton exposes inserted actions through its public AT-SPI
+        # Action interface. UID-scoped focus actions let automation focus an
+        # identified choice without deriving keyboard input from list order.
+        self.insert_action_group("child", focus_actions)
+        self._selected = (
+            selected if users and 0 <= selected < len(users)
+            else Gtk.INVALID_LIST_POSITION
+        )
+        self._show_selection()
+
+    def get_selected(self):
+        return self._selected
+
+    def _choose(self, _button, selected):
+        if selected == self._selected:
+            self.popdown()
+            return
+        self._selected = selected
+        self._show_selection()
+        self.popdown()
+        self._on_selected()
+
+    def _show_selection(self):
+        if self._selected < len(self._users):
+            uid, label, icon_file = self._users[self._selected]
+            content = self._content(
+                label, icon_file, f"parent-child-selected-{uid}",
+            )
+            description = f"Selected child: {label}."
+        else:
+            content = Gtk.Label(label="(None)", xalign=0, hexpand=True)
+            set_automation_id(content, "parent-child-selected-none")
+            description = "No child account is selected."
+        self.set_child(content)
+        describe_control(self, "Selected child", description)
+
+
 class ParentWindow(Adw.ApplicationWindow):
     def __init__(self, application, *, client_factory=BrokerClient):
         super().__init__(application=application, title=app_name())
+        set_automation_id(self, "parent-window")
         # The application ID ends in ``.Parent``, but the shared installed
         # desktop icon uses the product-wide name.
         self.set_icon_name(APPLICATION_ICON_NAME)
@@ -241,13 +365,14 @@ class ParentWindow(Adw.ApplicationWindow):
             popover.popdown()
             callback()
 
-        for label, callback in (
-            ("Help", open_help),
-            ("About", self._show_about),
+        for identity, label, callback in (
+            ("help", "Help", open_help),
+            ("about", "About", self._show_about),
         ):
             item = Gtk.Button(child=Gtk.Label(label=label, xalign=0),
                               css_classes=["parent-menu-item"])
-            describe_control(item, label, label)
+            describe_control(item, label, label,
+                             automation_id=f"parent-menu-{identity}")
             item.connect("clicked", activate_menu_item, callback)
             menu.append(item)
         # Explicit circular dots keep the heavier ellipsis consistent across
@@ -266,6 +391,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             self._menu_button, "Parent app menu",
             "Open help and view product information.",
+            automation_id="parent-menu-button",
         )
         # Keep native window actions and the desktop's decoration layout, with
         # the application menu immediately before the window controls.
@@ -279,7 +405,8 @@ class ParentWindow(Adw.ApplicationWindow):
             child=feedback_content, css_classes=["parent-header-feedback"],
             valign=Gtk.Align.CENTER,
         )
-        describe_control(feedback_button, "Feedback", "Send feedback about the app.")
+        describe_control(feedback_button, "Feedback", "Send feedback about the app.",
+                         automation_id="parent-feedback-button")
         feedback_button.connect("clicked", lambda _button: self._show_feedback())
         header_actions.append(feedback_button)
         header_actions.append(self._menu_button)
@@ -311,23 +438,16 @@ class ParentWindow(Adw.ApplicationWindow):
             hexpand=True,
             css_classes=["account-actions"],
         )
-        self._account = Gtk.DropDown(
-            model=Gtk.StringList.new([]), hexpand=True,
-            valign=Gtk.Align.CENTER, css_classes=["account-picker"],
-        )
+        self._account = ParentAccountSelector(self._account_changed)
         describe_control(
             self._account, "Selected child",
             "Choose the child whose screen time and app policy are displayed.",
+            automation_id="parent-child-selector",
         )
         # A DropDown's visible selection is its AT-SPI name.  Connect the
         # enduring section label as well, so assistive technology identifies
         # the control's purpose independently of the selected child.
         account_label.set_mnemonic_widget(self._account)
-        self._account.set_factory(self._account_factory())
-        self._account.set_list_factory(self._account_factory())
-        self._account_changed_handler = self._account.connect(
-            "notify::selected", self._account_changed
-        )
         account_actions.append(self._account)
         account_actions.append(Gtk.Separator(
             orientation=Gtk.Orientation.VERTICAL,
@@ -370,6 +490,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             self._revoke, "Revoke one-time access",
             "Remove the selected child's active one-time grant after confirmation.",
+            automation_id="parent-revoke-button",
         )
         self._revoke.connect("clicked", self._confirm_revoke)
         account_actions.append(self._revoke)
@@ -379,6 +500,7 @@ class ParentWindow(Adw.ApplicationWindow):
             xalign=0, wrap=True, visible=False,
             css_classes=["account-empty-message"],
         )
+        set_automation_id(self._no_users_message, "parent-no-users-message")
         account_section.append(self._no_users_message)
         content.append(Adw.Clamp(
             child=account_section,
@@ -389,12 +511,37 @@ class ParentWindow(Adw.ApplicationWindow):
 
         pages = Adw.ViewStack(vexpand=True)
         self._pages = pages
-        switcher = Adw.ViewSwitcher(
-            stack=pages,
-            policy=Adw.ViewSwitcherPolicy.WIDE,
-            hexpand=True,
+        switcher = Gtk.Box(
+            homogeneous=True, hexpand=True,
             css_classes=["main-view-switcher"],
         )
+        first_page_button = None
+        for page_name, label, icon_name in (
+            ("screen-limits", "Screen Limits", "alarm-symbolic"),
+            ("app-limits", "App Limits", "view-grid-symbolic"),
+        ):
+            button = Gtk.ToggleButton(
+                child=Gtk.Box(spacing=8, halign=Gtk.Align.CENTER),
+                hexpand=True,
+            )
+            button.get_child().append(Gtk.Image(icon_name=icon_name))
+            button.get_child().append(Gtk.Label(label=label))
+            describe_control(
+                button, label, f"Show the {label} page.",
+                automation_id=f"parent-page-{page_name}",
+            )
+            if first_page_button is None:
+                first_page_button = button
+                button.set_active(True)
+            else:
+                button.set_group(first_page_button)
+            button.connect(
+                "toggled",
+                lambda control, name=page_name: (
+                    pages.set_visible_child_name(name) if control.get_active() else None
+                ),
+            )
+            switcher.append(button)
         content.append(Adw.Clamp(
             child=switcher,
             maximum_size=CONTENT_MAX_WIDTH,
@@ -408,6 +555,7 @@ class ParentWindow(Adw.ApplicationWindow):
             vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
             css_classes=["limits-page"],
         )
+        set_automation_id(screen_limits_page, "parent-screen-limits-page")
         pages.add_titled_with_icon(
             screen_limits_page, "screen-limits", "Screen Limits", "alarm-symbolic",
         )
@@ -434,6 +582,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             self._enabled, "Screen time limit",
             "Enable or disable daily screen-time control for the selected child.",
+            automation_id="parent-screen-limit-toggle",
         )
         self._enabled.connect("notify::active", self._enabled_changed)
         control_row.add_suffix(self._enabled)
@@ -458,6 +607,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             self._daily_limit, "Daily time allowance",
             "Choose the selected child's daily screen-time allowance.",
+            automation_id="parent-daily-limit-selector",
         )
         allowance_popover = self._daily_limit_popover()
         self._daily_limit.set_popover(allowance_popover)
@@ -480,6 +630,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             self._custom_daily_limit_entry, "Custom daily allowance",
             "Enter a whole number of minutes from zero through 1439.",
+            automation_id="parent-custom-daily-limit",
         )
         self._custom_daily_limit_entry.connect(
             "activate", self._custom_daily_limit_changed,
@@ -499,11 +650,17 @@ class ParentWindow(Adw.ApplicationWindow):
             expanded=True,
             css_classes=["time-status-row"],
         )
+        describe_control(
+            self._time_status, "Today's remaining time",
+            "Expand or collapse the daily and one-time remaining-time calculation.",
+            automation_id="parent-time-status",
+        )
         self._time_status.add_prefix(self._setting_icon("hourglass-symbolic"))
         self._time_status_value = Gtk.Label(
             label="Loading…", valign=Gtk.Align.CENTER,
             css_classes=["remaining-time-value"],
         )
+        set_automation_id(self._time_status_value, "parent-time-remaining")
         self._time_status.add_suffix(self._time_status_value)
         self._time_status.add_row(self._time_calculation_panel())
         screen_limit_rows.append(self._time_status)
@@ -521,6 +678,7 @@ class ParentWindow(Adw.ApplicationWindow):
             vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
             css_classes=["app-limits-page"],
         )
+        set_automation_id(app_limits_page, "parent-app-limits-page")
         pages.add_titled_with_icon(
             app_limits_page, "app-limits", "App Limits", "view-grid-symbolic",
         )
@@ -563,6 +721,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             self._search, "Search installed apps",
             "Filter the selected child's available applications.",
+            automation_id="parent-app-search",
         )
         self._search.connect("search-changed", self._filter)
         self._search.set_sensitive(False)
@@ -583,10 +742,12 @@ class ParentWindow(Adw.ApplicationWindow):
         headers.set_title("App Name &amp; Detail")
         headers.add_suffix(self._policy_column_heading(
             "Match Rule", self._match_rule_slot(), "match-rule-header",
-            MATCH_RULES, self._match_rule_filters, self._match_rule_filter_icon))
+            MATCH_RULES, self._match_rule_filters, self._match_rule_filter_icon,
+            identity="match-rule"))
         headers.add_suffix(self._policy_column_heading(
             "Access Rule", self._policy_selector_slot(), "access-rule-header",
-            STATES, self._access_rule_filters, self._access_rule_filter_icon))
+            STATES, self._access_rule_filters, self._access_rule_filter_icon,
+            identity="access-rule"))
         apps.add(headers)
         self._app_rows = []
         apps_overlay = Gtk.Overlay(
@@ -628,42 +789,6 @@ class ParentWindow(Adw.ApplicationWindow):
         ))
         self._pages.connect("notify::visible-child-name", self._visible_page_changed)
 
-    def _account_factory(self):
-        factory = Gtk.SignalListItemFactory()
-
-        def setup(_factory, item):
-            row = Gtk.Box(spacing=14, valign=Gtk.Align.CENTER)
-            row.append(Adw.Avatar(
-                size=50, show_initials=True, css_classes=["account-avatar"],
-            ))
-            row.append(Gtk.Label(
-                xalign=0, hexpand=True, ellipsize=3,
-                css_classes=["account-name"],
-            ))
-            item.set_child(row)
-
-        def bind(_factory, item):
-            row = item.get_child()
-            avatar = row.get_first_child()
-            name = item.get_item().get_string()
-            row.get_last_child().set_label(name)
-            avatar.set_text(name)
-            icon_file = ""
-            position = item.get_position()
-            if position < len(self._users):
-                icon_file = self._users[position][2]
-            texture = None
-            if icon_file:
-                try:
-                    texture = Gdk.Texture.new_from_filename(icon_file)
-                except GLib.Error:
-                    texture = None
-            avatar.set_custom_image(texture)
-
-        factory.connect("setup", setup)
-        factory.connect("bind", bind)
-        return factory
-
     @staticmethod
     def _setting_icon(icon_name):
         container = Gtk.CenterBox(
@@ -696,6 +821,11 @@ class ParentWindow(Adw.ApplicationWindow):
             tooltip_text="Hide calculation",
             css_classes=["calculation-collapse"],
         )
+        describe_control(
+            collapse, "Hide remaining-time calculation",
+            "Collapse the remaining-time calculation details.",
+            automation_id="parent-time-calculation-collapse",
+        )
         collapse.connect(
             "clicked", lambda *_args: self._time_status.set_expanded(False),
         )
@@ -706,11 +836,12 @@ class ParentWindow(Adw.ApplicationWindow):
             label="—", xalign=0, wrap=True, use_markup=True,
             css_classes=["calculation-formula"],
         )
+        set_automation_id(self._time_explanation, "parent-time-explanation")
         panel.append(self._time_explanation)
         return panel
 
     def _policy_column_heading(self, label, slot, css_class, items, selected,
-                               icon_factory):
+                               icon_factory, *, identity):
         """Overlay a filter heading on a measurement-matched, inert policy control."""
         overlay = Gtk.Overlay(css_classes=["app-policy-heading", css_class])
         overlay.set_child(slot)
@@ -722,6 +853,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             trigger, f"Filter {label}",
             f"Choose which {label.casefold()} values are shown in the app list.",
+            automation_id=f"parent-filter-{identity}",
         )
         trigger_content = Gtk.Box(
             spacing=4, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
@@ -754,17 +886,25 @@ class ParentWindow(Adw.ApplicationWindow):
                 css_classes=["app-policy-filter-item-label"],
             ))
             choice.set_child(content)
-            describe_control(choice, item["label"],
-                             f"Show apps with this {label.casefold()}.")
+            describe_control(
+                choice, item["label"],
+                f"Show apps with this {label.casefold()}.",
+                automation_id=f"parent-filter-{identity}-{item['id']}",
+            )
             choice.connect(
                 "toggled", self._column_filter_toggled, item["id"], selected,
                 trigger, items,
             )
             menu.append(choice)
-        popover.set_child(Gtk.ScrolledWindow(
+        filter_scroll = Gtk.ScrolledWindow(
             child=menu, propagate_natural_height=True,
             hscrollbar_policy=Gtk.PolicyType.NEVER,
-        ))
+        )
+        set_automation_id(
+            filter_scroll,
+            f"parent-filter-{identity}-choices",
+        )
+        popover.set_child(filter_scroll)
         # MenuButton owns popup positioning, keyboard activation and teardown.
         trigger.set_popover(popover)
         overlay.add_overlay(trigger)
@@ -864,12 +1004,18 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["policy-legend-header"],
             child=header_content,
         )
+        describe_control(
+            header, "Policy legend",
+            "Expand or collapse the app access and match-rule legend.",
+            automation_id="parent-legend-toggle",
+        )
         card.append(header)
 
         # Measure both columns at their allocated widths. A horizontal Box
         # can retain the wrapped labels' narrow-width height after its children
         # receive more space, leaving a large empty area below the legend.
         sections = Gtk.Grid(css_classes=["policy-legend-sections"])
+        set_automation_id(sections, "parent-legend-content")
         sections.attach(self._legend_section(
             "App Access (What happens)", APP_LIST_STATES, {
                 "allowed": "App can always be used",
@@ -985,10 +1131,12 @@ class ParentWindow(Adw.ApplicationWindow):
         self._app_rows = []
 
     def _add_app_row(self, app):
+        automation_key = _app_automation_key(app["id"])
         row = Adw.ActionRow(
             title=app["name"], subtitle=app["description"] or app["id"],
             css_classes=["app-policy-row"],
         )
+        set_automation_id(row, f"parent-app-{automation_key}")
         row.app = app
         row.search_text = f'{app["name"]} {app["description"]} {app["id"]}'.casefold()
         if app["icon"]:
@@ -1012,6 +1160,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             row.match_rule_button, f"{app['name']} match rule",
             "Choose whether this application's saved rule matches an exact path or versioned filename pattern.",
+            automation_id=f"parent-app-{automation_key}-match-rule",
         )
         row.match_rule_button.connect("clicked", self._edit_match_rule, row)
         match_rule_cell = Gtk.Box(
@@ -1035,6 +1184,7 @@ class ParentWindow(Adw.ApplicationWindow):
             describe_control(
                 button, f"{app['name']} access rule: {state['label']}",
                 f"Set the selected child's access rule for {app['name']} to {state['label']}.",
+                automation_id=f"parent-app-{automation_key}-access-{state['id']}",
             )
             if first_button is None:
                 first_button = button
@@ -1145,15 +1295,7 @@ class ParentWindow(Adw.ApplicationWindow):
             # Kick off the selected child's catalog before the account picker
             # model is rebuilt so App Limits work does not wait on UI setup.
             self._ensure_apps_load(self._users[0][0])
-        self._account.handler_block(self._account_changed_handler)
-        try:
-            self._account.set_model(Gtk.StringList.new(
-                [label for _uid, label, _icon in self._users]
-            ))
-            if self._users:
-                self._account.set_selected(selected)
-        finally:
-            self._account.handler_unblock(self._account_changed_handler)
+        self._account.set_users(self._users, selected)
 
         self._no_users_message.set_visible(not self._users)
         if self._users and selection_changed:
@@ -1443,23 +1585,36 @@ class ParentWindow(Adw.ApplicationWindow):
         if selected >= len(self._users):
             return
         child_name = self._users[selected][1]
-        dialog = Adw.MessageDialog.new(
-            self, "Revoke one-time grant?",
-            "This will revoke one-time screen time and access to soft blocked apps "
-            f"granted to {child_name}, close their running blocked apps, and "
-            "lock their desktop when no time remains. "
-            "Their remaining daily time allowance is not impacted.",
+        dialog = Gtk.Dialog(
+            transient_for=self, modal=True, title="Revoke one-time grant?",
         )
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("revoke", "Revoke grant")
-        dialog.set_response_appearance("revoke", Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.set_default_response("cancel")
-        dialog.set_close_response("cancel")
+        set_automation_id(dialog, "parent-revoke-dialog")
+        warning = Gtk.Label(
+            label=("This will revoke one-time screen time and access to soft blocked apps "
+                   f"granted to {child_name}, close their running blocked apps, and "
+                   "lock their desktop when no time remains. "
+                   "Their remaining daily time allowance is not impacted."),
+            wrap=True, xalign=0, margin_top=18, margin_bottom=18,
+            margin_start=18, margin_end=18,
+        )
+        set_automation_id(warning, "parent-revoke-warning")
+        dialog.get_content_area().append(warning)
+        add_dialog_button(
+            dialog, "Cancel", Gtk.ResponseType.CANCEL, "parent-revoke-cancel",
+            description="Keep the current one-time grant.",
+        )
+        add_dialog_button(
+            dialog, "Revoke grant", Gtk.ResponseType.OK, "parent-revoke-confirm",
+            description="Revoke the selected child's one-time grant.",
+            css_class="destructive-action",
+        )
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
         dialog.connect("response", self._revoke_response)
         dialog.present()
 
-    def _revoke_response(self, _dialog, response):
-        if response != "revoke":
+    def _revoke_response(self, dialog, response):
+        dialog.destroy()
+        if response != Gtk.ResponseType.OK:
             return
         uid = self._selected_uid()
         if uid is None:
@@ -1498,17 +1653,20 @@ class ParentWindow(Adw.ApplicationWindow):
             describe_control(
                 choice, _daily_limit_label(minutes),
                 f"Set the selected child's daily allowance to {_daily_limit_label(minutes)}.",
+                automation_id=f"parent-daily-limit-{minutes}",
             )
             choices.append(choice)
         menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, width_request=300)
-        menu.append(Gtk.ScrolledWindow(
+        choices_scroll = Gtk.ScrolledWindow(
             child=choices,
             # DailyLimitPopover caps the whole popup to the available space;
             # keep the choices shrinkable while the custom action stays fixed.
             propagate_natural_height=True,
             max_content_height=378,
             hscrollbar_policy=Gtk.PolicyType.NEVER,
-        ))
+        )
+        set_automation_id(choices_scroll, "parent-daily-limit-choices")
+        menu.append(choices_scroll)
         menu.append(Gtk.Separator(css_classes=["daily-limit-separator"]))
         custom = self._daily_limit_choice(
             "Custom amount…", CUSTOM_DAILY_LIMIT_INDEX,
@@ -1517,6 +1675,7 @@ class ParentWindow(Adw.ApplicationWindow):
         describe_control(
             custom, "Custom amount",
             "Enter a custom daily allowance in minutes.",
+            automation_id="parent-daily-limit-custom",
         )
         menu.append(custom)
         self._update_daily_limit_choice_styles()
@@ -1698,9 +1857,17 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _edit_match_rule(self, _button, row):
         dialog = Gtk.Dialog(transient_for=self, modal=True, title="Edit Match Rule")
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Reset to Default", Gtk.ResponseType.APPLY)
-        dialog.add_button("Save", Gtk.ResponseType.OK)
+        set_automation_id(dialog, "parent-match-rule-dialog")
+        add_dialog_button(
+            dialog, "Cancel", Gtk.ResponseType.CANCEL, "parent-match-rule-cancel",
+        )
+        add_dialog_button(
+            dialog, "Reset to Default", Gtk.ResponseType.APPLY,
+            "parent-match-rule-reset",
+        )
+        add_dialog_button(
+            dialog, "Save", Gtk.ResponseType.OK, "parent-match-rule-save",
+        )
         dialog.set_default_response(Gtk.ResponseType.OK)
         content = dialog.get_content_area()
         content.set_spacing(12)
@@ -1714,6 +1881,11 @@ class ParentWindow(Adw.ApplicationWindow):
         ))
         entry = Gtk.Entry(hexpand=True, width_chars=54,
                           text=row.match_rule or self._default_match_rule(row))
+        describe_control(
+            entry, "Application match rule",
+            "Enter an exact execution path or a versioned filename pattern.",
+            automation_id="parent-match-rule-entry",
+        )
         content.append(entry)
 
         def response(_dialog, response_id):
@@ -1968,6 +2140,7 @@ class Application(Adw.Application):
             window = Adw.ApplicationWindow(application=self,
                 title="Administrator access required", default_width=820,
                 default_height=320, css_classes=["management-denied"])
+            set_automation_id(window, "parent-access-denied-window")
             self._ensure_stylesheet(window)
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=32,
                 margin_top=32, margin_bottom=24, margin_start=24, margin_end=32)
@@ -1981,14 +2154,19 @@ class Application(Adw.Application):
                 css_classes=["management-denied-divider"]))
             text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                 hexpand=True, valign=Gtk.Align.CENTER)
-            text.append(Gtk.Label(label=app_name(), xalign=0, wrap=True,
-                margin_bottom=6, css_classes=["management-denied-brand"]))
-            text.append(Gtk.Label(label="Administrator Required", xalign=0,
-                wrap=True, css_classes=["management-denied-title"]))
+            brand = Gtk.Label(label=app_name(), xalign=0, wrap=True,
+                margin_bottom=6, css_classes=["management-denied-brand"])
+            set_automation_id(brand, "parent-access-denied-brand")
+            text.append(brand)
+            heading = Gtk.Label(label="Administrator Required", xalign=0,
+                wrap=True, css_classes=["management-denied-title"])
+            set_automation_id(heading, "parent-access-denied-heading")
+            text.append(heading)
             explanation = Gtk.Label(
                 label="Only an administrator can manage parental controls.\n"
                       "Sign in with an administrator account to open the Parent App.",
                 xalign=0, wrap=True, css_classes=["management-denied-message"])
+            set_automation_id(explanation, "parent-access-denied-message")
             explanation.update_property([Gtk.AccessibleProperty.LABEL], [
                 "Only an administrator can manage parental controls. "
                 "Sign in with an administrator account to open the Parent App."])
@@ -1997,6 +2175,11 @@ class Application(Adw.Application):
             content.append(message)
             close = Gtk.Button(label="Close", halign=Gtk.Align.END,
                 css_classes=["management-denied-close"])
+            describe_control(
+                close, "Close",
+                "Close the administrator-required notice.",
+                automation_id="parent-access-denied-close",
+            )
             close.connect("clicked", lambda *_: self.quit())
             content.append(close)
             window.set_content(content)

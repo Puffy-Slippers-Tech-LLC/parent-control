@@ -13,7 +13,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Pango
 
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
-from common.oh_no_parent_control_ui.accessibility import describe_control
+from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 from .chrome import (
     LOCK, POINTER, SHIELD, ArmoredButton,
@@ -52,8 +52,15 @@ class GatewayDropDown(Gtk.Box):
     and its expanded content descendants of the transformed form.
     """
 
-    def __init__(self, on_selected=None):
+    def __init__(self, automation_namespace, automation_label, on_selected=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        if (type(automation_namespace) is not str
+                or not re.fullmatch(r"[a-z][a-z0-9-]*", automation_namespace)):
+            raise ValueError("invalid account selector automation namespace")
+        if type(automation_label) is not str or not automation_label:
+            raise ValueError("account selector accessibility label is required")
+        self._automation_namespace = automation_namespace
+        self._automation_label = automation_label
         self._on_selected = on_selected
         self._selected = Gtk.INVALID_LIST_POSITION
         self._items = ()
@@ -61,6 +68,7 @@ class GatewayDropDown(Gtk.Box):
         self._scroll_offset = 0
 
         self._trigger = Gtk.Button()
+        self._describe_trigger()
         self._trigger.add_css_class("oh-no-parent-control-account-selector")
         trigger_content = Gtk.Box(spacing=8)
         self.account_icon = Gtk.Image()
@@ -81,6 +89,7 @@ class GatewayDropDown(Gtk.Box):
         self.append(self._trigger)
 
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        set_automation_id(self._choices, self._automation_id("choices"))
         self._choices.add_css_class("oh-no-parent-control-account-choices")
         self._choices.set_visible(False)
         self._scroll_up = self._scroll_button("pan-up-symbolic", -1)
@@ -96,17 +105,28 @@ class GatewayDropDown(Gtk.Box):
 
     def _scroll_button(self, icon_name, delta):
         button = Gtk.Button(halign=Gtk.Align.FILL)
+        direction = "up" if delta < 0 else "down"
+        describe_control(
+            button, f"Show more {self._automation_label.casefold()} choices {direction}",
+            f"Reveal the previous or next {self._automation_label.casefold()} choices.",
+            automation_id=self._automation_id(f"scroll-{direction}"),
+        )
         button.add_css_class("oh-no-parent-control-account-choice")
         button.add_css_class("oh-no-parent-control-account-scroll")
         button.set_child(Gtk.Image.new_from_icon_name(icon_name))
         button.connect("clicked", self._nudge_scroll, delta)
         return button
 
-    def set_items(self, items):
+    def set_items(self, items, *, identities):
         self._items = tuple(items)
+        self._item_identities = tuple(identities)
+        if (len(self._item_identities) != len(self._items)
+                or len(set(self._item_identities)) != len(self._item_identities)):
+            raise ValueError("selector requires one unique identity per account")
         self._selected = Gtk.INVALID_LIST_POSITION
         self._scroll_offset = 0
         self._selected_label.set_text("")
+        self._describe_trigger()
         apply_gtk_user_icon(self._selected_icon, "")
         apply_gtk_user_icon(self.account_icon, "", pixel_size=self.account_icon.get_pixel_size())
         self._choice_buttons = []
@@ -114,6 +134,13 @@ class GatewayDropDown(Gtk.Box):
             self._choice_list.remove(child)
         for index, (label, icon_file) in enumerate(self._items):
             choice = Gtk.Button(halign=Gtk.Align.FILL)
+            describe_control(
+                choice, f"{self._automation_label}: {label}",
+                f"Select {label} as the {self._automation_label.casefold()}.",
+                automation_id=self._automation_id(
+                    f"choice-{self._item_identities[index]}"
+                ),
+            )
             choice.add_css_class("oh-no-parent-control-account-choice")
             content = Gtk.Box(spacing=8)
             icon = Gtk.Image()
@@ -130,6 +157,19 @@ class GatewayDropDown(Gtk.Box):
             self._choice_buttons.append(choice)
         self._set_expanded(False)
 
+    def _automation_id(self, suffix):
+        return f"kiosk-{self._automation_namespace}-{suffix}"
+
+    def _describe_trigger(self, selected_label=None):
+        description = (
+            f"Selected {self._automation_label.casefold()}: {selected_label}."
+            if selected_label else f"Choose the {self._automation_label.casefold()}."
+        )
+        describe_control(
+            self._trigger, self._automation_label, description,
+            automation_id=self._automation_id("selector"),
+        )
+
     def set_selected(self, index):
         if index >= len(self._items):
             raise ValueError("selector index is out of range")
@@ -138,6 +178,7 @@ class GatewayDropDown(Gtk.Box):
         self._selected = index
         label, icon_file = self._items[index]
         self._selected_label.set_text(label)
+        self._describe_trigger(label)
         apply_gtk_user_icon(self._selected_icon, icon_file)
         apply_gtk_user_icon(self.account_icon, icon_file, pixel_size=self.account_icon.get_pixel_size())
         if self._on_selected is not None:
@@ -225,6 +266,7 @@ class RequestContent(MetalBoard):
         )
         self.add_css_class("oh-no-parent-control-content")
         self.add_css_class("oh-no-parent-control-dialog")
+        set_automation_id(self, "kiosk-request-form")
         self._duration_buttons = []
         self._account_details = []
         self._narrow_layout = None
@@ -259,6 +301,7 @@ class RequestContent(MetalBoard):
             yalign=0.5,
             valign=Gtk.Align.CENTER,
         )
+        set_automation_id(self._status, "kiosk-request-status")
         # Bound wrap at measure time so the footer grows with the caption
         # instead of clipping a second line against min-height.
         self._status.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)
@@ -266,26 +309,23 @@ class RequestContent(MetalBoard):
         self._status.set_overflow(Gtk.Overflow.VISIBLE)
         self._status.add_css_class("oh-no-parent-control-status")
 
-        self._accounts = GatewayDropDown(self._account_changed)
-        describe_control(
-            self._accounts._trigger, "Child account",
-            "Choose the child requesting more time.",
+        self._accounts = GatewayDropDown(
+            "child", "Child account", self._account_changed,
         )
         self._accounts.set_hexpand(True)
-        child_selector = self._account_row("Child", self._accounts)
+        child_selector = self._account_row("Child", self._accounts, identity="child")
         self.append(child_selector)
 
         self._request_form = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=5,
         )
-        self._approvers = GatewayDropDown(self._approver_changed)
-        describe_control(
-            self._approvers._trigger, "Approving parent",
-            "Choose the administrator who can approve this request.",
+        set_automation_id(self._request_form, "kiosk-request-options")
+        self._approvers = GatewayDropDown(
+            "approver", "Approving parent", self._approver_changed,
         )
         self._approvers.set_hexpand(True)
         approver_selector = self._account_row(
-            "Approver", self._approvers,
+            "Approver", self._approvers, identity="approver",
         )
         self._request_form.append(approver_selector)
 
@@ -293,6 +333,7 @@ class RequestContent(MetalBoard):
             orientation=Gtk.Orientation.VERTICAL, spacing=0, panel_kind="well",
             hexpand=True,
         )
+        set_automation_id(self._choices, "kiosk-duration-panel")
         self._choices.add_css_class("oh-no-parent-control-choices")
         self._choices.set_margin_start(10)
         self._choices.set_margin_end(10)
@@ -301,6 +342,7 @@ class RequestContent(MetalBoard):
             min_children_per_line=1, max_children_per_line=2,
             column_spacing=4, row_spacing=2, hexpand=True,
         )
+        set_automation_id(self._duration_box, "kiosk-duration-choices")
         self._duration_box.add_css_class("oh-no-parent-control-choices-inner")
         # MetalPanel chrome has no layout cost, so CSS padding on the well does
         # not keep rows off the painted rim. Child margins are measured: 4px
@@ -315,6 +357,7 @@ class RequestContent(MetalBoard):
         self._build_duration_choices()
 
         self._custom_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        set_automation_id(self._custom_row, "kiosk-custom-duration-row")
         self._custom_row.add_css_class("oh-no-parent-control-custom-row")
         self._custom_entry = Gtk.Entry(
             text=str(MIN_CUSTOM_MINUTES),
@@ -324,10 +367,13 @@ class RequestContent(MetalBoard):
         describe_control(
             self._custom_entry, "Custom duration in minutes",
             "Enter a requested duration from 0.1 through 1440 minutes.",
+            automation_id="kiosk-custom-duration",
         )
         self._custom_entry.add_css_class("oh-no-parent-control-custom-entry")
         self._custom_row.append(self._custom_entry)
-        self._custom_row.append(Gtk.Label(label="minutes"))
+        minutes = Gtk.Label(label="minutes")
+        set_automation_id(minutes, "kiosk-custom-duration-units")
+        self._custom_row.append(minutes)
         self._custom_row.set_visible(False)
         self._request_form.append(self._custom_row)
 
@@ -335,26 +381,31 @@ class RequestContent(MetalBoard):
         describe_control(
             filter_row, "Allow soft blocked apps",
             "Choose whether this request temporarily allows soft blocked apps.",
+            automation_id="kiosk-soft-apps-row",
         )
         filter_row.add_css_class("oh-no-parent-control-app-filter-toggle")
         filter_row.set_margin_start(10)
         filter_row.set_margin_end(10)
         filter_inner = Gtk.Box(spacing=6)
+        set_automation_id(filter_inner, "kiosk-soft-apps-content")
         filter_icon = PixelIcon(
             SHIELD, display_size=20, label="",
         )
+        set_automation_id(filter_icon, "kiosk-soft-apps-icon")
         filter_icon.add_css_class("oh-no-parent-control-filter-icon")
         filter_inner.append(filter_icon)
         filter_label = Gtk.Label(
             label="Allow soft blocked apps", xalign=0, hexpand=True,
             valign=Gtk.Align.CENTER, wrap=True, max_width_chars=24,
         )
+        set_automation_id(filter_label, "kiosk-soft-apps-label")
         filter_label.add_css_class("oh-no-parent-control-app-filter-label")
         filter_inner.append(filter_label)
         self._allow_soft = Gtk.Switch(valign=Gtk.Align.CENTER)
         describe_control(
             self._allow_soft, "Allow soft blocked apps",
             "Choose whether this request temporarily allows soft blocked apps.",
+            automation_id="kiosk-soft-apps-toggle",
         )
         self._allow_soft.set_can_target(False)
         self._allow_soft.connect("notify::active", self._emit_values_changed)
@@ -366,6 +417,7 @@ class RequestContent(MetalBoard):
         self._request_form.append(filter_row)
 
         actions = Gtk.Box(spacing=10, homogeneous=True)
+        set_automation_id(actions, "kiosk-request-actions")
         actions.add_css_class("oh-no-parent-control-actions")
         self._request = ArmoredButton(
             label="REQUEST", hexpand=True, armor_kind="request",
@@ -373,6 +425,7 @@ class RequestContent(MetalBoard):
         describe_control(
             self._request, "Request access",
             "Submit the selected duration and app access choice for approval.",
+            automation_id="kiosk-request-submit",
         )
         self._request.add_css_class("oh-no-parent-control-request-button")
         self._request.set_margin_start(3)
@@ -382,6 +435,7 @@ class RequestContent(MetalBoard):
         actions.append(self._request)
 
         self._screen_limit_overlay = Gtk.Overlay()
+        set_automation_id(self._screen_limit_overlay, "kiosk-screen-limit-overlay")
         self._screen_limit_overlay.set_child(self._request_form)
         self._screen_limit_notice = Gtk.Label(
             label="Screen limit is not enabled in Parent App",
@@ -390,6 +444,7 @@ class RequestContent(MetalBoard):
             halign=Gtk.Align.FILL,
             valign=Gtk.Align.FILL,
         )
+        set_automation_id(self._screen_limit_notice, "kiosk-screen-limit-notice")
         self._screen_limit_notice.add_css_class("oh-no-parent-control-screen-limit-notice")
         self._screen_limit_overlay.add_overlay(self._screen_limit_notice)
         self.append(self._screen_limit_overlay)
@@ -400,6 +455,7 @@ class RequestContent(MetalBoard):
         describe_control(
             self._cancel, "Cancel request",
             "Close this request screen without requesting additional time.",
+            automation_id="kiosk-request-cancel",
         )
         self._cancel.add_css_class("oh-no-parent-control-cancel-button")
         self._cancel.set_margin_start(3)
@@ -412,6 +468,7 @@ class RequestContent(MetalBoard):
             hexpand=True,
             panel_kind="footer",
         )
+        set_automation_id(status_row, "kiosk-request-status-panel")
         status_row.add_css_class("oh-no-parent-control-status-row")
         status_row.set_overflow(Gtk.Overflow.VISIBLE)
         status_inner = Gtk.Box(
@@ -419,9 +476,11 @@ class RequestContent(MetalBoard):
             hexpand=True,
             valign=Gtk.Align.CENTER,
         )
+        set_automation_id(status_inner, "kiosk-request-status-content")
         status_inner.add_css_class("oh-no-parent-control-status-inner")
         status_inner.set_overflow(Gtk.Overflow.VISIBLE)
         lock = PixelIcon(LOCK, display_size=16, label="")
+        set_automation_id(lock, "kiosk-request-status-icon")
         lock.set_valign(Gtk.Align.CENTER)
         status_inner.append(lock)
         status_inner.append(self._status)
@@ -432,15 +491,18 @@ class RequestContent(MetalBoard):
     @staticmethod
     def _header():
         header = MetalPanel(spacing=8, panel_kind="header")
+        set_automation_id(header, "kiosk-request-header")
         header.add_css_class("oh-no-parent-control-header")
         icon = Gtk.Image.new_from_file(
             str(branding_asset_path("app_logo.png")),
         )
+        set_automation_id(icon, "kiosk-request-logo")
         # Match the logo artwork to the visual height of the two-line title.
         icon.set_pixel_size(36)
         icon.set_valign(Gtk.Align.CENTER)
         icon.add_css_class("oh-no-parent-control-header-icon")
         plate = Gtk.Box()
+        set_automation_id(plate, "kiosk-request-logo-plate")
         plate.add_css_class("oh-no-parent-control-logo-plate")
         plate.set_valign(Gtk.Align.END)
         # Optical correction for the pixel font's ink extending below its
@@ -453,6 +515,7 @@ class RequestContent(MetalBoard):
             valign=Gtk.Align.CENTER,
             hexpand=True,
         )
+        set_automation_id(copy, "kiosk-request-title")
         copy.add_css_class("oh-no-parent-control-header-copy")
         for line in RequestContent._title_lines(app_name()):
             title = Gtk.Label(
@@ -474,20 +537,23 @@ class RequestContent(MetalBoard):
             return (f"{lead}!".upper(), rest.upper())
         return (name.upper(),)
 
-    def _account_row(self, caption, dropdown):
+    def _account_row(self, caption, dropdown, *, identity):
         row = MetalPanel(spacing=0, panel_kind="metal", hexpand=True)
+        set_automation_id(row, f"kiosk-{identity}-account-row")
         row.add_css_class("oh-no-parent-control-account-row")
         row.set_margin_start(10)
         row.set_margin_end(10)
         # MetalPanel chrome has no layout cost, so CSS padding on the plate
         # shrinks the painted face. Child margins keep labels off the bevel.
         inner = Gtk.Box(spacing=8, hexpand=True)
+        set_automation_id(inner, f"kiosk-{identity}-account-content")
         inner.add_css_class("oh-no-parent-control-account-row-inner")
         inner.set_margin_top(4)
         inner.set_margin_end(12)
         inner.set_margin_bottom(4)
         inner.set_margin_start(10)
         icon = dropdown.account_icon
+        set_automation_id(icon, f"kiosk-{identity}-account-icon")
         icon.add_css_class("oh-no-parent-control-role-icon")
         icon.set_valign(Gtk.Align.CENTER)
         apply_gtk_user_icon(icon, "", pixel_size=24)
@@ -495,8 +561,10 @@ class RequestContent(MetalBoard):
         detail = Gtk.Box(
             spacing=12, hexpand=True,
         )
+        set_automation_id(detail, f"kiosk-{identity}-account-detail")
         detail.set_valign(Gtk.Align.CENTER)
         label = Gtk.Label(label=caption, xalign=0)
+        set_automation_id(label, f"kiosk-{identity}-account-caption")
         label.add_css_class("oh-no-parent-control-account-caption")
         label.set_valign(Gtk.Align.CENTER)
         label.set_vexpand(False)
@@ -531,11 +599,13 @@ class RequestContent(MetalBoard):
     def _build_duration_choices(self):
         group = None
         for label, seconds in DURATIONS:
+            identity = "custom" if seconds is None else str(seconds)
             button = Gtk.ToggleButton(hexpand=True)
             button.duration_seconds = seconds
             describe_control(
                 button, f"Request {label}",
                 f"Select {label} as the requested extra screen time duration.",
+                automation_id=f"kiosk-duration-{identity}",
             )
             button.add_css_class("oh-no-parent-control-choice")
             overlay = Gtk.Overlay()
@@ -543,11 +613,15 @@ class RequestContent(MetalBoard):
             # space gives Custom value a small gap without moving other rows or
             # changing the label used by accessibility and request state.
             display_label = f" {label}" if seconds is None else label
-            overlay.set_child(Gtk.Label(
+            option_label = Gtk.Label(
                 label=display_label, hexpand=True, wrap=True, max_width_chars=12,
                 justify=Gtk.Justification.CENTER,
-            ))
+            )
+            set_automation_id(option_label, f"kiosk-duration-label-{identity}")
+            overlay.set_child(option_label)
+            set_automation_id(overlay, f"kiosk-duration-option-{identity}")
             pointer = PixelIcon(POINTER, display_size=14, label="")
+            set_automation_id(pointer, f"kiosk-duration-pointer-{identity}")
             pointer.add_css_class("oh-no-parent-control-choice-pointer")
             pointer.set_halign(Gtk.Align.START)
             pointer.set_valign(Gtk.Align.CENTER)
@@ -580,7 +654,8 @@ class RequestContent(MetalBoard):
         self._account_uids = [uid for uid, _label, _icon in parsed]
         self._account_labels = [label for _uid, label, _icon in parsed]
         self._account_icons = [icon for _uid, _label, icon in parsed]
-        self._accounts.set_items(list(zip(self._account_labels, self._account_icons)))
+        self._accounts.set_items(list(zip(self._account_labels, self._account_icons)),
+                                 identities=self._account_uids)
         self._accounts_loaded = True
         if parsed:
             remembered = (self._selection_store.preferred("child_uid")
@@ -598,7 +673,8 @@ class RequestContent(MetalBoard):
         self._approver_uids = [uid for uid, _label, _icon in parsed]
         self._approver_labels = [label for _uid, label, _icon in parsed]
         self._approver_icons = [icon for _uid, _label, icon in parsed]
-        self._approvers.set_items(list(zip(self._approver_labels, self._approver_icons)))
+        self._approvers.set_items(list(zip(self._approver_labels, self._approver_icons)),
+                                  identities=self._approver_uids)
         self._approvers_loaded = True
         self._restore_approver()
         self._update_ready()

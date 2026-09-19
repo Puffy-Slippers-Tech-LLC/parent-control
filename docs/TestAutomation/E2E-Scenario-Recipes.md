@@ -10,11 +10,13 @@ session, read only the selected family's variant branches, applicable finite-dat
 rows and common entry/time rules it uses; the master's Next task pointer avoids
 loading unrelated task briefs or the full scheduling queue.
 
-There are **50 families and 252 persistent cases**: **240 customer cases**
-(6 ready, 234 pending), **11 engineering fault obligations**, and **1 ready
-harness qualification**. E2E-034 is retired and is not reused. Cases **3, 4, 5, 6,
-151 and 193** are the ready customer bindings; case **1** is ready harness
-qualification. Overall, **7 bindings are ready and 245 are pending**.
+There are **48 UI families and 241 persistent cases**: **240 pending customer
+cases** and **1 pending harness qualification**. E2E-028,
+E2E-029 and E2E-034 are retired and are not reused. Their former coverage IDs
+140–150 remain system-test obligations outside the UI inventory. The retained
+implementations for cases **1, 3, 4, 5, 6, 151 and 193** are pending until their
+external-provider controls have installed, provider-owned ID qualification.
+Overall, **0 bindings are ready and 241 are pending**.
 
 Each family below records current implementation status. After a complete
 scenario and terminal cleanup pass, run `tools/generate_test_coverage.sh`
@@ -46,7 +48,15 @@ transport ownership, and final cleanup use the existing harness exceptions.
 Cases 3 and 4 retain their established account-fixture checkpoints as supporting
 setup; their ready result covers visible discovery/empty state, not operation of
 Users settings. Case 179 adds that actual customer account-creation route.
-Case 1 and cases 140–150 are explicitly not customer journeys.
+Case 1 is explicitly not a customer journey. Retired IDs 140–150 are not UI
+cases; their engineering checks remain in system-test tasks 169–179.
+
+Every recipe inherits the canonical `automation-id` contract. Names, labels,
+roles, text, order and positions below are customer inputs or expected results
+only. Each surface and control must first be found through its stable public ID,
+scoped to the owning application and surface. If the app or an external provider
+does not expose that ID, the consumer stays pending; no fallback selector or
+input route is permitted.
 
 Use the following common recipe notation. It expands to catalogue blocks; it
 does not permit hidden setup or automatic repair after a failed step.
@@ -217,7 +227,8 @@ Bindings: installation = clean.
 
 ### E2E-003
 
-Implementation status: All cases ready (3, 4).
+Implementation status: Cases 3 and 4 retain complete implementations but are
+pending on the external GDM and GNOME Shell provider IDs.
 
 **Parent discovery and navigation.** Cases 3, 4.
 
@@ -229,8 +240,9 @@ Bindings: children = existing-and-new / none.
 
 ### E2E-004
 
-Implementation status: Ready: 5, 6. Case 6 implementation and verification
-confirmed complete by the developer.
+Implementation status: Cases 5 and 6 retain complete implementations and
+behavioral verification but are pending on external GDM, GNOME Shell and
+terminal provider IDs.
 
 **Standard user cannot manage policy.** Cases 5, 6.
 
@@ -522,7 +534,8 @@ Bindings: lifecycle = continuous.
 
 ### E2E-030
 
-Implementation status: All cases ready (151).
+Implementation status: Case 151 retains its complete implementation but is
+pending on external GDM, GNOME Shell and license-viewer provider IDs.
 
 **Installed About and license access.** Cases 151.
 
@@ -653,8 +666,9 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 
 ### E2E-042
 
-Implementation status: Ready: 193. Command-help passed its complete installed
-journey, collection and cleanup. Cases 190–192 remain pending.
+Implementation status: Case 193 retains its complete installed-journey,
+collection and cleanup evidence but is pending on external GDM, GNOME Shell and
+terminal provider IDs. Cases 190–192 remain pending.
 
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.
 
@@ -1087,7 +1101,7 @@ reuse it to reach a later distinct outcome.
 | Alternating two-parent/two-child routines and final targeted revocation | 251–252; four complete rounds each |
 
 The [engineering reconciliation](E2E-Building-Blocks.md#inventory-reconciliation)
-retains every displaced internal assertion, including fault cases 140–150,
+retains every displaced internal assertion, including retired E2E IDs 140–150,
 injected feedback transport behavior, inactive hard-blocked-process branches,
 account authorization/storage protection, package ownership/migration failures,
 diagnostic production/retention/privacy, and disabled future mute behavior.

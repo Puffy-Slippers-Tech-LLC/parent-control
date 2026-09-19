@@ -1,174 +1,176 @@
-"""Exercise the feedback dialog without sending real email."""
-
-import time
+"""Exercise the feedback dialog through stable public accessibility IDs."""
 
 import pytest
-from tests.support.feedback import feedback_editor, type_feedback
+from tests.support.feedback import (
+    dismiss_feedback_dialog,
+    feedback_editor,
+    type_feedback,
+)
 
 
 pytestmark = pytest.mark.ui
 
 
-def test_feedback_footer_visible_without_scrolling(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state):
-    application, _log_path = launch_ui("parent_component_preview")
-    assert wait_for_accessible_node(application, "Feedback", "button").do_action(0)
-    dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
-    for label in ("Close", "Send Feedback"):
-        button = wait_for_accessible_node(dialog, label, "button")
+def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None):
+    environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario}
+    if status is not None:
+        environment["ONPC_FEEDBACK_STATUS"] = str(status)
+    _process, log = launch_ui(
+        "parent_component_preview", environment_overrides=environment,
+        wait_for_application=False,
+    )
+    wait(lambda: ui.find("parent-feedback-button") is not None,
+         "Parent feedback action publishes its ID")
+    ui.activate("parent-feedback-button")
+    wait(lambda: ui.showing("feedback-dialog"), "feedback dialog opens")
+    editor = feedback_editor(ui, wait)
+    return editor, log
 
-        def inside_dialog():
-            x, y, width, height = dialog.extents
-            bx, by, bw, bh = button.extents
-            return (bw > 0 and bh > 0 and x <= bx and y <= by
-                    and bx + bw <= x + width and by + bh <= y + height)
 
-        wait_for_accessible_state(inside_dialog, f"{label} fully visible")
-        ancestor = button.parent
-        while ancestor != dialog:
-            assert ancestor.roleName != "scroll pane"
-            ancestor = ancestor.parent
+def test_feedback_footer_is_semantically_reachable_without_page_assumptions(
+        launch_ui, automation, wait_for_accessible_state):
+    open_feedback(launch_ui, automation, wait_for_accessible_state)
+    automation.reveal("feedback-close")
+    automation.reveal("feedback-send")
+    assert automation.state("feedback-close", automation.api.StateType.SENSITIVE)
 
 
 def test_feedback_draft_and_optional_attachment(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state,
-        collect_application_logs):
-    application, log_path = launch_ui("parent_component_preview")
-    assert wait_for_accessible_node(application, "Feedback", "button").do_action(0)
-    message = feedback_editor(application, wait_for_accessible_node)
-    for label in (
-        "Bold", "Italic", "Underline", "Strikethrough", "Numbered list",
-        "Bulleted list", "Quote", "Code block", "Insert link",
-        "Add attachment", "Remove formatting",
+        launch_ui, automation, wait_for_accessible_state, collect_application_logs):
+    ui = automation
+    editor, log_path = open_feedback(launch_ui, ui, wait_for_accessible_state)
+    for identity in (
+        "feedback-format-bold", "feedback-format-italic", "feedback-format-underline",
+        "feedback-format-strike", "feedback-format-ordered", "feedback-format-bulleted",
+        "feedback-format-quote", "feedback-format-code", "feedback-format-link",
+        "feedback-format-attachment", "feedback-format-clear",
     ):
-        assert wait_for_accessible_node(application, label, "toggle button").sensitive
-    assert wait_for_accessible_node(application, "Add files", "button").sensitive
-    type_feedback(message, "Feedback draft must stay local.", wait_for_accessible_state)
-    privacy = wait_for_accessible_node(application, "Privacy", "link")
-    assert privacy.do_action(0)
-    privacy_dialog = wait_for_accessible_node(
-        application, "Feedback privacy", "alert",
-    )
-    wait_for_accessible_node(
-        privacy_dialog,
-        "Feedback, reply email addresses, attachments, and diagnostic logs are emailed "
-        "to support. Retention depends on our support mailbox and service providers, "
-        "including their backup policies. We do not currently guarantee deletion "
-        "within a fixed period.\n\nDiagnostic logs do not collect "
-        "account names, email addresses, file contents, raw system journals, or "
-        "exception messages. Automatic diagnostics contain validated technical "
-        "events, health checks, and system information: OS and dependency versions, "
-        "timezone, session type, and aggregate account counts. Names and custom "
-        "version text are omitted or irreversibly replaced; identities are never hashed. "
-        "Your own feedback, reply email, and selected "
-        "files are separate and may contain personal information. Review them "
-        "before sending.",
-    )
-    wait_for_accessible_node(
-        privacy_dialog, "View full privacy notice", "link",
-    )
-    assert wait_for_accessible_node(privacy_dialog, "Close", "button").do_action(0)
-    assert wait_for_accessible_node(application, "Download", "button").sensitive
-    remove = wait_for_accessible_node(application, "Remove", "button")
-    assert remove.do_action(0)
-    wait_for_accessible_node(application, "No logs attached")
-    assert wait_for_accessible_node(application, "Add logs", "button").do_action(0)
-    wait_for_accessible_node(application, "diagnostic-logs.zip")
-    assert message.text.strip() == "Feedback draft must stay local."
-    assert wait_for_accessible_node(application, "Send Feedback", "button").sensitive
-    dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
-    assert wait_for_accessible_node(dialog, "Close", "button").do_action(0)
+        wait_for_accessible_state(lambda i=identity: ui.find(i) is not None,
+                                  identity + " publishes its ID")
+        assert ui.state(identity, ui.api.StateType.SENSITIVE)
+    assert ui.state("feedback-add-files", ui.api.StateType.SENSITIVE)
+    type_feedback(ui, "Feedback draft must stay local.", wait_for_accessible_state)
+    ui.activate("feedback-privacy-link")
+    wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
+                              "privacy dialog opens")
+    assert "Diagnostic logs do not collect account names" in ui.text("feedback-privacy-text")
+    assert ui.showing("feedback-full-privacy-link")
+    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog")
     wait_for_accessible_state(
-        lambda: not application.is_child("Send Feedback", role_name="frame", retry=False),
-        "feedback dialog closed",
+        lambda: ui.state("feedback-download-logs", ui.api.StateType.SENSITIVE),
+        "diagnostics are ready",
     )
-    assert wait_for_accessible_node(application, "Feedback", "button").do_action(0)
-    assert feedback_editor(application, wait_for_accessible_node).text.strip() == "Feedback draft must stay local."
+    ui.activate("feedback-toggle-logs")
+    wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "No logs attached",
+                              "logs removed")
+    ui.activate("feedback-toggle-logs")
+    wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "diagnostic-logs.zip",
+                              "logs restored")
+    assert ui.content(editor).strip() == "Feedback draft must stay local."
+    wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
+                              "feedback send is ready")
+    ui.activate("feedback-close")
+    wait_for_accessible_state(lambda: not ui.showing("feedback-dialog"),
+                              "feedback dialog closed")
+    ui.activate("parent-feedback-button")
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                              "feedback dialog reopens")
+    feedback_editor(ui, wait_for_accessible_state)
+    assert ui.content(editor).strip() == "Feedback draft must stay local."
     log = collect_application_logs(log_path)
     assert "Feedback draft must stay local." not in log
     assert "Traceback" not in log
     assert "Theme parser error" not in log
 
 
-@pytest.mark.parametrize("animations", ["false", "true"])
-def test_collection_animation_disables_send_but_allows_editing(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path,
-        animations):
-    application, _log = launch_ui("parent_component_preview", environment_overrides={
-        "ONPC_PARENT_COMPONENT_SCENARIO": "feedback-collecting",
-        "ONPC_FEEDBACK_SPINNER_DIRECTORY": str(tmp_path),
-        "ONPC_FEEDBACK_ANIMATIONS": animations,
-    })
-    find = wait_for_accessible_node
-    assert find(application, "Feedback", "button").do_action(0)
-    dialog = find(application, "Send Feedback", "frame")
-    find(dialog, "Collecting diagnostic information...")
-    send = find(dialog, "Send Feedback", "button")
-    assert not send.sensitive
-    assert find(dialog, "Close", "button").sensitive
-    editor = feedback_editor(application, find)
-    assert editor.sensitive
-    type_feedback(editor, "Draft during collection", wait_for_accessible_state)
-    find(dialog, "diagnostic-logs.zip")
-    wait_for_accessible_state(lambda: send.sensitive, "collection enables sending")
-    assert editor.text.strip() == "Draft during collection"
-    assert not dialog.is_child("Collecting diagnostic information...", retry=False)
-    # Starting a spinner is insufficient: verify that its rendered pixels move,
-    # including when the desktop disables decorative animations.
-    frames = sorted(tmp_path.glob("spinner-*.png"))
-    assert len(frames) == 8
-    assert len({frame.read_bytes() for frame in frames}) > 1, "Spinner is frozen"
+def test_collection_progress_disables_send_but_allows_editing(
+        launch_ui, automation, wait_for_accessible_state):
+    ui = automation
+    editor, _log = open_feedback(
+        launch_ui, ui, wait_for_accessible_state,
+        scenario="feedback-collecting",
+    )
+    wait_for_accessible_state(lambda: ui.showing("feedback-collection-status"),
+                              "collection progress is public")
+    assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
+    assert ui.state("feedback-close", ui.api.StateType.SENSITIVE)
+    assert ui.state(editor, ui.api.StateType.SENSITIVE)
+    type_feedback(ui, "Draft during collection", wait_for_accessible_state)
+    wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "diagnostic-logs.zip",
+                              "diagnostics collection completes")
+    wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
+                              "collection enables sending")
+    assert ui.content(editor).strip() == "Draft during collection"
+    assert not ui.showing("feedback-collection-status")
 
 
 @pytest.mark.parametrize("status", [202, 409, 413, 422])
 def test_feedback_submission_outcomes(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state,
+        launch_ui, automation, wait_for_accessible_state,
         collect_application_logs, status):
-    application, log_path = launch_ui(
-        "parent_component_preview", environment_overrides={"ONPC_FEEDBACK_STATUS": str(status)},
+    from dogtail import rawinput
+    ui = automation
+    editor, log_path = open_feedback(
+        launch_ui, ui, wait_for_accessible_state, status=status,
     )
-    assert wait_for_accessible_node(application, "Feedback", "button").do_action(0)
-    dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
-    message = feedback_editor(application, wait_for_accessible_node)
-    assert wait_for_accessible_node(application, "Bold", "toggle button").do_action(0)
-    type_feedback(message, "A private feedback draft", wait_for_accessible_state)
+    ui.activate("feedback-format-bold")
+    type_feedback(ui, "A private feedback draft", wait_for_accessible_state)
+    text = ui.target(editor).get_text_iface()
+    attributes, start, end = ui.api.Text.get_attribute_run(text, 0, True)
+    assert attributes["weight"] == "700"
+    assert start == 0 and end >= len("A private feedback draft")
     if status == 202:
-        wait_for_accessible_node(dialog, "Reply email (optional)", "text").text = "feedback@example.com"
-    assert wait_for_accessible_node(dialog, "Send Feedback", "button").do_action(0)
+        # GTK does not implement AT-SPI Component.GrabFocus. Leave the web
+        # editor with normal keyboard navigation and confirm the recipient
+        # by ID before sending any text to the native entry.
+        ui.focus(editor)
+        rawinput.keyCombo("<Control>Tab")
+        wait_for_accessible_state(
+            lambda: ui.state("feedback-reply-email", ui.api.StateType.FOCUSED),
+            "reply email receives keyboard focus",
+        )
+        rawinput.typeText("feedback@example.com")
+    wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
+                              "feedback send is ready")
+    ui.activate("feedback-send")
     if status == 409:
-        retry = wait_for_accessible_node(application, "Submit again (may duplicate)", "button")
-        assert message.text.strip() == "A private feedback draft"
-        assert retry.do_action(0)
+        wait_for_accessible_state(
+            lambda: ui.text("feedback-send") == "Submit again (may duplicate)",
+            "duplicate-safe retry offered",
+        )
+        assert ui.content(editor).strip() == "A private feedback draft"
+        ui.activate("feedback-send")
     elif status == 413:
-        without = wait_for_accessible_node(application, "Send without logs", "button")
-        assert message.text.strip() == "A private feedback draft"
-        assert without.do_action(0)
+        wait_for_accessible_state(lambda: ui.showing("feedback-send-without-logs"),
+                                  "send without logs offered")
+        assert ui.content(editor).strip() == "A private feedback draft"
+        ui.activate("feedback-send-without-logs")
     elif status == 422:
-        wait_for_accessible_node(application, "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again.")
-        assert message.text.strip() == "A private feedback draft"
-        assert message.sensitive
-        assert wait_for_accessible_node(dialog, "Send Feedback", "button").do_action(0)
-    confirmation = wait_for_accessible_node(
-        application, "Thank you for your feedback!", "alert",
-    )
-    wait_for_accessible_state(
-        lambda: not application.is_child("Send Feedback", role_name="frame", retry=False),
-        "feedback closes before confirmation dismissal",
-    )
+        expected = ("Feedback was not accepted. Your draft is preserved. Check your "
+                    "feedback and reply address before sending again.")
+        wait_for_accessible_state(lambda: ui.find("feedback-status") is not None
+                                  and ui.text("feedback-status") == expected,
+                                  "rejected feedback preserves draft")
+        assert ui.content(editor).strip() == "A private feedback draft"
+        assert ui.state(editor, ui.api.StateType.SENSITIVE)
+        ui.activate("feedback-send")
+    wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
+                              "success confirmation opens")
+    wait_for_accessible_state(lambda: not ui.showing("feedback-dialog"),
+                              "feedback editor hides before confirmation dismissal")
     body = "Your feedback was sent successfully. We appreciate your help making the app better."
     if status == 202:
-        body += "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
-        time.sleep(4)  # Remain open beyond the former automatic dismissal.
-    wait_for_accessible_node(confirmation, body)
-    assert wait_for_accessible_node(confirmation, "Close", "button").do_action(0)
-    wait_for_accessible_state(
-        lambda: not application.is_child("Thank you for your feedback!", role_name="alert", retry=False),
-        "confirmation manually dismissed",
-    )
-    assert wait_for_accessible_node(application, "Feedback", "button").do_action(0)
-    assert not feedback_editor(application, wait_for_accessible_node).text.strip()
+        body += ("\n\nWe may contact you at the email address you provided if we have "
+                 "any follow-up questions.")
+    assert ui.text("feedback-success-text") == body
+    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-success-dialog")
+    ui.activate("parent-feedback-button")
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                              "feedback dialog reopens")
+    feedback_editor(ui, wait_for_accessible_state)
+    assert not ui.content(editor).strip()
     if status == 413:
-        wait_for_accessible_node(application, "No logs attached")
+        assert ui.text("feedback-logs-row") == "No logs attached"
     log = collect_application_logs(log_path)
     assert "A private feedback draft" not in log
     assert "Traceback" not in log

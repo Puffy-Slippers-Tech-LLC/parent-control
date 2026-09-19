@@ -19,9 +19,20 @@ Use the existing qualified source interfaces and guarded attempt envelope; no ne
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
+Blocker: the guarded kiosk GUI visibly reaches the request form, but its public
+label observer receives only the desktop root and times out before reading any
+control; resume when the station session exposes its existing automation labels
+to the GUI observer. Do not replace this with coordinates, screenshots or app
+internals.
+
 ## Implementation
 
-Qualify the public kiosk bus and GDM02 passwordless station route, plus UI15 session choice only if offered. Implement station entry and shared immutable form observations; fixed overlay-child binding is qualified later.
+Qualify the GDM02 passwordless station route and its public request form, plus
+UI15 session choice only if offered. Implement station entry and shared immutable
+observations of public form names, roles, states and messages; fixed overlay-child
+binding is qualified later. App behavior must be operated and observed entirely
+through the GUI. Do not inspect or qualify services, D-Bus state or other app
+internals, or use them as readiness or acceptance checks.
 
 ## Live VM acceptance
 

@@ -42,10 +42,15 @@ add-apt-repository -y universe
     dh-python \
     dput \
     flatpak=1.16.6-1 \
+    squashfs-tools \
+    snapd \
+    fonts-dejavu-core \
+    xkb-data \
     git \
     gnome-ponytail-daemon=0.0.11-1build1 \
     gnupg \
     gir1.2-adw-1 \
+    gir1.2-glib-2.0 \
     gir1.2-gtk-4.0 \
     gir1.2-vte-3.91 \
     gir1.2-webkit-6.0 \
@@ -54,6 +59,7 @@ add-apt-repository -y universe
     gjs=1.88.0-1 \
     libpam0g-dev=1.7.0-5ubuntu3.2 \
     libglib2.0-bin \
+    libc-bin \
     libvirt-daemon-system \
     qemu-system-x86 \
     qemu-system-modules-opengl \

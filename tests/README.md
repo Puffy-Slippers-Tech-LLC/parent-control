@@ -546,10 +546,10 @@ development tools, not customer E2E commands.
 
 The bare-Mutter fixture disables its opening-window scale effect through
 `MUTTER_DEBUG_DISABLE_ANIMATIONS`, the upstream default plugin's test switch.
-GTK's animation setting alone does not control compositor effects: AT-SPI can
-expose final widget bounds while the compositor still transforms pointer input.
-Allowance coverage records delivered press/release coordinates and requires a
-single undistorted click as well as the existing menu placement/save assertions.
+Automation nevertheless reacquires controls by public ID and verifies semantic
+readiness after transitions. Allowance coverage selects the declared choice
+through its public action and independently verifies the saved value; it does
+not depend on animation timing, pointer coordinates or menu placement.
 Preview process logs are retained in private `/var/tmp/onpc-ui-preview-<run>/`
 directories, printed by the fixture, so later pytest categories cannot rotate
 away the first failure's diagnostics. These directories are disk-backed on the
@@ -594,24 +594,15 @@ rewrite only original source matches in one pass. Sequential replacements
 corrupt inserted roots containing `/var/` or `/home/`; `test_support_shell.py`
 covers those roots and the real package configuration/removal suites exercise
 the resulting scripts under `/var/tmp`.
-The layout probe logs each render/save boundary and reports its evidence path
-before waiting, including on timeout. The batch has a bounded 180-second budget
-for 45 layouts and three additional scaled PNGs under concurrent host execution.
-A later host failure
-reached the 42nd render/save boundary before the former 60-second deadline;
-its retained images show ongoing batch output rather than an empty startup log.
-All geometry, picking, scale and complete-record assertions remain required.
+Request-layout checks exercise the shared form at supported display scales
+through public IDs, including selected approver, duration, submission and exact
+submitted values. Retained rendering artifacts are review evidence, not targets
+or acceptance criteria. Missing public IDs and inaccessible controls fail the
+consumer; labels, geometry and screenshots cannot substitute for identity.
 Launcher storage and immediate fixture-failure cancellation have regressions in
 `test_test_launchers.py` and `test_regression.py`. The coordinator latches
 cancellation after persisting the first setup/teardown failure, before category
 exit, and continues draining owned cleanup output.
-A corrected host qualification
-completed every host category, with five concurrent categories recorded in its
-resource samples. Isolated and concurrent layout cases passed with the original
-deadline. The precise cause of the original layout timeout remains unknown;
-its empty probe log and kernel journal did not identify a rendering stall.
-Keep that limitation when assessing stability; the historical runner artifacts
-were removed by the requested one-time cleanup.
 
 Node and GJS checks are available as `make check-child-node` and
 `make check-child-gjs`. The latter prints its private

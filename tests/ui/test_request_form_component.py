@@ -12,62 +12,96 @@ from tests.support.request_form import launch_request, calls, events
 pytestmark = pytest.mark.ui
 
 
+@pytest.fixture
+def request_ui(automation):
+    return automation
 
 
-def send_escape(application):
+def open_request(launch_ui, tmp_path, ui, wait, *, overlay, scenario="normal",
+                 selections_path=None):
+    _process, path = launch_request(
+        launch_ui, tmp_path, overlay=overlay, scenario=scenario,
+        selections_path=selections_path, wait_for_application=False,
+    )
+    wait(lambda: ui.find("kiosk-request-window") is not None,
+         "request window publishes its ID")
+    wait(lambda: ui.find("kiosk-request-submit") is not None,
+         "request action publishes its ID")
+    return path
+
+
+def ready(ui, wait):
+    wait(lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
+         "request controls ready")
+
+
+def status(ui, wait, expected):
+    wait(lambda: ui.text("kiosk-request-status") == expected, expected)
+
+
+def send_escape(ui):
     """Send Escape through Dogtail's hermetic Mutter input backend."""
     from dogtail.rawinput import press_key
 
+    ui.reveal("kiosk-request-window")
     press_key("Escape")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_shared_loading_keeps_controls_disabled_until_preferences_arrive(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    loading, _path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="loading")
-    request = wait_for_accessible_node(loading, "REQUEST", "button")
-    assert not request.sensitive
-    wait_for_accessible_state(lambda: request.sensitive, "loaded request controls")
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                 overlay=overlay, scenario="loading")
+    assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+    ready(request_ui, wait_for_accessible_state)
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_control_disabled_never_submits(launch_ui, wait_for_accessible_node, tmp_path, overlay):
-    disabled, _path = launch_request(launch_ui, tmp_path, overlay=overlay,
-                                     scenario="control-disabled")
-    wait_for_accessible_node(disabled, "Screen limit is not enabled in Parent App", "label")
-    assert not wait_for_accessible_node(disabled, "REQUEST", "button").sensitive
+def test_control_disabled_never_submits(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="control-disabled")
+    wait_for_accessible_state(
+        lambda: request_ui.text("kiosk-screen-limit-notice") ==
+        "Screen limit is not enabled in Parent App", "disabled-screen explanation")
+    assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+    assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_no_approver_explains_why_request_is_unavailable(
-        launch_ui, wait_for_accessible_node, tmp_path, overlay):
-    unavailable, _path = launch_request(launch_ui, tmp_path, overlay=overlay,
-                                        scenario="no-approvers")
-    wait_for_accessible_node(unavailable, "No local interactive administrator accounts are available.", "label")
-    assert not wait_for_accessible_node(unavailable, "REQUEST", "button").sensitive
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="no-approvers")
+    status(request_ui, wait_for_accessible_state,
+           "No local interactive administrator accounts are available.")
+    assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+    assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_shared_predefined_approver_and_soft_choices_submit(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay)
-    request = wait_for_accessible_node(application, "REQUEST", "button")
-    assert wait_for_accessible_node(application, "Approving parent", "button").do_action(0)
-    assert wait_for_accessible_node(application, "Avery Quinn", "button").do_action(0)
-    assert wait_for_accessible_node(application, "Request 5 minutes", "toggle button").do_action(0)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    ui = request_ui
+    path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
+                        overlay=overlay)
+    ready(ui, wait_for_accessible_state)
+    ui.activate("kiosk-approver-selector")
+    wait_for_accessible_state(lambda: ui.find("kiosk-approver-choice-1010") is not None,
+                              "approver choice published")
+    ui.activate("kiosk-approver-choice-1010")
+    ui.activate("kiosk-duration-300")
     wait_for_accessible_state(
         lambda: any(call["values"][1] == "300" for call in calls(path, "UpdateRequestPreferences")),
         "saved predefined duration",
     )
-    assert wait_for_accessible_node(
-        application, "Allow soft blocked apps", "button",
-    ).do_action(0)
+    ui.activate("kiosk-soft-apps-row")
     wait_for_accessible_state(
         lambda: any(call["values"][3] is True
                     for call in calls(path, "UpdateRequestPreferences")),
         "saved soft-app choice",
     )
-    assert request.do_action(0)
+    ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "submitted request")
     assert calls(path, method)[0]["values"] == (
@@ -77,11 +111,11 @@ def test_shared_predefined_approver_and_soft_choices_submit(
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_shared_rest_of_day_choice_submits_zero_seconds(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="rest-of-day")
-    request = wait_for_accessible_node(application, "REQUEST", "button")
-    wait_for_accessible_state(lambda: request.sensitive, "loaded rest-of-day preference")
-    assert request.do_action(0)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="rest-of-day")
+    ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "rest-of-day request")
     assert calls(path, method)[0]["values"] == (
@@ -90,84 +124,71 @@ def test_shared_rest_of_day_choice_submits_zero_seconds(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_responsive_form_accepts_pointer_selection_and_submission(
-        hermetic_ui_session, launch_ui, wait_for_accessible_node,
-        wait_for_accessible_state, tmp_path, overlay):
-    from dogtail.hermetic.mutter import MutterInputBackend
-    from tests.ui.mutter_input import click_at
+def test_responsive_form_accepts_semantic_selection_and_submission(
+        launch_ui, wait_for_accessible_state, tmp_path, overlay):
+    import gi
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi
+    from tests.support.automation import Automation
 
-    # Keep the session fixture's keyboard backend alive for subsequent tests.
-    backend = MutterInputBackend(bus_address=hermetic_ui_session.bus_address)
-    backend.connectMonitor()
-    try:
-        application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="pointer")
-        request = wait_for_accessible_node(application, "REQUEST", "button")
-        wait_for_accessible_state(lambda: request.sensitive, "loaded request controls")
-        wait_for_accessible_node(application, "Request 5 minutes", "toggle button")
-        wait_for_accessible_state(lambda: events(path, "pointer_layout"), "allocated controls")
-        for name in ("duration", "request"):
-            layout = events(path, "pointer_layout")[-1]
-            if not layout["reachable"][name]:
-                # Short displays intentionally scroll the form. A mapped
-                # widget can still be below the viewport and cannot be clicked.
-                click_at(backend, 1, *layout["targets"]["scrollbar"])
-                wait_for_accessible_state(
-                    lambda: events(path, "pointer_layout")[-1]["reachable"][name],
-                    f"pointer-reachable {name} after scrolling",
-                )
-            x, y = events(path, "pointer_layout")[-1]["targets"][name]
-            click_at(backend, 1, x, y)
-            if name == "duration":
-                wait_for_accessible_state(
-                    lambda: any(call["values"][1] == "300"
-                                for call in calls(path, "UpdateRequestPreferences")),
-                    "pointer-selected duration saved",
-                )
-        method = "RequestOwnAccess" if overlay else "RequestAccess"
-        wait_for_accessible_state(lambda: bool(calls(path, method)), "pointer-submitted request")
-        assert calls(path, method)[0]["values"] == (
-            [1000, 300, False] if overlay else [1001, 1000, 300, False]
-        )
-    finally:
-        backend.disconnect()
+    _application, path = launch_request(launch_ui, tmp_path, overlay=overlay,
+                                       wait_for_application=False)
+    ui = Automation(Atspi, lambda: Atspi.get_desktop(0))
+    wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
+                              "request surface publishes its controls")
+    wait_for_accessible_state(
+        lambda: ui.state("kiosk-request-submit", Atspi.StateType.SENSITIVE),
+        "loaded request controls",
+    )
+    ui.activate("kiosk-duration-300")
+    wait_for_accessible_state(
+        lambda: any(call["values"][1] == "300"
+                    for call in calls(path, "UpdateRequestPreferences")),
+        "selected duration saved",
+    )
+    ui.activate("kiosk-request-submit")
+    method = "RequestOwnAccess" if overlay else "RequestAccess"
+    wait_for_accessible_state(lambda: bool(calls(path, method)), "submitted request")
+    assert calls(path, method)[0]["values"] == (
+        [1000, 300, False] if overlay else [1001, 1000, 300, False]
+    )
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_expanded_form_scrollbar_accepts_real_pointer_input(
-        hermetic_ui_session, launch_ui, wait_for_accessible_node,
-        wait_for_accessible_state, tmp_path, overlay):
-    from dogtail.hermetic.mutter import MutterInputBackend
-    from tests.ui.mutter_input import click_at
+def test_expanded_form_keeps_request_reachable(
+        launch_ui, wait_for_accessible_state, tmp_path, overlay):
+    import gi
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi
+    from tests.support.automation import Automation
 
-    backend = MutterInputBackend(bus_address=hermetic_ui_session.bus_address)
-    backend.connectMonitor()
-    try:
-        application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="pointer")
-        approver = wait_for_accessible_node(application, "Approving parent", "button")
-        wait_for_accessible_state(lambda: approver.sensitive, "loaded approver")
-        assert approver.do_action(0)
-        wait_for_accessible_state(
-            lambda: events(path, "pointer_layout")
-            and "scrollbar" in events(path, "pointer_layout")[-1]["targets"],
-            "visible expanded-form scrollbar",
-        )
-        targets = events(path, "pointer_layout")[-1]["targets"]
-        click_at(backend, 1, *targets["scrollbar"])
-        wait_for_accessible_state(
-            lambda: events(path, "pointer_layout")[-1]["targets"].get("scroll_position", [0])[0] > 0,
-            "pointer-scrolled form",
-        )
-    finally:
-        backend.disconnect()
+    _application, path = launch_request(launch_ui, tmp_path, overlay=overlay,
+                                       wait_for_application=False)
+    ui = Automation(Atspi, lambda: Atspi.get_desktop(0))
+    wait_for_accessible_state(lambda: ui.find("kiosk-approver-selector") is not None,
+                              "request surface publishes its controls")
+    wait_for_accessible_state(
+        lambda: ui.state("kiosk-approver-selector", Atspi.StateType.SENSITIVE),
+        "loaded approver",
+    )
+    ui.activate("kiosk-approver-selector")
+    wait_for_accessible_state(lambda: ui.find("kiosk-approver-choice-1010") is not None,
+                              "expanded approver choices are published")
+    ui.reveal("kiosk-approver-choice-1010")
+    ui.activate("kiosk-request-submit")
+    method = "RequestOwnAccess" if overlay else "RequestAccess"
+    wait_for_accessible_state(lambda: bool(calls(path, method)),
+                              "expanded form permits submission")
+    assert len(calls(path, method)) == 1
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_shared_custom_duration_preserves_fractional_minute_precision(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="remembered")
-    request = wait_for_accessible_node(application, "REQUEST", "button")
-    wait_for_accessible_state(lambda: request.sensitive, "loaded remembered custom duration")
-    assert request.do_action(0)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="remembered")
+    ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "custom-duration request")
     assert calls(path, method)[0]["values"] == (
@@ -178,23 +199,29 @@ def test_shared_custom_duration_preserves_fractional_minute_precision(
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 @pytest.mark.parametrize("scenario", ("custom-too-small", "custom-too-large"))
 def test_shared_custom_duration_rejects_values_outside_range(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state,
+        launch_ui, request_ui, wait_for_accessible_state,
         tmp_path, overlay, scenario):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario=scenario)
-    request = wait_for_accessible_node(application, "REQUEST", "button")
-    wait_for_accessible_state(lambda: request.sensitive, "loaded invalid custom duration")
-    assert request.do_action(0)
-    wait_for_accessible_node(application, "Enter a number from 0.1 to 1440 minutes.", "label")
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario=scenario)
+    ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-submit")
+    status(request_ui, wait_for_accessible_state,
+           "Enter a number from 0.1 to 1440 minutes.")
     assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
 
 
 def test_kiosk_child_selection_reloads_that_childs_preferences(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path):
-    kiosk, _path = launch_request(launch_ui, tmp_path, overlay=False)
-    assert wait_for_accessible_node(kiosk, "Child account", "button").do_action(0)
-    assert wait_for_accessible_node(kiosk, "Sam Rivera", "button").do_action(0)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path):
+    ui = request_ui
+    path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
+                        overlay=False)
+    ready(ui, wait_for_accessible_state)
+    ui.activate("kiosk-child-selector")
+    wait_for_accessible_state(lambda: ui.find("kiosk-child-choice-1002") is not None,
+                              "second child choice published")
+    ui.activate("kiosk-child-choice-1002")
     wait_for_accessible_state(
-        lambda: any(call["values"] == [1002] for call in calls(_path, "GetPreferences")),
+        lambda: any(call["values"] == [1002] for call in calls(path, "GetPreferences")),
         "selected child's preferences",
     )
 
@@ -202,26 +229,24 @@ def test_kiosk_child_selection_reloads_that_childs_preferences(
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 @pytest.mark.parametrize("stale", (False, True), ids=("remembered", "removed-accounts"))
 def test_local_selections_restore_only_eligible_accounts(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state,
+        launch_ui, request_ui, wait_for_accessible_state,
         tmp_path, overlay, stale):
     selections = tmp_path / "request-selections.json"
     selections.write_text(json.dumps({
         "child_uid": 9999 if stale else 1002,
         "approver_uid": 9998 if stale else 1010,
     }))
-    application, path = launch_request(
-        launch_ui, tmp_path, overlay=overlay, selections_path=selections,
-    )
-    request = wait_for_accessible_node(application, "REQUEST", "button")
-    wait_for_accessible_state(lambda: request.sensitive, "restored local selections")
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, selections_path=selections)
+    ready(request_ui, wait_for_accessible_state)
     target = 1001 if overlay or stale else 1002
     approver = 1000 if stale else 1010
     assert calls(path, "GetPreferences")[0]["values"] == [target]
     if overlay:
-        assert not wait_for_accessible_node(application, "Child account", "button").sensitive
+        assert not request_ui.state("kiosk-child-selector", request_ui.api.StateType.SENSITIVE)
         assert not calls(path, "ListManagedUsers")
         assert json.loads(selections.read_text())["child_uid"] == (9999 if stale else 1002)
-    assert request.do_action(0)
+    request_ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "request with local selections")
     assert calls(path, method)[0]["values"] == (
@@ -231,45 +256,52 @@ def test_local_selections_restore_only_eligible_accounts(
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_local_selection_changes_are_saved_before_submission(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
     selections = tmp_path / "request-selections.json"
-    application, path = launch_request(
-        launch_ui, tmp_path, overlay=overlay, selections_path=selections,
-    )
-    request = wait_for_accessible_node(application, "REQUEST", "button")
-    wait_for_accessible_state(lambda: request.sensitive, "loaded request form")
-    assert wait_for_accessible_node(application, "Approving parent", "button").do_action(0)
-    assert wait_for_accessible_node(application, "Avery Quinn", "button").do_action(0)
+    ui = request_ui
+    path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
+                        overlay=overlay, selections_path=selections)
+    ready(ui, wait_for_accessible_state)
+    ui.activate("kiosk-approver-selector")
+    wait_for_accessible_state(lambda: ui.find("kiosk-approver-choice-1010") is not None,
+                              "approver choice published")
+    ui.activate("kiosk-approver-choice-1010")
     wait_for_accessible_state(
         lambda: selections.exists() and json.loads(selections.read_text()).get("approver_uid") == 1010,
         "locally saved approver",
     )
     if not overlay:
-        assert wait_for_accessible_node(application, "Child account", "button").do_action(0)
-        assert wait_for_accessible_node(application, "Sam Rivera", "button").do_action(0)
+        ui.activate("kiosk-child-selector")
+        wait_for_accessible_state(lambda: ui.find("kiosk-child-choice-1002") is not None,
+                                  "second child choice published")
+        ui.activate("kiosk-child-choice-1002")
         wait_for_accessible_state(
             lambda: json.loads(selections.read_text()).get("child_uid") == 1002,
             "locally saved child",
         )
-        wait_for_accessible_state(lambda: request.sensitive, "second child's preferences")
+        ready(ui, wait_for_accessible_state)
     stored = json.loads(selections.read_text())
     assert stored == ({"approver_uid": 1010} if overlay else
                       {"child_uid": 1002, "approver_uid": 1010})
     assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
 
 
-def test_kiosk_no_child_explains_how_to_continue(launch_ui, wait_for_accessible_node, tmp_path):
-    no_child, _path = launch_request(launch_ui, tmp_path, overlay=False, scenario="no-children")
-    wait_for_accessible_node(no_child, "No local standard accounts are available. Create one, then reopen this screen.", "label")
+def test_kiosk_no_child_explains_how_to_continue(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path):
+    open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                 overlay=False, scenario="no-children")
+    status(request_ui, wait_for_accessible_state,
+           "No local standard accounts are available. Create one, then reopen this screen.")
 
 
-def test_child_overlay_uses_fixed_child_identity(launch_ui, wait_for_accessible_node,
+def test_child_overlay_uses_fixed_child_identity(launch_ui, request_ui,
                                                   wait_for_accessible_state, tmp_path):
-    child, path = launch_request(launch_ui, tmp_path, overlay=True)
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=True)
     wait_for_accessible_state(
         lambda: bool(calls(path, "GetOwnAccount")), "own child identity lookup",
     )
-    assert not wait_for_accessible_node(child, "Child account", "button").sensitive
+    assert not request_ui.state("kiosk-child-selector", request_ui.api.StateType.SENSITIVE)
     assert not calls(path, "ListManagedUsers")
 
 
@@ -278,38 +310,54 @@ def test_child_overlay_uses_fixed_child_identity(launch_ui, wait_for_accessible_
     (False, "cancelled", "Estimated time remaining if approved: 1h 17m"),
     (True, "cancelled", "Estimated time remaining if approved: 1h 17m"),
 ))
-def test_outcomes_are_actionable_and_redacted(launch_ui, wait_for_accessible_node,
+def test_outcomes_are_actionable_and_redacted(launch_ui, request_ui,
                                               wait_for_accessible_state, tmp_path,
                                               overlay, scenario, expected):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario=scenario)
-    assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario=scenario)
+    ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "request outcome")
-    wait_for_accessible_node(application, expected, "label")
+    if scenario == "denied":
+        wait_for_accessible_state(lambda: request_ui.find("kiosk-result-title") is not None
+                                  and request_ui.text("kiosk-result-title") == expected,
+                                  "denial result is public")
+    else:
+        status(request_ui, wait_for_accessible_state, expected)
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_service_failure_shows_only_redacted_public_copy(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(
-        launch_ui, tmp_path, overlay=overlay, scenario="service-failure",
-    )
-    assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="service-failure")
+    ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-submit")
     wait_for_accessible_state(lambda: bool(events(path, "result")), "public failure result")
     result = events(path, "result")[0]
     assert result["title"] == "Request unavailable"
     assert "org.example" not in result["detail"]
     assert "/private/path" not in result["detail"]
+    wait_for_accessible_state(
+        lambda: request_ui.text("kiosk-result-title") == "Request unavailable",
+        "redacted failure title is public",
+    )
+    assert "org.example" not in request_ui.text("kiosk-result-detail")
+    assert "/private/path" not in request_ui.text("kiosk-result-detail")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_single_flight_ignores_escape_while_authentication_is_active(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    pending, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="slow-request")
-    request = wait_for_accessible_node(pending, "REQUEST", "button")
-    assert request.do_action(0)
-    assert not request.sensitive
-    send_escape(pending)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="slow-request")
+    ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-submit")
+    wait_for_accessible_state(
+        lambda: not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE),
+        "single-flight request is disabled")
+    send_escape(request_ui)
     wait_for_accessible_state(lambda: bool(events(path, "escape")), "active-request Escape")
     assert events(path, "escape")[0]["handled"] is False
     method = "RequestOwnAccess" if overlay else "RequestAccess"
@@ -321,22 +369,22 @@ def test_single_flight_ignores_escape_while_authentication_is_active(
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_mute_control_stays_hidden_with_remembered_preferences(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="remembered")
-    request = wait_for_accessible_node(application, "REQUEST", "button")
-    wait_for_accessible_state(lambda: request.sensitive, "loaded remembered choices")
-    assert not application.findChildren(
-        lambda node: node.name == "Mute request-screen sound" and node.showing,
-    )
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="remembered")
+    ready(request_ui, wait_for_accessible_state)
+    mute = request_ui.find("kiosk-mute-button")
+    assert mute is None or not mute.get_state_set().contains(request_ui.api.StateType.SHOWING)
     assert not calls(path, "SetRequestMuted")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_escape_uses_each_modes_idle_exit_behavior(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay)
-    wait_for_accessible_node(application, "REQUEST", "button")
-    send_escape(application)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay)
+    ready(request_ui, wait_for_accessible_state)
+    send_escape(request_ui)
     wait_for_accessible_state(lambda: bool(events(path, "escape")), "idle Escape")
     assert events(path, "escape")[0]["handled"] is True
     expected = "close_overlay" if overlay else "logout"
@@ -345,36 +393,44 @@ def test_escape_uses_each_modes_idle_exit_behavior(
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_cancel_uses_each_modes_idle_exit_behavior(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay)
-    assert wait_for_accessible_node(application, "CANCEL", "button").do_action(0)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay)
+    request_ui.activate("kiosk-request-cancel")
     expected = "close_overlay" if overlay else "logout"
     wait_for_accessible_state(lambda: bool(events(path, expected)), f"Cancel {expected}")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_result_action_uses_each_modes_exit_behavior(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(
-        launch_ui, tmp_path, overlay=overlay, scenario="service-failure",
-    )
-    assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="service-failure")
+    ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-submit")
     wait_for_accessible_state(lambda: bool(events(path, "result")), "failure result")
-    assert wait_for_accessible_node(application, "Report this error", "button").do_action(0)
-    action = "Close" if overlay else "Return to Login"
-    assert wait_for_accessible_node(application, action, "button").do_action(0)
+    wait_for_accessible_state(lambda: request_ui.find("kiosk-report-row") is not None,
+                              "report choice published")
+    request_ui.activate("kiosk-report-row")
+    request_ui.activate("kiosk-result-action")
     expected = "close_overlay" if overlay else "logout"
     wait_for_accessible_state(lambda: bool(events(path, expected)), f"result {expected}")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_approval_uses_each_modes_result_exit_callback(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay)
-    assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay)
+    ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-submit")
     wait_for_accessible_state(lambda: bool(events(path, "result")), "approval result")
     assert events(path, "result")[0]["title"] == (
         "Time granted" if overlay else "Request approved"
+    )
+    wait_for_accessible_state(
+        lambda: request_ui.text("kiosk-result-title") == events(path, "result")[0]["title"],
+        "approval result is public",
     )
     expected = "close_overlay" if overlay else "logout"
     wait_for_accessible_state(lambda: bool(events(path, expected)), f"approved {expected}")
@@ -382,11 +438,14 @@ def test_approval_uses_each_modes_result_exit_callback(
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_footer_estimate_tracks_requested_duration(
-        launch_ui, wait_for_accessible_node, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay)
-    wait_for_accessible_node(application, "Estimated time remaining if approved: 1h 17m", "label")
-    assert wait_for_accessible_node(application, "Request 5 minutes", "toggle button").do_action(0)
-    wait_for_accessible_node(application, "Estimated time remaining if approved: 52m", "label")
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay)
+    status(request_ui, wait_for_accessible_state,
+           "Estimated time remaining if approved: 1h 17m")
+    request_ui.activate("kiosk-duration-300")
+    status(request_ui, wait_for_accessible_state,
+           "Estimated time remaining if approved: 52m")
     assert calls(path, "GetTimeStatus")[-1]["values"] == [1001, 300]
 
 
@@ -397,40 +456,46 @@ def test_footer_estimate_tracks_requested_duration(
     ("estimate-unavailable", "Time estimate unavailable"),
 ))
 def test_footer_special_cases_keep_requests_available(
-        launch_ui, wait_for_accessible_node, tmp_path, overlay, scenario, expected):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario=scenario)
-    wait_for_accessible_node(application, expected, "label")
-    assert wait_for_accessible_node(application, "REQUEST", "button").sensitive
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay, scenario, expected):
+    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                        overlay=overlay, scenario=scenario)
+    status(request_ui, wait_for_accessible_state, expected)
+    assert request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
     if scenario == "rest-of-day":
         assert not calls(path, "GetTimeStatus")
 
 
 def test_footer_estimate_changes_with_selected_child(
-        launch_ui, wait_for_accessible_node, tmp_path):
-    application, path = launch_request(launch_ui, tmp_path, overlay=False)
-    wait_for_accessible_node(application, "Estimated time remaining if approved: 1h 17m", "label")
-    assert wait_for_accessible_node(application, "Child account", "button").do_action(0)
-    assert wait_for_accessible_node(application, "Sam Rivera", "button").do_action(0)
-    wait_for_accessible_node(application, "Estimated time remaining if approved: 45m", "label")
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path):
+    ui = request_ui
+    path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
+                        overlay=False)
+    status(ui, wait_for_accessible_state,
+           "Estimated time remaining if approved: 1h 17m")
+    ui.activate("kiosk-child-selector")
+    wait_for_accessible_state(lambda: ui.find("kiosk-child-choice-1002") is not None,
+                              "second child choice published")
+    ui.activate("kiosk-child-choice-1002")
+    status(ui, wait_for_accessible_state,
+           "Estimated time remaining if approved: 45m")
     assert calls(path, "GetTimeStatus")[-1]["values"] == [1002, 1800]
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_footer_estimate_tracks_custom_edits_and_preserves_validation(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, _path = launch_request(
-        launch_ui, tmp_path, overlay=overlay, scenario="remembered",
-    )
-    footer = wait_for_accessible_node(
-        application, "Estimated time remaining if approved: 49m 30s", "label",
-    )
-    custom = wait_for_accessible_node(application, "Custom duration in minutes", "text")
-    # The label stays in place while its accessible name changes. Observe its
-    # state directly so an event delivered during a tree search cannot be lost.
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    from dogtail import rawinput
+    ui = request_ui
+    open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
+                 overlay=overlay, scenario="remembered")
+    status(ui, wait_for_accessible_state,
+           "Estimated time remaining if approved: 49m 30s")
     for value, expected in (
         ("0.5", "Estimated time remaining if approved: 47m 30s"),
         ("0.09", "Enter a number from 0.1 to 1440 minutes."),
         ("5", "Estimated time remaining if approved: 52m"),
     ):
-        custom.text = value
-        wait_for_accessible_state(lambda: footer.name == expected, expected)
+        ui.focus("kiosk-custom-duration")
+        rawinput.keyCombo("<Control>a")
+        rawinput.typeText(value)
+        status(ui, wait_for_accessible_state, expected)

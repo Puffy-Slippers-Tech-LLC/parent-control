@@ -1,3 +1,10 @@
+# Dev Environment
+- Unless called otherwise, by default this computer is dev + host machine, no app installed or allowed to be installed. `make preview-*` or  `tools/watch-e2e` etc. tools are allowed
+
+# Handoff requirements
+- Whenever asked to "handoff time", find a good time to wrap it up as early as possible but cleanly (not leaving things in a mess in the middle),
+  and generate a prompt (don't save on files) for a new session to finish what's remaining. The prompt must disregard unrelevant context that belongs to the past and won't be necessary to finish the job. Recommend model and effort.
+
 # Unattended execution
 
 - Apply the repository-wide [approval contract](docs/Approval-Tools.md) to all
@@ -60,12 +67,40 @@
 - Prioritize the customer queue; deferred policy-acknowledgement design is no
   dependency. Add infrastructure only for a named blocked consumer. Measure
   completed scenarios and shrinking frozen remaining scope.
+# UI automation mandate
+
+- All UI automation MUST use stable, unified semantic identifiers exposed as
+  public `automation-id` values. Shared controls use the same identifier contract
+  across app surfaces, suites and helpers; scope IDs to their owning application
+  and surface and reject ambiguous matches. IDs must not derive from translated
+  labels, window titles, rendering or tree/list positions.
+- All UI automation MUST be independent of and resilient to screen resolution, display scale,
+  overflow, scroll position, covered elements, misaligned rendering, window
+  titles, frame roles, colorings, system theming, and any geometry. This applies to every suite, helper,
+  setup/login flow and retained legacy path. Never use coordinates, extents,
+  image matching, layout/tree positions, title matching or frame-role discovery
+  to identify targets, route input, establish readiness or decide acceptance.
+- Identify app surfaces and controls through stable public `automation-id`
+  values. If an ID is missing, add it in app code and expose it through the
+  public accessibility interface before implementing the consumer; do not add
+  name/role/title, structural, pixel or geometry fallbacks. In documentation-only
+  work, record this implementation requirement without changing app code or
+  claiming compliance. For external UI that cannot expose the required ID,
+  report the blocked consumer; do not bypass the mandate.
+- Names, roles, text and states may verify meaning, results and safety after
+  ID lookup; they must never substitute for identity. Existing or previously
+  qualified automation has no exemption: migrate noncompliant paths before
+  reuse while preserving their behavioral and safety checks.
 - [Functional GUI acceptance](docs/TestAutomation/E2E-Building-Blocks.md#functional-validation)
-  uses public accessibility names/roles/states and real UI actions to verify
-  customer results. Cosmetic defects, resolution/scale, screenshot similarity
-  and fixed geometry cannot gate acceptance. Fail when required behavior or
-  results are incorrect, interaction is blocked, or required information is
-  inaccessible.
+  uses public semantic states/text, accessibility actions and normal keyboard
+  input to verify customer results. Reacquire targets by ID and use supported
+  semantic reveal, scrolling, focus and navigation when content overflows or
+  is covered; never assume initial visibility, scroll distances or window
+  placement. Cosmetic differences cannot gate acceptance. Fail when required
+  behavior/results are incorrect or required interaction/information remains
+  inaccessible after supported semantic navigation. Preserve secret-recipient,
+  ownership and uncertain-input guards; never activate hidden controls to
+  conceal a reachability failure.
 
 # Reads and edits
 
@@ -141,7 +176,7 @@
   delegate. Builds/tests report missing prerequisites instead of installing them.
 - Modes must be retryable, preserve unrelated configuration and stop on failed
   prerequisites. Ordinary setup preserves accepted baselines. Cover orchestration
-  repeat/failure behavior and update master help/docs. Explicit `--prepare-baseline`
+  repeat/failure behavior and update master help/docs. Explicit `tools/prepare-baseline`
   requires an off VM, deletes the existing baseline without restoring it and
   provisions the current guest's accounts/tools during a controlled boot, then
   captures it off. Explicit preparation accepts the current maintained disk

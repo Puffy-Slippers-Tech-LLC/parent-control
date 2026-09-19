@@ -83,6 +83,12 @@ OPERATION_LABELS.update({
     'logout': 'Choosing Log Out from the session menu',
     'logout-confirm': 'Confirming Log Out',
 })
+OPERATION_LABELS.update({
+    'gdm-station-wrong-entry-refused': 'Checking a password account does not enter the request station',
+    'gdm-station-list': 'Reading the greeter before request-station entry',
+    'gdm-station-focused': 'Checking the request station is focused',
+    'kiosk-request-form': 'Reading the request-station form and unavailable controls',
+})
 
 
 @dataclass(frozen=True)
@@ -105,6 +111,52 @@ class SettingsObservation:
             r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', value)
             for value in settings['allowance']), 'ui:settings')
         return cls(settings['child'], settings['limit_enabled'], tuple(settings['allowance']))
+
+
+@dataclass(frozen=True)
+class RequestObservation:
+    """Immutable REQUEST03 projection containing no customer account labels."""
+
+    surface: str
+    form_count: int
+    child: str
+    approver: str
+    duration_seconds: int
+    custom_text: str | None
+    allow_soft: bool
+    child_selector_enabled: bool
+    approver_selector_enabled: bool
+    duration_enabled: bool
+    soft_choice_enabled: bool
+    request_enabled: bool
+    cancel_enabled: bool
+    message: str
+    mute: bool | None
+
+    @classmethod
+    def from_request(cls, value):
+        fields = tuple(cls.__dataclass_fields__)
+        require(type(value) is dict and set(value) == set(fields), 'ui:request')
+        observation = cls(**value)
+        require(type(observation.surface) is str and type(observation.form_count) is int
+                and type(observation.child) is str and type(observation.approver) is str
+                and type(observation.duration_seconds) is int
+                and observation.custom_text is None
+                and all(type(getattr(observation, field)) is bool for field in (
+                    'allow_soft', 'child_selector_enabled', 'approver_selector_enabled',
+                    'duration_enabled', 'soft_choice_enabled', 'request_enabled',
+                    'cancel_enabled'))
+                and type(observation.message) is str and observation.mute is None,
+                'ui:request')
+        require(observation == cls(
+            surface='kiosk', form_count=1, child='existing-fixture-child',
+            approver='other-fixture-parent', duration_seconds=1800, custom_text=None,
+            allow_soft=False, child_selector_enabled=True,
+            approver_selector_enabled=False, duration_enabled=False,
+            soft_choice_enabled=False, request_enabled=False, cancel_enabled=True,
+            message='screen-limit-disabled', mute=None,
+        ), 'ui:request')
+        return observation
 
 
 def compare_settings(observed, expected):
@@ -136,7 +188,9 @@ class UiObservations:
     def call(self, argv, operation):
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
-        timeout = 390 if operation in accessible_ui.GREETER_OPERATIONS else 90
+        # Kiosk waits only for the public form, with transport margin.
+        timeout = 390 if operation in accessible_ui.GREETER_OPERATIONS else (
+            120 if operation in accessible_ui.KIOSK_OPERATIONS else 90)
         if self.system_prompt is None:
             return self.transport.call(argv, timeout=timeout), []
         commands = self.transport.commands
@@ -192,7 +246,11 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'pointer'}, 'ui:response')
             point = result['pointer']
             expected['pointer'] = self.point(point)
-        if operation in accessible_ui.PICKER_OPERATIONS or operation in accessible_ui.GREETER_NAVIGATION:
+        if operation in accessible_ui.PICKER_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'focused'}
+                    and result['focused'] is True, 'ui:response')
+            expected['focused'] = True
+        if operation in accessible_ui.GREETER_NAVIGATION:
             require(type(result) is dict and set(result) == {*expected, 'navigation'}, 'ui:response')
             keys = result['navigation']
             require(type(keys) is list and 1 <= len(keys) <= 32 and keys[0] == 'home'
@@ -212,6 +270,10 @@ class UiObservations:
                 r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', value)
                         for value in settings['allowance']), 'ui:settings')
             expected['settings'] = settings
+        if operation in accessible_ui.KIOSK_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
+            RequestObservation.from_request(result['request'])
+            expected['request'] = result['request']
         require(result == expected, 'ui:response')
         if operation == 'gdm-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')

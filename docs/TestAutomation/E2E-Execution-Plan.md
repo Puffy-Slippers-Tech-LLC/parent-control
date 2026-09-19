@@ -29,10 +29,13 @@ pointer never overrides the queue. Keep only current continuation information.
 
 ## Current scope
 
-The inventory has **252 cases in 50 families**: **240 customer cases**
-(6 ready, 234 pending), **11 engineering obligations (140–150)** and **1 ready
-harness case**. Preserve runnable cases **1, 3, 4, 5, 6, 151 and 193**. The catalogue has
-**178 blocks: 61 ready and 117 pending**. These are declarations, not new VM passes.
+The UI inventory has **241 cases in 48 families**: **240 pending customer cases**
+and **1 pending harness case**. Retired E2E IDs 140–150
+remain separate system-test obligations and cannot be selected as UI cases.
+Preserve the implementations and regressions for formerly runnable cases
+**1, 3, 4, 5, 6, 151 and 193**, but do not execute them until their external
+provider-ID paths are qualified. The catalogue has **178 blocks: 30 ready and
+148 pending**. These are declarations, not new VM passes.
 
 The queue has **349 active tasks**: **135 capability slices**, **202 scenario
 tasks covering all 236 initially pending customer cases**, **11 system tasks**
@@ -56,6 +59,12 @@ under their maintained owners; a customer pass cannot replace them.
 4. Implement that slice, its meaningful supporting checks and stated acceptance.
    Implement leaves before composites, including within a small task. Bind
    entry, finite inputs, expected public results, precision and deadlines first.
+   Apply the [UI automation mandate](../../AGENTS.md#ui-automation-mandate).
+   Verify the shared public ID contract for every required surface and control
+   before implementing its consumer. Missing app IDs require app accessibility
+   changes first; missing external IDs block that consumer. Prior qualification
+   does not exempt setup, login or retained paths. Use the operational contract
+   in [functional validation](E2E-Building-Blocks.md#functional-validation).
 5. Finish live verification, cleanup and close-out. Report the task ID, result
    and next task. The next identical prompt repeats this workflow.
 
@@ -169,7 +178,7 @@ integration. Use `tools/run-unit-tests` and relevant
 `tools/run-ui-tests --timeout <duration>` selections. Changes to shared GDM,
 secret handling, routing, recorder phases/reconciliation or cleanup also require
 live regressions **1, 3, 4, 5, 151**. Otherwise run the new consumer and directly
-affected ready cases. Finish edits/builds first; keep source and documents
+   affected formerly runnable cases. Finish edits/builds first; keep source and documents
 unchanged through live collection and cleanup.
 
 For a **capability**, pass every stated outcome, independent valid entry and
@@ -229,7 +238,9 @@ After the guard is released and cleanup succeeds:
    split/reorder, also verify unique IDs, matching brief/queue prerequisites,
    dependency order, immediate scenario placement and unchanged case assignment.
    The frozen 236 customer cases must each occur exactly once; retain system
-   obligations 140–150 and the five established ready cases separately.
+   obligations formerly numbered 140–150 outside the UI inventory and preserve
+   all seven retained case implementations separately after their external
+   provider-ID prerequisites are qualified.
 
 For a paired task, update each completed case immediately; keep the task unchecked
 until both pass. Resume only remaining work unless later changes invalidate the

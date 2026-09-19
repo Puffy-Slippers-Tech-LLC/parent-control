@@ -9,6 +9,30 @@ import pytest
 from tests.fixtures.build_test_applications import FixtureError, terminate
 
 
+def test_native_gui_owner_keeps_its_executable_identity_and_reaps_its_child(tmp_path):
+    from tests.fixtures import build_test_applications as fixtures
+    import select
+    from pathlib import Path
+
+    binary = fixtures._compile_native(tmp_path)
+    (binary.parent / 'onpc-test-gui.py').write_text(
+        'import signal, sys\n'
+        'def stop(*_):\n    print("GUI_STOPPED", flush=True)\n    sys.exit(0)\n'
+        'signal.signal(signal.SIGTERM, stop)\n'
+        'print("GUI_READY", flush=True)\n'
+        'signal.pause()\n', encoding='utf-8')
+    process = subprocess.Popen([str(binary)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert select.select([process.stdout], [], [], 5)[0]
+        assert process.stdout.readline().strip() == 'GUI_READY'
+        assert Path(f'/proc/{process.pid}/exe').resolve() == binary
+        process.terminate()
+        process.wait(timeout=5)
+        assert process.stdout.read().strip() == 'GUI_STOPPED'
+    finally:
+        terminate(process)
+
+
 @pytest.mark.parametrize("exited", [False, True])
 def test_cleanup_signals_only_the_supplied_process_handle(exited):
     process = mock.Mock()

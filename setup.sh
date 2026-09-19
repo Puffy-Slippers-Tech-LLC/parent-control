@@ -9,18 +9,17 @@ usage() {
     cat <<'USAGE'
 Usage: ./setup.sh [MODE]
   (no mode)             Set up/refresh the development machine and VM host
-  --dependencies-only   Install development, build, UI and VM host dependencies
+  --dependencies-only   Install development, build, UI/GUI-fixture and VM host dependencies
   --ppa-build-tools     Install clean local PPA build prerequisites
   --test-tools-only     Refresh test helpers/policies/rules, viewer icon and old bytecode ownership
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
-  --prepare-baseline    Prepare guest accounts/tools and replace its baseline; VM must be off
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
   --install-extension   Install the development extension for the current user
   -h, --help            Show this help
 
-All modes are repeatable. Baseline and guest preparation are explicit operations;
-ordinary host setup preserves the VM. See tests/integration/Environment.md.
+All modes are repeatable. Ordinary host setup preserves the VM. Explicit baseline
+replacement is tools/prepare-baseline. See tests/integration/Environment.md.
 USAGE
 }
 
@@ -30,7 +29,7 @@ if (( $# > 1 )); then
 fi
 readonly mode="${1-}"
 case "$mode" in
-    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--codex-rules-only|--bootstrap-tools|--prepare-baseline|--replace-missing-baseline|--install-extension) ;;
+    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -95,17 +94,13 @@ case "$mode" in
     --install-extension)
         make --no-print-directory _install-development-extension
         ;;
-    --prepare-baseline|--replace-missing-baseline)
+    --replace-missing-baseline)
         # Validate before privilege dispatch, tools refresh or any VM access.
         /usr/bin/python3 -B "$script_dir/tests/integration/test_account_password.py"
-        # Explicit preparation replaces the baseline without restoring it.
+        # Explicit recovery recaptures a deleted baseline without restoring it.
         # The controller rejects running, concurrent or replaced resources.
         echo 'setup: [stage:prepare-baseline]'
-        if [[ "$mode" == --replace-missing-baseline ]]; then
-            run_root replace-missing-baseline /usr/bin/python3 -B "$script_dir/tests/integration/prepare_baseline.py" --replace-missing
-        else
-            run_root prepare-baseline /usr/bin/python3 -B "$script_dir/tests/integration/prepare_baseline.py"
-        fi
+        run_root replace-missing-baseline /usr/bin/python3 -B "$script_dir/tests/integration/prepare_baseline.py" --replace-missing
         # Pin the accepted UUID only after successful baseline reconciliation.
         install_test_tools
         ;;

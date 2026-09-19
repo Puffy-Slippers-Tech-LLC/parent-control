@@ -214,7 +214,9 @@ def provision_native(variant='command'):
     guest.require(not target.parent.exists() and not target.parent.is_symlink() and
                   not desktop.exists() and not desktop.is_symlink(),
                   'enforcement:fixture-collision')
-    source = guest.PAYLOAD / 'fixtures/native/onpc-test-application'
+    # Mechanical exec-policy witnesses remain one-shot and display-independent.
+    # GUI fixtures have a separate payload and never replace this assertion.
+    source = guest.PAYLOAD / 'fixtures/mechanical/onpc-test-application'
     guest.require(source.is_file() and not source.is_symlink(), 'enforcement:fixture-missing')
     # The input guard verifies the transferred source. Never copy the fixture
     # image's placeholder home directory onto an actual account.

@@ -17,10 +17,18 @@ from recording import ScenarioRecorder
 
 @pytest.fixture
 def harness(tmp_path, monkeypatch):
+    document, _ = inventory.read_json(inventory.INVENTORY)
+    variant = document['scenarios'][0]['variants'][0]
+    variant.update(status='ready', pending_reason=None, executable={
+        'path': 'tests/e2e/controller_qualification.py',
+        'test_id': 'gdm-observation',
+    })
+    inventory_path = tmp_path / 'scenarios.json'
+    inventory_path.write_text(json.dumps(document))
     inputs = {key: hashlib.sha256(key.encode()).hexdigest() for key in INPUT_FIELDS}
-    inputs.update(inventory_sha256=hashlib.sha256(inventory.INVENTORY.read_bytes()).hexdigest(),
+    inputs.update(inventory_sha256=hashlib.sha256(inventory_path.read_bytes()).hexdigest(),
                   environment_id='ubuntu26-04-pinned', package_sha256=None)
-    contract = EvidenceContract(inventory_path=inventory.INVENTORY, root=ROOT,
+    contract = EvidenceContract(inventory_path=inventory_path, root=ROOT,
         selector='E2E-001', run_id='qualification-test', inputs=inputs)
     collector = PrivateCollector(run_id='qualification-test', secrets=['private-canary'], parent=tmp_path)
     recorder = ScenarioRecorder(contract, collector)

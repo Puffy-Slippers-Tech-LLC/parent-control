@@ -341,7 +341,10 @@ def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=F
     if ready_only:
         selected = [case for case in selected if case['status'] == 'ready']
         pending = []
-        require(bool(selected), 'selection:no-ready-cases')
+        # An explicit listing is allowed to report an empty ready set together
+        # with every pending exclusion. Execution must still refuse an empty
+        # suite so a blocked inventory can never be mistaken for a pass.
+        require(bool(selected) or not require_runnable, 'selection:no-ready-cases')
     require(not require_runnable or not pending, 'selection:pending')
     return {'schema_version': 1, 'scope': 'full' if scenario is None and not ready_only else 'partial',
             'selector': scenario, 'vm_required_for_execution': True,

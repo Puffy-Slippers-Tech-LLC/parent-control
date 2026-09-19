@@ -13,6 +13,7 @@ use onpc_parent_access ();
 use onpc_parent_terminal ();
 use onpc_command_help ();
 use onpc_desktop_session ();
+use onpc_kiosk_entry ();
 use onpc_parent_discovery ();
 use onpc_journey ();
 use onpc_flow00 ();
@@ -79,6 +80,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_desktop_session::run(\&exchange, 'switch-user');
+        return;
+    }
+    if ($ready->{kiosk_entry}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_entry::run(\&exchange);
         return;
     }
     if ($ready->{parent_terminal}) {

@@ -197,8 +197,9 @@ reporting. Opening feedback never uploads anything.
 The [scenario catalogue](../tests/e2e/scenarios.json) declares installation,
 account discovery, policy editing, time exhaustion, both approval surfaces,
 launch routes, retained sessions, lifecycle persistence, updates/removal, About
-and feedback. Pending fault scenarios also retain separate engineering
-obligations. Follow the [E2E building blocks](TestAutomation/E2E-Building-Blocks.md)
+and feedback. Injected-fault and internal-state obligations remain in the
+separate system-test queue, outside the UI scenario inventory. Follow the
+[E2E building blocks](TestAutomation/E2E-Building-Blocks.md)
 for public UI actions and observations; source review, scenario declarations,
 and local unit/component checks do not establish completed customer acceptance.
 The [customer recipes](TestAutomation/E2E-Scenario-Recipes.md) bind each scenario

@@ -280,7 +280,7 @@ def validate_environment(
 ) -> GuestIdentity:
     runner = runner or Runner()
     if (os.geteuid() if euid is None else euid) != 0:
-        raise PreparationError("guard:root", "use make prepare-baseline on the development host")
+        raise PreparationError("guard:root", "use tools/prepare-baseline on the development host")
 
     virtual = runner.run(["systemd-detect-virt", "--vm"], check=False)
     virtualization = virtual.stdout.strip()

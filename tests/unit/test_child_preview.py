@@ -301,6 +301,7 @@ class ChildPreviewTests(unittest.TestCase):
             if line.startswith("EXTENSION_SOURCES :=")
         )
 
+        self.assertIn("accessibility.js", extension_sources)
         self.assertIn("Gio.Subprocess.new", extension)
         self.assertIn("'/usr/bin/oh-no-parent-control'", extension)
         self.assertIn("'--child-overlay'", extension)
@@ -347,18 +348,29 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("sessionPreparationClient.js", makefile)
 
     def test_notification_keeps_the_panel_indicator_without_a_shell_form(self):
+        accessibility = (ROOT / "child" / "accessibility.js").read_text()
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()
         stylesheet = (ROOT / "child" / "stylesheet.css").read_text()
         interaction = (ROOT / "tests" / "ui" / "child_shell_interaction.py").read_text()
 
+        self.assertIn("set_accessible_id", accessibility)
+        self.assertIn("'child-screen-time-indicator'", indicator)
+        self.assertIn("'child-request-button'", indicator)
+        self.assertIn("'child-remaining-time'", indicator)
+        self.assertIn("'child-request-tooltip'", indicator)
+        self.assertIn("'child-countdown-menu'", indicator)
+        self.assertIn("'child-countdown-animation-toggle'", indicator)
         self.assertIn("super._init(0.0, 'Screen Time Remaining');", indicator)
         self.assertIn('this.setMenu(null);', indicator)
         self.assertNotIn('view-more-symbolic', indicator)
         self.assertIn("refreshEstimate()", indicator)
         self.assertIn(".screen-time-request-button {", stylesheet)
         self.assertIn("MutterInputBackend", interaction)
-        self.assertIn("button.grab_focus()", interaction)
+        self.assertIn("Automation", interaction)
+        self.assertIn("UI.focus(REQUEST_BUTTON_ID)", interaction)
         self.assertIn("_press_key(input_backend, X_KEYCODE_SPACE)", interaction)
+        self.assertNotIn("get_extents", interaction)
+        self.assertNotIn("click_at", interaction)
         self.assertNotIn(".oh-no-parent-control-content {", stylesheet)
         self.assertNotIn(".oh-no-parent-control-choice {", stylesheet)
 

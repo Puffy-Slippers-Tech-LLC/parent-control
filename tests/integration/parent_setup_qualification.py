@@ -98,10 +98,15 @@ class ParentSetupQualification(smoke.Qualification):
 class ParentJourneyQualification(smoke.Qualification):
     """Shared installed setup and private image acquisition for Parent plans."""
 
+    def attach_installed_snapshot(self, lease):
+        """Reuse a prepared app snapshot; default qualifications stay on baseline."""
+        return
+
     def execute(self, lease, guestfs):
         self.checkpoint('attempt-started')
         try:
             lease.prepare()
+            self.attach_installed_snapshot(lease)
             host_key = smoke.runner.bootstrap(self.commands, lease, self.directory, guestfs)
             lease.guard(off=True)
             lease.save('isolated')
@@ -155,3 +160,29 @@ class DesktopSwitchQualification(ParentJourneyQualification):
         from desktop_session import DesktopSessionJourney, SWITCH_PLAN
         context.installed_snapshot = 'desktop-session'
         return DesktopSessionJourney(context, progress, SWITCH_PLAN)
+
+
+class KioskEntryQualification(ParentJourneyQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_entry import KioskEntryJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskEntryJourney(context, progress)
+
+    def attach_installed_snapshot(self, lease):
+        from app_snapshot import snapshot_name
+        version = self.commands.run(
+            ['dpkg-deb', '-f', str(self.assets / 'package.deb'), 'Version']).decode().strip()
+        name = snapshot_name(version)
+        snap = lease.source.domain.snapshotLookupByName(name, 0)
+        with lease.snapshot_status('Restoring', name):
+            lease.source.domain.revertToSnapshot(
+                snap, lease.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
+        lease.source.connection.defineXML(lease.test_xml)
+        lease.view.run = lease.state['run']
+        lease.view.domain_id = None
+        lease.state['domain_id'] = None
+        lease.guard(off=True)
+        lease.save('isolated')

@@ -9,7 +9,7 @@ import sys
 
 from gi.repository import GLib
 
-from kiosk.oh_no_parent_control_kiosk.main import Application, Graphene, RequestWindow, configure_logging
+from kiosk.oh_no_parent_control_kiosk.main import Application, RequestWindow, configure_logging
 from kiosk.oh_no_parent_control_kiosk.selection_store import SelectionStore
 from gi.repository import Gtk
 
@@ -173,46 +173,6 @@ class ComponentWindow(RequestWindow):
         # the production request-surface state so RemoteDesktop keyboard input
         # has an active fullscreen target in both request modes.
         self.fullscreen()
-        if BROKER.scenario in {"pointer", "service-failure-pointer"}:
-            self._last_pointer_layout = None
-            self.add_tick_callback(self._record_pointer_layout)
-
-    def _record_pointer_layout(self, *_args):
-        # AT-SPI reports untransformed widget rectangles for this GTK 3D plane.
-        # Observe actual allocated centers through GTK's public transform API;
-        # input still travels through Mutter to the real production widgets.
-        targets = {}
-        reachable = {}
-        form = self._request_content
-        widgets = (("duration", form._duration_buttons[0]), ("request", form._request))
-        if self._stack.get_visible_child_name() == "result":
-            widgets = (("result", self._result_action), ("report", self._report_row))
-        for name, widget in widgets:
-            if widget.get_width() <= 0 or not widget.get_mapped():
-                return GLib.SOURCE_CONTINUE
-            valid, point = widget.compute_point(self, Graphene.Point().init(
-                widget.get_width() / 2, widget.get_height() / 2,
-            ))
-            if not valid:
-                return GLib.SOURCE_CONTINUE
-            targets[name] = [point.x, point.y]
-            picked = self.pick(point.x, point.y, Gtk.PickFlags.DEFAULT)
-            while picked is not None and picked is not widget:
-                picked = picked.get_parent()
-            reachable[name] = picked is widget
-        scrollbar = self._request_surface._scrollbar
-        if self._stack.get_visible_child_name() == "request" and scrollbar.get_mapped():
-            valid, point = scrollbar.compute_point(self, Graphene.Point().init(
-                scrollbar.get_width() / 2, scrollbar.get_height() - 4,
-            ))
-            if valid:
-                targets["scrollbar"] = [point.x, point.y]
-                targets["scroll_position"] = [scrollbar.get_adjustment().get_value()]
-        layout = (targets, reachable)
-        if layout != self._last_pointer_layout:
-            BROKER.record("pointer_layout", targets=targets, reachable=reachable)
-            self._last_pointer_layout = layout
-        return GLib.SOURCE_CONTINUE
 
     def _logout(self, *_args):
         BROKER.record("logout", overlay=self._child_overlay)

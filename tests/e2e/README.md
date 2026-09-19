@@ -215,8 +215,11 @@ anything. Pending cases are never silently filtered to obtain a successful selec
 `--ready` explicitly selects every ready variant, in inventory order, and cannot
 be combined with `--scenario`. Its JSON reports `ready_only: true`, partial
 scope and every omitted ID in `excluded_pending_cases`; `pending_cases` describes
-the selected cases only. An empty ready selection refuses. Newly registered
-ready cases are discovered automatically on the next invocation.
+the selected cases only. A list operation may report an empty ready selection;
+execution refuses it before artifacts, privileges or VM access. Newly registered
+ready cases are discovered automatically on the next invocation. The current
+inventory intentionally has no ready cases while external provider-ID paths are
+blocked.
 
 `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-002` and
 `make check-e2e ARTIFACT_DIR=/tmp/onpc-... SCENARIO=E2E-002` fail with
@@ -352,9 +355,10 @@ titles, steps, variants or readiness. Edit the source inventory, not that docume
 
 The [customer recipes](../../docs/TestAutomation/E2E-Scenario-Recipes.md) bind
 all customer steps to public actions, finite matrices and independent setup.
-The inventory has 252 cases: 240 customer cases, 11 retained engineering fault
-obligations and one harness case. Displaced backend assertions remain under the
-[engineering reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation).
+The inventory has 241 cases: 240 customer cases and one harness case. Retired
+E2E IDs 140–150 remain engineering system-test obligations outside this UI
+inventory. Displaced backend assertions remain under the [engineering
+reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation).
 Existing inventory-test fixture updates are tracked by
 [task 192](../../docs/TestAutomation/E2E-Execution-Plan.md#metadata-compatibility-follow-up).
 
@@ -1229,7 +1233,7 @@ On the exclusively held offline disk, credential verification checks the
 fixture UIDs, homes and shells against accepted baseline records and verifies
 the existing password hashes through libcrypt. This step opens the disk read-only:
 it changes no account passwords, keyrings or other guest data. A mismatch
-requires rerunning `make prepare-baseline` on the host. Baseline preparation
+requires rerunning `tools/prepare-baseline` on the host. Baseline preparation
 preserves account UIDs/homes and backs up old keyrings before setting the
 configured shared password; E2E never changes it.
 
@@ -1413,7 +1417,7 @@ The reader uses the current pinned service response without reading log files.
 Missing, failed, extra-field, malformed or out-of-order evidence refuses instead
 of inferring ordering from later availability. This is current-activation
 evidence, not continuous history or proof against a privileged actor replacing
-the service. It cannot replace E2E-028's independent faults. These guest-only
+the service. It cannot replace the retired E2E-028 engineering faults. These guest-only
 identity observations remain separate from automatic feedback diagnostics.
 For authenticated installation, `gdm-return` now requires both startup probes
 to match the actual customer reboot and fresh boot reads; pixels remain separate.

@@ -59,6 +59,7 @@ class RichTextEditor(Gtk.Box):
             "Your feedback",
             "Write and format feedback. Use the toolbar for headings, bold, italic, "
             "underline, lists, quotes, code, links, attachments, and remove formatting.",
+            automation_id="feedback-webview",
         )
         self.append(self._view)
         self._view.load_html(self._document(), None)
@@ -169,7 +170,7 @@ class RichTextEditor(Gtk.Box):
         quill_js = (ASSET_DIR / "quill.js").read_text(encoding="utf-8")
         quill_css = (ASSET_DIR / "quill.snow.css").read_text(encoding="utf-8")
         attachment_button = (
-            '<button class="ql-attachment" type="button" title="Add attachment" '
+            '<button id="feedback-format-attachment" class="ql-attachment" type="button" title="Add attachment" '
             'aria-label="Add attachment">📎</button>'
             if self._attachment_requested is not None else ""
         )
@@ -184,78 +185,113 @@ class RichTextEditor(Gtk.Box):
 html, body {{ margin: 0; height: 100%; overflow: hidden; background: transparent; color: #292934;
               font: 16px Ubuntu, system-ui, sans-serif; }}
 body {{ display: flex; flex-direction: column; }}
-#toolbar {{ border: 0; border-bottom: 1px solid rgba(36,36,42,.13); flex: none;
+#feedback-format-toolbar {{ border: 0; border-bottom: 1px solid rgba(36,36,42,.13); flex: none;
             display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
             padding: 7px 10px; background: #fcfcfe; font: inherit; }}
-#toolbar::after {{ display: none; }}
-#toolbar .ql-formats {{ display: flex; align-items: center; margin: 0; }}
-#toolbar .ql-formats:nth-child(2) {{ padding-right: 8px;
+#feedback-format-toolbar::after {{ display: none; }}
+#feedback-format-toolbar .ql-formats {{ display: flex; align-items: center; margin: 0; }}
+#feedback-format-toolbar .ql-formats:nth-child(2) {{ padding-right: 8px;
                                   border-right: 1px solid #dddde5; }}
-#toolbar .ql-formats:last-child {{ margin-left: auto; }}
-#toolbar button {{ width: 36px; height: 30px; padding: 6px 9px; border-radius: 5px; }}
-#toolbar button:hover {{ background: #efeaff; }}
-#toolbar .ql-picker {{ color: #343437; font: inherit; }}
-#toolbar .ql-picker.ql-header {{ width: 112px; height: 30px; }}
-#toolbar .ql-picker-label {{ display: flex; align-items: center; padding: 0 10px;
+#feedback-format-toolbar .ql-formats:last-child {{ margin-left: auto; }}
+#feedback-format-toolbar button {{ width: 36px; height: 30px; padding: 6px 9px; border-radius: 5px; }}
+#feedback-format-toolbar button:hover {{ background: #efeaff; }}
+#feedback-format-toolbar .ql-picker {{ color: #343437; font: inherit; }}
+#feedback-format-toolbar .ql-picker.ql-header {{ width: 112px; height: 30px; }}
+#feedback-format-toolbar .ql-picker-label {{ display: flex; align-items: center; padding: 0 10px;
                            border: 1px solid #e0e0e5; border-radius: 8px; background: white; }}
-#toolbar .ql-picker-label svg {{ right: 8px; }}
-#toolbar .ql-picker-label svg polygon {{ display: none; }}
-#toolbar .ql-picker-label::after {{ content: ''; width: 5px; height: 5px;
+#feedback-format-toolbar .ql-picker-label svg {{ right: 8px; }}
+#feedback-format-toolbar .ql-picker-label svg polygon {{ display: none; }}
+#feedback-format-toolbar .ql-picker-label::after {{ content: ''; width: 5px; height: 5px;
                                   border-right: 2px solid; border-bottom: 2px solid;
                                   transform: rotate(45deg); margin: -3px 2px 0 auto; }}
 /* Keep formatting choices inside even the shortest editor viewport. */
-#toolbar .ql-picker-options {{ border-radius: 8px; background: white;
+#feedback-format-toolbar .ql-picker-options {{ border-radius: 8px; background: white;
   max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box; }}
-#toolbar .ql-stroke {{ stroke: #343437; }}
-#toolbar .ql-fill {{ fill: #343437; }}
-#toolbar .ql-active .ql-stroke, #toolbar button:hover .ql-stroke {{ stroke: #7650ff; }}
-#toolbar .ql-active .ql-fill, #toolbar button:hover .ql-fill {{ fill: #7650ff; }}
-#editor {{ border: 0; flex: 1; min-height: 0; overflow: hidden; font: inherit; }}
+#feedback-format-toolbar .ql-stroke {{ stroke: #343437; }}
+#feedback-format-toolbar .ql-fill {{ fill: #343437; }}
+#feedback-format-toolbar .ql-active .ql-stroke,
+#feedback-format-toolbar button:hover .ql-stroke {{ stroke: #7650ff; }}
+#feedback-format-toolbar .ql-active .ql-fill,
+#feedback-format-toolbar button:hover .ql-fill {{ fill: #7650ff; }}
+#feedback-editor-root {{ border: 0; flex: 1; min-height: 0; overflow: hidden; font: inherit; }}
 .ql-editor {{ min-height: 0; overflow-y: auto; padding: 14px 18px; line-height: 1.45; }}
 .ql-editor.ql-blank::before {{ left: 18px; right: 18px; color: #8c8c9b; }}
 .ql-toolbar button:focus-visible, .ql-toolbar .ql-picker-label:focus-visible {{
   outline: 2px solid #7657f6; outline-offset: 2px;
 }}
-#toolbar .ql-attachment {{ padding: 3px 7px; font-size: 19px; line-height: 24px; }}
+#feedback-format-toolbar .ql-attachment {{ padding: 3px 7px; font-size: 19px; line-height: 24px; }}
 </style></head><body>
-<div id="toolbar" role="toolbar" aria-label="Feedback formatting">
+<div id="feedback-format-toolbar" role="toolbar" aria-label="Feedback formatting">
   <span class="ql-formats">
     <select class="ql-header" title="Text style" aria-label="Text style">
-      <option selected></option><option value="1">Heading 1</option><option value="2">Heading 2</option>
+      <option selected></option>
+      <option value="1">Heading 1</option>
+      <option value="2">Heading 2</option>
     </select>
   </span>
   <span class="ql-formats">
-    <button class="ql-bold" title="Bold" aria-label="Bold"></button>
-    <button class="ql-italic" title="Italic" aria-label="Italic"></button>
-    <button class="ql-underline" title="Underline" aria-label="Underline"></button>
-    <button class="ql-strike" title="Strikethrough" aria-label="Strikethrough"></button>
+    <button id="feedback-format-bold" class="ql-bold" title="Bold" aria-label="Bold"></button>
+    <button id="feedback-format-italic" class="ql-italic" title="Italic" aria-label="Italic"></button>
+    <button id="feedback-format-underline" class="ql-underline" title="Underline" aria-label="Underline"></button>
+    <button id="feedback-format-strike" class="ql-strike" title="Strikethrough" aria-label="Strikethrough"></button>
   </span>
   <span class="ql-formats">
-    <button class="ql-list" value="ordered" title="Numbered list" aria-label="Numbered list"></button>
-    <button class="ql-list" value="bullet" title="Bulleted list" aria-label="Bulleted list"></button>
-    <button class="ql-blockquote" title="Quote" aria-label="Quote"></button>
-    <button class="ql-code-block" title="Code block" aria-label="Code block"></button>
+    <button id="feedback-format-ordered" class="ql-list" value="ordered" title="Numbered list" aria-label="Numbered list"></button>
+    <button id="feedback-format-bulleted" class="ql-list" value="bullet" title="Bulleted list" aria-label="Bulleted list"></button>
+    <button id="feedback-format-quote" class="ql-blockquote" title="Quote" aria-label="Quote"></button>
+    <button id="feedback-format-code" class="ql-code-block" title="Code block" aria-label="Code block"></button>
   </span>
   <span class="ql-formats">
-    <button class="ql-link" title="Insert link" aria-label="Insert link"></button>
+    <button id="feedback-format-link" class="ql-link" title="Insert link" aria-label="Insert link"></button>
     {attachment_button}
-    <button class="ql-clean" title="Remove formatting" aria-label="Remove formatting"></button>
+    <button id="feedback-format-clear" class="ql-clean" title="Remove formatting" aria-label="Remove formatting"></button>
   </span>
 </div>
-<div id="editor" aria-label="Your feedback"></div>
+<div id="feedback-editor-root"></div>
 <script>{quill_js}</script>
 <script>
 'use strict';
 const bridge = window.webkit.messageHandlers.feedbackEditor;
-const quill = new Quill('#editor', {{
+const quill = new Quill('#feedback-editor-root', {{
   theme: 'snow',
   placeholder: 'Describe your idea, or what happened and what you expected...',
   formats: ['header', 'bold', 'italic', 'underline', 'strike', 'list', 'blockquote',
             'code-block', 'link'],
-  modules: {{ toolbar: {{ container: '#toolbar', handlers: {{
+  modules: {{ toolbar: {{ container: '#feedback-format-toolbar', handlers: {{
     attachment: () => bridge.postMessage(JSON.stringify({{ type: 'attachment' }})),
   }} }} }},
 }});
+function identify(selector, id, label) {{
+  const element = document.querySelector(selector);
+  if (!element)
+    throw new Error(`Missing generated rich-editor control: ${{id}}`);
+  element.id = id;
+  element.setAttribute('aria-label', label);
+  return element;
+}}
+const editor = identify(
+  '#feedback-editor-root .ql-editor', 'feedback-editor-input', 'Your feedback');
+const stylePicker = document.querySelector(
+  '#feedback-format-toolbar .ql-picker.ql-header');
+if (!stylePicker)
+  throw new Error('Missing generated rich-editor style picker');
+identify(
+  '#feedback-format-toolbar .ql-picker.ql-header .ql-picker-label',
+  'feedback-format-style', 'Text style');
+for (const option of stylePicker.querySelectorAll('.ql-picker-item')) {{
+  const value = option.getAttribute('data-value');
+  const identity = value === '1' ? 'feedback-format-heading-1'
+    : value === '2' ? 'feedback-format-heading-2' : 'feedback-format-normal';
+  const label = value === '1' ? 'Heading 1'
+    : value === '2' ? 'Heading 2' : 'Normal text';
+  option.id = identity;
+  option.setAttribute('aria-label', label);
+}}
+identify('.ql-tooltip input[data-link]', 'feedback-link-target', 'Link target');
+identify('.ql-tooltip', 'feedback-link-editor', 'Link editor');
+identify('.ql-tooltip .ql-preview', 'feedback-link-preview', 'Open link preview');
+identify('.ql-tooltip .ql-action', 'feedback-link-save', 'Save link');
+identify('.ql-tooltip .ql-remove', 'feedback-link-remove', 'Remove link');
 function publish() {{
   const text = quill.getText().replace(/\\n$/, '');
   bridge.postMessage(JSON.stringify({{

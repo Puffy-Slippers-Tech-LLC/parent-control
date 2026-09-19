@@ -21,6 +21,7 @@ gi.require_version("Gst", "1.0")
 gi.require_version("GLibUnix", "2.0")
 from gi.repository import Gdk, Gio, GLib, GLibUnix, Gst, Gtk
 
+from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from .preview_screen import SCREEN, Screen
 
 LOG = get_logger("preview")
@@ -204,19 +205,28 @@ class Viewer(Gtk.Application):
                 if not Gst.ElementFactory.find(factory):
                     raise RuntimeError(f"{factory} is required. Run ./setup.sh --dependencies-only.")
             self.window = Gtk.ApplicationWindow(application=self, title="Screen Preview")
+            set_automation_id(self.window, "preview-viewer-window")
             header = Gtk.HeaderBar()
             header.set_title_widget(Gtk.Label(label=(
                 f"{self.screen.width} × {self.screen.height} · {self.screen.percent}% display scale")))
             self.pixel_view = Gtk.ToggleButton(label="100% pixels")
             self.pixel_view.set_tooltip_text("One captured pixel per host display pixel; scroll to inspect.")
+            describe_control(
+                self.pixel_view, "100% pixels",
+                "Show one captured pixel per host display pixel and allow semantic scrolling.",
+                automation_id="preview-viewer-pixel-toggle",
+            )
             header.pack_end(self.pixel_view)
             self.window.set_titlebar(header)
             self.picture = Gtk.Picture(can_shrink=True, content_fit=Gtk.ContentFit.CONTAIN,
                                        hexpand=True, vexpand=True, focusable=True)
+            set_automation_id(self.picture, "preview-viewer-screen")
             self.picture.set_cursor_from_name("none")  # Cursor is embedded by Mutter.
             self.scroller = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
+            set_automation_id(self.scroller, "preview-viewer-content")
             self.scroller.set_child(self.picture)
             self.status = Gtk.Label(label="Connecting to preview screen…", margin_top=6, margin_bottom=6)
+            set_automation_id(self.status, "preview-viewer-status")
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             box.append(self.scroller)
             box.append(self.status)

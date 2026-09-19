@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from common.oh_no_parent_control_ui import feedback
+from common.oh_no_parent_control_ui.feedback_transport import Attachment
 
 
 @pytest.fixture
@@ -46,6 +47,16 @@ def finish_collection(dialog):
     dialog.jobs.pop(0)()
     callback, args = dialog.callbacks.pop(0)
     callback(*args)
+
+
+def test_attachment_automation_keys_are_stable_and_never_duplicate():
+    first = Attachment.create("same.txt", b"same bytes")
+    second = Attachment.create("same.txt", b"same bytes")
+    other = Attachment.create("other.txt", b"other bytes")
+    first_key = feedback._attachment_automation_key(first, set())
+    assert feedback._attachment_automation_key(first, set()) == first_key
+    assert feedback._attachment_automation_key(second, {first_key}) == f"{first_key}-2"
+    assert feedback._attachment_automation_key(other, {first_key}) != first_key
 
 
 def test_open_collects_before_send_without_blocking_editor(dialog):

@@ -852,7 +852,7 @@ def main(argv=None):
         if args.check_tools:
             log("tools:available")
             return 0
-        require(os.geteuid() == os.getegid() == 0, "guard:root; run ./setup.sh --prepare-baseline on the development host")
+        require(os.geteuid() == os.getegid() == 0, "guard:root; run tools/prepare-baseline on the development host")
         # libvirt requires continuous event dispatch to answer server keepalives,
         # including during hashing, libguestfs inspection and QEMU checks.
         # The process-lifetime daemon also drains callbacks after close().
@@ -885,7 +885,7 @@ def main(argv=None):
             print("prepare-baseline: the recorded baseline has no matching libvirt snapshot metadata; "
                   "retain the disk and controller state; recover verified metadata or "
                   "prepare the powered-off guest and explicitly replace the baseline", file=sys.stderr)
-        print("prepare-baseline: resolve the reported condition, then rerun ./setup.sh --prepare-baseline; retain snapshot and controller state",
+        print("prepare-baseline: resolve the reported condition, then rerun tools/prepare-baseline; retain snapshot and controller state",
               file=sys.stderr)
         return 1
     finally:

@@ -8,6 +8,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
+import {describeControl, setAutomationId} from './accessibility.js';
 import {queryEstimatedTimes} from './timerQuery.js';
 import {calculateOwnRemainingTime} from './timeCalculationClient.js';
 import {prepareOwnSession} from './sessionPreparationClient.js';
@@ -36,6 +37,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         appName = 'Parent Control', previewMarker = '', logoPath = '', settings = null,
         onError = null) {
         super._init(0.0, 'Screen Time Remaining');
+        setAutomationId(this, 'child-screen-time-indicator');
         // Drop the default panel menu. A second menu with this source actor
         // steals hover and press from the request popover, including the
         // header overflow control.
@@ -59,6 +61,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             style_class: 'screen-time-remaining-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
+        setAutomationId(this._label, 'child-remaining-time');
 
         if (!logoPath)
             throw new Error('could not read app logo');
@@ -90,6 +93,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             accessible_name: appName,
             y_align: Clutter.ActorAlign.CENTER,
         });
+        describeControl(
+            this._requestButton,
+            'child-request-button',
+            appName,
+            'Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings.');
         this._requestButton.connect('clicked', () => {
             this._tooltip.hide();
             this._contextMenu?.close();
@@ -103,6 +111,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             reactive: false,
             visible: false,
         });
+        setAutomationId(this._tooltip, 'child-request-tooltip');
         Main.layoutManager.addChrome(this._tooltip);
         this._connect(this._requestButton, 'notify::hover', () => this._syncTooltip());
         this._connect(this._requestButton, 'notify::mapped', () => this._syncTooltip());
@@ -225,6 +234,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 this._openContextMenu();
                 return Clutter.EVENT_STOP;
             });
+        this._connect(this._requestButton, 'popup-menu', () => {
+            this._tooltip.hide();
+            this._openContextMenu();
+            return Clutter.EVENT_STOP;
+        });
     }
 
     _openContextMenu() {
@@ -237,6 +251,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._contextMenuManager = new PopupMenu.PopupMenuManager(this);
         this._contextMenu = new PopupMenu.PopupMenu(
             this._requestButton, 0.5, St.Side.TOP);
+        setAutomationId(this._contextMenu.actor, 'child-countdown-menu');
         this._contextMenu.actor.hide();
         Main.uiGroup.add_child(this._contextMenu.actor);
         this._contextMenuManager.addMenu(this._contextMenu);
@@ -254,6 +269,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._countdownAnimationItem = new PopupMenu.PopupSwitchMenuItem(
             COUNTDOWN_ANIMATION_LABEL, this._countdownAnimationsEnabled);
+        describeControl(
+            this._countdownAnimationItem,
+            'child-countdown-animation-toggle',
+            COUNTDOWN_ANIMATION_LABEL,
+            'Enable or disable the visual countdown animation during the final minute.');
         this._countdownAnimationItem.connect('toggled', (_item, enabled) => {
             if (!this._settings?.set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)) {
                 logWarning('child.animation-save-failed');

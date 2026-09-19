@@ -128,6 +128,7 @@ def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_pat
     "tools/read-only words --after '### Future task' --before '### Next task' docs/future.md",
     "tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py'",
     'tools/diagnose journal --lines 900', 'tools/test-vm reboot',
+    'tools/prepare-baseline',
     'pkexec /usr/local/libexec/onpc-test-runner vm stop',
     'pkexec /usr/local/libexec/onpc-test-runner e2e --list',
     'pkexec /usr/local/libexec/onpc-diagnostics systemctl show sshd.service',

@@ -61,7 +61,11 @@ sub highlight_choice {
     die 'journey:focus-stage' unless @_ == 4 && defined($focused_stage)
         && $focused_stage =~ /\A[a-z][a-z0-9-]*\z/;
     $self->consume_observation($list_stage, $choice);
-    $self->navigate_choice($choice);
+    if ($choice->{ui_focused}) {
+        die 'journey:choice-focus' if exists($choice->{ui_keys});
+    } else {
+        $self->navigate_choice($choice);
+    }
     return $self->seen($focused_stage);
 }
 

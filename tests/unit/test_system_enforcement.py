@@ -466,7 +466,7 @@ def test_provision_keeps_fixture_executable_through_private_umask(monkeypatch, t
     from oh_no_parent_control.core import UserAccount
 
     payload = tmp_path / 'payload'
-    source = payload / 'fixtures/native/onpc-test-application'
+    source = payload / 'fixtures/mechanical/onpc-test-application'
     source.parent.mkdir(parents=True)
     source.write_bytes(b'deterministic fixture bytes')
     _, _, desktop_id = enforcement.native_paths(variant)
@@ -513,7 +513,7 @@ def test_launch_request_dispatches_fixed_variant(monkeypatch, variant):
 def retention_tree(monkeypatch, tmp_path):
     target = tmp_path / 'retention/native-fixture'
     desktop = tmp_path / enforcement.RETENTION_DESKTOP_ID
-    source = tmp_path / 'payload/fixtures/native/onpc-test-application'
+    source = tmp_path / 'payload/fixtures/mechanical/onpc-test-application'
     source.parent.mkdir(parents=True)
     source.write_bytes(b'deterministic fixture')
     monkeypatch.setattr(enforcement, 'RETENTION_TARGET', target)
@@ -630,7 +630,7 @@ def pattern_tree(monkeypatch, tmp_path):
     target = tmp_path / 'pattern/Versioned-1.AppImage'
     desktop = tmp_path / enforcement.PATTERN_DESKTOP_ID
     payload = tmp_path / 'payload'
-    source = payload / 'fixtures/native/onpc-test-application'
+    source = payload / 'fixtures/mechanical/onpc-test-application'
     source.parent.mkdir(parents=True)
     source.write_bytes(b'deterministic fixture')
     monkeypatch.setattr(enforcement, 'PATTERN_TARGET', target)

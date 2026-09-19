@@ -91,7 +91,6 @@ DEPS = [('setup_dependencies.sh.py', []), ('setup_checkout.sh.py', [])]
     (['--ppa-build-tools'], [('setup_dependencies.sh.py', ['--ppa-build-tools'])]),
     (['--test-tools-only'], TOOLS),
     (['--codex-rules-only'], RULES),
-    (['--prepare-baseline'], [('prepare_baseline.py', []), *TOOLS]),
     (['--replace-missing-baseline'], [('prepare_baseline.py', ['--replace-missing']), *TOOLS]),
     (['--bootstrap-tools'], [('install_test_runner.py', []), *RULES]),
     (['--install-extension'], [('make', ['--no-print-directory', '_install-development-extension'])]),
@@ -105,7 +104,6 @@ def test_modes_repeat_complete_scope_from_any_working_directory(checkout, mode, 
 
 
 @pytest.mark.parametrize('mode,failure,expected', [
-    (['--prepare-baseline'], 'prepare_baseline.py', [('prepare_baseline.py', [])]),
     (['--replace-missing-baseline'], 'prepare_baseline.py', [('prepare_baseline.py', ['--replace-missing'])]),
     ([], 'setup_dependencies.sh.py', DEPS[:1]),
     ([], 'setup_checkout.sh.py', DEPS),
@@ -125,17 +123,20 @@ def test_failure_stops_dependent_setup_and_can_be_retried(checkout, mode, failur
 
 
 @pytest.mark.parametrize('args,code', [
-    (['--help'], 0), (['--unknown'], 2), (['--test-tools-only', '--prepare-baseline'], 2),
-    (['--prepare-vm'], 2),
+    (['--help'], 0), (['--unknown'], 2), (['--test-tools-only', '--replace-missing-baseline'], 2),
+    (['--prepare-vm'], 2), (['--prepare-baseline'], 2),
 ])
 def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, code):
     result, events = run_setup(checkout, *args)
     assert result.returncode == code
     assert not events
+    if args == ['--help']:
+        assert 'tools/prepare-baseline' in result.stdout
+        assert '--prepare-baseline' not in result.stdout
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason='authorization gate applies to unprivileged callers')
-@pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only', '--prepare-baseline',
+@pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only',
                                   '--replace-missing-baseline', '--dependencies-only', '--ppa-build-tools', '--bootstrap-tools'])
 def test_denied_routine_setup_never_falls_back_to_authentication(checkout, mode):
     result, events = run_setup(checkout, mode, denied=True)
@@ -179,23 +180,28 @@ def test_unsafe_existing_installation_never_requests_authentication(checkout, mo
     assert not (checkout / 'authentication.log').exists()
 
 
-@pytest.mark.parametrize('target,mode', [
-    ('prepare-baseline', '--prepare-baseline'),
-    ('install-extension', '--install-extension'),
-])
-def test_make_setup_aliases_only_delegate_to_master(checkout, target, mode):
+def test_make_setup_aliases_only_delegate_to_master(checkout):
     shutil.copy2(ROOT / 'Makefile', checkout / 'Makefile')
     (checkout / 'setup.sh').write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
-    result = subprocess.run(['make', '--no-print-directory', target], cwd=checkout,
+    result = subprocess.run(['make', '--no-print-directory', 'install-extension'], cwd=checkout,
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == mode
+    assert result.stdout.strip() == '--install-extension'
 
 
 def test_missing_password_fails_before_privilege_dispatch_or_any_setup(checkout):
     (checkout / '.envrc').unlink()
-    result, events = run_setup(checkout, '--prepare-baseline', denied=True)
+    result, events = run_setup(checkout, '--replace-missing-baseline', denied=True)
     assert result.returncode == 1
     assert 'TEST_ACCOUNT_PASSWORD' in result.stderr
     assert not events
     assert not (checkout / 'authentication.log').exists()
+
+
+def test_gui_fixture_prerequisites_are_in_the_master_dependency_route():
+    import shlex
+    packages = shlex.split((ROOT / 'tools/setup_dependencies.sh').read_text(), comments=True)
+    packages = {token.split('=', 1)[0] for token in packages}
+    assert {'flatpak', 'snapd', 'squashfs-tools', 'fonts-dejavu-core', 'xkb-data',
+            'libc-bin', 'gir1.2-gtk-4.0', 'gir1.2-glib-2.0', 'python3',
+            'python3-gi', 'python3-gi-cairo'} <= packages

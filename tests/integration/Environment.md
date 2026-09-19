@@ -18,10 +18,11 @@ environment-variable or command-line override. The E2E inventory's `ubuntu26.04`
 environment label describes the supported OS, independently of the VM name.
 
 Set a literal `TEST_ACCOUNT_PASSWORD` in the host checkout's private mode-0600
-`.envrc`, then run `make prepare-baseline` (or `./setup.sh --prepare-baseline`)
-on the development host with the product-free Ubuntu 26.04 VM off. Missing,
-empty, placeholder or unsafe credentials fail before privilege dispatch or VM
-access. The old `make prepare-vm` target and setup mode have been removed.
+`.envrc`, then run `tools/prepare-baseline` on the development host with the
+product-free Ubuntu 26.04 VM off. Missing, empty, placeholder or unsafe
+credentials fail before privilege dispatch or VM access. The old `make prepare-vm`
+target, `make prepare-baseline` alias and `./setup.sh --prepare-baseline` mode
+have been removed.
 
 Under the shared lease, preparation stages the maintained guest modules and a
 temporary root-only password file, then boots the guest with a one-shot systemd
@@ -54,7 +55,7 @@ pinning is refreshed by host preparation); no product activation or data migrati
 | Resource | Contract |
 | --- | --- |
 | Libvirt connection and domain | `qemu:///system`; `name` in the shared config, currently `oh-no-parent-control` |
-| Host/guest preparation checkout | The checkout containing the invoked `setup.sh`; maintained guest modules are staged privately inside the VM. Installed host helpers retain their checkout pin. |
+| Host/guest preparation checkout | The checkout containing the invoked `tools/prepare-baseline`; maintained guest modules are staged privately inside the VM. Installed host helpers retain their checkout pin. |
 | Disk-chain anchor | `disk_anchor` in the shared config, currently `/Data/virt-manager/oh-no-parent-control.qcow2`; resolve and validate the actual active chain. |
 | Retained product-free baseline | Internal `onpc-baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_baseline.py](prepare_baseline.py). Runners also accept the previous name defined by `PREVIOUS_SNAPSHOT`; explicit preparation replaces it with `onpc-baseline`. |
 | Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/<configured-name>/` |
@@ -73,8 +74,8 @@ Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
 [../ui/requirements.txt](../ui/requirements.txt). Missing tooling is a
 prerequisite failure, not permission for a test to install host packages.
 The shared [guest tool inventory](guest_test_dependencies.py) is installed by
-the host's `make prepare-baseline` during its controlled guest boot. The Make aliases only delegate to
-`setup.sh`. Dependencies are pinned OpenSSH server, pytest, OpenLDAP server/client
+the host's `tools/prepare-baseline` during its controlled guest boot.
+Dependencies are pinned OpenSSH server, pytest, OpenLDAP server/client
 and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
 Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
 versions, generates missing SSH host keys, enables SSH and checks public-key
@@ -119,7 +120,7 @@ by installing tools. This
 test-environment change needs a prepared and accepted product-free baseline;
 there is no product-data migration or package activation (`none`).
 
-**Existing accepted baseline:** `--prepare-baseline` explicitly replaces it.
+**Existing accepted baseline:** `tools/prepare-baseline` explicitly replaces it.
 The VM must already be off; preparation fails instead of shutting it down.
 Under the shared lease, it deletes the old snapshot without restoring it and
 captures the current prepared guest. Ownership checks and incomplete-attempt
@@ -128,7 +129,7 @@ never invokes baseline preparation. Tests continue to reuse the accepted baselin
 
 **Manual snapshot maintenance:** restore any snapshot you manage (such as
 `1 - Clean`), perform maintenance, shut down, and delete/retake your snapshot.
-Then run `make prepare-baseline`. The command uses the current guest disk state
+Then run `tools/prepare-baseline`. The command uses the current guest disk state
 without choosing or restoring any snapshot. A changed active image or backing
 chain on the same recorded VM is accepted automatically, provided the chain
 still ends at the configured anchor. Only the automation baseline is retired;
@@ -198,7 +199,7 @@ with the saved disk proof, or explicit baseline replacement. An
 unrelated snapshot is not a substitute for the recorded baseline.
 
 To replace a baseline, prepare and shut down the guest, then run
-`./setup.sh --prepare-baseline`; manual deletion is unnecessary. Refresh an older
+`tools/prepare-baseline`; manual deletion is unnecessary. Refresh an older
 installed setup dispatcher first with `./setup.sh --test-tools-only`.
 The retained `./setup.sh --replace-missing-baseline` recovery mode handles an
 already deleted baseline without replacing an existing one. It requires unchanged
@@ -206,7 +207,7 @@ source identities, no remaining baseline metadata or internal disk record, and n
 incomplete test attempt. Under the shared controller lock it retains the original
 journal as `retired-<operation>.json` before beginning a new capture. Guest
 validation and disk verification still apply. Retries resume the new operation
-or preserve its finalized snapshot. Explicit `--prepare-baseline` replaces a
+or preserve its finalized snapshot. Explicit `tools/prepare-baseline` replaces a
 finalized snapshot on each invocation. Development activation is on the next invocation after helper refresh;
 no product service or saved-data change is involved.
 

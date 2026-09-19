@@ -354,17 +354,17 @@ when appending a current blocker. All unchecked rows need independent briefs.
 | [ ] | 147 | [E2E-021: approve-without-soft](E2E-Tasks/147-case-113.md) | 143, 079b, 065 | Cases 113; gate in brief | 40–60 |
 | [ ] | 148 | [E2E-021: approve-with-soft](E2E-Tasks/148-case-114.md) | 143, 079b, 065 | Cases 114; gate in brief | 40–60 |
 | [ ] | 149 | [E2E-021: revoke](E2E-Tasks/149-case-115.md) | 143, 079b, 065 | Cases 115; gate in brief | 40–60 |
-| [ ] | 169 | [Preserve and qualify E2E-028/startup-enforcement](E2E-Tasks/169-system-140.md) | Baseline | System obligation 140 | 30–60 |
-| [ ] | 170 | [Preserve and qualify E2E-028/startup-broker](E2E-Tasks/170-system-141.md) | Baseline | System obligation 141 | 30–60 |
-| [ ] | 171 | [Preserve and qualify E2E-028/zero-time-exposure](E2E-Tasks/171-system-142.md) | Baseline | System obligation 142 | 30–60 |
-| [ ] | 172 | [Preserve and qualify E2E-028/usage-read](E2E-Tasks/172-system-143.md) | Baseline | System obligation 143 | 30–60 |
-| [ ] | 173 | [Preserve and qualify E2E-028/kiosk-auth-agent](E2E-Tasks/173-system-144.md) | Baseline | System obligation 144 | 30–60 |
-| [ ] | 174 | [Preserve and qualify E2E-029/failed-save](E2E-Tasks/174-system-145.md) | Baseline | System obligation 145 | 30–60 |
-| [ ] | 175 | [Preserve and qualify E2E-029/stale-identity](E2E-Tasks/175-system-146.md) | Baseline | System obligation 146 | 30–60 |
-| [ ] | 176 | [Preserve and qualify E2E-029/disconnect](E2E-Tasks/176-system-147.md) | Baseline | System obligation 147 | 30–60 |
-| [ ] | 177 | [Preserve and qualify E2E-029/concurrent-transaction](E2E-Tasks/177-system-148.md) | Baseline | System obligation 148 | 30–60 |
-| [ ] | 178 | [Preserve and qualify E2E-029/policy-reload](E2E-Tasks/178-system-149.md) | Baseline | System obligation 149 | 30–60 |
-| [ ] | 179 | [Preserve and qualify E2E-029/partial-termination](E2E-Tasks/179-system-150.md) | Baseline | System obligation 150 | 30–60 |
+| [ ] | 169 | [Preserve and qualify system obligation 140: startup enforcement](E2E-Tasks/169-system-140.md) | Baseline | System obligation 140 | 30–60 |
+| [ ] | 170 | [Preserve and qualify system obligation 141: broker startup](E2E-Tasks/170-system-141.md) | Baseline | System obligation 141 | 30–60 |
+| [ ] | 171 | [Preserve and qualify system obligation 142: zero-time exposure](E2E-Tasks/171-system-142.md) | Baseline | System obligation 142 | 30–60 |
+| [ ] | 172 | [Preserve and qualify system obligation 143: usage read](E2E-Tasks/172-system-143.md) | Baseline | System obligation 143 | 30–60 |
+| [ ] | 173 | [Preserve and qualify system obligation 144: kiosk authentication agent](E2E-Tasks/173-system-144.md) | Baseline | System obligation 144 | 30–60 |
+| [ ] | 174 | [Preserve and qualify system obligation 145: failed save](E2E-Tasks/174-system-145.md) | Baseline | System obligation 145 | 30–60 |
+| [ ] | 175 | [Preserve and qualify system obligation 146: stale identity](E2E-Tasks/175-system-146.md) | Baseline | System obligation 146 | 30–60 |
+| [ ] | 176 | [Preserve and qualify system obligation 147: disconnect](E2E-Tasks/176-system-147.md) | Baseline | System obligation 147 | 30–60 |
+| [ ] | 177 | [Preserve and qualify system obligation 148: concurrent transaction](E2E-Tasks/177-system-148.md) | Baseline | System obligation 148 | 30–60 |
+| [ ] | 178 | [Preserve and qualify system obligation 149: policy reload](E2E-Tasks/178-system-149.md) | Baseline | System obligation 149 | 30–60 |
+| [ ] | 179 | [Preserve and qualify system obligation 150: partial termination](E2E-Tasks/179-system-150.md) | Baseline | System obligation 150 | 30–60 |
 
 ## Deferred future work
 

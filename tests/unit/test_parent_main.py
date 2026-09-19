@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 from parent.oh_no_parent_control_parent.main import (
-    ACCOUNT_REFRESH_SECONDS, APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
+    ACCOUNT_REFRESH_SECONDS, APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentAccountSelector, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
     _time_status_subtitle,
 )
 from parent.oh_no_parent_control_parent.preview_data import (
@@ -18,21 +18,9 @@ class FakeDropDown:
         self.owner = owner
         self.blocked = False
 
-    def handler_block(self, _handler):
-        self.blocked = True
-
-    def handler_unblock(self, _handler):
-        self.blocked = False
-
-    def set_model(self, _model):
+    def set_users(self, _users, selected):
         self.owner.model_updates += 1
-        if not self.blocked:
-            self.owner._account_changed()
-
-    def set_selected(self, _index):
-        self.owner.selected_index = _index
-        if not self.blocked:
-            self.owner._account_changed()
+        self.owner.selected_index = selected if _users else None
 
     def get_selected(self):
         return self.owner.selected_index if self.owner.selected_index is not None else 0
@@ -75,7 +63,6 @@ class ParentWindowHarness:
         self._users = []
         self._users_loaded_once = False
         self._users_loading = True
-        self._account_changed_handler = 1
         self._account = FakeDropDown(self)
         self._no_users_message = FakeVisibleWidget()
         self.load_count = 0
@@ -373,11 +360,13 @@ class ParentWindowTests(unittest.TestCase):
             / "parent/oh_no_parent_control_parent/style.css"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('self._account.set_factory(self._account_factory())', source)
-        factory = inspect.getsource(ParentWindow._account_factory)
-        self.assertIn("Adw.Avatar(", factory)
-        self.assertIn("Gdk.Texture.new_from_filename(icon_file)", factory)
-        self.assertNotIn("👦🏻", factory)
+        self.assertIn("ParentAccountSelector(self._account_changed)", source)
+        selector = inspect.getsource(ParentAccountSelector)
+        self.assertIn("Adw.Avatar(", selector)
+        self.assertIn("Gdk.Texture.new_from_filename(icon_file)", selector)
+        self.assertIn('automation_id=f"parent-child-choice-{uid}"', selector)
+        self.assertNotIn("Gtk.DropDown", selector)
+        self.assertNotIn("👦🏻", selector)
         self.assertIn('self._time_status = Adw.ExpanderRow(', source)
         self.assertIn('self._time_status.add_suffix(self._time_status_value)', source)
         self.assertIn('self._time_status.add_row(self._time_calculation_panel())', source)
@@ -491,6 +480,9 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('label="Legend"', source)
         self.assertIn('active=False', source)
         self.assertIn('reveal_child=False', source)
+        self.assertIn(
+            'set_automation_id(sections, "parent-legend-content")', source,
+        )
         self.assertIn('"App Access (What happens)", APP_LIST_STATES', source)
         self.assertIn('"Match Rule (How apps are matched)", MATCH_RULES', source)
         self.assertIn('orientation=Gtk.Orientation.VERTICAL', source)

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Host controller for the guarded H-50 disposable Ubuntu VM.
 
-The supported baseline is captured by ./setup.sh --prepare-baseline from the existing source
+The supported baseline is captured by tools/prepare-baseline from the existing source
 VM. This module retains guarded SSH, artifact, and ownership helpers for later
 installed-system runners; it cannot create a second source/baseline.
 """

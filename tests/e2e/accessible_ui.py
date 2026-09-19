@@ -9,10 +9,12 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import stat
 import subprocess
 import sys
 import time
+import warnings
 
 
 OPERATIONS = frozenset({
@@ -28,6 +30,8 @@ OPERATIONS = frozenset({
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
+    'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused',
+    'kiosk-request-form',
 })
 STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
@@ -76,6 +80,8 @@ EXISTING_CHILD = 'Jordan (Child)'
 NEW_CHILD = 'Morgan (Child)'
 CHILD_IDENTITIES = {CHILD: 'fixture-child', EXISTING_CHILD: 'existing-fixture-child',
                     NEW_CHILD: 'new-fixture-child'}
+CHILD_ACCOUNTS = {CHILD: 'onpc-child-riley', EXISTING_CHILD: 'onpc-child-jordan',
+                  NEW_CHILD: 'onpc-child-morgan'}
 PICKER_OPERATIONS = {
     'child-picker-opened': CHILD, 'new-child-picker-opened': NEW_CHILD,
     'existing-child-picker-opened': EXISTING_CHILD, 'discovery-child-picker-opened': EXISTING_CHILD,
@@ -92,19 +98,177 @@ SETTINGS_OPERATIONS = {
 }
 PARENT = 'Jamie (Parent)'
 OTHER_PARENT = 'Casey (Parent)'
+KIOSK = 'Oh No! Parent Control'
+KIOSK_USERNAME = 'oh-no-parent-control'
 GREETER_IDENTITIES = {PARENT: 'parent', OTHER_PARENT: 'other-parent',
-                      CHILD: 'child', EXISTING_CHILD: 'other-child'}
+                      CHILD: 'child', EXISTING_CHILD: 'other-child',
+                      KIOSK: 'station', KIOSK_USERNAME: 'station'}
 GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
-    'gdm-standard-recipient', 'gdm-standard-recipient-rechecked'})
-GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list'})
+    'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
+    'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused'})
+GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list',
+                                'gdm-station-list'})
+KIOSK_OPERATIONS = frozenset({'kiosk-request-form'})
+APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 KEYRING_LABELS = (
     'Unlock Login Keyring',
     'The login keyring did not get unlocked when you logged into your computer.',
     'The password you use to log in to your computer no longer matches that of your login keyring.',
 )
+
+# Public-ID inventory for external applications on the maintained Ubuntu 26.04
+# host.  An observed Builder ID is recorded only when the installed provider
+# owns it; it is not usable until the application and surface roots are also
+# ID-addressable.  ``None`` is an exact provider gap, never an invitation to
+# substitute a title, role, label, object name, tree position or geometry.
+EXTERNAL_PROVIDER_CONTRACTS = {
+    'gnome-shell': {
+        'application_id': None,
+        'surfaces': {
+            'desktop': (None, {
+                'desktop': None, 'launcher': None,
+            }),
+            'panel': (None, {
+                'activities': None, 'app-grid': None, 'quick-settings': None,
+                'session-menu': None, 'switch-user': None, 'log-out': None,
+                'lock': None,
+            }),
+            'notifications': (None, {'notification': None, 'dismiss': None}),
+            'lock-screen': (None, {'recipient': None, 'password': None, 'unlock': None}),
+        },
+        'blocked_consumers': ('DESK01-12', 'SEARCH01-06', 'PANEL01-03',
+                              'LIFE02', 'LIFE03', 'LIFE06'),
+    },
+    'ding-desktop': {
+        'application_id': None,
+        'surfaces': {
+            'desktop': (None, {'desktop': None, 'file': None, 'launcher': None}),
+        },
+        'blocked_consumers': ('DESK desktop-icon routes', 'native desktop launch'),
+    },
+    'gdm': {
+        'application_id': None,
+        'surfaces': {
+            'greeter': (None, {
+                'account-choice::<provider-account-id>': None,
+                'selected-recipient': None, 'password': None,
+                'session-chooser': None,
+                'session-choice::<provider-session-id>': None,
+            }),
+        },
+        'blocked_consumers': ('GDM login', 'account switching', 'kiosk entry'),
+    },
+    'gnome-shell-polkit-agent': {
+        'application_id': None,
+        'surfaces': {
+            'polkit': (None, {
+                'recipient': None, 'secret': None, 'confirm': None, 'cancel': None,
+            }),
+        },
+        'blocked_consumers': ('authentication', 'recipient safety'),
+    },
+    'gcr-keyring-prompter': {
+        'application_id': None,
+        'surfaces': {
+            'keyring': (None, {
+                'recipient': None, 'secret': None, 'confirm': None, 'cancel': None,
+            }),
+        },
+        'blocked_consumers': ('keyring unlock', 'recipient safety', 'prompt dismissal'),
+    },
+    'gtk-file-chooser': {
+        'application_id': None,
+        'surfaces': {
+            'file-chooser': (None, {
+                'location': None, 'file-choice': None,
+                'accept': None, 'cancel': None,
+            }),
+        },
+        'blocked_consumers': ('FILE03 native chooser route',
+                              'FEED06 native chooser route',
+                              'FEED08 native diagnostic-save route'),
+    },
+    'xdg-desktop-portal-gnome-nautilus': {
+        'application_id': None,
+        'surfaces': {
+            'file-chooser': (None, {
+                # These GTK 4 Builder IDs are published by the installed
+                # Nautilus provider, but the dialog, cancel action and dynamic
+                # file choices have no provider-owned IDs.
+                'location': 'filename_entry', 'file-choice': None,
+                'accept': 'accept_button', 'cancel': None,
+            }),
+        },
+        'blocked_consumers': ('FILE03 portal route', 'FEED06 portal route',
+                              'FEED08 portal diagnostic-save route'),
+    },
+    'gnome-settings': {
+        'application_id': None,
+        'surfaces': {
+            'settings': (None, {
+                'search': 'search_entry', 'panel-list': 'panel_list',
+            }),
+            'users': (None, {
+                # The page/list/action IDs are real installed GTK 4 Builder
+                # IDs. Account rows are created dynamically without a stable
+                # provider-owned identity, and neither page is a scoped root.
+                'page': 'current_user_page', 'account-list': 'user_list',
+                'account-row::<provider-account-id>': None,
+                'add-user': 'add_user_button_row', 'name': 'fullname_row',
+                'password': 'password_row', 'administrator': 'account_type_switch',
+                'automatic-login': 'auto_login_switch',
+                'remove-user': 'remove_user_button',
+            }),
+        },
+        'blocked_consumers': ('ACCOUNT01', 'ACCOUNT02', 'TIME05'),
+    },
+    'gnome-text-editor': {
+        'application_id': None,
+        'surfaces': {
+            'license-document': (None, {'content': None, 'close': None}),
+            'ordinary-document': (None, {
+                'content': None, 'save': None, 'close': None,
+            }),
+        },
+        'blocked_consumers': ('ABOUT02', 'FILE08', 'FILE09',
+                              'FEED08 saved-output review', 'retained-work scenarios'),
+    },
+    'gnome-papers': {
+        'application_id': None,
+        'surfaces': {
+            'document': (None, {'content': None, 'close': None}),
+        },
+        'blocked_consumers': ('PDF saved-output review',),
+    },
+    'gnome-nautilus': {
+        'application_id': None,
+        'surfaces': {
+            'files': (None, {'directory-row': None, 'file-row': None, 'open': None}),
+        },
+        'blocked_consumers': ('FILE04', 'FILE05', 'FILE08', 'FEED08'),
+    },
+    'gnome-file-roller': {
+        'application_id': None,
+        'surfaces': {
+            'archive': (None, {'archive-content': None, 'extract': None, 'close': None}),
+        },
+        'blocked_consumers': ('FILE08 archive review', 'FEED08 archive review'),
+    },
+    'terminal': {
+        'application_id': None,
+        'surfaces': {
+            'terminal': (None, {'input-output': None}),
+            'authentication': (None, {
+                'recipient': None, 'secret': None, 'submit': None, 'cancel': None,
+            }),
+        },
+        'blocked_consumers': ('FILE01', 'FILE02', 'FILE06', 'INFO02', 'LIFE04',
+                              'AUTH01-04'),
+    },
+}
 
 
 class UiError(RuntimeError):
@@ -116,6 +280,26 @@ def require(value, code):
         raise UiError(code)
 
 
+def public_automation_id(node):
+    """Normalize the provider's public stable ID, without selector fallbacks.
+
+    GTK/ATK publish application IDs as AccessibleId. WebKitGTK instead uses
+    AccessibleId for a transient AX object number and publishes the document's
+    explicit control ID in AT-SPI GetAttributes. Select that contract by the
+    provider's toolkit attribute, never by a label, role or tree position.
+    Keep this here so the standalone guest reader and preview reader share it.
+    """
+    attributes = node.get_attributes()
+    if attributes is None:
+        # A provider can disappear between traversal and this query. With no
+        # attributes its ID contract cannot be qualified, so treat the stale
+        # node as unidentified rather than accepting a transient AccessibleId.
+        return ''
+    if attributes.get('toolkit') == 'WebKitGTK':
+        return attributes.get('id', '')
+    return node.get_accessible_id()
+
+
 class AccessibleUI:
     """Fresh semantic lookup, bounded waits, unique targets and public actions.
 
@@ -124,7 +308,8 @@ class AccessibleUI:
     is not success: callers must independently observe its resulting UI state.
     """
 
-    def __init__(self, api, *, timeout=45, query_errors=(), dispatch=None, system_prompt=None):
+    def __init__(self, api, *, timeout=45, query_errors=(), dispatch=None, system_prompt=None,
+                 reset_observer=None, provider_contracts=None, fixture_uids=None):
         self.api = api
         self.timeout = timeout
         self.query_errors = query_errors
@@ -134,6 +319,12 @@ class AccessibleUI:
         self.prompt_enabled = False
         self.handling_prompt = False
         self.prompt_count = 0
+        self.reset_observer = reset_observer
+        self.provider_contracts = (EXTERNAL_PROVIDER_CONTRACTS if provider_contracts is None
+                                   else provider_contracts)
+        # Preview callers provide their declared fixture UIDs. Installed callers
+        # resolve the fixed fixture account, never infer identity from UI labels.
+        self.fixture_uids = fixture_uids
 
     def nodes(self, root=None, *, strict=False):
         root = root if root is not None else self.api.get_desktop(0)
@@ -164,6 +355,54 @@ class AccessibleUI:
                     raise
                 # A dead unrelated subtree must not hide live controls.
                 continue
+
+    def find_id(self, identity, *, root=None, nodes=None, showing=True):
+        """Resolve exactly one public automation ID without selector fallbacks."""
+        require(type(identity) is str and identity, 'ui:automation-id')
+        candidates = self.nodes(root) if nodes is None else nodes
+        found = []
+        for node in candidates:
+            try:
+                if public_automation_id(node) != identity:
+                    continue
+                found.append(node)
+            except self.query_errors:
+                continue
+        require(len(found) <= 1, 'ui:ambiguous-automation-id')
+        if not found or (showing and not self.showing(found[0])):
+            return None
+        return found[0]
+
+    def find_provider_control(self, provider, surface, control, *, root=None, showing=True):
+        """Resolve one registered control inside its provider-owned ID scopes.
+
+        All three identities are mandatory.  Partial provider observations stay
+        useful audit evidence but cannot become selectors until the owning
+        application and surface publish stable IDs too.
+        """
+        require(all(type(value) is str and value for value in (provider, surface, control)),
+                'ui:provider-binding')
+        contract = self.provider_contracts.get(provider)
+        require(contract is not None, 'ui:unregistered-provider')
+        application_id = contract.get('application_id')
+        require(type(application_id) is str and application_id,
+                'ui:unqualified-provider-application')
+        application = self.find_id(application_id, root=root, showing=showing)
+        if application is None:
+            return None
+        surface_contract = contract.get('surfaces', {}).get(surface)
+        require(surface_contract is not None, 'ui:unregistered-provider-surface')
+        surface_id, controls = surface_contract
+        require(type(surface_id) is str and surface_id,
+                'ui:unqualified-provider-surface')
+        surface_root = self.find_id(surface_id, root=application, showing=showing)
+        if surface_root is None:
+            return None
+        require(control in controls, 'ui:unregistered-provider-control')
+        identity = controls[control]
+        require(type(identity) is str and identity,
+                'ui:unqualified-provider-control')
+        return self.find_id(identity, root=surface_root, showing=showing)
 
     def showing(self, node):
         states = node.get_state_set()
@@ -238,6 +477,17 @@ class AccessibleUI:
                 raise UiError('ui:timeout:target:roles=' + ','.join(sorted(self.last_roles))) from None
             raise
 
+    def id_target(self, identity, *, root=None, sensitive=False, showing=True):
+        """Wait for one public ID, optionally requiring an actionable state."""
+        node = self.wait(
+            lambda: self.find_id(identity, root=root, showing=showing),
+            'automation-id',
+        )
+        if sensitive:
+            require(self.has_state(node, self.api.StateType.SENSITIVE),
+                    'ui:unusable-target')
+        return node
+
     def activate(self, node):
         self.handle_system_prompt()
         require(self.showing(node) and node.get_state_set().contains(self.api.StateType.SENSITIVE),
@@ -247,6 +497,28 @@ class AccessibleUI:
         count = self.api.Action.get_n_actions(action)
         require(count == 1, 'ui:missing-or-ambiguous-action')
         require(self.api.Action.do_action(action, 0), 'ui:action-refused')
+
+    def activate_named(self, node, action_name):
+        """Invoke one named public action on an already ID-resolved control."""
+        self.handle_system_prompt()
+        require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
+                'ui:unusable-target')
+        action = node.get_action_iface()
+        require(action is not None, 'ui:missing-action')
+        names = []
+        for index in range(self.api.Action.get_n_actions(action)):
+            # GI incorrectly deprecates the recommended rename of this AT-SPI
+            # method. Suppress only that metadata warning at the exact call.
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    'ignore',
+                    message=r'^Atspi\.Action\.get_action_name is deprecated$',
+                    category=DeprecationWarning,
+                )
+                names.append(self.api.Action.get_action_name(action, index))
+        matches = [index for index, name in enumerate(names) if name == action_name]
+        require(len(matches) == 1, 'ui:missing-or-ambiguous-action')
+        require(self.api.Action.do_action(action, matches[0]), 'ui:action-refused')
 
     def reveal(self, name, roles, *, root):
         """Scroll existing content into view through the public UI interface."""
@@ -284,21 +556,28 @@ class AccessibleUI:
         return self.wait(lambda: self.find_labelled_button(name), 'labelled-button')
 
     def parent(self):
-        return self.target(PRODUCT, ('frame',))
+        return self.id_target('parent-window')
 
     def about(self):
-        return self.target('About', ('frame', 'dialog'))
+        return self.id_target('about-dialog')
 
     def open_about(self, version):
         """ABOUT01: independent Parent entry; menu, About, text and license link."""
-        self.activate(self.target('Parent app menu', ('toggle button',),
-                                  root=self.parent(), sensitive=True))
-        self.activate(self.target('About', ('button', 'push button'),
-                                  root=self.parent(), sensitive=True))
+        self.activate_named(self.id_target('parent-menu-button',
+                                          root=self.parent(), sensitive=True), 'menu.popup')
+        self.activate(self.id_target('parent-menu-about', root=self.parent(), sensitive=True))
         root = self.about()
         self.read_label(root, 'about-product', maximum=80)
         self.read_label(root, 'about-version', maximum=80, expected=version)
-        self.reveal(LICENSE_LINK, ('link',), root=root)
+        self.reveal_id('about-license-value', root=root)
+
+    def reveal_id(self, identity, *, root):
+        node = self.id_target(identity, root=root, showing=False)
+        if not self.showing(node):
+            component = node.get_component_iface()
+            require(component is not None and component.scroll_to(self.api.ScrollType.ANYWHERE),
+                    'ui:scroll-refused')
+        return self.id_target(identity, root=root)
 
     def read_document(self, root, projection, *, maximum):
         """UI03: only the bounded GPL heading projection; never return raw text."""
@@ -328,7 +607,7 @@ class AccessibleUI:
 
     def open_license(self):
         """ABOUT02: one link action followed by actual viewer content."""
-        self.activate(self.target(LICENSE_LINK, ('link',), root=self.about(), sensitive=True))
+        self.activate(self.id_target('about-license-value', root=self.about(), sensitive=True))
         self.license_content()
 
     def window_ready_to_close(self, window):
@@ -336,7 +615,7 @@ class AccessibleUI:
         require(window in ('license', 'about'), 'ui:window-binding')
         def active():
             root = (self.find(roles=('frame',), contains='LICENSE') if window == 'license'
-                    else self.find('About', ('frame', 'dialog')))
+                    else self.find_id('about-dialog'))
             return root is not None and self.has_state(root, self.api.StateType.ACTIVE)
         self.wait(active, 'active-' + window)
 
@@ -348,6 +627,11 @@ class AccessibleUI:
             nodes = list(self.nodes(strict=True))
             if not nodes:
                 return False
+            if window == 'about':
+                require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
+                            for node in nodes), 'ui:stale-window')
+                return (self.find_id('parent-window', nodes=nodes) is not None
+                        and self.find_id('about-dialog', nodes=nodes) is None)
             present = False
             underlying = False
             for node in nodes:
@@ -362,21 +646,24 @@ class AccessibleUI:
 
     def about_footer(self):
         """ABOUT04's public reveal/read, in an independently opened About window."""
-        self.reveal(ABOUT_FOOTER, ('label',), root=self.about())
+        self.reveal_id('about-copyright', root=self.about())
         self.read_label(self.about(), 'about-footer', maximum=80)
 
     def settings(self, child=CHILD):
         """PARENT03: explicit child, public settings; no scenario expectations."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
         root = self.parent()
-        picker = self.target(roles=('combo box',), root=root, sensitive=True)
-        self.read_label(picker, 'child', expected=child, maximum=80)
-        toggle = self.target('Screen time limit', ('switch',), root=root, sensitive=True)
-        allowance = self.target('Daily time allowance', ('button', 'push button'),
-                                root=root)
+        picker = self.id_target('parent-child-selector', root=root, sensitive=True)
+        selected = self.child_id_control(
+            child, 'parent-child-selected-', root=picker, showing=True,
+        )
+        require(selected is not None, 'ui:selected-child')
+        self.read_label(selected, 'child', expected=child, maximum=80)
+        toggle = self.id_target('parent-screen-limit-toggle', root=root, sensitive=True)
+        allowance = self.id_target('parent-daily-limit-selector', root=root)
         labels = self.read_label(allowance, 'allowance', maximum=80)
         if child in (EXISTING_CHILD, NEW_CHILD):
-            self.reveal("Today's Remaining Time", ('label',), root=root)
+            self.reveal_id('parent-time-status', root=root)
         return {'child': CHILD_IDENTITIES[child],
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
@@ -398,7 +685,11 @@ class AccessibleUI:
             else:
                 label = PRODUCT if projection == 'about-product' else ABOUT_FOOTER
             require(len(label) <= maximum, 'ui:text-bound')
-            self.target(label, ('label',), root=root)
+            identity = {'about-product': 'about-product-name',
+                        'about-version': 'about-version',
+                        'about-footer': 'about-copyright'}[projection]
+            node = self.id_target(identity, root=root)
+            require(node.get_name() == label, 'ui:about-label')
             return True
         if projection == 'search-query':
             require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal') and len(expected) <= maximum,
@@ -420,7 +711,10 @@ class AccessibleUI:
         if projection == 'empty-explanation':
             text = 'No interactive non-administrator account was found.'
             require(len(text) <= maximum, 'ui:text-bound')
-            return self.find(text, ('label',), root=root) is not None
+            require(public_automation_id(root) == 'parent-no-users-message',
+                    'ui:text-surface')
+            return (self.showing(root) and root.get_role_name() == 'label'
+                    and ' '.join(root.get_name().split()) == text)
         if projection == 'empty-picker':
             labels = []
             for node in self.nodes(root, strict=True):
@@ -432,7 +726,9 @@ class AccessibleUI:
             return labels == ['(None)']
         if projection == 'child':
             require(expected in CHILD_IDENTITIES and len(expected) <= maximum, 'ui:child-binding')
-            self.target(expected, ('label',), root=root)
+            labels = [node.get_name() for node in self.nodes(root, strict=True)
+                      if node.get_role_name() == 'label' and self.showing(node)]
+            require(labels == [expected], 'ui:child-label')
             return CHILD_IDENTITIES[expected]
         import re
         labels = sorted({node.get_name() for node in self.nodes(root, strict=True)
@@ -445,68 +741,111 @@ class AccessibleUI:
     def parent_empty(self):
         """PARENT19: fresh explanation and sole empty picker label, without input."""
         def empty():
-            root = self.find(PRODUCT, ('frame',))
+            root = self.find_id('parent-window')
             if root is None:
                 return False
-            picker = self.find(roles=('combo box',), root=root)
-            return (picker is not None
-                    and self.read_label(root, 'empty-explanation', maximum=80)
+            require(root.get_name() == PRODUCT, 'ui:parent-surface')
+            picker = self.find_id('parent-child-selector', root=root)
+            explanation = self.find_id('parent-no-users-message', root=root)
+            placeholder = (self.find_id('parent-child-selected-none', root=picker)
+                           if picker is not None else None)
+            return (picker is not None and explanation is not None and placeholder is not None
+                    and self.read_label(explanation, 'empty-explanation', maximum=80)
                     and self.read_label(picker, 'empty-picker', maximum=80))
         self.wait(empty, 'parent-empty')
 
-    def open_child_picker(self, child):
-        """UI15 opening: activate once, then independently collect current order."""
+    def child_id_control(self, child, prefix, *, root, showing):
+        """Resolve a UID-scoped child control, then verify its public label."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
-        picker = self.target(roles=('combo box',), root=self.parent(), sensitive=True)
-        self.activate(self.target(roles=('toggle button',), root=picker, sensitive=True))
-        return self.wait(lambda: self.child_navigation(child), 'child-choice')
+        uid = (self.fixture_uids.get(child) if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        require(type(uid) is int and uid >= 1000, 'ui:fixture-child-uid')
+        require(prefix in ('parent-child-choice-', 'parent-child-selected-'),
+                'ui:child-control-binding')
+        nodes = list(self.nodes(root, strict=True))
+        identities = set()
+        for node in nodes:
+            require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-picker')
+            identity = public_automation_id(node)
+            if re.fullmatch(re.escape(prefix) + r'[0-9]+', identity) is None:
+                continue
+            require(identity not in identities, 'ui:ambiguous-automation-id')
+            identities.add(identity)
+        node = self.find_id(prefix + str(uid), nodes=nodes, showing=showing)
+        if node is not None:
+            self.read_label(node, 'child', expected=child, maximum=80)
+        return node
 
-    def child_navigation(self, child):
+    def focus(self, node):
+        """Focus one already ID-resolved public control without keyboard routing."""
+        require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
+                'ui:unusable-target')
+        if self.has_state(node, self.api.StateType.FOCUSED):
+            return True
+        identity = public_automation_id(node)
+        match = re.fullmatch(r'parent-child-choice-([0-9]+)', identity)
+        require(match is not None, 'ui:child-choice-id')
+        selector = self.id_target(
+            'parent-child-selector', root=self.parent(), sensitive=True,
+        )
+        self.activate_named(selector, 'child.focus-' + match.group(1))
+        def focused():
+            current = self.find_id(identity, root=self.parent())
+            return (current is not None
+                    and self.has_state(current, self.api.StateType.SENSITIVE)
+                    and self.has_state(current, self.api.StateType.FOCUSED))
+        return self.wait(focused, 'focus')
+
+    def open_child_picker(self, child):
+        """UI15 opening: activate by ID and focus the UID-scoped choice by ID."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
-        root = self.find(PRODUCT, ('frame',))
-        if root is None:
-            return None
-        listing = self.find(roles=('list box',), root=root)
-        if listing is None or self.find(child, ('label',), root=listing) is None:
-            return None
-        choices = self.choice_order(listing, identities=CHILD_IDENTITIES,
-                                    maximum=32, cardinality=(1, 32), projection='child-picker-order')
-        identity = CHILD_IDENTITIES[child]
-        require(choices.count(identity) == 1, 'ui:choice-identity')
-        label = self.target(child, ('label',), root=listing)
-        row = label
-        for _ in range(16):
-            if row is None or row == listing or row.get_role_name() == 'list item':
-                break
-            row = row.get_parent()
-        require(row is not None and row.get_role_name() == 'list item'
-                and self.has_state(row, self.api.StateType.SENSITIVE), 'ui:unusable-choice')
-        return ['home'] + ['down'] * choices.index(identity)
+        picker = self.id_target(
+            'parent-child-selector', root=self.parent(), sensitive=True,
+        )
+        self.activate_named(picker, 'menu.popup')
+        popover = self.id_target('parent-child-popover', root=self.parent())
+        choices = self.id_target('parent-child-choices', root=popover)
+        choice = self.wait(
+            lambda: self.child_id_control(
+                child, 'parent-child-choice-', root=choices, showing=True,
+            ),
+            'child-choice',
+        )
+        self.focus(choice)
+        return True
 
     def child_highlighted(self, child):
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
         def highlighted():
-            root = self.find(PRODUCT, ('frame',))
+            root = self.find_id('parent-window')
             if root is None:
                 return False
-            listing = self.find(roles=('list box',), root=root)
-            if listing is None:
+            popover = self.find_id('parent-child-popover', root=root)
+            if popover is None:
                 return False
-            row = self.find(child, ('label',), root=listing)
-            for _ in range(16):
-                if row is None or row == root:
-                    return False
-                if row.get_role_name() == 'list item':
-                    return (self.showing(row) and self.has_state(row, self.api.StateType.SENSITIVE)
-                            and self.has_state(row, self.api.StateType.SELECTED))
-                row = row.get_parent()
-            return False
+            choices = self.find_id('parent-child-choices', root=popover)
+            if choices is None:
+                return False
+            choice = self.child_id_control(
+                child, 'parent-child-choice-', root=choices, showing=True,
+            )
+            return (choice is not None
+                    and self.has_state(choice, self.api.StateType.SENSITIVE)
+                    and self.has_state(choice, self.api.StateType.FOCUSED))
         return self.wait(highlighted, 'choice-highlight')
 
     def selected_child(self, child):
         """UI15 closed-picker result followed by PARENT03, after caller's Enter."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
-        self.observe_absence('parent', 'child-popup', name=child, mode='snapshot')
+        def closed():
+            root = self.find_id('parent-window')
+            if root is None:
+                return False
+            nodes = list(self.nodes(root, strict=True))
+            require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
+                        for node in nodes), 'ui:stale-picker')
+            return self.find_id('parent-child-popover', nodes=nodes) is None
+        self.wait(closed, 'picker-close')
         return self.settings(child)
 
     def parent_page(self, child, page):
@@ -515,9 +854,12 @@ class AccessibleUI:
                 'ui:page-binding')
         print('ui:parent-page=started', file=sys.stderr, flush=True)
         root = self.parent()
-        picker = self.target(roles=('combo box',), root=root, sensitive=True)
-        self.read_label(picker, 'child', expected=child, maximum=80)
-        self.activate(self.target(page, ('page tab',), root=root, sensitive=True))
+        picker = self.id_target('parent-child-selector', root=root, sensitive=True)
+        require(self.child_id_control(child, 'parent-child-selected-', root=picker,
+                                      showing=True) is not None, 'ui:selected-child')
+        page_id = {'Screen Limits': 'parent-page-screen-limits',
+                   'App Limits': 'parent-page-app-limits'}[page]
+        self.activate(self.id_target(page_id, root=root, sensitive=True))
         print('ui:parent-page=activated', file=sys.stderr, flush=True)
         if page == 'Screen Limits':
             return self.selected_child(child)
@@ -525,10 +867,10 @@ class AccessibleUI:
         # shared within this invocation; scanning the entire installed catalogue
         # again for every filter needlessly exhausts the observation deadline.
         root = self.parent()
-        self.target('Search installed apps', ('text', 'entry'), root=root, sensitive=True)
+        self.id_target('parent-app-search', root=root, sensitive=True)
         print('ui:parent-page=search-ready', file=sys.stderr, flush=True)
-        self.reveal('Filter Access Rule', ('button', 'push button'), root=root)
-        self.reveal('Filter Match Rule', ('button', 'push button'), root=root)
+        self.reveal_id('parent-filter-access-rule', root=root)
+        self.reveal_id('parent-filter-match-rule', root=root)
         print('ui:parent-page=filters-ready', file=sys.stderr, flush=True)
 
     def launchable_result(self, product):
@@ -630,11 +972,13 @@ class AccessibleUI:
 
     def management_denied(self):
         """FILE06: the specific visible refusal, never generic error or echo."""
-        root = self.target('Administrator access required', ('frame',))
-        self.target('Only an administrator can manage parental controls. '
-                    'Sign in with an administrator account to open the Parent App.',
-                    ('label',), root=root)
-        self.target('Close', ('button', 'push button'), root=root, sensitive=True)
+        root = self.id_target('parent-access-denied-window')
+        message = self.id_target('parent-access-denied-message', root=root)
+        require(message.get_role_name() == 'label' and message.get_name() ==
+                'Only an administrator can manage parental controls. '
+                'Sign in with an administrator account to open the Parent App.',
+                'ui:denial-message')
+        self.id_target('parent-access-denied-close', root=root, sensitive=True)
         require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:denial-not-active')
         self.management_absent()
 
@@ -645,10 +989,9 @@ class AccessibleUI:
         for node in self.nodes(root, strict=True):
             require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-surface')
             if self.showing(node):
-                require(not (node.get_role_name() in ('frame', 'window')
-                             and node.get_name() == PRODUCT), 'ui:management-exposed')
-                require(node.get_name() not in ('Screen Limits', 'App Limits',
-                                               'Screen time limit'), 'ui:management-exposed')
+                require(public_automation_id(node) not in (
+                    'parent-window', 'parent-page-screen-limits', 'parent-page-app-limits',
+                    'parent-screen-limit-toggle'), 'ui:management-exposed')
 
     def search_result(self, product, expected, *, stable_seconds=2):
         """SEARCH04: observe the explicit registered result, without launching."""
@@ -694,8 +1037,29 @@ class AccessibleUI:
 
     def greeter_list(self, name=PARENT):
         # GDM01: the positive account surface and absence must be fresh together.
-        self.observe_absence('greeter', 'password', name=name, mode='snapshot')
-        return self.labelled_button(name)
+        names = (KIOSK, KIOSK_USERNAME) if name == KIOSK else (name,)
+
+        def button():
+            found = []
+            for label in names:
+                node = self.find_labelled_button(label)
+                if node is not None and node not in found:
+                    found.append(node)
+            require(len(found) <= 1, 'ui:ambiguous-target')
+            return found[0] if found else None
+
+        target = self.wait(button, 'labelled-button')
+        actual_name = target.get_name()
+        if actual_name not in names:
+            # GDM may leave the row unnamed and put both the display name and
+            # username on nested labels. Those strings are one identity.
+            labels = [node.get_name() for node in self.nodes(target, strict=True)
+                      if node.get_role_name() == 'label' and node.get_name() in names]
+            require(len({GREETER_IDENTITIES[label] for label in labels}) == 1,
+                    'ui:gdm-account-label')
+            actual_name = next(label for label in names if label in labels)
+        self.observe_absence('greeter', 'password', name=actual_name, mode='snapshot')
+        return target
 
     def observe_absence(self, surface, target, *, name, mode, stable_seconds=None):
         """UI11: registered positive surfaces and complete fresh exclusion reads."""
@@ -710,12 +1074,13 @@ class AccessibleUI:
                     and mode == 'snapshot', 'ui:absence-binding')
             def closed():
                 root = self.parent()
-                picker = self.target(roles=('combo box',), root=root, sensitive=True)
-                self.read_label(picker, 'child', expected=name, maximum=80)
+                picker = self.id_target('parent-child-selector', root=root, sensitive=True)
+                if self.child_id_control(name, 'parent-child-selected-',
+                                         root=picker, showing=True) is None:
+                    return False
                 nodes = list(self.nodes(root, strict=True))
                 return (not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes)
-                        and not any(node.get_role_name() == 'list box' and self.showing(node)
-                                    for node in nodes))
+                        and self.find_id('parent-child-popover', nodes=nodes) is None)
             return self.wait(closed, 'picker-close')
         require(surface == 'greeter' and target in ('password', 'account')
                 and name in GREETER_IDENTITIES and mode == 'snapshot', 'ui:absence-binding')
@@ -762,12 +1127,12 @@ class AccessibleUI:
             # GDM may put its label on the button or a nested public label.
             labels = {node.get_name()} | {child.get_name() for child in self.nodes(node, strict=True)
                                         if child.get_role_name() == 'label'}
-            matches = [identity for label, identity in identities.items() if label in labels]
+            matches = {identity for label, identity in identities.items() if label in labels}
             require(len(matches) <= 1, 'ui:ambiguous-choice-identity')
             # The accepted baseline preserves unrelated accounts. They occupy
             # real Home/Down positions but are never selectable fixture targets.
             # Keep their labels private and represent only their list positions.
-            identity = matches[0] if matches else f'unrelated-account-{len(choices) + 1}'
+            identity = next(iter(matches)) if matches else f'unrelated-account-{len(choices) + 1}'
             require(identity not in choices, 'ui:duplicate-choice-identity')
             choices.append(identity)
             require(len(choices) <= maximum, 'ui:collection-bound')
@@ -775,10 +1140,24 @@ class AccessibleUI:
         return tuple(choices)
 
     def greeter_navigation(self, name):
-        button = self.greeter_list(name)
+        # A named row may be below GDM's scrolling viewport. Establish the
+        # fresh list and password-prompt absence through the always-visible
+        # Parent fixture, then derive navigation from the complete public row
+        # collection. The separate focus checkpoint proves that input exposed
+        # the requested row before Enter.
+        anchor = PARENT if name == KIOSK else name
+        button = self.greeter_list(anchor)
         choices = self.choice_order(button.get_parent(), identities=GREETER_IDENTITIES,
                                     maximum=32, cardinality=(1, 32), projection='greeter-account-order')
         identity = GREETER_IDENTITIES[name]
+        if choices.count(identity) != 1 and name == KIOSK:
+            # Log only fixed identities/counts, never unrelated account labels.
+            station_nodes = [node for node in self.nodes(strict=True)
+                             if node.get_name() in (KIOSK, KIOSK_USERNAME)]
+            print(json.dumps({'event': 'gdm-station-missing', 'choices': choices,
+                              'station_nodes': len(station_nodes),
+                              'list_role': button.get_parent().get_role_name()},
+                             sort_keys=True), file=sys.stderr, flush=True)
         require(choices.count(identity) == 1, 'ui:gdm-account-list')
         return ['home'] + ['down'] * choices.index(identity)
 
@@ -791,6 +1170,110 @@ class AccessibleUI:
                   is not None and self.has_state(field, self.api.StateType.FOCUSED),
                   'gdm-password-focus')
 
+    def kiosk_request_form(self):
+        """Read REQUEST03's fixed disabled-child station state."""
+        last_reset = None
+        diagnostic = {'form_count': 0}
+
+        def fresh_reader():
+            nonlocal last_reset
+            now = time.monotonic()
+            if self.reset_observer is not None and (last_reset is None or now - last_reset >= 2):
+                # Drop only this reader's stale accessibility objects when the
+                # graphical session changes. Never start or inspect services.
+                self.reset_observer()
+                last_reset = now
+
+        def observe():
+            try:
+                public_nodes = list(self.nodes(strict=True))
+                diagnostic_ids = (
+                    'kiosk-request-form', 'kiosk-child-selector',
+                    'kiosk-approver-selector', 'kiosk-request-submit',
+                    'kiosk-request-cancel', 'kiosk-soft-apps-toggle',
+                    'kiosk-screen-limit-notice', 'kiosk-mute-button',
+                )
+                diagnostic['public_ids'] = {
+                    identity: sum(
+                        public_automation_id(node) == identity and self.showing(node)
+                        for node in public_nodes
+                    )
+                    for identity in diagnostic_ids
+                }
+            except self.query_errors:
+                fresh_reader()
+                return None
+
+            form = self.find_id('kiosk-request-form', nodes=public_nodes)
+            diagnostic['form_count'] = int(form is not None)
+            if form is None:
+                fresh_reader()
+                return None
+
+            child = self.find_id('kiosk-child-selector', nodes=public_nodes)
+            approver = self.find_id('kiosk-approver-selector', nodes=public_nodes)
+            request = self.find_id('kiosk-request-submit', nodes=public_nodes)
+            cancel = self.find_id('kiosk-request-cancel', nodes=public_nodes)
+            allow_soft = self.find_id('kiosk-soft-apps-toggle', nodes=public_nodes)
+            if None in (child, approver, request, cancel, allow_soft):
+                return None
+
+            def selected_identity(control, label, identities, code):
+                descriptions = {
+                    f'Selected {label.casefold()}: {name}.': identity
+                    for name, identity in identities.items()
+                }
+                description = ' '.join(control.get_description().split())
+                require(description in descriptions, 'ui:' + code)
+                return descriptions[description]
+
+            duration_ids = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')
+            durations = [
+                self.find_id(f'kiosk-duration-{identity}', nodes=public_nodes)
+                for identity in duration_ids
+            ]
+            if any(button is None for button in durations):
+                return None
+            selected = [index for index, button in enumerate(durations)
+                        if self.has_state(button, self.api.StateType.CHECKED)]
+            require(selected == [2], 'ui:kiosk-duration-selection')
+            require(not any(self.has_state(button, self.api.StateType.SENSITIVE)
+                            for button in durations), 'ui:kiosk-duration-availability')
+
+            notice = self.find_id('kiosk-screen-limit-notice', nodes=public_nodes)
+            if notice is None:
+                return None
+            message = ' '.join(notice.get_name().split())
+            require(message == 'Screen limit is not enabled in Parent App',
+                    'ui:kiosk-disabled-message')
+            custom = self.find_id('kiosk-custom-duration', nodes=public_nodes)
+            require(self.find_id('kiosk-mute-button', nodes=public_nodes) is None,
+                    'ui:kiosk-mute-present')
+            return {
+                'surface': 'kiosk', 'form_count': 1,
+                'child': selected_identity(
+                    child, 'Child account', CHILD_IDENTITIES, 'kiosk-child'),
+                'approver': selected_identity(
+                    approver, 'Approving parent', APPROVER_IDENTITIES,
+                    'kiosk-approver'),
+                'duration_seconds': 1800,
+                'custom_text': None if custom is None else 'unexpected-visible-value',
+                'allow_soft': self.has_state(allow_soft, self.api.StateType.CHECKED),
+                'child_selector_enabled': self.has_state(child, self.api.StateType.SENSITIVE),
+                'approver_selector_enabled': self.has_state(approver, self.api.StateType.SENSITIVE),
+                'duration_enabled': False,
+                'soft_choice_enabled': self.has_state(allow_soft, self.api.StateType.SENSITIVE),
+                'request_enabled': self.has_state(request, self.api.StateType.SENSITIVE),
+                'cancel_enabled': self.has_state(cancel, self.api.StateType.SENSITIVE),
+                'message': 'screen-limit-disabled', 'mute': None,
+            }
+        try:
+            return self.wait(observe, 'kiosk-request-form')
+        except UiError:
+            print(json.dumps({'event': 'kiosk-form-observation', **diagnostic}, sort_keys=True),
+                  file=sys.stderr, flush=True)
+            raise
+
     def password_recipient(self, name):
         """Read only public identity, masked role, focus and empty length.
 
@@ -799,7 +1282,7 @@ class AccessibleUI:
         """
         if self.find(name, ('label',)) is None:
             return False
-        identities = (PARENT, OTHER_PARENT, CHILD, EXISTING_CHILD)
+        identities = (PARENT, OTHER_PARENT, CHILD, EXISTING_CHILD, KIOSK)
         if any(self.find(label, ('button', 'push button')) is not None
                for label in identities):
             return False
@@ -1119,17 +1602,24 @@ class AccessibleUI:
                 self.wait(lambda: self.password_recipient(EXISTING_CHILD), 'gdm-standard-recipient')
             elif operation == 'gdm-select-parent':
                 self.greeter_prompt()
-            elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused'):
+            elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused',
+                              'gdm-station-focused'):
                 name = OTHER_PARENT if operation == 'gdm-other-focused' else PARENT
                 if operation == 'gdm-standard-focused':
                     name = EXISTING_CHILD
+                if operation == 'gdm-station-focused':
+                    name = KIOSK
                 self.wait(lambda: self.has_state(self.greeter_list(name), self.api.StateType.FOCUSED),
                           'gdm-account-focus')
             elif operation in GREETER_NAVIGATION:
                 name = OTHER_PARENT if operation == 'gdm-other-list' else PARENT
                 if operation == 'gdm-standard-list':
                     name = EXISTING_CHILD
+                if operation == 'gdm-station-list':
+                    name = KIOSK
                 result['navigation'] = self.greeter_navigation(name)
+            elif operation == 'gdm-station-wrong-entry-refused':
+                self.greeter_prompt()
             else:
                 self.greeter_list()
         elif operation in ('desktop', 'standard-desktop'):
@@ -1171,7 +1661,7 @@ class AccessibleUI:
         elif operation == 'standard-management-denied':
             self.management_denied()
         elif operation == 'standard-denial-closed':
-            self.wait(lambda: self.find('Administrator access required', ('frame',)) is None
+            self.wait(lambda: self.find_id('parent-access-denied-window') is None
                 and self.terminal_input(focused=True), 'denial-closed')
             self.management_absent()
         elif operation == 'standard-app-grid':
@@ -1200,7 +1690,7 @@ class AccessibleUI:
         elif operation == 'parent-empty':
             self.parent_empty()
         elif operation in PICKER_OPERATIONS:
-            result['navigation'] = self.open_child_picker(PICKER_OPERATIONS[operation])
+            result['focused'] = self.open_child_picker(PICKER_OPERATIONS[operation])
         elif operation in HIGHLIGHT_OPERATIONS:
             self.child_highlighted(HIGHLIGHT_OPERATIONS[operation])
         elif operation in ('existing-apps', 'new-child-apps'):
@@ -1236,6 +1726,8 @@ class AccessibleUI:
             result['pointer'] = self.choose_session_action(operation)
         elif operation == 'logout-confirm':
             result['pointer'] = self.logout_confirm()
+        elif operation == 'kiosk-request-form':
+            result['request'] = self.kiosk_request_form()
         return result
 
 
@@ -1302,14 +1794,27 @@ def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):
             time.sleep(.2)
 
 
+def observation_environment(account, operation):
+    if operation in KIOSK_OPERATIONS:
+        runtime = '/run/user/' + str(account.pw_uid)
+        return {'XDG_RUNTIME_DIR': runtime,
+                'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + runtime + '/bus'}
+    return session_environment(account)
+
+
 def main():
     require(len(sys.argv) == 3 and sys.argv[1] in OPERATIONS, 'ui:arguments')
     greeter = sys.argv[1] in GREETER_OPERATIONS
+    kiosk = sys.argv[1] in KIOSK_OPERATIONS
     require(os.geteuid() == 0, 'ui:fixture-identity')
     account = greeter_account() if greeter else pwd.getpwnam(
-        'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie')
+        'oh-no-parent-control' if kiosk else
+        ('onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
     require(account.pw_uid > 0 and (greeter or account.pw_uid >= 1000), 'ui:fixture-identity')
-    environment = session_environment(account)
+    # Station entry is qualified by its public form. Bind the observation
+    # client to the account without polling session services or treating their
+    # readiness as a customer result.
+    environment = observation_environment(account, sys.argv[1])
     os.initgroups(account.pw_name, account.pw_gid)
     os.setgid(account.pw_gid)
     os.setuid(account.pw_uid)
@@ -1321,7 +1826,16 @@ def main():
     gi.require_version('Atspi', '2.0')
     from gi.repository import Atspi, GLib
     Atspi.set_timeout(2000, 5000)
-    ui = AccessibleUI(Atspi, query_errors=(GLib.Error,),
+
+    def reset_atspi_client():
+        # Reconnect this observer's client after a graphical-session handoff.
+        # This only resets the local AT-SPI client; it does not start, wait for,
+        # or inspect an accessibility service.
+        Atspi.exit()
+        Atspi.init()
+
+    ui = AccessibleUI(Atspi, timeout=90 if kiosk else 45, query_errors=(GLib.Error,),
+        reset_observer=reset_atspi_client if kiosk else None,
         dispatch=lambda: GLib.MainContext.default().iteration(False),
         system_prompt=lambda point: print(json.dumps({'event': 'system-prompt',
             'kind': 'login-keyring', 'pointer': point}), flush=True))

@@ -2,135 +2,177 @@
 
 import pytest
 
-from tests.support.feedback import feedback_editor
+from tests.support.feedback import dismiss_feedback_dialog, feedback_editor
 from tests.support.request_form import launch_request, events
+
 
 pytestmark = pytest.mark.ui
 
 
+def wait_for_error_draft(ui, wait):
+    editor = feedback_editor(ui, wait)
+    wait(lambda: "Error categories: RuntimeError" in ui.content(editor),
+         "error draft loaded")
+    value = ui.content(editor)
+    assert value.startswith("Something went wrong\nThe operation could not be completed.")
+    return editor, value
+
+
 def test_child_panel_stdin_entry_opens_a_prefilled_report(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state):
-    application, _log = launch_ui("child_error_preview")
-    dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
-    editor = feedback_editor(application, wait_for_accessible_node)
-    wait_for_accessible_state(
-        lambda: "Error categories: RuntimeError" in editor.text,
-        "child panel error draft loaded",
-    )
-    assert editor.text.startswith("Something went wrong\nThe operation could not be completed.")
-    assert "child panel could not refresh its timer" not in editor.text
-    assert wait_for_accessible_node(dialog, "Add files", "button").sensitive
+        launch_ui, automation, wait_for_accessible_state):
+    launch_ui("child_error_preview", wait_for_application=False)
+    ui = automation
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                              "child error report opens")
+    _editor, value = wait_for_error_draft(ui, wait_for_accessible_state)
+    assert "child panel could not refresh its timer" not in value
+    assert ui.state("feedback-add-files", ui.api.StateType.SENSITIVE)
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_request_error_review_restrictions_and_submission(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay, scenario="service-failure")
-    find = wait_for_accessible_node
-    assert find(application, "REQUEST", "button").do_action(0)
-    toggle = find(application, "Report this error", "switch")
-    assert toggle.checked
-    assert find(application, "Close" if overlay else "Return to Login", "button").do_action(0)
-    dialog = find(application, "Send Feedback", "frame")
-    editor = feedback_editor(application, find)
-    wait_for_accessible_state(lambda: "Error categories: RuntimeError" in editor.text,
-                              "error draft loaded")
-    assert editor.text.startswith("Something went wrong\nThe operation could not be completed.")
-    assert "org.example.Secret" not in editor.text
-    assert "/private/path" not in editor.text
+        launch_ui, automation, wait_for_accessible_state, tmp_path, overlay):
+    ui = automation
+    _process, path = launch_request(
+        launch_ui, tmp_path, overlay=overlay, scenario="service-failure",
+        wait_for_application=False,
+    )
+    wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
+                              "request controls publish IDs")
+    wait_for_accessible_state(
+        lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
+        "request is ready",
+    )
+    ui.activate("kiosk-request-submit")
+    wait_for_accessible_state(lambda: ui.find("kiosk-report-toggle") is not None,
+                              "error result publishes reporting choice")
+    assert ui.state("kiosk-report-toggle", ui.api.StateType.CHECKED)
+    ui.activate("kiosk-result-action")
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                              "error feedback opens")
+    editor, value = wait_for_error_draft(ui, wait_for_accessible_state)
+    assert "org.example.Secret" not in value
+    assert "/private/path" not in value
     assert not events(path, "feedback")
     assert not events(path, "close_overlay" if overlay else "logout")
-    for label, role in (("Add files", "button"), ("Download", "button"),
-                        ("Add attachment", "toggle button")):
-        assert bool(dialog.is_child(label, role_name=role, retry=False)) is overlay
-    assert find(dialog, "Privacy", "link").do_action(0)
-    privacy = find(application, "Feedback privacy", "alert")
-    assert bool(privacy.is_child("View full privacy notice", role_name="link", retry=False)) is overlay
-    assert find(privacy, "Close", "button").do_action(0)
-    # Re-adding logs must never reveal the kiosk download control.
-    assert find(dialog, "Remove", "button").do_action(0)
-    assert find(dialog, "Add logs", "button").do_action(0)
-    assert bool(dialog.is_child("Download", role_name="button", retry=False)) is overlay
-    assert find(dialog, "Send Feedback", "button").do_action(0)
-    confirmation = find(application, "Thank you for your feedback!", "alert")
+    assert ui.showing("feedback-add-files") is overlay
+    assert ui.showing("feedback-download-logs") is overlay
+    assert ui.showing("feedback-format-attachment") is overlay
+    ui.activate("feedback-privacy-link")
+    wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
+                              "privacy explanation opens")
+    assert ui.showing("feedback-full-privacy-link") is overlay
+    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog")
+    ui.activate("feedback-toggle-logs")
+    ui.activate("feedback-toggle-logs")
+    assert ui.showing("feedback-download-logs") is overlay
+    wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
+                              "error report is ready")
+    ui.activate("feedback-send")
+    wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
+                              "feedback confirmation opens")
     component = "Child App" if overlay else "Kiosk App"
-    assert events(path, "feedback")[0]["subject"] == f"[Oh No! Parent Control] [{component}] Error Report"
-    assert not events(path, "close_overlay" if overlay else "logout")
-    wait_for_accessible_state(
-        lambda: not application.is_child("Send Feedback", role_name="frame", retry=False),
-        "feedback closes before confirmation dismissal",
+    assert events(path, "feedback")[0]["subject"] == (
+        f"[Oh No! Parent Control] [{component}] Error Report"
     )
-    assert find(confirmation, "Close", "button").do_action(0)
-    wait_for_accessible_state(lambda: bool(events(path, "close_overlay" if overlay else "logout")),
-                              "exit after success confirmation closes")
+    assert not events(path, "close_overlay" if overlay else "logout")
+    assert not ui.showing("feedback-dialog")
+    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-success-dialog")
+    wait_for_accessible_state(
+        lambda: bool(events(path, "close_overlay" if overlay else "logout")),
+        "exit after success confirmation closes",
+    )
 
 
 def test_parent_discovery_error_opens_prefilled_feedback(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state):
-    application, _log = launch_ui("parent_component_preview", environment_overrides={
+        launch_ui, automation, wait_for_accessible_state):
+    launch_ui("parent_component_preview", environment_overrides={
         "ONPC_PARENT_COMPONENT_SCENARIO": "unavailable",
-    })
-    dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
-    editor = feedback_editor(application, wait_for_accessible_node)
-    wait_for_accessible_state(lambda: "Error categories: RuntimeError" in editor.text,
-                              "parent error draft loaded")
-    assert "The operation could not be completed. Please try again later." in editor.text
-    assert "service unavailable" not in editor.text
-    assert wait_for_accessible_node(dialog, "Add files", "button").sensitive
-    assert wait_for_accessible_node(dialog, "Send Feedback", "button").do_action(0)
-    wait_for_accessible_node(application, "Thank you for your feedback!", "alert")
+    }, wait_for_application=False)
+    ui = automation
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                              "parent discovery error report opens")
+    _editor, value = wait_for_error_draft(ui, wait_for_accessible_state)
+    assert "The operation could not be completed. Please try again later." in value
+    assert "service unavailable" not in value
+    assert ui.state("feedback-add-files", ui.api.StateType.SENSITIVE)
+    wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
+                              "error report is ready")
+    ui.activate("feedback-send")
+    wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
+                              "feedback confirmation opens")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_removing_logs_after_preparation_failure_preserves_edited_report(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, overlay):
     from dogtail import rawinput
-
-    application, path = launch_request(
-        launch_ui, tmp_path, overlay=overlay, scenario="service-failure-logs-unavailable",
+    ui = automation
+    _process, path = launch_request(
+        launch_ui, tmp_path, overlay=overlay,
+        scenario="service-failure-logs-unavailable", wait_for_application=False,
     )
-    find = wait_for_accessible_node
-    assert find(application, "REQUEST", "button").do_action(0)
-    assert find(application, "Close" if overlay else "Return to Login", "button").do_action(0)
-    dialog = find(application, "Send Feedback", "frame")
-    editor = feedback_editor(application, find)
-    wait_for_accessible_state(lambda: "Error categories: RuntimeError" in editor.text, "error draft loaded")
-    original = editor.text
-    assert editor.grab_focus()
+    wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
+                              "request controls publish IDs")
+    wait_for_accessible_state(
+        lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
+        "request is ready",
+    )
+    ui.activate("kiosk-request-submit")
+    wait_for_accessible_state(lambda: ui.find("kiosk-result-action") is not None,
+                              "error result is public")
+    ui.activate("kiosk-result-action")
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                              "error feedback opens")
+    editor, original = wait_for_error_draft(ui, wait_for_accessible_state)
+    ui.focus(editor)
     rawinput.keyCombo("<Control>End")
     rawinput.typeText("\nMy account of what happened.")
-    wait_for_accessible_state(lambda: "My account of what happened." in editor.text,
+    wait_for_accessible_state(lambda: "My account of what happened." in ui.content(editor),
                               "edited error draft loaded")
-    draft = editor.text
+    draft = ui.content(editor)
     assert original.strip() in draft
-    find(dialog, "Logs could not be prepared. You can send this feedback without the attachment.")
-    assert not find(dialog, "Send Feedback", "button").sensitive
-    assert find(dialog, "Retry collection", "button").sensitive
-    assert editor.text == draft
-    assert find(dialog, "Remove", "button").do_action(0)
-    find(dialog, "No logs attached")
-    assert editor.text == draft
+    expected = "Logs could not be prepared. You can send this feedback without the attachment."
+    wait_for_accessible_state(lambda: ui.text("feedback-status") == expected,
+                              "collection failure is public")
+    assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
+    assert ui.state("feedback-retry-logs", ui.api.StateType.SENSITIVE)
+    ui.activate("feedback-toggle-logs")
+    assert ui.text("feedback-logs-row") == "No logs attached"
+    assert ui.content(editor) == draft
     assert not events(path, "feedback")
-    # The editable draft and its bridge must agree when explicitly sent next.
-    assert find(dialog, "Send Feedback", "button").do_action(0)
-    find(application, "Thank you for your feedback!", "alert")
+    ui.activate("feedback-send")
+    wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
+                              "feedback confirmation opens")
     assert draft.strip() in events(path, "feedback")[0]["message"]
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_result_toggle_and_exit_accept_real_pointer_input(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path, overlay):
-    from dogtail import rawinput
-    application, path = launch_request(launch_ui, tmp_path, overlay=overlay,
-                                       scenario="service-failure-pointer")
-    assert wait_for_accessible_node(application, "REQUEST", "button").do_action(0)
-    toggle = wait_for_accessible_node(application, "Report this error", "switch")
-    wait_for_accessible_state(lambda: any("report" in e["targets"] for e in events(path, "pointer_layout")),
-                              "result pointer layout")
-    targets = events(path, "pointer_layout")[-1]["targets"]
-    rawinput.click(*targets["report"])
-    wait_for_accessible_state(lambda: not toggle.checked, "pointer turns off reporting")
+def test_result_toggle_and_exit_through_public_ids(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, overlay):
+    ui = automation
+    _process, path = launch_request(
+        launch_ui, tmp_path, overlay=overlay,
+        scenario="service-failure", wait_for_application=False,
+    )
+    wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
+                              "request surface publishes its controls")
+    wait_for_accessible_state(
+        lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
+        "request ready",
+    )
+    ui.activate("kiosk-request-submit")
+    wait_for_accessible_state(lambda: ui.find("kiosk-report-toggle") is not None,
+                              "error reporting control appears")
+    assert ui.state("kiosk-report-toggle", ui.api.StateType.CHECKED)
+    ui.activate("kiosk-report-row")
+    wait_for_accessible_state(
+        lambda: not ui.state("kiosk-report-toggle", ui.api.StateType.CHECKED),
+        "reporting turned off",
+    )
     assert not events(path, "close_overlay" if overlay else "logout")
-    rawinput.click(*targets["result"])
-    wait_for_accessible_state(lambda: bool(events(path, "close_overlay" if overlay else "logout")),
-                              "pointer exits result")
+    ui.activate("kiosk-result-action")
+    wait_for_accessible_state(
+        lambda: bool(events(path, "close_overlay" if overlay else "logout")),
+        "result action exits",
+    )

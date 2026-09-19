@@ -16,8 +16,10 @@ import parent_access
 import parent_terminal
 import command_help
 import desktop_session
+import kiosk_entry
 import parent_discovery
 import accessible_ui
+import inventory
 from private_artifacts import EvidenceError, PrivateCollector
 from recording import ScenarioRecorder
 from tests.support.paths import ROOT
@@ -66,19 +68,16 @@ def test_shared_system_prompt_rendezvous_retains_request_and_refuses_uncertain_i
 @pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN,
                                  parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN,
                                  command_help.PLAN, desktop_session.LOGOUT_PLAN,
-                                 desktop_session.SWITCH_PLAN],
+                                 desktop_session.SWITCH_PLAN, kiosk_entry.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
-                              'desktop-switch'])
+                              'desktop-switch', 'kiosk-entry'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
     # A different trusted plan exercises the same recorder phase shape without
     # registering a synthetic scenario or awarding it any customer coverage.
-    inventory = ROOT / 'tests/e2e/scenarios.json'
-    inputs = {key: hashlib.sha256(key.encode()).hexdigest() for key in evidence.INPUT_FIELDS}
-    inputs.update(inventory_sha256=hashlib.sha256(inventory.read_bytes()).hexdigest(),
-                  environment_id='ubuntu26-04-pinned')
+    document, _ = inventory.read_json(ROOT / 'tests/e2e/scenarios.json')
     selector = ('E2E-003/existing-and-new' if plan is parent_discovery.PLAN else 'E2E-030/parent')
     if plan is parent_discovery.EMPTY_PLAN:
         selector = 'E2E-003/none'
@@ -88,7 +87,23 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-004/terminal'
     if plan is command_help.PLAN:
         selector = 'E2E-042/command-help'
-    contract = evidence.EvidenceContract(inventory_path=inventory, root=ROOT,
+    scenario_id, variant_id = selector.split('/', 1)
+    selected = next(
+        variant
+        for scenario in document['scenarios'] if scenario['id'] == scenario_id
+        for variant in scenario['variants'] if variant['id'] == variant_id
+    )
+    selected.update(
+        status='ready', pending_reason=None,
+        executable={'path': 'tests/e2e/installed_journey.py',
+                    'test_id': 'synthetic-recorder-safety'},
+    )
+    inventory_path = tmp_path / 'scenarios.json'
+    inventory_path.write_text(json.dumps(document))
+    inputs = {key: hashlib.sha256(key.encode()).hexdigest() for key in evidence.INPUT_FIELDS}
+    inputs.update(inventory_sha256=hashlib.sha256(inventory_path.read_bytes()).hexdigest(),
+                  environment_id='ubuntu26-04-pinned')
+    contract = evidence.EvidenceContract(inventory_path=inventory_path, root=ROOT,
         selector=selector, run_id='shared-controller-test', inputs=inputs)
     directory = tmp_path / 'raw'
     directory.mkdir()
@@ -119,6 +134,16 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             result['settings'] = {'child': accessible_ui.CHILD_IDENTITIES[
                 accessible_ui.SETTINGS_OPERATIONS[operation]], 'limit_enabled': False,
                 'allowance': ['1 hour'] if operation.startswith('new-') else ['0 minutes']}
+        if operation in accessible_ui.KIOSK_OPERATIONS:
+            result['request'] = {
+                'surface': 'kiosk', 'form_count': 1, 'child': 'existing-fixture-child',
+                'approver': 'other-fixture-parent', 'duration_seconds': 1800,
+                'custom_text': None, 'allow_soft': False,
+                'child_selector_enabled': True, 'approver_selector_enabled': False,
+                'duration_enabled': False, 'soft_choice_enabled': False,
+                'request_enabled': False, 'cancel_enabled': True,
+                'message': 'screen-limit-disabled', 'mute': None,
+            }
         return result
     monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(observe=observe_ui)))
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
@@ -245,6 +270,36 @@ def test_missing_snapshot_refuses_without_installation_or_setup_reply(tmp_path, 
     setup.assert_not_called()
     transport.assert_not_called()
     assert not (tmp_path / 'setup-detached.reply.json').exists()
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_clean_baseline_qualification_installs_before_authorizing_customer_input(tmp_path, monkeypatch, failure):
+    setup = Mock()
+    setup.return_value.run.return_value = {'setup_reboot_verified': True, 'package_verified': False}
+    if failure:
+        setup.return_value.run.side_effect = EvidenceError('installation-failed')
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', setup)
+    monkeypatch.setattr(journeys, 'Transport', Mock())
+    monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock())
+    monkeypatch.setattr(journeys.system, 'address', lambda *_args, **_kwargs: '192.0.2.1')
+    context = SimpleNamespace(directory=tmp_path, install_current_package=True,
+                              lease=Mock(), verified=Mock(), commands=Mock(), host_key='test-key')
+    context.lease.state = {'run': 'test-run'}
+    journey = journeys.InstalledJourney(context, Mock(), SYNTHETIC)
+    guard = Mock()
+    for stage in ('ready', 'setup-detached'):
+        (tmp_path / (stage + '.request.json')).write_text(
+            json.dumps({'stage': stage, 'screenshot': None}))
+    journey.step(guard)
+    if failure:
+        with pytest.raises(EvidenceError, match='installation-failed'):
+            journey.step(guard)
+        assert not (tmp_path / 'setup-detached.reply.json').exists()
+    else:
+        journey.step(guard)
+        assert json.loads((tmp_path / 'setup-detached.reply.json').read_text()) == {'setup_complete': True}
+    setup.return_value.run.assert_called_once_with(guard, verify=False)
+    setup.return_value.provision.assert_not_called()
 
 
 def test_review_requires_a_named_qualification_mode(tmp_path):

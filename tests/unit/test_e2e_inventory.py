@@ -31,7 +31,9 @@ def test_starting_families_and_owners_match_required_coverage(document):
     actual = {item['id']: item for item in document['scenarios']}
     assert required == actual.keys()
     assert actual['E2E-001']['category'] == 'runner-smoke'
-    assert actual['E2E-028']['category'] == actual['E2E-029']['category'] == 'fault-recovery'
+    assert all(item['category'] == 'customer-journey'
+               for sid, item in actual.items() if sid != 'E2E-001')
+    assert {'E2E-028', 'E2E-029'}.isdisjoint(actual)
 
 
 def test_full_inventory_keeps_every_pending_case_and_evidence(document):
@@ -41,17 +43,15 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    assert len(document['scenarios']) == 50
-    assert len(plan['cases']) == 252
+    assert len(document['scenarios']) == 48
+    assert len(plan['cases']) == 241
     assert sorted(v['coverage_id'] for item in document['scenarios']
-                  for v in item['variants']) == list(range(1, 253))
-    assert len(plan['pending_cases']) == 245
+                  for v in item['variants']) == [*range(1, 140), *range(151, 253)]
+    assert len(plan['pending_cases']) == 241
     assert [v['coverage_id'] for item in document['scenarios']
-            for v in item['variants'] if v['status'] == 'ready'] == [1, 3, 4, 5, 6, 151, 193]
+            for v in item['variants'] if v['status'] == 'ready'] == []
     assert plan['scope'] == 'full'
-    assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
-        'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',
-        'E2E-004/app-grid', 'E2E-004/terminal', 'E2E-030/parent', 'E2E-042/command-help']
+    assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == []
     assert all(case['assertions'] and case['expected_evidence'] for case in plan['cases'])
     assert plan['evidence_contract']['outcomes'] == ['product', 'infrastructure', 'collection', 'cleanup']
 
@@ -66,12 +66,14 @@ def test_shared_form_family_selects_both_surfaces_and_all_variants(document, sid
 
 def test_ready_selection_explicitly_accounts_for_every_pending_case(document):
     full = inventory.resolve_selection(document)
-    plan = inventory.resolve_selection(document, ready_only=True, require_runnable=True)
+    plan = inventory.resolve_selection(document, ready_only=True)
     assert plan['scope'] == 'partial' and plan['ready_only'] is True
     assert plan['pending_cases'] == []
     assert plan['excluded_pending_cases'] == full['pending_cases']
     assert plan['cases'] == [c for c in full['cases'] if c['status'] == 'ready']
     assert len(plan['cases']) + len(plan['excluded_pending_cases']) == len(full['cases'])
+    with pytest.raises(inventory.InventoryError, match='selection:no-ready-cases'):
+        inventory.resolve_selection(document, ready_only=True, require_runnable=True)
     with pytest.raises(inventory.InventoryError, match='conflicting-selectors'):
         inventory.resolve_selection(document, 'E2E-030', ready_only=True)
 
@@ -84,7 +86,7 @@ def test_no_ready_cases_refuses_instead_of_passing_an_empty_suite(document):
         inventory.resolve_selection(document, ready_only=True, require_runnable=True)
 
 
-@pytest.mark.parametrize('sid', ['E2E-003', 'E2E-004', 'E2E-005', 'E2E-028', 'E2E-030'])
+@pytest.mark.parametrize('sid', ['E2E-003', 'E2E-004', 'E2E-005', 'E2E-030', 'E2E-031'])
 def test_feature_cases_cannot_omit_installed_snapshot_even_while_pending(document, sid):
     family(document, sid)['preconditions'].remove('installed-digest-verified-product')
     with pytest.raises(inventory.InventoryError, match='installed-snapshot-required'):
@@ -131,7 +133,7 @@ def test_invalid_selection_fails_without_broadening(document, selector, category
 
 
 @pytest.mark.parametrize('selector', [None, 'E2E-002', 'E2E-023/fullscreen',
-    'E2E-028/startup-enforcement', 'E2E-028/startup-broker'])
+    'E2E-031/draft-reopen', 'E2E-051/riley'])
 def test_pending_selection_cannot_run(document, selector):
     with pytest.raises(inventory.InventoryError, match='selection:pending'):
         inventory.resolve_selection(document, selector, require_runnable=True)
@@ -154,22 +156,16 @@ def test_package_reboot_notices_require_last_printed_output(document):
         assert 'last printed output' in item['description']
 
 
-def test_startup_selection_keeps_independent_failure_boundaries(document):
-    clean = inventory.resolve_selection(document, 'E2E-002')['cases'][0]
-    assert clean['requirement_gap'] is None
-    assert set(clean['requirements']) == {'ONPC-CORE-INSTALL-001', 'ONPC-COMP-BROKER-010'}
-    faults = inventory.resolve_selection(document, 'E2E-028')['cases']
-    assert {case['case_id'] for case in faults if case['owner'] == 'installation'} == {
-        'E2E-028/startup-enforcement', 'E2E-028/startup-broker'}
-    # A recovered final state cannot substitute for observing the failed gate.
-    for case in faults:
-        for kind in ('visible', 'backend'):
-            assert any(item['step_id'] == 'step-3' for item in case['assertions'][kind])
-    # Dropping either startup boundary must fail declared matrix closure.
-    chosen = family(document, 'E2E-028')
-    chosen['variants'] = [v for v in chosen['variants'] if v['id'] != 'startup-broker']
-    with pytest.raises(inventory.InventoryError, match='matrix:missing-value'):
-        inventory.validate_inventory(document)
+def test_ui_inventory_excludes_retired_internal_fault_cases(document):
+    assert {v['coverage_id'] for item in document['scenarios']
+            for v in item['variants']}.isdisjoint(range(140, 151))
+    for item in document['scenarios']:
+        if item['category'] != 'customer-journey':
+            continue
+        assert item['interventions'] == []
+        assert item['assertions']['backend'] == []
+        assert 'backend' not in item['expected_evidence']
+        assert all(step['operation'] != 'fault' for step in item['phases']['steps'])
 
 
 @pytest.mark.parametrize('scope', ['document', 'scenario', 'variant', 'step', 'evidence'])
@@ -255,11 +251,11 @@ def test_customer_steps_cannot_declare_reset_provision_or_undeclared_fault(docum
         inventory.validate_inventory(document)
 
 
-def test_fault_intervention_requires_actor_step_and_evidence(document):
-    chosen = family(document, 'E2E-028')
-    chosen['interventions'].pop()
-    with pytest.raises(inventory.InventoryError, match='intervention:declaration'):
-        inventory.validate_inventory(document)
+def test_retired_internal_fault_families_are_not_selectable(document):
+    for selector in ('E2E-028', 'E2E-029', 'E2E-028/startup-enforcement',
+                     'E2E-029/failed-save'):
+        with pytest.raises(inventory.InventoryError, match='selection:unknown'):
+            inventory.resolve_selection(document, selector)
 
 
 @pytest.mark.parametrize('kind', ['visible', 'backend', 'other_user'])

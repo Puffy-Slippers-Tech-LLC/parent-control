@@ -27,7 +27,7 @@ test defects may be fixed automatically while preserving the intended checks.
 | Source and documentation edits | Native `apply_patch` within workspace permissions; `tools/read-only links` for Markdown |
 | Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
-| Setup refresh and VM maintenance | `./setup.sh` modes and `tools/test-vm` within their existing grants and authorized scope |
+| Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-baseline` and `tools/test-vm` within their existing grants and authorized scope |
 | E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
@@ -62,8 +62,8 @@ an administrator-authorized root session; it never falls back after denial. For 
 changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
 checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
-dependencies and host policies. Explicit baseline preparation is also routed
-through the master: `./setup.sh --prepare-baseline`; see
+dependencies and host policies. Explicit baseline preparation is
+`tools/prepare-baseline`; see
 [VM prerequisites](../tests/integration/Environment.md).
 The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
 plugin and GTK 4 VTE viewer packages without requesting package upgrades; ordinary test commands
@@ -191,8 +191,9 @@ Setup authorization is separate from runtime test authorization. The installed
 `codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools` or `prepare-baseline`, with no extra
 paths or arguments. Its
 dedicated Polkit action defaults to denial and grants only active local members
-of `sudo`. `setup.sh` checks this authorization without requesting interaction
-before invoking the helper, and never falls back to generic `pkexec` on denial.
+of `sudo`. `setup.sh` and `tools/prepare-baseline` check this authorization without
+requesting interaction before invoking the helper, and never fall back to generic
+`pkexec` on denial. The public baseline-replacement entry is `tools/prepare-baseline`.
 The dispatcher uses fixed modules from its pinned trusted checkout and a clean
 environment; trust includes edits to that checkout's setup code. The dependency
 operation runs only the fixed host-package module with noninteractive package

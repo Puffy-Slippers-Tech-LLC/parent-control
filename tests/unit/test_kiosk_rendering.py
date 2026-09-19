@@ -6,9 +6,35 @@ from types import SimpleNamespace
 from tests.support.paths import ROOT
 KIOSK_MAIN = ROOT / "kiosk/oh_no_parent_control_kiosk/main.py"
 KIOSK_CONTENT = ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py"
+PREVIEW_SCREEN = ROOT / "kiosk/oh_no_parent_control_kiosk/preview_screen.py"
+PREVIEW_VIEWER = ROOT / "kiosk/oh_no_parent_control_kiosk/preview_viewer.py"
 
 
 class KioskRenderingTests(unittest.TestCase):
+    def test_preview_scale_choices_have_public_stable_identities(self):
+        source = PREVIEW_SCREEN.read_text(encoding="utf-8")
+
+        self.assertIn('automation_id="preview-screen-scale"', source)
+        self.assertIn('"preview-screen-scale-choices"', source)
+        self.assertIn('automation_id=f"preview-screen-scale-{percent}"', source)
+        self.assertIn('"preview-screen-scale-scroll"', source)
+        self.assertNotIn("Gtk.DropDown.new_from_strings", source)
+
+    def test_request_overflow_controls_are_scoped_to_their_surface(self):
+        source = KIOSK_MAIN.read_text(encoding="utf-8")
+
+        self.assertIn('f"kiosk-{automation_namespace}-viewport"', source)
+        self.assertIn('f"kiosk-{automation_namespace}-scrollbar"', source)
+        self.assertIn('self._request_content, "request"', source)
+        self.assertIn('self._result_view, "result"', source)
+
+    def test_preview_viewer_exposes_its_scrollable_content(self):
+        source = PREVIEW_VIEWER.read_text(encoding="utf-8")
+
+        self.assertIn('"preview-viewer-window"', source)
+        self.assertIn('"preview-viewer-content"', source)
+        self.assertIn('"preview-viewer-screen"', source)
+
     def test_snowflake_field_uses_120_percent_of_its_previous_count(self):
         from oh_no_parent_control_kiosk.snowflakes import (
             COUNT_MULTIPLIER,
@@ -136,13 +162,13 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("preview-child-overlay:", makefile)
         self.assertIn("oh_no_parent_control_kiosk.preview --child-overlay", makefile)
         self.assertIn(
-            "if self._child_overlay:\n            help_item = self._hud_menu_item(\"HELP\", HELP)",
+            "if self._child_overlay:\n            help_item = self._hud_menu_item(\"HELP\", HELP, identity=\"help\")",
             source,
         )
-        self.assertIn('self._hud_menu_item("ABOUT", ABOUT)', source)
+        self.assertIn('self._hud_menu_item("ABOUT", ABOUT, identity="about")', source)
         self.assertLess(
-            source.index('self._hud_menu_item("HELP", HELP)'),
-            source.index('self._hud_menu_item("ABOUT", ABOUT)'),
+            source.index('self._hud_menu_item("HELP", HELP, identity="help")'),
+            source.index('self._hud_menu_item("ABOUT", ABOUT, identity="about")'),
         )
         self.assertIn('always_show_arrow=False', source)
         self.assertIn("oh-no-parent-control-hud-button", source)
@@ -298,9 +324,9 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn(".rotate_3d(", source)
         self.assertIn("self._viewport.allocate(child_width, child_height, baseline, transform)", source)
         self.assertIn("self.snapshot_child(self._viewport, snapshot)", source)
-        self.assertIn("self._request_surface = GatewayAlignedRequest(self._request_content)", source)
+        self.assertIn("self._request_content, \"request\"", source)
         self.assertIn('self._stack.add_named(self._request_surface, "request")', source)
-        self.assertIn("self._result_surface = GatewayAlignedRequest(self._result_view)", source)
+        self.assertIn('GatewayAlignedRequest(self._result_view, "result")', source)
         self.assertIn('self._stack.add_named(self._result_surface, "result")', source)
         self.assertNotIn('self._stack.add_named(self._result_view, "result")', source)
         self.assertNotIn(".skew(", source)
@@ -503,8 +529,8 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn("class GatewayDropDown(Gtk.Box):", source)
         self.assertIn("outside the request form's snapshot", source)
-        self.assertIn("self._accounts = GatewayDropDown(self._account_changed)", source)
-        self.assertIn("self._approvers = GatewayDropDown(self._approver_changed)", source)
+        self.assertIn('"child", "Child account", self._account_changed,', source)
+        self.assertIn('"approver", "Approving parent", self._approver_changed,', source)
         self.assertIn("apply_gtk_user_icon", source)
         self.assertIn("parse_listed_user", source)
         self.assertNotIn("Gtk.DropDown", source)

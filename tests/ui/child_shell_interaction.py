@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import sys
 import time
@@ -18,13 +17,14 @@ from gi.repository import Atspi, GLib
 from dogtail.hermetic.mutter import MutterInputBackend
 
 from child_shell_screenshot import capture_screenshot
-from mutter_input import click_at, press_key as _press_key
+from mutter_input import press_key as _press_key
 from shell_overview import set_overview
+from tests.support.automation import Automation
 
 
 EVENTS = (
     "object:children-changed",
-    "object:property-change:accessible-name",
+    "object:property-change:accessible-id",
     "object:state-changed:checked",
     "object:state-changed:focused",
     "object:state-changed:showing",
@@ -35,45 +35,15 @@ TIMEOUT_SECONDS = float(os.environ.get("ONPC_CHILD_INTERACTION_TIMEOUT_SECONDS",
 EVENTS_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_EVENTS_PATH"])
 SNAPSHOT_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_A11Y_PATH"])
 X_KEYCODE_SPACE = 65
-COUNTDOWN_ANIMATION_LABEL = "One minute count down animation"
+X_KEYCODE_MENU = 135
 COUNTDOWN_ANIMATION_SCHEMA = "com.puffyslippers.oh-no-parent-control.child"
 COUNTDOWN_ANIMATION_KEY = "one-minute-countdown-animation"
 EXTENSION_UUID = "oh-no-parent-control@tech.puffyslippers.com"
-
-
-def _children(node):
-    try:
-        return [
-            node.get_child_at_index(index)
-            for index in range(max(0, node.get_child_count()))
-        ]
-    except (AttributeError, GLib.Error):
-        return []
-
-
-def _applications():
-    desktop = Atspi.get_desktop(0)
-    return [
-        desktop.get_child_at_index(index)
-        for index in range(desktop.get_child_count())
-    ]
-
-
-def _walk(root):
-    queue = [root]
-    while queue:
-        node = queue.pop(0)
-        if node is None:
-            continue
-        yield node
-        queue.extend(_children(node))
-
-
-def _node_name(node):
-    try:
-        return node.get_name() or ""
-    except GLib.Error:
-        return ""
+REQUEST_BUTTON_ID = "child-request-button"
+COUNTDOWN_ANIMATION_ID = "child-countdown-animation-toggle"
+OVERLAY_WINDOW_ID = "kiosk-request-window"
+OVERLAY_CANCEL_ID = "kiosk-request-cancel"
+UI = Automation(Atspi, lambda: Atspi.get_desktop(0), query_errors=(GLib.Error,))
 
 
 def _node_role(node):
@@ -91,34 +61,13 @@ def _state(node, state_type):
 
 
 def _find_request_button():
-    for application in _applications():
-        if "gnome-shell" not in _node_name(application).lower():
-            continue
-        for node in _walk(application):
-            # The interaction scenario verifies the production action itself;
-            # generation markers belong to the separate reload probe. Keeping
-            # this predicate independent prevents a prior probe environment
-            # from changing which real Shell actor receives virtual input.
-            name = _node_name(node)
-            if re.fullmatch(r"Request time, 00:4[45](?:, generation-(?:one|two))?", name):
-                # Devkit's monitor arrives asynchronously after the Shell
-                # accessibility tree. Wait for a real on-screen allocation;
-                # AT-SPI uses INT_MIN rectangles while no monitor is mapped.
-                extents = node.get_extents(Atspi.CoordType.SCREEN)
-                if extents.x >= 0 and extents.y >= 0 and extents.width > 0 and extents.height > 0:
-                    return node
-    return None
+    node = UI.find(REQUEST_BUTTON_ID)
+    return node if node is not None and _state(node, Atspi.StateType.SHOWING) else None
 
 
 def _find_countdown_animation_item():
-    for application in _applications():
-        if "gnome-shell" not in _node_name(application).lower():
-            continue
-        for node in _walk(application):
-            if _node_name(node) == COUNTDOWN_ANIMATION_LABEL \
-                    and _state(node, Atspi.StateType.SHOWING):
-                return node
-    return None
+    node = UI.find(COUNTDOWN_ANIMATION_ID)
+    return node if node is not None and _state(node, Atspi.StateType.SHOWING) else None
 
 
 def _countdown_animation_setting():
@@ -146,41 +95,12 @@ def _countdown_animation_setting():
     return result.stdout.strip() == "true"
 
 
-def _click(node, button, input_backend):
-    extents = node.get_extents(Atspi.CoordType.SCREEN)
-    print(f"interaction input=pointer button={button} "
-          f"target={extents.x},{extents.y},{extents.width},{extents.height}", flush=True)
-    click_at(
-        input_backend,
-        button,
-        extents.x + max(1, extents.width // 2),
-        extents.y + max(1, extents.height // 2),
-    )
-
-
-def _right_click(node, input_backend):
-    _click(node, 3, input_backend)
-
-
 def _overlay_surfaces():
-    surfaces = []
-    for application in _applications():
-        if "gnome-shell" in _node_name(application).lower():
-            continue
-        nodes = list(_walk(application))
-        cancel_nodes = [
-            node for node in nodes
-            if _node_name(node) == "CANCEL" and _node_role(node) == "button"
-        ]
-        if not cancel_nodes:
-            continue
-        windows = [
-            node for node in nodes
-            if _node_role(node) in {"frame", "window"}
-            and _state(node, Atspi.StateType.VISIBLE)
-        ]
-        surfaces.append((application, cancel_nodes, windows))
-    return surfaces
+    windows = [node for node in UI.find_all(OVERLAY_WINDOW_ID)
+               if _state(node, Atspi.StateType.SHOWING)]
+    cancel = [node for node in UI.find_all(OVERLAY_CANCEL_ID)
+              if _state(node, Atspi.StateType.SHOWING)]
+    return windows, cancel
 
 
 def _launch_records():
@@ -201,45 +121,20 @@ def _process_exists(pid):
 
 def _snapshot():
     lines = []
-    for app_index, application in enumerate(_applications()):
-        is_shell = "gnome-shell" in _node_name(application).lower()
-        is_overlay = bool([
-            node for node in _walk(application) if _node_name(node) == "CANCEL"
-        ])
-        if not is_shell and not is_overlay:
+    for node in UI.nodes():
+        try:
+            identity = node.get_accessible_id() or ""
+        except GLib.Error:
             continue
+        if not identity.startswith(("child-", "kiosk-")):
+            continue
+        states = node.get_state_set()
         lines.append(
-            f"application[{app_index}] name={_node_name(application)!r} "
-            f"role={_node_role(application)!r}"
+            f"id={identity!r} role={_node_role(node)!r} "
+            f"visible={states.contains(Atspi.StateType.VISIBLE)} "
+            f"showing={states.contains(Atspi.StateType.SHOWING)} "
+            f"checked={states.contains(Atspi.StateType.CHECKED)}"
         )
-        for node in _walk(application):
-            name = _node_name(node)
-            if not name:
-                continue
-            if is_shell and name != "Screen Time Remaining" \
-                    and not name.startswith("Request time,") \
-                    and not _state(node, Atspi.StateType.FOCUSED):
-                continue
-            if is_shell and not (
-                    name == "Screen Time Remaining"
-                    or name.startswith("Request time,")
-            ):
-                name = "[Shell surface]"
-            if is_overlay and name not in {"CANCEL", "REQUEST"}:
-                name = "[Request surface]"
-            states = node.get_state_set()
-            try:
-                extents = node.get_extents(Atspi.CoordType.SCREEN)
-                geometry = f"{extents.x},{extents.y} {extents.width}x{extents.height}"
-            except GLib.Error:
-                geometry = "unavailable"
-            lines.append(
-                f"  name={name!r} role={_node_role(node)!r} "
-                f"visible={states.contains(Atspi.StateType.VISIBLE)} "
-                f"showing={states.contains(Atspi.StateType.SHOWING)} "
-                f"checked={states.contains(Atspi.StateType.CHECKED)} "
-                f"geometry={geometry}"
-            )
     text = "\n".join(lines) + "\n"
     SNAPSHOT_PATH.write_text(text, encoding="utf-8")
     return text
@@ -314,9 +209,8 @@ def _prepare_indicator_input():
     # Set an explicit state on the owned bus. Super toggles and Escape can
     # reach the request form when overview/focus transitions are delayed.
     set_overview(True, _wait)
-    button = _wait(_find_request_button, "the indicator in Shell's overview")
-    if not button.grab_focus():
-        raise AssertionError("The Shell request indicator did not accept key focus")
+    button = _wait(_find_request_button, "the ID-addressed indicator in Shell's overview")
+    UI.focus(REQUEST_BUTTON_ID)
     _wait(
         lambda: _state(_find_request_button(), Atspi.StateType.FOCUSED),
         "keyboard focus on the Shell request indicator",
@@ -325,32 +219,27 @@ def _prepare_indicator_input():
 
 
 def _activate_repeatedly(count, input_backend):
-    # Shell's St.Button does not expose an AT-SPI Action interface. Target its
-    # observed pointer allocation in the explicitly open overview instead.
-    # Opening GTK can transfer keyboard focus during this burst; later Spaces
-    # must not activate Cancel and turn a valid reopen into a duplicate launch.
+    # Shell's St.Button does not expose an AT-SPI Action interface. Reacquire
+    # its public ID, focus it semantically, and use its normal keyboard action.
     for _index in range(count):
-        button = _wait(_find_request_button, 'the real Shell request action')
-        _wait(lambda: _state(button, Atspi.StateType.SHOWING), 'the visible Shell indicator')
-        _click(button, 1, input_backend)
+        _prepare_indicator_input()
+        _press_key(input_backend, X_KEYCODE_SPACE)
 
 
 def _one_overlay(expected_launches):
     records = _launch_records()
-    surfaces = _overlay_surfaces()
-    if len(records) != expected_launches or len(surfaces) != 1:
-        return None
-    _application, cancel_nodes, windows = surfaces[0]
-    if len(cancel_nodes) != 1 or len(windows) != 1:
+    windows, cancel = _overlay_surfaces()
+    if len(records) != expected_launches or len(windows) != 1 or len(cancel) != 1:
         return None
     if not _process_exists(records[-1]):
         return None
-    return surfaces[0]
+    return windows[0], cancel[0]
 
 
 def _overlay_closed(expected_launches):
     records = _launch_records()
-    if len(records) != expected_launches or _overlay_surfaces():
+    windows, cancel = _overlay_surfaces()
+    if len(records) != expected_launches or windows or cancel:
         return False
     return records and not _process_exists(records[-1])
 
@@ -360,28 +249,32 @@ def main():
     try:
         input_backend = MutterInputBackend()
         input_backend.connectMonitor()
-        request_button = _wait(_find_request_button, "the Shell request action")
-        if _launch_records() or _overlay_surfaces():
+        _wait(_find_request_button, "the Shell request action")
+        windows, cancel = _overlay_surfaces()
+        if _launch_records() or windows or cancel:
             raise AssertionError("The interaction preview opened an overlay before activation")
         print("interaction stage=initially-closed", flush=True)
 
         if _countdown_animation_setting():
             raise AssertionError("Countdown animation did not default to disabled")
-        _right_click(request_button, input_backend)
+        _prepare_indicator_input()
+        _press_key(input_backend, X_KEYCODE_MENU)
         countdown_item = _wait(
             _find_countdown_animation_item,
             "the secondary-click countdown animation checkbox",
         )
         if _state(countdown_item, Atspi.StateType.CHECKED):
             raise AssertionError("Countdown animation checkbox did not default to unchecked")
-        _click(countdown_item, 1, input_backend)
+        UI.focus(COUNTDOWN_ANIMATION_ID)
+        _press_key(input_backend, X_KEYCODE_SPACE)
         _wait(
             lambda: _find_countdown_animation_item() is None,
             "the countdown animation menu to close after activation",
         )
-        time.sleep(0.25)
-        if not _countdown_animation_setting():
-            raise AssertionError("Countdown animation choice was not persisted")
+        _wait(
+            _countdown_animation_setting,
+            "the countdown animation choice to persist",
+        )
         print("interaction stage=countdown-preference-persisted", flush=True)
 
         # These actions arrive after the first spawn but before its GTK window
@@ -395,7 +288,7 @@ def main():
         set_overview(False, _wait)
         _wait(lambda: len(_launch_records()) == 1, "one opening request process")
         print("interaction stage=opening-single-flight", flush=True)
-        overlay = _wait(lambda: _one_overlay(1), "one visible child request overlay")
+        _wait(lambda: _one_overlay(1), "one visible child request overlay")
         capture_screenshot(Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]))
         print("interaction stage=overlay-visible", flush=True)
 
@@ -403,13 +296,12 @@ def main():
         set_overview(True, _wait)
         _activate_repeatedly(5, input_backend)
         set_overview(False, _wait)
-        if len(_launch_records()) != 1 or len(_overlay_surfaces()) != 1:
+        windows, cancel = _overlay_surfaces()
+        if len(_launch_records()) != 1 or len(windows) != 1 or len(cancel) != 1:
             raise AssertionError("Repeated activation created a duplicate request overlay")
         print("interaction stage=running-single-flight", flush=True)
 
-        _application, cancel_nodes, _windows = overlay
-        if not cancel_nodes[0].do_action(0):
-            raise AssertionError("The shared overlay Cancel action was not accepted")
+        UI.activate(OVERLAY_CANCEL_ID)
         _wait(lambda: _overlay_closed(1), "the first overlay to close")
         print("interaction stage=first-overlay-closed", flush=True)
         _wait(
@@ -417,19 +309,17 @@ def main():
             "the indicator to clear its active state",
         )
 
-        request_button = _wait(_find_request_button, "the reusable Shell request action")
+        _wait(_find_request_button, "the reusable Shell request action")
         _prepare_indicator_input()
         _press_key(input_backend, X_KEYCODE_SPACE)
         set_overview(False, _wait)
-        second_overlay = _wait(lambda: _one_overlay(2), "one reopened child request overlay")
+        _wait(lambda: _one_overlay(2), "one reopened child request overlay")
         print("interaction stage=overlay-reopened", flush=True)
         records = _launch_records()
         if records[0] == records[1]:
             raise AssertionError("The reopened overlay did not use a new process")
 
-        _application, cancel_nodes, _windows = second_overlay
-        if not cancel_nodes[0].do_action(0):
-            raise AssertionError("The reopened overlay Cancel action was not accepted")
+        UI.activate(OVERLAY_CANCEL_ID)
         _wait(lambda: _overlay_closed(2), "the reopened overlay to close")
         print(
             "Child indicator interaction passed; launches=2 "

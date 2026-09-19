@@ -113,9 +113,6 @@ def feedback_logs():
 
 
 feedback.collect_logs = feedback_logs
-if os.environ.get("ONPC_FEEDBACK_SPINNER_DIRECTORY"):
-    from tests.ui.feedback_spinner_probe import ObservedFeedbackDialog
-    parent_main.FeedbackDialog = ObservedFeedbackDialog
 
 feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
 feedback_attempts = 0

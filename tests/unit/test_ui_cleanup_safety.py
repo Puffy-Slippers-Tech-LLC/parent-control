@@ -39,12 +39,26 @@ def test_failed_spawn_closes_its_log(tmp_path, monkeypatch):
 def test_failed_discovery_still_reaps_owned_preview(tmp_path, monkeypatch):
     process = Mock(poll=Mock(return_value=None))
     monkeypatch.setattr(preview.subprocess, "Popen", Mock(return_value=process))
-    session = Mock(environment={}, wait_for_app=Mock(side_effect=RuntimeError("not visible")))
+    session = Mock(environment={})
+    identify = Mock(side_effect=RuntimeError("not visible"))
     with pytest.raises(RuntimeError, match="not visible"):
         with preview.preview_applications(session, tmp_path) as launch:
             launch("parent_preview")
+            identify("parent-window")
+    session.wait_for_app.assert_not_called()
     process.terminate.assert_called_once()
     process.wait.assert_called_once_with(timeout=5)
+
+
+def test_name_based_discovery_refuses_before_launch(tmp_path, monkeypatch):
+    popen = Mock()
+    monkeypatch.setattr(preview.subprocess, "Popen", popen)
+    session = Mock(environment={})
+    with preview.preview_applications(session, tmp_path) as launch:
+        with pytest.raises(ValueError, match="public automation ID"):
+            launch("parent_preview", wait_for_application=True)
+    popen.assert_not_called()
+    session.wait_for_app.assert_not_called()
 
 
 def test_cleanup_failure_does_not_abandon_other_owned_previews(tmp_path, monkeypatch):

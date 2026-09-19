@@ -19,6 +19,12 @@ human authorization.
 
 First setup may require administrator authentication. Rerun to refresh dependencies and tooling.
 
+Full setup and `--dependencies-only` include the offline GUI-fixture build
+prerequisites: Flatpak, Snap packaging, SquashFS, Python/GTK introspection,
+DejaVu fonts and XKB keyboard data. Tests report missing prerequisites and do
+not install them. Fixture builds produce temporary payloads; they do not install
+the product or a fixture Snap on the development host.
+
 For VM tests and release signing, create `.envrc` only if absent:
 
 ```sh
@@ -118,7 +124,7 @@ Reference: [test commands and artifacts](tests/README.md).
 ## Run VM and graphical E2E tests
 
 Follow [VM setup](tests/integration/Environment.md). With the source VM off, run
-`make prepare-baseline` on the host. It validates `.envrc` first, prepares the
+`tools/prepare-baseline` on the host. It validates `.envrc` first, prepares the
 guest accounts and reusable tools during a controlled boot, then captures the
 powered-off guest. Existing accounts keep their UIDs and homes; their password,
 picture, display name, role, shell and unlocked status are reconciled with the
@@ -128,7 +134,7 @@ without restoring it. Ordinary `./setup.sh` never prepares a baseline.
 
 For manual maintenance, restore your own snapshot (for example `1 - Clean`),
 make your changes, shut down the VM, and replace your snapshot as usual. Then
-run `make prepare-baseline`. It accepts the current disk chain of the same VM
+run `tools/prepare-baseline`. It accepts the current disk chain of the same VM
 without another confirmation, preserves your snapshots, and replaces only the
 automation-owned `onpc-baseline`. It never restores a snapshot during preparation.
 

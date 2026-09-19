@@ -14,6 +14,8 @@ gi.require_version("Gsk", "4.0")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gdk, Gio, Graphene, Gsk, Gtk
 
+from .accessibility import describe_control, set_automation_id
+
 
 _INSTALLED_DATA_DIR = Path("/usr/share/oh-no-parent-control")
 _SOURCE_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -69,13 +71,17 @@ def _launch_uri(uri: str) -> None:
 def _detail_row(icon_name: str | None, label: str, value: str, uri: str | None, *,
                 links_enabled: bool, icon_filename: str | None = None) -> Gtk.Box:
     row = Gtk.Box(spacing=16, margin_top=8, margin_bottom=8)
+    identity = label.lower().replace(" ", "-")
+    set_automation_id(row, f"about-{identity}-row")
     icon = (Gtk.Image.new_from_file(str(_data_dir() / icon_filename))
             if icon_filename else Gtk.Image(icon_name=icon_name))
     icon.set_pixel_size(32)
     icon.set_valign(Gtk.Align.CENTER)
     row.append(icon)
     copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
-    copy.append(Gtk.Label(label=label, xalign=0, css_classes=["about-detail-label"]))
+    label_widget = Gtk.Label(label=label, xalign=0, css_classes=["about-detail-label"])
+    set_automation_id(label_widget, f"about-{identity}-label")
+    copy.append(label_widget)
     if uri and links_enabled:
         # LinkButton delegates activation to GTK's URI launcher.  Besides
         # handling pointer clicks, this makes the links reachable by keyboard
@@ -87,6 +93,14 @@ def _detail_row(icon_name: str | None, label: str, value: str, uri: str | None, 
     else:
         value_widget = Gtk.Label(label=value, xalign=0,
                                  css_classes=["about-detail-value"])
+    if isinstance(value_widget, Gtk.LinkButton):
+        describe_control(
+            value_widget, f"{label}: {value}",
+            f"Open the product {label.casefold()} information.",
+            automation_id=f"about-{identity}-value",
+        )
+    else:
+        set_automation_id(value_widget, f"about-{identity}-value")
     copy.append(value_widget)
     row.append(copy)
     return row
@@ -139,6 +153,7 @@ class AboutDialog(Gtk.Window):
     def __init__(self, parent: Gtk.Window, *, links_enabled: bool = True):
         values = branding()
         super().__init__(title="About", transient_for=parent, modal=True)
+        set_automation_id(self, "about-dialog")
         self.set_default_size(460, 680)
         self.add_css_class("about-dialog")
 
@@ -150,10 +165,14 @@ class AboutDialog(Gtk.Window):
         logo.set_halign(Gtk.Align.CENTER)
         logo.set_margin_top(16)
         content.append(logo)
-        content.append(Gtk.Label(label=values["app_name"], css_classes=["title-1"],
-                                 halign=Gtk.Align.CENTER, margin_top=10))
-        content.append(Gtk.Label(label=f"Version {app_version()}",
-                                 css_classes=["dim-label"], halign=Gtk.Align.CENTER))
+        title = Gtk.Label(label=values["app_name"], css_classes=["title-1"],
+                          halign=Gtk.Align.CENTER, margin_top=10)
+        set_automation_id(title, "about-product-name")
+        content.append(title)
+        version = Gtk.Label(label=f"Version {app_version()}",
+                            css_classes=["dim-label"], halign=Gtk.Align.CENTER)
+        set_automation_id(version, "about-version")
+        content.append(version)
         content.append(Gtk.Label(label="Helping families build healthy digital habits.",
                                  css_classes=["dim-label"], halign=Gtk.Align.CENTER,
                                  margin_bottom=16))
@@ -178,24 +197,30 @@ class AboutDialog(Gtk.Window):
         content.append(_detail_row("dialog-information-symbolic", "Legal notices",
                                    "Malcontent integration and bundled-font notices",
                                    notices_path.as_uri(), links_enabled=links_enabled))
-        content.append(Gtk.Label(
+        integration_notice = Gtk.Label(
             label=("Uses the separately installed Malcontent parental-controls "
                    "service through public system APIs. Not affiliated with or "
                    "endorsed by the Malcontent authors or GNOME."),
             wrap=True, justify=Gtk.Justification.CENTER, halign=Gtk.Align.FILL,
             css_classes=["dim-label"], margin_top=4,
-        ))
+        )
+        set_automation_id(integration_notice, "about-integration-notice")
+        content.append(integration_notice)
         content.append(Gtk.Box(vexpand=True))
-        content.append(Gtk.Label(
+        copyright_notice = Gtk.Label(
             label=f"© 2026 {values['vendor_name']}\nGPL-3.0-only · No warranty.",
             justify=Gtk.Justification.CENTER, css_classes=["dim-label"],
             halign=Gtk.Align.CENTER,
-        ))
+        )
+        set_automation_id(copyright_notice, "about-copyright")
+        content.append(copyright_notice)
         # Legal notices must remain reachable on short or scaled displays.
-        self.set_child(Gtk.ScrolledWindow(
+        scroller = Gtk.ScrolledWindow(
             child=content, hscrollbar_policy=Gtk.PolicyType.NEVER,
             propagate_natural_height=True, focusable=True,
-        ))
+        )
+        set_automation_id(scroller, "about-content")
+        self.set_child(scroller)
 
 
 def open_help() -> None:

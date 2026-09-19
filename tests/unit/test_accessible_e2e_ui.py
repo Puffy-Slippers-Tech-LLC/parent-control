@@ -212,7 +212,9 @@ def test_greeter_discovery_does_not_retry_failed_session_reads(monkeypatch):
     sleep.assert_not_called()
 
 
-@pytest.mark.parametrize('operation,timeout', [('gdm-other-list', 390), ('desktop', 90)])
+@pytest.mark.parametrize('operation,timeout', [
+    ('gdm-other-list', 390), ('desktop', 90), ('kiosk-request-form', 120),
+])
 @pytest.mark.parametrize('streamed', [True, False])
 def test_ui_transport_allows_greeter_boot_wait_inside_worker_deadline(operation, timeout, streamed):
     commands = SimpleNamespace(progress=None)
@@ -269,6 +271,23 @@ def test_usable_target_is_independent_of_appearance(appearance):
     ui = ui_for(Node(children=[Node('Help', 'button'), button]))
     ui.activate(ui.target('About', ('button',), sensitive=True))
     button.action.do_action.assert_called_once_with(0)
+
+
+def test_child_lookup_never_discovers_uid_from_a_matching_label():
+    from accessible_ui import CHILD, NEW_CHILD
+    wrong_uid = Node('', 'button', identity='parent-child-choice-1003',
+                     children=[Node(CHILD, 'label')])
+    target = Node('', 'button', identity='parent-child-choice-1001',
+                  children=[Node(NEW_CHILD, 'label')])
+    root = Node(children=[wrong_uid, target])
+    ui = ui_for(root)
+    with pytest.raises(UiError, match='child-label'):
+        ui.child_id_control(CHILD, 'parent-child-choice-', root=root, showing=True)
+    target.children[0].name = CHILD
+    assert ui.child_id_control(CHILD, 'parent-child-choice-', root=root, showing=True) is target
+    root.children = [wrong_uid]
+    assert ui.child_id_control(CHILD, 'parent-child-choice-', root=root, showing=True) is None
+    wrong_uid.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['hidden', 'disabled', 'wrong-name', 'ambiguous', 'refused'])
@@ -370,9 +389,11 @@ def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault,
     from accessible_ui import PRODUCT
     explanation = Node('No interactive\n non-administrator account was found.', 'label',
                        appearance={'scale': 2.5, 'font': 'huge', 'misaligned': True})
-    picker = Node('', 'combo box', children=[Node('(None)', 'label')],
-                  states=('showing', 'visible'))
-    root = Node(PRODUCT, children=[explanation, picker])
+    explanation.identity = 'parent-no-users-message'
+    placeholder = Node('(None)', 'label', identity='parent-child-selected-none')
+    picker = Node('', 'button', children=[placeholder],
+                  states=('showing', 'visible'), identity='parent-child-selector')
+    root = Node(PRODUCT, children=[explanation, picker], identity='parent-window')
     if fault == 'hidden': explanation.states.remove('showing')
     if fault == 'missing': root.children.remove(explanation)
     if fault == 'wrong-text': explanation.name = 'Loading accounts'
@@ -380,7 +401,8 @@ def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault,
     if fault == 'selected-child': picker.children.append(Node('Jordan (Child)', 'label'))
     if fault == 'missing-picker': root.children.remove(picker)
     if fault == 'missing-placeholder': picker.children.clear()
-    if fault == 'ambiguous': root.children.append(Node(explanation.name, 'label'))
+    if fault == 'ambiguous':
+        root.children.append(Node(explanation.name, 'label', identity='parent-no-users-message'))
     if fault == 'hidden-placeholder': picker.children[0].states.remove('showing')
     if fault in ('stale-picker', 'defunct-picker-child'):
         stale = Node('private-canary')
@@ -405,26 +427,29 @@ def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault,
 
 def test_empty_parent_waits_for_fresh_state_without_replaying_input():
     from accessible_ui import PRODUCT
-    root = Node(PRODUCT, children=[Node('', 'combo box', children=[Node('(None)', 'label')]),
-        Node('No interactive non-administrator account was found.', 'label')])
+    root = Node(PRODUCT, identity='parent-window', children=[
+        Node('', 'button', identity='parent-child-selector', children=[
+            Node('(None)', 'label', identity='parent-child-selected-none')]),
+        Node('No interactive non-administrator account was found.', 'label',
+             identity='parent-no-users-message')])
     ui = ui_for(root)
     ui.timeout = .5
-    original = ui.find
+    original = ui.find_id
     calls = []
     def delayed(*args, **kwargs):
         calls.append(args)
         return None if len(calls) == 1 else original(*args, **kwargs)
-    ui.find = delayed
+    ui.find_id = delayed
     assert ui.run('parent-empty', '')['outcome'] == 'passed'
-    assert calls.count((PRODUCT, ('frame',))) == 2
+    assert calls.count(('parent-window',)) == 2
 
 
 @pytest.mark.parametrize('operation', ['license-closed', 'parent-returned'])
 def test_return_waits_for_the_window_to_finish_closing(operation):
     from accessible_ui import PRODUCT
     closing, destination = (('LICENSE', 'About') if operation == 'license-closed' else ('About', PRODUCT))
-    old = Node(closing)
-    underlying = Node(destination)
+    old = Node(closing, identity='about-dialog' if closing == 'About' else '')
+    underlying = Node(destination, identity='parent-window' if destination == PRODUCT else 'about-dialog')
     ui = ui_for(Node())
     ui.timeout = .5
     ui.nodes = Mock(side_effect=[iter([old, underlying]), iter([underlying])])
@@ -435,12 +460,12 @@ def test_return_waits_for_the_window_to_finish_closing(operation):
 
 @pytest.mark.parametrize('fault', [None, 'wrong-document', 'hidden', 'password'])
 def test_license_reads_the_text_interface_and_requires_actual_visible_content(fault):
-    link = Node('GNU General Public License v3.0', 'link')
+    link = Node('GNU General Public License v3.0', 'link', identity='about-license-value')
     document = Node('', 'password text' if fault == 'password' else 'text')
     if fault == 'hidden': document.states.remove('showing')
     document.get_text_iface = lambda: document
     document.get_text = Mock(side_effect=AssertionError('wrong Accessible interface'))
-    root = Node(children=[Node('About', 'frame', children=[link]),
+    root = Node(children=[Node('About', 'frame', children=[link], identity='about-dialog'),
                           Node('LICENSE', 'frame', children=[document],
                                states=('showing', 'visible', 'sensitive', 'active'))])
     ui = ui_for(root)
@@ -464,11 +489,12 @@ def test_license_reads_the_text_interface_and_requires_actual_visible_content(fa
 @pytest.mark.parametrize('window', ['license', 'about'])
 def test_keyboard_close_requires_a_fresh_active_unique_window(window, fault):
     node = Node('LICENSE' if window == 'license' else 'About', states=(
-        'showing', 'visible', 'sensitive', 'active'))
+        'showing', 'visible', 'sensitive', 'active'),
+        identity='about-dialog' if window == 'about' else '')
     if fault == 'inactive': node.states.remove('active')
     if fault == 'hidden': node.states.remove('showing')
     nodes = [] if fault == 'missing' else [node]
-    if fault == 'duplicate': nodes.append(Node(node.name))
+    if fault == 'duplicate': nodes.append(Node(node.name, identity=node.identity))
     ui = ui_for(Node(children=nodes))
     if fault:
         with pytest.raises(UiError): ui.window_ready_to_close(window)
@@ -513,7 +539,8 @@ def test_document_projection_rejects_unregistered_or_unsafe_reads(fault):
     ('about-footer', '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'),
 ])
 def test_about_text_projections_require_the_exact_showing_label(projection, label):
-    node = Node(label, 'label')
+    node = Node(label, 'label', identity={'about-product': 'about-product-name',
+        'about-version': 'about-version', 'about-footer': 'about-copyright'}[projection])
     ui = ui_for(Node(children=[node]))
     assert ui.read_label(ui.api.get_desktop(0), projection, maximum=80, expected='1.1')
     node.states.remove('showing')
@@ -521,8 +548,7 @@ def test_about_text_projections_require_the_exact_showing_label(projection, labe
         ui.read_label(ui.api.get_desktop(0), projection, maximum=80, expected='1.1')
 
 
-@pytest.mark.parametrize('operation', ['child-picker-opened', 'discovery-child-picker-opened', 'new-child-picker-opened',
-                                     'existing-child-picker-opened', 'gdm-list', 'gdm-other-list'])
+@pytest.mark.parametrize('operation', ['gdm-list', 'gdm-other-list'])
 @pytest.mark.parametrize('keys,valid', [
     (['home'], True), (['home', 'down', 'down'], True),
     ([], False), (['down'], False), (['home', 'ret'], False),
@@ -536,6 +562,22 @@ def test_guest_list_navigation_is_bounded_to_customer_arrow_keys(keys, valid, op
         assert session.observe(operation)['navigation'] == keys
     else:
         with pytest.raises(EvidenceError, match='ui:navigation'):
+            session.observe(operation)
+
+
+@pytest.mark.parametrize('operation', [
+    'child-picker-opened', 'discovery-child-picker-opened',
+    'new-child-picker-opened', 'existing-child-picker-opened',
+])
+@pytest.mark.parametrize('focused,valid', [(True, True), (False, False), (1, False)])
+def test_child_picker_reply_requires_id_resolved_focus(operation, focused, valid):
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'focused': focused}
+    session = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
+    if valid:
+        assert session.observe(operation)['focused'] is True
+    else:
+        with pytest.raises(EvidenceError, match='ui:response'):
             session.observe(operation)
 
 
@@ -568,40 +610,59 @@ def test_return_exports_only_sanitized_settings_without_hidden_prior_selection(f
                                   'wrong-selection', 'popup-remains'])
 def test_dynamic_child_requires_expansion_highlight_and_independent_selection(fault):
     from accessible_ui import PRODUCT, CHILD, NEW_CHILD
-    selected = Node(CHILD, 'label')
-    toggle = Node('', 'toggle button')
-    picker = Node('', 'combo box', children=[selected, toggle])
+    selected = Node(CHILD, 'label', identity='parent-child-selected-1001')
+    picker = Node('', 'button', children=[selected], identity='parent-child-selector')
     allowance = Node('Daily time allowance', 'button', children=[Node('30 minutes', 'label')],
-                     states=('showing', 'visible'))
-    root = Node(PRODUCT, children=[picker, Node('Screen time limit', 'switch'), allowance,
-                                   Node("Today's Remaining Time", 'label')])
-    row = Node('', 'list item', children=[Node(NEW_CHILD, 'label')])
-    listing = Node('', 'list box', children=[Node('', 'list item', children=[Node(CHILD, 'label')]), row])
+                     states=('showing', 'visible'), identity='parent-daily-limit-selector')
+    root = Node(PRODUCT, identity='parent-window', children=[picker,
+        Node('Screen time limit', 'switch', identity='parent-screen-limit-toggle'), allowance,
+        Node("Today's Remaining Time", 'label', identity='parent-time-status')])
+    row = Node('', 'button', children=[Node(NEW_CHILD, 'label')],
+               identity='parent-child-choice-1003')
+    first = Node('', 'button', children=[Node(CHILD, 'label')],
+                 identity='parent-child-choice-1001')
+    listing = Node('', 'panel', children=[first, row], identity='parent-child-choices')
+    popover = Node('', 'panel', children=[listing], identity='parent-child-popover')
     def expand(_index):
-        if fault != 'missing': root.children.append(listing)
+        if fault != 'missing':
+            root.children.append(popover)
+            popover.parent = root
         return True
-    toggle.action.do_action.side_effect = expand
+    picker.action.get_n_actions = lambda: 3
+    picker.action.get_action_name = lambda index: (
+        'menu.popup', 'child.focus-1001', 'child.focus-1003')[index]
+    def selector_action(index):
+        if index == 0:
+            return expand(index)
+        (first if index == 1 else row).states.add('focused')
+        return True
+    picker.action.do_action.side_effect = selector_action
     ui = ui_for(root)
     if fault == 'disabled': row.states.remove('sensitive')
     if fault == 'hidden': row.children[0].states.remove('showing')
     if fault in ('missing', 'disabled', 'hidden'):
         with pytest.raises(UiError): ui.run('new-child-picker-opened', '')
     else:
-        assert ui.run('new-child-picker-opened', '')['navigation'] == ['home', 'down']
-        (listing.children[0] if fault == 'wrong-highlight' else row).states.add('selected')
+        assert ui.run('new-child-picker-opened', '')['focused'] is True
+        if fault == 'wrong-highlight':
+            row.states.remove('focused')
+            first.states.add('focused')
         if fault == 'wrong-highlight':
             with pytest.raises(UiError, match='choice-highlight'):
                 ui.run('new-child-choice-highlighted', '')
         else:
             ui.run('new-child-choice-highlighted', '')
-            if fault != 'popup-remains': root.children.remove(listing)
-            if fault != 'wrong-selection': selected.name = NEW_CHILD
+            if fault != 'popup-remains': root.children.remove(popover)
+            if fault != 'wrong-selection':
+                selected.name = NEW_CHILD
+                selected.identity = 'parent-child-selected-1003'
             if fault:
                 with pytest.raises(UiError): ui.run('new-child-selected', '')
             else:
                 assert ui.run('new-child-selected', '')['settings'] == {
                     'child': 'new-fixture-child', 'limit_enabled': False, 'allowance': ['30 minutes']}
-    toggle.action.do_action.assert_called_once_with(0)
+    expected_actions = [(0,)] if fault in ('missing', 'hidden', 'disabled') else [(0,), (2,)]
+    assert [item.args for item in picker.action.do_action.call_args_list[:2]] == expected_actions
 
 
 @pytest.mark.parametrize('fault', [None, 'new-identity', 'new-replay', 'new-return-changed',
@@ -692,10 +753,11 @@ def test_child_collection_uses_an_independent_current_list(fault):
 def test_closed_picker_cannot_hide_a_stale_subtree():
     from accessible_ui import PRODUCT, NEW_CHILD
     stale = Node('private-canary', states=('defunct',))
-    picker = Node('', 'combo box', children=[Node(NEW_CHILD, 'label')])
-    ui = ui_for(Node(PRODUCT, children=[picker, stale]))
-    with pytest.raises(UiError, match='picker-close'):
-        ui.observe_absence('parent', 'child-popup', name=NEW_CHILD, mode='snapshot')
+    picker = Node('', 'button', identity='parent-child-selector', children=[
+        Node(NEW_CHILD, 'label', identity='parent-child-selected-1003')])
+    ui = ui_for(Node(PRODUCT, identity='parent-window', children=[picker, stale]))
+    with pytest.raises(UiError, match='stale-picker'):
+        ui.selected_child(NEW_CHILD)
 
 
 @pytest.mark.parametrize('operation', ['gdm-parent-recipient', 'gdm-parent-recipient-rechecked',

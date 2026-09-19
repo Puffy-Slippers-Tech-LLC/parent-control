@@ -33,7 +33,11 @@ def preview_applications(session, directory):
     """
     processes = []
 
-    def launch(name, *, environment_overrides=None, wait_for_application=True):
+    def launch(name, *, environment_overrides=None, wait_for_application=False):
+        # Readiness belongs to the caller's public-ID adapter. A script name is
+        # launch metadata, never an accessibility application selector.
+        if wait_for_application:
+            raise ValueError("preview readiness requires a public automation ID")
         log_path = directory / f"{name}.log"
         environment = {
             **session.environment,
@@ -51,9 +55,7 @@ def preview_applications(session, directory):
             log_file.close()
             raise
         processes.append((process, log_file))
-        if not wait_for_application:
-            return process, log_path
-        return session.wait_for_app(name), log_path
+        return process, log_path
 
     try:
         yield launch

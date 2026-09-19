@@ -63,20 +63,27 @@ def notify_screen_ready(window):
 def show_screen_dialog(window):
     """Keep GTK imports out of the supervisor and validation tests."""
     from gi.repository import Adw, GLib, Gtk
-    from common.oh_no_parent_control_ui.accessibility import describe_control
+    from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 
     current = Screen.decode(os.environ[SCREEN]) if SCREEN in os.environ else Screen()
     dialog = Adw.Dialog(title="Change Screens", content_width=460, content_height=620)
+    set_automation_id(dialog, "preview-screen-dialog")
     toolbar = Adw.ToolbarView()
     toolbar.add_top_bar(Adw.HeaderBar())
     body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                    margin_start=20, margin_end=20, margin_top=12, margin_bottom=20)
     body.append(Gtk.Label(label="Screen resolution", xalign=0))
     resolutions = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
+    set_automation_id(resolutions, "preview-screen-resolution-list")
     resolutions.add_css_class("boxed-list")
     selected = None
     for width, height in RESOLUTIONS:
         row = Gtk.ListBoxRow()
+        describe_control(
+            row, f"{width} by {height}",
+            "Use this physical-pixel resolution for the preview screen.",
+            automation_id=f"preview-screen-resolution-{width}-{height}",
+        )
         row.set_child(Gtk.Label(label=f"{width} × {height}", xalign=0,
                                margin_start=12, margin_end=12,
                                margin_top=8, margin_bottom=8))
@@ -84,11 +91,17 @@ def show_screen_dialog(window):
         if (width, height) == (current.width, current.height):
             selected = row
     custom = Gtk.ListBoxRow()
+    describe_control(
+        custom, "Custom resolution",
+        "Enter a custom physical-pixel resolution for the preview screen.",
+        automation_id="preview-screen-resolution-custom",
+    )
     custom.set_child(Gtk.Label(label="Custom resolution", xalign=0,
                               margin_start=12, margin_top=8, margin_bottom=8))
     resolutions.append(custom)
     scroll = Gtk.ScrolledWindow(vexpand=True, min_content_height=140,
                                hscrollbar_policy=Gtk.PolicyType.NEVER)
+    set_automation_id(scroll, "preview-screen-resolution-scroll")
     scroll.set_child(resolutions)
     body.append(scroll)
     custom_fields = Gtk.Box(spacing=8)
@@ -96,8 +109,10 @@ def show_screen_dialog(window):
                             input_purpose=Gtk.InputPurpose.DIGITS, width_chars=6)
     height_entry = Gtk.Entry(text=str(current.height), hexpand=True,
                              input_purpose=Gtk.InputPurpose.DIGITS, width_chars=6)
-    describe_control(width_entry, "Screen width", "Width in physical pixels.")
-    describe_control(height_entry, "Screen height", "Height in physical pixels.")
+    describe_control(width_entry, "Screen width", "Width in physical pixels.",
+                     automation_id="preview-screen-width")
+    describe_control(height_entry, "Screen height", "Height in physical pixels.",
+                     automation_id="preview-screen-height")
     custom_fields.append(width_entry)
     custom_fields.append(Gtk.Label(label="×"))
     custom_fields.append(height_entry)
@@ -106,28 +121,71 @@ def show_screen_dialog(window):
     resolutions.select_row(selected or custom)
     scale_label = Gtk.Label(label="Display Scale", xalign=0)
     body.append(scale_label)
-    scale = Gtk.DropDown.new_from_strings([
-        "100% (default)" if percent == 100 else f"{percent}%" for percent in SCALES
-    ])
-    scale.set_selected(SCALES.index(current.percent))
+    scale_labels = tuple(
+        "100% (default)" if percent == 100 else f"{percent}%"
+        for percent in SCALES
+    )
+    selected_scale = {"index": SCALES.index(current.percent)}
+    scale = Gtk.MenuButton(label=scale_labels[selected_scale["index"]])
     scale_label.set_mnemonic_widget(scale)
-    describe_control(scale, "Display Scale", "Ubuntu display scale for the preview screen.")
+    describe_control(scale, "Display Scale", "Ubuntu display scale for the preview screen.",
+                     automation_id="preview-screen-scale")
+    scale_choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    set_automation_id(scale_choices, "preview-screen-scale-choices")
+    scale_scroll = Gtk.ScrolledWindow(
+        child=scale_choices, max_content_height=360,
+        propagate_natural_height=True, hscrollbar_policy=Gtk.PolicyType.NEVER,
+    )
+    set_automation_id(scale_scroll, "preview-screen-scale-scroll")
+    scale_popover = Gtk.Popover(child=scale_scroll)
+
+    def select_scale(_button, index):
+        selected_scale["index"] = index
+        scale.set_label(scale_labels[index])
+        describe_control(
+            scale, "Display Scale",
+            f"Selected Ubuntu display scale: {scale_labels[index]}.",
+        )
+        scale.popdown()
+
+    for index, (percent, label) in enumerate(zip(SCALES, scale_labels, strict=True)):
+        choice = Gtk.Button(label=label, hexpand=True)
+        describe_control(
+            choice, label,
+            f"Use {label} as the preview screen display scale.",
+            automation_id=f"preview-screen-scale-{percent}",
+        )
+        choice.connect("clicked", select_scale, index)
+        scale_choices.append(choice)
+    scale.set_popover(scale_popover)
     body.append(scale)
     body.append(Gtk.Label(
         label="Saving reopens the preview on the selected screen. The viewer can fit a large screen into your desktop.",
         wrap=True, xalign=0,
     ))
     status = Gtk.Label(wrap=True, xalign=0, visible=False)
+    set_automation_id(status, "preview-screen-status")
     status.add_css_class("error")
     body.append(status)
     actions = Gtk.Box(spacing=12, halign=Gtk.Align.END)
     cancel = Gtk.Button(label="Cancel")
+    describe_control(
+        cancel, "Cancel screen change",
+        "Close without changing the preview screen.",
+        automation_id="preview-screen-cancel",
+    )
     cancel.connect("clicked", lambda *_: dialog.close())
     save = Gtk.Button(label="Save", css_classes=["suggested-action"])
+    describe_control(
+        save, "Save screen change",
+        "Reopen the preview using the selected resolution and display scale.",
+        automation_id="preview-screen-save",
+    )
     actions.append(cancel)
     actions.append(save)
     body.append(actions)
     dialog_scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER)
+    set_automation_id(dialog_scroll, "preview-screen-content")
     dialog_scroll.set_child(body)
     toolbar.set_content(dialog_scroll)
     dialog.set_child(toolbar)
@@ -150,7 +208,7 @@ def show_screen_dialog(window):
                     raise ValueError("Enter a whole number for both width and height.") from None
             else:
                 dimensions = RESOLUTIONS[row.get_index()]
-            screen = Screen(*dimensions, SCALES[scale.get_selected()])
+            screen = Screen(*dimensions, SCALES[selected_scale["index"]])
         except ValueError as error:
             failed(str(error))
             return

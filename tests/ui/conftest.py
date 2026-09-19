@@ -32,13 +32,6 @@ TEST_ENVIRONMENT_OVERRIDES = (
     "XDG_SESSION_TYPE",
     "MUTTER_DEBUG_DISABLE_ANIMATIONS",
 )
-ACCESSIBILITY_EVENTS = (
-    "object:children-changed",
-    "object:state-changed:showing",
-    # Labels such as the time estimate change in place after an async reply.
-    "object:property-change:accessible-name",
-    "window:create",
-)
 ORIGINAL_ENVIRONMENT = os.environ.copy()
 
 # Dogtail imports GTK while loading its hermetic-session module.  Isolate the
@@ -194,75 +187,6 @@ def launch_ui(hermetic_ui_session):
 
 
 @pytest.fixture
-def wait_for_accessible_node():
-    """Wait for a semantic accessibility node using AT-SPI events and a deadline."""
-
-    # Importing Atspi initializes libatspi's process-global desktop connection.
-    # This fixture runs only after HermeticSession.boot() has exported the
-    # private bus, so the connection cannot be cached against the host desktop.
-    import gi
-
-    gi.require_version("Atspi", "2.0")
-    from gi.repository import Atspi, GLib
-
-    def wait(
-        application, label: str, role_name: str | None = None, *, labelled: bool = False,
-    ):
-        loop = GLib.MainLoop()
-
-        def wake_for_accessibility_event(*_args):
-            loop.quit()
-
-        listener = Atspi.EventListener.new(wake_for_accessibility_event)
-        registered_events = [
-            event_type for event_type in ACCESSIBILITY_EVENTS
-            if listener.register(event_type)
-        ]
-        deadline = time.monotonic() + UI_TIMEOUT_SECONDS
-        try:
-            while time.monotonic() < deadline:
-                try:
-                    if labelled:
-                        return application.child(
-                            role_name=role_name, label=label, retry=False,
-                        )
-                    return application.child(
-                        label, role_name=role_name, retry=False,
-                    )
-                except Exception:  # Dogtail reports a search miss with its own type.
-                    remaining_milliseconds = max(
-                        1, round((deadline - time.monotonic()) * 1000),
-                    )
-                    # AT-SPI can coalesce notifications, or dispatch one during
-                    # a synchronous search before loop.run(). Periodically
-                    # recheck the tree so that lost wakeup cannot consume the
-                    # whole deadline while the expected label is already there.
-                    timer_pending = True
-
-                    def recheck_tree():
-                        nonlocal timer_pending
-                        timer_pending = False
-                        loop.quit()
-                        return GLib.SOURCE_REMOVE
-
-                    timeout_id = GLib.timeout_add(
-                        min(250, remaining_milliseconds), recheck_tree,
-                    )
-                    loop.run()
-                    if timer_pending:
-                        GLib.source_remove(timeout_id)
-        finally:
-            for event_type in registered_events:
-                listener.deregister(event_type)
-        raise AssertionError(
-            f"Timed out waiting for {label!r} ({role_name or 'any role'}).\n"
-            f"Accessibility tree:\n{dump_tree(application, max_depth=20)}",
-        )
-
-    return wait
-
-
-@pytest.fixture
 def wait_for_accessible_state():
     """Wait for an AT-SPI state transition without host-time sleeps."""
 
@@ -283,6 +207,17 @@ def wait_for_accessible_state():
         raise AssertionError(f"Timed out waiting for accessibility state: {description}")
 
     return wait
+
+
+@pytest.fixture
+def automation(hermetic_ui_session):
+    """Return the shared public-ID AT-SPI adapter for the private session."""
+    import gi
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi, GLib
+    from tests.support.automation import Automation
+
+    return Automation(Atspi, lambda: Atspi.get_desktop(0), query_errors=(GLib.Error,))
 
 
 @pytest.fixture

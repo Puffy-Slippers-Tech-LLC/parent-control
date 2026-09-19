@@ -236,13 +236,18 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
 
-@pytest.mark.parametrize('block', ['open_menu', 'switch_user', 'log_out'])
-@pytest.mark.parametrize('fault', ['', 'wrong-desktop', 'stale-menu', 'replay'])
+@pytest.mark.parametrize('block, fault', [
+    ('open_menu', ''),
+    ('open_menu', 'wrong-desktop'),
+    ('open_menu', 'replay'),
+    ('switch_user', ''),
+    ('switch_user', 'stale-menu'),
+    ('switch_user', 'replay'),
+    ('log_out', ''),
+    ('log_out', 'stale-menu'),
+    ('log_out', 'replay'),
+])
 def test_session_helpers_consume_fresh_proofs_without_replay(block, fault):
-    if block == 'open_menu' and fault == 'stale-menu':
-        pytest.skip('open_menu consumes desktop, not the menu reply')
-    if block != 'open_menu' and fault == 'wrong-desktop':
-        pytest.skip('switch/logout consume the session-menu reply')
     result = json.loads(run_perl(LEAF, block, fault).stdout)
     assert result['ok'] == (not fault)
     if fault:

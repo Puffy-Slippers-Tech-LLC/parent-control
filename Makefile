@@ -50,7 +50,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	$(DATADIR)/oh-no-parent-control/gdm-presession
 CHILD_DIR := child
-EXTENSION_SOURCES := branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
+EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 # Explicit production modules prevent preview/test helpers from entering the package.
 COMMON_SOURCES := __init__.py about.py accessibility.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py
 KIOSK_SOURCES := __init__.py chrome.py floating_islands.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
@@ -172,12 +172,6 @@ installdeb:
 
 uninstalldeb:
 	$(APT) remove oh-no-parent-control
-
-# Convenience aliases contain no setup logic; setup.sh is the integration point.
-prepare-baseline:
-	@./setup.sh --prepare-baseline
-
-.PHONY: prepare-baseline
 
 # Prepare the current app version's snapshot through the guarded helper.
 .PHONY: prepare-appsnapshot

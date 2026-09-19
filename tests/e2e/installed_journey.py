@@ -16,7 +16,9 @@ from private_artifacts import require
 from parent_needles import semantic_tag
 import system_runner as system
 from vm_transport import Transport
-from ui_observations import UiObservations, SettingsObservation, compare_settings
+from ui_observations import (
+    RequestObservation, SettingsObservation, UiObservations, compare_settings,
+)
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,7 @@ class InstalledJourney:
         self.failed = False
         self.prompt_counts = {}
         self.settings_observations = {}
+        self.request_observations = {}
         for stage, expected in plan.settings_checks.items():
             require(stage in plan.screen_tags and
                     (type(expected) is SettingsObservation or
@@ -127,6 +130,13 @@ class InstalledJourney:
             self.settings_observations[stage] = current
         else:
             require(stage not in self.plan.settings_checks, 'ui:missing-settings-observation')
+
+    def check_request(self, stage, observed):
+        value = observed.get('ui', {}).get('request')
+        if value is None:
+            return
+        require(stage not in self.request_observations, 'ui:request-replay')
+        self.request_observations[stage] = RequestObservation.from_request(value)
 
     def dismiss_system_prompt(self, stage, point, guard):
         """One ordered pointer request within the worker's existing rendezvous."""
@@ -190,7 +200,8 @@ class InstalledJourney:
             if self.review:
                 reply[plan.review_mode] = True
         elif stage == 'setup-detached':
-            require(getattr(context, 'installed_snapshot', None),
+            install_current = getattr(context, 'install_current_package', False)
+            require(install_current is True or getattr(context, 'installed_snapshot', None),
                     plan.prefix + ':installed-snapshot-required')
             if self.watch_progress is not None:
                 self.watch_progress.operation('Preparing the application connection')
@@ -205,8 +216,12 @@ class InstalledJourney:
             # belongs to the snapshot-creation run. Bootstrap has already bound
             # the guard marker to this attempt's package and selected inputs.
             from installed_setup import InstalledSetup
-            InstalledSetup(context.directory, context.verified, transport).provision(guard)
-            observed['setup'] = {'installed_snapshot': context.installed_snapshot}
+            setup = InstalledSetup(context.directory, context.verified, transport)
+            if install_current:
+                observed['setup'] = setup.run(guard, verify=False)
+            else:
+                setup.provision(guard)
+                observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
             reply = {'setup_complete': True}
@@ -226,9 +241,12 @@ class InstalledJourney:
             reply = {'observed': stage}
             if 'navigation' in observed.get('ui', {}):
                 reply['ui_keys'] = observed['ui']['navigation']
+            if observed.get('ui', {}).get('focused') is True:
+                reply['ui_focused'] = True
             if 'pointer' in observed.get('ui', {}):
                 reply['ui_pointer'] = observed['ui']['pointer']
         self.check_settings(stage, observed)
+        self.check_request(stage, observed)
         if stage in plan.stage_actions:
             if self.watch_progress is not None:
                 self.watch_progress.operation('Preparing the declared child-account fixture')

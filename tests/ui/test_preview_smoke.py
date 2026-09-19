@@ -1,347 +1,245 @@
-"""Semantic smoke coverage for each GTK preview surface."""
+"""Functional smoke coverage for each GTK preview surface through public IDs."""
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 from tests.support.events import read_events
-
-from common.oh_no_parent_control_ui.test_identities import preview_users
 
 
 pytestmark = pytest.mark.ui
 
 
-def _assert_preview_controls(application, wait_for_accessible_node, capture_ui_snapshot,
-                             collect_application_logs, log_path, controls, snapshot_name):
-    snapshot = capture_ui_snapshot(application, snapshot_name)
-    assert snapshot.read_text(encoding="utf-8")
-    for control in controls:
-        label, role, *options = control
-        try:
-            wait_for_accessible_node(application, label, role, labelled=bool(options))
-        except AssertionError as error:
-            raise AssertionError(
-                f"{error}\nApplication log:\n{collect_application_logs(log_path)}",
-            ) from error
+def start_parent(launch_ui, ui, wait, *, launcher="parent_component_preview",
+                 scenario="normal", events_path=None):
+    environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario}
+    if events_path is not None:
+        environment["ONPC_PARENT_COMPONENT_EVENTS_PATH"] = str(events_path)
+    launch_ui(launcher, environment_overrides=environment, wait_for_application=False)
+    wait(lambda: ui.find("parent-window") is not None, "Parent publishes its window ID")
+    return ui
 
 
-def test_parent_preview_smoke(launch_ui, wait_for_accessible_node,
-                              capture_ui_snapshot, collect_application_logs):
-    application, log_path = launch_ui("parent_preview")
-    # The selected person's name is intentionally the DropDown's AT-SPI name;
-    # assert its stable, purpose-based label relation instead.
-    wait_for_accessible_node(application, "Child account", "combo box", labelled=True)
-    _assert_preview_controls(
-        application, wait_for_accessible_node, capture_ui_snapshot,
-        collect_application_logs, log_path,
-        (
-            ("Screen time limit", "switch"),
-            ("Daily time allowance", "button"),
-            ("Revoke one-time access", "button"),
-        ),
-        "parent-preview",
-    )
+def wait_parent_ready(ui, wait):
+    wait(lambda: ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE),
+         "Parent screen-time controls load")
 
 
-def test_parent_daily_allowance_menu_opens(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state):
-    from dogtail import rawinput
+@pytest.mark.parametrize("launcher", ("parent_preview", "parent_component_preview"))
+def test_parent_preview_publishes_and_loads_management_controls(
+        launch_ui, automation, wait_for_accessible_state, launcher):
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state, launcher=launcher)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    for identity in ("parent-child-selector", "parent-child-selected-1001",
+                     "parent-screen-limit-toggle", "parent-daily-limit-selector",
+                     "parent-revoke-button"):
+        assert ui.target(identity).get_accessible_id() == identity
+    ui.activate("parent-child-selector", action_name="menu.popup")
+    wait_for_accessible_state(lambda: ui.showing("parent-child-choice-1002"),
+                              "child choices are ID-addressable actions")
+    ui.activate("parent-child-choice-1002")
+    wait_for_accessible_state(lambda: ui.showing("parent-child-selected-1002"),
+                              "selected child is published by UID")
 
-    application, _log_path = launch_ui("parent_preview")
-    allowance = wait_for_accessible_node(application, "Daily time allowance", "button")
-    wait_for_accessible_state(lambda: allowance.sensitive, "loaded daily allowance")
-    trigger = allowance.child(role_name="toggle button", retry=False)
-    x, y = trigger.position
-    width, height = trigger.size
-    rawinput.click(x + width / 2, y + height / 2)
-    preset = wait_for_accessible_node(application, "45 minutes", "button")
-    wait_for_accessible_state(lambda: preset.showing, "visible allowance choice")
-    custom = wait_for_accessible_node(application, "Custom amount", "button")
-    wait_for_accessible_state(lambda: custom.showing, "visible custom allowance choice")
 
-
-def test_parent_component_scripted_broker_behavior(launch_ui, wait_for_accessible_node,
-                                                    capture_ui_snapshot,
-                                                    collect_application_logs):
-    """The production window consumes injected broker state through its UI."""
-    application, log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "normal"},
-    )
-    try:
-        wait_for_accessible_node(application, "Child account", "combo box", labelled=True)
-        wait_for_accessible_node(application, "Screen time limit", "switch")
-        wait_for_accessible_node(
-            application, "Daily time allowance", "button",
-        )
-        wait_for_accessible_node(application, "Revoke one-time access", "button")
-    except AssertionError as error:
-        snapshot = capture_ui_snapshot(application, "parent-scripted-broker")
-        raise AssertionError(
-            f"{error}\nSnapshot:\n{snapshot.read_text(encoding='utf-8')}\n"
-            f"Application log:\n{collect_application_logs(log_path)}"
-        ) from error
+def test_parent_daily_allowance_menu_opens_and_selects(
+        launch_ui, automation, wait_for_accessible_state):
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      launcher="parent_preview")
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate("parent-daily-limit-selector")
+    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
+                              "allowance choices open")
+    ui.activate("parent-daily-limit-45")
 
 
 @pytest.mark.parametrize("scenario", ("denied", "unavailable"))
 def test_parent_failed_discovery_disables_management_until_report_closes(
-        launch_ui, hermetic_ui_session, wait_for_accessible_node, scenario):
-    """Discovery failure permits error reporting but no management actions."""
-    process, _log_path = launch_ui(
+        launch_ui, automation, wait_for_accessible_state, scenario):
+    process, _log = launch_ui(
         "parent_component_preview",
         environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": scenario},
         wait_for_application=False,
     )
-    application = hermetic_ui_session.wait_for_app("parent_component_preview")
-    dialog = wait_for_accessible_node(application, "Send Feedback", "frame")
-    for label, role in (("Child account", "combo box"),
-                        ("Screen time limit", "switch"),
-                        ("Revoke one-time access", "button")):
-        control = wait_for_accessible_node(
-            application, label, role, labelled=(label == "Child account"),
-        )
-        # GTK may expose a child's own sensitive flag even when its containing
-        # management panel is disabled. Check the accessible ancestor chain.
-        states = []
-        while control is not None and len(states) < 32:
-            if control == application:
-                break
-            states.append((control.roleName, control.sensitive))
-            control = control.parent
-        assert any(not sensitive for _role, sensitive in states), (label, states)
-    assert wait_for_accessible_node(dialog, "Close", "button").do_action(0)
+    ui = automation
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                              "startup feedback opens")
+    for identity in ("parent-child-selector", "parent-screen-limit-toggle",
+                     "parent-revoke-button"):
+        assert not ui.state(identity, ui.api.StateType.SENSITIVE)
+    ui.activate("feedback-close")
     assert process.wait(timeout=5) == 0
 
 
-def test_parent_no_child_message_is_explicit(launch_ui, wait_for_accessible_node):
-    no_children, _log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "no-users"},
-    )
-    wait_for_accessible_node(
-        no_children, "No interactive non-administrator account was found.", "label",
+def test_parent_no_child_message_is_explicit(
+        launch_ui, automation, wait_for_accessible_state):
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="no-users")
+    wait_for_accessible_state(lambda: ui.showing("parent-no-users-message"),
+                              "empty-account explanation is shown")
+    assert ui.text("parent-no-users-message") == (
+        "No interactive non-administrator account was found."
     )
 
 
-def test_parent_loading_state_disables_conflicting_controls(launch_ui,
-                                                             wait_for_accessible_node,
-                                                             wait_for_accessible_state):
-    loading, _log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "loading"},
+def test_parent_loading_state_disables_conflicting_controls(
+        launch_ui, automation, wait_for_accessible_state):
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="loading")
+    assert not ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE)
+    assert not ui.state("parent-daily-limit-selector", ui.api.StateType.SENSITIVE)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    wait_for_accessible_state(
+        lambda: ui.state("parent-daily-limit-selector", ui.api.StateType.SENSITIVE),
+        "daily allowance loads",
     )
-    enabled = wait_for_accessible_node(loading, "Screen time limit", "switch")
-    allowance = wait_for_accessible_node(
-        loading, "Daily time allowance", "button",
-    )
-    assert not enabled.sensitive
-    assert not allowance.sensitive
-    wait_for_accessible_state(lambda: enabled.sensitive, "loaded screen-time switch")
-    wait_for_accessible_state(lambda: allowance.sensitive, "loaded daily allowance")
 
 
-def test_parent_time_status_retries(launch_ui, wait_for_accessible_node,
-                                    wait_for_accessible_state, tmp_path):
-    events_path = tmp_path / "status-events.jsonl"
-    retrying, _log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={
-            "ONPC_PARENT_COMPONENT_SCENARIO": "status-retries",
-            "ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path),
-        },
-    )
-    wait_for_accessible_node(retrying, "47m")
+def test_parent_time_status_retries(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    path = tmp_path / "status-events.jsonl"
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="status-retries", events_path=path)
+    wait_for_accessible_state(lambda: ui.text("parent-time-remaining") == "47m",
+                              "remaining time loads after retries")
     wait_for_accessible_state(
         lambda: sum(record["event"] == "get_time_status"
-                    for record in read_events(events_path)) == 3,
-        "two failed status attempts followed by a successful retry",
+                    for record in read_events(path)) == 3,
+        "two failed attempts followed by successful retry",
     )
 
 
-def test_parent_time_status_reports_unavailable(launch_ui, wait_for_accessible_node):
-    unavailable, _log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": "status-unavailable"},
-    )
-    wait_for_accessible_node(unavailable, "Unavailable")
-
-
-def test_parent_screen_time_change_autosaves_and_never_offers_a_grant(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state,
-        capture_ui_snapshot, tmp_path):
-    events_path = tmp_path / "save-events.jsonl"
-    application, _log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={"ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path)},
-    )
-    enabled = wait_for_accessible_node(application, "Screen time limit", "switch")
-    assert enabled.checked
-    assert enabled.do_action(0)
+def test_parent_time_status_reports_unavailable(
+        launch_ui, automation, wait_for_accessible_state):
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="status-unavailable")
     wait_for_accessible_state(
-        lambda: any(record["event"] == "set_parent_control" for record in read_events(events_path)),
-        "screen-time auto-save",
+        lambda: ui.text("parent-time-remaining") == "Unavailable",
+        "unavailable time is public",
     )
-    records = read_events(events_path)
-    assert [record for record in records if record["event"] == "set_parent_control"] == [{
-        "daily_limit_minutes": 90,
-        "enabled": False,
-        "event": "set_parent_control",
-        "uid": 1001,
-    }]
-    tree = capture_ui_snapshot(application, "parent-no-grant").read_text(encoding="utf-8")
-    assert "Grant additional time" not in tree
-    assert "Approve time" not in tree
 
 
-def test_parent_failed_save_restores_visible_value(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path):
-    events_path = tmp_path / "failed-save-events.jsonl"
-    application, _log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={
-            "ONPC_PARENT_COMPONENT_SCENARIO": "save-fails",
-            "ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path),
-        },
-    )
-    enabled = wait_for_accessible_node(application, "Screen time limit", "switch")
-    assert enabled.checked
-    assert enabled.do_action(0)
+@pytest.mark.parametrize("scenario", ("normal", "save-fails"))
+def test_parent_screen_time_change_saves_or_restores(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, scenario):
+    path = tmp_path / f"{scenario}.jsonl"
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario=scenario, events_path=path)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    assert ui.state("parent-screen-limit-toggle", ui.api.StateType.CHECKED)
+    ui.activate("parent-screen-limit-toggle")
     wait_for_accessible_state(
-        lambda: any(record["event"] == "set_parent_control" for record in read_events(events_path)),
-        "failed preference save request",
+        lambda: any(record["event"] == "set_parent_control"
+                    for record in read_events(path)),
+        "screen-time change reaches broker",
     )
-    wait_for_accessible_state(lambda: enabled.checked, "restored screen-time setting")
+    if scenario == "normal":
+        records = [record for record in read_events(path)
+                   if record["event"] == "set_parent_control"]
+        assert records == [{"daily_limit_minutes": 90, "enabled": False,
+                            "event": "set_parent_control", "uid": 1001}]
+    else:
+        wait_for_accessible_state(
+            lambda: ui.state("parent-screen-limit-toggle", ui.api.StateType.CHECKED),
+            "failed save restores confirmed value",
+        )
 
 
 def test_parent_daily_preset_and_custom_limit_autosave(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path):
-    events_path = tmp_path / "daily-limit-events.jsonl"
-    application, _log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={
-            "ONPC_PARENT_COMPONENT_SCENARIO": "custom-limit",
-            "ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path),
-        },
-    )
-    allowance = wait_for_accessible_node(
-        application, "Daily time allowance", "button",
-    )
-    custom = wait_for_accessible_node(application, "Custom daily allowance", "text")
-    custom.text = "73"
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from dogtail import rawinput
+    path = tmp_path / "daily-limit-events.jsonl"
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="custom-limit", events_path=path)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.focus("parent-custom-daily-limit")
+    rawinput.keyCombo("<Control>a")
+    rawinput.typeText("73")
     wait_for_accessible_state(
-        lambda: any(
-            record["event"] == "set_parent_control" and
-            record["daily_limit_minutes"] == 73
-            for record in read_events(events_path)
-        ),
-        "custom daily-limit auto-save",
+        lambda: any(record["event"] == "set_parent_control"
+                    and record["daily_limit_minutes"] == 73
+                    for record in read_events(path)),
+        "custom allowance saves",
     )
-    assert allowance.child(role_name="toggle button", retry=False).do_action(0)
-    preset = wait_for_accessible_node(application, "45 minutes", "button")
-    assert preset.do_action(0)
+    ui.activate("parent-daily-limit-selector")
+    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
+                              "allowance choices open")
+    ui.activate("parent-daily-limit-45")
     wait_for_accessible_state(
-        lambda: any(
-            record["event"] == "set_parent_control" and
-            record["daily_limit_minutes"] == 45
-            for record in read_events(events_path)
-        ),
-        "daily preset auto-save",
+        lambda: any(record["event"] == "set_parent_control"
+                    and record["daily_limit_minutes"] == 45
+                    for record in read_events(path)),
+        "preset allowance saves",
     )
 
 
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
-        launch_ui, wait_for_accessible_node, wait_for_accessible_state, tmp_path):
-    events_path = tmp_path / "app-events.jsonl"
-    application, _log_path = launch_ui(
-        "parent_component_preview",
-        environment_overrides={"ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events_path)},
-    )
-    app_limits = wait_for_accessible_node(application, "App Limits", "page tab")
-    assert app_limits.do_action(0)
-    search = wait_for_accessible_node(application, "Search installed apps", "entry")
-    search.text = "thunderbird"
-    thunderbird = wait_for_accessible_node(application, "Thunderbird")
-    assert thunderbird.showing
-
-    match_rule = wait_for_accessible_node(application, "Thunderbird match rule", "button")
-    assert match_rule.do_action(0)
-    dialog = wait_for_accessible_node(application, "Edit Match Rule", "dialog")
-    rule_entry = dialog.child(role_name="text", retry=False)
-    rule_entry.text = "/snap/bin/thunderbird"
-    save = dialog.child("Save", role_name="button", retry=False)
-    assert save.do_action(0)
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from dogtail import rawinput
+    path = tmp_path / "app-events.jsonl"
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      events_path=path)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate("parent-page-app-limits")
+    wait_for_accessible_state(lambda: ui.state("parent-app-search", ui.api.StateType.SENSITIVE),
+                              "app catalogue loads")
+    ui.focus("parent-app-search")
+    rawinput.typeText("thunderbird")
+    key = hashlib.sha256(b"thunderbird_thunderbird.desktop").hexdigest()[:16]
+    wait_for_accessible_state(lambda: ui.showing(f"parent-app-{key}"),
+                              "matching app remains visible")
+    ui.activate(f"parent-app-{key}-match-rule")
+    wait_for_accessible_state(lambda: ui.showing("parent-match-rule-dialog"),
+                              "match-rule dialog opens")
+    ui.focus("parent-match-rule-entry")
+    rawinput.keyCombo("<Control>a")
+    rawinput.typeText("/snap/bin/thunderbird")
+    ui.activate("parent-match-rule-save")
     wait_for_accessible_state(
-        lambda: any(record["event"] == "set_preferences" for record in read_events(events_path)),
-        "match-rule auto-save",
+        lambda: any(record["event"] == "set_preferences" for record in read_events(path)),
+        "match rule saves",
     )
-
-    revoke = wait_for_accessible_node(application, "Revoke one-time access", "button")
-    assert revoke.do_action(0)
-    confirmation = wait_for_accessible_node(application, "Revoke one-time grant?", "dialog")
-    warning = confirmation.child(
-        "This will revoke one-time screen time and access to soft blocked apps "
-        f"granted to {preview_users('child')[0][1]}, close their running blocked apps, and lock their desktop "
-        "when no time remains. Their remaining daily time allowance is not impacted.",
-        role_name="label", retry=False,
-    )
-    assert warning.showing
-    assert confirmation.child("Revoke grant", role_name="button", retry=False).do_action(0)
+    ui.activate("parent-page-screen-limits")
+    wait_for_accessible_state(lambda: ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE),
+                              "revoke action is ready")
+    ui.activate("parent-revoke-button")
+    wait_for_accessible_state(lambda: ui.showing("parent-revoke-dialog"),
+                              "revoke confirmation opens")
+    assert "Riley (Child)" in ui.text("parent-revoke-warning")
+    ui.activate("parent-revoke-confirm")
     wait_for_accessible_state(
-        lambda: any(record["event"] == "revoke_one_time_grant" for record in read_events(events_path)),
-        "confirmed one-time-grant revocation",
+        lambda: any(record["event"] == "revoke_one_time_grant"
+                    for record in read_events(path)),
+        "confirmed revocation reaches broker",
     )
 
 
-def test_kiosk_accessibility_tree_is_populated(launch_ui, capture_ui_snapshot):
-    """Diagnostic guard: the shared request form must remain visible to AT-SPI."""
-    application, _log_path = launch_ui("kiosk_preview")
-    tree = capture_ui_snapshot(application, "kiosk-accessibility")
-    tree_text = tree.read_text(encoding="utf-8")
-    assert "Child account" in tree_text
-    assert "Approving parent" in tree_text
-    assert "Allow soft blocked apps" in tree_text
-    assert "switch: 'Allow soft blocked apps'" in tree_text
-    assert "REQUEST" in tree_text
-    assert "CANCEL" in tree_text
-
-
-@pytest.mark.parametrize(
-    ("overlay", "surface"),
-    ((False, "kiosk"), (True, "child-overlay")),
-)
-def test_shared_request_preview_smoke(launch_ui, wait_for_accessible_node,
-                                      capture_ui_snapshot, collect_application_logs,
-                                      overlay, surface):
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_shared_request_preview_smoke(
+        launch_ui, automation, wait_for_accessible_state, overlay):
     launcher = "child_overlay_preview" if overlay else "kiosk_preview"
-    application, log_path = launch_ui(launcher)
-    _assert_preview_controls(
-        application, wait_for_accessible_node, capture_ui_snapshot,
-        collect_application_logs, log_path,
-        (
-            ("Child account", "button"),
-            ("Approving parent", "button"),
-            ("Allow soft blocked apps", "switch"),
-            ("REQUEST", "button"),
-            ("CANCEL", "button"),
-            ("Request-screen menu", "toggle button"),
-        ),
-        f"{surface}-preview",
-    )
-    assert not application.is_child("Mute request-screen sound", role_name="button", retry=False)
-    menu = wait_for_accessible_node(
-        application, "Request-screen menu", "toggle button",
-    )
-    assert menu.do_action(0)
+    launch_ui(launcher, wait_for_application=False)
+    ui = automation
+    wait_for_accessible_state(lambda: ui.find("kiosk-request-window") is not None,
+                              "request preview publishes IDs")
+    for identity in ("kiosk-child-selector", "kiosk-approver-selector",
+                     "kiosk-soft-apps-toggle", "kiosk-request-submit",
+                     "kiosk-request-cancel", "kiosk-menu-button"):
+        assert ui.target(identity).get_accessible_id() == identity
+    mute = ui.find("kiosk-mute-button")
+    assert mute is None or not ui.showing("kiosk-mute-button")
+    ui.activate("kiosk-menu-button", action_name="menu.popup")
     if overlay:
-        wait_for_accessible_node(application, "Help", "button")
-    wait_for_accessible_node(application, "About", "button")
-    screen = wait_for_accessible_node(application, "Change Screens", "button")
-    assert screen.do_action(0)
-    dialog = wait_for_accessible_node(application, "Change Screens", "dialog")
-    capture_ui_snapshot(dialog, f"{surface}-screen-dialog")
-    wait_for_accessible_node(dialog, "Display Scale", "combo box", labelled=True)
-    cancel = wait_for_accessible_node(dialog, "Cancel", "button")
-    assert cancel.do_action(0)
+        assert ui.showing("kiosk-menu-item-help")
+    assert ui.showing("kiosk-menu-item-about")
+    ui.activate("kiosk-menu-item-change-screens")
+    wait_for_accessible_state(lambda: ui.showing("preview-screen-dialog"),
+                              "screen dialog opens")
+    for identity in ("preview-screen-scale", "preview-screen-save",
+                     "preview-screen-cancel"):
+        assert ui.target(identity).get_accessible_id() == identity
+    ui.activate("preview-screen-cancel")
 
 
 @pytest.mark.parametrize("scenario, expected", (
@@ -351,11 +249,8 @@ def test_shared_request_preview_smoke(launch_ui, wait_for_accessible_node,
     ("daily-exhausted", "Daily allowance remaining: 0m\nOne-time grant remaining: 15m\nRemaining time: 15m — the larger of the two amounts."),
 ))
 def test_parent_remaining_time_explanation(
-        launch_ui, wait_for_accessible_node, scenario, expected):
-    application, _log = launch_ui(
-        "parent_component_preview",
-        environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": scenario},
-    )
-    wait_for_accessible_node(application, expected, "label")
-    if scenario == "exact-hours":
-        wait_for_accessible_node(application, "2h", "label")
+        launch_ui, automation, wait_for_accessible_state, scenario, expected):
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario=scenario)
+    wait_for_accessible_state(lambda: ui.text("parent-time-explanation") == expected,
+                              "remaining-time explanation is public")

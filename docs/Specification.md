@@ -232,5 +232,6 @@ desktops can demonstrate an already-open app surviving a transition.
 
 Technical checks separately cover identity races, malformed storage, partial
 termination, failed rollback, service readiness and injected transport failures.
-The pending E2E-028/029 declarations retain those engineering obligations; a
-customer route does not replace or claim completion of them.
+System-test tasks 169–179 retain the obligations formerly numbered as E2E
+coverage IDs 140–150. They stay outside the UI inventory; a customer route does
+not replace or claim completion of them.

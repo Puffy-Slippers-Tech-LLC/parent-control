@@ -162,7 +162,7 @@ class FixtureCredentials:
                             and rows[0][6] == prepare_vm.INTERACTIVE_SHELL
                             and len(saved) == 1, 'credential:fixture-identity')
                     require(matches(self.__passwords[role], saved[0][1]),
-                            'credential:password-mismatch; run make prepare-baseline')
+                            'credential:password-mismatch; run tools/prepare-baseline')
             verified.recheck()
             self._lease, self._ready = lease, True
             print('e2e:fixture-credentials-verified', file=sys.stderr, flush=True)
@@ -173,4 +173,4 @@ class FixtureCredentials:
             print('e2e:fixture-credentials-rejected', file=sys.stderr, flush=True)
             if isinstance(error, KeyboardInterrupt):
                 raise KeyboardInterrupt('credential:provisioning-interrupted') from None
-            raise EvidenceError('credential:verification-failed; check .envrc and run make prepare-baseline') from None
+            raise EvidenceError('credential:verification-failed; check .envrc and run tools/prepare-baseline') from None

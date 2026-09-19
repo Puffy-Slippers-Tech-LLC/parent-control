@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+import hashlib
 from pathlib import Path
 import threading
 
@@ -18,10 +19,27 @@ from .diagnostics import collect_logs
 from . import feedback_transport as transport
 from .rich_text_editor import RichTextEditor
 from common.oh_no_parent_control_ui.about import app_version
-from common.oh_no_parent_control_ui.accessibility import describe_control
+from common.oh_no_parent_control_ui.accessibility import (
+    add_dialog_button,
+    describe_control,
+    set_automation_id,
+)
 
 LOG = get_logger("feedback")
 PRIVACY_URL = "https://tech.puffyslippers.com/oh-no-parent-control/privacy/"
+
+
+def _attachment_automation_key(attachment, existing_keys):
+    """Return one stable, non-identifying key that is unique in this dialog."""
+    base = hashlib.sha256(
+        attachment.name.encode("utf-8") + b"\0" + attachment.data,
+    ).hexdigest()[:16]
+    key = base
+    suffix = 2
+    while key in existing_keys:
+        key = f"{base}-{suffix}"
+        suffix += 1
+    return key
 
 
 def _feedback_icon(name, size, color="#343437"):
@@ -53,6 +71,7 @@ class FeedbackDialog(Adw.Window):
         super().__init__(title="Send Feedback", transient_for=parent, modal=True,
                          destroy_with_parent=True, default_width=660,
                          default_height=840, css_classes=["feedback-dialog"])
+        set_automation_id(self, "feedback-dialog")
         self._kiosk_session = kiosk_session
         self._report = report
         self._on_close = on_close
@@ -107,6 +126,7 @@ class FeedbackDialog(Adw.Window):
         message_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                                 vexpand=True, margin_bottom=2)
         message = RichTextEditor(None if kiosk_session else self._choose_attachments)
+        set_automation_id(message, "feedback-editor-container")
         self._message = message
         if report:
             message.set_text(report.message)
@@ -134,7 +154,8 @@ class FeedbackDialog(Adw.Window):
         self._reply = reply
         reply.set_input_purpose(Gtk.InputPurpose.EMAIL)
         describe_control(reply, "Reply email (optional)",
-                         "Add your email address if you would like a reply.")
+                         "Add your email address if you would like a reply.",
+                         automation_id="feedback-reply-email")
         reply_group.append(reply_field)
         reply_group.append(Gtk.Label(
             label="Add your email if you’d like a reply. Otherwise, your feedback is anonymous.",
@@ -148,6 +169,7 @@ class FeedbackDialog(Adw.Window):
         self._collection_row = Adw.ActionRow(
             title="Collecting diagnostic information...", visible=False,
         )
+        set_automation_id(self._collection_row, "feedback-collection-status")
         # Adw.Spinner keeps essential progress moving when desktop animations
         # are disabled. Mapping the collection row controls its lifecycle.
         self._collection_spinner = Adw.Spinner(
@@ -164,7 +186,8 @@ class FeedbackDialog(Adw.Window):
         add_files_content.append(Gtk.Label(label="Add files"))
         self._add_attachment_button.set_child(add_files_content)
         describe_control(self._add_attachment_button, "Add files",
-                         "Attach up to 5 files to your feedback.")
+                         "Attach up to 5 files to your feedback.",
+                         automation_id="feedback-add-files")
         self._add_attachment_button.connect("clicked", self._choose_attachments)
         attachments.set_header_suffix(self._add_attachment_button)
         self._add_attachment_button.set_visible(not kiosk_session)
@@ -172,6 +195,7 @@ class FeedbackDialog(Adw.Window):
             title="diagnostic-logs.zip",
             subtitle="Latest 3 log dates · ZIP archive",
         )
+        set_automation_id(self._attachment, "feedback-logs-row")
         self._attachment.add_prefix(_feedback_icon("archive", 26))
         self._attachment_button = Gtk.Button(
             child=_feedback_icon("trash", 22, "#7650ff"), tooltip_text="Remove logs",
@@ -183,6 +207,11 @@ class FeedbackDialog(Adw.Window):
         attachment_actions = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
         self._retry_logs = Gtk.Button(label="Retry collection", visible=False,
                                      valign=Gtk.Align.CENTER)
+        describe_control(
+            self._retry_logs, "Retry diagnostic collection",
+            "Try collecting the diagnostic attachment again.",
+            automation_id="feedback-retry-logs",
+        )
         self._retry_logs.connect("clicked", self._start_collection)
         attachment_actions.append(self._retry_logs)
         self._download_button = Gtk.Button(
@@ -191,7 +220,8 @@ class FeedbackDialog(Adw.Window):
             tooltip_text="Save compressed logs to examine them before sending",
         )
         describe_control(self._download_button, "Download",
-                         "Save a ZIP containing a readable diagnostic report and validated technical events.")
+                         "Save a ZIP containing a readable diagnostic report and validated technical events.",
+                         automation_id="feedback-download-logs")
         self._download_button.connect("clicked", self._download_logs)
         self._download_button.set_visible(not kiosk_session)
         attachment_actions.append(self._download_button)
@@ -219,6 +249,7 @@ class FeedbackDialog(Adw.Window):
             privacy_link,
             "Privacy",
             "Show privacy information about feedback and attachments.",
+            automation_id="feedback-privacy-link",
         )
         privacy_link.connect("activate-link", self._show_log_privacy)
         privacy_notice.append(privacy_link)
@@ -226,16 +257,27 @@ class FeedbackDialog(Adw.Window):
         self._status = Gtk.Label(
             xalign=0, wrap=True, selectable=True, visible=False,
         )
+        set_automation_id(self._status, "feedback-status")
         self._status.connect(
             "notify::label",
             lambda label, _property: label.set_visible(bool(label.get_label())),
         )
         content.append(self._status)
         self._without_logs = Gtk.Button(label="Send without logs", visible=False)
+        describe_control(
+            self._without_logs, "Send without logs",
+            "Send the feedback without the diagnostic attachment.",
+            automation_id="feedback-send-without-logs",
+        )
         self._without_logs.connect("clicked", self._send_without_logs)
         content.append(self._without_logs)
         actions = Gtk.Box(spacing=10, halign=Gtk.Align.END, valign=Gtk.Align.CENTER)
         cancel = Gtk.Button(label="Close", css_classes=["feedback-close"])
+        describe_control(
+            cancel, "Close",
+            "Close the feedback form while preserving the draft in this app.",
+            automation_id="feedback-close",
+        )
         self._close_button = cancel
         cancel.connect("clicked", lambda *_: self.close())
         actions.append(cancel)
@@ -243,15 +285,22 @@ class FeedbackDialog(Adw.Window):
             label="Send Feedback", sensitive=transport.SENDING_ENABLED,
             css_classes=["suggested-action", "feedback-send"],
         )
+        describe_control(
+            self._send_button, "Send Feedback",
+            "Submit the feedback and selected attachments.",
+            automation_id="feedback-send",
+        )
         self._send_button.connect("clicked", self._send)
         actions.append(self._send_button)
         footer.append(actions)
         # Extra attachments and status messages may outgrow a short display.
         # Let the form scroll while keeping Close and Send always available.
-        toolbar.set_content(Gtk.ScrolledWindow(
+        content_scroll = Gtk.ScrolledWindow(
             child=content, hscrollbar_policy=Gtk.PolicyType.NEVER,
             propagate_natural_height=True, vexpand=True, focusable=True,
-        ))
+        )
+        set_automation_id(content_scroll, "feedback-content")
+        toolbar.set_content(content_scroll)
         toolbar.add_bottom_bar(footer)
         self.set_content(toolbar)
         keys = Gtk.EventControllerKey()
@@ -314,8 +363,7 @@ class FeedbackDialog(Adw.Window):
         return GLib.SOURCE_REMOVE
 
     def _show_log_privacy(self, *_args):
-        dialog = Adw.AlertDialog.new(
-            "Feedback privacy",
+        privacy_text = (
             transport.RETENTION_DISCLOSURE + "\n\nDiagnostic logs do not collect "
             "account names, email addresses, file contents, raw system journals, or "
             "exception messages. Automatic diagnostics contain validated technical "
@@ -324,8 +372,19 @@ class FeedbackDialog(Adw.Window):
             "version text are omitted or irreversibly replaced; identities are never hashed. "
             "Your own feedback, reply email, and selected "
             "files are separate and may contain personal information. Review them "
-            "before sending.",
+            "before sending."
         )
+        dialog = Gtk.Dialog(
+            title="Feedback privacy", transient_for=self, modal=True,
+        )
+        set_automation_id(dialog, "feedback-privacy-dialog")
+        privacy_content = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=12,
+            margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,
+        )
+        privacy_body = Gtk.Label(label=privacy_text, wrap=True, xalign=0)
+        set_automation_id(privacy_body, "feedback-privacy-text")
+        privacy_content.append(privacy_body)
         portal_link = Gtk.LinkButton(
             uri=PRIVACY_URL,
             label="View full privacy notice",
@@ -335,13 +394,18 @@ class FeedbackDialog(Adw.Window):
             portal_link,
             "View full privacy notice",
             "Open the Oh No! Parent Control privacy notice in your browser.",
+            automation_id="feedback-full-privacy-link",
         )
-        dialog.set_extra_child(portal_link)
+        privacy_content.append(portal_link)
+        dialog.get_content_area().append(privacy_content)
         portal_link.set_visible(not self._kiosk_session)
-        dialog.add_response("close", "Close")
-        dialog.set_default_response("close")
-        dialog.set_close_response("close")
-        dialog.present(self)
+        add_dialog_button(
+            dialog, "Close", Gtk.ResponseType.CLOSE, "feedback-privacy-close",
+            description="Close the feedback privacy information.",
+        )
+        dialog.set_default_response(Gtk.ResponseType.CLOSE)
+        dialog.connect("response", lambda current, _response: current.destroy())
+        dialog.present()
         return True
 
     def _hide_draft(self, *_args):
@@ -364,8 +428,16 @@ class FeedbackDialog(Adw.Window):
 
     def _set_busy(self, busy):
         self._busy = busy
-        self._close_button.set_label(
-            "Stop sending and close" if busy and self._on_close is not None else "Close",
+        close_label = (
+            "Stop sending and close"
+            if busy and self._on_close is not None else "Close"
+        )
+        self._close_button.set_label(close_label)
+        describe_control(
+            self._close_button, close_label,
+            "Stop the pending report and close it."
+            if busy and self._on_close is not None
+            else "Close the feedback form while preserving the draft in this app.",
         )
         for widget in (self._message, self._reply, *self._attachment_rows):
             widget.set_sensitive(not busy)
@@ -398,6 +470,10 @@ class FeedbackDialog(Adw.Window):
         self._without_logs.set_visible(False)
         self._set_busy(True)
         self._send_button.set_label("Send Feedback")
+        describe_control(
+            self._send_button, "Send Feedback",
+            "Submit the feedback and selected attachments.",
+        )
         self._status.set_label("Preparing feedback… " + self._sending_hint())
         include_logs = self._include_logs
         submission = self._submission
@@ -443,6 +519,10 @@ class FeedbackDialog(Adw.Window):
         self._without_logs.set_visible(result.kind in ("oversized", "logs_unavailable") and self._include_logs)
         if result.kind in ("expired", "cancelled"):
             self._send_button.set_label("Submit again (may duplicate)")
+            describe_control(
+                self._send_button, "Submit again (may duplicate)",
+                "Submit the preserved feedback again when the earlier result is uncertain.",
+            )
         if result.kind == "success":
             self._receipt_id = result.receipt_id
             self._message.clear()
@@ -465,30 +545,40 @@ class FeedbackDialog(Adw.Window):
                 "\n\nWe may contact you at the email address you provided "
                 "if we have any follow-up questions."
             )
-        dialog = Adw.AlertDialog.new(
-            "Thank you for your feedback!",
-            body,
+        dialog = Gtk.Dialog(
+            title="Thank you for your feedback!",
+            transient_for=self.get_transient_for(), modal=True,
         )
+        set_automation_id(dialog, "feedback-success-dialog")
+        body_label = Gtk.Label(
+            label=body, wrap=True, xalign=0,
+            margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,
+        )
+        set_automation_id(body_label, "feedback-success-text")
+        dialog.get_content_area().append(body_label)
         self._success_dialog = dialog
-        dialog.add_response("close", "Close")
-        dialog.set_response_appearance("close", Adw.ResponseAppearance.SUGGESTED)
-        dialog.set_default_response("close")
-        dialog.set_close_response("close")
-        dialog.connect("closed", self._success_closed)
+        add_dialog_button(
+            dialog, "Close", Gtk.ResponseType.CLOSE, "feedback-success-close",
+            description="Close the feedback confirmation.",
+            css_class="suggested-action",
+        )
+        dialog.set_default_response(Gtk.ResponseType.CLOSE)
+        dialog.connect("response", self._success_closed)
         # Hide the editor immediately, but defer error-report exit callbacks
         # until the user has dismissed the confirmation on the owning window.
         self.set_visible(False)
-        dialog.present(self.get_transient_for())
+        dialog.present()
 
-    def _success_closed(self, dialog):
+    def _success_closed(self, dialog, _response):
         if self._success_dialog is dialog:
             self._success_dialog = None
+            dialog.destroy()
             self.close()
 
     def _clear_success_dialog(self):
         if self._success_dialog is not None:
             dialog, self._success_dialog = self._success_dialog, None
-            dialog.force_close()
+            dialog.destroy()
 
     def _send_without_logs(self, _button):
         if self._include_logs:
@@ -530,6 +620,7 @@ class FeedbackDialog(Adw.Window):
             self._attachment_button,
             "Remove" if self._include_logs else "Add logs",
             "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report.",
+            automation_id="feedback-toggle-logs",
         )
 
     def _choose_attachments(self, _button=None):
@@ -601,18 +692,27 @@ class FeedbackDialog(Adw.Window):
             return GLib.SOURCE_REMOVE
         for attachment in attachments:
             self._user_attachments.append(attachment)
+            attachment_key = _attachment_automation_key(
+                attachment,
+                {row.automation_key for row in self._attachment_rows},
+            )
             row = Adw.ActionRow(
                 title=attachment.name,
                 subtitle=self._format_size(len(attachment.data)),
             )
+            row.automation_key = attachment_key
+            set_automation_id(row, f"feedback-attachment-{attachment_key}")
             row.add_prefix(Gtk.Image(icon_name="mail-attachment-symbolic"))
             remove = Gtk.Button(
                 icon_name="user-trash-symbolic", tooltip_text="Remove attachment",
                 valign=Gtk.Align.CENTER,
                 css_classes=["flat", "feedback-attachment-button"],
             )
-            describe_control(remove, f"Remove {attachment.name}",
-                             "Remove this file from the feedback.")
+            describe_control(
+                remove, f"Remove {attachment.name}",
+                "Remove this file from the feedback.",
+                automation_id=f"feedback-remove-attachment-{attachment_key}",
+            )
             remove.connect("clicked", self._remove_user_attachment, attachment, row)
             row.add_suffix(remove)
             self._attachment_rows.append(row)

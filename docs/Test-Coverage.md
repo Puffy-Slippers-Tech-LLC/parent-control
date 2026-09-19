@@ -4,27 +4,26 @@
 
 ## Test case counts
 
-| Category | Count (Ready/Pending/Total) | Counting unit |
+| Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">10261</span>/<span style="color: gray">0</span>/10261 | Collected pytest cases, including parameter combinations |
-| Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Collected pytest cases, including parameter combinations |
-| UI | <span style="color: green">152</span>/<span style="color: gray">0</span>/152 | Collected pytest cases, including parameter combinations |
-| Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Collected pytest cases, including parameter combinations |
-| Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Registered cases; repeated phases and prerequisites counted once |
-| Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | One check per executable test script; Node subtests not expanded |
-| Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | One check per executable test script |
-| Integration qualification | <span style="color: green">18</span>/<span style="color: gray">0</span>/18 | One check per installed-runner check_*.py entry point |
-| E2E | <span style="color: green">7</span>/<span style="color: gray">245</span>/252 | One exact scenario variant |
-| **Total** | **<span style="color: green">10825</span>/<span style="color: gray">245</span>/11070** | All entries above, including pending E2E |
+| Unit, property and contract | <span style="color: green">10386</span>/<span style="color: gray">0</span>/10386 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Private D-Bus component | <span style="color: green">139</span>/<span style="color: gray">0</span>/139 | Checks broker behavior through a private D-Bus without changing the host system. |
+| UI | <span style="color: green">135</span>/<span style="color: gray">0</span>/135 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
+| Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
+| Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
+| Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
+| Integration qualification | <span style="color: green">20</span>/<span style="color: gray">0</span>/20 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">7</span>/<span style="color: gray">234</span>/241 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">10935</span>/<span style="color: gray">234</span>/11169** | All test cases across the categories above, including pending E2E scenarios. |
 
-These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count at the entry-point level shown above. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
+These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
 ## E2E scenarios
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
 | customer-journey | <span style="color: green">6</span>/<span style="color: gray">234</span>/240 |
-| fault-recovery | <span style="color: green">0</span>/<span style="color: gray">11</span>/11 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -176,17 +175,6 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[137](#scenario-137)</span> | <span style="color: gray">Customer package update and activation (activation: session)</span> | <span style="color: gray">`E2E-026/session`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[139](#scenario-139)</span> | <span style="color: gray">Install through remove, reinstall and purge</span> | <span style="color: gray">`E2E-027/continuous`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[140](#scenario-140)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: startup enforcement)</span> | <span style="color: gray">`E2E-028/startup-enforcement`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[141](#scenario-141)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: startup broker)</span> | <span style="color: gray">`E2E-028/startup-broker`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[142](#scenario-142)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: zero time exposure)</span> | <span style="color: gray">`E2E-028/zero-time-exposure`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[143](#scenario-143)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: usage read)</span> | <span style="color: gray">`E2E-028/usage-read`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[144](#scenario-144)</span> | <span style="color: gray">Startup, usage and authentication-agent failure recovery (fault: kiosk auth agent)</span> | <span style="color: gray">`E2E-028/kiosk-auth-agent`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[145](#scenario-145)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: failed save)</span> | <span style="color: gray">`E2E-029/failed-save`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[146](#scenario-146)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: stale identity)</span> | <span style="color: gray">`E2E-029/stale-identity`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[147](#scenario-147)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: disconnect)</span> | <span style="color: gray">`E2E-029/disconnect`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[148](#scenario-148)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: concurrent transaction)</span> | <span style="color: gray">`E2E-029/concurrent-transaction`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[149](#scenario-149)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: policy reload)</span> | <span style="color: gray">`E2E-029/policy-reload`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[150](#scenario-150)</span> | <span style="color: gray">Transactional failure, rollback and identity races (fault: partial termination)</span> | <span style="color: gray">`E2E-029/partial-termination`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[152](#scenario-152)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: draft reopen)</span> | <span style="color: gray">`E2E-031/draft-reopen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[154](#scenario-154)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: attachments)</span> | <span style="color: gray">`E2E-031/attachments`</span> | <span style="color: gray">pending</span> |
@@ -3077,248 +3065,6 @@ Variant: lifecycle: continuous
 - Reinstall, follow activation and read retained choices and zero one-time time before editing. Reapply restrictions in Parent and verify them. Purge, follow its notice, reinstall again and read fresh parent-policy/shared-request defaults; personal selectors and the child's animation option may remain.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 140
-
-**Startup, usage and authentication-agent failure recovery (fault: startup enforcement)**
-
-Case: `E2E-028/startup-enforcement` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: startup enforcement
-
-**Steps:**
-
-- Establish the selected startup, child session or kiosk boundary through real customer operations.
-- Trigger the selected real startup dependency, zero-time entry, usage-service read or authentication-agent failure through a declared guarded fault control.
-- Verify the selected failure before recovery: startup-enforcement keeps fapolicyd unready and prevents managed GDM startup; startup-broker keeps the broker D-Bus object unpublished after failed execution-policy reconciliation while the healthy fapolicyd login gate is independently checked. Other variants verify safe denial/relock and preserved estimates where applicable.
-- Remove the declared fault using supported service/environment recovery and record actual recovery.
-- Retry the original customer operation and verify recovery without new hidden policy or time state.
-
-Pending: Implementation must implement a guarded fapolicyd readiness failure, prove managed GDM startup is denied, then recover in the same attempt.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 141
-
-**Startup, usage and authentication-agent failure recovery (fault: startup broker)**
-
-Case: `E2E-028/startup-broker` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: startup broker
-
-**Steps:**
-
-- Establish the selected startup, child session or kiosk boundary through real customer operations.
-- Trigger the selected real startup dependency, zero-time entry, usage-service read or authentication-agent failure through a declared guarded fault control.
-- Verify the selected failure before recovery: startup-enforcement keeps fapolicyd unready and prevents managed GDM startup; startup-broker keeps the broker D-Bus object unpublished after failed execution-policy reconciliation while the healthy fapolicyd login gate is independently checked. Other variants verify safe denial/relock and preserved estimates where applicable.
-- Remove the declared fault using supported service/environment recovery and record actual recovery.
-- Retry the original customer operation and verify recovery without new hidden policy or time state.
-
-Pending: Implementation must implement a guarded broker execution-policy reconciliation failure, prove its D-Bus object remains unpublished, then recover in the same attempt.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 142
-
-**Startup, usage and authentication-agent failure recovery (fault: zero time exposure)**
-
-Case: `E2E-028/zero-time-exposure` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: zero time exposure
-
-**Steps:**
-
-- Establish the selected startup, child session or kiosk boundary through real customer operations.
-- Trigger the selected real startup dependency, zero-time entry, usage-service read or authentication-agent failure through a declared guarded fault control.
-- Verify the selected failure before recovery: startup-enforcement keeps fapolicyd unready and prevents managed GDM startup; startup-broker keeps the broker D-Bus object unpublished after failed execution-policy reconciliation while the healthy fapolicyd login gate is independently checked. Other variants verify safe denial/relock and preserved estimates where applicable.
-- Remove the declared fault using supported service/environment recovery and record actual recovery.
-- Retry the original customer operation and verify recovery without new hidden policy or time state.
-
-Pending: Implementation must implement this complete journey and its assertions.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 143
-
-**Startup, usage and authentication-agent failure recovery (fault: usage read)**
-
-Case: `E2E-028/usage-read` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: usage read
-
-**Steps:**
-
-- Establish the selected startup, child session or kiosk boundary through real customer operations.
-- Trigger the selected real startup dependency, zero-time entry, usage-service read or authentication-agent failure through a declared guarded fault control.
-- Verify the selected failure before recovery: startup-enforcement keeps fapolicyd unready and prevents managed GDM startup; startup-broker keeps the broker D-Bus object unpublished after failed execution-policy reconciliation while the healthy fapolicyd login gate is independently checked. Other variants verify safe denial/relock and preserved estimates where applicable.
-- Remove the declared fault using supported service/environment recovery and record actual recovery.
-- Retry the original customer operation and verify recovery without new hidden policy or time state.
-
-Pending: Implementation must implement this complete journey and its assertions.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 144
-
-**Startup, usage and authentication-agent failure recovery (fault: kiosk auth agent)**
-
-Case: `E2E-028/kiosk-auth-agent` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: kiosk auth agent
-
-**Steps:**
-
-- Establish the selected startup, child session or kiosk boundary through real customer operations.
-- Trigger the selected real startup dependency, zero-time entry, usage-service read or authentication-agent failure through a declared guarded fault control.
-- Verify the selected failure before recovery: startup-enforcement keeps fapolicyd unready and prevents managed GDM startup; startup-broker keeps the broker D-Bus object unpublished after failed execution-policy reconciliation while the healthy fapolicyd login gate is independently checked. Other variants verify safe denial/relock and preserved estimates where applicable.
-- Remove the declared fault using supported service/environment recovery and record actual recovery.
-- Retry the original customer operation and verify recovery without new hidden policy or time state.
-
-Pending: Implementation must implement this complete journey and its assertions.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 145
-
-**Transactional failure, rollback and identity races (fault: failed save)**
-
-Case: `E2E-029/failed-save` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: failed save
-
-**Steps:**
-
-- Through Parent/request UI establish actual policy, time and open-app preconditions for the selected transaction boundary.
-- Cause the selected real save failure, account eligibility change, requester disconnect, concurrent operation, reload failure or partial process termination; record actor and exact intervention.
-- Observe failure/rollback or fail-closed partial-termination behavior; do not present closed apps as restored.
-- Remove the declared cause through supported controls and record recovery.
-- Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
-
-Pending: Implementation must implement this complete journey and its assertions.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 146
-
-**Transactional failure, rollback and identity races (fault: stale identity)**
-
-Case: `E2E-029/stale-identity` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: stale identity
-
-**Steps:**
-
-- Through Parent/request UI establish actual policy, time and open-app preconditions for the selected transaction boundary.
-- Cause the selected real save failure, account eligibility change, requester disconnect, concurrent operation, reload failure or partial process termination; record actor and exact intervention.
-- Observe failure/rollback or fail-closed partial-termination behavior; do not present closed apps as restored.
-- Remove the declared cause through supported controls and record recovery.
-- Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
-
-Pending: Implementation must implement this complete journey and its assertions.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 147
-
-**Transactional failure, rollback and identity races (fault: disconnect)**
-
-Case: `E2E-029/disconnect` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: disconnect
-
-**Steps:**
-
-- Through Parent/request UI establish actual policy, time and open-app preconditions for the selected transaction boundary.
-- Cause the selected real save failure, account eligibility change, requester disconnect, concurrent operation, reload failure or partial process termination; record actor and exact intervention.
-- Observe failure/rollback or fail-closed partial-termination behavior; do not present closed apps as restored.
-- Remove the declared cause through supported controls and record recovery.
-- Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
-
-Pending: Implementation must implement this complete journey and its assertions.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 148
-
-**Transactional failure, rollback and identity races (fault: concurrent transaction)**
-
-Case: `E2E-029/concurrent-transaction` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: concurrent transaction
-
-**Steps:**
-
-- Through Parent/request UI establish actual policy, time and open-app preconditions for the selected transaction boundary.
-- Cause the selected real save failure, account eligibility change, requester disconnect, concurrent operation, reload failure or partial process termination; record actor and exact intervention.
-- Observe failure/rollback or fail-closed partial-termination behavior; do not present closed apps as restored.
-- Remove the declared cause through supported controls and record recovery.
-- Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
-
-Pending: Implementation must implement this complete journey and its assertions.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 149
-
-**Transactional failure, rollback and identity races (fault: policy reload)**
-
-Case: `E2E-029/policy-reload` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: policy reload
-
-**Steps:**
-
-- Through Parent/request UI establish actual policy, time and open-app preconditions for the selected transaction boundary.
-- Cause the selected real save failure, account eligibility change, requester disconnect, concurrent operation, reload failure or partial process termination; record actor and exact intervention.
-- Observe failure/rollback or fail-closed partial-termination behavior; do not present closed apps as restored.
-- Remove the declared cause through supported controls and record recovery.
-- Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
-
-Pending: Implementation must implement this complete journey and its assertions.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 150
-
-**Transactional failure, rollback and identity races (fault: partial termination)**
-
-Case: `E2E-029/partial-termination` · Category: fault-recovery · Status: **pending**
-
-Variant: fault: partial termination
-
-**Steps:**
-
-- Through Parent/request UI establish actual policy, time and open-app preconditions for the selected transaction boundary.
-- Cause the selected real save failure, account eligibility change, requester disconnect, concurrent operation, reload failure or partial process termination; record actor and exact intervention.
-- Observe failure/rollback or fail-closed partial-termination behavior; do not present closed apps as restored.
-- Remove the declared cause through supported controls and record recovery.
-- Retry a valid customer transaction and verify success, policy/time correctness and other-user isolation.
-
-Pending: Implementation must implement this complete journey and its assertions.
 
 </div>
 

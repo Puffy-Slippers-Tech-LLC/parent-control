@@ -104,13 +104,26 @@ class ErrorHandler:
             # Reporting failures cannot recursively trigger another reporter.
             LOG.warning("errors.002", component=self.component, error_type=error_code(error))
             self._dialog = None
-            from gi.repository import Adw
-            fallback = Adw.AlertDialog.new(
-                "Error report unavailable",
-                "The feedback dialog could not be opened. Please try again later.",
+            from gi.repository import Gtk
+            from .accessibility import add_dialog_button, set_automation_id
+            fallback = Gtk.Dialog(
+                title="Error report unavailable", transient_for=self.parent, modal=True,
             )
-            fallback.add_response("close", "Close")
-            fallback.set_close_response("close")
+            set_automation_id(fallback, "error-report-unavailable-dialog")
+            message = Gtk.Label(
+                label="The feedback dialog could not be opened. Please try again later.",
+                wrap=True, xalign=0,
+                margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,
+            )
+            set_automation_id(message, "error-report-unavailable-message")
+            fallback.get_content_area().append(message)
+            add_dialog_button(
+                fallback, "Close", Gtk.ResponseType.CLOSE,
+                "error-report-unavailable-close",
+                description="Close the error report notice.",
+            )
+            fallback.set_default_response(Gtk.ResponseType.CLOSE)
+            fallback.connect("response", lambda current, _response: current.destroy())
             if on_close is not None:
                 fallback.connect("response", lambda *_: on_close())
             fallback.present(self.parent)
@@ -122,6 +135,7 @@ class ErrorHandler:
 def show_startup_error(application, component, error):
     """Show a reporting-only surface when management/request startup fails."""
     from gi.repository import Adw, Gtk
+    from .accessibility import set_automation_id
     existing = getattr(application, "_startup_error_window", None)
     if existing is not None:
         existing.present()
@@ -130,8 +144,11 @@ def show_startup_error(application, component, error):
         return existing
     window = Adw.ApplicationWindow(application=application, title=GENERIC_TITLE,
                                    default_width=560, default_height=180)
-    window.set_content(Gtk.Label(label=GENERIC_DETAIL, wrap=True,
-                                 margin_start=24, margin_end=24))
+    set_automation_id(window, "startup-error-window")
+    message = Gtk.Label(label=GENERIC_DETAIL, wrap=True,
+                        margin_start=24, margin_end=24)
+    set_automation_id(message, "startup-error-message")
+    window.set_content(message)
     window.present()
     application._startup_error_window = window
     window._errors = ErrorHandler(window, component)

@@ -24,7 +24,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
-from common.oh_no_parent_control_ui.accessibility import describe_control
+from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.errors import (
     ErrorHandler, install_exception_hooks, show_startup_error,
@@ -487,7 +487,7 @@ class RequestViewport(Gtk.ScrolledWindow):
 class GatewayAlignedRequest(Gtk.Widget):
     """Container that mounts the complete request form in the gateway plane."""
 
-    def __init__(self, child):
+    def __init__(self, child, automation_namespace):
         super().__init__(hexpand=True, vexpand=True)
         self._child = child
         self._form_corners = ()
@@ -496,6 +496,9 @@ class GatewayAlignedRequest(Gtk.Widget):
             hscrollbar_policy=Gtk.PolicyType.NEVER,
             vscrollbar_policy=Gtk.PolicyType.EXTERNAL,
             overlay_scrolling=False,
+        )
+        set_automation_id(
+            self._viewport, f"kiosk-{automation_namespace}-viewport",
         )
         self._viewport.add_css_class("oh-no-parent-control-request-viewport")
         if isinstance(child, MetalBoard):
@@ -511,6 +514,12 @@ class GatewayAlignedRequest(Gtk.Widget):
         self._scrollbar = Gtk.Scrollbar(
             orientation=Gtk.Orientation.VERTICAL,
             adjustment=self._viewport.get_vadjustment(),
+        )
+        describe_control(
+            self._scrollbar,
+            f"{automation_namespace.title()} screen scroll",
+            f"Scroll the {automation_namespace} screen when its content overflows.",
+            automation_id=f"kiosk-{automation_namespace}-scrollbar",
         )
         self._scrollbar.set_parent(self)
         self._scrollbar.set_visible(False)
@@ -903,6 +912,7 @@ class RequestWindow(Adw.ApplicationWindow):
                  child_overlay=False, broker_connection=None):
         super().__init__(application=application, title=app_name())
         self.add_css_class("oh-no-parent-control-window")
+        set_automation_id(self, "kiosk-request-window")
         if child_overlay:
             self.add_css_class("oh-no-parent-control-overlay")
             self.set_decorated(False)
@@ -965,22 +975,28 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
+        set_automation_id(self._stack, "kiosk-request-pages")
         self._background = GatewayBackground()
+        set_automation_id(self._background, "kiosk-background")
         self._background.add_css_class("oh-no-parent-control-gateway-background")
         self._background.set_can_target(False)
         layout = Gtk.Overlay()
+        set_automation_id(layout, "kiosk-window-layout")
         layout.set_child(self._background)
         layout.add_overlay(self._stack)
         help_popover = Gtk.Popover()
+        set_automation_id(help_popover, "kiosk-help-popover")
         help_popover.set_has_arrow(False)
         help_popover.set_position(Gtk.PositionType.BOTTOM)
         help_popover.add_css_class("oh-no-parent-control-hud-menu")
         menu_board = HudMenuBoard(orientation=Gtk.Orientation.VERTICAL)
+        set_automation_id(menu_board, "kiosk-help-menu")
         menu_board.add_css_class("oh-no-parent-control-hud-menu-board")
         menu_actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        set_automation_id(menu_actions, "kiosk-help-actions")
         menu_actions.add_css_class("oh-no-parent-control-hud-menu-actions")
         if self._child_overlay:
-            help_item = self._hud_menu_item("HELP", HELP)
+            help_item = self._hud_menu_item("HELP", HELP, identity="help")
             describe_control(
                 help_item, "Help",
                 "Open the product website in the browser.",
@@ -990,7 +1006,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 lambda *_args: self._activate_help_menu(help_popover, open_help),
             )
             menu_actions.append(help_item)
-        about_item = self._hud_menu_item("ABOUT", ABOUT)
+        about_item = self._hud_menu_item("ABOUT", ABOUT, identity="about")
         describe_control(
             about_item, "About",
             "Show product name, version, and legal information.",
@@ -1002,7 +1018,7 @@ class RequestWindow(Adw.ApplicationWindow):
         menu_actions.append(about_item)
         if self._preview:
             from .preview_screen import show_screen_dialog
-            screen_item = self._hud_menu_item("Change Screens", MENU)
+            screen_item = self._hud_menu_item("Change Screens", MENU, identity="change-screens")
             describe_control(screen_item, "Change Screens", "Choose the preview screen resolution and display scale.")
             screen_item.connect("clicked", lambda *_: self._activate_help_menu(
                 help_popover, lambda: show_screen_dialog(self),
@@ -1011,6 +1027,7 @@ class RequestWindow(Adw.ApplicationWindow):
         menu_board.append(menu_actions)
         self._muted = False
         self._mute_icon = PixelIcon(SPEAKER, display_size=28, label="")
+        set_automation_id(self._mute_icon, "kiosk-mute-icon")
         self._mute_icon.set_halign(Gtk.Align.CENTER)
         self._mute_icon.set_valign(Gtk.Align.CENTER)
         self._mute_button = ArmoredButton(
@@ -1019,6 +1036,7 @@ class RequestWindow(Adw.ApplicationWindow):
         describe_control(
             self._mute_button, "Mute request-screen sound",
             "Turn lightning and its thunder sound on or off.",
+            automation_id="kiosk-mute-button",
         )
         self._mute_button.set_child(self._mute_icon)
         self._mute_button.add_css_class("oh-no-parent-control-hud-button")
@@ -1026,6 +1044,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._mute_button.set_visible(REQUEST_MEDIA_ENABLED)
         self._mute_button.set_sensitive(REQUEST_MEDIA_ENABLED)
         menu_icon = PixelIcon(MENU, display_size=31, label="")
+        set_automation_id(menu_icon, "kiosk-menu-icon")
         menu_icon.set_halign(Gtk.Align.CENTER)
         menu_icon.set_valign(Gtk.Align.CENTER)
         menu_button = ArmoredMenuButton(
@@ -1037,17 +1056,20 @@ class RequestWindow(Adw.ApplicationWindow):
         describe_control(
             menu_button, "Request-screen menu",
             "Open help and product information for this request screen.",
+            automation_id="kiosk-menu-button",
         )
         menu_button.set_child(menu_icon)
         menu_button.add_css_class("oh-no-parent-control-hud-button")
         menu_button.add_css_class("oh-no-parent-control-menu-button")
         menu_button.connect("notify::active", self._menu_state_changed)
         popover_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        set_automation_id(popover_content, "kiosk-help-content")
         popover_content.add_css_class("oh-no-parent-control-hud-menu-content")
         popover_content.append(HudMenuStem())
         popover_content.append(menu_board)
         help_popover.set_child(popover_content)
         top_controls = Gtk.Box(spacing=18)
+        set_automation_id(top_controls, "kiosk-hud-controls")
         top_controls.append(self._mute_button)
         top_controls.append(menu_button)
         layout.add_overlay(ResponsiveHud(top_controls))
@@ -1069,21 +1091,28 @@ class RequestWindow(Adw.ApplicationWindow):
                 child_overlay=self._child_overlay,
             )),
         )
-        self._request_surface = GatewayAlignedRequest(self._request_content)
+        self._request_surface = GatewayAlignedRequest(
+            self._request_content, "request",
+        )
+        set_automation_id(self._request_surface, "kiosk-request-surface")
         self._stack.add_named(self._request_surface, "request")
 
         self._result_view = self._page()
+        set_automation_id(self._result_view, "kiosk-result-page")
         self._result_title = Gtk.Label(css_classes=["oh-no-parent-control-page-title"])
+        set_automation_id(self._result_title, "kiosk-result-title")
         self._result_detail = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER)
+        set_automation_id(self._result_detail, "kiosk-result-detail")
         self._result_view.append(self._result_title)
         self._result_view.append(self._result_detail)
+        result_action_label = "Close" if self._child_overlay else "Return to Login"
         self._result_action = ArmoredButton(
-            label="Close" if self._child_overlay else "Return to Login",
-            hexpand=True, armor_kind="request",
+            label=result_action_label, hexpand=True, armor_kind="request",
         )
         describe_control(
-            self._result_action, "Request result action",
+            self._result_action, result_action_label,
             "Close the result screen or return to the sign-in screen.",
+            automation_id="kiosk-result-action",
         )
         self._result_action.add_css_class("oh-no-parent-control-request-button")
         self._result_action.set_margin_start(10)
@@ -1099,12 +1128,19 @@ class RequestWindow(Adw.ApplicationWindow):
             label="Report this error", xalign=0, hexpand=True, wrap=True,
             css_classes=["oh-no-parent-control-app-filter-label"],
         )
+        set_automation_id(report_label, "kiosk-report-label")
         self._report_error = Gtk.Switch(active=True, valign=Gtk.Align.CENTER)
         self._report_error.set_can_target(False)
         report_label.set_mnemonic_widget(self._report_error)
         description = "Review an error report before closing or returning to login."
-        describe_control(self._report_row, "Report this error", description)
-        describe_control(self._report_error, "Report this error", description)
+        describe_control(
+            self._report_row, "Report this error", description,
+            automation_id="kiosk-report-row",
+        )
+        describe_control(
+            self._report_error, "Report this error", description,
+            automation_id="kiosk-report-toggle",
+        )
         report_content.append(report_label)
         report_content.append(self._report_error)
         self._report_row.set_child(report_content)
@@ -1119,7 +1155,8 @@ class RequestWindow(Adw.ApplicationWindow):
         # Keep every outcome, including the post-authorization confirmation,
         # mounted in the gateway plane.  Adding this box directly to the stack
         # would bypass the yaw and perspective used by the request form.
-        self._result_surface = GatewayAlignedRequest(self._result_view)
+        self._result_surface = GatewayAlignedRequest(self._result_view, "result")
+        set_automation_id(self._result_surface, "kiosk-result-surface")
         self._stack.add_named(self._result_surface, "result")
 
     def _result_dismissed(self, *_args):
@@ -1135,12 +1172,18 @@ class RequestWindow(Adw.ApplicationWindow):
         LOG.info("kiosk.007", expanded=menu_button.get_active(), overlay=self._child_overlay)
 
     @staticmethod
-    def _hud_menu_item(label, icon_pixels):
+    def _hud_menu_item(label, icon_pixels, *, identity):
         item = ArmoredButton(hexpand=True, armor_kind="hud-menu-item")
+        set_automation_id(item, "kiosk-menu-item-" + identity)
         item.add_css_class("oh-no-parent-control-hud-menu-item")
         content = Gtk.Box(spacing=18, valign=Gtk.Align.CENTER)
-        content.append(HudIconFrame(icon_pixels))
-        content.append(Gtk.Label(label=label, xalign=0, hexpand=True))
+        set_automation_id(content, "kiosk-menu-item-content-" + identity)
+        icon = HudIconFrame(icon_pixels)
+        set_automation_id(icon, "kiosk-menu-icon-" + identity)
+        content.append(icon)
+        menu_label = Gtk.Label(label=label, xalign=0, hexpand=True)
+        set_automation_id(menu_label, "kiosk-menu-label-" + identity)
+        content.append(menu_label)
         item.set_child(content)
         return item
 
@@ -1160,6 +1203,11 @@ class RequestWindow(Adw.ApplicationWindow):
         self._mute_icon.set_pixels(SPEAKER_MUTED if muted else SPEAKER)
         self._mute_button.set_tooltip_text(
             "Unmute sound and lightning" if muted else "Mute sound and lightning"
+        )
+        describe_control(
+            self._mute_button,
+            "Unmute request-screen sound" if muted else "Mute request-screen sound",
+            "Turn lightning and its thunder sound on or off.",
         )
         if muted:
             self._mute_button.add_css_class("oh-no-parent-control-hud-muted")

@@ -20,7 +20,7 @@ class Selector:
         self.index = 2**32 - 1
         self.changed = changed
 
-    def set_items(self, _items):
+    def set_items(self, _items, *, identities=()):
         self.index = 2**32 - 1
 
     def set_selected(self, index):

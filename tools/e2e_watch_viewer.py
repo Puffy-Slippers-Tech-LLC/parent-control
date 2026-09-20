@@ -17,6 +17,18 @@ TITLE = 'E2E VM — View only'
 APPLICATION_ID = 'org.onpc.E2EWatch'
 
 
+def set_automation_id(widget, identity):
+    """Publish a stable GTK Buildable ID through the public AT-SPI tree."""
+    if type(identity) is not str or not re.fullmatch(r'e2e-watch-[a-z0-9-]+', identity):
+        raise ValueError('invalid spectator automation ID')
+    widget.set_name(identity)
+    # Gtk 4.22 publishes Buildable IDs as AccessibleId. The ID belongs to the
+    # object and survives the temporary Builder.
+    from gi.repository import Gtk
+    builder = Gtk.Builder()
+    builder.expose_object(identity, widget)
+
+
 def duration_text(seconds):
     minutes = max(0, int(seconds) // 60)
     hours, minutes = divmod(minutes, 60)
@@ -235,17 +247,26 @@ def application(feed=None):
             if self.window is not None:
                 return
             self.window = Gtk.ApplicationWindow(application=self, title=TITLE)
+            set_automation_id(self.window, 'e2e-watch-window')
             self.window.set_icon_name(APPLICATION_ID)
             header = Gtk.HeaderBar(decoration_layout=':minimize,maximize,close')
             header.pack_start(Gtk.Image(
                 icon_name=APPLICATION_ID, pixel_size=32, valign=Gtk.Align.CENTER))
+            close = Gtk.Button(icon_name='window-close-symbolic', tooltip_text='Close spectator')
+            close.update_property([Gtk.AccessibleProperty.LABEL], ['Close spectator'])
+            set_automation_id(close, 'e2e-watch-close')
+            close.connect('clicked', lambda _button: self.window.close())
+            header.pack_end(close)
             self.window.set_titlebar(header)
             self.window.set_default_size(1050, 820)
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             self.screen = Screen()
+            set_automation_id(self.screen, 'e2e-watch-display')
+            self.screen.update_property([Gtk.AccessibleProperty.LABEL], ['E2E VM display'])
             self.step = Gtk.Label(xalign=0, yalign=0, wrap=True,
                                   wrap_mode=Pango.WrapMode.WORD_CHAR,
                                   ellipsize=Pango.EllipsizeMode.END, lines=3)
+            set_automation_id(self.step, 'e2e-watch-progress')
             # Reserve exactly three font lines, including for short/empty steps.
             metrics = self.step.get_pango_context().get_metrics(None, None)
             line_height = (metrics.get_ascent() + metrics.get_descent()) / Pango.SCALE
@@ -255,6 +276,7 @@ def application(feed=None):
             self.step.set_margin_top(8)
             self.status = Gtk.Label(label=WAITING, xalign=0,
                                     ellipsize=Pango.EllipsizeMode.END, single_line_mode=True)
+            set_automation_id(self.status, 'e2e-watch-status')
             self.status.set_margin_start(8)
             self.status.set_margin_end(8)
             self.status.set_margin_top(8)
@@ -265,6 +287,7 @@ def application(feed=None):
             pane.set_resize_start_child(True)
             pane.set_shrink_start_child(True)
             self.terminal = Vte.Terminal()
+            set_automation_id(self.terminal, 'e2e-watch-output')
             self.terminal.set_input_enabled(False)
             self.terminal.set_allow_hyperlink(False)
             self.terminal.set_audible_bell(False)

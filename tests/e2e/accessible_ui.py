@@ -321,6 +321,7 @@ def owned_surface_id(identity):
         ('startup-error-', 'startup-error-window'),
         ('preview-screen-', 'preview-screen-dialog'),
         ('preview-viewer-', 'preview-viewer-window'),
+        ('e2e-watch-', 'e2e-watch-window'),
         ('about-', 'about-dialog'),
         ('feedback-', 'feedback-dialog'),
         ('parent-', 'parent-window'),
@@ -342,10 +343,13 @@ def owned_surface_id(identity):
 PARENT_APPLICATION = 'com.puffyslippers.OhNoParentControl.Parent'
 KIOSK_APPLICATION = 'com.puffyslippers.OhNoParentControl'
 CHILD_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildRequest'
+WATCH_APPLICATION = 'org.onpc.E2EWatch'
 PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION)
 
 
 def owned_applications(identity):
+    if identity.startswith('e2e-watch-'):
+        return (WATCH_APPLICATION,)
     if identity.startswith('parent-'):
         return (PARENT_APPLICATION,)
     if identity.startswith(('kiosk-', 'preview-screen-')):
@@ -523,7 +527,8 @@ class AccessibleUI:
         """Bind a dialog to its actual originating surface in the same app."""
         identity = public_automation_id(surface)
         app_id = public_automation_id(application)
-        primary = (('parent-window', 'parent-access-denied-window', 'startup-error-window')
+        primary = (('e2e-watch-window',) if app_id == WATCH_APPLICATION else
+                   ('parent-window', 'parent-access-denied-window', 'startup-error-window')
                    if app_id == PARENT_APPLICATION else
                    ('kiosk-request-window', 'startup-error-window')
                    if app_id in (KIOSK_APPLICATION, CHILD_APPLICATION) else

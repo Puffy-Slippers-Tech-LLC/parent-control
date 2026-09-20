@@ -65,7 +65,7 @@ Report separately:
 
 - Owned product/fixture identity work and remaining callable-path count from the
   frozen task-02 inventory. There must be no unassigned or unsafe path.
-- Final focused-unit, full eleven-file host UI, child-node, static and applicable
+- Final focused-unit, full twelve-file host UI, child-node, static and applicable
   fixture-runtime results, tied to the final code. No missing final counts may
   be invented or inferred from collection.
 - External provider consumers still blocked, their missing actual ID mappings

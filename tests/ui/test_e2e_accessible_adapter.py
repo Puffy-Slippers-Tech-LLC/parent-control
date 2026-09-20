@@ -153,9 +153,9 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
     if dismissal == 'close':
         ui.activate(ui.id_target('parent-access-denied-close', root=root))
     else:
-        from dogtail import rawinput
+        from tests.support.keyboard import key_combo
         assert ui.has_state(ui.id_target('parent-access-denied-window'), Atspi.StateType.ACTIVE)
-        rawinput.keyCombo('<Alt>F4')
+        key_combo(ui, 'parent-access-denied-window', '<Alt>F4', state=Atspi.StateType.ACTIVE)
     ui.wait(lambda: automation.absent('parent-access-denied-window', within='kiosk-request-window'),
             'denial-dismissed')
 
@@ -217,16 +217,16 @@ def test_parent_functional_adapter_at_display_scales(
                                identities=module.CHILD_IDENTITIES, maximum=32,
                                cardinality=(2, 2), projection='child-picker-order') == (
                                    'fixture-child', 'existing-fixture-child')
-        from dogtail import rawinput
+        from tests.support.keyboard import key_combo, press_key
         assert opened['focused'] is True
         ui.run('child-choice-highlighted', version)
-        rawinput.pressKey('Return')
+        press_key(ui, 'parent-child-choice-1001', 'Return', state=Atspi.StateType.FOCUSED)
         selected = ui.run('parent-selected', version)
         assert selected['settings']['child'] == 'fixture-child'
         opened = ui.run('discovery-child-picker-opened', version)
         assert opened['focused'] is True
         ui.run('discovery-child-choice-highlighted', version)
-        rawinput.pressKey('Return')
+        press_key(ui, 'parent-child-choice-1002', 'Return', state=Atspi.StateType.FOCUSED)
         existing = ui.run('discovery-selected', version)
         assert existing['settings']['child'] == 'existing-fixture-child'
         ui.run('existing-apps', version)
@@ -236,12 +236,12 @@ def test_parent_functional_adapter_at_display_scales(
         opened = ui.run('existing-child-picker-opened', version)
         assert opened['focused'] is True
         ui.run('existing-child-choice-highlighted', version)
-        rawinput.pressKey('Return')
+        press_key(ui, 'parent-child-choice-1002', 'Return', state=Atspi.StateType.FOCUSED)
         assert ui.run('existing-returned', version)['settings'] == existing['settings']
         opened = ui.run('child-picker-opened', version)
         assert opened['focused'] is True
         ui.run('child-choice-highlighted', version)
-        rawinput.pressKey('Return')
+        press_key(ui, 'parent-child-choice-1001', 'Return', state=Atspi.StateType.FOCUSED)
         assert ui.run('parent-selected', version)['settings'] == selected['settings']
         # The allowance remains readable when the switch normally disables it.
         toggle = ui.id_target('parent-screen-limit-toggle', root=ui.parent())
@@ -256,7 +256,7 @@ def test_parent_functional_adapter_at_display_scales(
             _record_parent_public_state(ui, module, _log)
         ui.about_footer()
         ui.window_ready_to_close('about')
-        rawinput.keyCombo('<Alt>F4')
+        key_combo(ui, 'about-dialog', '<Alt>F4', state=Atspi.StateType.ACTIVE)
         assert ui.run('parent-returned', version)['settings'] == disabled
     except Exception:
         print('Parent preview diagnostics:', _log)

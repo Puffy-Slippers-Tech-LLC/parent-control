@@ -54,7 +54,7 @@ def test_parent_allowance_choices_remain_semantically_reachable(
 def test_parent_app_controls_and_filters_remain_reachable(
         launch_ui, automation, wait_for_accessible_state, request_display_scale,
         dpi_scale):
-    from dogtail.rawinput import press_key
+    from tests.support.keyboard import press_key
 
     ui = automation
     open_parent(launch_ui, ui, wait_for_accessible_state)
@@ -84,7 +84,7 @@ def test_parent_app_controls_and_filters_remain_reachable(
             choice + " toggles",
         )
         assert ui.state(choice, ui.api.StateType.FOCUSED)
-        press_key("Escape")
+        press_key(ui, choice, "Escape", state=ui.api.StateType.FOCUSED)
         wait_for_accessible_state(lambda c=choice: ui.absent(c, within="parent-window"),
                                   choice + " menu closes")
 

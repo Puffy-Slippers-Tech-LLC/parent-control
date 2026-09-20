@@ -10,6 +10,7 @@ import pytest
 
 from tests.support.automation import Automation, AutomationError, public_action_name
 from tests.support.automation_ids import audit_owned_controls
+from tests.support.keyboard import deliver
 from tests.support.paths import ROOT
 from tests.support.accessible_ui import product_tree
 from tests.e2e.accessible_ui import (
@@ -127,6 +128,31 @@ def test_uncertain_input_is_never_replayed():
     with pytest.raises(RuntimeError, match="transport disconnected"):
         adapter(target).activate("submit")
     target.action.do_action.assert_called_once_with(0)
+
+
+def test_keyboard_delivery_reacquires_id_and_latches_uncertain_backend_failure():
+    stale = Node("entry", states=("showing", "visible", "sensitive", "focused"))
+    fresh = Node("entry", states=("showing", "visible", "sensitive", "focused"))
+    root = Node("", [stale])
+    ui = adapter(root)
+    root.children = [fresh]
+    sent = Mock(side_effect=RuntimeError("backend disconnected"))
+
+    with pytest.raises(RuntimeError, match="backend disconnected"):
+        deliver(ui, "entry", ui.api.StateType.FOCUSED, sent)
+    sent.assert_called_once_with()
+    assert ui.input_uncertain
+    with pytest.raises(AssertionError, match="uncertain"):
+        deliver(ui, "entry", ui.api.StateType.FOCUSED, Mock())
+
+
+def test_keyboard_delivery_refuses_missing_recipient_state_before_input():
+    ui = adapter(Node("entry"))
+    sent = Mock()
+    with pytest.raises(AssertionError, match="lacks"):
+        deliver(ui, "entry", ui.api.StateType.FOCUSED, sent)
+    sent.assert_not_called()
+    assert not ui.input_uncertain
 
 
 def test_pre_action_incomplete_read_retries_without_replaying_input():
@@ -277,8 +303,10 @@ def test_owned_gtk_surfaces_share_the_core_identity_publisher(monkeypatch):
     fixture = (ROOT / "tests/fixtures/gui_application.py").read_text()
     assert "def set_automation_id" not in viewer
     assert "def identify" not in fixture
-    assert "gtk_automation import set_automation_id" in viewer
-    assert "gtk_automation import set_automation_id" in fixture
+    for source in (viewer, fixture):
+        assert "gtk_automation import" in source
+        assert "set_automation_id" in source
+        assert "add_identified_window_controls" in source
 
 
 def test_owned_control_inventory_supports_product_spectator_and_fixture_namespaces():
@@ -298,6 +326,33 @@ def test_owned_control_inventory_supports_product_spectator_and_fixture_namespac
     root = Node("e2e-watch-window", [missing])
     with pytest.raises(AssertionError, match="owned controls without public IDs"):
         audit_owned_controls(adapter(root), "e2e-watch-window")
+
+
+def test_toolkit_title_buttons_require_an_identified_window_controls_owner():
+    internal = Node("")
+    internal.get_role_name = lambda: "button"
+    controls = Node("parent-window-controls", [internal])
+    surface = Node("parent-window", [controls])
+    assert audit_owned_controls(adapter(surface), "parent-window")
+
+    controls.identity = "parent-titlebar"
+    with pytest.raises(AssertionError, match="owned controls without public IDs"):
+        audit_owned_controls(adapter(surface), "parent-window")
+
+
+def test_generic_action_on_text_is_presentation_but_anonymous_entry_is_not():
+    text = Node("")
+    text.get_role_name = lambda: "text"
+    surface = Node("child-screen-time-indicator", [text])
+    assert audit_owned_controls(
+        adapter(surface), "child-screen-time-indicator", root=surface,
+    )
+
+    text.get_role_name = lambda: "entry"
+    with pytest.raises(AssertionError, match="owned controls without public IDs"):
+        audit_owned_controls(
+            adapter(surface), "child-screen-time-indicator", root=surface,
+        )
 
 
 @pytest.mark.parametrize("reader", ["preview", "guest"])

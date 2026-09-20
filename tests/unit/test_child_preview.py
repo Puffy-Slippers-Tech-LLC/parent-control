@@ -367,8 +367,10 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn(".screen-time-request-button {", stylesheet)
         self.assertIn("MutterInputBackend", interaction)
         self.assertIn("Automation", interaction)
+        self.assertIn("audit_owned_controls", interaction)
         self.assertIn("UI.focus(REQUEST_BUTTON_ID)", interaction)
-        self.assertIn("_press_key(input_backend, X_KEYCODE_SPACE)", interaction)
+        self.assertIn("_press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_SPACE)",
+                      interaction)
         self.assertNotIn("set_overview", interaction)
         self.assertNotIn("OverviewActive", interaction)
         self.assertNotIn("get_extents", interaction)

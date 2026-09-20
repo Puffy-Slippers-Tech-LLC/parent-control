@@ -19,3 +19,22 @@ def set_automation_id(widget, automation_id: str):
     builder = Gtk.Builder()
     builder.expose_object(automation_id, widget)
     return widget
+
+
+def identified_window_controls(automation_id: str):
+    """Create GTK-owned title buttons behind one stable public identity."""
+    from gi.repository import Gtk
+    return set_automation_id(
+        Gtk.WindowControls(side=Gtk.PackType.END), automation_id,
+    )
+
+
+def add_identified_window_controls(header, automation_id: str):
+    """Replace a header bar's implicit buttons with one identified owner."""
+    if hasattr(header, "set_show_end_title_buttons"):
+        header.set_show_end_title_buttons(False)
+    else:
+        header.set_show_title_buttons(False)
+    controls = identified_window_controls(automation_id)
+    header.pack_end(controls)
+    return controls

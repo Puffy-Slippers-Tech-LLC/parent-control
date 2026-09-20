@@ -223,14 +223,15 @@ def test_parent_screen_time_change_saves_or_restores(
 
 def test_parent_daily_preset_and_custom_limit_autosave(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
-    from dogtail import rawinput
+    from tests.support.keyboard import key_combo, type_text
     path = tmp_path / "daily-limit-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario="custom-limit", events_path=path)
     wait_parent_ready(ui, wait_for_accessible_state)
     ui.focus("parent-custom-daily-limit")
-    rawinput.keyCombo("<Control>a")
-    rawinput.typeText("73")
+    key_combo(ui, "parent-custom-daily-limit", "<Control>a",
+              state=ui.api.StateType.FOCUSED)
+    type_text(ui, "parent-custom-daily-limit", "73")
     wait_for_accessible_state(
         lambda: any(record["event"] == "set_parent_control"
                     and record["daily_limit_minutes"] == 73
@@ -251,7 +252,7 @@ def test_parent_daily_preset_and_custom_limit_autosave(
 
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
-    from dogtail import rawinput
+    from tests.support.keyboard import key_combo, type_text
     path = tmp_path / "app-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       events_path=path)
@@ -260,7 +261,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     wait_for_accessible_state(lambda: ui.state("parent-app-search", ui.api.StateType.SENSITIVE),
                               "app catalogue loads")
     ui.focus("parent-app-search")
-    rawinput.typeText("thunderbird")
+    type_text(ui, "parent-app-search", "thunderbird")
     key = hashlib.sha256(b"thunderbird_thunderbird.desktop").hexdigest()[:16]
     wait_for_accessible_state(lambda: ui.showing(f"parent-app-{key}"),
                               "matching app remains visible")
@@ -269,8 +270,9 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
                               "match-rule dialog opens")
     assert audit_product_controls(ui, "parent-match-rule-dialog")
     ui.focus("parent-match-rule-entry")
-    rawinput.keyCombo("<Control>a")
-    rawinput.typeText("/snap/bin/thunderbird")
+    key_combo(ui, "parent-match-rule-entry", "<Control>a",
+              state=ui.api.StateType.FOCUSED)
+    type_text(ui, "parent-match-rule-entry", "/snap/bin/thunderbird")
     ui.activate("parent-match-rule-save")
     wait_for_accessible_state(
         lambda: any(record["event"] == "set_preferences" for record in read_events(path)),

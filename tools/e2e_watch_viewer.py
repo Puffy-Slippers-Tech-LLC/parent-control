@@ -10,7 +10,10 @@ import struct
 import subprocess
 import time
 
-from common.oh_no_parent_control_ui.gtk_automation import set_automation_id
+from common.oh_no_parent_control_ui.gtk_automation import (
+    add_identified_window_controls,
+    set_automation_id,
+)
 from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames, require
 
 WAITING = 'Waiting for an E2E VM. You can leave this window open.'
@@ -237,7 +240,8 @@ def application(feed=None):
             self.window = Gtk.ApplicationWindow(application=self, title=TITLE)
             set_automation_id(self.window, 'e2e-watch-window')
             self.window.set_icon_name(APPLICATION_ID)
-            header = Gtk.HeaderBar(decoration_layout=':minimize,maximize,close')
+            header = Gtk.HeaderBar()
+            add_identified_window_controls(header, 'e2e-watch-window-controls')
             header.pack_start(Gtk.Image(
                 icon_name=APPLICATION_ID, pixel_size=32, valign=Gtk.Align.CENTER))
             close = Gtk.Button(icon_name='window-close-symbolic', tooltip_text='Close spectator')

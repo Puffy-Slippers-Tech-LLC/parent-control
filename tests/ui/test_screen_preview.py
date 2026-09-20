@@ -31,7 +31,7 @@ def test_screen_choice_rejects_unsupported_values(arguments, message):
 @pytest.mark.parametrize("launcher", ("kiosk_preview", "child_overlay_preview"))
 def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
         launch_ui, automation, wait_for_accessible_state, launcher):
-    from dogtail import rawinput
+    from tests.support.keyboard import key_combo, type_text
 
     launch_ui(launcher, wait_for_application=False)
     ui = automation
@@ -56,8 +56,8 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
     wait_for_accessible_state(lambda: ui.showing("preview-screen-width"),
                               "custom resolution reveals its dimension fields")
     ui.focus("preview-screen-width")
-    rawinput.keyCombo("<Control>a")
-    rawinput.typeText("479")
+    key_combo(ui, "preview-screen-width", "<Control>a", state=ui.api.StateType.FOCUSED)
+    type_text(ui, "preview-screen-width", "479")
     ui.activate("preview-screen-save")
     wait_for_accessible_state(
         lambda: ui.text("preview-screen-status").startswith(

@@ -10,12 +10,11 @@ _CONTROL_ROLES = frozenset({
     "entry", "password text", "link", "scroll bar", "slider",
 })
 _COMPOUND_ROLES = _CONTROL_ROLES | frozenset({"scroll pane"})
-_TOOLKIT_WINDOW_ACTIONS = frozenset({"Close", "Minimize", "Maximize", "Restore"})
-_PRESENTATION_ROLES = frozenset({"label", "image", "panel", "grouping"})
+_PRESENTATION_ROLES = frozenset({"label", "text", "image", "panel", "grouping"})
 _EMBEDDED_TOOLKIT_SURFACES = frozenset({"feedback-webview"})
 _OWNED_ID = re.compile(
     r"(?:"
-    r"(?:about|error-report|feedback|kiosk|parent|preview-screen|preview-viewer|startup-error)-"
+    r"(?:about|child|error-report|feedback|kiosk|parent|preview-screen|preview-viewer|startup-error)-"
     r"[a-z0-9]+(?:-[a-z0-9]+)*"
     r"|e2e-watch-[a-z0-9]+(?:-[a-z0-9]+)*"
     r"|onpc-fixture-(?:native|flatpak|snap|game)-(?:primary|secondary)"
@@ -34,8 +33,8 @@ def audit_owned_controls(ui, surface_identity, *, root=None):
     """Reject actionable repository-owned nodes without IDs below one surface.
 
     An identified compound control may contain anonymous toolkit implementation
-    nodes. Window-decoration actions are likewise GTK-owned. Neither exception
-    covers a product button placed directly in an identified window or panel.
+    nodes. This exception never depends on a node's translated name and cannot
+    excuse a product button placed directly in an identified window or panel.
     """
     root = ui.target(surface_identity) if root is None else root
     assert public_automation_id(root) == surface_identity, (
@@ -70,13 +69,12 @@ def audit_owned_controls(ui, surface_identity, *, root=None):
         actionable = (role not in _PRESENTATION_ROLES
                       and action is not None and action.get_n_actions() > 0)
         if (actionable or role in _CONTROL_ROLES) and not identity:
-            name = node.get_name() or ""
             toolkit_child = (owner_identity is not None
                              and (owner_role in _COMPOUND_ROLES
-                                  or owner_identity in _EMBEDDED_TOOLKIT_SURFACES))
-            window_decoration = name in _TOOLKIT_WINDOW_ACTIONS
-            if not toolkit_child and not window_decoration:
-                missing.append((role, name, owner_identity))
+                                  or owner_identity in _EMBEDDED_TOOLKIT_SURFACES
+                                  or owner_identity.endswith("-window-controls")))
+            if not toolkit_child:
+                missing.append((role, node.get_name() or "", owner_identity))
         next_identity = identity or owner_identity
         next_role = role if identity else owner_role
         pending.extend(

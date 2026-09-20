@@ -63,13 +63,19 @@ def notify_screen_ready(window):
 def show_screen_dialog(window):
     """Keep GTK imports out of the supervisor and validation tests."""
     from gi.repository import Adw, GLib, Gtk
-    from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
+    from common.oh_no_parent_control_ui.accessibility import (
+        add_identified_window_controls,
+        describe_control,
+        set_automation_id,
+    )
 
     current = Screen.decode(os.environ[SCREEN]) if SCREEN in os.environ else Screen()
     dialog = Adw.Dialog(title="Change Screens", content_width=460, content_height=620)
     set_automation_id(dialog, "preview-screen-dialog")
     toolbar = Adw.ToolbarView()
-    toolbar.add_top_bar(Adw.HeaderBar())
+    header = Adw.HeaderBar()
+    add_identified_window_controls(header, "preview-screen-window-controls")
+    toolbar.add_top_bar(header)
     body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                    margin_start=20, margin_end=20, margin_top=12, margin_bottom=20)
     body.append(Gtk.Label(label="Screen resolution", xalign=0))

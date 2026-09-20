@@ -51,11 +51,8 @@ os.environ.update({
     "NO_AT_BRIDGE": "1",
     "GTK_THEME": "Adwaita:dark",
     "GSK_RENDERER": "cairo",
-    # Bare Mutter's default plugin scales a newly mapped window from 0.5 to
-    # 1.0 independently of GTK's animation setting. AT-SPI already exposes
-    # the final allocation, so a pointer click can be transformed off-target.
-    # Use the compositor's own test switch before booting the private session;
-    # application animations (including spinner coverage) remain separate.
+    # Keep mapping deterministic for state/readiness observations. Application
+    # animations (including spinner coverage) remain separate.
     "MUTTER_DEBUG_DISABLE_ANIMATIONS": "1",
 })
 
@@ -65,8 +62,8 @@ from dogtail.hermetic.session import HermeticSession, dump_tree
 @pytest.fixture(scope="session")
 def ui_monitor_size():
     # The session is shared across modules. Both dimensions divide by 1.25,
-    # enabling real fractional scaling, while the height keeps the expanded
-    # request form overflowing for its real-pointer scrollbar coverage.
+    # enabling real fractional scaling, while the height keeps overflow/reveal
+    # behavior covered through semantic ID-addressed scrolling.
     return "1280x800"
 
 

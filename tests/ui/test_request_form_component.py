@@ -41,10 +41,10 @@ def status(ui, wait, expected):
 
 def send_escape(ui):
     """Send Escape through Dogtail's hermetic Mutter input backend."""
-    from dogtail.rawinput import press_key
+    from tests.support.keyboard import press_key
 
     ui.reveal("kiosk-request-window")
-    press_key("Escape")
+    press_key(ui, "kiosk-request-window", "Escape", state=ui.api.StateType.ACTIVE)
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -491,7 +491,7 @@ def test_footer_estimate_changes_with_selected_child(
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_footer_estimate_tracks_custom_edits_and_preserves_validation(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
-    from dogtail import rawinput
+    from tests.support.keyboard import key_combo, type_text
     ui = request_ui
     open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                  overlay=overlay, scenario="remembered")
@@ -503,6 +503,7 @@ def test_footer_estimate_tracks_custom_edits_and_preserves_validation(
         ("5", "Estimated time remaining if approved: 52m"),
     ):
         ui.focus("kiosk-custom-duration")
-        rawinput.keyCombo("<Control>a")
-        rawinput.typeText(value)
+        key_combo(ui, "kiosk-custom-duration", "<Control>a",
+                  state=ui.api.StateType.FOCUSED)
+        type_text(ui, "kiosk-custom-duration", value)
         status(ui, wait_for_accessible_state, expected)

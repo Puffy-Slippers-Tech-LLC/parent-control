@@ -13,7 +13,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gio, Gtk
 
-from gtk_automation import set_automation_id
+from gtk_automation import add_identified_window_controls, set_automation_id
 
 
 KINDS = ('native', 'flatpak', 'snap', 'game')
@@ -34,6 +34,9 @@ def main(argv=None):
     def activate(application):
         window = set_automation_id(Gtk.ApplicationWindow(application=application,
             title='ONPC Test Application', default_width=480, default_height=320), scope)
+        header = Gtk.HeaderBar()
+        add_identified_window_controls(header, scope + '-window-controls')
+        window.set_titlebar(header)
         content = set_automation_id(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12),
                            scope + '-content')
         window.set_child(content)

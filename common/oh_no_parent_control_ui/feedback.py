@@ -21,6 +21,7 @@ from .rich_text_editor import RichTextEditor
 from common.oh_no_parent_control_ui.about import app_version
 from common.oh_no_parent_control_ui.accessibility import (
     add_dialog_button,
+    add_identified_window_controls,
     describe_control,
     set_automation_id,
 )
@@ -104,10 +105,12 @@ class FeedbackDialog(Adw.Window):
         if application is not None:
             application.connect("shutdown", lambda *_: self._cancelled.set())
         toolbar = Adw.ToolbarView()
-        toolbar.add_top_bar(Adw.HeaderBar(
+        header = Adw.HeaderBar(
             title_widget=Adw.WindowTitle(title="Send Feedback"),
             css_classes=["feedback-header"],
-        ))
+        )
+        add_identified_window_controls(header, "feedback-window-controls")
+        toolbar.add_top_bar(header)
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16,
                           margin_start=28, margin_end=28,
                           margin_top=8, margin_bottom=8)
@@ -385,6 +388,9 @@ class FeedbackDialog(Adw.Window):
             title="Feedback privacy", transient_for=self, modal=True,
         )
         set_automation_id(dialog, "feedback-privacy-dialog")
+        header = Gtk.HeaderBar()
+        add_identified_window_controls(header, "feedback-privacy-window-controls")
+        dialog.set_titlebar(header)
         privacy_content = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=12,
             margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,
@@ -558,6 +564,9 @@ class FeedbackDialog(Adw.Window):
             transient_for=self.get_transient_for(), modal=True,
         )
         set_automation_id(dialog, "feedback-success-dialog")
+        header = Gtk.HeaderBar()
+        add_identified_window_controls(header, "feedback-success-window-controls")
+        dialog.set_titlebar(header)
         body_label = Gtk.Label(
             label=body, wrap=True, xalign=0,
             margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,

@@ -87,11 +87,13 @@ def request_form(*, fault=None):
     child = Node(
         'Child account', 'push button', identity='kiosk-child-selector',
         description='Selected child account: Jordan (Child).',
+        children=[Node('Jordan (Child)', 'label', identity='kiosk-child-selected-1002')],
     )
     approver = Node(
         'Approving parent', 'push button', states=('showing', 'visible'),
         identity='kiosk-approver-selector',
         description='Selected approving parent: Casey (Parent).',
+        children=[Node('Casey (Parent)', 'label', identity='kiosk-approver-selected-1010')],
     )
     durations = []
     duration_values = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')
@@ -100,7 +102,7 @@ def request_form(*, fault=None):
              '4 hours', 'Rest of the day', 'Custom value'), duration_values):
         states = ['showing', 'visible']
         if label == '30 minutes':
-            states.append('checked')
+            states.append('pressed')
         durations.append(Node(
             'Request ' + label, 'toggle button', states=states,
             identity=f'kiosk-duration-{value}',
@@ -120,8 +122,15 @@ def request_form(*, fault=None):
     )
     children = [child, approver, *durations, allow_soft, request, cancel, notice]
     if fault == 'wrong-duration':
-        durations[2].states.remove('checked')
-        durations[1].states.add('checked')
+        durations[2].states.remove('pressed')
+        durations[1].states.add('pressed')
+    elif fault == 'multiple-durations':
+        durations[1].states.add('pressed')
+    elif fault == 'checked-not-pressed':
+        durations[2].states.remove('pressed')
+        durations[2].states.add('checked')
+    elif fault == 'duration-enabled':
+        durations[2].states.add('sensitive')
     elif fault == 'request-enabled':
         request.states.add('sensitive')
     elif fault == 'custom-visible':
@@ -137,9 +146,8 @@ def request_form(*, fault=None):
         ))
     elif fault == 'duplicate-form':
         children.append(Node(identity='kiosk-request-form'))
-    return ui_for(Node(
-        PRODUCT, 'frame', children=children, identity='kiosk-request-form',
-    )), tuple(durations)
+    form = Node(PRODUCT, 'frame', children=children, identity='kiosk-request-form')
+    return ui_for(Node(identity='kiosk-request-window', children=[form])), tuple(durations)
 
 
 def test_kiosk_request_form_returns_only_the_fixed_public_projection():
@@ -155,16 +163,36 @@ def test_kiosk_request_form_returns_only_the_fixed_public_projection():
     assert all(button.action.do_action.call_count == 0 for button in durations)
 
 
+@pytest.mark.parametrize('identity', ['kiosk-child-selector', 'kiosk-approver-selector',
+                                    'kiosk-request-submit', 'kiosk-screen-limit-notice',
+                                    'kiosk-duration-1800'])
+def test_station_never_borrows_a_control_from_another_surface(identity):
+    ui, _ = request_form()
+    form = ui.find_id('kiosk-request-form')
+    target = next(node for node in form.children if node.identity == identity)
+    form.children.remove(target)
+    ui.api.get_desktop(0).children.append(Node(identity='unrelated-window', children=[target]))
+    with pytest.raises(UiError, match='timeout:kiosk-request-form'):
+        ui.kiosk_request_form()
+
+
+def test_station_refuses_incomplete_form_even_when_required_controls_exist():
+    ui, _ = request_form()
+    ui.find_id('kiosk-request-form').children.append(Node(states=('defunct',)))
+    with pytest.raises(UiError, match='stale-request-form'):
+        ui.kiosk_request_form()
+
+
 @pytest.mark.parametrize('role', ['window', 'dialog'])
 def test_station_form_accepts_public_window_roles_with_the_same_required_contents(role):
     ui, _ = request_form()
-    ui.api.get_desktop(0).role = role
+    ui.find_id('kiosk-request-form').role = role
     RequestObservation.from_request(ui.run('kiosk-request-form', '')['request'])
 
 
 def test_station_form_targets_controls_only_by_public_id():
     ui, _ = request_form()
-    for node in ui.api.get_desktop(0).children:
+    for node in ui.find_id('kiosk-request-form').children:
         if node.identity and node.identity != 'kiosk-screen-limit-notice':
             node.name = 'Changed visual label'
             node.role = 'changed-role'
@@ -172,6 +200,23 @@ def test_station_form_targets_controls_only_by_public_id():
         ui.run('kiosk-request-form', '')['request'])
     assert observation.child == 'existing-fixture-child'
     assert observation.duration_seconds == 1800
+
+
+@pytest.mark.parametrize('fault', ['missing', 'wrong-uid', 'duplicate', 'wrong-description'])
+@pytest.mark.parametrize('namespace', ['child', 'approver'])
+def test_selected_account_requires_uid_identity_before_description(namespace, fault):
+    ui, _ = request_form()
+    selector = ui.find_id(f'kiosk-{namespace}-selector')
+    if fault == 'missing':
+        selector.children.clear()
+    elif fault == 'wrong-uid':
+        selector.children[0].identity = f'kiosk-{namespace}-selected-9000'
+    elif fault == 'duplicate':
+        selector.children.append(Node(identity=selector.children[0].identity))
+    else:
+        selector.description = 'Selected account: wrong person.'
+    with pytest.raises(UiError):
+        ui.kiosk_request_form()
 
 
 def test_station_timeout_reports_only_registered_public_control_ids(capsys):
@@ -218,7 +263,8 @@ def test_installed_journey_keeps_the_validated_request_observation_immutable(tmp
 
 
 @pytest.mark.parametrize('fault', [
-    'wrong-duration', 'request-enabled', 'custom-visible', 'missing-message',
+    'wrong-duration', 'multiple-durations', 'checked-not-pressed', 'duration-enabled',
+    'request-enabled', 'custom-visible', 'missing-message',
     'mute-present', 'duplicate-form',
 ])
 def test_kiosk_request_form_refuses_changed_or_ambiguous_state(fault):

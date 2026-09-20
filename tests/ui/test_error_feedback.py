@@ -55,17 +55,20 @@ def test_request_error_review_restrictions_and_submission(
     assert "/private/path" not in value
     assert not events(path, "feedback")
     assert not events(path, "close_overlay" if overlay else "logout")
-    assert ui.showing("feedback-add-files") is overlay
-    assert ui.showing("feedback-download-logs") is overlay
-    assert ui.showing("feedback-format-attachment") is overlay
+    for identity in ("feedback-add-files", "feedback-download-logs", "feedback-format-attachment"):
+        assert (ui.showing(identity) if overlay
+                else ui.absent(identity, within="feedback-dialog"))
     ui.activate("feedback-privacy-link")
     wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
                               "privacy explanation opens")
-    assert ui.showing("feedback-full-privacy-link") is overlay
-    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog")
+    assert (ui.showing("feedback-full-privacy-link") if overlay
+            else ui.absent("feedback-full-privacy-link", within="feedback-privacy-dialog"))
+    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog",
+                            within="feedback-dialog")
     ui.activate("feedback-toggle-logs")
     ui.activate("feedback-toggle-logs")
-    assert ui.showing("feedback-download-logs") is overlay
+    assert (ui.showing("feedback-download-logs") if overlay
+            else ui.absent("feedback-download-logs", within="feedback-dialog"))
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "error report is ready")
     ui.activate("feedback-send")
@@ -76,8 +79,9 @@ def test_request_error_review_restrictions_and_submission(
         f"[Oh No! Parent Control] [{component}] Error Report"
     )
     assert not events(path, "close_overlay" if overlay else "logout")
-    assert not ui.showing("feedback-dialog")
-    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-success-dialog")
+    assert ui.absent("feedback-dialog", within="feedback-success-dialog")
+    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-success-dialog",
+                            within="kiosk-request-window")
     wait_for_accessible_state(
         lambda: bool(events(path, "close_overlay" if overlay else "logout")),
         "exit after success confirmation closes",

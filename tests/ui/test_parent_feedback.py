@@ -11,10 +11,13 @@ from tests.support.feedback import (
 pytestmark = pytest.mark.ui
 
 
-def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None):
+def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None,
+                  collection_release=None):
     environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario}
     if status is not None:
         environment["ONPC_FEEDBACK_STATUS"] = str(status)
+    if collection_release is not None:
+        environment["ONPC_FEEDBACK_COLLECTION_RELEASE"] = str(collection_release)
     _process, log = launch_ui(
         "parent_component_preview", environment_overrides=environment,
         wait_for_application=False,
@@ -53,9 +56,14 @@ def test_feedback_draft_and_optional_attachment(
     ui.activate("feedback-privacy-link")
     wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
                               "privacy dialog opens")
+    assert [relation.get_target(index)
+            for relation in ui.target("feedback-privacy-dialog").get_relation_set()
+            if relation.get_relation_type() == ui.api.RelationType.CONTROLLED_BY
+            for index in range(relation.get_n_targets())] == [ui.target("feedback-dialog")]
     assert "Diagnostic logs do not collect account names" in ui.text("feedback-privacy-text")
     assert ui.showing("feedback-full-privacy-link")
-    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog")
+    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog",
+                            within="feedback-dialog")
     wait_for_accessible_state(
         lambda: ui.state("feedback-download-logs", ui.api.StateType.SENSITIVE),
         "diagnostics are ready",
@@ -70,7 +78,7 @@ def test_feedback_draft_and_optional_attachment(
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "feedback send is ready")
     ui.activate("feedback-close")
-    wait_for_accessible_state(lambda: not ui.showing("feedback-dialog"),
+    wait_for_accessible_state(lambda: ui.absent("feedback-dialog", within="parent-window"),
                               "feedback dialog closed")
     ui.activate("parent-feedback-button")
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
@@ -84,24 +92,29 @@ def test_feedback_draft_and_optional_attachment(
 
 
 def test_collection_progress_disables_send_but_allows_editing(
-        launch_ui, automation, wait_for_accessible_state):
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
     ui = automation
+    release = tmp_path / "feedback-collection-release"
     editor, _log = open_feedback(
         launch_ui, ui, wait_for_accessible_state,
         scenario="feedback-collecting",
+        collection_release=release,
     )
-    wait_for_accessible_state(lambda: ui.showing("feedback-collection-status"),
-                              "collection progress is public")
-    assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
-    assert ui.state("feedback-close", ui.api.StateType.SENSITIVE)
-    assert ui.state(editor, ui.api.StateType.SENSITIVE)
-    type_feedback(ui, "Draft during collection", wait_for_accessible_state)
+    try:
+        wait_for_accessible_state(lambda: ui.showing("feedback-collection-status"),
+                                  "collection progress is public")
+        assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
+        assert ui.state("feedback-close", ui.api.StateType.SENSITIVE)
+        assert ui.state(editor, ui.api.StateType.SENSITIVE)
+        type_feedback(ui, "Draft during collection", wait_for_accessible_state)
+    finally:
+        release.touch()
     wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "diagnostic-logs.zip",
                               "diagnostics collection completes")
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "collection enables sending")
     assert ui.content(editor).strip() == "Draft during collection"
-    assert not ui.showing("feedback-collection-status")
+    assert ui.absent("feedback-collection-status", within="feedback-dialog")
 
 
 @pytest.mark.parametrize("status", [202, 409, 413, 422])
@@ -156,14 +169,15 @@ def test_feedback_submission_outcomes(
         ui.activate("feedback-send")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "success confirmation opens")
-    wait_for_accessible_state(lambda: not ui.showing("feedback-dialog"),
+    wait_for_accessible_state(lambda: ui.absent("feedback-dialog", within="parent-window"),
                               "feedback editor hides before confirmation dismissal")
     body = "Your feedback was sent successfully. We appreciate your help making the app better."
     if status == 202:
         body += ("\n\nWe may contact you at the email address you provided if we have "
                  "any follow-up questions.")
     assert ui.text("feedback-success-text") == body
-    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-success-dialog")
+    dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-success-dialog",
+                            within="parent-window")
     ui.activate("parent-feedback-button")
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "feedback dialog reopens")

@@ -133,13 +133,18 @@ def test_responsive_form_accepts_semantic_selection_and_submission(
 
     _application, path = launch_request(launch_ui, tmp_path, overlay=overlay,
                                        wait_for_application=False)
-    ui = Automation(Atspi, lambda: Atspi.get_desktop(0))
+    ui = Automation(Atspi, lambda: Atspi.get_desktop(0), owner_pids=launch_ui.owner_pids,
+                    application_ids=launch_ui.application_ids,
+                    application_owners=launch_ui.application_owners,
+                    complete_read_wait=wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
                               "request surface publishes its controls")
     wait_for_accessible_state(
         lambda: ui.state("kiosk-request-submit", Atspi.StateType.SENSITIVE),
         "loaded request controls",
     )
+    assert ui.target("kiosk-child-selected-1001").get_name() == "Alex Morgan"
+    assert ui.target("kiosk-approver-selected-1000").get_name() == "Taylor Morgan"
     ui.activate("kiosk-duration-300")
     wait_for_accessible_state(
         lambda: any(call["values"][1] == "300"
@@ -164,7 +169,10 @@ def test_expanded_form_keeps_request_reachable(
 
     _application, path = launch_request(launch_ui, tmp_path, overlay=overlay,
                                        wait_for_application=False)
-    ui = Automation(Atspi, lambda: Atspi.get_desktop(0))
+    ui = Automation(Atspi, lambda: Atspi.get_desktop(0), owner_pids=launch_ui.owner_pids,
+                    application_ids=launch_ui.application_ids,
+                    application_owners=launch_ui.application_owners,
+                    complete_read_wait=wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.find("kiosk-approver-selector") is not None,
                               "request surface publishes its controls")
     wait_for_accessible_state(
@@ -373,8 +381,7 @@ def test_mute_control_stays_hidden_with_remembered_preferences(
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
                         overlay=overlay, scenario="remembered")
     ready(request_ui, wait_for_accessible_state)
-    mute = request_ui.find("kiosk-mute-button")
-    assert mute is None or not mute.get_state_set().contains(request_ui.api.StateType.SHOWING)
+    assert request_ui.absent("kiosk-mute-button", within="kiosk-request-window")
     assert not calls(path, "SetRequestMuted")
 
 

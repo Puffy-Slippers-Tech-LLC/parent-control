@@ -32,6 +32,7 @@ def preview_applications(session, directory):
     log files it creates, including launches that fail accessibility discovery.
     """
     processes = []
+    application_ids = {}
 
     def launch(name, *, environment_overrides=None, wait_for_application=False):
         # Readiness belongs to the caller's public-ID adapter. A script name is
@@ -55,7 +56,32 @@ def preview_applications(session, directory):
             log_file.close()
             raise
         processes.append((process, log_file))
+        # These are declared launcher contracts, not process/UI discovery.
+        if name in ("parent_preview", "parent_component_preview"):
+            identity = "com.puffyslippers.OhNoParentControl.Parent"
+        elif name in ("child_overlay_preview", "child_error_preview") or (
+                name == "request_component_preview"
+                and environment.get("ONPC_REQUEST_COMPONENT_OVERLAY") == "1"):
+            identity = "com.puffyslippers.OhNoParentControl.ChildRequest"
+        elif name in ("kiosk_preview", "request_component_preview"):
+            identity = "com.puffyslippers.OhNoParentControl"
+        else:
+            identity = None  # Other launchers need their own explicit contract.
+        application_ids[process] = identity
         return process, log_path
+
+    # Readiness adapters can verify public surface ownership using only the
+    # handles this scope spawned. Never discover/adopt a process by its name.
+    launch.owner_pids = lambda: frozenset(
+        process.pid for process, _log in processes if process.poll() is None)
+    launch.application_ids = lambda: frozenset(
+        application_ids[process] for process, _log in processes
+        if process.poll() is None and application_ids[process] is not None)
+    launch.application_owners = lambda: {
+        identity: frozenset(process.pid for process, _log in processes
+                            if application_ids[process] == identity and process.poll() is None)
+        for identity in launch.application_ids()
+    }
 
     try:
         yield launch

@@ -61,6 +61,18 @@ def test_name_based_discovery_refuses_before_launch(tmp_path, monkeypatch):
     session.wait_for_app.assert_not_called()
 
 
+def test_readiness_owners_include_only_live_explicit_launches(tmp_path, monkeypatch):
+    process = Mock(pid=123, poll=Mock(return_value=None))
+    monkeypatch.setattr(preview.subprocess, "Popen", Mock(return_value=process))
+    with preview.preview_applications(SimpleNamespace(environment={}), tmp_path) as launch:
+        assert launch.owner_pids() == frozenset()
+        owned, log_path = launch("parent_preview")
+        assert owned is process and log_path == tmp_path / "parent_preview.log"
+        assert launch.owner_pids() == {123}
+        process.poll.return_value = 0
+        assert launch.owner_pids() == frozenset()
+
+
 def test_cleanup_failure_does_not_abandon_other_owned_previews(tmp_path, monkeypatch):
     first = Mock(poll=Mock(return_value=None))
     second = Mock(poll=Mock(return_value=None), terminate=Mock(side_effect=OSError("cleanup refused")))

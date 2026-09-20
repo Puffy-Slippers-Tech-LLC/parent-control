@@ -81,6 +81,7 @@ class GatewayDropDown(Gtk.Box):
             xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
             max_width_chars=22,
         )
+        set_automation_id(self._selected_label, self._automation_id("selected-none"))
         trigger_content.append(self._selected_label)
         self._trigger_arrow = Gtk.Image.new_from_icon_name("pan-down-symbolic")
         trigger_content.append(self._trigger_arrow)
@@ -126,6 +127,7 @@ class GatewayDropDown(Gtk.Box):
         self._selected = Gtk.INVALID_LIST_POSITION
         self._scroll_offset = 0
         self._selected_label.set_text("")
+        set_automation_id(self._selected_label, self._automation_id("selected-none"))
         self._describe_trigger()
         apply_gtk_user_icon(self._selected_icon, "")
         apply_gtk_user_icon(self.account_icon, "", pixel_size=self.account_icon.get_pixel_size())
@@ -178,6 +180,8 @@ class GatewayDropDown(Gtk.Box):
         self._selected = index
         label, icon_file = self._items[index]
         self._selected_label.set_text(label)
+        set_automation_id(self._selected_label, self._automation_id(
+            f"selected-{self._item_identities[index]}"))
         self._describe_trigger(label)
         apply_gtk_user_icon(self._selected_icon, icon_file)
         apply_gtk_user_icon(self.account_icon, icon_file, pixel_size=self.account_icon.get_pixel_size())

@@ -16,6 +16,12 @@ Also trace `pointer_target`, `pointer_glyph`, `stable_pointer` and `ui_pointer`
 dispatch/recording in [the guest adapter](../../../tests/e2e/accessible_ui.py) and
 the installed journey controller. Include retained Parent login and system-prompt
 cancellation paths; pending scenario metadata is not an execution guard.
+Use frozen inventory keys L1–L10. Newly recorded bypasses include
+`onpc_vt6.authenticate/inspect_prompt`, direct image/input branches in
+`smoke.pm.run`, and `onpc_parent_about.read_footer`'s Tab/End path. Review those
+callers explicitly, including retained qualification/review modes. VT6 image
+recipient proof is distinct from the supported serial proof; lack of a usable
+public identity must refuse that VT6 route without changing serial behavior.
 
 1. Replace image-based `observe`/`seen` gates, image clicks and coordinate input
    with the qualified ID action/observation route where one exists. Preserve each

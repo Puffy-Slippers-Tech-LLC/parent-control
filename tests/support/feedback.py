@@ -24,8 +24,8 @@ def type_feedback(ui, value, wait_for_accessible_state):
     )
 
 
-def dismiss_feedback_dialog(ui, wait_for_accessible_state, identity):
+def dismiss_feedback_dialog(ui, wait_for_accessible_state, identity, *, within):
     """Close a known feedback modal through its stable public response ID."""
     wait_for_accessible_state(lambda: ui.showing(identity), identity + " opens")
     ui.activate(DIALOG_CLOSE_IDS[identity])
-    wait_for_accessible_state(lambda: not ui.showing(identity), identity + " closes")
+    wait_for_accessible_state(lambda: ui.absent(identity, within=within), identity + " closes")

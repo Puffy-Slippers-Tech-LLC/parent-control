@@ -3,7 +3,7 @@
 **Recommended model: GPT-6 Astra. Effort: high.** Recipient identity, secret
 delivery and uncertain-input handling are security-sensitive correctness work.
 
-**Prerequisite:** [02 inventory](02-owned-ui-and-inventory.md) and
+**Prerequisite:** [02](02-owned-ui-and-inventory.md) complete, including 02a–02b, and
 [shared preflight](README.md). **Status:** Not started.
 **Next:** [04](04-desktop-and-external-apps.md).
 
@@ -16,6 +16,9 @@ operations in `run`, `system_prompt_control`, `system_prompt_absent`,
 that can run during unrelated waits. Review
 [fixture credentials](../../../tests/e2e/fixture_credentials.py) and the
 [provider contracts](../E2E-Building-Blocks.md#functional-validation).
+Use frozen inventory keys A1–A3. Coordinate masked-image paths L6/L7 with task
+05, and keep prompt middleware in scope even for otherwise ID-based Parent
+operations. Do not count task 02's owned-only host checks as prompt qualification.
 
 1. Require public, provider-owned application/surface/recipient/control IDs before
    any discovery, input or readiness decision that previously used labels, roles,

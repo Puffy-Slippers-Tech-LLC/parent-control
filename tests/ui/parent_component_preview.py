@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+from pathlib import Path
 import sys
 import time
 
@@ -44,16 +45,27 @@ class ScriptedParentBroker:
             raise RuntimeError("service unavailable")
         return PREVIEW_USERS
 
+    def _wait_for_loading_release(self):
+        # The component test must observe both disabled controls before this
+        # scripted response completes. A fixed sleep races public tree reads.
+        release = Path(os.environ["ONPC_PARENT_COMPONENT_LOADING_RELEASE"])
+        deadline = time.monotonic() + 60
+        while not release.is_file():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("loading fixture was not released")
+            time.sleep(0.02)
+
     def get_preferences(self, uid):
         self._record("get_preferences", uid=uid)
         if self._mode == "loading":
-            time.sleep(1)
+            self._wait_for_loading_release()
+            self._record("get_preferences_ready", uid=uid)
         return copy.deepcopy(self._preferences[uid])
 
     def list_apps(self, _uid):
         self._record("list_apps")
         if self._mode == "loading":
-            time.sleep(1)
+            self._wait_for_loading_release()
         return copy.deepcopy(PREVIEW_APPS)
 
     def get_time_status(self, _uid):
@@ -108,7 +120,12 @@ from common.oh_no_parent_control_ui.diagnostic_bundle import build_bundle
 
 def feedback_logs():
     if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-collecting":
-        time.sleep(8)
+        release = Path(os.environ["ONPC_FEEDBACK_COLLECTION_RELEASE"])
+        deadline = time.monotonic() + 60
+        while not release.is_file():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("feedback collection fixture was not released")
+            time.sleep(0.02)
     return build_bundle([])
 
 

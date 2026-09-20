@@ -44,7 +44,7 @@ def test_second_category_waits_for_fresh_healthy_samples_then_short_jobs_fill_sl
 
 
 @pytest.mark.parametrize('field,value', [('cpu_pressure', 10), ('memory_pressure', 1),
-                                        ('io_pressure', 10), ('swapping', True)])
+                                        ('swapping', True)])
 def test_pressure_closes_gate_and_requires_full_healthy_window(field, value):
     state, admission = gate()
     warm(state, admission)
@@ -73,9 +73,9 @@ def test_memory_budget_applies_even_to_single_job_and_cpu_budget_reduces_overlap
     assert admission.allows('unit', [])
 
 
-def test_moderate_recorded_io_does_not_close_an_open_gate():
+def test_build_io_gate_recovers_without_holding_ordinary_host_work():
     state, admission = gate()
-    warm(state, admission, active=('unit',))
+    warm(state, admission, active=('unit', 'publish'))
     state.now += 2
     # Current host run 20260914T025211Z-d6979e89, monotonic 119153.582034563.
     state.sample = Sample(20, 2.2162029056882537, 32733339648, 11046166528,
@@ -83,14 +83,48 @@ def test_moderate_recorded_io_does_not_close_an_open_gate():
     assert admission.allows('ui-screen', ['unit'])
     state.now += 2
     state.sample = replace(state.sample, io_pressure=10)
-    assert not admission.allows('ui-screen', ['unit'])
+    assert admission.allows('ui-screen', ['unit'])
+    assert not admission.allows('publish', ['unit'])
+    assert admission.reason == 'waiting for I/O pressure to recover'
+    assert not admission.allows('ui-screen', ['publish'])
     assert admission.reason == 'waiting for I/O pressure to recover'
     state.sample = replace(state.sample, io_pressure=0)
     for _ in range(2):
         state.now += 2
-        assert not admission.allows('ui-screen', ['unit'])
+        assert admission.allows('ui-screen', ['unit'])
+        assert not admission.allows('publish', ['unit'])
+        assert not admission.allows('ui-screen', ['publish'])
     state.now += 2
-    assert admission.allows('ui-screen', ['unit'])
+    assert admission.allows('publish', ['unit'])
+    assert admission.allows('ui-screen', ['publish'])
+
+
+@pytest.mark.parametrize('kind', sorted(PARALLEL | {'cleanup', 'cleanup-exclusive', 'ui-exclusive'}))
+@pytest.mark.parametrize('io_pressure', [10, 25, 100])
+def test_host_io_is_advisory_even_at_cold_start(kind, io_pressure):
+    state, admission = gate()
+    state.sample = replace(healthy(), io_pressure=io_pressure)
+    assert admission.allows(kind, [])
+    active = ['cleanup'] if kind == 'cleanup' else ['unit']
+    warm(state, admission, active=active)
+    assert admission.open
+    assert not admission.io_open
+    assert admission.allows(kind, active) is compatible(kind, active[0])
+
+
+@pytest.mark.parametrize('field,value,reason', [
+    ('available_memory', 3 * GIB, 'memory headroom'),
+    ('memory_pressure', 1, 'memory pressure'),
+    ('swapping', True, 'swap activity'),
+    ('cpu_pressure', 10, 'CPU pressure'),
+    ('busy', 16, 'CPU utilization'),
+])
+@pytest.mark.parametrize('kind', ['cleanup', 'ui-request'])
+def test_advisory_io_preserves_other_resource_limits(kind, field, value, reason):
+    state, admission = gate()
+    state.sample = replace(healthy(), io_pressure=25, **{field: value})
+    assert not admission.allows(kind, [])
+    assert reason in admission.reason
 
 
 def test_unknown_categories_are_exclusive_and_missing_metrics_fall_back_to_serial():
@@ -376,11 +410,12 @@ def test_busy_host_defers_even_serial_vm_or_build_before_acquiring_resources():
 
 @pytest.mark.parametrize('kind', ['artifacts', 'system', 'e2e'])
 @pytest.mark.parametrize('initially_open', [False, True])
-@pytest.mark.parametrize('io_pressure,exclusive_allowed,host_allowed', [
-    (1.999, True, True), (2, False, True), (9.999, False, True), (10, False, False),
+@pytest.mark.parametrize('io_pressure,exclusive_allowed,publish_allowed', [
+    (1.999, True, True), (2, False, True), (9.999, False, True),
+    (10, False, False), (25, False, False), (100, False, False),
 ])
-def test_host_io_relaxation_preserves_exclusive_launch_limit(
-        kind, initially_open, io_pressure, exclusive_allowed, host_allowed):
+def test_advisory_host_io_preserves_build_and_vm_launch_limits(
+        kind, initially_open, io_pressure, exclusive_allowed, publish_allowed):
     state, admission = gate()
     admission.demands.update(system=Demand(7, 13 * GIB), e2e=Demand(7, 13 * GIB))
     if initially_open:
@@ -390,8 +425,8 @@ def test_host_io_relaxation_preserves_exclusive_launch_limit(
     assert admission.allows(kind, []) is exclusive_allowed
     if not exclusive_allowed:
         assert admission.reason == 'waiting for I/O pressure to recover'
-    assert admission.allows('publish', []) is host_allowed
-    assert admission.allows('unit', []) is host_allowed
+    assert admission.allows('publish', []) is publish_allowed
+    assert admission.allows('unit', [])
 
 
 def test_vm_reservation_uses_configured_ram_and_cpu_through_pinned_reader(tmp_path, monkeypatch):
@@ -407,8 +442,7 @@ def test_vm_reservation_uses_configured_ram_and_cpu_through_pinned_reader(tmp_pa
     assert calls[0][1]['timeout'] == 15 and calls[0][1]['check']
 
 
-@pytest.mark.parametrize('field,value', [('cpu_pressure', 7), ('io_pressure', 5),
-                                        ('io_pressure', 9.999)])
+@pytest.mark.parametrize('field,value', [('cpu_pressure', 7), ('memory_pressure', .5)])
 def test_marginal_pressure_does_not_open_closed_gate_or_flap_open_gate(field, value):
     state, admission = gate()
     state.sample = replace(healthy(), **{field: value})
@@ -421,6 +455,23 @@ def test_marginal_pressure_does_not_open_closed_gate_or_flap_open_gate(field, va
     state.now += 2
     state.sample = replace(healthy(), **{field: value})
     assert admission.allows('unit', ['ui'])
+
+
+@pytest.mark.parametrize('io_pressure', [5, 9.999])
+def test_marginal_io_hysteresis_only_gates_build_overlap(io_pressure):
+    state, admission = gate()
+    state.sample = replace(healthy(), io_pressure=io_pressure)
+    warm(state, admission, active=('unit',))
+    assert admission.open and not admission.io_open
+    assert admission.allows('ui-screen', ['unit'])
+    assert not admission.allows('publish', ['unit'])
+    state.now += 2
+    state.sample = healthy()
+    warm(state, admission, active=('unit',))
+    assert admission.io_open
+    state.now += 2
+    state.sample = replace(healthy(), io_pressure=io_pressure)
+    assert admission.allows('publish', ['unit'])
 
 
 @pytest.fixture
@@ -496,14 +547,18 @@ def test_monitor_uses_current_stalls_and_retains_trailing_averages(monitored_hos
     assert observations[-1]['io_pressure_low'] == 5
     assert observations[-1]['exclusive_io_pressure_high'] == 2
     assert observations[-1]['io_pressure_avg10'] == 12
+    assert observations[-1]['host_io_pressure_advisory'] is True
+    assert observations[-1]['io_overlap_gate'] is True
     assert admission.allows('child-gjs', ['static'])
 
-    # A new burst must close admission immediately, even before avg10 catches up.
+    # A new burst closes build admission before avg10 catches up, but ordinary
+    # host work still uses the independently observed CPU/memory headroom.
     state.now = 8
     (state.proc / 'stat').write_text('cpu 140 0 0 1260 0 0 0 0\n')
     (state.proc / 'pressure/io').write_text('some avg10=0 total=230000\nfull avg10=0 total=230000\n')
-    assert not admission.allows('child-gjs', ['static'])
-    assert not admission.open
+    assert admission.allows('child-gjs', ['static'])
+    assert admission.open and not admission.io_open
+    assert not admission.allows('artifacts', [])
     assert admission.sample.io_pressure == 10
     assert admission.sample.io_pressure_avg10 == 0
 

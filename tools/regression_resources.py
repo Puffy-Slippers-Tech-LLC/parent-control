@@ -24,8 +24,9 @@ ACTIVE_MEMORY_GROWTH_POOL = 2 * GIB
 ACTIVE_CPU_GROWTH = 1
 RESOURCE_STARTUP_SECONDS = 20
 PRESSURE_RECOVERY_SECONDS = 4
-# Modest report/build I/O must not repeatedly reset the recovery window.
-# These interval-stall thresholds are admission policy, not hard I/O limits.
+# Host-wide I/O stalls are advisory for ordinary host tests: background disk
+# traffic can report sustained PSI on an otherwise idle desktop. Keep these
+# thresholds for build/VM work and companions sharing a branch set with builds.
 IO_PRESSURE_HIGH = 10
 IO_PRESSURE_LOW = 5
 # Artifact and VM launches keep the original conservative I/O admission limit.
@@ -54,6 +55,7 @@ DEMANDS = {
 DEMANDS.update({kind: DEMANDS['ui'] for kind in UI_KINDS})
 PARALLEL = frozenset(DEMANDS)
 DEMANDS.update({'ui-exclusive': Demand(4, 4 * GIB)})
+DEMANDS['unit-exclusive'] = DEMANDS['unit']
 DEMANDS.update({kind: DEMANDS['unit'] for kind in ('cleanup', 'cleanup-exclusive')})
 DEMANDS.update(publish=Demand(2, 6 * GIB), artifacts=Demand(2, 4 * GIB),
                system=Demand(0, 0), e2e=Demand(0, 0))
@@ -203,6 +205,8 @@ class Admission:
         self.last = -math.inf
         self.healthy_since = None
         self.open = False
+        self.io_healthy_since = None
+        self.io_open = False
         self.sample = None
         self.reason = 'resource monitor warming up'
         self.demands = dict(DEMANDS)
@@ -230,14 +234,14 @@ class Admission:
             self.sample = None
             self.open = False
             self.healthy_since = None
+            self.io_open = False
+            self.io_healthy_since = None
             self.reason = 'resource measurements unavailable; serial execution'
             self.observe({'monotonic': now, 'available': False})
             return
         sample = self.sample
-        high = (sample.cpu_pressure >= 10 or sample.memory_pressure >= 1
-                or sample.io_pressure >= IO_PRESSURE_HIGH or sample.swapping)
-        low = (sample.cpu_pressure < 5 and sample.memory_pressure < .5
-               and sample.io_pressure < IO_PRESSURE_LOW and not sample.swapping)
+        high = sample.cpu_pressure >= 10 or sample.memory_pressure >= 1 or sample.swapping
+        low = sample.cpu_pressure < 5 and sample.memory_pressure < .5 and not sample.swapping
         if high:
             self.open = False
             self.healthy_since = None
@@ -248,8 +252,21 @@ class Admission:
                 self.open = True
         else:
             self.healthy_since = None
+        # Preserve the original combined recovery window for I/O-sensitive work.
+        # Ordinary host work must neither wait on nor reset this separate gate.
+        if high or sample.io_pressure >= IO_PRESSURE_HIGH:
+            self.io_open = False
+            self.io_healthy_since = None
+        elif low and sample.io_pressure < IO_PRESSURE_LOW:
+            if self.io_healthy_since is None:
+                self.io_healthy_since = now
+            if now - self.io_healthy_since >= PRESSURE_RECOVERY_SECONDS:
+                self.io_open = True
+        else:
+            self.io_healthy_since = None
         self.reason = 'waiting for sustained resource headroom' if not self.open else 'resource headroom available'
         self.observe({'monotonic': now, 'available': True, 'overlap_gate': self.open,
+                      'host_io_pressure_advisory': True, 'io_overlap_gate': self.io_open,
                       'pressure_basis': 'sample interval',
                       'pressure_healthy_seconds': (0 if self.healthy_since is None
                                                    else now - self.healthy_since),
@@ -297,15 +314,17 @@ class Admission:
             return False
         io_limit = (EXCLUSIVE_IO_PRESSURE_HIGH if candidate in ('artifacts', 'system', 'e2e')
                     else IO_PRESSURE_HIGH)
+        io_sensitive = candidate in ('publish', 'artifacts', 'system', 'e2e') or any(
+            kind in BUILD_KINDS for kind in active)
         for limited, resource in ((sample.swapping, 'swap activity'),
                                   (sample.memory_pressure >= 1, 'memory pressure'),
-                                  (sample.io_pressure >= io_limit, 'I/O pressure'),
+                                  (io_sensitive and sample.io_pressure >= io_limit, 'I/O pressure'),
                                   (sample.cpu_pressure >= 10, 'CPU pressure'),
                                   (sample.busy > sample.capacity * .75, 'CPU utilization')):
             if limited:
                 self.reason = f'waiting for {resource} to recover'
                 return False
-        if active and not self.open:
+        if active and (not self.open or (io_sensitive and not self.io_open)):
             self.reason = 'waiting for sustained resource headroom'
             return False
         # Measured busy CPU already includes established workers. Budget their

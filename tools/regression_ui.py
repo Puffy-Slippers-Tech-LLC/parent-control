@@ -12,7 +12,27 @@ from pathlib import PurePosixPath
 # Host collection and execution must select the same runnable inventory.
 # Live spectator acceptance needs an independently active VM attempt and is
 # selected explicitly, outside the aggregate's pre-VM host phase.
-HOST_ARGS = ('--timeout', '1800s', '-m', 'not live_e2e')
+TIMEOUT_ARGS = ('--timeout', '1800s')
+HOST_ARGS = (*TIMEOUT_ARGS, '-m', 'not live_e2e')
+
+
+def selected_options(root, args):
+    """Keep validated pytest options; collected IDs supply the worker targets.
+
+    UI-only execution gets the host bucket timeout by default. Do not inherit
+    host's marker filter: explicit selections must retain their exact scope.
+    """
+    from test_launcher import pytest_command
+    args = list(args) if args[:1] == ['--timeout'] else [*TIMEOUT_ARGS, *args]
+    command = pytest_command(root, args, 'ui')
+    options = command[command.index('no:cacheprovider') + 1:command.index('--')]
+    return args, ['--timeout', command[2], *options]
+
+
+def serial_options(options):
+    """A per-invocation failure limit must not become a per-bucket limit."""
+    return '-x' in options or any(arg.startswith('--maxfail=') and int(arg.split('=')[1]) > 0
+                                  for arg in options)
 
 
 GROUPS = (

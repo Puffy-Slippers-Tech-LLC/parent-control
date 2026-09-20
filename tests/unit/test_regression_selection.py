@@ -59,8 +59,9 @@ def test_invalid_or_mixed_listing_selection_is_refused_before_execution(argv):
 
 
 @pytest.mark.parametrize('failed', [False, True])
-def test_selected_summary_counts_timing_evidence_and_failure(tmp_path, monkeypatch, capsys, failed,
+def test_selected_serial_summary_counts_timing_evidence_and_failure(tmp_path, monkeypatch, capsys, failed,
                                                           source_identity):
+    (tmp_path / 'tests/unit').mkdir(parents=True)
     commands = []
 
     def execute(self, command, *, output, **kwargs):
@@ -80,7 +81,7 @@ def test_selected_summary_counts_timing_evidence_and_failure(tmp_path, monkeypat
 
     monkeypatch.setattr(regression.Control, 'run', execute)
     monkeypatch.setattr(regression_process, 'session_stop', None)
-    result = regression.retained_main(tmp_path, selections=[('unit', ['-k', 'chosen']), ('static', ['shell'])])
+    result = regression.retained_main(tmp_path, selections=[('unit', ['-k', 'chosen', '-x']), ('static', ['shell'])])
     terminal = regression.Dashboard.ANSI.sub('', capsys.readouterr().out)
     assert 'Host branch 1' in terminal
     assert 'Join host branches' in terminal
@@ -89,7 +90,7 @@ def test_selected_summary_counts_timing_evidence_and_failure(tmp_path, monkeypat
     assert 'Private D-Bus components' not in terminal
     assert 'Ready E2E scenarios' not in terminal
     assert 'raw child diagnostic' not in terminal
-    assert commands[0][1:] == ['unit', '--unattended', '-k', 'chosen']
+    assert commands[0][1:] == ['unit', '--unattended', '-k', 'chosen', '-x']
     report_dir, = (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').iterdir()
     progress = json.loads((report_dir / 'progress.json').read_text())
     assert [item['name'] for item in progress] == ['Unit and contracts', 'Static checks']
@@ -114,18 +115,44 @@ def test_selected_summary_counts_timing_evidence_and_failure(tmp_path, monkeypat
         assert 'Join host branches — passed' in terminal
 
 
+@pytest.fixture
+def ready_checkout(tmp_path):
+    # Summary checks need runnable inventory even while the real customer queue
+    # is pending. Keep declarations and executable sentinels in a private tree.
+    document = json.loads((ROOT / 'tests/e2e/scenarios.json').read_text())
+    document['scenarios'] = [item for item in document['scenarios']
+                             if item['id'] in ('E2E-003', 'E2E-030')]
+    paths = {'tests/e2e/runner.py', 'tests/e2e/inventory.py', 'tests/requirements.json'}
+    for scenario in document['scenarios']:
+        paths.update(reference.split('#', 1)[0] for reference in scenario['contract_refs'])
+        for variant in scenario['variants']:
+            variant.update(status='ready', pending_reason=None,
+                           executable={'path': 'tests/e2e/synthetic.py',
+                                       'test_id': scenario['id'] + '/' + variant['id']})
+    for relative in paths:
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+    (tmp_path / 'tests/e2e/synthetic.py').write_text('raise AssertionError("must not execute")\n')
+    (tmp_path / 'tests/e2e/scenarios.json').write_text(json.dumps(document))
+    password = tmp_path / '.envrc'
+    password.write_text("TEST_ACCOUNT_PASSWORD='fixture-password'\n")
+    password.chmod(0o600)
+    return tmp_path
+
+
 @pytest.mark.parametrize('args, expected_ids', [
     (['--id', '151'], ['E2E-030/parent']),
     (['--scenario', 'E2E-003'], ['E2E-003/existing-and-new', 'E2E-003/none']),
     ([], None),
 ])
 @pytest.mark.parametrize('failure', [None, 'case', 'cleanup'])
-def test_vm_only_summary_counts_scenarios(tmp_path, monkeypatch, capsys, source_identity,
+def test_vm_only_summary_counts_scenarios(tmp_path, monkeypatch, capsys, source_identity, ready_checkout,
                                         args, expected_ids, failure):
     if expected_ids is None:
-        # All-ready scope grows with the catalogue. Derive the expectation
-        # independently of the resolver, retaining exact membership checks.
-        document = json.loads((ROOT / 'tests/e2e/scenarios.json').read_text())
+        # Derive the expectation independently of the resolver, retaining exact
+        # membership checks for every runnable case in the private catalogue.
+        document = json.loads((ready_checkout / 'tests/e2e/scenarios.json').read_text())
         expected_ids = [scenario['id'] + '/' + variant['id']
                         for scenario in document['scenarios']
                         for variant in scenario['variants']
@@ -134,9 +161,7 @@ def test_vm_only_summary_counts_scenarios(tmp_path, monkeypatch, capsys, source_
     assert count > 0
     monkeypatch.setattr(regression.Run, 'wait_for_resources', lambda *_: None)
     resolve = regression_selection.e2e_case_ids
-    monkeypatch.setattr(regression_selection, 'e2e_case_ids',
-                        lambda root, args: resolve(ROOT, args))
-    ids = list(resolve(ROOT, args))
+    ids = list(resolve(ready_checkout, args))
     assert ids == expected_ids
     completed = ids[:1] if failure == 'case' else ids
     def execute(self, command, *, output, **kwargs):

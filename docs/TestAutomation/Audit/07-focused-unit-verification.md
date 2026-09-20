@@ -4,7 +4,7 @@
 settled; switch to Astra for a newly discovered ownership/security diagnosis.
 
 **Prerequisite:** 01–06 resolved or safely contained under the
-[shared contract](README.md). **Status:** Not started.
+[shared contract](README.md). **Status:** Complete.
 **Next:** [08](08-host-ui-verification.md).
 
 ## Freeze the selection
@@ -68,3 +68,33 @@ Complete only when every selected file has a final passing result, there are no
 unread/running suites, and the final source/test selection is recorded. Freeze
 implementation and tests for tasks 08–09; any subsequent code change invalidates
 affected verification and must be tracked before close-out.
+
+## Completion record
+
+The checkout was clean at preflight. `git diff --name-only HEAD -- 'tests/unit'`
+therefore returned no current working-tree files. To retain the committed work
+from tasks 01–06, discovery also compared the audit implementation range
+`502876c^..HEAD`; it contained 38 changed unit files and no deletions. The final
+selection combined those files, all mandatory supplements, and the unchanged
+direct consumers exercised by tasks 02b and 05. The index SHA256 before testing
+was `2191e9d34604d7603304bda3ac4c78925082d8ef0fe67f2fd67d3122eca21b2e`.
+
+The isolated cleanup-safety and graphical-lease gate passed first:
+
+```sh
+tools/run-unit-tests -q 'tests/unit/test_*cleanup_safety.py' 'tests/unit/test_graphical_lease.py'
+```
+
+Result: **1,476 passed and 3 subtests passed in 84.23s**.
+
+The deduplicated non-cleanup changed-file, mandatory-consumer and direct-consumer
+selection then passed:
+
+```sh
+tools/run-unit-tests -q 'tests/unit/test_accessible_e2e_ui.py' 'tests/unit/test_automation_ids.py' 'tests/unit/test_child_preview.py' 'tests/unit/test_codex_test_rules.py' 'tests/unit/test_coverage_generation.py' 'tests/unit/test_e2e_command_help.py' 'tests/unit/test_e2e_desktop_session.py' 'tests/unit/test_e2e_gdm_helper.py' 'tests/unit/test_e2e_inventory.py' 'tests/unit/test_e2e_kiosk_entry.py' 'tests/unit/test_e2e_pointer_helper.py' 'tests/unit/test_e2e_progress.py' 'tests/unit/test_e2e_runner.py' 'tests/unit/test_e2e_secret_variables.py' 'tests/unit/test_e2e_serial_helper.py' 'tests/unit/test_e2e_terminal.py' 'tests/unit/test_e2e_vt6_authentication.py' 'tests/unit/test_e2e_vt6_prompt.py' 'tests/unit/test_feedback_collection.py' 'tests/unit/test_fixture_gui_adapter.py' 'tests/unit/test_kiosk_rendering.py' 'tests/unit/test_mutter_input.py' 'tests/unit/test_parent_about_worker.py' 'tests/unit/test_parent_access_worker.py' 'tests/unit/test_parent_discovery_worker.py' 'tests/unit/test_parent_main.py' 'tests/unit/test_prepare_baseline_tool.py' 'tests/unit/test_prepare_vm_contract.py' 'tests/unit/test_request_selections.py' 'tests/unit/test_setup_entrypoint.py' 'tests/unit/test_shell_overview.py' 'tests/unit/test_system_enforcement.py' 'tests/unit/test_test_applications.py' 'tests/unit/test_build_test_artifacts.py' 'tests/unit/test_support.py' 'tests/unit/test_graphical_smoke.py' 'tests/unit/test_e2e_watch.py' 'tests/unit/test_watch_activity.py' 'tests/unit/test_regression_schedule.py' 'tests/unit/test_regression_ui.py' 'tests/unit/test_regression_cleanup.py'
+```
+
+Result: **1,890 passed and 21 subtests passed in 107.15s**. Both launcher
+invocations reached their actual final status; no suite remains running or
+unread. No source or test correction was required. Implementation and tests are
+now frozen for tasks 08–09; later changes must rerun their affected verification.

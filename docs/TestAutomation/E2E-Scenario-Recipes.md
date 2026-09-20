@@ -1,30 +1,21 @@
 # Customer E2E scenario recipes
 
 [scenarios.json](../../tests/e2e/scenarios.json) owns customer-readable steps,
-persistent case IDs, matrices and readiness. This document supplies their exact
-block compositions and finite data. The [block catalogue](E2E-Building-Blocks.md)
-owns atomic operations and composites; the [execution plan](E2E-Execution-Plan.md)
-owns implementation order and live completion. Do not copy these recipes into
-task documents or silently substitute different inputs. In an implementation
-session, read only the selected family's variant branches, applicable finite-data
-rows and common entry/time rules it uses; the master's Next task pointer avoids
-loading unrelated task briefs or the full scheduling queue.
+persistent case IDs, matrices and current readiness. This document supplies the
+exact block compositions and finite data. The [documentation map](README.md)
+separates recipe, block, queue and runtime status ownership. Do not copy recipes
+into task briefs or silently substitute inputs. In an implementation session,
+read only the selected family's branches, applicable finite-data rows and common
+entry/time rules.
 
-There are **48 UI families and 241 persistent cases**: **240 pending customer
-cases** and **1 pending harness qualification**. E2E-028,
-E2E-029 and E2E-034 are retired and are not reused. Their former coverage IDs
-140–150 remain system-test obligations outside the UI inventory. The retained
-implementations for cases **1, 3, 4, 5, 6, 151 and 193** are pending until their
-external-provider controls have installed, provider-owned ID qualification.
-Overall, **0 bindings are ready and 241 are pending**.
-
-Each family below records current implementation status. After a complete
-scenario and terminal cleanup pass, run `tools/generate_test_coverage.sh`
-(the approved launcher for `tools/generate_test_coverage.py`), update that
-family's ready/pending cases and these totals, update qualified scope in the
-[block catalogue](E2E-Building-Blocks.md), and check its master task. A block
-qualification alone leaves its scenario pending. Retain current status and
-remaining gates, not an accumulated run history.
+E2E-028, E2E-029 and E2E-034 are retired; their former coverage IDs 140–150
+remain system-test obligations outside the UI inventory. Cases 1, 3, 4, 5, 6,
+151 and 193 retain implementations and earlier evidence but are currently
+pending on installed provider-owned ID qualification. Each family below records
+current implementation context, not an independent readiness authority. Follow
+the [execution plan](E2E-Execution-Plan.md#completion-and-document-cleanup) after
+a complete scenario pass. A block qualification alone leaves its scenario
+pending.
 
 ## Independent entry, actions and observations
 
@@ -46,17 +37,15 @@ Customer steps use app interfaces, ordinary desktop controls, Users settings,
 package commands and normal app/file actions. Only setup, credential safety,
 transport ownership, and final cleanup use the existing harness exceptions.
 Cases 3 and 4 retain their established account-fixture checkpoints as supporting
-setup; their ready result covers visible discovery/empty state, not operation of
+setup; their earlier result covers visible discovery/empty state, not operation of
 Users settings. Case 179 adds that actual customer account-creation route.
 Case 1 is explicitly not a customer journey. Retired IDs 140–150 are not UI
 cases; their engineering checks remain in system-test tasks 169–179.
 
-Every recipe inherits the canonical `automation-id` contract. Names, labels,
-roles, text, order and positions below are customer inputs or expected results
-only. Each surface and control must first be found through its stable public ID,
-scoped to the owning application and surface. If the app or an external provider
-does not expose that ID, the consumer stays pending; no fallback selector or
-input route is permitted.
+Every recipe inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate).
+Names, labels, roles, text, order and positions below are customer inputs or
+expected results after ID lookup, never target selectors. A missing provider ID
+leaves the consumer pending.
 
 Use the following common recipe notation. It expands to catalogue blocks; it
 does not permit hidden setup or automatic repair after a failed step.

@@ -16,6 +16,7 @@ from gi.repository import Gtk
 
 USERS = ((1001, "Alex Morgan", ""), (1002, "Sam Rivera", ""))
 APPROVERS = ((1000, "Taylor Morgan", ""), (1010, "Avery Quinn", ""))
+REQUEST_ID = "11111111-1111-4111-8111-111111111111"
 PREFERENCES = {
     uid: {"parent_control_enabled": True, "request": {
         "last_selected_duration": "1800", "last_custom_minutes": 7.5,
@@ -39,6 +40,7 @@ class Broker:
     def __init__(self):
         self.scenario = os.environ.get("ONPC_REQUEST_COMPONENT_SCENARIO", "normal")
         self.path = os.environ.get("ONPC_REQUEST_COMPONENT_EVENTS_PATH")
+        self.pending_slow_reply = None
         self.preferences = copy.deepcopy(PREFERENCES)
         if self.scenario == "two-hours-grant-only":
             self.preferences[1001]["request"]["last_selected_duration"] = "7200"
@@ -73,15 +75,24 @@ class Broker:
         values = () if parameters is None else parameters.unpack()
         self.record("call", method=method, values=values)
         reply = self.reply(method, values)
-        delay = (
-            12_000 if self.scenario == "loading" and method == "GetPreferences"
-            else 1_500 if self.scenario == "slow-request" and method.startswith("Request")
-            else 0
-        )
+        if self.scenario == "slow-request" and method.startswith("Request"):
+            if self.pending_slow_reply is not None:
+                raise RuntimeError("duplicate pending request reply")
+            self.pending_slow_reply = callback, reply
+            return
+        delay = 12_000 if self.scenario == "loading" and method == "GetPreferences" else 0
         source = GLib.timeout_add if delay else GLib.idle_add
         source(delay, lambda: (callback(self, reply), GLib.SOURCE_REMOVE)[1]) if delay else source(
             lambda: (callback(self, reply), GLib.SOURCE_REMOVE)[1],
         )
+
+    def release_slow_reply(self):
+        if self.pending_slow_reply is None:
+            return False
+        callback, reply = self.pending_slow_reply
+        self.pending_slow_reply = None
+        GLib.idle_add(lambda: (callback(self, reply), GLib.SOURCE_REMOVE)[1])
+        return True
 
     @staticmethod
     def call_finish(reply):
@@ -122,8 +133,8 @@ class Broker:
             outcome = {"denied": "denied", "cancelled": "cancelled"}.get(
                 self.scenario, "approved",
             )
-            return Reply(("request-id", outcome, 300) if method == "RequestOwnAccess"
-                         else ("request-id", outcome))
+            return Reply((REQUEST_ID, outcome, 300) if method == "RequestOwnAccess"
+                         else (REQUEST_ID, outcome))
         return Reply(error=RuntimeError("unexpected request-form call"))
 
 
@@ -185,6 +196,8 @@ class ComponentWindow(RequestWindow):
     def _escape_pressed(self, *args):
         handled = super()._escape_pressed(*args)
         BROKER.record("escape", handled=handled, in_flight=self._state.in_flight)
+        if BROKER.scenario == "slow-request":
+            BROKER.record("slow-reply", released=BROKER.release_slow_reply())
         return handled
 
     def _show_result(self, title, detail):

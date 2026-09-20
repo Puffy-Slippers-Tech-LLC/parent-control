@@ -1,5 +1,6 @@
 """Qualify the E2E public UI adapter against real GTK, outside the VM journey."""
 
+import copy
 import importlib.util
 import json
 import subprocess
@@ -13,6 +14,23 @@ from tests.support.paths import ROOT
 from tests.support.child_shell import run_child_shell
 
 pytestmark = pytest.mark.ui
+
+
+def _qualified_absent_prompt_contracts(module):
+    """Describe the synthetic host session's known-absent prompt providers."""
+    contracts = copy.deepcopy(module.EXTERNAL_PROVIDER_CONTRACTS)
+    for provider, prefix, surface in (
+            ('gnome-shell-polkit-agent', 'polkit', 'polkit'),
+            ('gcr-keyring-prompter', 'keyring', 'keyring')):
+        contracts[provider] = {
+            'application_id': f'test-absent-{prefix}-application',
+            'surfaces': {surface: (f'test-absent-{prefix}-dialog', {
+                control: f'test-absent-{prefix}-{control}'
+                for control in ('recipient', 'secret', 'confirm', 'cancel')
+            })},
+            'blocked_consumers': (),
+        }
+    return contracts
 
 
 def _record_parent_public_state(ui, module, log_path):
@@ -122,6 +140,7 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
     ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,),
                             application_ids=(module.PARENT_APPLICATION,),
                             application_owners=launch_ui.application_owners,
+                            provider_contracts=_qualified_absent_prompt_contracts(module),
                             dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.management_denied()
     root = ui.id_target('parent-access-denied-window')
@@ -163,6 +182,7 @@ def test_empty_parent_functional_adapter_at_display_scales(
     ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,),
                             application_ids=(module.PARENT_APPLICATION,),
                             application_owners=launch_ui.application_owners,
+                            provider_contracts=_qualified_absent_prompt_contracts(module),
                             dispatch=lambda: GLib.MainContext.default().iteration(False))
     try:
         assert ui.run('parent-empty', '') == {
@@ -183,6 +203,7 @@ def test_parent_functional_adapter_at_display_scales(
     ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,),
                             application_ids=(module.PARENT_APPLICATION,),
                             application_owners=launch_ui.application_owners,
+                            provider_contracts=_qualified_absent_prompt_contracts(module),
                             dispatch=lambda: GLib.MainContext.default().iteration(False))
     version = json.loads((ROOT / 'data/app.json').read_text())['version']
     ui.fixture_uids = {module.CHILD: 1001, module.EXISTING_CHILD: 1002}

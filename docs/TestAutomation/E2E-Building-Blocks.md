@@ -1,44 +1,30 @@
 # Reusable customer E2E building blocks
 
-This is the contract catalogue for composing customer scenarios.
-It covers all **48 UI families / 241 variants** in
-[scenarios.json](../../tests/e2e/scenarios.json).
-Use the [execution plan](E2E-Execution-Plan.md) for the dependency-ordered session
-queue and individual task files. A new session can start with “Implement the
-next task in docs/TestAutomation/E2E-Execution-Plan.md”. Start with its Next task
-pointer and read only that brief's relevant catalogue rows and source callables;
-do not load the full queue, this catalogue or unrelated task briefs. This
-catalogue remains the source of block contracts and current qualification status.
-The inventory currently has **0 ready and 241 pending variants**. Cases
-**1, 3, 4, 5, 6, 151 and 193** retain their implementations and earlier
-behavioral evidence but are pending because their external-provider identity
-paths do not meet the automation mandate.
-Every catalogue row has an implementation status; existing
-behavior that still needs extraction is `pending` even when its scenario is
-otherwise implemented. There are **178 blocks: 30 ready and 148 pending**, including
-four fixture operations and explicitly scoped harness/credential-safety blocks.
+This is the contract catalogue for the operations used by customer scenarios.
+The [documentation map](README.md) defines document ownership and status terms;
+the [execution plan](E2E-Execution-Plan.md) owns task selection and live
+completion, while the [recipes](E2E-Scenario-Recipes.md) own exact scenario
+composition. Read only the rows required by the selected task.
 
-The [recipes](E2E-Scenario-Recipes.md) account for **240 customer cases** and
-**harness case 1**. Retired E2E IDs 140–150 are engineering system-test
-obligations; they are not UI scenarios and cannot be selected by the E2E runner.
-Cases 158–252 remain pending except the qualified case 193. Declaration and block readiness do not establish
-an installed pass.
-The reconciliation below retains displaced engineering obligations separately.
-
-Retain shared-helper regressions for all seven formerly runnable cases and
-require each migrated consumer's complete installed acceptance before restoring
-`ready` status.
+Every row below records an implementation status. Existing behavior that still
+needs extraction, migration or qualification is `pending`, even when an older
+scenario run passed. Cases 1, 3, 4, 5, 6, 151 and 193 retain implementations and
+behavioral evidence, but their scenarios are currently pending on external
+provider-ID qualification. Retain their helper regressions while migrating
+them. Retired E2E IDs 140–150 remain engineering system-test obligations and
+cannot be selected by the E2E runner. Current scenario counts come from
+`tests/e2e/scenarios.json` and the generated coverage report, not this catalogue.
 
 ## How to implement one block
 
 Apply the [UI automation mandate](../../AGENTS.md#ui-automation-mandate) throughout
 this catalogue. Rows marked **Migration required** describe existing mechanisms
-to replace before reuse, preserving their behavioral and safety assertions.
-Existing `ready` labels record prior qualification, not compliance with the mandate.
-The mandate is canonical; [functional validation](#functional-validation) defines
-its application here. Callable names below locate implementation to inspect,
-not permission to reuse noncompliant selectors or input routes. Documentation
-changes alone do not establish implementation compliance or new live passes.
+to replace before reuse while preserving their behavioral and safety assertions.
+A `ready` label applies only to the exact compliant scope named in that row;
+older results and unlisted bindings confer no readiness. [Functional
+validation](#functional-validation) applies the mandate here. Callable names
+locate implementation to inspect, not permission to reuse noncompliant selectors
+or input routes. Documentation alone does not establish compliance or a live pass.
 
 The tests simulate a customer's operations and observe the results. They do
 not care how the application achieves them. Select users, type into real
@@ -125,54 +111,14 @@ declared recipe checkpoints.
 
 ### Implementation slices
 
-Follow the [master execution queue](E2E-Execution-Plan.md#ordered-task-queue).
-Implement each scoped prerequisite before its consumer, then run newly eligible
-scenario tasks before adding more blocks. Use numeric case order among eligible
-scenarios; do not delay an executable case for an unrelated lower-numbered case.
-Task IDs, including inserted suffixes, are stable; the master's linked queue
-determines execution order. Tasks normally fit a 20–60 minute session; the estimate is not
-a stop timer. Split separate implementation work before starting a task that is
-too broad, keeping live acceptance with each slice and continuous journeys intact.
-Qualify only the branch a consumer needs. Native fixture installation/catalogue
-reading precedes native launch qualification; real-game activity adapters precede
-APP05/FLOW10. Overlay and kiosk FLOW20 have separate slices and release their own
-scenarios immediately. Also keep kiosk account availability before duration editing,
-validation snapshots before collection tracing, dialog persistence before app-exit
-reset, file selection before export saving, desktop countdown before lock/GDM
-absence and tick measurement, native activity capture before retained-user visits,
-and each native launch route separately. Fullscreen expiry does not require a fullscreen request-panel
-route. Entry-state operations are dependencies too: enable a child's controls
-through Parent and observe saving before qualifying its allowance or kiosk inputs.
-Allowed/blocked app assertions require public policy setup and qualified denial
-bindings before their scenario. Cases 7–12 therefore follow that scope. Cases 158–159 own exhaustive
-allowance input and save-trigger validation. Qualifying ordinary valid allowances does not settle
-the separately scoped maximum-boundary qualification, which cannot block unrelated time
-preparation.
-
-A block task requires live VM qualification of its stated scope. Its catalogue
-row stays `pending` until its complete first installed consumer passes; a
-diagnostic slice is not scenario coverage. After every completed E2E consumer and
-successful cleanup, run `tools/generate_test_coverage.sh`, the approved launcher
-for [generate_test_coverage.py](../../tools/generate_test_coverage.py), even when
-declarations did not change. For a grouped scenario task, run each variant
-separately and refresh after its successful cleanup before starting the next.
-Generation is required close-out, not proof of a run.
-Update the callable, exact qualification scope and current status here, and
-update the selected family's implementation-status line in the
-[scenario recipes](E2E-Scenario-Recipes.md). Keep the full scenario pending after
-only a block slice passes. Then check the task in the master's linked queue and
-refresh its Next task pointer. Retain only current blockers and remaining scope.
-Delete completed task files once enduring context is in maintained source
-or contracts, replacing queue links with plain text. No later task may require
-a deleted task document or a previous attempt's VM state. No new evidence document
-or accumulated history is required.
-
-A slice implements its dependency set, not every earlier unrelated pending row.
-Preserve adapters used by other ready cases until their
-own migration. If a prerequisite is unavailable, retain `pending` with the
-concrete blocker and return condition; work may continue on an independent row.
-Preserve established cases and their assertions; a noncompliant path requires
-migration before execution, even when its inventory status is `ready`.
+The [execution plan](E2E-Execution-Plan.md#task-size-and-order) and
+[task queue](E2E-Task-Queue.md) are the single source for slicing, dependency
+order, live verification and close-out. A slice implements only its dependency
+set and required bindings. Preserve established assertions and adapters needed
+by other consumers. If a prerequisite is unavailable, leave the row `pending`
+with its concrete blocker and return condition; continue only with independent
+work. A diagnostic or host-only slice cannot establish installed scenario
+readiness.
 
 ## Ordered building-block catalogue
 
@@ -622,14 +568,10 @@ The same preparation is available independently:
   exists, either value prepares it. Other version snapshots are left alone.
   Preparation performs the shared cleanup before building when work is needed.
 
-If the task being implemented requires the app to be pre-installed as a
-prerequisite and the task's job itself is post-installation operations (for
-example, a building block that clicks a control in the Parent app), call
-`./tools/prepare-appsnapshot --overwrite false` (if app code is changed, `--overwrite` must be `true`. non-app code such as docs, tests don't count). Do not monitor the tool's output
-or report incremental progress; wait for it to complete with success or failure,
-then proceed with the task's own job only on success. Installation is delegated
-to this tool. A retained snapshot is a setup prerequisite, not customer acceptance
-evidence; subsequent VM actions still use the guarded ownership interfaces.
+The [live verification contract](E2E-Execution-Plan.md#live-verification-contract)
+defines when a task prepares or reuses this snapshot. A retained snapshot is a
+setup prerequisite, not customer-acceptance evidence; subsequent VM actions
+still use the guarded ownership interfaces.
 
 
 | Family / cases | Contract and scope |

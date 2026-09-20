@@ -4,6 +4,9 @@ This is the canonical checklist of the [master execution plan](E2E-Execution-Pla
 Start implementation at the master's **Next task**, not by reading this whole file.
 Read only selected prerequisite/candidate rows; other briefs are not context.
 The master owns selection, live acceptance, coverage refresh and close-out rules.
+A checked row records delivery of that task at completion time. It does not make
+the corresponding block or scenario currently ready after a later contract or
+dependency change; see the [status vocabulary](README.md#status-vocabulary).
 
 ## Ordered task queue
 

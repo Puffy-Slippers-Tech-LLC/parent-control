@@ -17,7 +17,6 @@ strongest-looking fragments.
 | [Execution plan](E2E-Execution-Plan.md) | Next-task selection, implementation workflow, live verification and close-out | Product behavior or reusable block semantics |
 | [Task queue](E2E-Task-Queue.md) | Ordered dependency checklist and delivered task scope | Current block or scenario readiness |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
-| `Audit/` | Temporary accessibility-remediation scope and evidence | Customer acceptance or a replacement execution queue |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |
 
 Use the narrowest owner. Expected customer behavior comes from the specification
@@ -59,9 +58,10 @@ task**, the selected brief, and only the referenced catalogue/recipe rows and
 source callables. Do not load the full queue or every brief into an ordinary
 implementation session.
 
-For design or review work, start with the owning document above. For temporary
-identity remediation, follow [the audit plan](Audit/README.md); completing that
-plan does not complete customer scenarios.
+For design or review work, start with the owning document above. Identity
+requirements, external-provider gaps and their return conditions are maintained
+in [functional validation](E2E-Building-Blocks.md#functional-validation); keep
+them separate from customer scenario completion.
 
 All live UI work inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate):
 public scoped IDs establish identity; semantic state/text verifies results only

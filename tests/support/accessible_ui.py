@@ -2,14 +2,41 @@
 
 from types import SimpleNamespace
 from unittest.mock import Mock
+import copy
 
 from accessible_ui import (
     AccessibleUI,
+    EXTERNAL_PROVIDER_CONTRACTS,
     KIOSK_APPLICATION,
     PARENT_APPLICATION,
     WATCH_APPLICATION,
     owned_applications,
 )
+
+
+TEST_PROMPT_CONTRACTS = copy.deepcopy(EXTERNAL_PROVIDER_CONTRACTS)
+TEST_PROMPT_CONTRACTS.update({
+    'gnome-shell-polkit-agent': {
+        'application_id': 'test-absent-polkit-application',
+        'surfaces': {'polkit': ('test-absent-polkit-dialog', {
+            'recipient': 'test-absent-polkit-recipient',
+            'secret': 'test-absent-polkit-secret',
+            'confirm': 'test-absent-polkit-confirm',
+            'cancel': 'test-absent-polkit-cancel',
+        })},
+        'blocked_consumers': (),
+    },
+    'gcr-keyring-prompter': {
+        'application_id': 'test-absent-keyring-application',
+        'surfaces': {'keyring': ('test-absent-keyring-dialog', {
+            'recipient': 'test-absent-keyring-recipient',
+            'secret': 'test-absent-keyring-secret',
+            'confirm': 'test-absent-keyring-confirm',
+            'cancel': 'test-absent-keyring-cancel',
+        })},
+        'blocked_consumers': (),
+    },
+})
 
 
 class Node:
@@ -85,8 +112,10 @@ def product_tree(root):
     return application
 
 
-def ui_for(root):
+def ui_for(root, *, provider_contracts=None, qualify_prompts=True):
     root = product_tree(root)
+    if provider_contracts is None and qualify_prompts:
+        provider_contracts = TEST_PROMPT_CONTRACTS
     return AccessibleUI(SimpleNamespace(get_desktop=lambda _: root, Action=SimpleNamespace(
         get_n_actions=lambda action: action.get_n_actions(),
         get_action_name=lambda action, index: action.get_action_name(index),
@@ -97,5 +126,6 @@ def ui_for(root):
         RelationType=SimpleNamespace(CONTROLLED_BY='controlled-by'),
         CoordType=SimpleNamespace(SCREEN='screen'),
         ScrollType=SimpleNamespace(ANYWHERE='anywhere')), timeout=0,
+        provider_contracts=copy.deepcopy(provider_contracts),
         fixture_uids={'Riley (Child)': 1001, 'Jordan (Child)': 1002, 'Morgan (Child)': 1003,
                       'Jamie (Parent)': 1000, 'Casey (Parent)': 1010})

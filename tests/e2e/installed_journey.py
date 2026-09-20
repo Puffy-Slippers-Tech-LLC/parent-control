@@ -236,7 +236,6 @@ class InstalledJourney:
             if tag.startswith('ui:'):
                 if self.ui is None:
                     self.ui = UiObservations(self.transport, progress=self.watch_progress)
-                self.ui.system_prompt = lambda point: self.dismiss_system_prompt(stage, point, guard)
                 observed['ui'] = self.ui.observe(tag[3:])
             reply = {'observed': stage}
             if 'navigation' in observed.get('ui', {}):

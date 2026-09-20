@@ -103,6 +103,12 @@ KIOSK_USERNAME = 'oh-no-parent-control'
 GREETER_IDENTITIES = {PARENT: 'parent', OTHER_PARENT: 'other-parent',
                       CHILD: 'child', EXISTING_CHILD: 'other-child',
                       KIOSK: 'station', KIOSK_USERNAME: 'station'}
+GDM_PROVIDER_CONTROLS = (
+    'account-list',
+    *(f'account-choice::{identity}' for identity in dict.fromkeys(GREETER_IDENTITIES.values())),
+    'selected-recipient', 'password', 'submit', 'cancel', 'session-chooser',
+    'session-choice::<provider-session-id>',
+)
 GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
@@ -114,12 +120,6 @@ GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form'})
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
-KEYRING_LABELS = (
-    'Unlock Login Keyring',
-    'The login keyring did not get unlocked when you logged into your computer.',
-    'The password you use to log in to your computer no longer matches that of your login keyring.',
-)
-
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
 # host.  An observed Builder ID is recorded only when the installed provider
 # owns it; it is not usable until the application and surface roots are also
@@ -154,8 +154,14 @@ EXTERNAL_PROVIDER_CONTRACTS = {
         'application_id': None,
         'surfaces': {
             'greeter': (None, {
-                'account-choice::<provider-account-id>': None,
+                'account-list': None,
+                'account-choice::parent': None,
+                'account-choice::other-parent': None,
+                'account-choice::child': None,
+                'account-choice::other-child': None,
+                'account-choice::station': None,
                 'selected-recipient': None, 'password': None,
+                'submit': None, 'cancel': None,
                 'session-chooser': None,
                 'session-choice::<provider-session-id>': None,
             }),
@@ -369,7 +375,7 @@ class AccessibleUI:
     is not success: callers must independently observe its resulting UI state.
     """
 
-    def __init__(self, api, *, timeout=45, query_errors=(), dispatch=None, system_prompt=None,
+    def __init__(self, api, *, timeout=45, query_errors=(), dispatch=None,
                  reset_observer=None, provider_contracts=None, fixture_uids=None,
                  application_ids=None, owner_pids=None, application_owners=None):
         self.api = api
@@ -377,7 +383,6 @@ class AccessibleUI:
         self.query_errors = query_errors
         self.dispatch = dispatch
         self.last_roles = set()
-        self.system_prompt = system_prompt
         self.prompt_enabled = False
         self.handling_prompt = False
         self.prompt_count = 0
@@ -393,7 +398,7 @@ class AccessibleUI:
         self.input_uncertain = False
         self.incomplete_observations = []
 
-    def nodes(self, root=None, *, strict=False):
+    def nodes(self, root=None, *, strict=False, protected_ids=()):
         root = root if root is not None else self.api.get_desktop(0)
         pending = [root]
         visited = 0
@@ -419,7 +424,8 @@ class AccessibleUI:
                 # Never traverse password contents. Strict owned observations
                 # include ordinary text descendants without reading text values.
                 role = node.get_role_name()
-                if role != 'password text' and (strict or role not in ('text', 'entry')):
+                protected = public_automation_id(node) in protected_ids
+                if not protected and role != 'password text' and (strict or role not in ('text', 'entry')):
                     children = [node.get_child_at_index(i)
                                 for i in reversed(range(node.get_child_count()))]
                     if strict and None in children:
@@ -593,29 +599,50 @@ class AccessibleUI:
         useful audit evidence but cannot become selectors until the owning
         application and surface publish stable IDs too.
         """
-        require(all(type(value) is str and value for value in (provider, surface, control)),
+        application_id, surface_id, controls = self.require_provider_contract(
+            provider, surface, (control,))
+        application = self.find_id(application_id, root=root, showing=showing)
+        if application is None:
+            return None
+        surface_root = self.find_id(surface_id, root=application, showing=showing)
+        if surface_root is None:
+            return None
+        return self.find_id(controls[control], root=surface_root, showing=showing)
+
+    def require_provider_contract(self, provider, surface, controls):
+        """Validate a complete mapping before the first public-tree read."""
+        require(type(provider) is str and provider and type(surface) is str and surface
+                and type(controls) is tuple and controls
+                and all(type(control) is str and control for control in controls),
                 'ui:provider-binding')
         contract = self.provider_contracts.get(provider)
         require(contract is not None, 'ui:unregistered-provider')
         application_id = contract.get('application_id')
         require(type(application_id) is str and application_id,
                 'ui:unqualified-provider-application')
-        application = self.find_id(application_id, root=root, showing=showing)
-        if application is None:
-            return None
         surface_contract = contract.get('surfaces', {}).get(surface)
         require(surface_contract is not None, 'ui:unregistered-provider-surface')
-        surface_id, controls = surface_contract
+        surface_id, registered = surface_contract
         require(type(surface_id) is str and surface_id,
                 'ui:unqualified-provider-surface')
-        surface_root = self.find_id(surface_id, root=application, showing=showing)
-        if surface_root is None:
-            return None
-        require(control in controls, 'ui:unregistered-provider-control')
-        identity = controls[control]
-        require(type(identity) is str and identity,
-                'ui:unqualified-provider-control')
-        return self.find_id(identity, root=surface_root, showing=showing)
+        for control in controls:
+            require(control in registered, 'ui:unregistered-provider-control')
+            require(type(registered[control]) is str and registered[control],
+                    'ui:unqualified-provider-control')
+        return application_id, surface_id, registered
+
+    def provider_surface(self, provider, surface, controls, *, showing=True):
+        """Resolve a qualified provider surface without label/role fallbacks."""
+        application_id, surface_id, registered = self.require_provider_contract(
+            provider, surface, controls)
+        protected = tuple(registered[key] for key in ('password', 'secret')
+                          if key in registered and registered[key])
+        desktop = list(self.nodes(strict=True, protected_ids=protected))
+        application = self.find_id(application_id, nodes=desktop, showing=showing)
+        if application is None:
+            return None, registered
+        application_nodes = list(self.nodes(application, strict=True, protected_ids=protected))
+        return self.find_id(surface_id, nodes=application_nodes, showing=showing), registered
 
     def showing(self, node):
         states = node.get_state_set()
@@ -1308,29 +1335,28 @@ class AccessibleUI:
             'Log Out', ('button', 'push button'), sensitive=True))
 
     def greeter_list(self, name=PARENT):
-        # GDM01: the positive account surface and absence must be fresh together.
-        names = (KIOSK, KIOSK_USERNAME) if name == KIOSK else (name,)
+        """GDM01: resolve the greeter/list/account entirely by provider IDs."""
+        require(name in GREETER_IDENTITIES, 'ui:gdm-account-binding')
+        logical = 'account-choice::' + GREETER_IDENTITIES[name]
 
-        def button():
-            found = []
-            for label in names:
-                node = self.find_labelled_button(label)
-                if node is not None and node not in found:
-                    found.append(node)
-            require(len(found) <= 1, 'ui:ambiguous-target')
-            return found[0] if found else None
-
-        target = self.wait(button, 'labelled-button')
-        actual_name = target.get_name()
-        if actual_name not in names:
-            # GDM may leave the row unnamed and put both the display name and
-            # username on nested labels. Those strings are one identity.
-            labels = [node.get_name() for node in self.nodes(target, strict=True)
-                      if node.get_role_name() == 'label' and node.get_name() in names]
-            require(len({GREETER_IDENTITIES[label] for label in labels}) == 1,
+        def account():
+            surface, registered = self.provider_surface(
+                'gdm', 'greeter', GDM_PROVIDER_CONTROLS)
+            if surface is None:
+                return None
+            account_list = self.find_id(registered['account-list'], root=surface)
+            if account_list is None:
+                return None
+            target = self.find_id(registered[logical], root=account_list)
+            if target is None:
+                return None
+            names = (KIOSK, KIOSK_USERNAME) if name == KIOSK else (name,)
+            require(' '.join(target.get_name().split()) in names,
                     'ui:gdm-account-label')
-            actual_name = next(label for label in names if label in labels)
-        self.observe_absence('greeter', 'password', name=actual_name, mode='snapshot')
+            return target
+
+        target = self.wait(account, 'gdm-account-id')
+        self.observe_absence('greeter', 'password', name=name, mode='snapshot')
         return target
 
     def observe_absence(self, surface, target, *, name, mode, stable_seconds=None):
@@ -1358,23 +1384,25 @@ class AccessibleUI:
                 and name in GREETER_IDENTITIES and mode == 'snapshot', 'ui:absence-binding')
 
         def absent():
-            positive = (self.find_labelled_button(name) if target == 'password'
-                        else self.find(name, ('label',)))
+            account_control = 'account-choice::' + GREETER_IDENTITIES[name]
+            positive_control = account_control if target == 'password' else 'selected-recipient'
+            absent_control = 'password' if target == 'password' else 'account-list'
+            surface_root, registered = self.provider_surface(
+                'gdm', 'greeter', GDM_PROVIDER_CONTROLS)
+            if surface_root is None:
+                return False
+            nodes = list(self.nodes(surface_root, strict=True))
+            positive = self.find_id(registered[positive_control], nodes=nodes)
             if positive is None:
                 return False
-            root = self.api.get_desktop(0)
-            require(root is not None, 'ui:missing-surface')
-            # Consume the entire traversal, including unrelated subtrees, before
-            # accepting exclusion. A stale read cannot stand in for absence.
-            found = []
-            for node in self.nodes(root, strict=True):
-                role = node.get_role_name()
+            if target == 'account':
+                require(' '.join(positive.get_name().split()) == name,
+                        'ui:gdm-recipient')
+            for node in nodes:
                 if self.has_state(node, self.api.StateType.DEFUNCT):
                     return False
-                if self.showing(node) and (role == 'password text' if target == 'password'
-                        else role in ('button', 'push button') and node.get_name() == name):
-                    found.append(node)
-            return not found
+            absent = self.find_id(registered[absent_control], nodes=nodes, showing=False)
+            return absent is None or not self.showing(absent)
 
         return self.wait(absent, 'gdm-prompt-dismissed' if target == 'password' else 'gdm-list-hidden')
 
@@ -1387,8 +1415,7 @@ class AccessibleUI:
         require(root is not None and type(maximum) is int and 1 <= maximum <= 32
                 and type(cardinality) is tuple and len(cardinality) == 2
                 and 0 <= cardinality[0] <= cardinality[1] <= maximum
-                and ((identities == GREETER_IDENTITIES and projection == 'greeter-account-order')
-                     or (identities == CHILD_IDENTITIES and projection == 'child-picker-order')),
+                and identities == CHILD_IDENTITIES and projection == 'child-picker-order',
                 'ui:collection-binding')
         choices = []
         if projection == 'child-picker-order':
@@ -1426,56 +1453,31 @@ class AccessibleUI:
             require(cardinality[0] <= len(choices) <= cardinality[1],
                     'ui:collection-cardinality')
             return tuple(choices)
-        for node in self.nodes(root, strict=True):
-            require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-collection')
-            roles = ('list item',) if projection == 'child-picker-order' else ('button', 'push button')
-            if node.get_role_name() not in roles:
-                continue
-            # GDM may put its label on the button or a nested public label.
-            labels = {node.get_name()} | {child.get_name() for child in self.nodes(node, strict=True)
-                                        if child.get_role_name() == 'label'}
-            matches = {identity for label, identity in identities.items() if label in labels}
-            require(len(matches) <= 1, 'ui:ambiguous-choice-identity')
-            # The accepted baseline preserves unrelated accounts. They occupy
-            # real Home/Down positions but are never selectable fixture targets.
-            # Keep their labels private and represent only their list positions.
-            identity = next(iter(matches)) if matches else f'unrelated-account-{len(choices) + 1}'
-            require(identity not in choices, 'ui:duplicate-choice-identity')
-            choices.append(identity)
-            require(len(choices) <= maximum, 'ui:collection-bound')
-        require(cardinality[0] <= len(choices) <= cardinality[1], 'ui:collection-cardinality')
-        return tuple(choices)
-
     def greeter_navigation(self, name):
-        # A named row may be below GDM's scrolling viewport. Establish the
-        # fresh list and password-prompt absence through the always-visible
-        # Parent fixture, then derive navigation from the complete public row
-        # collection. The separate focus checkpoint proves that input exposed
-        # the requested row before Enter.
-        anchor = PARENT if name == KIOSK else name
-        button = self.greeter_list(anchor)
-        choices = self.choice_order(button.get_parent(), identities=GREETER_IDENTITIES,
-                                    maximum=32, cardinality=(1, 32), projection='greeter-account-order')
-        identity = GREETER_IDENTITIES[name]
-        if choices.count(identity) != 1 and name == KIOSK:
-            # Log only fixed identities/counts, never unrelated account labels.
-            station_nodes = [node for node in self.nodes(strict=True)
-                             if node.get_name() in (KIOSK, KIOSK_USERNAME)]
-            print(json.dumps({'event': 'gdm-station-missing', 'choices': choices,
-                              'station_nodes': len(station_nodes),
-                              'list_role': button.get_parent().get_role_name()},
-                             sort_keys=True), file=sys.stderr, flush=True)
-        require(choices.count(identity) == 1, 'ui:gdm-account-list')
-        return ['home'] + ['down'] * choices.index(identity)
+        """Focus one ID-addressed row without calculating input from list order."""
+        target = self.greeter_list(name)
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        component = target.get_component_iface()
+        require(component is not None, 'ui:gdm-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:gdm-focus-refused')
+        self.input_uncertain = False
+        return True
 
     def greeter_prompt(self):
-        # This observation submits no secret and cannot authorize one. Read
-        # only the account label and password role/state, never its contents.
-        self.target(PARENT, ('label',))
+        # This observation submits no secret and cannot authorize one.
+        surface, registered = self.provider_surface(
+            'gdm', 'greeter', GDM_PROVIDER_CONTROLS)
+        require(surface is not None, 'ui:gdm-surface')
+        recipient = self.find_id(registered['selected-recipient'], root=surface)
+        require(recipient is not None and ' '.join(recipient.get_name().split()) == PARENT,
+                'ui:gdm-recipient')
         self.observe_absence('greeter', 'account', name=PARENT, mode='snapshot')
-        self.wait(lambda: (field := self.find(roles=('password text',), sensitive=True))
-                  is not None and self.has_state(field, self.api.StateType.FOCUSED),
-                  'gdm-password-focus')
+        field = self.find_id(registered['password'], root=surface)
+        require(field is not None and field.get_role_name() == 'password text'
+                and self.has_state(field, self.api.StateType.SENSITIVE)
+                and self.has_state(field, self.api.StateType.FOCUSED),
+                'ui:gdm-password-focus')
 
     def kiosk_request_form(self):
         """Read REQUEST03's fixed disabled-child station state."""
@@ -1622,16 +1624,19 @@ class AccessibleUI:
         Never read password text or children. A false/stale observation cannot
         authorize typing. The caller also requires a separate fresh recheck.
         """
-        if self.find(name, ('label',)) is None:
+        require(name in GREETER_IDENTITIES, 'ui:gdm-account-binding')
+        surface, registered = self.provider_surface(
+            'gdm', 'greeter', GDM_PROVIDER_CONTROLS)
+        if surface is None:
             return False
-        identities = (PARENT, OTHER_PARENT, CHILD, EXISTING_CHILD, KIOSK)
-        if any(self.find(label, ('button', 'push button')) is not None
-               for label in identities):
-            return False
-        if any(self.find(other, ('label',)) is not None for other in identities if other != name):
-            return False
-        field = self.find(roles=('password text',), sensitive=True)
-        if field is None or not self.has_state(field, self.api.StateType.FOCUSED):
+        recipient = self.find_id(registered['selected-recipient'], root=surface)
+        field = self.find_id(registered['password'], root=surface)
+        account_list = self.find_id(registered['account-list'], root=surface, showing=False)
+        if (recipient is None or ' '.join(recipient.get_name().split()) != name
+                or field is None or field.get_role_name() != 'password text'
+                or not self.has_state(field, self.api.StateType.SENSITIVE)
+                or not self.has_state(field, self.api.StateType.FOCUSED)
+                or (account_list is not None and self.showing(account_list))):
             return False
         interface = field.get_text_iface()
         return interface is not None and self.api.Text.get_character_count(interface) == 0
@@ -1757,75 +1762,55 @@ class AccessibleUI:
                 'search_nodes': search_nodes[:12]}
 
     def system_prompt_control(self, *, qualify=True):
-        """Resolve Cancel only in an identified, focused login-keyring prompt.
-
-        No product window is closed, no password is submitted, and no action
-        is replayed. Unknown prompts remain blocked for diagnosis.
-        """
-        # One fresh public traversal for all registered titles. This check runs
-        # before every wait/input: rescanning a large installed-app catalogue
-        # twice per title made ordinary Parent navigation exceed its deadline.
-        # Nothing is cached across calls, so late/queued prompts remain visible.
-        matches = {title: {'windows': [], 'labels': []} for title in KEYRING_LABELS}
-        for node in self.nodes(strict=True):
-            role = node.get_role_name()
-            if role not in ('frame', 'dialog', 'label') or not self.showing(node):
-                continue
-            title = ' '.join(node.get_name().split())
-            if title in matches:
-                matches[title]['labels' if role == 'label' else 'windows'].append(node)
-        for title in KEYRING_LABELS:
-            windows = matches[title]['windows']
-            require(len(windows) <= 1, 'ui:ambiguous-target')
-            root = windows[0] if windows else None
-            if root is None:
-                labels = matches[title]['labels']
-                require(len(labels) <= 1, 'ui:ambiguous-target')
-                node = labels[0] if labels else None
-                for _ in range(12):
-                    if node is None:
-                        break
-                    if node.get_role_name() in ('frame', 'dialog'):
-                        root = node
-                        break
-                    node = node.get_parent()
-            if root is None or not self.showing(root) or root.get_name() == PRODUCT:
-                continue
-            if not qualify:
-                # After Escape, poll only presence: focus/control transitions
-                # during dismissal cannot authorize another key or abort a wait.
-                return root
-            if title.startswith(('The login keyring', 'The password you use')):
-                # GNOME Shell renders the prompt's message and description,
-                # not its legacy window title. Match the full public keyring
-                # description and confirm its controls within the same dialog.
-                require(self.find('Authentication required', ('label',), root=root) is not None
-                        and self.find('Unlock', ('button', 'push button'), root=root,
-                                      sensitive=True) is not None
-                        and self.find(roles=('password text',), root=root,
-                                      sensitive=True) is not None,
-                        'ui:keyring-prompt-identity')
-            controls = [control for name in ('Cancel',) if (control := self.find(
-                name, ('button', 'push button'), root=root, sensitive=True)) is not None]
-            require(len(controls) == 1, 'ui:system-prompt-control')
-            field = self.find(roles=('password text',), root=root, sensitive=True)
-            require(field is not None and self.has_state(field, self.api.StateType.FOCUSED),
-                    'ui:system-prompt-focus')
-            return controls[0]
-        return None
+        """Resolve Cancel only through the qualified keyring provider contract."""
+        prompt_controls = ('recipient', 'secret', 'confirm', 'cancel')
+        # Validate every authentication provider before the first tree read, so
+        # a qualified keyring mapping cannot conceal an unqualified Polkit path
+        # (or vice versa) during unrelated waits.
+        self.require_provider_contract('gnome-shell-polkit-agent', 'polkit', prompt_controls)
+        self.require_provider_contract('gcr-keyring-prompter', 'keyring', prompt_controls)
+        polkit, _polkit_registered = self.provider_surface(
+            'gnome-shell-polkit-agent', 'polkit', prompt_controls)
+        require(polkit is None, 'ui:unsupported-system-prompt')
+        surface, registered = self.provider_surface(
+            'gcr-keyring-prompter', 'keyring',
+            prompt_controls)
+        if surface is None:
+            return None
+        if not qualify:
+            return surface
+        recipient = self.find_id(registered['recipient'], root=surface)
+        field = self.find_id(registered['secret'], root=surface)
+        confirm = self.find_id(registered['confirm'], root=surface)
+        cancel = self.find_id(registered['cancel'], root=surface)
+        require(recipient is not None, 'ui:system-prompt-recipient')
+        require(field is not None and field.get_role_name() == 'password text'
+                and self.has_state(field, self.api.StateType.SENSITIVE)
+                and self.has_state(field, self.api.StateType.FOCUSED),
+                'ui:system-prompt-focus')
+        interface = field.get_text_iface()
+        require(interface is not None and self.api.Text.get_character_count(interface) == 0,
+                'ui:system-prompt-secret-state')
+        require(confirm is not None and cancel is not None
+                and self.has_state(cancel, self.api.StateType.SENSITIVE),
+                'ui:system-prompt-control')
+        return cancel
 
     def system_prompt_absent(self, dialog=None):
-        # A stale subtree cannot establish dismissal. Do not require focus or
-        # enabled controls while the recognized dialog is closing.
-        present = False
-        for node in self.nodes(strict=True):
-            if dialog is not None:
-                if node == dialog and self.showing(node):
-                    present = True
-            elif (node.get_role_name() in ('frame', 'dialog', 'label') and self.showing(node)
-                    and ' '.join(node.get_name().split()) in KEYRING_LABELS):
-                present = True
-        return not present
+        # Absence is a fresh read of the qualified provider surface. A stale or
+        # incomplete tree cannot establish dismissal.
+        prompt_controls = ('recipient', 'secret', 'confirm', 'cancel')
+        self.require_provider_contract('gnome-shell-polkit-agent', 'polkit', prompt_controls)
+        self.require_provider_contract('gcr-keyring-prompter', 'keyring', prompt_controls)
+        polkit, _polkit_registered = self.provider_surface(
+            'gnome-shell-polkit-agent', 'polkit', prompt_controls, showing=False)
+        require(polkit is None or not self.showing(polkit), 'ui:unsupported-system-prompt')
+        surface, _registered = self.provider_surface(
+            'gcr-keyring-prompter', 'keyring',
+            prompt_controls, showing=False)
+        if surface is None or not self.showing(surface):
+            return True
+        return dialog is not None and surface is not dialog
 
     def pointer_target(self, node):
         require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
@@ -1891,13 +1876,14 @@ class AccessibleUI:
             raise
 
     def handle_system_prompt(self):
-        """Pause a desktop wait for one normal Cancel click, then observe closure.
+        """Pause a desktop wait for one semantic Cancel action, then observe closure.
 
         The same adapter invocation resumes its pending read after dismissal;
         neither the surrounding operation nor earlier input is replayed. The
-        graphical worker owns pointer input. Unknown prompts and GDM are excluded.
+        provider-owned action receives no secret or coordinate. Unknown prompts
+        and GDM are excluded.
         """
-        if not self.prompt_enabled or self.system_prompt is None or self.handling_prompt:
+        if not self.prompt_enabled or self.handling_prompt:
             return
         control = self.system_prompt_control()
         if control is None:
@@ -1907,14 +1893,15 @@ class AccessibleUI:
             while control is not None:
                 require(self.prompt_count < 3, 'ui:system-prompt-limit')
                 self.prompt_count += 1
-                dialog = control.get_parent()
-                for _ in range(12):
-                    if dialog is None or dialog.get_role_name() in ('frame', 'dialog'):
-                        break
-                    dialog = dialog.get_parent()
-                require(dialog is not None and dialog.get_role_name() in ('frame', 'dialog'),
-                        'ui:system-prompt-dialog')
-                self.system_prompt(self.pointer_target(control))
+                dialog = self.system_prompt_control(qualify=False)
+                require(dialog is not None, 'ui:system-prompt-dialog')
+                require(not self.input_uncertain, 'ui:uncertain-input')
+                action = control.get_action_iface()
+                require(action is not None and self.api.Action.get_n_actions(action) == 1,
+                        'ui:missing-or-ambiguous-action')
+                self.input_uncertain = True
+                require(self.api.Action.do_action(action, 0), 'ui:action-refused')
+                self.input_uncertain = False
                 # Multiple applications may queue identical keyring requests.
                 # A new dialog is a new input target only after a complete read
                 # proves this exact dialog disappeared. Never reclick this one.
@@ -1959,7 +1946,7 @@ class AccessibleUI:
                     name = EXISTING_CHILD
                 if operation == 'gdm-station-list':
                     name = KIOSK
-                result['navigation'] = self.greeter_navigation(name)
+                result['focused'] = self.greeter_navigation(name)
             elif operation == 'gdm-station-wrong-entry-refused':
                 self.greeter_prompt()
             else:
@@ -2179,9 +2166,7 @@ def main():
 
     ui = AccessibleUI(Atspi, timeout=90 if kiosk else 45, query_errors=(GLib.Error,),
         reset_observer=reset_atspi_client if kiosk else None,
-        dispatch=lambda: GLib.MainContext.default().iteration(False),
-        system_prompt=lambda point: print(json.dumps({'event': 'system-prompt',
-            'kind': 'login-keyring', 'pointer': point}), flush=True))
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
     try:
         result = ui.run(sys.argv[1], sys.argv[2])
     except UiError:

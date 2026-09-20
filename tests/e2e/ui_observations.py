@@ -251,11 +251,9 @@ class UiObservations:
                     and result['focused'] is True, 'ui:response')
             expected['focused'] = True
         if operation in accessible_ui.GREETER_NAVIGATION:
-            require(type(result) is dict and set(result) == {*expected, 'navigation'}, 'ui:response')
-            keys = result['navigation']
-            require(type(keys) is list and 1 <= len(keys) <= 32 and keys[0] == 'home'
-                    and all(key == 'down' for key in keys[1:]), 'ui:navigation')
-            expected['navigation'] = keys
+            require(type(result) is dict and set(result) == {*expected, 'focused'}
+                    and result['focused'] is True, 'ui:response')
+            expected['focused'] = True
         if operation in accessible_ui.SETTINGS_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'settings'}, 'ui:response')
             settings = result['settings']

@@ -4,90 +4,51 @@
 adapter work from task 02, not a new audit or external-provider task.
 
 **Prerequisite:** [02 inventory and first fixes](02-owned-ui-and-inventory.md)
-and [shared preflight](README.md). **Status:** In progress; transient-tree diagnosis
-verified, effective-sensitivity publication and final owned UI verification pending.
+and [shared preflight](README.md). **Status:** Complete; owned identity, complete-read,
+effective-sensitivity and selected-account contracts passed final verification.
 **Next:** [02b](02b-spectator-ui.md). Parent task 02 remains incomplete.
 
-## Current continuation checkpoint
+## Completion checkpoint
 
-The About failure is diagnosed as an incomplete public AT-SPI observation during
-a UI transition. The original artifact remains `/var/tmp/onpc-ui-preview-7_1qts0i`.
-A rerun also failed during picker closure (`/var/tmp/onpc-ui-preview-y518exb1`).
-Bounded read waits now discard the whole incomplete observation and retry within
-the original deadline. They never skip null nodes, accept partial absence, relax
-ownership or replay input. Persistent incompleteness, duplicate IDs and wrong
-owners retain negative coverage. The separate ID-inventory helper now also
-rejects incomplete/defunct reads and retries only the complete inventory read.
+The shared readers now retry only complete public-tree acquisition within their
+existing bounded accessibility waits. They discard the whole incomplete read;
+they do not relax ownership, ambiguity or missing-ID failures, and input remains
+single-dispatch under the existing uncertainty latch. The standard UI fixture
+and both direct request-form adapters supply that wait. The earlier case-specific
+Close retry was removed in favor of this shared contract.
 
-Both Parent scales passed with actual incomplete-read retries. Public evidence:
-`/var/tmp/onpc-ui-preview-7a9hsyi8/parent-public-state.json` and
-`/var/tmp/onpc-ui-preview-79o91fhz/parent-public-state.json`. The first records a
-null child under public ID `header` at `picker-close`. Complete later snapshots
-show About active, `CONTROLLED_BY → parent-window`, child 1001 selected, limits
-off and the picker absent; both ownership readers passed. Footer and restoration
-of the same settings passed. Application logs are empty. The standalone test
-also now explicitly requires AT-SPI 2.0, fixing an import-order warning without
-changing assertions.
+Before the final shared read correction, the nine-file focused unit selection
+recorded below passed **573 tests and 21 subtests**. The added pre-action
+regression then passed independently (**1 passed**) by injecting one incomplete
+tree and requiring
+recovery with exactly one action dispatch. The previously failing kiosk error
+feedback node then passed independently in **104.59s** after its cleanup gate
+passed **1,476 tests and 3 subtests**. Its earlier failure artifact remains
+`/var/tmp/onpc-ui-preview-hwdx5t6z`.
 
-The 79-case frozen selection below (2400s, identity file first) completed
-**59 passed, 1 failed in 2122.77s**; cleanup gate **1,476 passed, 3 subtests**.
-This includes both Parent scales, screen custom-dimension recovery, all About,
-Parent/error feedback and overflow cases, shared submission/validation and
-remembered-mute absence on both forms. Later smoke/layout cases did not execute.
-Kiosk feedback restriction checks now use complete absence with explicit
-feedback/privacy anchors; denial Alt-F4 freshly verifies the active window ID.
-
-The new failure was
-`test_parent_failed_discovery_disables_management_until_report_closes[denied]`:
-expected insensitive management controls, but the child selector published
-`SENSITIVE=true`. Preserve `/var/tmp/onpc-ui-preview-_u6kl2y_` and the confirming
-diagnostic `/var/tmp/onpc-ui-preview-supyv56m/parent-failed-discovery-public-state.json`.
-The latter shows a disabled ancestor beneath `parent-window`, with nondefunct
-nodes; the toggle/revoke controls themselves were insensitive. Parent's
-`_users_failed` disables its content container. GTK's
-[`set_sensitive`](https://github.com/GNOME/gtk/blob/gtk-4-22/gtk/gtkwidget.c)
-publishes local DISABLED, while inherited sensitivity changes state flags; its
-[AT-SPI mapping](https://github.com/GNOME/gtk/blob/gtk-4-22/gtk/a11y/gtkatspicontext.c)
-therefore reports the selector's local value. This is a public-state publication
-defect, not authorization to accept usable controls or change the assertion.
-
-The shared GTK helper now publishes DISABLED from `widget.is_sensitive()` on
-state-flag changes and `notify::sensitive`, including local property changes
-under an already disabled ancestor. It changes accessibility metadata only,
-not widget sensitivity or policy. `Frontends.md` documents this and the bounded
-complete-read retries (`none` activation; no migration). **Live verification of
-this latest metadata correction is still pending.** The ID-inventory hardening
-was also made after the 59-pass run and requires its live checks again.
-
-Latest focused units: **573 passed, 21 subtests passed**, using the nine-file
-unit command preserved below. New sensitivity tests cover inherited disabling,
-restoration and local notifications; a mechanical duplicate-handler assertion
-was corrected to account for the existing two distinct map handlers.
-
-Resume with this reordered frozen selection so the failing smoke file runs
-first. Its 3600s bound accounts for the measured 35-minute partial run:
+The exact reordered frozen selection was then run without source edits:
 
 ```sh
 tools/run-ui-tests --timeout 3600s -v -x --tb=short 'tests/ui/test_preview_smoke.py' 'tests/ui/test_automation_identity.py' 'tests/ui/test_e2e_accessible_adapter.py::test_standard_user_startup_denial_has_specific_public_result' 'tests/ui/test_e2e_accessible_adapter.py::test_empty_parent_functional_adapter_at_display_scales' 'tests/ui/test_e2e_accessible_adapter.py::test_parent_functional_adapter_at_display_scales' 'tests/ui/test_screen_preview.py' 'tests/ui/test_about_release.py' 'tests/ui/test_parent_feedback.py' 'tests/ui/test_error_feedback.py' 'tests/ui/test_control_overflow.py' 'tests/ui/test_request_form_component.py::test_responsive_form_accepts_semantic_selection_and_submission' 'tests/ui/test_request_form_component.py::test_expanded_form_keeps_request_reachable' 'tests/ui/test_request_form_component.py::test_footer_estimate_tracks_custom_edits_and_preserves_validation' 'tests/ui/test_request_form_component.py::test_mute_control_stays_hidden_with_remembered_preferences' 'tests/ui/test_request_layout.py'
 ```
 
-That invocation was cancelled for handoff with exit **130 during cleanup
-prerequisites**, before UI execution. No new UI result is claimed for it.
-A subsequent single-node `--collect-only` launcher invocation reacquired the
-checkout activity lock and exited 0; no test run remains active. Staged and
-unstaged diff checks and all four changed Markdown link checks passed.
-Do not edit sources during preview runs. Finish only 02a, update O1–O3/R1
-dispositions, then advance to 02b and stop; parent 02 stays incomplete.
-Settings D5 and terminal return D3/task 04 remain unqualified. No VM,
-installation, portal changes or broad suites are authorized here.
+Its cleanup gate passed **1,476 tests and 3 subtests**. All **79 UI cases passed
+in 2739.98s (45:39)**, including both Parent scales, inherited sensitivity,
+screen custom-dimension recovery, all About/feedback/overflow cases, both shared
+request forms, the recovered kiosk pre-action read and every layout case. The
+run's pytest evidence root is `/var/tmp/pytest-of-edgar/pytest-1244`; relevant
+retained files include
+`test_parent_loading_state_disa0/loading-public-state.json` and
+`test_request_error_review_rest0/request-False-service-failure.jsonl` beneath
+that root. Earlier incomplete-read evidence remains in
+`/var/tmp/onpc-ui-preview-7a9hsyi8/parent-public-state.json` and
+`/var/tmp/onpc-ui-preview-79o91fhz/parent-public-state.json`.
 
-No staging or commits were performed. The starting index was
-`9cab814a341b3983c7343c808ac76558d1719338265566195d160122e357a0fe`;
-handoff inspection found an external index change to
-`8bbc6ca3f4bf081bb6ce18bba3a5f43d0dd34bbf469fb1bbce8007738975285f`.
-Earlier reader changes are now staged; the latest sensitivity, inventory and
-diagnostic changes remain unstaged. Preserve the actual current index, not any
-historical checksum.
+O1–O3 and R1 are closed in task 02's inventory. Settings D5, external terminal
+return D3 and child Shell consumer L9 remain assigned to their existing later
+tasks and were not qualified here. Parent task 02 remains incomplete until 02b.
+No VM, installation, portal, broad-suite, staging or commit operation was
+performed.
 
 ## Previous implementation checkpoint (superseded)
 

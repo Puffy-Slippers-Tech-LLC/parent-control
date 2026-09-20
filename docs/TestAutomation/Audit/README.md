@@ -3,8 +3,8 @@
 Execute one numbered task per new session, in the order below. This plan breaks
 down the supplied accessibility/UI automation handoff; creating it performs no
 implementation or test qualification. The next task is
-[02a — Remaining owned identity](02a-owned-identity-closure.md), the first
-remaining slice of task 02. Its current inventory is in
+[02b — Spectator UI](02b-spectator-ui.md), the final remaining slice of task 02.
+Its current inventory is in
 [02 — Owned UI and inventory](02-owned-ui-and-inventory.md#current-callable-inventory).
 
 This is a temporary remediation queue for the existing audit. The
@@ -18,8 +18,8 @@ acceptance. Finishing this queue does not mark their scenarios complete.
 | Task | Deliverable | Prerequisites | Recommended model / effort | Status |
 | --- | --- | --- | --- | --- |
 | [01](01-legend-expansion.md) | Correct legend state query and independently observe identified expanded content | Session preflight | GPT-5.6 Sol / high | Complete |
-| [02](02-owned-ui-and-inventory.md) | Audit callable identity paths; finish product/preview ID gaps | 01 | GPT-6 Astra / high | In progress; inventory and first fixes done, 02a–02b remain |
-| [02a](02a-owned-identity-closure.md) | Finish guest/preview ownership, complete absence and selected-account identities | 02 inventory | GPT-6 Astra / high | In progress; About diagnosis verified, effective-sensitivity publication needs live verification |
+| [02](02-owned-ui-and-inventory.md) | Audit callable identity paths; finish product/preview ID gaps | 01 | GPT-6 Astra / high | In progress; 02a complete, 02b remains |
+| [02a](02a-owned-identity-closure.md) | Finish guest/preview ownership, complete absence and selected-account identities | 02 inventory | GPT-6 Astra / high | Complete; central read regression and final 79-case UI selection passed |
 | [02b](02b-spectator-ui.md) | Migrate newly found spectator UI and retain mechanical obligations | 02a | GPT-6 Astra / high | Not started |
 | [03](03-authentication-surfaces.md) | GDM, authentication and keyring paths use scoped IDs or refuse safely | 02 complete, including 02a–02b | GPT-6 Astra / high | Not started |
 | [04](04-desktop-and-external-apps.md) | Desktop, search, terminal and viewer paths use scoped IDs or refuse safely | 02 inventory; 03 shared adapter changes settled | GPT-6 Astra / high | Not started |

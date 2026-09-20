@@ -61,14 +61,18 @@ require shift;
     no warnings 'redefine';
     *capture = sub {
         push @events, $_[0];
-        die 'private-canary' if $mode eq 'step-error';
         return {};
     };
     *exchange = sub {
         push @events, $_[0];
-        return {serial => $mode eq 'serial', authenticate => $mode eq 'authenticated'};
+        die 'private-canary' if $mode eq 'step-error' && $_[0] eq 'gdm';
+        return {functional_smoke => 1} if $_[0] eq 'ready';
+        return {ui_focused => 1} if $_[0] eq 'gdm';
+        return {ui => {operation => 'gdm-select-parent', outcome => 'passed',
+                       interface => 'AT-SPI'}} if $_[0] eq 'selected';
+        return {};
     };
-    *onpc_serial::run = sub { push @events, 'serial-complete'; };
+    *onpc_flow00::serial = sub { push @events, 'serial-complete'; };
     *onpc_password::enter_password = sub { push @events, 'authentication-input'; };
 }
 my $ok = eval { run(); 1; };
@@ -77,8 +81,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
 
-@pytest.mark.parametrize('mode', ['plain', 'serial', 'authenticated', 'power-error',
-                                 'status-error', 'step-error', 'disable-error'])
+@pytest.mark.parametrize('mode', ['success', 'power-error', 'status-error',
+                                 'step-error', 'disable-error'])
 def test_complete_attempt_powers_off_and_verifies_before_success(mode):
     completed = subprocess.run(
         ['/usr/bin/perl', '-I', str(DISTRIBUTION / 'lib'), '-e', PROBE,
@@ -88,13 +92,11 @@ def test_complete_attempt_powers_off_and_verifies_before_success(mode):
     data = json.loads(completed.stdout)
     assert 'private-canary' not in completed.stdout + completed.stderr
     events = data['events']
-    assert bool(data['ok']) == (mode in ('plain', 'serial', 'authenticated'))
+    assert bool(data['ok']) == (mode == 'success')
     if data['ok']:
-        assert events.index('select-graphics') < events.index('match') < events.index('gdm')
+        assert events.index('select-graphics') < events.index('gdm') < events.index('selected')
         assert events[-4:] == ['disable-vnc', 'poweroff', 'verify-off', 'record:shutdown']
-        completed_stage = {'plain': 'dismissed', 'serial': 'serial-complete',
-                           'authenticated': 'authenticated'}[mode]
-        assert events.index(completed_stage) < events.index('disable-vnc')
+        assert events.index('dismissed') < events.index('serial-complete') < events.index('disable-vnc')
     elif mode == 'power-error':
         assert events[-1] == 'poweroff' and 'verify-off' not in events
     elif mode == 'status-error':

@@ -3,7 +3,7 @@
 import pytest
 
 from kiosk.oh_no_parent_control_kiosk.preview_screen import Screen
-from tests.ui.test_automation_identity import audit_product_controls
+from tests.support.automation_ids import audit_product_controls
 
 
 pytestmark = pytest.mark.ui

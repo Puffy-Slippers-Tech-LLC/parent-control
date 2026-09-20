@@ -96,10 +96,9 @@ a later rescan while unrelated existing executables remain usable.
 Patterns are validated as absolute paths with `*` or `?` in the basename and
 the same canonical directory as a native target. The editor can expand a bare
 filename against an unambiguous target directory. Directory whitespace and
-unsupported rule characters are rejected. The renderer also refuses a pattern
-when an existing nonmatching executable's whitespace/comma path cannot be
-expressed as an allowance; it reports a failed save rather than silently
-blocking that existing nonmatch. Explicitly blocked executables need no
+unsupported rule characters are rejected by preference validation. A wildcard
+directory can also become unrepresentable after saving, when an unrelated
+executable with whitespace or a comma appears in it. Explicitly blocked executables need no
 allowance and are excluded from this check, even when they do not match the
 saved wildcard. They retain their preceding path or hash denial. No hash-based
 allowance is emitted: identical bytes under a matching filename must not bypass
@@ -109,11 +108,46 @@ versioned `.AppImage` names; explicitly saving that detected default is not a
 custom override. Existing immediate subdirectories receive prefix allowances;
 new nonmatching files/directories require reconciliation before receiving them.
 
+Production reconciliation isolates local rule-generation failures. A directory
+guard and its exceptions are one indivisible group: if directory inspection or
+safe rule representation fails, the entire affected UID/directory wildcard
+group is omitted. Other directories and accounts retain their rules, and all
+representable concrete denials precede any directory allowances. Nested guards
+precede enclosing-directory allowances. An unreadable or changing executable
+that needs a hash omits only that concrete denial. This is a deliberate,
+reported partial-enforcement fallback: affected apps or future versions may be
+unrestricted. It never substitutes a hash allowance, installs a partial group,
+or rewrites a saved pattern into a precise path.
+
+Saved preferences and live AccountsService filters remain intact. Every rescan
+retries the original rules, including version wildcards such as
+`Lunar Client-*.AppImage`, and restores them when the folder problem clears.
+Production enables this bounded isolation at construction, so local rendering
+errors do not prevent aggregate broker startup.
+The strict renderer remains available for validation tests. Invalid account
+identities, preference corruption, rule-file writes and compile/reload failures
+still fail the operation and retain the existing rollback contract.
+
+The adapter holds omitted-rule identities only in memory after successful
+notification (also when identical contents reuse this instance's notification
+cache). Candidate validation does not publish warning state. The role- and
+target-checked `GetPolicyWarnings` method returns affected desktop IDs for one
+account, or an empty ID for an unmatched live rule. Parent displays those
+identities locally with a persistent partial-enforcement notice and opens the
+ordinary error report once per changed warning set. Polling and completed saves
+refresh the notice; clearing a problem permits a future recurrence to be
+reported again. Automatic diagnostics record only an omitted-rule count, and
+the error-report draft contains no app identity or path. This additive API and
+broker change use `process-restart` activation; Parent loads its reader on next
+launch. No dependency or saved-data migration is required.
+
 Before changing screen-time settings, the broker renders the aggregate rules
 with the proposed complete saved blocklist, including other accounts' live
-filters and applicable patterns. A rendering failure leaves time limits,
-grants, extension activation and preferences untouched. Unsupported wildcard
-folder contents produce an App Limits error. Commit still reconciles again;
+filters and applicable patterns. Preflight uses the same local-rule isolation
+as reconciliation. A nonrecoverable rendering failure leaves time limits,
+grants, extension activation and preferences untouched. Omitted wildcard groups
+produce the partial-enforcement notice without blocking unrelated screen-time
+changes. Commit still reconciles again;
 preflight does not prevent filesystem or external policy changes afterward,
 and existing rollback remains necessary for later failures. This broker change
 uses `process-restart` activation, adds no dependency and changes no saved-data

@@ -2,15 +2,67 @@
 
 import json
 import time
+from unittest import mock
 
 import pytest
 from gi.repository import Gio, GLib
 
 from oh_no_parent_control.logs import DailyLogWriter
+from oh_no_parent_control.adapters import AccountsService
+from oh_no_parent_control.core import AccessDenied, UserAccount
+from oh_no_parent_control.execution_policy import FapolicydPolicy
 from oh_no_parent_control.service import Service
 from tests.support.dbus import (
     RecordingAccounts, RecordingBroker, broker_service, call, close_connection, open_bus,
 )
+
+
+@pytest.mark.parametrize('name', ['Other Client.AppImage', 'Other,Client.AppImage'])
+def test_bad_wildcard_directory_keeps_broker_available_and_recovers(
+        dbusmock_system, dbusmock_session, tmp_path, monkeypatch, name):
+    directory = tmp_path / 'apps'
+    directory.mkdir()
+    other = directory / name
+    other.write_bytes(b'other')
+    other.chmod(0o755)
+    pattern = f'{directory}/Lunar Client-*.AppImage'
+    preferences = mock.Mock()
+    preferences.load.return_value = {'apps': {'lunar.desktop': {
+        'state': 'permanent', 'patterns': [pattern],
+        'targets': [str(directory / 'Lunar Client-1.AppImage')],
+    }}}
+    policy = FapolicydPolicy(tmp_path / 'policy.rules', tolerate_rule_errors=True)
+    monkeypatch.setattr(policy, '_reload', lambda: None)
+    accounts = AccountsService(object(), policy, preferences)
+    monkeypatch.setattr(accounts, 'list_users', lambda: (
+        UserAccount(1100, 'child', '[Child user]', False, False, True),))
+    monkeypatch.setattr(accounts, 'get_filter', lambda _uid: (False, ('/usr/bin/game',)))
+    monkeypatch.setattr(RecordingAccounts, 'sync_execution_policy',
+                        lambda _self: accounts.sync_execution_policy())
+    monkeypatch.setattr(RecordingAccounts, 'get_policy_warnings',
+                        lambda _self, uid: accounts.get_policy_warnings(uid))
+    with broker_service(dbusmock_system, dbusmock_session, tmp_path) as harness:
+        assert call(harness.client, 'ListManagedUsers', None, '(a(uss))').unpack()[0]
+        assert call(harness.client, 'GetPolicyWarnings', GLib.Variant('(u)', (1100,)),
+                    '(as)').unpack() == (['lunar.desktop'],)
+        assert 'path=/usr/bin/game' in policy._rules_path.read_text()
+        assert f'dir={directory}/' not in policy._rules_path.read_text()
+        # Target authorization must run before any warning is disclosed.
+        harness.broker.behaviors['get_preferences'] = AccessDenied('denied')
+        with pytest.raises(GLib.Error) as denied:
+            call(harness.client, 'GetPolicyWarnings', GLib.Variant('(u)', (1100,)), '(as)')
+        assert Gio.dbus_error_get_remote_error(denied.value).endswith('.Error.AccessDenied')
+        del harness.broker.behaviors['get_preferences']
+        # Ordinary operations stay available and the next rescan retries the
+        # original version wildcard, without any preference rewrite.
+        assert call(harness.client, 'SetParentControl',
+                    GLib.Variant('(ubu)', (1100, True, 60)), '(s)').unpack()[0]
+        other.rename(directory / 'Other.AppImage')
+        harness.service._sync_execution_policy_after_signal()
+        assert call(harness.client, 'GetPolicyWarnings', GLib.Variant('(u)', (1100,)),
+                    '(as)').unpack() == ([],)
+        assert f'deny_syslog perm=execute uid=1100 : dir={directory}/' in policy._rules_path.read_text()
+        preferences.save.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'policy', 'extensions', 'caps', 'registration', 'log'])

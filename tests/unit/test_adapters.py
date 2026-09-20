@@ -176,12 +176,25 @@ class PolkitAdapterTests(unittest.TestCase):
                 mock.patch.object(accounts, "_set") as write:
             accounts.validate_filter(1001, (False, ("/apps/Game.AppImage",)))
         get.assert_called_once_with(1002)
-        policy.render.assert_called_once_with(
+        policy.validate.assert_called_once_with(
             {1001: ("/apps/Game.AppImage",), 1002: ("/bin/other",)},
             {1001: ("/apps/Game*.AppImage",), 1002: ()},
         )
         policy.reconcile.assert_not_called()
         write.assert_not_called()
+
+    def test_policy_warnings_are_scoped_and_map_to_apps_without_exposing_paths(self):
+        policy, preferences = mock.Mock(), mock.Mock()
+        policy.rule_issues = ((1001, "pattern", "/private/Game*.AppImage"),
+                              (1001, "target", "/private/unknown"),
+                              (1002, "target", "/private/other"))
+        preferences.load.return_value = {"apps": {"game.desktop": {
+            "patterns": ["/private/Game*.AppImage"], "targets": [],
+        }}}
+        accounts = AccountsService(object(), policy, preferences)
+        self.assertEqual(accounts.get_policy_warnings(1001), ("", "game.desktop"))
+        self.assertEqual(accounts.get_policy_warnings(1003), ())
+        preferences.load.assert_called_once_with(1001)
 
     def test_timer_usage_queries_as_selected_child_not_root(self):
         identity = SimpleNamespace(pw_name="private-child-name", pw_gid=1201)

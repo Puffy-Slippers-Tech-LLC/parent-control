@@ -95,6 +95,7 @@ the broker resolves and revalidates it.
 | `ListApprovers` | yes | yes | yes |
 | `GetOwnAccount` | own | - | - |
 | `GetPreferences` | own | selected child | selected child |
+| `GetPolicyWarnings` | own | selected child | selected child |
 | `ListApplications` | - | - | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |

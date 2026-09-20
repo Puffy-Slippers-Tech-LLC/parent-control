@@ -42,6 +42,7 @@ def test_payload_excludes_development_files_and_keeps_runtime_assets(production_
         "usr/share/doc/oh-no-parent-control/COPYRIGHT",
         "usr/share/doc/oh-no-parent-control/NOTICE",
         "usr/share/oh-no-parent-control/package-activation.json",
+        "usr/share/oh-no-parent-control/company_icon_32.png",
         "usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui/rich_editor/quill.js",
         "usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui/rich_editor/LICENSE",
         "usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf",
@@ -54,7 +55,7 @@ def test_packaged_extension_has_all_local_imports(production_payload):
     extension = production_payload / (
         "usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com"
     )
-    for unused in ("request-options.json", "app.json", "company_logo.png", "app_logo.png"):
+    for unused in ("request-options.json", "app.json", "company_icon_32.png", "app_logo.png"):
         assert not (extension / unused).exists()
     for source in extension.iterdir():
         if source.suffix not in {".js", ".mjs"}:

@@ -1,6 +1,7 @@
 """Exercise the feedback dialog through stable public accessibility IDs."""
 
 import pytest
+from tests.support.automation_ids import audit_product_controls
 from tests.support.feedback import (
     dismiss_feedback_dialog,
     feedback_editor,
@@ -56,6 +57,7 @@ def test_feedback_draft_and_optional_attachment(
     ui.activate("feedback-privacy-link")
     wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
                               "privacy dialog opens")
+    assert audit_product_controls(ui, "feedback-privacy-dialog")
     assert [relation.get_target(index)
             for relation in ui.target("feedback-privacy-dialog").get_relation_set()
             if relation.get_relation_type() == ui.api.RelationType.CONTROLLED_BY
@@ -169,6 +171,7 @@ def test_feedback_submission_outcomes(
         ui.activate("feedback-send")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "success confirmation opens")
+    assert audit_product_controls(ui, "feedback-success-dialog")
     wait_for_accessible_state(lambda: ui.absent("feedback-dialog", within="parent-window"),
                               "feedback editor hides before confirmation dismissal")
     body = "Your feedback was sent successfully. We appreciate your help making the app better."

@@ -7,6 +7,8 @@ import time
 
 import pytest
 
+from tests.support.automation_ids import audit_owned_controls
+
 pytestmark = pytest.mark.ui
 
 
@@ -36,6 +38,8 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
     for identity in ('e2e-watch-progress', 'e2e-watch-display',
                      'e2e-watch-output', 'e2e-watch-close'):
         assert ui.target(identity).get_accessible_id() == identity
+    wait(lambda: audit_owned_controls(ui, 'e2e-watch-window'),
+         'complete spectator ID inventory')
 
     if live:
         key = 'closed_during_live_attempt' if cycle else 'stopped_window_still_open'

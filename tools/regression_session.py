@@ -65,10 +65,9 @@ def prepare(root):
 
 
 def select(root, argv):
-    from test_commands import HELP_ARGV, validate
-    directory = root / 'artifacts/test-sessions'
-    # Help is inspection: do not create a session tree when nothing is attached.
-    if argv in HELP_ARGV and not (directory / 'current.json').exists():
+    from test_commands import is_inspection, validate
+    # Inspection never attaches, waits for locks, or consumes an unread result.
+    if is_inspection(argv):
         return None, False
     directory = prepare(root)
     with lock(directory / 'gate') as gate:
@@ -89,14 +88,10 @@ def select(root, argv):
                 broken = True
             if active or (not (run / 'delivered').exists() and (not argv or not broken)):
                 return run, False
-            if argv in HELP_ARGV:
-                return None, False
             if broken and not (run / 'delivered').exists():
                 print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',
                       file=sys.stderr, flush=True)
-        elif argv in HELP_ARGV:
-            return None, False
-        # Reconnection wins over all new arguments, including help and invalid
+        # Reconnection wins over new execution arguments, including invalid
         # selections. Validate only when starting a new run, under the same gate.
         # Idle invocations with no arguments start the complete aggregate.
         requested = list(argv) or ['all']

@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import re
-
 import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, Gtk
 
-
-_AUTOMATION_ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+from common.oh_no_parent_control_ui.gtk_automation import (
+    set_automation_id as _set_buildable_automation_id,
+)
 
 
 def _publish_effective_sensitivity(widget, *_args):
@@ -123,11 +122,7 @@ def set_automation_id(widget, automation_id: str):
     AT-SPI. Automation must report that missing capability, never fall back
     to names, roles or geometry.
     """
-    if type(automation_id) is not str or not _AUTOMATION_ID.fullmatch(automation_id):
-        raise ValueError("automation_id must be a lowercase hyphenated identifier")
-    widget.set_name(automation_id)
-    builder = Gtk.Builder()
-    builder.expose_object(automation_id, widget)
+    _set_buildable_automation_id(widget, automation_id)
     if not getattr(widget, "_public_focus_connected", False):
         widget._public_focus_connected = True
         widget.connect("map", _publish_focus)

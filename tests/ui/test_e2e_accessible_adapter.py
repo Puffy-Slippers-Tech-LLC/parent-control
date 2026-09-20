@@ -12,6 +12,7 @@ gi.require_version('Atspi', '2.0')
 
 from tests.support.paths import ROOT
 from tests.support.child_shell import run_child_shell
+from tests.support.automation_ids import audit_owned_controls
 
 pytestmark = pytest.mark.ui
 
@@ -144,6 +145,9 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
                             dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.management_denied()
     root = ui.id_target('parent-access-denied-window')
+    assert audit_owned_controls(
+        ui, 'parent-access-denied-window', root=root,
+    )
     assert ui.id_target('parent-access-denied-brand', root=root).get_name() == 'Oh No! Parent Control'
     assert ui.id_target('parent-access-denied-heading', root=root).get_name() == 'Administrator Required'
     if dismissal == 'close':

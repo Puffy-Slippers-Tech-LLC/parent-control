@@ -18,12 +18,16 @@ class AboutDialogTests(unittest.TestCase):
         self.assertIn('"help_url": "https://tech.puffyslippers.com/oh-no-parent-control/help"',
                       branding)
 
-    def test_website_row_uses_a_generic_web_browser_icon(self):
+    def test_website_row_uses_the_small_company_icon(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
             encoding="utf-8")
 
-        self.assertIn('_detail_row("web-browser-symbolic", "Website"', source)
-        self.assertNotIn('icon_filename="company_logo.png"', source)
+        self.assertIn('_detail_row(None, "Website"', source)
+        self.assertIn('icon_filename="company_icon_32.png"', source)
+
+        with (ROOT / "data/company_icon_32.png").open("rb") as logo:
+            logo.read(16)
+            self.assertEqual(logo.read(8), b"\x00\x00\x00 \x00\x00\x00 ")
 
     def test_privacy_row_uses_the_published_privacy_policy(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(

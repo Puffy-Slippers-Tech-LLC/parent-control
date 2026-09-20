@@ -44,8 +44,7 @@ def test_retention_permission_failure_identifies_allocation_without_starting_tes
         private.chmod(0o700)
 
 
-@pytest.mark.parametrize('argv', [[], ['--help'], ['--list'], ['e2e', '--list'],
-                                  ['unknown', '--invalid'], ['unit', '-q']])
+@pytest.mark.parametrize('argv', [[], ['unknown', '--invalid'], ['unit', '-q']])
 def test_external_invocation_reaches_session_before_argument_validation(monkeypatch, argv):
     import regression_session
     import test_activity
@@ -275,6 +274,43 @@ def test_help_prints_complete_categories_and_combinations(capsys, argv):
 def test_list_still_prints_category_json(capsys):
     assert commands._main(['--list']) == 0
     assert json.loads(capsys.readouterr().out) == commands.CATEGORIES
+
+
+@pytest.mark.parametrize('argv', [['--help'], ['-h'], ['--list']])
+def test_public_global_inspection_bypasses_activity_and_session(monkeypatch, capsys, argv):
+    import regression_session
+
+    def refuse(*args, **kwargs):
+        pytest.fail('inspection must return before activity or session inspection')
+
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(commands.test_activity, 'descriptors', refuse)
+    monkeypatch.setattr(regression_session, 'main', refuse)
+    assert commands.main(argv) == 0
+    output = capsys.readouterr().out
+    if argv == ['--list']:
+        assert json.loads(output) == commands.CATEGORIES
+    else:
+        assert output == commands.usage() + '\n'
+
+
+@pytest.mark.parametrize('argv', [
+    ['unit', '--collect-only'], ['component', '--help'], ['ui', '-h'],
+    ['fast', '--list'], ['system', '--list'], ['e2e', '--list'],
+])
+def test_public_category_inspection_bypasses_activity_and_session(monkeypatch, argv):
+    import regression_session
+
+    def refuse(*args, **kwargs):
+        pytest.fail('inspection must return before activity or session inspection')
+
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(commands.test_activity, 'descriptors', refuse)
+    monkeypatch.setattr(regression_session, 'main', refuse)
+    monkeypatch.setattr(commands, '_main', execute)
+    assert commands.main(argv) == 7
+    execute.assert_called_once_with(argv)
 
 
 def test_empty_argv_dispatches_the_all_aggregate(monkeypatch):

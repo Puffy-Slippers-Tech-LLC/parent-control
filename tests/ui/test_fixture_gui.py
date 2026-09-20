@@ -11,6 +11,7 @@ from dbusmock.testcase import BusType, PrivateDBus
 from tests.e2e.accessible_ui import AccessibleUI, public_automation_id
 from tests.e2e.fixture_ui import FixtureUI
 from tests.fixtures import build_test_applications as fixtures
+from tests.support.automation_ids import audit_owned_controls
 
 pytestmark = pytest.mark.ui
 
@@ -59,6 +60,9 @@ def test_payload_gui_preserves_independent_activity(hermetic_ui_session, gui_pay
                         env=environment, stdout=log, stderr=subprocess.STDOUT))
                     view = FixtureUI(ui, kind, instance)
                     view.ready()
+                    ui.wait(lambda: audit_owned_controls(
+                                ui, view.scope, root=ui.id_target(view.scope)),
+                            'complete fixture ID inventory')
                     view.focus_draft()
                     # Recipient is reacquired by public ID immediately before input.
                     assert ui.has_state(view.target('draft'), Atspi.StateType.FOCUSED)

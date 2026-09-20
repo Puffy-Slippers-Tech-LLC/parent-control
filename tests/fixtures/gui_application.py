@@ -13,15 +13,11 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gio, Gtk
 
+from gtk_automation import set_automation_id
+
 
 KINDS = ('native', 'flatpak', 'snap', 'game')
 INSTANCES = ('primary', 'secondary')
-
-
-def identify(widget, identity):
-    builder = Gtk.Builder()
-    builder.expose_object(identity, widget)
-    return widget
 
 
 def main(argv=None):
@@ -36,31 +32,31 @@ def main(argv=None):
                           flags=Gio.ApplicationFlags.NON_UNIQUE)
 
     def activate(application):
-        window = identify(Gtk.ApplicationWindow(application=application,
+        window = set_automation_id(Gtk.ApplicationWindow(application=application,
             title='ONPC Test Application', default_width=480, default_height=320), scope)
-        content = identify(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12),
+        content = set_automation_id(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12),
                            scope + '-content')
         window.set_child(content)
-        content.append(identify(Gtk.Label(label='Ready'), scope + '-status'))
+        content.append(set_automation_id(Gtk.Label(label='Ready'), scope + '-status'))
         # GtkText is an internal delegate with accessibility role NONE. Publish
         # the GtkEntry itself; Edit draft focuses it through normal GTK input.
-        draft = identify(Gtk.Entry(), scope + '-draft')
+        draft = set_automation_id(Gtk.Entry(), scope + '-draft')
         draft.set_max_length(256)
         draft.set_text('ONPC fixture draft')
         content.append(draft)
-        edit = identify(Gtk.Button(label='Edit draft'), scope + '-edit')
+        edit = set_automation_id(Gtk.Button(label='Edit draft'), scope + '-edit')
         edit.connect('clicked', lambda _button: draft.grab_focus())
         content.append(edit)
-        submitted = identify(Gtk.Label(label='No submitted draft'), scope + '-submitted')
-        submit = identify(Gtk.Button(label='Submit draft'), scope + '-submit')
+        submitted = set_automation_id(Gtk.Label(label='No submitted draft'), scope + '-submitted')
+        submit = set_automation_id(Gtk.Button(label='Submit draft'), scope + '-submit')
         submit.connect('clicked', lambda _button: submitted.set_label(draft.get_text()))
         content.append(submit)
         content.append(submitted)
         # A finite turn-based game: move a token around a four-cell track.
         # Its score and token are public state that can survive session visits.
         moves = 0
-        score = identify(Gtk.Label(label='Moves: 0; token: 0'), scope + '-score')
-        move = identify(Gtk.Button(label='Move token'), scope + '-move')
+        score = set_automation_id(Gtk.Label(label='Moves: 0; token: 0'), scope + '-score')
+        move = set_automation_id(Gtk.Button(label='Move token'), scope + '-move')
 
         def advance(_button):
             nonlocal moves
@@ -70,7 +66,7 @@ def main(argv=None):
         move.connect('clicked', advance)
         content.append(move)
         content.append(score)
-        close = identify(Gtk.Button(label='Close'), scope + '-close')
+        close = set_automation_id(Gtk.Button(label='Close'), scope + '-close')
         close.connect('clicked', lambda _button: window.close())
         content.append(close)
         window.present()

@@ -42,6 +42,7 @@ CATEGORIES = {
 AGGREGATES = ('all', 'all-verify', 'host', 'host-builds')
 PHASES = ('host', 'system', 'e2e')
 HELP_ARGV = (['--help'], ['-h'])
+INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
 
 
 def usage():
@@ -433,8 +434,17 @@ def validate(root, argv):
         raise ValueError('listing/help requires a single category')
 
 
+def is_inspection(argv):
+    """Return whether an invocation only requests help, listing, or collection."""
+    return any(flag in argv for flag in INSPECTION_FLAGS)
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    # Inspection must never wait for, attach to, or even inspect execution
+    # ownership. Its underlying command still validates its own arguments.
+    if is_inspection(argv):
+        return _main(argv)
     if os.geteuid() == 0:
         return _main(argv)
     try:

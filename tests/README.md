@@ -129,9 +129,12 @@ Every `tools/run-tests` category runs independently of its terminal. Closing the
 terminal detaches the display; tests continue. Ctrl+C requests cancellation and
 waits for owned cleanup. Invoke `tools/run-tests` in a new terminal to attach to
 the existing progress and final output, including its exit status. While a run
-is active or has an unread successful result, every invocation warns and attaches to it,
-ignoring all new arguments—even another category, invalid options, `--help`,
-`--list`, or no arguments. The original selection and options remain in effect.
+is active or has an unread successful result, execution invocations warn and attach to it,
+ignoring new arguments—even another category, invalid options, or no arguments.
+The original selection and options remain in effect. Global and category help,
+listings, and collection-only invocations always return their requested inspection
+output without acquiring or checking test/session locks, attaching to a run, or
+marking its result delivered.
 A failed or incomplete idle session can be replaced by an explicit new selection;
 its output is preserved and startup recovery runs before new VM checks. Host-only
 execution refuses pending VM recovery.

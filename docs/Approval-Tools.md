@@ -295,15 +295,16 @@ accepts `--serial-builds` alongside this flag.
 
 Every `tools/run-tests` category runs in a terminal-independent session. Closing
 the terminal detaches; Ctrl+C requests owned cancellation and cleanup. While a
-session is active or its successful final result remains unread, any new invocation warns
+session is active or its successful final result remains unread, a new execution invocation warns
 and attaches to it before interpreting arguments. All new arguments, including
-help, listing, different categories and invalid selections, are ignored. After
+listing, different categories and invalid selections, are ignored. After
 the result is delivered, the next invocation validates and starts fresh work.
 An explicit selection can replace an idle failed/incomplete session immediately,
 preserving its output and reconciling residual state before starting tests.
 An invocation without arguments still replays its unread result. When idle, no
-arguments starts the `all` aggregate. `--help` prints usage without starting a
-session unless an existing run is attached first.
+arguments starts the `all` aggregate. `--help` and `-h` always print usage
+immediately, before activity/session locks or attachment, without consuming an
+unread result.
 
 Internal workers inherit the verified checkout activity lock and execute their
 assigned work without reattaching to their own session. Older runs without

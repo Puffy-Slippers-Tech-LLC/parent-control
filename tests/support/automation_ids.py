@@ -13,26 +13,34 @@ _COMPOUND_ROLES = _CONTROL_ROLES | frozenset({"scroll pane"})
 _TOOLKIT_WINDOW_ACTIONS = frozenset({"Close", "Minimize", "Maximize", "Restore"})
 _PRESENTATION_ROLES = frozenset({"label", "image", "panel", "grouping"})
 _EMBEDDED_TOOLKIT_SURFACES = frozenset({"feedback-webview"})
-_PRODUCT_ID = re.compile(
+_OWNED_ID = re.compile(
+    r"(?:"
     r"(?:about|error-report|feedback|kiosk|parent|preview-screen|preview-viewer|startup-error)-"
-    r"[a-z0-9]+(?:-[a-z0-9]+)*\Z"
+    r"[a-z0-9]+(?:-[a-z0-9]+)*"
+    r"|e2e-watch-[a-z0-9]+(?:-[a-z0-9]+)*"
+    r"|onpc-fixture-(?:native|flatpak|snap|game)-(?:primary|secondary)"
+    r"(?:-[a-z0-9]+)*"
+    r")\Z"
 )
 
 
-def _product_automation_id(node):
-    """Return only IDs owned by the product's semantic public namespaces."""
+def _owned_automation_id(node):
+    """Return only IDs owned by the repository's public UI namespaces."""
     identity = public_automation_id(node)
-    return identity if _PRODUCT_ID.fullmatch(identity) else ""
+    return identity if _OWNED_ID.fullmatch(identity) else ""
 
 
-def audit_product_controls(ui, surface_identity):
-    """Reject actionable product nodes without IDs below one public surface.
+def audit_owned_controls(ui, surface_identity, *, root=None):
+    """Reject actionable repository-owned nodes without IDs below one surface.
 
     An identified compound control may contain anonymous toolkit implementation
     nodes. Window-decoration actions are likewise GTK-owned. Neither exception
     covers a product button placed directly in an identified window or panel.
     """
-    root = ui.target(surface_identity)
+    root = ui.target(surface_identity) if root is None else root
+    assert public_automation_id(root) == surface_identity, (
+        f"wrong public surface for inventory: {public_automation_id(root)!r}"
+    )
     pending = [(root, None, None)]
     seen = set()
     identities = {}
@@ -48,7 +56,7 @@ def audit_product_controls(ui, surface_identity):
         if (node.get_attributes() is None
                 or node.get_state_set().contains(ui.api.StateType.DEFUNCT)):
             raise UiError("ui:incomplete-tree")
-        identity = _product_automation_id(node)
+        identity = _owned_automation_id(node)
         role = node.get_role_name()
         if identity:
             assert identity not in identities or identities[identity] is node, (
@@ -75,5 +83,10 @@ def audit_product_controls(ui, surface_identity):
             (node.get_child_at_index(index), next_identity, next_role)
             for index in range(node.get_child_count())
         )
-    assert not missing, f"product controls without public IDs: {missing}"
+    assert not missing, f"owned controls without public IDs: {missing}"
     return identities
+
+
+def audit_product_controls(ui, surface_identity):
+    """Compatibility name for the production-owned control inventory."""
+    return audit_owned_controls(ui, surface_identity)

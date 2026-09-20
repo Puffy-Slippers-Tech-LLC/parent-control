@@ -9,6 +9,7 @@ import warnings
 import pytest
 
 from tests.support.automation import Automation, AutomationError, public_action_name
+from tests.support.automation_ids import audit_owned_controls
 from tests.support.paths import ROOT
 from tests.support.accessible_ui import product_tree
 from tests.e2e.accessible_ui import (
@@ -254,6 +255,49 @@ def test_generated_rich_editor_controls_receive_stable_ids():
     ):
         assert identity in source
     assert "feedback-editor-root .ql-editor" in source
+
+
+def test_owned_gtk_surfaces_share_the_core_identity_publisher(monkeypatch):
+    from common.oh_no_parent_control_ui import gtk_automation
+
+    exposed = []
+    gtk = SimpleNamespace(Builder=lambda: SimpleNamespace(
+        expose_object=lambda identity, widget: exposed.append((identity, widget))))
+    monkeypatch.setitem(sys.modules, "gi", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "gi.repository", SimpleNamespace(Gtk=gtk))
+    widget = SimpleNamespace(set_name=Mock())
+    assert gtk_automation.set_automation_id(widget, "e2e-watch-close") is widget
+    widget.set_name.assert_called_once_with("e2e-watch-close")
+    assert exposed == [("e2e-watch-close", widget)]
+    for invalid in (None, "", "E2E-Watch", "e2e_watch", "-e2e-watch"):
+        with pytest.raises(ValueError, match="lowercase hyphenated"):
+            gtk_automation.set_automation_id(widget, invalid)
+
+    viewer = (ROOT / "tools/e2e_watch_viewer.py").read_text()
+    fixture = (ROOT / "tests/fixtures/gui_application.py").read_text()
+    assert "def set_automation_id" not in viewer
+    assert "def identify" not in fixture
+    assert "gtk_automation import set_automation_id" in viewer
+    assert "gtk_automation import set_automation_id" in fixture
+
+
+def test_owned_control_inventory_supports_product_spectator_and_fixture_namespaces():
+    for surface_identity in (
+        "parent-window", "e2e-watch-window", "onpc-fixture-native-primary",
+    ):
+        control = Node(surface_identity + "-submit")
+        control.get_role_name = lambda: "button"
+        surface = Node(surface_identity, [control])
+        ui = adapter(surface)
+        root = None if surface_identity != "onpc-fixture-native-primary" else surface
+        identities = audit_owned_controls(ui, surface_identity, root=root)
+        assert identities[control.identity] is control
+
+    missing = Node("")
+    missing.get_role_name = lambda: "button"
+    root = Node("e2e-watch-window", [missing])
+    with pytest.raises(AssertionError, match="owned controls without public IDs"):
+        audit_owned_controls(adapter(root), "e2e-watch-window")
 
 
 @pytest.mark.parametrize("reader", ["preview", "guest"])

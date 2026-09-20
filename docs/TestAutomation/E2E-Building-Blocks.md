@@ -225,13 +225,13 @@ the affected entry block; that connection metadata supplies no product evidence.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| GDM08 | A | Observe the selected account label, focused showing password role and hidden account list. This is a nonsecret prompt observation only; it cannot authorize password input and never reads password contents. | Existing `AccessibleUI.greeter_prompt()` uses names and roles. Provider-owned greeter, recipient and password IDs are missing from the qualified registry. | pending |
-| GDM03 | A | Read the intended GDM recipient's identity and sole showing, enabled, focused, empty masked field with the account list hidden. Read character count only, never password content. | Existing `AccessibleUI.password_recipient(name)` uses the fixture label and role. Provider-owned recipient and password IDs remain unqualified. | pending |
-| GDM01 | C | Observe the usable greeter and its account list, with no active password prompt. | Existing `AccessibleUI.greeter_list(name)` relies on labels/roles. GDM's greeter surface, account list and account-row IDs remain unqualified. | pending |
-| GDM02 | C | Select a named user on the logon screen. Use UI14's ID-addressed navigation, verify focus before Enter, then observe the declared password prompt, retained lock or passwordless station. Do not type a password. | Retained positional navigation cannot run until GDM supplies and the adapter qualifies unique account, recipient, password and session IDs. | pending |
-| GDM09 | C | Dismiss an already observed GDM password prompt with one Escape and independently observe the account list again. No secret is typed. | Retained behavior and replay guards remain useful; the prompt, cancel route and returned list lack qualified provider IDs. | pending |
-| GDM04 | C | Observe a different account's empty GDM prompt, prove it is refused as the intended secret recipient, dismiss it, and observe the account list again. The declared wrong account has no retained desktop, so selection reaches a GDM prompt. | Preserve the positive-wrong/negative-intended safety checks; the two account rows, recipient and password field lack qualified provider IDs. | pending |
-| GDM05 | C | Type the intended user's password into the already selected GDM prompt. Require the explicit wrong-recipient evidence and two fresh ordered recipient checks immediately before one secret input. Do not submit. | Preserve the sealed secret API and ordered checks; input is blocked until GDM's recipient and password IDs are qualified. | pending |
+| GDM08 | A | Observe the selected account label, focused showing password role and hidden account list. This is a nonsecret prompt observation only; it cannot authorize password input and never reads password contents. | `AccessibleUI.greeter_prompt()` now resolves the greeter, recipient, password and account list by IDs before checking meaning/state. The installed mapping remains absent. | pending; provider-blocked |
+| GDM03 | A | Read the intended GDM recipient's identity and sole showing, enabled, focused, empty masked field with the account list hidden. Read character count only, never password content. | `AccessibleUI.password_recipient(name)` now resolves the recipient and protected password node by IDs and reads only its character count. The installed mapping remains absent. | pending; provider-blocked |
+| GDM01 | C | Observe the usable greeter and its account list, with no active password prompt. | `AccessibleUI.greeter_list(name)` now scopes the ID-addressed account row inside the ID-addressed list/surface/application and proves password-ID absence. | pending; provider-blocked |
+| GDM02 | C | Select a named user on the logon screen. Use UI14's ID-addressed navigation, verify focus before Enter, then observe the declared password prompt, retained lock or passwordless station. Do not type a password. | The adapter uses semantic focus on the registered account ID; positional Home/Down calculation is retired. Installed execution remains blocked until GDM supplies the complete mapping. | pending; provider-blocked |
+| GDM09 | C | Dismiss an already observed GDM password prompt with one Escape and independently observe the account list again. No secret is typed. | Retained behavior/replay guards consume the ID-scoped prompt proof and returned ID-scoped list; installed provider IDs remain absent. | pending; provider-blocked |
+| GDM04 | C | Observe a different account's empty GDM prompt, prove it is refused as the intended secret recipient, dismiss it, and observe the account list again. The declared wrong account has no retained desktop, so selection reaches a GDM prompt. | Positive wrong/negative intended checks now use the selected-recipient/password IDs; installed IDs for both account rows remain absent. | pending; provider-blocked |
+| GDM05 | C | Type the intended user's password into the already selected GDM prompt. Require the explicit wrong-recipient evidence and two fresh ordered recipient checks immediately before one secret input. Do not submit. | The sealed secret API and ordered checks remain; provider preflight blocks before those proofs or secret delivery until GDM is qualified. | pending; provider-blocked |
 | GDM06 | C | Observe the declared access result at GDM or lock: usable intended desktop, or time-limit rejection with its explanation and no desktop access. A generic failed login is not the expected denial. | Shell desktop, lock and denial-surface IDs are not qualified. | pending |
 | GDM07 | C | Enter a fresh session as an explicit account with expected success or time-limit rejection. Require a declared wrong-recipient fixture and no retained target desktop. Retained entry is a separate unlock route. | Composite remains blocked on GDM01–06 provider IDs; preserve recipient and secret-safety behavior. | pending |
 | GDM10 | C | **Migration required.** Preserve legacy Parent sign-in assertions while replacing its selectors and input routes before execution. Inputs bind its exact fixed account tags and stage names; no new role/surface is supported. | `onpc_parent::login` retains the original credential guards; block extraction is deferred without a customer consumer. Customer recipes use GDM07. Migration must preserve semantic recipient proofs, wrong-recipient refusal and capture restrictions; image thresholds cannot remain execution gates. | pending |
@@ -1093,9 +1093,11 @@ allowed/denied launch, running-app closure, retention and each required launch
 route still need their complete installed consumer. These are repository-owned
 qualification tasks, not external-provider blockers.
 
-The remaining legacy adapter methods for GDM, desktop/session navigation,
-terminal input, document viewers and keyring prompts still require migration
-before reuse. Their retained unit behavior checks are not ID qualification.
+GDM and authentication adapter methods now require complete provider mappings
+before the first UI read and otherwise refuse. Their ID-capable unit doubles are
+not installed qualification. The remaining legacy adapter methods for
+desktop/session navigation, terminal input and document viewers still require
+migration before reuse.
 The related `onpc_journey.pm` pointer/image routes, `onpc_pointer.pm` image
 clicks and `shell_overview.py` direct Shell navigation also require migration;
 pending scenario status alone does not complete this audit. Preview process
@@ -1122,9 +1124,9 @@ this block catalogue; they must be fixed in their owning code before use.
 | Owning provider and surface | Exact missing logical ID contracts | Evidence / return condition | Blocked consumers |
 | --- | --- | --- | --- |
 | `org.gnome.Shell` desktop, panel, app grid, session UI, notifications and screen shield | `shell.desktop.surface`, `shell.panel.surface`, `shell.panel.activities`, `shell.app-grid.surface`, `shell.app-grid.search`, `shell.app-grid.result.<registered-app>`, `shell.session-menu.surface`, `shell.session-menu.switch-user`, `shell.session-menu.log-out`, `shell.session-menu.confirm`, `shell.notification.<registered-kind>`, `shell.notification.action.<registered-action>`, `shell.lock.surface`, `shell.lock.recipient`, `shell.lock.secret`, `shell.lock.submit`, `shell.lock.switch-user` | Live Shell 50.1 exposed no nonempty ID on any current node. Return only after the exact required states expose unique provider-owned IDs and installed ambiguity/wrong-surface/missing-ID checks pass. | DESK01–12, SEARCH01–06, PANEL01–03, LIFE02/03/06 and every flow that enters, leaves or unlocks a session |
-| `org.gnome.Shell` GDM greeter | `gdm.greeter.surface`, `gdm.greeter.account-list`, `gdm.greeter.account.<registered-fixture>`, `gdm.greeter.selected-recipient`, `gdm.greeter.password`, `gdm.greeter.submit`, `gdm.greeter.cancel`, `gdm.greeter.session-menu`, `gdm.greeter.session.<registered-session>` | No live greeter inspection was authorized without a VM, and existing GDM code discovers controls through labels, roles and list order. Return requires a real installed greeter path with unique IDs for both intended and wrong recipients, the empty masked field and session choices. | GDM01–09, REQUEST01, fresh login, account switching and kiosk entry |
-| `org.gnome.Shell` Polkit authentication agent | `polkit.dialog.surface`, `polkit.dialog.recipient`, `polkit.dialog.secret`, `polkit.dialog.confirm`, `polkit.dialog.cancel` | No installed Shell authentication-dialog state has an ID-qualified record. Existing code recognizes prompt text and uses labels, roles or a pointer path. Return requires a real Polkit challenge, recipient-negative coverage and unique Shell-owned IDs. | AUTH01–04, approval, Users unlock and Polkit recipient safety |
-| `gcr-prompter` / `org.gnome.keyring.SystemPrompter` keyring prompt | `keyring.dialog.surface`, `keyring.dialog.recipient`, `keyring.dialog.secret`, `keyring.dialog.confirm`, `keyring.dialog.cancel` | No installed keyring-prompt state has an ID-qualified record. Existing middleware recognizes explanatory text and finds Cancel by label/role. Return requires the real gcr prompt, separate owner/surface scope, unique IDs and complete disappearance proof. | Keyring prompt handling and recipient safety |
+| `org.gnome.Shell` GDM greeter | `gdm.greeter.surface`, `gdm.greeter.account-list`, `gdm.greeter.account.<registered-fixture>`, `gdm.greeter.selected-recipient`, `gdm.greeter.password`, `gdm.greeter.submit`, `gdm.greeter.cancel`, `gdm.greeter.session-menu`, `gdm.greeter.session.<registered-session>` | No live greeter inspection was authorized without a VM. The adapter now validates the complete mapping before traversal, resolves rows/recipient/password only in ID scopes and uses semantic focus rather than list order. Missing installed application ID returns `ui:unqualified-provider-application`. Return still requires the real installed greeter with unique IDs for both intended and wrong recipients, the empty masked field and session choices. | GDM01–09, REQUEST01, fresh login, account switching and kiosk entry |
+| `org.gnome.Shell` Polkit authentication agent | `polkit.dialog.surface`, `polkit.dialog.recipient`, `polkit.dialog.secret`, `polkit.dialog.confirm`, `polkit.dialog.cancel` | No installed Shell authentication-dialog state has an ID-qualified record. Prompt middleware preflights this complete mapping before any UI read and refuses a qualified Polkit surface as unsupported rather than inspecting text or delivering input. Return requires a real Polkit challenge, recipient-negative coverage, unique Shell-owned IDs and an explicitly implemented semantic consumer. | AUTH01–04, approval, Users unlock and Polkit recipient safety |
+| `gcr-prompter` / `org.gnome.keyring.SystemPrompter` keyring prompt | `keyring.dialog.surface`, `keyring.dialog.recipient`, `keyring.dialog.secret`, `keyring.dialog.confirm`, `keyring.dialog.cancel` | No installed keyring-prompt state has an ID-qualified record. Middleware now preflights the mapping, scopes every control by application/dialog ID, activates Cancel semantically once and accepts absence only from a complete ID-scoped read. Missing installed application ID returns `ui:unqualified-provider-application`. Return requires the real gcr prompt, separate owner/surface scope, unique IDs and installed disappearance qualification. | Keyring prompt handling and recipient safety |
 | GTK native chooser owned by its calling application | `file-chooser.dialog`, `file-chooser.location`, `file-chooser.file.<registered-fixture>`, `file-chooser.filename`, `file-chooser.accept`, `file-chooser.cancel` | No installed native chooser path is qualified. Return requires each consumer's actual native route, including an application-owned dialog scope, exact selected-file readback and wrong-surface/duplicate/missing-ID refusal. | FILE03, FEED06 attachments and FEED08 diagnostic save when the consumer uses the native chooser |
 | `org.freedesktop.impl.portal.desktop.gnome` / Nautilus portal chooser | `file-chooser.dialog`, `file-chooser.location`, `file-chooser.file.<registered-fixture>`, `file-chooser.filename`, `file-chooser.accept`, `file-chooser.cancel` | The installed provider publishes partial internal Builder IDs, but not a complete provider application/dialog/dynamic-file/cancel identity chain. Return requires the consumer's actual portal route, exact selected-file readback and wrong-surface/duplicate/missing-ID refusal. | FILE03, FEED06 attachments and FEED08 diagnostic save when the consumer uses the portal chooser |
 | Registered license/document viewer | `document-viewer.application`, `document-viewer.surface`, `document-viewer.document.<registered-kind>`, `document-viewer.close` | The owning default viewer has not been selected and qualified. Existing About code identifies the viewer and document by title/role/text. Return requires the installed default handler's actual IDs and bounded content readback. | ABOUT02/03 and FILE08/FEED08 saved-output review |
@@ -1186,18 +1188,18 @@ their deadline; never replay an action whose effect is uncertain.
 Fresh waits also dispatch a bounded batch of pending public accessibility events
 before each read, so queued focus/text/registry changes can be delivered.
 Functional desktop waits share `AccessibleUI.handle_system_prompt`: a recognized
-login-keyring dialog pauses the current operation, requests one semantic activation
+login-keyring dialog pauses the current operation and performs one semantic activation
 of its ID-addressed enabled Cancel control, and independently waits for complete public reads
 to prove that specific dialog disappeared. Queued requests can replace it with
 an identical-looking dialog: qualify that new public UI object independently
 only after proving the previous one disappeared, never repeat a click on the
 original. This applies before operations and during waits, including
 after an earlier customer action. It never restarts that operation or replays
-its input. The controller must route the secret-free semantic action through
-the existing guarded rendezvous, record input before activation and acknowledge
-only completed input. The existing `service_system_prompt`/`click_target` pointer
-implementation requires migration; it is not an exception to the mandate.
-Missing acknowledgements, uncertain input, stale absence reads,
+its input. The action is delivered inside the ID-scoped accessibility adapter;
+the worker no longer emits a coordinate event. The old `UiObservations`/
+`InstalledJourney`/`service_system_prompt`/`click_target` coordinate rendezvous
+is unreachable and assigned to the legacy-input task for deletion, not
+reconnection. Uncertain input, stale absence reads,
 or a prompt that stays open fail; at most three fresh prompts per checkpoint are
 handled. Prompt appearance during text input does not authorize repairing or
 retyping the query. GDM credential checkpoints and unknown authentication dialogs
@@ -1296,12 +1298,14 @@ Enter on the web suggestion.
 This observes launcher unavailability; terminal denial and time enforcement
 belong to their own scenarios.
 
-Shared prompt middleware cancels only recognized login-keyring prompts,
-including late or queued arrivals. Require the showing/enabled Cancel control,
-focused masked field and identified dialog; independently observe that exact
-dialog's dismissal. Shell's full login-keyring explanation requires the exact
-explanation, authentication heading, masked field and Unlock control together.
-Never read or supply a keyring password or dismiss Parent/unknown dialogs.
+Shared prompt middleware cancels only an ID-qualified login-keyring prompt,
+including late or queued arrivals. Require provider-owned application, dialog,
+recipient, secret, confirm and Cancel IDs; then verify the showing/enabled Cancel
+control and focused masked field and independently observe that exact dialog's
+dismissal. Labels, headings and descriptions do not identify the prompt. Never
+read or supply a keyring password or dismiss Parent/unknown dialogs. Missing
+Polkit or keyring mappings block before discovery; a qualified Polkit prompt is
+still unsupported and blocks rather than being mistaken for keyring.
 
 [Worker regressions](../../tests/unit/test_parent_access_worker.py) qualify
 independent block entry, fresh proof consumption and uncertain-input refusal.

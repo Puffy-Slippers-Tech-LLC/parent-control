@@ -4,7 +4,7 @@
 delivery and uncertain-input handling are security-sensitive correctness work.
 
 **Prerequisite:** [02](02-owned-ui-and-inventory.md) complete, including 02a–02b, and
-[shared preflight](README.md). **Status:** Not started.
+[shared preflight](README.md). **Status:** Complete; provider blocked.
 **Next:** [04](04-desktop-and-external-apps.md).
 
 ## Scope and work
@@ -54,3 +54,31 @@ and the existing provider catalogue with missing contracts, affected consumers
 and return checks. Unit doubles establish safety behavior, not live GDM/Polkit/
 keyring qualification. If assertion migration exposes a product mismatch, follow
 the shared regression procedure rather than accepting it here.
+
+## Completion record
+
+Completed 2026-09-19 as safe containment. GDM account discovery, selection,
+prompt and recipient checks now require the registered provider application,
+greeter, account-list, account, selected-recipient and password IDs before the
+first tree read. Selection uses semantic focus on the ID-addressed row; greeter
+collection order no longer calculates Home/Down input. The ordered wrong-recipient
+refusal and two fresh intended-recipient proofs remain unchanged at the controller
+and sealed secret boundary.
+
+Desktop prompt middleware preflights complete Polkit and keyring mappings before
+discovery. An identified keyring prompt is scoped by application/dialog IDs and
+its recipient, masked secret, confirm and Cancel IDs; cancellation invokes the
+sole accessibility action once and proves that exact ID-addressed surface has
+disappeared through a complete fresh read. Polkit presence, incomplete mappings,
+duplicates, wrong owners, uncertain action delivery and stale absence reads
+refuse. The worker emits no prompt coordinate event. The now-unreachable
+`UiObservations`/`InstalledJourney`/`onpc_journey` coordinate rendezvous remains
+explicit task-05 removal scope and must not be restored as an authentication
+fallback.
+
+The installed catalogue still has no qualified GDM, Shell Polkit or gcr keyring
+mapping, so live consumers stop at `ui:unqualified-provider-application` before
+UI traversal or secret delivery. Unit doubles do not qualify those providers.
+The focused authentication, provider, credential, GDM helper, secret and kiosk
+selection completed with 551 passing cases; the required adapter file accounts
+for 314 of those cases and the credential cleanup file was included.

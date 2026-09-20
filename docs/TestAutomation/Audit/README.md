@@ -3,7 +3,7 @@
 Execute one numbered task per new session, in the order below. This plan breaks
 down the supplied accessibility/UI automation handoff; creating it performs no
 implementation or test qualification. The next task is
-[03 — Authentication surfaces](03-authentication-surfaces.md). Its current
+[04 — Desktop and external apps](04-desktop-and-external-apps.md). Its current
 inventory is in [02 — Owned UI and inventory](02-owned-ui-and-inventory.md#current-callable-inventory).
 
 This is a temporary remediation queue for the existing audit. The
@@ -20,7 +20,7 @@ acceptance. Finishing this queue does not mark their scenarios complete.
 | [02](02-owned-ui-and-inventory.md) | Audit callable identity paths; finish product/preview ID gaps | 01 | GPT-6 Astra / high | Complete; O1–O4 and 02a–02b closed |
 | [02a](02a-owned-identity-closure.md) | Finish guest/preview ownership, complete absence and selected-account identities | 02 inventory | GPT-6 Astra / high | Complete; central read regression and final 79-case UI selection passed |
 | [02b](02b-spectator-ui.md) | Migrate newly found spectator UI and retain mechanical obligations | 02a | GPT-6 Astra / high | Complete; 303 units and synthetic host UI passed |
-| [03](03-authentication-surfaces.md) | GDM, authentication and keyring paths use scoped IDs or refuse safely | 02 complete, including 02a–02b | GPT-6 Astra / high | Not started |
+| [03](03-authentication-surfaces.md) | GDM, authentication and keyring paths use scoped IDs or refuse safely | 02 complete, including 02a–02b | GPT-6 Astra / high | Complete; A1–A3 contained on exact provider blockers |
 | [04](04-desktop-and-external-apps.md) | Desktop, search, terminal and viewer paths use scoped IDs or refuse safely | 02 inventory; 03 shared adapter changes settled | GPT-6 Astra / high | Not started |
 | [05](05-legacy-input-routes.md) | Close Perl image/pointer and direct Shell routes, including retained callers | 03–04 dispositions recorded | GPT-6 Astra / high | Not started |
 | [06](06-fixture-lifecycle.md) | Review fixture process ownership, runtime packaging and mechanical compatibility | 02; execute after 05 to keep one session active | GPT-6 Astra / high | Not started |

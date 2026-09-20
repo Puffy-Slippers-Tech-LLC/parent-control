@@ -15,6 +15,38 @@ from ui_observations import RequestObservation
 from installed_journey import InstalledJourney
 
 
+GDM_CONTROLS = {
+    'account-list': 'test-gdm-account-list',
+    'account-choice::parent': 'test-gdm-account-parent',
+    'account-choice::other-parent': 'test-gdm-account-other-parent',
+    'account-choice::child': 'test-gdm-account-child',
+    'account-choice::other-child': 'test-gdm-account-other-child',
+    'account-choice::station': 'test-gdm-account-station',
+    'selected-recipient': 'test-gdm-recipient', 'password': 'test-gdm-password',
+    'submit': 'test-gdm-submit', 'cancel': 'test-gdm-cancel',
+    'session-chooser': 'test-gdm-session-chooser',
+    'session-choice::<provider-session-id>': 'test-gdm-session-choice',
+}
+GDM_CONTRACTS = {'gdm': {'application_id': 'test-gdm-application', 'surfaces': {
+    'greeter': ('test-gdm-greeter', GDM_CONTROLS)}, 'blocked_consumers': ()}}
+
+
+def station_greeter(*rows, recipient=None, field=None, list_showing=True):
+    account_list = Node(identity=GDM_CONTROLS['account-list'], children=rows,
+                        states=('showing', 'visible', 'sensitive') if list_showing
+                        else ('visible', 'sensitive'))
+    children = [account_list]
+    if recipient is not None:
+        recipient.identity = GDM_CONTROLS['selected-recipient']
+        children.append(recipient)
+    if field is not None:
+        field.identity = GDM_CONTROLS['password']
+        children.append(field)
+    return ui_for(Node(identity='test-gdm-application', children=[
+        Node(identity='test-gdm-greeter', children=children)]),
+        provider_contracts=GDM_CONTRACTS)
+
+
 def test_station_observer_does_not_wait_for_session_services(monkeypatch):
     from types import SimpleNamespace
     import accessible_ui
@@ -275,38 +307,40 @@ def test_kiosk_request_form_refuses_changed_or_ambiguous_state(fault):
 
 
 def test_station_greeter_navigation_and_wrong_entry_are_independent():
-    station = Node('oh-no-parent-control', 'push button', states=('visible', 'sensitive'))
-    parent = Node('Jamie (Parent)', 'push button')
-    ui = ui_for(Node(children=[parent, station]))
-    assert ui.run('gdm-station-list', '')['navigation'] == ['home', 'down']
-    station.states.add('showing')
-    with pytest.raises(UiError, match='gdm-account-focus'):
-        ui.run('gdm-station-focused', '')
-    station.states.add('focused')
+    station = Node('oh-no-parent-control', 'push button',
+                   identity=GDM_CONTROLS['account-choice::station'],
+                   states=('showing', 'visible', 'sensitive'))
+    parent = Node('Jamie (Parent)', 'push button',
+                  identity=GDM_CONTROLS['account-choice::parent'])
+    ui = station_greeter(parent, station)
+    assert ui.run('gdm-station-list', '')['focused'] is True
     assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
 
     field = Node('Password', 'password text',
                  states=('showing', 'visible', 'sensitive', 'focused'))
     field.get_text_iface = lambda: (_ for _ in ()).throw(AssertionError('password read'))
-    prompt = ui_for(Node(children=[Node('Jamie (Parent)', 'label'), field]))
+    prompt = station_greeter(recipient=Node('Jamie (Parent)', 'label'), field=field,
+                             list_showing=False)
     assert prompt.run('gdm-station-wrong-entry-refused', '')['outcome'] == 'passed'
 
 
 def test_station_display_name_and_username_on_one_row_are_one_target():
     station = Node('Oh No! Parent Control', 'push button',
-                   children=[Node('oh-no-parent-control', 'label')],
+                   identity=GDM_CONTROLS['account-choice::station'],
                    states=('showing', 'visible', 'sensitive', 'focused'))
-    ui = ui_for(Node(children=[station]))
+    ui = station_greeter(station)
     assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
 
 
-def test_unnamed_station_row_with_display_name_and_username_labels_is_one_target():
+def test_unnamed_station_row_cannot_substitute_nested_labels_for_provider_id_meaning():
     station = Node('', 'push button',
+                   identity=GDM_CONTROLS['account-choice::station'],
                    children=[Node('Oh No! Parent Control', 'label'),
                              Node('oh-no-parent-control', 'label')],
                    states=('showing', 'visible', 'sensitive', 'focused'))
-    ui = ui_for(Node(children=[station]))
-    assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
+    ui = station_greeter(station)
+    with pytest.raises(UiError, match='gdm-account-label'):
+        ui.run('gdm-station-focused', '')
 
 
 RUN = r'''

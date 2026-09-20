@@ -162,6 +162,27 @@ class PolkitAdapterTests(unittest.TestCase):
 
         policy.reconcile.assert_called_once_with({1001: ()})
 
+    def test_candidate_validation_uses_proposed_filter_and_retains_other_accounts(self):
+        policy, preferences = mock.Mock(), mock.Mock()
+        preferences.load.return_value = {"apps": {"game.desktop": {
+            "state": "conditional", "targets": ["/apps/Game.AppImage"],
+            "patterns": ["/apps/Game*.AppImage"],
+        }}}
+        accounts = AccountsService(object(), policy, preferences)
+        users = (UserAccount(1001, "child", "Child", False, False, True),
+                 UserAccount(1002, "other", "Other", False, False, True))
+        with mock.patch.object(accounts, "list_users", return_value=users), \
+                mock.patch.object(accounts, "get_filter", return_value=(False, ("/bin/other",))) as get, \
+                mock.patch.object(accounts, "_set") as write:
+            accounts.validate_filter(1001, (False, ("/apps/Game.AppImage",)))
+        get.assert_called_once_with(1002)
+        policy.render.assert_called_once_with(
+            {1001: ("/apps/Game.AppImage",), 1002: ("/bin/other",)},
+            {1001: ("/apps/Game*.AppImage",), 1002: ()},
+        )
+        policy.reconcile.assert_not_called()
+        write.assert_not_called()
+
     def test_timer_usage_queries_as_selected_child_not_root(self):
         identity = SimpleNamespace(pw_name="private-child-name", pw_gid=1201)
         with mock.patch("oh_no_parent_control.adapters.pwd.getpwuid",

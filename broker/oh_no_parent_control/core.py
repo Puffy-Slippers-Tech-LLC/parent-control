@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from .grant_diagnostics import GrantDiagnostics
+from .execution_policy import ExecutionPolicyError
 import re
 import threading
 import time
@@ -86,6 +87,7 @@ class Accounts(Protocol):
     def list_users(self) -> tuple[UserAccount, ...]: ...
     def get_user(self, uid: int) -> UserAccount: ...
     def get_filter(self, target_uid: int) -> tuple[bool, tuple[str, ...]]: ...
+    def validate_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
     def set_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
     def get_extension(self, target_uid: int) -> tuple[int, int]: ...
     def set_extension(self, target_uid: int, value: tuple[int, int]) -> None: ...
@@ -803,6 +805,11 @@ class Broker:
         try:
             current = self._preferences.load(target.uid)
             previous = current["parent_control_enabled"]
+            desired_filter = (False, blocked_targets(current, False))
+            # Known rendering failures must not toggle the extension, clear a
+            # grant, or change time limits before an inevitable failed save.
+            # Commit still reconciles again: this is not a filesystem lock.
+            self._accounts.validate_filter(target.uid, desired_filter)
             old_limit_type = self._accounts.get_limit_type(target.uid)
             old_daily_limit = self._accounts.get_daily_limit(target.uid)
             old_filter = self._accounts.get_filter(target.uid)
@@ -816,8 +823,6 @@ class Broker:
                 # App access is independent from screen time. Reapply the
                 # saved blocklist so a toggle cannot retain a temporary
                 # soft-block exception (or another stale live filter).
-                desired_filter = (False, blocked_targets(current, False))
-
                 if not enabled:
                     self._accounts.set_limit_type(target.uid, desired_limit_type)
                 self._accounts.set_daily_limit(target.uid, desired_daily_limit)
@@ -862,6 +867,12 @@ class Broker:
                         "parent-control rollback could not be verified"
                     ) from rollback_error
                 raise error
+        except ExecutionPolicyError as error:
+            raise BackendFailure(
+                "Could not prepare application blocking rules. Review App Limits: "
+                "a wildcard folder may contain an unsupported file or folder name "
+                "(such as spaces or commas)."
+            ) from error
         except (OSError, RuntimeError, PreferencesError) as error:
             if isinstance(error, RollbackFailure):
                 raise

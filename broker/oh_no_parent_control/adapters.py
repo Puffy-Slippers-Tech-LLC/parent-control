@@ -227,6 +227,13 @@ class AccountsService:
 
     def sync_execution_policy(self) -> None:
         """Make native execution rules match every current app blocklist."""
+        self._sync_execution_policy()
+
+    def validate_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None:
+        """Render the candidate aggregate without changing account or rule state."""
+        self._sync_execution_policy(candidate=(target_uid, value), validate_only=True)
+
+    def _sync_execution_policy(self, *, candidate=None, validate_only=False) -> None:
         if self._execution_policy is None:
             return
         with self._execution_policy_lock:
@@ -234,7 +241,8 @@ class AccountsService:
             filters = {}
             patterns = {}
             for user in self.list_users():
-                allowlist, targets = self.get_filter(user.uid)
+                allowlist, targets = (candidate[1] if candidate is not None and
+                                      user.uid == candidate[0] else self.get_filter(user.uid))
                 filters[user.uid] = () if allowlist else targets
                 if self._preferences is None or allowlist:
                     continue
@@ -255,7 +263,9 @@ class AccountsService:
                 account_count=len(filters),
                 pattern_account_count=len(patterns),
             )
-            if patterns:
+            if validate_only:
+                self._execution_policy.render(filters, patterns)
+            elif patterns:
                 self._execution_policy.reconcile(filters, patterns)
             else:
                 self._execution_policy.reconcile(filters)

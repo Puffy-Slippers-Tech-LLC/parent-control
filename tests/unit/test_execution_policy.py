@@ -42,6 +42,53 @@ class ExecutionPolicyTests(unittest.TestCase):
         self.assertNotIn("Missing", rules)
         self.assertIn("path=/usr/bin/game", rules)
 
+    def test_explicitly_blocked_nonmatching_filename_does_not_break_reconciliation(self):
+        for name in ("Other Client.AppImage", "Other,Client.AppImage"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                unrelated = directory / name
+                unrelated.write_bytes(b"unrelated application")
+                unrelated.chmod(0o755)
+                rules_path = directory / "policy.rules"
+                policy = FapolicydPolicy(rules_path)
+                with mock.patch(
+                        "oh_no_parent_control.execution_policy.subprocess.run",
+                        return_value=SimpleNamespace(returncode=0)) as run:
+                    policy.reconcile(
+                        {1001: (str(unrelated), str(directory / "Game-1.AppImage"))},
+                        {1001: (f"{directory}/Game-*.AppImage",)},
+                    )
+
+                self.assertTrue(rules_path.is_file())
+                rules = rules_path.read_text()
+                self.assertIn("deny_syslog perm=execute uid=1001 : sha256hash=", rules)
+                self.assertNotIn("allow perm=execute", rules)
+                self.assertLess(rules.index("sha256hash="), rules.index(f"dir={directory}/"))
+                self.assertEqual([call.args[0] for call in run.call_args_list], [
+                    ("/usr/sbin/fagenrules",),
+                    ("/usr/sbin/fapolicyd-cli", "--reload-rules"),
+                ])
+
+    def test_unrelated_unsupported_filename_preserves_rules_without_hash_allowance(self):
+        for name in ("Other Client.AppImage", "Other,Client.AppImage"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                unrelated = directory / name
+                unrelated.write_bytes(b"unrelated application")
+                unrelated.chmod(0o755)
+                rules_path = directory / "policy.rules"
+                rules_path.write_text("previous rules\n")
+                policy = FapolicydPolicy(rules_path)
+                with mock.patch(
+                        "oh_no_parent_control.execution_policy.subprocess.run") as run:
+                    with self.assertRaisesRegex(ExecutionPolicyError, "nonmatching executable"):
+                        policy.reconcile(
+                            {1001: (str(directory / "Game-1.AppImage"),)},
+                            {1001: (f"{directory}/Game-*.AppImage",)},
+                        )
+                self.assertEqual(rules_path.read_text(), "previous rules\n")
+                run.assert_not_called()
+
     def test_pattern_guards_future_matching_updates_and_preserves_existing_nonmatches(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

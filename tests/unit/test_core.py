@@ -12,6 +12,7 @@ from oh_no_parent_control.core import (
 from oh_no_parent_control.preferences import (
     PreferencesError, default_preferences, validate_preferences,
 )
+from oh_no_parent_control.execution_policy import ExecutionPolicyError
 
 
 from tests.support.broker import (
@@ -290,6 +291,31 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.filter, (False, ("old.App",)))
         self.assertEqual(accounts.extension, (1, 2))
         self.assertEqual(extensions.calls, [(1001, True), (1001, False)])
+
+    def test_parent_control_render_failure_precedes_all_mutations(self):
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
+                preferences.values[1001]["parent_control_enabled"] = not enabled
+                before = preferences.load(1001)
+                with mock.patch.object(
+                        accounts, "validate_filter",
+                        side_effect=ExecutionPolicyError("private path")) as validate:
+                    with self.assertRaisesRegex(BackendFailure, "Review App Limits") as raised:
+                        make_broker(
+                            accounts=accounts, preferences=preferences, extensions=extensions,
+                        ).set_parent_control(1003, 1001, enabled, 60)
+                validate.assert_called_once_with(
+                    1001, (False, ("/usr/bin/game", "org.example.Game")),
+                )
+                self.assertNotIn("private path", str(raised.exception))
+                self.assertFalse(any(event[0].startswith("set_") for event in accounts.events))
+                self.assertEqual(extensions.calls, [])
+                self.assertEqual(preferences.load(1001), before)
+                self.assertEqual(accounts.extension, (1, 2))
+                self.assertEqual(accounts.filter, (False, ("old.App",)))
+                self.assertEqual(accounts.limit_type, 2)
+                self.assertEqual(accounts.daily_limit, 3600)
 
     def test_daily_limit_requires_integer_in_range_before_writes(self):
         accounts, extensions = Accounts(), Extensions()

@@ -89,9 +89,10 @@ Follow package reboot notices. Log out of the kiosk session before removal; remo
 | Baseline: unit/contracts, private D-Bus, syntax and source checks | `tools/run-tests check` |
 | Components: private D-Bus, GTK, Node/GJS and nested Shell | `tools/run-tests component-all` |
 | Static checks | `tools/run-tests static` |
-| Unit, property and contract tests | `tools/run-unit-tests 'tests/unit/test_*.py' -q` |
+| Selected UI scope in up to four branches, with cleanup prerequisites | `tools/run-tests ui -m 'not live_e2e'` |
+| Focused unit, property and contract tests | `tools/run-unit-tests tests/unit/test_publish.py -q` |
 | Private D-Bus tests | `tools/run-tests component 'tests/component/test_*.py' -q` |
-| GTK and nested-Shell tests | `tools/run-ui-tests --timeout 900s tests/ui -q` |
+| Focused GTK and nested-Shell tests | `tools/run-ui-tests --timeout 180s tests/ui/test_request_form_component.py -q` |
 | Child JavaScript | `tools/run-tests child-node` |
 | Child GJS | `tools/run-tests child-gjs` |
 | Python branch coverage | `tools/run-tests coverage` |
@@ -105,6 +106,14 @@ Follow package reboot notices. Log out of the kiosk session before removal; remo
 `host + system + e2e = all`. Any combination is accepted; host runs first,
 then system and E2E sequentially, sharing package inputs and one report.
 `tools/run-tests host system e2e` is equivalent to `all`.
+
+Match validation scope to the change: prefer `tools/run-tests ui` for UI-only
+coverage and `tools/run-tests unit` for unit-only coverage, with selectors as
+needed. Use `host` only when all host checks are justified. Unit/UI selections
+share the aggregate's module buckets and four-branch scheduler, without adding
+package stages or unrelated suites. UI retains its mandatory cleanup prerequisites.
+See the [scheduling contract](tests/README.md#all-established-regressions).
+Keep the direct launchers below for narrow iteration or diagnosis.
 
 Select test files as needed. Quote patterns and parametrized test IDs:
 

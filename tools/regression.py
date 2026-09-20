@@ -20,6 +20,7 @@ from regression_schedule import Job, run_jobs
 from regression_inputs import identity as source_identity
 from regression_resources import Admission, HOST_WORKERS, PRESSURE_RECOVERY_SECONDS, vm_demand
 from regression_ui import HOST_ARGS as UI_HOST_ARGS, buckets as ui_buckets
+from regression_unit import buckets as unit_buckets
 from regression_cleanup import buckets as cleanup_buckets
 
 
@@ -685,9 +686,8 @@ class Run:
 
         try:
             if phase == 'cleanup' and len(jobs) > 1 and hasattr(self.admission, 'overlap_ready'):
-                # A disk-heavy first bucket can keep the overlap gate closed
-                # for its entire lifetime. Give existing hysteresis one recovery
-                # window plus a sample before starting it. This is bounded;
+                # Sample CPU/memory headroom before the first bucket adds load.
+                # Give hysteresis one recovery window plus a sample. This is bounded;
                 # missing metrics and persistent pressure retain normal fallback.
                 deadline = queued + PRESSURE_RECOVERY_SECONDS + 2
                 while (not self.control.stopped.is_set() and time.monotonic() < deadline
@@ -737,6 +737,18 @@ class Run:
                     self.artifacts['build-a'], self.artifacts['build-b']),
                     estimate=1, key='compare', requires=('build-a', 'build-b'))]
 
+    def pytest_jobs(self, kind, inventory, args, *, exact=False):
+        """Share module isolation and scheduling across host and selected runs."""
+        buckets = {'ui': ui_buckets, 'unit': unit_buckets}[kind](inventory.nodeids)
+        items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids)
+                 for bucket in buckets]
+        position = self.categories.index(inventory)
+        self.categories[position:position + 1] = items
+        return [Job(bucket.kind, item,
+                    self.command(kind, *args, *(bucket.nodeids if exact else bucket.paths)),
+                    events=True, estimate=bucket.estimate)
+                for bucket, item in zip(buckets, items, strict=True)]
+
     def run(self):
         self.inputs = source_identity(self.root)
         self.report.write('\nSource inputs SHA-256: ' + self.inputs + '\n')
@@ -775,12 +787,8 @@ class Run:
                 if self.control.stopped.is_set():
                     return
                 raise ValueError('pytest collection failed or collected no tests')
-        ui_inventory = suite_items[2]
-        buckets = ui_buckets(ui_inventory.nodeids)
-        bucket_items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids)
-                        for bucket in buckets]
-        position = self.categories.index(ui_inventory)
-        self.categories[position:position + 1] = bucket_items
+        unit_jobs = self.pytest_jobs('unit', suite_items[0], ['-q', '--durations=0'])
+        ui_jobs = self.pytest_jobs('ui', suite_items[2], [*UI_HOST_ARGS, '-q', '--durations=0'])
         if self.includes_vm:
             ready = self.discover_vm(system, graphical)
             if self.control.stopped.is_set():
@@ -792,13 +800,12 @@ class Run:
         self.cleanup_jobs(safety)
         if self.control.stopped.is_set():
             return
-        estimates = {'unit': 150, 'component': 20, 'fixture-runtime': 12}
+        estimates = {'component': 20, 'fixture-runtime': 12}
         jobs = [Job(kind, item, self.command(kind, *args, '-q'), events=True,
                     estimate=estimates[kind]) for (_, kind, args), item in zip(suites, suite_items)
-                if kind != 'ui']
-        jobs.extend(Job(bucket.kind, item, self.command('ui', *UI_HOST_ARGS,
-                        *bucket.paths, '-q', '--durations=0'), events=True, estimate=bucket.estimate)
-                    for bucket, item in zip(buckets, bucket_items))
+                if kind not in ('unit', 'ui')]
+        jobs.extend(unit_jobs)
+        jobs.extend(ui_jobs)
         jobs.extend(Job(kind, item, self.command(kind), estimate=1)
                     for (_, kind), item in zip(fixed, fixed_items) if kind != 'publish')
         package_jobs = self.build_jobs(fixed_items[-1], builds)

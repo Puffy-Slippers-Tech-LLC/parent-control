@@ -18,8 +18,10 @@ from dogtail.hermetic.mutter import MutterInputBackend
 
 from child_shell_screenshot import capture_screenshot
 from mutter_input import press_key as _press_key
-from tests.support.automation import Automation
+from tests.support.automation import Automation, AutomationError
 
+
+Atspi.set_timeout(2000, 5000)
 
 EVENTS = (
     "object:children-changed",
@@ -33,6 +35,7 @@ EVENTS = (
 TIMEOUT_SECONDS = float(os.environ.get("ONPC_CHILD_INTERACTION_TIMEOUT_SECONDS", "15"))
 EVENTS_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_EVENTS_PATH"])
 SNAPSHOT_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_A11Y_PATH"])
+X_KEYCODE_ESCAPE = 9
 X_KEYCODE_SPACE = 65
 X_KEYCODE_MENU = 135
 COUNTDOWN_ANIMATION_SCHEMA = "com.puffyslippers.oh-no-parent-control.child"
@@ -94,12 +97,50 @@ def _countdown_animation_setting():
     return result.stdout.strip() == "true"
 
 
+def _overlay_automation():
+    active = [pid for pid in _launch_records() if _process_exists(pid)]
+    if len(active) > 1:
+        raise AssertionError("More than one request overlay process is running")
+    if not active:
+        return None
+    desktop = Atspi.get_desktop(0)
+    applications = []
+    for index in range(desktop.get_child_count()):
+        application = desktop.get_child_at_index(index)
+        try:
+            if application is not None and application.get_process_id() == active[0]:
+                applications.append(application)
+        except GLib.Error:
+            continue
+    if len(applications) > 1:
+        raise AssertionError("The request overlay process published multiple applications")
+    if not applications:
+        return None
+    return Automation(
+        Atspi,
+        lambda: applications[0],
+        query_errors=(GLib.Error,),
+        owner_pids=lambda: frozenset(active),
+    )
+
+
 def _overlay_surfaces():
-    windows = [node for node in UI.find_all(OVERLAY_WINDOW_ID)
+    overlay_ui = _overlay_automation()
+    if overlay_ui is None:
+        return [], []
+    windows = [node for node in overlay_ui.find_all(OVERLAY_WINDOW_ID)
                if _state(node, Atspi.StateType.SHOWING)]
-    cancel = [node for node in UI.find_all(OVERLAY_CANCEL_ID)
+    cancel = [node for node in overlay_ui.find_all(OVERLAY_CANCEL_ID)
               if _state(node, Atspi.StateType.SHOWING)]
     return windows, cancel
+
+
+def _activate_overlay_cancel():
+    overlay_ui = _overlay_automation()
+    if overlay_ui is None:
+        raise AssertionError("The live request overlay application was not published")
+    overlay_ui.complete_read_wait = _wait
+    overlay_ui.activate(OVERLAY_CANCEL_ID)
 
 
 def _launch_records():
@@ -147,6 +188,10 @@ def _wait(predicate, description):
     def inspect(*_args):
         try:
             value = predicate()
+        except AutomationError as error:
+            if str(error) != "automation:incomplete-tree":
+                raise
+            value = None
         except (AttributeError, GLib.Error):
             value = None
         # Atspi.Accessible proxies may be falsey even when they reference a
@@ -204,6 +249,14 @@ def _wait(predicate, description):
     return result["value"]
 
 
+# Shared semantic actions perform several fresh public-tree reads before and
+# after input.  Keep those reads inside this probe's bounded AT-SPI retry loop
+# so a provider object replaced between traversals cannot abort before input or
+# leave a confirmed focus result unobserved.  Automation still latches uncertain
+# input and never replays an action whose delivery is unknown.
+UI.complete_read_wait = _wait
+
+
 def _prepare_indicator_input():
     # The owned public ID is the input recipient. No Shell state mutation or
     # overview shortcut is allowed to manufacture reachability.
@@ -214,14 +267,6 @@ def _prepare_indicator_input():
         "keyboard focus on the Shell request indicator",
     )
     return button
-
-
-def _activate_repeatedly(count, input_backend):
-    # Shell's St.Button does not expose an AT-SPI Action interface. Reacquire
-    # its public ID, focus it semantically, and use its normal keyboard action.
-    for _index in range(count):
-        _prepare_indicator_input()
-        _press_key(input_backend, X_KEYCODE_SPACE)
 
 
 def _one_overlay(expected_launches):
@@ -266,37 +311,35 @@ def main():
         UI.focus(COUNTDOWN_ANIMATION_ID)
         _press_key(input_backend, X_KEYCODE_SPACE)
         _wait(
-            lambda: _find_countdown_animation_item() is None,
-            "the countdown animation menu to close after activation",
-        )
-        _wait(
             _countdown_animation_setting,
             "the countdown animation choice to persist",
         )
+        # The setting action does not close Shell's check-menu.  Close it as
+        # the customer recipe requires, then independently prove its absence
+        # before routing the normal request action to the indicator.
+        _press_key(input_backend, X_KEYCODE_ESCAPE)
+        _wait(
+            lambda: _find_countdown_animation_item() is None,
+            "the countdown animation menu to close after Escape",
+        )
         print("interaction stage=countdown-preference-persisted", flush=True)
 
-        # These actions arrive after the first spawn but before its GTK window
-        # is exposed. They exercise the production single-flight guard while
-        # the request surface is still opening.
+        # Shell's St.Button has no AT-SPI Action interface. Resolve and focus
+        # its public ID, then use its normal keyboard action once. Duplicate
+        # launch-state decisions remain covered at their platform-neutral unit
+        # boundary; the mapped overlay hides this Shell control from public UI.
         _prepare_indicator_input()
-        # Retain real keyboard-opening coverage before a request app can own
-        # focus, then exercise the same action directly during startup.
         _press_key(input_backend, X_KEYCODE_SPACE)
-        _activate_repeatedly(5, input_backend)
         _wait(lambda: len(_launch_records()) == 1, "one opening request process")
-        print("interaction stage=opening-single-flight", flush=True)
         _wait(lambda: _one_overlay(1), "one visible child request overlay")
         capture_screenshot(Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]))
         print("interaction stage=overlay-visible", flush=True)
 
-        # Exercise the same guard after the shared request form is fully mapped.
-        _activate_repeatedly(5, input_backend)
         windows, cancel = _overlay_surfaces()
         if len(_launch_records()) != 1 or len(windows) != 1 or len(cancel) != 1:
-            raise AssertionError("Repeated activation created a duplicate request overlay")
-        print("interaction stage=running-single-flight", flush=True)
+            raise AssertionError("The request action did not open exactly one shared overlay")
 
-        UI.activate(OVERLAY_CANCEL_ID)
+        _activate_overlay_cancel()
         _wait(lambda: _overlay_closed(1), "the first overlay to close")
         print("interaction stage=first-overlay-closed", flush=True)
         _wait(
@@ -313,7 +356,7 @@ def main():
         if records[0] == records[1]:
             raise AssertionError("The reopened overlay did not use a new process")
 
-        UI.activate(OVERLAY_CANCEL_ID)
+        _activate_overlay_cancel()
         _wait(lambda: _overlay_closed(2), "the reopened overlay to close")
         print(
             "Child indicator interaction passed; launches=2 "

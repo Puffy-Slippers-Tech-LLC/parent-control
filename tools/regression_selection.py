@@ -5,6 +5,8 @@ import time
 
 from regression import CATEGORY_NAMES, Category, Run
 from regression_inputs import identity as source_identity
+from regression_ui import selected_options, serial_options
+from test_launcher import pytest_command
 
 
 def e2e_case_ids(root, args):
@@ -45,29 +47,76 @@ class SelectedRun(Run):
         return kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage', 'system') and (
             '--collect-only' not in args)
 
+    def run_pytest(self, kind, inventory, args):
+        if kind == 'ui':
+            args, options = selected_options(self.root, args)
+        else:
+            command = pytest_command(self.root, args, kind)
+            options = command[command.index('no:cacheprovider') + 1:command.index('--')]
+        if serial_options(options):
+            self.report.write(f'\n{kind.upper()} selection: serial execution preserves the requested failure limit.\n')
+            inventory.branch = 1
+            inventory.launch_order = self.sequence + 1
+            status, _ = self.execute(inventory, self.command(kind, *args), events=True)
+            return status or int(inventory.state != 'Passed')
+
+        status, _ = self.execute(inventory, self.command(kind, *args, '--collect-only'),
+                                 collect=True, events=True)
+        if self.control.stopped.is_set():
+            return 130
+        if status or not inventory.total:
+            raise ValueError(f'{kind.upper()} collection failed or collected no tests')
+        # The common builder validates the inventory before protected work.
+        # Exact IDs retain partial files, parametrization, -k, -m and ignores.
+        jobs = self.pytest_jobs(kind, inventory, options, exact=True)
+        # Unit selections keep their exact scope and existing prerequisite
+        # policy. Only UI adds the mandatory host-integrated cleanup gate.
+        if kind == 'ui':
+            safety = Category('Cleanup safety prerequisites')
+            self.categories.insert(self.categories.index(jobs[0].item), safety)
+            status, _ = self.execute(safety, self.command('unit', 'tests/unit/test_*cleanup_safety.py',
+                                                         'tests/unit/test_graphical_lease.py',
+                                                         '--collect-only', '-q'),
+                                     collect=True, events=True)
+            if self.control.stopped.is_set():
+                return 130
+            if status or not safety.total:
+                raise ValueError('cleanup prerequisite collection failed or collected no tests')
+            self.cleanup_jobs(safety)
+        if self.control.stopped.is_set():
+            return 130
+        self.host_jobs(jobs)
+        return int(any(job.item.state != 'Passed' for job in jobs))
+
     def run(self):
         self.inputs = source_identity(self.root)
         self.report.write('\nSource inputs SHA-256: ' + self.inputs + '\n')
-        # Keep arbitrary selections serial: their fixtures have not necessarily
-        # been qualified for overlap. The branch records the actual launches.
+        # Categories stay ordered; unit/UI use the same buckets as host.
+        # Keep a stable work list while collected inventories expand into jobs.
         host_elapsed = 0.0
-        for item, (kind, args) in zip(self.categories, self.selections):
+        for item, (kind, args) in list(zip(self.categories, self.selections, strict=True)):
             if self.control.stopped.is_set():
                 break
             if item.host:
                 if self.dashboard.host_started is None:
                     self.dashboard.host_started = time.monotonic()
+                host_started = self.dashboard.host_started
                 self.dashboard.host_elapsed = None
-                item.branch = 1
+                item.branch = None if kind in ('unit', 'ui') else 1
                 item.launch_order = self.sequence + 1
                 started = time.monotonic()
             try:
                 # Preserve each category's own fail-fast options. The dashboard
                 # must not turn an ordinary assertion into aggregate cancellation.
-                status, _ = self.execute(item, self.command(kind, *args), events=self.events(kind, args))
-                if status or item.state != 'Passed':
+                if kind in ('unit', 'ui'):
+                    status = self.run_pytest(kind, item, args)
+                else:
+                    status, _ = self.execute(item, self.command(kind, *args), events=self.events(kind, args))
+                    status = status or int(item.state != 'Passed')
+                if status:
                     break
             finally:
                 if item.host:
                     host_elapsed += time.monotonic() - started
+                    self.dashboard.host_started = host_started
                     self.dashboard.host_elapsed = host_elapsed

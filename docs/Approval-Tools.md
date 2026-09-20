@@ -210,11 +210,40 @@ Use `tools/run-tests --help` for usage and the `all` composition, or
 the checkout. Quote globs and parametrized pytest IDs so Codex sees a literal
 argument; the launcher expands file patterns without a shell.
 
+Choose validation scope from the change and its regression risk, independently
+of scheduling. Prefer `tools/run-tests ui` for UI-only coverage,
+`tools/run-tests unit` for unit-only coverage, and category/file/case selections
+for the required subset. Use the launcher's existing parallelism where that
+selection supports it. Never substitute `host` or `all` merely because the
+selected suite is large or slow; additional suites and package builds need
+their own validation justification. Direct unit/UI launchers remain suitable
+for narrow iteration or diagnosis.
+
+`tools/run-tests ui` reuses the aggregate's UI buckets, cleanup gate and scheduler
+with up to four branches, without other host suites or package builds. File/case
+selectors, `-k`, `-m` and scoped ignores retain the exact selected inventory.
+Execution defaults to the host's 1800-second per-bucket timeout; an explicit
+`--timeout` is preserved. `-x`/`--exitfirst` or positive `--maxfail` keeps one
+serial invocation so its failure limit remains selection-wide. Inspection is
+unchanged. No marker exclusions are added implicitly. Other categories stay
+ordered. `tools/run-tests unit` uses the same four balanced unit buckets as
+`host`, keeps module fixtures together and preserves exact selectors/options.
+It adds no cleanup prerequisite inventory or other categories. New/unreviewed
+modules and full application-fixture construction remain exclusive; `-x` or
+positive `--maxfail` keeps one serial invocation. Direct `tools/run-unit-tests`
+remains serial for narrow iteration. See the
+[scheduling contract](../tests/README.md#all-established-regressions).
+
+Use complete categories (`host`, `system`, and `e2e`) only when their complete
+coverage is justified; combine them once to share reports and package inputs.
+Never start multiple launchers concurrently; the launcher owns scheduling and
+the checkout activity lock.
+
 | Existing or planned coverage | Stable command / extension pattern | Boundary |
 | --- | --- | --- |
-| Unit, property, contracts, harness and cleanup regressions | `tools/run-unit-tests 'tests/unit/test_*.py' -q` or `tools/run-tests unit ...` | Only `tests/unit/**/test_*.py`; ordinary user |
+| Unit, property, contract, harness and cleanup regressions | `tools/run-tests unit` with optional quoted selectors | Only the justified unit scope; direct `tools/run-unit-tests` remains available for narrow checks |
 | Private-D-Bus components | `tools/run-tests component 'tests/component/test_*.py' -q` | Only this category; cleanup prerequisites run first |
-| GTK, parent, shared form, feedback and nested Shell | `tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py' -q` | Only `tests/ui`; fixed venv, timeout and automatic safety prerequisites |
+| GTK, parent, shared form, feedback and nested Shell | `tools/run-tests ui` with optional quoted selectors | Only the justified UI scope; direct `tools/run-ui-tests` remains available for narrow checks |
 | Child Node tests | `tools/run-tests child-node 'tests/child/**/*.test.mjs'` | `.test.mjs` and `.test.js`; defaults discover both |
 | Child GJS adapters | `tools/run-tests child-gjs 'tests/child/**/*_test.js'` | Fixed GJS runtime; new private coverage directory |
 | Shell/GJS static checks | `tools/run-tests static` or `static shell` / `static gjs` | Fixed maintained checkers |

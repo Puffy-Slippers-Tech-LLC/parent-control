@@ -143,6 +143,22 @@ def test_checkpoint_error_closes_stream_and_does_not_claim_persistence(report, m
     assert report.dirty
 
 
+@pytest.mark.parametrize('collect_only', [False, True])
+def test_unit_workers_emit_inventory_without_running_cleanup(tmp_path, monkeypatch, collect_only):
+    import test_launcher
+    calls = []
+    command = ['pytest', *(['--collect-only'] if collect_only else []),
+               '--', 'tests/unit/test_core.py']
+    controller = SimpleNamespace(run=lambda command, **kwargs: calls.append((command, kwargs)) or 0)
+    monkeypatch.setattr(regression_process.Control, 'installed', lambda *args, **kwargs: nullcontext(controller))
+    monkeypatch.setattr(test_launcher, 'pytest_command', lambda *args: command)
+    assert regression_process.host_run(tmp_path, 'unit', []) == 0
+    assert len(calls) == 1
+    assert calls[0][0] == command
+    assert calls[0][1]['env']['ONPC_REGRESSION_EVENTS'] == '1'
+    assert calls[0][1]['env']['ONPC_REGRESSION_INVENTORY'] == '1'
+
+
 @pytest.mark.parametrize('verified', [False, True])
 @pytest.mark.parametrize('category', ['ui', 'component'])
 def test_host_workers_reuse_only_verified_aggregate_cleanup(tmp_path, monkeypatch, verified, category):
@@ -868,8 +884,11 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     import test_activity
     monkeypatch.setattr(test_activity, 'record_cleanup', lambda _: None)
     releases, scheduled = {}, []
-    durations = {'Publishing tests': 40, 'Unit and contracts': 12,
+    durations = {'Publishing tests': 40, 'Unit — Bucket 1': 12,
                  'UI — Request behavior': 80, 'UI — Screen fidelity': 100}
+    import regression_unit
+    monkeypatch.setitem(regression_unit.ESTIMATES, 'test_core.py', 150)
+    unit_nodes = ('tests/unit/test_core.py::test_case',)
 
     class Workers(ThreadPoolExecutor):
         def submit(self, function, execution, command):
@@ -894,7 +913,8 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
             category = 'ui' if command[0].endswith('run-ui-tests') else command[1]
             if category in ('unit', 'component', 'fixture-runtime', 'ui'):
                 nodes = ([node for ids in inventory.values() for node in ids
-                          if node.partition('::')[0] in command] if category == 'ui' else ['case'])
+                          if node.partition('::')[0] in command] if category == 'ui' else
+                         unit_nodes if category == 'unit' else ['case'])
                 events = [dict(kind='collection', total=len(nodes), nodeids=nodes),
                           *(dict(kind='finished', nodeid=node) for node in nodes)]
                 output(''.join(regression_events.PREFIX + json.dumps(event) + '\n'
@@ -915,6 +935,8 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
         if command[0].endswith('run-ui-tests'):
             item.nodeids = tuple(node for ids in inventory.values() for node in ids)
             item.total = len(item.nodeids)
+        elif command[1] == 'unit':
+            item.nodeids = unit_nodes
         if not collect:
             item.done, item.state = item.total, 'Passed'
         return 0, ''
@@ -959,10 +981,10 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     starts = {event['job']: event for event in events if event['event'] == 'start'}
     finishes = {event['job']: event for event in events if event['event'] == 'finish'}
     assert list(starts)[:4] == ['UI — Request behavior', 'publish', 'UI — Screen fidelity',
-                               'Unit and contracts']
-    component, unit = starts['Private D-Bus components'], starts['Unit and contracts']
+                               'Unit — Bucket 1']
+    component, unit = starts['Private D-Bus components'], starts['Unit — Bucket 1']
     assert component['branch'] == unit['branch'] == 4
-    assert 0 <= component['monotonic'] - finishes['Unit and contracts']['monotonic'] <= 5
+    assert 0 <= component['monotonic'] - finishes['Unit — Bucket 1']['monotonic'] <= 5
     preview = starts['UI — Preview and About']
     assert preview['branch'] == starts['publish']['branch']
     assert 0 <= preview['monotonic'] - finishes['publish']['monotonic'] <= (10 if io_burst else 5)
@@ -1073,6 +1095,8 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                 assert command[command.index('-m') + 1] == 'not live_e2e'
             ui_ids = ['tests/ui/test_preview_smoke.py::test_one',
                       'tests/ui/test_request_form_component.py::test_two']
+            unit_ids = ['tests/unit/test_core.py::test_one',
+                        'tests/unit/test_core.py::test_two']
             safety_ids = ['tests/unit/test_fixture_cleanup_safety.py::test_one',
                           'tests/unit/test_graphical_lease.py::test_two']
             safety = category == 'unit' and any('cleanup_safety' in arg or 'test_graphical_lease.py' in arg
@@ -1093,16 +1117,18 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                                            excluded_pending_cases=['E2E-998/wait'])).encode() + b'\n')
             elif '--collect-only' in command:
                 event('collection', total=2, **({'nodeids': ui_ids} if category == 'ui' else
-                                               {'nodeids': safety_ids} if safety else {}))
+                                               {'nodeids': safety_ids} if safety else
+                                               {'nodeids': unit_ids} if category == 'unit' else {}))
             elif category in ('unit', 'component', 'ui', 'fixture-runtime', 'system'):
-                nodes = ui_ids if category == 'ui' else safety_ids if safety else ('one', 'two')
+                nodes = (ui_ids if category == 'ui' else safety_ids if safety else
+                         unit_ids if category == 'unit' else ('one', 'two'))
                 if category != 'system':
                     event('collection', total=len(nodes),
-                          **({'nodeids': nodes} if category == 'ui' or safety else {}))
+                          **({'nodeids': nodes} if category in ('unit', 'ui') else {}))
                 failed = category == 'unit' and ((fail_unit and not safety) or (fail_safety and safety))
                 if failed:
-                    event('failure', nodeid='one', detail='test assertion failed')
-                    event('failure', nodeid='one', detail='test teardown failed')
+                    event('failure', nodeid=nodes[0], detail='test assertion failed')
+                    event('failure', nodeid=nodes[0], detail='test teardown failed')
                 for node in nodes:
                     event('finished', nodeid=node)
                 return int(failed)

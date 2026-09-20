@@ -110,10 +110,28 @@
 ## Tests, artifacts and VM
 
 - Discover suites and their exact routes with `tools/run-tests --list` and
-  `tools/run-tests --help`. Use `tools/run-unit-tests`, `tools/run-ui-tests` and
-  fixed `tools/run-tests <category>` routes; use plain approved Make targets only
-  as documented in the [approval contract](docs/Approval-Tools.md). Do not replace
-  them with generic pytest, interpreter or Make invocations.
+  `tools/run-tests --help`. Choose coverage from the change and its regression
+  risk first, then use `tools/run-tests` for the selected scope: `ui` for UI-only
+  validation, `unit` for unit-only validation, or the required categories and
+  quoted file/case selectors. Prefer the launcher's existing parallel scheduling
+  wherever supported within that scope. Never expand UI-only or unit-only
+  validation to `host` or `all` merely to obtain parallelism; test-file count
+  alone does not justify unrelated checks or package builds. Direct
+  `tools/run-unit-tests` and `tools/run-ui-tests` remain appropriate for narrow
+  iteration or diagnosis. `tools/run-tests ui` uses the same qualified UI buckets
+  and up to four branches as `host`, running only selected UI tests and mandatory
+  cleanup prerequisites. `tools/run-tests unit` likewise uses up to four balanced
+  module buckets shared with `host`, without adding other coverage. Preserve
+  selectors and explicit UI timeouts; avoid `-x` or positive `--maxfail` for broad
+  unit/UI passes because those diagnostic options retain serial execution. See the
+  [scheduling contract](tests/README.md#all-established-regressions).
+- Use `tools/run-tests host` only when all host coverage is justified, and
+  `tools/run-tests all` only when the entire established regression set is
+  justified. Combine complete categories when each is required, sharing their
+  report and package inputs. Use plain approved Make targets only as documented in
+  the [approval contract](docs/Approval-Tools.md). Do not replace the launcher
+  routes with generic pytest, interpreter or Make invocations, and do not start
+  competing launchers against the aggregate's checkout lock.
 - Quote test patterns and parametrized IDs. New privileged integration checks are
   argument-free `tests/integration/check_[a-z][a-z0-9_]*.py` files with applicable
   cleanup-safety coverage.

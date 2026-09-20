@@ -21,14 +21,17 @@ class Capacity:
         return len(active) < self.slots
 
 
-def test_reviewed_adapter_and_watch_fill_idle_branches_alongside_layout_and_feedback():
+@pytest.mark.parametrize('io_pressure', [0, 25, 100])
+@pytest.mark.parametrize('cleanup', [False, True])
+def test_host_work_fills_four_branches_despite_background_io(io_pressure, cleanup):
     nodes = [f'tests/ui/{name}::test_case' for name in (
         'test_request_layout.py', 'test_parent_feedback.py',
         'test_e2e_accessible_adapter.py', 'test_e2e_watch.py')]
     plan = buckets(nodes)
+    kinds = ['cleanup'] * 4 if cleanup else [bucket.kind for bucket in plan]
     release = threading.Event()
     state = SimpleNamespace(now=0)
-    sample = Sample(20, 2, 32 * GIB, 24 * GIB, 0, 0, 0, False)
+    sample = Sample(20, 2, 32 * GIB, 24 * GIB, 0, 0, io_pressure, False)
     admission = Admission(SimpleNamespace(sample=lambda: sample), lambda: state.now)
     started, finished = [], []
 
@@ -46,12 +49,13 @@ def test_reviewed_adapter_and_watch_fill_idle_branches_alongside_layout_and_feed
 
     def tick():
         state.now += 2
+        assert state.now <= 60, 'I/O pressure stranded idle host branches'
 
-    maximum = run_jobs([Job(bucket.kind, None, list(bucket.paths)) for bucket in plan],
+    maximum = run_jobs([Job(kind, None, [kind]) for kind in kinds],
         control=Control(), admission=admission, begin=begin, run_command=command, tick=tick)
     assert maximum == 4
-    assert started == ['ui-layout', 'ui-feedback', 'ui-accessible', 'ui-watch']
-    assert set(finished) == set(started)
+    assert started == kinds
+    assert sorted(finished) == sorted(started)
 
 
 def test_cold_admission_starts_companions_promptly_and_keeps_startup_memory_reserved():

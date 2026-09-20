@@ -21,7 +21,8 @@ overall wall time. Only selected categories appear; unused branches are omitted.
 For example, `tools/run-tests unit -k 'grant' static shell` runs the selected unit
 tests followed by shell checks in one report. Each category keeps its own
 arguments, and all selections are validated before execution. Arbitrary category
-groups run serially; the established aggregates retain their parallel schedules.
+groups run in order; unit/UI selections and the established aggregates use their
+qualified parallel schedules.
 Help, listing and collection-only commands keep their inspection output and take
 one category at a time. `tools/run-tests --help` prints usage, including how
 the `all` aggregate breaks down into separately runnable pieces. `tools/run-tests --list`
@@ -46,6 +47,53 @@ It uses the complete aggregate's existing four-branch scheduling and stops at
 **Join host branches**, without VM discovery, authorization or execution.
 If unfinished prior work requires VM recovery, `host` refuses and preserves the
 evidence rather than touching the VM.
+
+For routine Codex validation, preserve the scope justified by the change:
+prefer `tools/run-tests ui` for UI-only checks and `tools/run-tests unit` for
+unit-only checks, retaining any required file/case selectors. Use existing
+launcher parallelism wherever supported within that selection. Do not expand
+to `host` merely to accelerate a large suite. Direct unit/UI launchers remain
+appropriate for narrow iteration or diagnosis.
+
+`tools/run-tests ui` collects only its selected UI inventory, completes the
+mandatory isolated cleanup prerequisites, then runs the existing
+[UI buckets](../tools/regression_ui.py) through the same four-branch scheduler
+as `host`. The shared job builder in [regression.py](../tools/regression.py)
+serves both routes; [selected execution](../tools/regression_selection.py) adds
+no unrelated unit coverage, package builds or VM work. Other selected categories
+remain ordered around UI execution.
+
+Workers receive exact collected test IDs and the original validated options,
+preserving partial files, parametrized cases, `-k`, `-m` and scoped ignores.
+Collection and completion must match those IDs. Modules with shared fixtures
+stay together; unreviewed modules run exclusively, and resource admission can
+reduce concurrency. UI execution defaults to the host's 1800-second timeout per
+bucket; an explicit `--timeout` replaces that default. `-x`/`--exitfirst` and
+positive `--maxfail` retain one serial invocation with the original failure
+limit. Help and collection-only requests do not schedule test execution.
+
+UI-only selection adds no implicit marker filter. To select the same non-live
+UI scope as `host`, use `tools/run-tests ui -m 'not live_e2e'`; live spectator
+checks still require their separately active E2E attempt. Direct
+`tools/run-ui-tests` remains the serial narrow-check route. This development
+tooling refactor activates on the next checkout launcher invocation (`none`);
+it changes no installed helper, product service, or saved data.
+
+`tools/run-tests unit` collects only the selected unit inventory and balances
+reviewed modules across up to four branches. The [unit buckets](../tools/regression_unit.py)
+are shared with `host`; each module and its fixtures stay in one worker. Workers
+use private pytest temporary trees, disabled shared caches and process-local
+doubles. Package/native fixtures build into private staging directories.
+New/unreviewed modules and full application-fixture construction run exclusively.
+This selection adds no other categories or cleanup prerequisite inventory.
+
+Unit file/case selectors, `-k`, `-m` and scoped ignores preserve the exact
+collected IDs, and each worker must account for every assigned case once.
+`-x`/`--exitfirst` and positive `--maxfail` keep one serial invocation so the
+failure limit remains selection-wide. `tools/run-unit-tests` remains the direct
+serial route for narrow iteration or diagnosis. Inspection/collection-only
+commands keep their existing behavior. Unit buckets use the same CPU, memory,
+swap and compatibility limits as other host work; I/O pressure is advisory.
 
 `system` and `e2e` remain sequential VM categories. A combined run shares one
 report and reuses host's qualified package. Without `host`, the runner builds one
@@ -122,7 +170,11 @@ This avoids report traffic repeatedly closing the runner's own I/O pressure gate
 An abrupt machine failure can lose the latest routine checkpoint interval.
 
 The aggregate uses at most four host workers, subject to compatibility and CPU,
-memory, I/O and swap admission. Reviewed cleanup modules run in balanced buckets
+memory and swap admission. Host-wide I/O pressure is recorded but does not gate
+ordinary host tests, including cleanup and UI buckets: background disk traffic
+must not strand otherwise available branches. Publishing, artifact builds, VM
+launches and host work overlapping builds retain their I/O admission limits and
+recovery window. Reviewed cleanup modules run in balanced buckets
 with their fixtures kept together. **Join cleanup prerequisites** requires every
 bucket to pass and exit before downstream execution. UI, component and
 fixture-runtime workers validate the shared passing gate; standalone, publishing,
@@ -377,7 +429,7 @@ read-only system diagnostics, and trust boundaries. Stable entry points are:
 ```sh
 tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphical_lease.py -q
 tools/run-tests component 'tests/component/test_*.py' -q
-tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py' -q
+tools/run-tests ui -m 'not live_e2e' -q
 tools/run-tests integration check_graphical_worker
 tools/run-tests integration check_package_notice
 tools/run-tests system --artifacts /tmp/onpc-test-artifacts/first --area authorization

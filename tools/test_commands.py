@@ -13,9 +13,9 @@ import test_activity
 
 
 CATEGORIES = {
-    'unit': 'unit, property, contract and harness regressions; quoted test_*.py patterns',
+    'unit': 'selected unit, property, contract and harness tests in up to four reviewed module buckets',
     'component': 'private-D-Bus pytest; quoted test_*.py patterns',
-    'ui': 'isolated GTK and nested-Shell pytest through run-ui-tests',
+    'ui': 'selected GTK and nested-Shell tests in up to four qualified UI branches; no other host suites',
     'child-node': 'tests/child/**/*.test.mjs or *.test.js',
     'child-gjs': 'tests/child/**/*_test.js',
     'static': 'shell, gjs, or all (default)',
@@ -92,6 +92,29 @@ Aggregate aliases (no suite selectors)
   runs verify backing bytes. Focused system/e2e options remain available.
   Other commands below are focused checks or diagnostic/qualification routes,
   not extra phases of all. Pending E2E variants remain excluded.
+
+UI-only validation (same UI buckets and resource limits as host)
+  tools/run-tests ui --timeout 1800s -m 'not live_e2e'
+  tools/run-tests ui 'tests/ui/test_request*.py' -q
+
+  Runs only selected UI tests and mandatory cleanup prerequisites; no builds.
+  Compatible UI buckets use up to four branches. Unknown modules stay exclusive.
+  File/case selectors, -k, -m and --ignore retain the exact selected inventory.
+  Default execution timeout is 1800s per bucket; explicit --timeout is preserved.
+  -x/--exitfirst or positive --maxfail keeps one serial UI invocation.
+  Category groups stay ordered; parallelism occurs within the UI category.
+  No implicit marker exclusions: select live_e2e only with its active attempt.
+
+Unit-only validation (same unit buckets and resource limits as host)
+  tools/run-tests unit
+  tools/run-tests unit 'tests/unit/test_regression*.py' -q
+
+  Balances selected modules across up to four branches; fixtures stay together.
+  New/unreviewed modules and full application-fixture builds remain exclusive.
+  Preserves exact file/case selectors, -k, -m and scoped ignores.
+  Adds no other suites, package stages, or cleanup prerequisite inventory.
+  -x/--exitfirst or positive --maxfail keeps one serial unit invocation.
+  Direct tools/run-unit-tests remains serial for narrow iteration/diagnosis.
 
 Categories
 {listing}'''

@@ -142,11 +142,7 @@ def host_run(root, category, argv, *, pipe=True):
         env['PYTHONUNBUFFERED'] = '1'
         if pipe:
             env['ONPC_REGRESSION_EVENTS'] = '1'
-        targets = command[command.index('--') + 1:] if '--' in command else []
-        cleanup = category == 'unit' and targets and all(
-            target.partition('::')[0].endswith(('cleanup_safety.py', '/test_graphical_lease.py'))
-            for target in targets)
-        if category == 'ui' or cleanup:
+        if category in ('unit', 'ui'):
             env['ONPC_REGRESSION_INVENTORY'] = '1'
         if category == 'ui':
             import test_retention

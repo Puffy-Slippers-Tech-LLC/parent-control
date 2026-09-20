@@ -110,7 +110,7 @@ def test_parent_discovery_error_opens_prefilled_feedback(
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_removing_logs_after_preparation_failure_preserves_edited_report(
         launch_ui, automation, wait_for_accessible_state, tmp_path, overlay):
-    from dogtail import rawinput
+    from tests.support.keyboard import key_combo, type_text
     ui = automation
     _process, path = launch_request(
         launch_ui, tmp_path, overlay=overlay,
@@ -130,8 +130,8 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
                               "error feedback opens")
     editor, original = wait_for_error_draft(ui, wait_for_accessible_state)
     ui.focus(editor)
-    rawinput.keyCombo("<Control>End")
-    rawinput.typeText("\nMy account of what happened.")
+    key_combo(ui, editor, "<Control>End", state=ui.api.StateType.FOCUSED)
+    type_text(ui, editor, "\nMy account of what happened.")
     wait_for_accessible_state(lambda: "My account of what happened." in ui.content(editor),
                               "edited error draft loaded")
     draft = ui.content(editor)

@@ -19,6 +19,8 @@ from dogtail.hermetic.mutter import MutterInputBackend
 from child_shell_screenshot import capture_screenshot
 from mutter_input import press_key as _press_key
 from tests.support.automation import Automation, AutomationError
+from tests.support.automation_ids import audit_owned_controls
+from tests.support.keyboard import deliver
 
 
 Atspi.set_timeout(2000, 5000)
@@ -269,6 +271,11 @@ def _prepare_indicator_input():
     return button
 
 
+def _press_recipient_key(input_backend, identity, keycode):
+    deliver(UI, identity, Atspi.StateType.FOCUSED,
+            lambda: _press_key(input_backend, keycode))
+
+
 def _one_overlay(expected_launches):
     records = _launch_records()
     windows, cancel = _overlay_surfaces()
@@ -293,6 +300,8 @@ def main():
         input_backend = MutterInputBackend()
         input_backend.connectMonitor()
         _wait(_find_request_button, "the Shell request action")
+        _wait(lambda: audit_owned_controls(UI, "child-screen-time-indicator"),
+              "the complete child indicator ID inventory")
         windows, cancel = _overlay_surfaces()
         if _launch_records() or windows or cancel:
             raise AssertionError("The interaction preview opened an overlay before activation")
@@ -301,7 +310,7 @@ def main():
         if _countdown_animation_setting():
             raise AssertionError("Countdown animation did not default to disabled")
         _prepare_indicator_input()
-        _press_key(input_backend, X_KEYCODE_MENU)
+        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_MENU)
         countdown_item = _wait(
             _find_countdown_animation_item,
             "the secondary-click countdown animation checkbox",
@@ -309,7 +318,7 @@ def main():
         if _state(countdown_item, Atspi.StateType.CHECKED):
             raise AssertionError("Countdown animation checkbox did not default to unchecked")
         UI.focus(COUNTDOWN_ANIMATION_ID)
-        _press_key(input_backend, X_KEYCODE_SPACE)
+        _press_recipient_key(input_backend, COUNTDOWN_ANIMATION_ID, X_KEYCODE_SPACE)
         _wait(
             _countdown_animation_setting,
             "the countdown animation choice to persist",
@@ -317,7 +326,7 @@ def main():
         # The setting action does not close Shell's check-menu.  Close it as
         # the customer recipe requires, then independently prove its absence
         # before routing the normal request action to the indicator.
-        _press_key(input_backend, X_KEYCODE_ESCAPE)
+        _press_recipient_key(input_backend, COUNTDOWN_ANIMATION_ID, X_KEYCODE_ESCAPE)
         _wait(
             lambda: _find_countdown_animation_item() is None,
             "the countdown animation menu to close after Escape",
@@ -329,7 +338,7 @@ def main():
         # launch-state decisions remain covered at their platform-neutral unit
         # boundary; the mapped overlay hides this Shell control from public UI.
         _prepare_indicator_input()
-        _press_key(input_backend, X_KEYCODE_SPACE)
+        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_SPACE)
         _wait(lambda: len(_launch_records()) == 1, "one opening request process")
         _wait(lambda: _one_overlay(1), "one visible child request overlay")
         capture_screenshot(Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]))
@@ -349,7 +358,7 @@ def main():
 
         _wait(_find_request_button, "the reusable Shell request action")
         _prepare_indicator_input()
-        _press_key(input_backend, X_KEYCODE_SPACE)
+        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_SPACE)
         _wait(lambda: _one_overlay(2), "one reopened child request overlay")
         print("interaction stage=overlay-reopened", flush=True)
         records = _launch_records()

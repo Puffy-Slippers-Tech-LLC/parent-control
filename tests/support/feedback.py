@@ -15,9 +15,9 @@ def feedback_editor(ui, wait_for_accessible_state):
 
 
 def type_feedback(ui, value, wait_for_accessible_state):
-    from dogtail import rawinput
+    from tests.support.keyboard import type_text
     ui.focus(EDITOR_ID)
-    rawinput.typeText(value)
+    type_text(ui, EDITOR_ID, value)
     wait_for_accessible_state(
         lambda: ui.content(EDITOR_ID).strip() == value,
         "rich feedback editor receives typed text",

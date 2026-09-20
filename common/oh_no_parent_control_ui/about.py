@@ -14,7 +14,11 @@ gi.require_version("Gsk", "4.0")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gdk, Gio, Graphene, Gsk, Gtk
 
-from .accessibility import describe_control, set_automation_id
+from .accessibility import (
+    add_identified_window_controls,
+    describe_control,
+    set_automation_id,
+)
 
 
 _INSTALLED_DATA_DIR = Path("/usr/share/oh-no-parent-control")
@@ -156,6 +160,9 @@ class AboutDialog(Gtk.Window):
         set_automation_id(self, "about-dialog")
         self.set_default_size(460, 680)
         self.add_css_class("about-dialog")
+        header = Gtk.HeaderBar()
+        add_identified_window_controls(header, "about-window-controls")
+        self.set_titlebar(header)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
                           margin_top=18, margin_bottom=18,

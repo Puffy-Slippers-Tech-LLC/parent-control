@@ -8,6 +8,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, Gtk
 
 from common.oh_no_parent_control_ui.gtk_automation import (
+    add_identified_window_controls,
     set_automation_id as _set_buildable_automation_id,
 )
 

@@ -63,6 +63,14 @@ human-readable and are not selector fallbacks. See the
 [AT-SPI provider](https://gitlab.gnome.org/GNOME/gtk/-/blob/gtk-4-22/gtk/a11y/gtkatspicontext.c),
 and [ATK accessible-ID contract](https://gnome.pages.gitlab.gnome.org/at-spi2-core/atk/method.Object.set_accessible_id.html).
 
+GTK creates the minimize, maximize and close descendants of `GtkWindowControls`
+internally, so application code cannot identify those implementation nodes.
+Owned header bars disable implicit title buttons and add one non-extensible
+`GtkWindowControls` owner with a stable `*-window-controls` ID. Inventory checks
+permit anonymous toolkit buttons only below that identified owner; application
+controls elsewhere still require their own IDs, and automation does not select
+the internal buttons by translated names, roles, order or geometry.
+
 ID-addressable GTK menu buttons also publish a `menu.popup` action through
 their public widget action group. GTK's generic menu-button AT-SPI interface
 does not expose its activate signal as a click action and may list inherited

@@ -23,6 +23,7 @@ from common.oh_no_parent_control_ui.about import (
 )
 from common.oh_no_parent_control_ui.accessibility import (
     add_dialog_button,
+    add_identified_window_controls,
     describe_control,
     set_automation_id,
 )
@@ -343,7 +344,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # Let the title shift when the trailing actions need more room, so the
         # feedback button does not force it into a narrow symmetric allocation.
         header.set_centering_policy(Adw.CenteringPolicy.LOOSE)
-        header.set_show_end_title_buttons(False)
+        add_identified_window_controls(header, "parent-window-controls")
         # Use a title-bar-specific raster at its native display size. Shrinking
         # the detailed 512 px launcher artwork here makes its fine neon edges
         # visibly soft, while the pre-rendered asset stays crisp at 48 px.
@@ -418,7 +419,6 @@ class ParentWindow(Adw.ApplicationWindow):
         feedback_button.connect("clicked", lambda _button: self._show_feedback())
         header_actions.append(feedback_button)
         header_actions.append(self._menu_button)
-        header_actions.append(Gtk.WindowControls(side=Gtk.PackType.END))
         header.pack_end(header_actions)
         toolbar.add_top_bar(header)
         content = Gtk.Box(
@@ -1672,6 +1672,9 @@ class ParentWindow(Adw.ApplicationWindow):
             transient_for=self, modal=True, title="Revoke one-time grant?",
         )
         set_automation_id(dialog, "parent-revoke-dialog")
+        header = Gtk.HeaderBar()
+        add_identified_window_controls(header, "parent-revoke-window-controls")
+        dialog.set_titlebar(header)
         warning = Gtk.Label(
             label=("This will revoke one-time screen time and access to soft blocked apps "
                    f"granted to {child_name}, close their running blocked apps, and "
@@ -1941,6 +1944,9 @@ class ParentWindow(Adw.ApplicationWindow):
     def _edit_match_rule(self, _button, row):
         dialog = Gtk.Dialog(transient_for=self, modal=True, title="Edit Match Rule")
         set_automation_id(dialog, "parent-match-rule-dialog")
+        header = Gtk.HeaderBar()
+        add_identified_window_controls(header, "parent-match-rule-window-controls")
+        dialog.set_titlebar(header)
         add_dialog_button(
             dialog, "Cancel", Gtk.ResponseType.CANCEL, "parent-match-rule-cancel",
         )
@@ -2227,6 +2233,12 @@ class Application(Adw.Application):
                 default_height=320, css_classes=["management-denied"])
             set_automation_id(window, "parent-access-denied-window")
             self._ensure_stylesheet(window)
+            toolbar = Adw.ToolbarView()
+            header = Adw.HeaderBar()
+            add_identified_window_controls(
+                header, "parent-access-denied-window-controls",
+            )
+            toolbar.add_top_bar(header)
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=32,
                 margin_top=32, margin_bottom=24, margin_start=24, margin_end=32)
             message = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24,
@@ -2267,7 +2279,8 @@ class Application(Adw.Application):
             )
             close.connect("clicked", lambda *_: self.quit())
             content.append(close)
-            window.set_content(content)
+            toolbar.set_content(content)
+            window.set_content(toolbar)
             window.set_default_widget(close)
         window.present()
 

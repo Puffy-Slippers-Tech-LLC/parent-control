@@ -13,6 +13,8 @@ gi.require_version("Atspi", "2.0")
 gi.require_version("Gio", "2.0")
 from gi.repository import Atspi, Gio, GLib
 
+from tests.support.automation import Automation, AutomationError
+
 
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
 SHELL_NAME = "org.gnome.Shell"
@@ -32,6 +34,8 @@ EVENTS = (
 )
 LAST_EXTENSION_INFO: object = "not queried"
 LAST_ACCESSIBLE_NAME = "not found"
+REQUEST_BUTTON_ID = "child-request-button"
+UI = Automation(Atspi, lambda: Atspi.get_desktop(0), query_errors=(GLib.Error,))
 
 
 def is_expected_accessible_name(name):
@@ -66,74 +70,43 @@ def _extension_is_active(connection: Gio.DBusConnection) -> bool:
 
 def _find_indicator():
     global LAST_ACCESSIBLE_NAME
-    desktop = Atspi.get_desktop(0)
-    for application_index in range(desktop.get_child_count()):
-        application = desktop.get_child_at_index(application_index)
-        if "gnome-shell" not in (application.get_name() or "").lower():
-            continue
-        queue = [application]
-        indicator_visible = False
-        request_named = False
-        while queue:
-            node = queue.pop(0)
-            if node is None:
-                continue
-            name = node.get_name()
-            states = node.get_state_set()
-            # Shell's Clutter bridge exposes VISIBLE for panel actors in the
-            # devkit compositor, while SHOWING remains false for the whole
-            # offscreen stage. VISIBLE is therefore the meaningful semantic
-            # state for this isolated Shell surface.
-            visible = states.contains(Atspi.StateType.VISIBLE)
-            if name == "Screen Time Remaining" and visible:
-                indicator_visible = True
-            if is_expected_accessible_name(name):
-                LAST_ACCESSIBLE_NAME = name
-                request_named = True
-            if indicator_visible and request_named:
-                return node
-            try:
-                queue.extend(
-                    node.get_child_at_index(index)
-                    for index in range(max(0, node.get_child_count()))
-                )
-            except (AttributeError, GLib.Error):
-                continue
-    return None
+    try:
+        node = UI.find(REQUEST_BUTTON_ID)
+        if node is None:
+            return None
+        # Shell's Clutter bridge exposes VISIBLE for panel actors in the
+        # devkit compositor, while SHOWING remains false for the whole
+        # offscreen stage. Resolve the product control by ID first; its name is
+        # only a post-lookup meaning/result check.
+        if not node.get_state_set().contains(Atspi.StateType.VISIBLE):
+            return None
+        name = node.get_name() or ""
+        if not is_expected_accessible_name(name):
+            return None
+        LAST_ACCESSIBLE_NAME = name
+        return node
+    except (AutomationError, AttributeError, GLib.Error):
+        return None
 
 
 def _accessibility_diagnostics() -> dict[str, object]:
-    application_count = 0
     relevant_nodes = []
-    desktop = Atspi.get_desktop(0)
-    queue = [
-        desktop.get_child_at_index(index)
-        for index in range(desktop.get_child_count())
-    ]
-    application_count = desktop.get_child_count()
-    while queue:
-        node = queue.pop(0)
-        if node is None:
-            continue
+    for identity in (
+        "child-screen-time-indicator", "child-remaining-time", REQUEST_BUTTON_ID,
+        "child-request-tooltip", "child-countdown-menu",
+        "child-countdown-animation-toggle",
+    ):
         try:
-            name = node.get_name()
-            if (name and name in ("gnome-shell", "Screen Time Remaining")) \
-                    or (name and name.startswith("Request time,")):
-                states = node.get_state_set()
-                relevant_nodes.append({
-                    "name": name,
-                    "showing": states.contains(Atspi.StateType.SHOWING),
-                    "visible": states.contains(Atspi.StateType.VISIBLE),
-                })
-            queue.extend(
-                node.get_child_at_index(index)
-                for index in range(max(0, node.get_child_count()))
-            )
-        except (AttributeError, GLib.Error):
+            matches = UI.find_all(identity)
+            relevant_nodes.extend({
+                "id": identity,
+                "showing": node.get_state_set().contains(Atspi.StateType.SHOWING),
+                "visible": node.get_state_set().contains(Atspi.StateType.VISIBLE),
+            } for node in matches)
+        except (AutomationError, AttributeError, GLib.Error):
             continue
     return {
-        "application_count": application_count,
-        "relevant_nodes": relevant_nodes,
+        "identified_nodes": relevant_nodes,
     }
 
 

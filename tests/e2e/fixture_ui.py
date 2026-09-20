@@ -20,7 +20,12 @@ class FixtureUI:
         require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close'),
                 'ui:fixture-control')
         surface = self.ui.id_target(self.scope)
-        return self.ui.id_target(self.scope + '-' + control, root=surface)
+        return self.ui.id_target(self.target_id(control), root=surface)
+
+    def target_id(self, control):
+        require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close'),
+                'ui:fixture-control')
+        return self.scope + '-' + control
 
     def text(self, control):
         node = self.target(control)

@@ -386,4 +386,5 @@ def test_station_worker_uses_one_wrong_route_then_one_passwordless_route():
     keys = [event[1] for event in result['events'] if event[0] == 'key']
     assert keys == ['ret', 'esc', 'ret']
     assert not any(event[0] == 'secret' for event in result['events'])
-    assert result['events'][-1] == ['power', 'off']
+    assert result['events'][-3:] == [
+        ['disable'], ['power', 'off'], ['stage', 'shutdown']]

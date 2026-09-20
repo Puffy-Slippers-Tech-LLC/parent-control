@@ -63,10 +63,9 @@ SESSION_OPERATIONS = frozenset({
     'session-menu-toggle', 'session-menu-power', 'session-menu',
     'switch-user', 'logout', 'logout-confirm',
 })
-# Task 05 still owns these legacy worker-side pointer callers. Keep their
-# inventory for caller regressions, but the public adapter exports no pointer
-# for them and cannot make the callers reachable without qualified Shell IDs.
-SESSION_POINTER_OPERATIONS = frozenset({
+# Session actions remain registered for caller regressions, but cannot become
+# reachable until the external Shell publishes its complete ID contract.
+SESSION_ACTION_OPERATIONS = frozenset({
     'session-menu-toggle', 'session-menu-power', 'switch-user', 'logout', 'logout-confirm',
 })
 OPERATIONS |= SESSION_OPERATIONS

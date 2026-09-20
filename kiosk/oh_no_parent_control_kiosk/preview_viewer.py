@@ -21,7 +21,11 @@ gi.require_version("Gst", "1.0")
 gi.require_version("GLibUnix", "2.0")
 from gi.repository import Gdk, Gio, GLib, GLibUnix, Gst, Gtk
 
-from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
+from common.oh_no_parent_control_ui.accessibility import (
+    add_identified_window_controls,
+    describe_control,
+    set_automation_id,
+)
 from .preview_screen import SCREEN, Screen
 
 LOG = get_logger("preview")
@@ -207,6 +211,7 @@ class Viewer(Gtk.Application):
             self.window = Gtk.ApplicationWindow(application=self, title="Screen Preview")
             set_automation_id(self.window, "preview-viewer-window")
             header = Gtk.HeaderBar()
+            add_identified_window_controls(header, "preview-viewer-window-controls")
             header.set_title_widget(Gtk.Label(label=(
                 f"{self.screen.width} × {self.screen.height} · {self.screen.percent}% display scale")))
             self.pixel_view = Gtk.ToggleButton(label="100% pixels")

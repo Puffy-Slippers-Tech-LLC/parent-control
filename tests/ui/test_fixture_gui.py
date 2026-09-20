@@ -28,7 +28,7 @@ def test_payload_gui_preserves_independent_activity(hermetic_ui_session, gui_pay
     import gi
     gi.require_version('Atspi', '2.0')
     from gi.repository import Atspi, GLib
-    from dogtail import rawinput
+    from tests.support.keyboard import key_combo, type_text
     ui = AccessibleUI(Atspi, timeout=15, query_errors=(GLib.Error,),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     protected = [Path.home() / '.local/share/flatpak', Path('/var/lib/flatpak')]
@@ -64,11 +64,9 @@ def test_payload_gui_preserves_independent_activity(hermetic_ui_session, gui_pay
                                 ui, view.scope, root=ui.id_target(view.scope)),
                             'complete fixture ID inventory')
                     view.focus_draft()
-                    # Recipient is reacquired by public ID immediately before input.
-                    assert ui.has_state(view.target('draft'), Atspi.StateType.FOCUSED)
-                    rawinput.keyCombo('<Control>a')
-                    assert ui.has_state(view.target('draft'), Atspi.StateType.FOCUSED)
-                    rawinput.typeText('ONPC ' + instance)
+                    key_combo(ui, view.target_id('draft'), '<Control>a',
+                              state=Atspi.StateType.FOCUSED)
+                    type_text(ui, view.target_id('draft'), 'ONPC ' + instance)
                     ui.wait(lambda: view.text('draft') == 'ONPC ' + instance, 'fixture-typed')
                     view.submit()
                     view.move()

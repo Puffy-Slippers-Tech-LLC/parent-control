@@ -123,7 +123,7 @@ def test_collection_progress_disables_send_but_allows_editing(
 def test_feedback_submission_outcomes(
         launch_ui, automation, wait_for_accessible_state,
         collect_application_logs, status):
-    from dogtail import rawinput
+    from tests.support.keyboard import key_combo, type_text
     ui = automation
     editor, log_path = open_feedback(
         launch_ui, ui, wait_for_accessible_state, status=status,
@@ -139,12 +139,12 @@ def test_feedback_submission_outcomes(
         # editor with normal keyboard navigation and confirm the recipient
         # by ID before sending any text to the native entry.
         ui.focus(editor)
-        rawinput.keyCombo("<Control>Tab")
+        key_combo(ui, editor, "<Control>Tab", state=ui.api.StateType.FOCUSED)
         wait_for_accessible_state(
             lambda: ui.state("feedback-reply-email", ui.api.StateType.FOCUSED),
             "reply email receives keyboard focus",
         )
-        rawinput.typeText("feedback@example.com")
+        type_text(ui, "feedback-reply-email", "feedback@example.com")
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "feedback send is ready")
     ui.activate("feedback-send")

@@ -105,11 +105,20 @@ class ErrorHandler:
             LOG.warning("errors.002", component=self.component, error_type=error_code(error))
             self._dialog = None
             from gi.repository import Gtk
-            from .accessibility import add_dialog_button, set_automation_id
+            from .accessibility import (
+                add_dialog_button,
+                add_identified_window_controls,
+                set_automation_id,
+            )
             fallback = Gtk.Dialog(
                 title="Error report unavailable", transient_for=self.parent, modal=True,
             )
             set_automation_id(fallback, "error-report-unavailable-dialog")
+            header = Gtk.HeaderBar()
+            add_identified_window_controls(
+                header, "error-report-unavailable-window-controls",
+            )
+            fallback.set_titlebar(header)
             message = Gtk.Label(
                 label="The feedback dialog could not be opened. Please try again later.",
                 wrap=True, xalign=0,
@@ -135,7 +144,7 @@ class ErrorHandler:
 def show_startup_error(application, component, error):
     """Show a reporting-only surface when management/request startup fails."""
     from gi.repository import Adw, Gtk
-    from .accessibility import set_automation_id
+    from .accessibility import add_identified_window_controls, set_automation_id
     existing = getattr(application, "_startup_error_window", None)
     if existing is not None:
         existing.present()
@@ -145,10 +154,15 @@ def show_startup_error(application, component, error):
     window = Adw.ApplicationWindow(application=application, title=GENERIC_TITLE,
                                    default_width=560, default_height=180)
     set_automation_id(window, "startup-error-window")
+    toolbar = Adw.ToolbarView()
+    header = Adw.HeaderBar()
+    add_identified_window_controls(header, "startup-error-window-controls")
+    toolbar.add_top_bar(header)
     message = Gtk.Label(label=GENERIC_DETAIL, wrap=True,
                         margin_start=24, margin_end=24)
     set_automation_id(message, "startup-error-message")
-    window.set_content(message)
+    toolbar.set_content(message)
+    window.set_content(toolbar)
     window.present()
     application._startup_error_window = window
     window._errors = ErrorHandler(window, component)

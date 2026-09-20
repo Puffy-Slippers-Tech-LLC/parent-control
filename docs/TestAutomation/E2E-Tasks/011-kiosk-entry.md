@@ -15,15 +15,29 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **REQUEST01, REQUEST03**. First scheduled consumer: [E2E-017, case 57](../E2E-Scenario-Recipes.md#e2e-017).
 Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form) and only the selected consumer's recipe.
 
-Use the existing qualified source interfaces and guarded attempt envelope; no new capability prerequisite.
+Use the existing repository-owned source interfaces and guarded attempt
+envelope. Their host qualification does not qualify the external GDM entry path
+or the installed station surface.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
-Blocker: the guarded kiosk GUI visibly reaches the request form, but its public
-label observer receives only the desktop root and times out before reading any
-control; resume when the station session exposes its existing automation labels
-to the GUI observer. Do not replace this with coordinates, screenshots or app
-internals.
+Blockers, in required order:
+
+1. GDM lacks qualified provider-owned IDs for its application/greeter surface,
+   account list, station account, selected recipient and session controls. The
+   migrated adapter refuses before traversal or input. Resume this entry route
+   only after those actual IDs are registered and its installed ambiguity,
+   wrong-surface and missing-ID checks pass.
+2. After GDM entry is qualified, the guarded kiosk GUI must expose its existing
+   repository-owned `kiosk-*` IDs on the installed station accessibility bus.
+   The earlier guarded attempt visibly reached the form, but its observer
+   received only the desktop root and timed out before any control. Resume the
+   form qualification when the installed observer can resolve and read those
+   IDs.
+
+Do not replace either gate with coordinates, screenshots, labels, roles, tree
+position or application internals. Host adapter/UI results establish the owned
+ID implementation and safe refusal behavior only.
 
 ## Implementation
 

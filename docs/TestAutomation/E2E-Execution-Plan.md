@@ -15,7 +15,8 @@ completion; the [queue](E2E-Task-Queue.md) is its canonical checklist.
 - [x] **235 — E2E-042: command-help (case 193), historical delivery**.
   Prerequisites: 185c — INFO02.
   Acceptance at completion: case 193 passed its installed journey, collection
-  and cleanup. Its current scenario status is pending after the provider-ID audit.
+  and cleanup. Its current scenario status is pending under the provider-ID
+  requirements.
 
 - [x] **003 — Open session controls and switch or sign out (DESK02, DESK03, DESK04)**.
   Prerequisites: Baseline.
@@ -24,6 +25,9 @@ completion; the [queue](E2E-Task-Queue.md) is its canonical checklist.
   First scheduled consumer E2E-017 case 57 remains pending.
 
 Next task: **011 — [Enter and read the request station](E2E-Tasks/011-kiosk-entry.md)**.
+It is pending first on the exact GDM provider-ID mapping and then on installed
+station exposure of the repository-owned request-form IDs; its brief records
+both return conditions. Host adapter/UI results qualify neither gate.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale

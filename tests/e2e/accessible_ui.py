@@ -770,7 +770,9 @@ class AccessibleUI:
             current = self.find_id(identity)
             require(current is not None and current == node, 'ui:wrong-action-owner')
             return current
-        return node  # External and legacy callers retain their task 03–05 obligations.
+        # External targets are validated by their registered
+        # provider-surface paths.
+        return node
 
     def reveal(self, name, roles, *, root):
         raise UiError('ui:legacy-selector-refused')
@@ -1347,7 +1349,7 @@ class AccessibleUI:
                     'ui:session-menu')
 
     def choose_session_action(self, action):
-        """Observe one exact ID-scoped action; task 05 owns legacy input."""
+        """Observe one exact ID-scoped action; legacy input routes refuse."""
         require(action in SESSION_ACTION_NAMES, 'ui:session-action-binding')
         logical = {'switch-user': 'switch-user', 'logout': 'log-out'}[action]
         target = self.find_provider_control('gnome-shell', 'session-menu', logical)

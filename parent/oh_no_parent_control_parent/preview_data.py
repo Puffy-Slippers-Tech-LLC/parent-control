@@ -94,6 +94,9 @@ class PreviewBrokerClient:
     def get_preferences(self, uid):
         return copy.deepcopy(self._preferences[uid])
 
+    def get_policy_warnings(self, _uid):
+        return []
+
     def list_apps(self, _uid):
         return copy.deepcopy(PREVIEW_APPS)
 
@@ -117,5 +120,3 @@ class PreviewBrokerClient:
 
     def revoke_one_time_grant(self, _uid):
         return None
-
-

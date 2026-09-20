@@ -31,6 +31,10 @@
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="out"/>
     </method>
+    <method name="GetPolicyWarnings">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="affected_apps" type="as" direction="out"/>
+    </method>
     <method name="ListApplications">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="applications" type="a(ssssasas)" direction="out"/>

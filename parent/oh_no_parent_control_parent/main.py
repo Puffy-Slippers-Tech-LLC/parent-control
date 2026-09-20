@@ -296,6 +296,11 @@ class ParentWindow(Adw.ApplicationWindow):
         self._users = []
         self._users_loaded_once = False
         self._users_loading = False
+        self._user_discovery_error_reported = False
+        self._policy_warnings_loading = False
+        self._policy_warnings_closed = False
+        self._policy_warning_query_failed = False
+        self._reported_policy_warnings = {}
         self._preferences = None
         self._rows = []
         self._loading = False
@@ -420,6 +425,13 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["preferences-page"],
         )
         toolbar.set_content(content)
+        self._policy_warning = Gtk.Label(
+            wrap=True, xalign=0, visible=False,
+            margin_start=18, margin_end=18, margin_top=8, margin_bottom=8,
+            css_classes=["warning"],
+        )
+        set_automation_id(self._policy_warning, "parent-policy-warning")
+        toolbar.add_top_bar(self._policy_warning)
         self._toasts = Adw.ToastOverlay(child=toolbar)
         self.set_content(self._toasts)
 
@@ -1274,6 +1286,13 @@ class ParentWindow(Adw.ApplicationWindow):
     def _users_failed(self, error):
         """Fail closed before exposing a parent-management surface."""
         self._users_loading = False
+        if self._users_loaded_once and not management_access_denied(error):
+            # Keep an already-authorized window usable during a transient
+            # discovery outage. Each operation still authorizes at the broker.
+            if not self._user_discovery_error_reported:
+                self._user_discovery_error_reported = True
+                self._show_error(error, "Child accounts could not be refreshed. Retrying automatically.")
+            return
         LOG.warning("parent.006", error_type=error_code(error))
         self.get_content().set_sensitive(False)
         self._show_error(error, "The Parent App could not load. Please try again later.",
@@ -1282,6 +1301,7 @@ class ParentWindow(Adw.ApplicationWindow):
     def _users_loaded(self, users):
         loaded = [parse_listed_user(user) for user in users]
         self._users_loading = False
+        self._user_discovery_error_reported = False
         if self._users_loaded_once and loaded == self._users:
             return
         previous_uid = self._selected_uid()
@@ -1318,6 +1338,8 @@ class ParentWindow(Adw.ApplicationWindow):
         uid = self._selected_uid()
         if uid is None:
             return
+        self._policy_warning.set_visible(False)
+        self._load_policy_warnings()
         selected = self._account.get_selected()
         child_name = self._users[selected][1].split(maxsplit=1)[0]
         self._revoke_description.set_label(
@@ -1540,13 +1562,66 @@ class ParentWindow(Adw.ApplicationWindow):
     def _refresh_time_status(self):
         if self._selected_uid() is not None:
             self._load_time_status()
+            self._load_policy_warnings()
         return GLib.SOURCE_CONTINUE
+
+    def _load_policy_warnings(self):
+        uid = self._selected_uid()
+        if uid is None or self._policy_warnings_loading or self._policy_warnings_closed:
+            return
+        self._policy_warnings_loading = True
+        self._run(
+            lambda: self._client.get_policy_warnings(uid),
+            lambda affected: self._policy_warnings_loaded(uid, affected),
+            lambda error: self._policy_warnings_failed(uid, error),
+        )
+
+    def _policy_warnings_loaded(self, uid, affected):
+        self._policy_warnings_loading = False
+        if self._policy_warnings_closed:
+            return
+        if uid != self._selected_uid():
+            self._load_policy_warnings()
+            return
+        self._policy_warning_query_failed = False
+        affected = tuple(sorted(set(affected)))
+        previous = self._reported_policy_warnings.get(uid, ())
+        self._reported_policy_warnings[uid] = affected
+        self._policy_warning.set_visible(bool(affected))
+        if not affected:
+            return
+        names = {app["id"]: app["name"] for app in self._app_catalog or ()}
+        apps = ", ".join(names.get(app_id, app_id or "another application") for app_id in affected)
+        detail = (
+            "Some app limits could not be applied. Affected apps or updated versions "
+            "may be unrestricted. Other controls remain available, and saved rules "
+            "will be retried automatically."
+        )
+        # App identities are displayed locally, never included in automatic
+        # diagnostic events or the error-report draft.
+        self._policy_warning.set_label(f"{detail}\nAffected apps: {apps}")
+        if affected != previous:
+            self._show_error(RuntimeError("application rules unavailable"), detail)
+
+    def _policy_warnings_failed(self, uid, error):
+        self._policy_warnings_loading = False
+        if self._policy_warnings_closed:
+            return
+        if uid != self._selected_uid():
+            self._load_policy_warnings()
+            return
+        self._policy_warning.set_label("App limit status is unavailable. Retrying automatically.")
+        self._policy_warning.set_visible(True)
+        if not self._policy_warning_query_failed:
+            self._policy_warning_query_failed = True
+            self._show_error(error, "App limit status could not be checked. Other controls remain available.")
 
     def _refresh_users(self):
         self._load_users()
         return GLib.SOURCE_CONTINUE
 
     def _close_requested(self, *_args):
+        self._policy_warnings_closed = True
         self._cancel_time_status_retry()
         self._cancel_custom_daily_limit_save()
         if self._time_status_refresh_id:
@@ -1990,6 +2065,7 @@ class ParentWindow(Adw.ApplicationWindow):
             # every row animate, which is perceived as a flash.
             self._preferences = preferences
         LOG.info("parent.017")
+        self._load_policy_warnings()
         if refresh_time_status:
             self._load_time_status()
         self._start_next_save()

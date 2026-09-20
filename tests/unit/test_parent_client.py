@@ -35,6 +35,8 @@ class FakeConnection:
             return GLib.Variant("(s)", (
                 '{"parent_control_enabled": true, "daily_time_limit_minutes": 30}',
             ))
+        if name == BUS_NAME and method == "GetPolicyWarnings":
+            return GLib.Variant("(as)", (["game.desktop"],))
         if name == BUS_NAME and method == "GetTimeStatus":
             if self.error is not None:
                 raise self.error
@@ -43,6 +45,10 @@ class FakeConnection:
 
 
 class ParentClientTests(unittest.TestCase):
+    def test_policy_warnings_use_the_authorized_target_method(self):
+        connection = FakeConnection()
+        self.assertEqual(BrokerClient(connection).get_policy_warnings(1001), ["game.desktop"])
+        self.assertEqual(connection.calls[0][3:6], ("GetPolicyWarnings", (1001,), "(as)"))
     def test_management_denial_requires_exact_broker_error_identity(self):
         for name in (f"{BUS_NAME}.Error.AccessDenied", f"{BUS_NAME}.Error.Failed",
                      "org.freedesktop.DBus.Error.ServiceUnknown",

@@ -233,6 +233,23 @@ class AccountsService:
         """Render the candidate aggregate without changing account or rule state."""
         self._sync_execution_policy(candidate=(target_uid, value), validate_only=True)
 
+    def get_policy_warnings(self, target_uid: int) -> tuple[str, ...]:
+        """Map omitted rules to saved app IDs; callers must authorize the target."""
+        with self._execution_policy_lock:
+            if self._execution_policy is None:
+                return ()
+            issues = [issue for issue in self._execution_policy.rule_issues
+                      if issue[0] == target_uid]
+            if not issues:
+                return ()
+            apps = self._preferences.load(target_uid)["apps"] if self._preferences else {}
+            affected = set()
+            for _uid, kind, rule in issues:
+                matches = {app_id for app_id, entry in apps.items()
+                           if rule in entry["patterns" if kind == "pattern" else "targets"]}
+                affected.update(matches or {""})
+            return tuple(sorted(affected))
+
     def _sync_execution_policy(self, *, candidate=None, validate_only=False) -> None:
         if self._execution_policy is None:
             return
@@ -264,7 +281,7 @@ class AccountsService:
                 pattern_account_count=len(patterns),
             )
             if validate_only:
-                self._execution_policy.render(filters, patterns)
+                self._execution_policy.validate(filters, patterns)
             elif patterns:
                 self._execution_policy.reconcile(filters, patterns)
             else:

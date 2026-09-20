@@ -27,10 +27,18 @@ AccountsService filters into fapolicyd. It then reasserts the packaged extension
 activation for every
 preference-enabled eligible child and attempts to clear stale live-session
 runtime caps. Only after those steps does it register the D-Bus object. An
-execution-policy reconciliation or extension-activation failure prevents the
+nonrecoverable execution-policy reconciliation or extension-activation failure prevents the
 service from becoming ready. Clearing stale session caps is best-effort:
 unavailable sessions may be skipped, and an exception at this stage is logged
 without preventing registration.
+
+Local executable or wildcard-directory rendering failures use the
+[application-rule isolation contract](Applications.md#live-filter-and-execution-rules):
+the broker installs the remaining rules, retains saved choices for retry, and
+publishes affected app IDs for the Parent warning/error dialog. Registration
+therefore does not claim that every saved app rule is enforced. Storage and
+backend activation failures remain fatal; they are not treated as isolated app
+errors.
 
 Startup uses live AccountsService filters as its enforcement input and saved
 preferences for patterns and extension enablement. It does not restore every

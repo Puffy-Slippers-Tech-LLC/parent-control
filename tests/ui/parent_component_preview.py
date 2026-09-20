@@ -55,6 +55,11 @@ class ScriptedParentBroker:
                 raise TimeoutError("loading fixture was not released")
             time.sleep(0.02)
 
+    def get_policy_warnings(self, _uid):
+        if self._mode == "policy-warning":
+            return ["thunderbird_thunderbird.desktop"]
+        return []
+
     def get_preferences(self, uid):
         self._record("get_preferences", uid=uid)
         if self._mode == "loading":

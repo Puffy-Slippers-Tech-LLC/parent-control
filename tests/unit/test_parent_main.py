@@ -82,6 +82,52 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def test_policy_warning_is_visible_without_repeated_dialogs_and_recovers(self):
+        window = mock.Mock()
+        window._selected_uid.return_value = 1001
+        window._policy_warnings_closed = False
+        window._reported_policy_warnings = {}
+        window._app_catalog = [{"id": "lunar.desktop", "name": "Lunar Client"}]
+        for _ in range(3):
+            ParentWindow._policy_warnings_loaded(window, 1001, ["lunar.desktop"])
+        window._show_error.assert_called_once()
+        self.assertIn("Lunar Client", window._policy_warning.set_label.call_args.args[0])
+        self.assertNotIn("Lunar Client", window._show_error.call_args.args[1])
+        window._policy_warning.set_visible.assert_called_with(True)
+        window._set_apps_sensitive.assert_not_called()
+        ParentWindow._policy_warnings_loaded(window, 1001, [])
+        window._policy_warning.set_visible.assert_called_with(False)
+        ParentWindow._policy_warnings_loaded(window, 1001, ["lunar.desktop"])
+        self.assertEqual(window._show_error.call_count, 2)
+
+    def test_stale_and_closed_warning_results_do_not_modify_current_surface(self):
+        window = mock.Mock()
+        window._policy_warnings_closed = False
+        window._selected_uid.return_value = 1002
+        ParentWindow._policy_warnings_loaded(window, 1001, ["lunar.desktop"])
+        window._load_policy_warnings.assert_called_once()
+        window._policy_warning.set_visible.assert_not_called()
+        window._show_error.assert_not_called()
+        window._policy_warnings_closed = True
+        ParentWindow._policy_warnings_failed(window, 1002, RuntimeError("private"))
+        window._show_error.assert_not_called()
+
+    def test_warning_query_errors_and_discovery_outages_do_not_close_loaded_window(self):
+        window = mock.Mock()
+        window._policy_warnings_closed = False
+        window._policy_warning_query_failed = False
+        window._selected_uid.return_value = 1001
+        window._users_loaded_once = True
+        window._user_discovery_error_reported = False
+        error = RuntimeError("private")
+        for _ in range(3):
+            ParentWindow._policy_warnings_failed(window, 1001, error)
+            ParentWindow._users_failed(window, error)
+        self.assertEqual(window._show_error.call_count, 2)
+        self.assertFalse(window._users_loading)
+        window.get_content.assert_not_called()
+        window.get_application.assert_not_called()
+
     def test_runtime_icon_matches_the_installed_parent_desktop_icon(self):
         root = Path(__file__).resolve().parents[2]
         desktop_entry = (
@@ -802,6 +848,7 @@ class ParentWindowTests(unittest.TestCase):
         window._selected_uid = lambda: 1001
         window._preferences_loaded = lambda _preferences: self.fail("unexpected reload")
         window._start_next_save = lambda: None
+        window._load_policy_warnings = mock.Mock()
 
         preferences = {"apps": {"example.desktop": {"state": "conditional"}}}
         ParentWindow._save_succeeded(window, 1001, preferences)

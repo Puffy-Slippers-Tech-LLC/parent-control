@@ -116,6 +116,9 @@ class RecordingAccounts:
     def sync_execution_policy(self):
         self.sync_count += 1
 
+    def get_policy_warnings(self, _uid):
+        return ()
+
 
 class RecordingBroker:
     def __init__(self):

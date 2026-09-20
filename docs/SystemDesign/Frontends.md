@@ -195,6 +195,16 @@ launchers. Save-time target resolution at the broker is independent of this UI
 snapshot. Search combines with independent match/access filters, each allowing
 multiple or no selected categories. Access-rule buttons autosave; the match-rule
 dialog has Save, Cancel and Reset to Default.
+Isolated rule-generation failures leave the Parent window functional. It queries
+the target-authorized `GetPolicyWarnings` method on child selection, after saves,
+and with the 30-second status refresh. A persistent `parent-policy-warning`
+label identifies affected apps and explains that they or updated versions may
+be unrestricted while other controls remain usable. A changed warning set opens
+the ordinary error report once; closing it keeps management open. Saved wildcard
+choices remain unchanged and recover on a successful broker rescan. Local app
+identities never enter the automatic report draft. Transient child-discovery
+refresh errors also keep an already-authorized window open and retry; explicit
+authorization denial and failure before initial authorization remain closed.
 Saved overrides survive a change to allowed at the storage boundary; disappeared
 launchers' saved policies survive later visible-row saves. A failed save rebuilds
 the controls from the last confirmed preferences using the restoration path

@@ -29,6 +29,44 @@ def wait_parent_ready(ui, wait):
          "Parent screen-time controls load")
 
 
+def test_parent_reports_partial_app_limits_and_remains_usable(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="policy-warning", events_path=tmp_path / "policy-events.jsonl")
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                              "the normal error report opens for the omitted rule")
+    ui.activate("feedback-close")
+    wait_for_accessible_state(lambda: ui.absent("feedback-dialog", within="parent-window"),
+                              "closing the report keeps the Parent window open")
+    wait_parent_ready(ui, wait_for_accessible_state)
+    assert "may be unrestricted" in ui.text("parent-policy-warning")
+    assert "Affected apps:" in ui.text("parent-policy-warning")
+    ui.activate("parent-daily-limit-selector")
+    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
+                              "unaffected screen-time settings remain reachable")
+    ui.activate("parent-daily-limit-45")
+    # The menu button's accessible name is the stable description "Daily time
+    # allowance", not its child label. Observe the component's committed value.
+    wait_for_accessible_state(
+        lambda: any(record["event"] == "set_parent_control"
+                    and record["daily_limit_minutes"] == 45
+                    for record in read_events(tmp_path / "policy-events.jsonl")),
+        "the unaffected daily allowance saves",
+    )
+    wait_for_accessible_state(
+        lambda: ui.state("parent-daily-limit-selector", ui.api.StateType.SENSITIVE),
+        "saving completes and controls are usable again",
+    )
+    ui.activate("parent-screen-limit-toggle")
+    wait_for_accessible_state(
+        lambda: not ui.state("parent-screen-limit-toggle", ui.api.StateType.CHECKED)
+                and ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE),
+        "another setting changes and remains usable after its save",
+    )
+    assert ui.absent("feedback-dialog", within="parent-window")
+    assert "may be unrestricted" in ui.text("parent-policy-warning")
+
+
 @pytest.mark.parametrize("launcher", ("parent_preview", "parent_component_preview"))
 def test_parent_preview_publishes_and_loads_management_controls(
         launch_ui, automation, wait_for_accessible_state, launcher):

@@ -10,6 +10,108 @@ from oh_no_parent_control.execution_policy import (
 
 
 class ExecutionPolicyTests(unittest.TestCase):
+    def test_recoverable_pattern_failure_keeps_other_rules_and_retries_saved_pattern(self):
+        for name in ("Other Client.AppImage", "Other,Client.AppImage"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                broken, healthy = root / "broken", root / "healthy"
+                broken.mkdir()
+                healthy.mkdir()
+                unrelated = broken / name
+                unrelated.write_bytes(b"same bytes can also appear under a blocked name")
+                unrelated.chmod(0o755)
+                lunar = broken / "Lunar Client-1.AppImage"
+                lunar.write_bytes(b"lunar")
+                lunar.chmod(0o755)
+                filters = {1001: (str(lunar), "/usr/bin/game"), 1002: ("/usr/bin/other",)}
+                patterns = {1001: (f"{broken}/Lunar Client-*.AppImage",
+                                   f"{healthy}/Game-*.AppImage"),
+                            1002: (f"{healthy}/Other-*.AppImage",)}
+                policy = FapolicydPolicy(root / "policy.rules", tolerate_rule_errors=True)
+                with mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
+                                return_value=SimpleNamespace(returncode=0)):
+                    with self.assertLogs("onpc.execution-policy", level="ERROR") as logs:
+                        policy.reconcile(filters, patterns)
+                    rules = policy._rules_path.read_text()
+                    self.assertNotIn(f"dir={broken}/", rules)
+                    self.assertIn(f"deny_syslog perm=execute uid=1001 : dir={healthy}/", rules)
+                    self.assertIn(f"deny_syslog perm=execute uid=1002 : dir={healthy}/", rules)
+                    self.assertIn("deny_syslog perm=execute uid=1001 : sha256hash=", rules)
+                    self.assertIn("uid=1001 : path=/usr/bin/game", rules)
+                    self.assertIn("uid=1002 : path=/usr/bin/other", rules)
+                    self.assertNotIn("allow perm=execute uid=1001 : sha256hash=", rules)
+                    self.assertEqual(policy.rule_issues, (
+                        (1001, "pattern", patterns[1001][0]),))
+                    self.assertNotIn(str(root), "\n".join(logs.output))
+                    self.assertNotIn("Lunar", "\n".join(logs.output))
+                    # Resolving the folder problem restores the SAME saved glob.
+                    unrelated.rename(broken / "Other.AppImage")
+                    policy.reconcile(filters, patterns)
+                    self.assertEqual(policy.rule_issues, ())
+                    self.assertIn(f"deny_syslog perm=execute uid=1001 : dir={broken}/",
+                                  policy._rules_path.read_text())
+
+    def test_lunar_pattern_covers_new_versions_even_after_original_disappears(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            old = directory / "Lunar Client-1.AppImage"
+            future = directory / "Lunar Client-2.AppImage"
+            allowed = directory / "Other.AppImage"
+            for path in (future, allowed):
+                path.write_bytes(b"identical bytes")
+                path.chmod(0o755)
+            issues = []
+            rules = FapolicydPolicy.render(
+                {1001: (str(old),)}, {1001: (f"{directory}/Lunar Client-*.AppImage",)},
+                issues=issues,
+            )
+            self.assertEqual(issues, [])
+            self.assertIn(f"deny_syslog perm=execute uid=1001 : dir={directory}/", rules)
+            self.assertIn(f"allow perm=execute uid=1001 : path={allowed}", rules)
+            self.assertNotIn(str(future), rules)
+            self.assertNotIn("sha256hash=", rules)
+
+    def test_local_file_error_does_not_remove_other_exact_denials(self):
+        issues = []
+        with mock.patch.object(FapolicydPolicy, "_digest", side_effect=PermissionError("private")):
+            rules = FapolicydPolicy.render(
+                {1001: ("/apps/Unreadable Client.AppImage", "/usr/bin/game")}, issues=issues)
+        self.assertIn("uid=1001 : path=/usr/bin/game", rules)
+        self.assertEqual(issues, [(1001, "target", "/apps/Unreadable Client.AppImage")])
+
+    def test_invalid_identity_and_reload_failures_are_not_ignored(self):
+        with self.assertRaises(ExecutionPolicyError):
+            FapolicydPolicy.render({0: ("/usr/bin/game",)}, issues=[])
+        with tempfile.TemporaryDirectory() as temporary:
+            policy = FapolicydPolicy(Path(temporary) / "policy.rules", tolerate_rule_errors=True)
+            with mock.patch.object(policy, "_reload", side_effect=ExecutionPolicyError("reload")):
+                with self.assertRaisesRegex(ExecutionPolicyError, "rollback"):
+                    policy.reconcile({1001: ("/usr/bin/game",)})
+
+    def test_validation_does_not_publish_uncommitted_warnings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            invalid = directory / "Other Client.AppImage"
+            invalid.write_bytes(b"app")
+            invalid.chmod(0o755)
+            policy = FapolicydPolicy(directory / "policy.rules", tolerate_rule_errors=True)
+            policy.validate({1001: ()}, {1001: (f"{directory}/Lunar*.AppImage",)})
+            self.assertEqual(policy.rule_issues, ())
+            self.assertFalse(policy._rules_path.exists())
+
+    def test_nested_guards_and_exact_denials_precede_parent_directory_allowances(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            child = parent / "nested"
+            child.mkdir()
+            target = child / "Other.AppImage"
+            rules = FapolicydPolicy.render(
+                {1001: (str(target),)},
+                {1001: (f"{parent}/Game-*.AppImage", f"{child}/Lunar-*.AppImage")})
+            allowance = rules.index(f"allow perm=execute uid=1001 : dir={child}/")
+            self.assertLess(rules.index(f"deny_syslog perm=execute uid=1001 : dir={child}/"), allowance)
+            self.assertLess(rules.index(f"path={target}"), allowance)
+
     def test_native_targets_are_denied_for_only_the_managed_uid(self):
         rules = FapolicydPolicy.render({
             1001: ("/usr/bin/game", "app/org.example.Game/x86_64/stable"),

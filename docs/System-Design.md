@@ -173,6 +173,13 @@ registering its D-Bus object. It does not replay every saved preference into
 AccountsService. Separately, display-manager startup requires fapolicyd's boot
 canary readiness. GDM does not have a broker-readiness dependency.
 
+An isolated executable or wildcard-directory rendering failure omits only the
+affected rule/group, retaining other app limits and saved patterns for retries.
+Parent shows the affected apps and opens the normal error report without
+closing management. This deliberate fallback can leave those apps or updated
+versions unrestricted; it does not ignore storage or backend activation failures.
+See [rule isolation](SystemDesign/Applications.md#live-filter-and-execution-rules).
+
 Each broker filter write synchronously reconciles native rules, compiling and
 requesting a rules-only reload unless its successful-notification cache permits
 reuse. Successful commands and account read-back do not acknowledge the daemon's

@@ -75,6 +75,10 @@ INTROSPECTION_XML = f"""
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="preferences_json" type="s" direction="out"/>
     </method>
+    <method name="GetPolicyWarnings">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="affected_apps" type="as" direction="out"/>
+    </method>
     <method name="ListApplications">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="applications" type="a(ssssasas)" direction="out"/>
@@ -168,7 +172,9 @@ def production_dependencies(connection) -> ServiceDependencies:
     """Build the production dependency graph for one bus connection."""
     credentials = CallerCredentials(connection)
     preferences = PreferenceStore()
-    accounts = AccountsService(connection, FapolicydPolicy(), preferences)
+    accounts = AccountsService(
+        connection, FapolicydPolicy(tolerate_rule_errors=True), preferences,
+    )
     return ServiceDependencies(
         credentials=credentials,
         accounts=accounts,
@@ -404,6 +410,12 @@ class Service:
                 target_uid, = parameters.unpack()
                 value = self.broker.get_preferences(caller_uid, target_uid)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(value),)))
+            elif method == "GetPolicyWarnings":
+                target_uid, = parameters.unpack()
+                # Reuse the preference read's caller/target authorization.
+                self.broker.get_preferences(caller_uid, target_uid)
+                warnings = self.accounts.get_policy_warnings(target_uid)
+                invocation.return_value(GLib.Variant("(as)", (list(warnings),)))
             elif method == "ListApplications":
                 target_uid, = parameters.unpack()
                 applications = self.broker.list_applications(caller_uid, target_uid)

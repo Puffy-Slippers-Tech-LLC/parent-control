@@ -608,6 +608,48 @@ class CoreTests(unittest.TestCase):
             (False, ("/usr/bin/game", "org.example.Game")),
         )
 
+    def test_app_policy_save_follows_replacement_launcher_through_saved_wildcard(self):
+        accounts, preferences = Accounts(), Preferences()
+        value = preferences.load(1001)
+        value['apps'] = {'old-lunar.desktop': {
+            'state': 'conditional', 'targets': ['/apps/Lunar Client-1.AppImage'],
+            'patterns': ['/apps/Lunar Client-*.AppImage'], 'user_saved_match_rule': True,
+        }}
+        catalog = lambda _user: ({'id': 'new-lunar.desktop',
+                                  'targets': ('/apps/Lunar Client-2.AppImage',)},)
+        saved = make_broker(accounts=accounts, preferences=preferences,
+                            application_catalog=catalog).set_preferences(1003, 1001, value)
+        self.assertEqual(set(saved['apps']), {'new-lunar.desktop'})
+        self.assertEqual(saved['apps']['new-lunar.desktop'], {
+            'state': 'conditional', 'targets': ['/apps/Lunar Client-2.AppImage'],
+            'patterns': ['/apps/Lunar Client-*.AppImage'], 'user_saved_match_rule': True,
+        })
+        self.assertEqual(accounts.filter, (False, ('/apps/Lunar Client-2.AppImage',)))
+
+    def test_app_policy_save_consolidates_old_wildcard_and_current_wrapper_default(self):
+        accounts, preferences = Accounts(), Preferences()
+        value = preferences.load(1001)
+        value['apps'] = {
+            'old-lunar.desktop': {
+                'state': 'conditional', 'targets': ['/apps/Lunar Client-1.AppImage'],
+                'patterns': ['/apps/Lunar Client-*.AppImage'], 'user_saved_match_rule': False,
+            },
+            'new-lunar.desktop': {
+                'state': 'conditional', 'targets': ['/usr/bin/AppImageLauncher'],
+                'patterns': [], 'user_saved_match_rule': False,
+            },
+        }
+        catalog = lambda _user: ({'id': 'new-lunar.desktop',
+                                  'targets': ('/apps/Lunar Client-2.AppImage',),
+                                  'suggested_patterns': ['/apps/Lunar Client-*.AppImage']},)
+        saved = make_broker(accounts=accounts, preferences=preferences,
+                            application_catalog=catalog).set_preferences(1003, 1001, value)
+
+        self.assertEqual(set(saved['apps']), {'new-lunar.desktop'})
+        self.assertEqual(saved['apps']['new-lunar.desktop']['patterns'],
+                         ['/apps/Lunar Client-*.AppImage'])
+        self.assertEqual(accounts.filter, (False, ('/apps/Lunar Client-2.AppImage',)))
+
     def test_app_policy_save_failure_restores_live_filter(self):
         class FailingPreferences(Preferences):
             def save(self, uid, value):

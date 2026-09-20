@@ -16,6 +16,22 @@ fixtures = load_module('onpc_test_applications', FIXTURES)
 
 
 class TestApplicationFixtures(unittest.TestCase):
+    def test_snap_timestamps_are_independent_of_inherited_source_date(self):
+        with tempfile.TemporaryDirectory(prefix='onpc-snap-timestamp-') as temporary:
+            root = Path(temporary)
+            runtime = root / 'runtime'
+            runtime.mkdir()
+            (runtime / 'example').write_bytes(b'fixed fixture payload')
+            results = []
+            for epoch in ('1700000000', '1800000000'):
+                output = root / epoch
+                output.mkdir()
+                with patch.dict(os.environ, {'SOURCE_DATE_EPOCH': epoch}):
+                    fixtures._build_snap(output, runtime, 'x86_64-linux-gnu', Path('lib/loader'))
+                    self.assertEqual(os.environ['SOURCE_DATE_EPOCH'], epoch)
+                results.append((output / 'onpc-test-application.snap').read_bytes())
+            self.assertEqual(results[0], results[1])
+
     def test_missing_prerequisite_reports_setup_without_installing_or_building(self):
         with patch.object(fixtures.shutil, 'which', side_effect=lambda name: None if name == 'snap' else '/usr/bin/' + name), \
                 patch.object(fixtures, '_run') as run, \

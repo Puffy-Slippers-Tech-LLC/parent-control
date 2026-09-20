@@ -327,9 +327,14 @@ def _build_snap(output: Path, runtime: Path, triplet: str, loader: Path) -> None
         'Exec=onpc-test-application\nTerminal=false\n')
     _run(['snap', 'pack', '--check-skeleton', str(stage)])
     _set_reproducible_times(stage)
+    # The package builder supplies SOURCE_DATE_EPOCH, but squashfs-tools rejects
+    # it together with explicit timestamp options. Those fixed zero timestamps
+    # own fixture reproducibility independently of the product's source date.
+    squashfs_environment = {key: value for key, value in os.environ.items()
+                            if key != 'SOURCE_DATE_EPOCH'}
     _run(['mksquashfs', str(stage), str(output / 'onpc-test-application.snap'),
           '-noappend', '-all-root', '-no-xattrs', '-no-progress', '-processors', '1',
-          '-mkfs-time', '0', '-all-time', '0'])
+          '-mkfs-time', '0', '-all-time', '0'], environment=squashfs_environment)
 
 
 def build(output: Path) -> None:

@@ -53,6 +53,11 @@ class PackageActivationTests(unittest.TestCase):
             "process-restart",
         )
 
+    def test_shared_app_policy_matching_activates_with_broker_restart(self):
+        self.assertEqual(activation_for(
+            'usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui/app_policy.py'),
+            'process-restart')
+
     def test_broker_service_change_activates_with_broker_restart(self):
         self.assertEqual(
             activation_for(

@@ -1,3 +1,4 @@
+import fnmatch
 import tempfile
 import unittest
 from pathlib import Path
@@ -42,15 +43,35 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(application["suggested_patterns"], (
             f"{appimage.parent}/Lunar Client-*.AppImage",))
 
-    def test_versioned_appimage_with_guid_gets_a_structured_pattern_suggestion(self):
+    def test_versioned_appimage_with_guid_gets_a_version_stable_pattern(self):
         target = (
             "/home/adrian/Applications/"
             "Lunar Client-3.7.13-ow_e1eda9a97aab9c00fb9acf48129edd99.AppImage"
         )
 
         self.assertEqual(suggested_patterns(target), (
-            "/home/adrian/Applications/Lunar Client-*-ow_*.AppImage",
+            "/home/adrian/Applications/Lunar Client-*.AppImage",
         ))
+
+    def test_version_pattern_survives_removal_of_integration_hash(self):
+        directory = "/home/child/Applications"
+        old = f"{directory}/Lunar Client-3.7.17-ow_2efff2fd1cdfecc506766be231242432.AppImage"
+        updated = f"{directory}/Lunar Client-3.7.20-ow.AppImage"
+        pattern, = suggested_patterns(old)
+        self.assertTrue(fnmatch.fnmatchcase(updated, pattern))
+        self.assertTrue(fnmatch.fnmatchcase(old, pattern))
+        self.assertFalse(fnmatch.fnmatchcase(f"{directory}/Other Client-3.7.20.AppImage", pattern))
+        self.assertEqual(suggested_patterns(updated), (pattern,))
+
+    def test_hash_only_appimage_keeps_its_application_prefix(self):
+        self.assertEqual(suggested_patterns(
+            "/home/child/Applications/pCloud_42870ec3026efef69e0bdaa75c9347c4.AppImage"),
+            ("/home/child/Applications/pCloud_*.AppImage",))
+
+    def test_hash_before_version_remains_version_independent(self):
+        self.assertEqual(suggested_patterns(
+            "/apps/Client_42870ec3026efef69e0bdaa75c9347c4-3.7.17.AppImage"),
+            ("/apps/Client_*-*.AppImage",))
 
     def test_catalog_reads_the_managed_users_private_desktop_directory(self):
         with tempfile.TemporaryDirectory() as temporary:

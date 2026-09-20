@@ -95,6 +95,63 @@ def test_selected_child_precedence_and_administrator_exclusion(catalog_tree):
     assert apps['org.example.ChildOnly.desktop']['targets'] == (str(child_only),)
 
 
+def test_appimagelauncher_resolves_payload_and_version_pattern(catalog_tree, monkeypatch):
+    tree = catalog_tree
+    wrapper = tree.binary(tree.system_bins[1], 'AppImageLauncher')
+    monkeypatch.setattr(catalog, 'APPIMAGE_LAUNCHERS', {str(wrapper)}, raising=False)
+    payload = tree.binary(tree.homes['child'] / 'Applications', 'Lunar Client-3.7.20-ow.AppImage')
+    tree.launcher(tree.local, 'lunar.desktop', 'Lunar',
+                  extra='TryExec=/unrelated/Other.AppImage\n',
+                  command=f'AppImageLauncher "{payload}" --no-sandbox %U')
+    app = tree.discover()['lunar.desktop']
+    assert app['targets'] == (str(payload),)
+    assert app['suggested_patterns'] == (f'{payload.parent}/Lunar Client-*.AppImage',)
+
+
+@pytest.mark.parametrize('argument', ['', '%f', 'relative.AppImage', '--help',
+                                     '/missing/App.AppImage', '/usr/bin/sh'])
+def test_appimagelauncher_does_not_become_a_shared_block_target(
+        catalog_tree, monkeypatch, argument):
+    tree = catalog_tree
+    wrapper = tree.binary(tree.system_bins[1], 'AppImageLauncher')
+    monkeypatch.setattr(catalog, 'APPIMAGE_LAUNCHERS', {str(wrapper)}, raising=False)
+    tree.launcher(tree.local, 'lunar.desktop', 'Lunar',
+                  command=f'"{wrapper}" {argument}')
+    assert 'lunar.desktop' not in tree.discover()
+
+
+def test_appimage_payload_symlink_cannot_select_a_generic_wrapper(catalog_tree, monkeypatch):
+    tree = catalog_tree
+    wrapper = tree.binary(tree.system_bins[1], 'AppImageLauncher')
+    generic = tree.binary(tree.system_bins[1], 'sh')
+    monkeypatch.setattr(catalog, 'APPIMAGE_LAUNCHERS', {str(wrapper)}, raising=False)
+    monkeypatch.setattr(catalog, 'GENERIC_LAUNCHERS', {str(generic)})
+    payload = tree.homes['child'] / 'Other.AppImage'
+    payload.parent.mkdir(parents=True, exist_ok=True)
+    payload.symlink_to(generic)
+    tree.launcher(tree.local, 'lunar.desktop', 'Lunar', command=f'"{wrapper}" "{payload}"')
+    assert 'lunar.desktop' not in tree.discover()
+
+
+def test_missing_appimage_wrapper_does_not_advertise_an_unlaunchable_payload(catalog_tree, monkeypatch):
+    tree = catalog_tree
+    wrapper = tree.system_bins[1] / 'AppImageLauncher'
+    monkeypatch.setattr(catalog, 'APPIMAGE_LAUNCHERS', {str(wrapper)})
+    payload = tree.binary(tree.homes['child'] / 'Applications', 'Lunar Client-2.AppImage')
+    tree.launcher(tree.local, 'lunar.desktop', 'Lunar', command=f'"{wrapper}" "{payload}"')
+    assert 'lunar.desktop' not in tree.discover()
+
+
+def test_same_named_user_wrapper_is_not_treated_as_appimagelauncher(catalog_tree, monkeypatch):
+    tree = catalog_tree
+    system = tree.binary(tree.system_bins[1], 'AppImageLauncher')
+    monkeypatch.setattr(catalog, 'APPIMAGE_LAUNCHERS', {str(system)})
+    user_wrapper = tree.binary(tree.homes['child'] / '.local/bin', 'AppImageLauncher')
+    payload = tree.binary(tree.homes['child'] / 'Applications', 'Lunar Client-2.AppImage')
+    tree.launcher(tree.local, 'lunar.desktop', 'Lunar', command=f'AppImageLauncher "{payload}"')
+    assert tree.discover()['lunar.desktop']['targets'] == (str(user_wrapper),)
+
+
 def test_switching_selected_child_does_not_reuse_another_childs_launchers(catalog_tree):
     tree = catalog_tree
     desktop_id = 'org.example.Shared.desktop'

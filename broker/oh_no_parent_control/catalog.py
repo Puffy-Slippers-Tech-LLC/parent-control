@@ -18,6 +18,7 @@ GENERIC_LAUNCHERS = {
     "/usr/bin/env", "/bin/sh", "/usr/bin/sh", "/bin/bash", "/usr/bin/bash",
     "/usr/bin/flatpak", "/usr/bin/snap",
 }
+APPIMAGE_LAUNCHERS = {"/usr/bin/AppImageLauncher"}
 SNAP_COMMAND_DIRS = (
     Path("/snap/bin"),
     Path("/var/lib/snapd/snap/bin"),
@@ -43,20 +44,18 @@ def suggested_patterns(target: str) -> tuple[str, ...]:
         return ()
     directory, basename = os.path.split(target)
     stem = basename.removesuffix(".AppImage")
-    # Replace a dotted version wherever it occurs as a filename component. An
-    # updater identifier is often a GUID following a stable label (for example
-    # ``-ow_e1eda9...``); replace that identifier too while retaining the label
-    # so the suggestion does not match every AppImage in the directory.
+    # Replace a dotted version wherever it occurs as a filename component.
+    # Integration/update suffixes after that version can disappear entirely
+    # (for example ``-ow_GUID`` becomes ``-ow``). Keep the application prefix,
+    # but do not require those volatile suffix components in the default glob.
     suggested = re.sub(
         r"(?:(?<=^)|(?<=[-_]))v?\d+(?:\.\d+)+(?=$|[-_])", "*", stem,
     )
-    with_guid = re.sub(r"(?<=[-_])[0-9A-Fa-f]{8,}(?=$|[-_])", "*", suggested)
-    if with_guid == suggested:
-        # An unstructured updater suffix (such as ``-abc``) is volatile as a
-        # whole. This preserves the existing conservative suggestion.
-        suggested = re.sub(r"([_-]\*)(?:[-_][A-Za-z0-9]+)$", r"\1", suggested)
-    else:
-        suggested = with_guid
+    if suggested != stem:
+        suggested = re.sub(r"([_-]\*)(?:[-_][A-Za-z0-9]+)+$", r"\1", suggested)
+    # Hash-only names and hashes outside that suffix retain their existing
+    # prefix and separators while allowing the hash to change.
+    suggested = re.sub(r"(?<=[-_])[0-9A-Fa-f]{8,}(?=$|[-_])", "*", suggested)
     suggested += ".AppImage"
     if suggested == basename:
         return ()
@@ -169,7 +168,15 @@ def _executable_target(entry, home: Path):
             system_target = shutil.which(executable, path=system_path)
             if system_target:
                 resolved = os.path.realpath(system_target)
-    if not resolved or resolved in GENERIC_LAUNCHERS or not os.path.isfile(resolved):
+    if resolved in APPIMAGE_LAUNCHERS:
+        # The supported wrapper takes the AppImage as its first argument.
+        # TryExec is availability metadata, not the executable being launched.
+        if (not os.path.isfile(resolved) or len(arguments) < 2 or not os.path.isabs(arguments[1])
+                or not arguments[1].endswith(".AppImage")):
+            return None
+        resolved = os.path.realpath(arguments[1])
+    if (not resolved or resolved in GENERIC_LAUNCHERS or resolved in APPIMAGE_LAUNCHERS
+            or not os.path.isfile(resolved)):
         LOG.debug("catalog.006")
         return None
     return resolved

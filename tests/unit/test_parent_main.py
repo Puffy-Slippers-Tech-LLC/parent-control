@@ -841,6 +841,68 @@ class ParentWindowTests(unittest.TestCase):
 
         self.assertEqual(value["apps"], window._preferences["apps"])
 
+    def test_updated_launcher_displays_and_saves_existing_wildcard_policy(self):
+        for duplicate_default in (False, True):
+            with self.subTest(duplicate_default=duplicate_default):
+                self._assert_updated_launcher_policy(duplicate_default)
+
+    def _assert_updated_launcher_policy(self, duplicate_default):
+        from types import SimpleNamespace
+
+        class Harness:
+            _default_match_rule = ParentWindow._default_match_rule
+            _is_pattern = staticmethod(ParentWindow._is_pattern)
+            _match_rule_image = staticmethod(lambda match: match['id'])
+            _update_match_rule_icon = ParentWindow._update_match_rule_icon
+
+        row = SimpleNamespace(
+            app={'id': 'new-lunar.desktop', 'targets': ['/apps/Lunar Client-2.AppImage'],
+                 'suggested_patterns': ['/apps/Lunar Client-*.AppImage']},
+            policy_buttons={state: mock.Mock() for state in ('allowed', 'conditional', 'permanent')},
+            match_rule_button=mock.Mock(),
+        )
+        for state, button in row.policy_buttons.items():
+            button.get_active.return_value = state == 'conditional'
+        window = Harness()
+        window._preferences = {'daily_time_limit_minutes': 30, 'apps': {
+            'old-lunar.desktop': {
+                'state': 'conditional', 'targets': ['/apps/Lunar Client-1.AppImage'],
+                'patterns': ['/apps/Lunar Client-*.AppImage'],
+                'user_saved_match_rule': not duplicate_default,
+            },
+            'uninstalled.desktop': {'state': 'permanent', 'targets': ['/apps/missing']},
+        }}
+        if duplicate_default:
+            window._preferences['apps']['new-lunar.desktop'] = {
+                'state': 'conditional', 'targets': ['/usr/bin/AppImageLauncher'],
+                'patterns': [], 'user_saved_match_rule': False,
+            }
+        window._app_catalog = [row.app]
+        window._rows = [row]
+        window._loading = False
+        window._daily_limit_minutes = lambda: 30
+
+        ParentWindow._apply_app_policies(window)
+
+        row.policy_buttons['conditional'].set_active.assert_called_once_with(True)
+        row.match_rule_button.set_tooltip_text.assert_called_once_with('Pattern Match')
+        row.match_rule_button.set_child.assert_called_once_with('pattern')
+        self.assertEqual(row.match_rule, '/apps/Lunar Client-*.AppImage')
+        saved = ParentWindow._app_policy_value(window)
+        self.assertNotIn('old-lunar.desktop', saved['apps'])
+        self.assertIn('uninstalled.desktop', saved['apps'])
+        self.assertEqual(saved['apps']['new-lunar.desktop'], {
+            'state': 'conditional', 'targets': ['/apps/Lunar Client-2.AppImage'],
+            'patterns': ['/apps/Lunar Client-*.AppImage'],
+            'user_saved_match_rule': not duplicate_default,
+        })
+        # Allowing the visible replacement must remove its old saved block too.
+        row.user_saved_match_rule = False
+        row.policy_buttons['conditional'].get_active.return_value = False
+        row.policy_buttons['allowed'].get_active.return_value = True
+        allowed = ParentWindow._app_policy_value(window)
+        self.assertEqual(set(allowed['apps']), {'uninstalled.desktop'})
+
     def test_completed_auto_save_does_not_reload_the_widgets(self):
         window = type("WindowHarness", (), {})()
         window._save_in_progress = True

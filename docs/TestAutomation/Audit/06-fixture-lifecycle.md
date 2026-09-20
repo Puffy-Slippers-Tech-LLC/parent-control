@@ -5,7 +5,7 @@ ownership and packaged runtime correctness need concurrency/ownership review.
 
 **Prerequisite:** [02](02-owned-ui-and-inventory.md); execute after
 [05](05-legacy-input-routes.md) for sequential sessions. Apply [shared preflight](README.md).
-**Status:** Not started. **Next:** [07](07-focused-unit-verification.md).
+**Status:** Complete. **Next:** [07](07-focused-unit-verification.md).
 
 ## Scope and work
 
@@ -53,3 +53,30 @@ cleanup gate. Otherwise retain the handoff's fixture evidence provisionally;
 task 08 will rerun it on final code. Complete with ownership findings resolved,
 mechanical compatibility checked and remaining installed qualification explicitly
 pending. No package installation, snapd operation or host setup is part of this task.
+
+## Completion evidence
+
+The native owner now checks for child exit before sending the recorded signal,
+signals that exact unreaped child only once, and propagates both ordinary and
+signal-derived failure status. Failed readiness closes and reaps the spawned
+handle. The separately compiled mechanical fixture remains a one-shot marker
+without a GUI payload. Fixture verification now requires the stable digest
+manifest plus the three documented variable Flatpak containers to account for
+the complete payload; the shared provenance double follows that same contract.
+
+Final verification on 2026-09-19:
+
+- `tools/run-unit-tests -q 'tests/unit/test_fixture_gui_adapter.py' 'tests/unit/test_test_applications.py' 'tests/unit/test_system_enforcement.py' 'tests/unit/test_build_test_artifacts.py' 'tests/unit/test_fixture_cleanup_safety.py'`
+  passed 206 tests, including two real deterministic builds and the mechanical
+  compatibility/lifecycle regressions.
+- `tools/run-unit-tests -q 'tests/unit/test_e2e_asset_transfer_cleanup_safety.py'`
+  passed 28 tests after aligning its synthetic artifact with the production
+  payload inventory contract.
+- `tools/run-ui-tests --timeout 1200s -q 'tests/ui/test_fixture_gui.py'`
+  passed its cleanup gate (1,476 tests and 3 subtests) and all 4 GUI cases.
+  Native, game, isolated user Flatpak and unpacked Snap logs and payload are at
+  `/var/tmp/pytest-of-edgar/pytest-1293/`.
+
+`fixture-targets.json` still declares `installed_qualified=false`. Snapd
+installation/confinement and installed App Limits enforcement remain pending in
+their owning customer/system tasks; this host qualification does not claim them.

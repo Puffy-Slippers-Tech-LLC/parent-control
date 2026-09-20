@@ -59,6 +59,10 @@ def assets(tmp_path, source):
     fixtures.mkdir()
     (fixtures / 'payload').write_bytes(b'fixture payload')
     (fixtures / 'onpc-test-application.flatpak').write_bytes(b'flatpak container')
+    repository = fixtures / 'flatpak-repository'
+    repository.mkdir()
+    (repository / 'summary').write_bytes(b'flatpak summary')
+    (repository / 'summary.idx').write_bytes(b'flatpak summary index')
     files = {'payload': hashlib.sha256(b'fixture payload').hexdigest()}
     (fixtures / 'SHA256SUMS.json').write_text(json.dumps({'algorithm': 'sha256', 'files': files}))
     manifest = {

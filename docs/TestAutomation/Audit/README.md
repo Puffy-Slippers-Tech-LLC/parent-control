@@ -3,7 +3,7 @@
 Execute one numbered task per new session, in the order below. This plan breaks
 down the supplied accessibility/UI automation handoff; creating it performs no
 implementation or test qualification. The next task is
-[06 — Fixture lifecycle](06-fixture-lifecycle.md). Its current
+[07 — Focused unit verification](07-focused-unit-verification.md). Its current
 inventory is in [02 — Owned UI and inventory](02-owned-ui-and-inventory.md#current-callable-inventory).
 
 This is a temporary remediation queue for the existing audit. The
@@ -23,7 +23,7 @@ acceptance. Finishing this queue does not mark their scenarios complete.
 | [03](03-authentication-surfaces.md) | GDM, authentication and keyring paths use scoped IDs or refuse safely | 02 complete, including 02a–02b | GPT-6 Astra / high | Complete; A1–A3 contained on exact provider blockers |
 | [04](04-desktop-and-external-apps.md) | Desktop, search, terminal and viewer paths use scoped IDs or refuse safely | 02 inventory; 03 shared adapter changes settled | GPT-6 Astra / high | Complete; D1–D6 contained on exact provider blockers |
 | [05](05-legacy-input-routes.md) | Close Perl image/pointer and direct Shell routes, including retained callers | 03–04 dispositions recorded | GPT-6 Astra / high | Complete; L1–L10 closed or safely provider-contained |
-| [06](06-fixture-lifecycle.md) | Review fixture process ownership, runtime packaging and mechanical compatibility | 02; execute after 05 to keep one session active | GPT-6 Astra / high | Not started |
+| [06](06-fixture-lifecycle.md) | Review fixture process ownership, runtime packaging and mechanical compatibility | 02; execute after 05 to keep one session active | GPT-6 Astra / high | Complete; lifecycle, payload inventory, mechanical and GUI checks passed |
 | [07](07-focused-unit-verification.md) | Complete focused unit selection on final implementation | 01–06 resolved or safely contained | GPT-5.6 Sol / high | Not started |
 | [08](08-host-ui-verification.md) | Complete all twelve host UI files on frozen implementation | 07 passed | GPT-5.6 Sol / high | Not started |
 | [09](09-child-static-runtime.md) | Child Node, static and applicable isolated fixture-runtime checks | 08 passed | GPT-5.6 Sol / high | Not started |
@@ -115,13 +115,6 @@ The following are **handoff-reported results**, not new executions:
   scales of `test_parent_app_controls_and_filters_remain_reachable`. Its cleanup
   gate passed 1,475 tests and 3 subtests. Evidence directories:
   `/var/tmp/onpc-ui-preview-vdkkjwz2` and `/var/tmp/onpc-ui-preview-qcz7ntat`.
-- Native, game, isolated user Flatpak and unpacked Snap GUI fixtures passed
-  independent-instance, typing, submit/readback, moves and close interactions.
-  Logs are under `/var/tmp/pytest-of-edgar/pytest-1180/` in
-  `test_payload_gui_preserves_ind0/native.log`, `ind1/game.log`, `ind2/flatpak.log`
-  and `ind3/snap.log` (the latter directories share the full
-  `test_payload_gui_preserves_` prefix). This does not qualify installed App
-  Limits enforcement, snapd installation or Snap confinement.
 - The earlier search-readiness failure is preserved at
   `/var/tmp/onpc-ui-preview-lc9c1y5f`. The existence guard progressed past it in
   the narrower run. The original full run's final totals were unrecoverable.

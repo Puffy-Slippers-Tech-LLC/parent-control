@@ -21,13 +21,12 @@
 #define FIXTURE_GUI_DEFAULT 1
 #endif
 
-static volatile sig_atomic_t keep_running = 1;
+static volatile sig_atomic_t termination_signal = 0;
 
 static void
 stop(int signal_number)
 {
-    (void)signal_number;
-    keep_running = 0;
+    termination_signal = signal_number;
 }
 
 int
@@ -88,20 +87,28 @@ main(int argc, char **argv)
             _exit(1);
         }
         int status;
+        int termination_sent = 0;
         for (;;) {
-            if (!keep_running && kill(child, SIGTERM) != 0 && errno != ESRCH) return 1;
             pid_t result = waitpid(child, &status, WNOHANG);
             if (result == child) {
-                return WIFEXITED(status) ? WEXITSTATUS(status) : 0;
+                if (WIFEXITED(status)) return WEXITSTATUS(status);
+                if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+                return 1;
             }
             if (result < 0 && errno != EINTR) return 1;
+            /* Check for exit before signalling, and signal only once.  Until
+             * waitpid reaps it, this exact child PID cannot be reused. */
+            if (termination_signal != 0 && !termination_sent) {
+                if (kill(child, termination_signal) != 0 && errno != ESRCH) return 1;
+                termination_sent = 1;
+            }
             if (nanosleep(&pause, NULL) != 0 && errno != EINTR) return 1;
         }
     }
 
     puts("ONPC_TEST_APPLICATION_READY");
     fflush(stdout);
-    while (stay_alive && keep_running) {
+    while (stay_alive && termination_signal == 0) {
         if (nanosleep(&pause, NULL) != 0 && errno != EINTR) {
             fprintf(stderr, "onpc-test-application: wait failed\n");
             return 1;

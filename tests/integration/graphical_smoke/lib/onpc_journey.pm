@@ -69,6 +69,8 @@ sub finish {
     testapi::console('sut')->disable();
     testapi::power('off');
     die 'journey:shutdown-unverified' unless testapi::check_shutdown(0);
+    testapi::record_info('shutdown',
+        'Owned guest poweroff and off-state verification completed.');
 }
 
 sub service_system_prompt {

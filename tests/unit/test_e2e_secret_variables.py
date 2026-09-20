@@ -199,13 +199,13 @@ def probe(mode, role='parent', surface='gdm'):
 
 @pytest.mark.parametrize('role', list(secret.PASSWORD_VARIABLES))
 @pytest.mark.parametrize('surface', ['gdm', 'polkit', 'lock'])
-def test_password_uses_registered_variable_then_masked_prompt_and_secret_api(role, surface):
+def test_legacy_password_route_refuses_before_variable_image_or_secret_api(role, surface):
     result = probe('success', role, surface)
-    assert result['ok'] == 1
-    assert result['first'] == ['policy', 'variable:' + secret.PASSWORD_VARIABLES[role],
-                               'prompt:onpc-' + surface + '-' + role + '-masked-password', 'password']
+    assert result['ok'] == 0
+    assert result['error'] == 'secret:public-recipient-id-required\n'
+    assert result['first'] == []
     assert result['captured'] == result['retried'] == 0
-    assert result['events'] == result['first']
+    assert result['events'] == []
 
 
 @pytest.mark.parametrize('mode', ['video', 'missing', 'control', 'prompt-error',
@@ -213,10 +213,9 @@ def test_password_uses_registered_variable_then_masked_prompt_and_secret_api(rol
 def test_password_and_capture_failures_latch_refusal_and_redact_exceptions(mode):
     result = probe(mode)
     assert result['ok'] == result['captured'] == result['retried'] == 0
-    assert result['error'] == ('secret:capture-failed\n' if mode.startswith('capture-')
-                                else 'secret:input-failed\n')
-    assert result['events'] == result['first']
-    assert ('password' in result['events']) is (mode == 'typing-error')
+    assert result['error'] == ('secret:image-capture-refused\n' if mode.startswith('capture-')
+                                else 'secret:public-recipient-id-required\n')
+    assert result['events'] == result['first'] == []
 
 
 @pytest.mark.parametrize('role,surface', [('root', 'gdm'), ('parent', 'terminal'),
@@ -227,11 +226,11 @@ def test_unregistered_credentials_and_unmasked_terminal_refuse_before_any_api(ro
     assert result['events'] == []
 
 
-def test_credential_free_capture_works_but_is_closed_before_password_input():
+def test_credential_free_image_capture_route_is_closed_before_backend_access():
     result = probe('capture-success')
-    assert result['ok'] == 1
-    assert result['first'][0] == 'capture'
-    assert result['events'].count('capture') == 1
+    assert result['ok'] == 0
+    assert result['error'] == 'secret:image-capture-refused\n'
+    assert result['first'] == result['events'] == []
     assert result['captured'] == result['retried'] == 0
 
 

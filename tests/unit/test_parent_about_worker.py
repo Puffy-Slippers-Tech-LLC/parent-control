@@ -65,7 +65,7 @@ my $exchange = sub {
     die 'picker failed' if $fault eq 'click' && $_[0] eq 'child-picker-opened';
     die 'selection failed' if $fault eq 'screen' && $_[0] eq 'parent-selected';
     push @events, ['stage', $_[0]];
-    return {ui_keys => ['home', 'down']} if $_[0] =~ /(?:greeter|list|picker-opened)$/;
+    return {ui_focused => 1} if $_[0] =~ /(?:greeter|list|picker-opened)$/;
     return {observed => $_[0]};
 };
 my $ok = eval {
@@ -76,8 +76,8 @@ my $ok = eval {
         my $journey = onpc_journey->new(exchange => $exchange, prefix => 'unit', review => $review);
         my $proof = $fault eq 'missing' ? {} : $journey->seen('license');
         $journey->seen('about') if $fault eq 'stale';
-        onpc_parent_about::return_to_parent($journey, $proof, 'tab-end');
-        onpc_parent_about::return_to_parent($journey, $proof, 'tab-end') if $fault eq 'replay';
+        onpc_parent_about::return_to_parent($journey, $proof, 'semantic-reveal');
+        onpc_parent_about::return_to_parent($journey, $proof, 'semantic-reveal') if $fault eq 'replay';
     } else {
         onpc_parent_about::run($exchange, $review);
     }
@@ -113,8 +113,8 @@ sub mouse_width { 1280 }
 sub mouse_height { 800 }
 package main;
 require onpc_gdm;
-onpc_gdm::inspect_installed_standard();
-print encode_json(\@events);
+my $ok = eval { onpc_gdm::inspect_installed_standard(); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
 '''
 
 
@@ -135,15 +135,11 @@ def test_customer_failed_selection_stops_before_about():
     assert ['stage', 'about'] not in result['events']
 
 
-def test_fixed_standard_recipient_is_selected_before_opening_its_prompt():
-    events = json.loads(run_perl(STANDARD_RECIPIENT_PROBE).stdout)
-    assert events == [
-        ['pointer', 628, 477],
-        ['click', 'onpc-gdm-parent-installed-input-account'],
-        ['still'], ['key', 'esc'], ['key', 'home'],
-        *[['key', 'down']] * 4, ['key', 'ret'], ['still'],
-        ['check', 'onpc-gdm-parent-installed-account'],
-    ]
+def test_legacy_standard_recipient_route_refuses_before_backend_or_input():
+    result = json.loads(run_perl(STANDARD_RECIPIENT_PROBE).stdout)
+    assert not result['ok']
+    assert result['events'] == []
+    assert 'provider-id-required' in result['error']
 
 
 def test_functional_journey_uses_semantic_results_without_explicit_capture():
@@ -167,24 +163,24 @@ def test_return_block_accepts_independent_entry_and_never_replays_uncertain_inpu
     elif fault == 'checkpoint':
         assert keys == ['alt-f4']
     else:
-        assert keys == ['alt-f4', 'tab', 'end', 'alt-f4']
+        assert keys == ['alt-f4', 'alt-f4']
     assert not any(event[0] in ('secret', 'click', 'text') for event in result['events'])
 
 
-def test_close_observation_precedes_footer_input_and_return_close():
+def test_close_observation_precedes_semantic_footer_reveal_and_return_close():
     result = json.loads(run_perl(PROBE, '0', '', 'return').stdout)
     assert result['events'] == [
         ['stage', 'license'], ['key', 'alt-f4'], ['stage', 'license-closed'],
-        ['key', 'tab'], ['key', 'end'], ['stage', 'about-returned'],
+        ['stage', 'about-returned'],
         ['key', 'alt-f4'], ['stage', 'parent-returned'],
     ]
 
 
-@pytest.mark.parametrize('fault,coordinates', [('', [1087, 67]), ('native', [870, 65])])
-def test_pointer_uses_public_framebuffer_dimensions_and_matched_interior(fault, coordinates):
+@pytest.mark.parametrize('fault', ['', 'native'])
+def test_legacy_parent_login_refuses_before_pointer_or_secret(fault):
     result = json.loads(run_perl(PROBE, '0', fault, 'legacy').stdout)
-    assert result['ok']
-    assert ['pointer', *coordinates] in result['events']
+    assert not result['ok']
+    assert not any(event[0] in ('pointer', 'click', 'secret') for event in result['events'])
 
 
 @pytest.mark.parametrize('fault', ['dimensions', 'weak'])

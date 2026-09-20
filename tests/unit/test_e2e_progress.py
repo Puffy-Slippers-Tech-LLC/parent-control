@@ -291,20 +291,20 @@ chdir shift or die 'chdir';
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub send_key {
-    open(my $file, '<', 'watch-operation.json') or die 'missing progress before input';
-    my $value = JSON::PP::decode_json(do { local $/; <$file> });
-    die 'wrong operation' unless $value->{operation} eq 'Dismissing the password prompt';
+    die 'input must not run';
 }
 sub current_console { 'sut' }
 sub assert_screen { 1 }
 package main;
 require onpc_gdm;
-onpc_gdm::dismiss_prompt();
+my $ok = eval { onpc_gdm::dismiss_prompt(); 1; };
+die 'legacy route unexpectedly succeeded' if $ok;
+die 'wrong refusal' unless $@ =~ /provider-id-required/;
 '''
     result = run_perl(probe, str(tmp_path))
     assert 'ONPC-E2E-OPERATION' in result.stderr
     value = json.loads((tmp_path / 'watch-operation.json').read_text())
-    assert value == dict(sequence=2, operation='Waiting for the greeter account list')
+    assert value == dict(sequence=1, operation='Dismissing the password prompt')
 
 
 def test_new_worker_blocks_require_literal_nonsecret_operation_messages():

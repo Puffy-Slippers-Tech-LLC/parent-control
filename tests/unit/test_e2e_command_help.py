@@ -1,22 +1,34 @@
 """Command documentation needs real content, return input and no product UI."""
 
 import json
+import copy
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 from accessible_ui import HELP_BINDINGS, UiError
-from tests.support.accessible_ui import Node, ui_for
+from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
 from tests.support.perl import run_perl
 
 PROMPT = 'onpc-parent-jamie@fixture:~$ '
+TERMINAL_CONTRACTS = copy.deepcopy(TEST_PROMPT_CONTRACTS)
+TERMINAL_CONTRACTS['terminal'] = {
+    'application_id': 'test-terminal-application',
+    'surfaces': {'terminal': ('test-terminal-window', {
+        'input-output': 'test-terminal-input-output'})},
+    'blocked_consumers': (),
+}
 
 
 def terminal(value):
-    field = Node(role='terminal', states=('showing', 'visible', 'sensitive', 'focused'))
-    root = Node(children=[Node(children=[field], states=('showing', 'visible', 'active'))])
-    ui = ui_for(root)
+    field = Node(role='terminal', identity='test-terminal-input-output',
+                 states=('showing', 'visible', 'sensitive', 'focused'))
+    window = Node(identity='test-terminal-window', children=[field],
+                  states=('showing', 'visible', 'active'))
+    application = Node(identity='test-terminal-application', children=[window])
+    root = Node(children=[application])
+    ui = ui_for(root, provider_contracts=TERMINAL_CONTRACTS)
     text = object()
     field.get_text_iface = lambda: text
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value),
@@ -39,8 +51,10 @@ def test_content_requires_identifying_output_and_right_terminal_state(binding, f
         value = value.removesuffix(PROMPT) + (':' if kind == 'help' else '\n' + PROMPT)
     ui, root, field = terminal(value)
     if fault == 'background': field.parent.states.remove('active')
-    if fault == 'product': root.children.append(Node('Oh No! Parent Control'))
-    if fault == 'request': root.children.append(Node('Request', 'push button'))
+    if fault == 'product':
+        root.children.append(Node('Oh No! Parent Control', identity='parent-access-denied-window'))
+    if fault == 'request':
+        root.children.append(Node('Request', 'push button', identity='kiosk-request-window'))
     if fault == 'stale': root.children.append(Node(states=('defunct',)))
     if fault in ('product', 'request', 'stale'):
         with pytest.raises(UiError): ui.help_content(binding)
@@ -134,7 +148,7 @@ my $ok = eval {
     onpc_command_help::run(sub {
         push @events, ['stage', $_[0]];
         return {observed => $_[0]} if $_[0] =~ /recipient-(?:qualified|rechecked)\z/;
-        return {ui_keys => ['home', 'down']} if $_[0] =~ /(?:greeter|list)$/;
+        return {ui_focused => 1} if $_[0] =~ /(?:greeter|list)$/;
         return {observed => $_[0]};
     });
     1;

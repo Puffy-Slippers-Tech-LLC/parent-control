@@ -5,7 +5,7 @@ dispatch, input acknowledgements and safety guards, including legacy callers.
 
 **Prerequisite:** [03](03-authentication-surfaces.md) and
 [04](04-desktop-and-external-apps.md) dispositions recorded; [shared preflight](README.md).
-**Status:** Not started. **Next:** [06](06-fixture-lifecycle.md).
+**Status:** Complete. **Next:** [06](06-fixture-lifecycle.md).
 
 ## Scope and work
 
@@ -59,3 +59,37 @@ the task-02 inventory has no unassigned legacy row, and every blocked consumer
 has an exact provider return condition. This is host/source remediation, not
 installed journey acceptance. Record any unresolved safety issue as a blocker
 for task 07, not as harmless legacy code.
+
+## Completion record
+
+All L1–L10 routes are closed or safely provider-contained. Generic label/role
+selectors, geometry/pointer helpers, image observation/click helpers, graphical
+VT6 authentication and direct smoke branches now refuse before traversal,
+backend access, secret delivery, acknowledgement or input. The installed
+controller no longer accepts coordinate payloads, and the old prompt-coordinate
+rendezvous cannot dispatch. Session actions and About footer reachability use
+their existing ID-scoped semantic operations; nested child interaction focuses
+the owned `child-request-button` ID before normal keyboard input and no longer
+sets Shell `OverviewActive` directly. Serial authentication remains a separate
+unchanged proof route.
+
+Installed GDM, Shell search/session, terminal and viewer consumers remain
+blocked on the exact mappings and return conditions in the
+[provider catalogue](../E2E-Building-Blocks.md#functional-validation). The VT6
+graphical route may return only when a supported public account, recipient and
+secret-field identity contract exists and passes installed recipient/input
+qualification; serial identity cannot satisfy that condition. Retained refusal
+entry points keep indirect callers testable without preserving a prohibited
+fallback.
+
+Final focused verification:
+
+```sh
+tools/run-unit-tests -q 'tests/unit/test_graphical_smoke.py' 'tests/unit/test_accessible_e2e_ui.py' 'tests/unit/test_child_preview.py' 'tests/unit/test_mutter_input.py' 'tests/unit/test_e2e_pointer_helper.py' 'tests/unit/test_shell_overview.py' 'tests/unit/test_installed_journey_cleanup_safety.py' 'tests/unit/test_ui_cleanup_safety.py' 'tests/unit/test_parent_about_cleanup_safety.py' 'tests/unit/test_e2e_gdm_helper.py' 'tests/unit/test_e2e_vt6_authentication.py' 'tests/unit/test_e2e_vt6_prompt.py' 'tests/unit/test_e2e_secret_variables.py' 'tests/unit/test_parent_about_worker.py' 'tests/unit/test_e2e_desktop_session.py' 'tests/unit/test_parent_access_worker.py' 'tests/unit/test_e2e_command_help.py' 'tests/unit/test_e2e_serial_helper.py' 'tests/unit/test_parent_discovery_worker.py' 'tests/unit/test_e2e_kiosk_entry.py' 'tests/unit/test_e2e_terminal.py' 'tests/unit/test_e2e_progress.py'
+```
+
+Result: **1,084 passed**. This includes actual Perl adapter execution, refusal
+ordering, secret/uncertain-input guards, child preview and the affected cleanup
+safety cases. No graphical integration, VM, installed-system or customer-
+acceptance run was performed. Final host/UI and broad focused qualification
+remain assigned to tasks 07–09.

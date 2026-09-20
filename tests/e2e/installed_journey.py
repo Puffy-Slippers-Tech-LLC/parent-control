@@ -139,36 +139,8 @@ class InstalledJourney:
         self.request_observations[stage] = RequestObservation.from_request(value)
 
     def dismiss_system_prompt(self, stage, point, guard):
-        """One ordered pointer request within the worker's existing rendezvous."""
-        if self.watch_progress is not None:
-            self.watch_progress.operation('Dismissing the login-keyring prompt')
-        require(not self.review, 'ui:system-prompt-review')
-        sequence = self.prompt_counts.get(stage, 0) + 1
-        require(sequence <= 3, 'ui:system-prompt-limit')
-        self.prompt_counts[stage] = sequence  # Never reuse an uncertain request.
-        directory = self.context.directory
-        stem = stage + '.prompt-' + str(sequence)
-        pending = directory / (stem + '.request.tmp')
-        request = directory / (stem + '.request.json')
-        reply = directory / (stem + '.reply.json')
-        require(not any(os.path.lexists(path) for path in (pending, request, reply)),
-                'ui:system-prompt-replay')
-        guard()
-        with pending.open('x') as stream:
-            json.dump({'stage': stage, 'sequence': sequence, 'kind': 'login-keyring',
-                       'ui_pointer': UiObservations.point(point)}, stream)
-        pending.rename(request)
-        deadline = time.monotonic() + 15
-        while not reply.exists():
-            require(time.monotonic() < deadline, 'ui:system-prompt-input-timeout')
-            guard(service=True)
-            time.sleep(.1)
-        require(not reply.is_symlink() and reply.stat().st_size <= 1024,
-                'ui:system-prompt-reply')
-        require(json.loads(reply.read_bytes()) == {'stage': stage, 'sequence': sequence,
-                'action': 'cancel-click', 'outcome': 'sent'}, 'ui:system-prompt-reply')
-        guard()
-        print(self.plan.prefix + ':system-prompt-cancel-sent=' + stage, file=sys.stderr, flush=True)
+        """Retired coordinate rendezvous; the guest adapter owns semantic Cancel."""
+        require(False, 'ui:prompt-coordinate-route-refused')
 
     def step(self, guard):
         require(not self.failed, self.plan.prefix + ':previous-failure')
@@ -238,12 +210,8 @@ class InstalledJourney:
                     self.ui = UiObservations(self.transport, progress=self.watch_progress)
                 observed['ui'] = self.ui.observe(tag[3:])
             reply = {'observed': stage}
-            if 'navigation' in observed.get('ui', {}):
-                reply['ui_keys'] = observed['ui']['navigation']
             if observed.get('ui', {}).get('focused') is True:
                 reply['ui_focused'] = True
-            if 'pointer' in observed.get('ui', {}):
-                reply['ui_pointer'] = observed['ui']['pointer']
         self.check_settings(stage, observed)
         self.check_request(stage, observed)
         if stage in plan.stage_actions:

@@ -47,7 +47,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 
 
 @pytest.mark.parametrize('fault', [None, 'no-point', 'point-on-edge', 'outside-image', 'weak-context'])
-def test_fresh_match_geometry_is_required_before_pointer_input(fault):
+def test_image_pointer_route_refuses_before_matching_or_input(fault):
     match = {'area': [
         dict(x=10, y=10, w=40, h=20, similarity=1),
         dict(x=700, y=500, w=40, h=30, similarity=1, click_point=dict(xpos=20, ypos=15)),
@@ -62,27 +62,22 @@ def test_fresh_match_geometry_is_required_before_pointer_input(fault):
     elif fault == 'weak-context':
         match['area'][0]['similarity'] = .99
     result = json.loads(run_perl(PROBE, json.dumps(match)).stdout)
-    assert result['ok'] == (fault is None)
-    assert result['events'][0] == ['assert', 'onpc-child-fixture-button', 30]
-    if fault:
-        assert len(result['events']) == 1
-    else:
-        assert result['events'][1:] == [['pointer', 900, 536], ['click', 'left']]
+    assert not result['ok']
+    assert result['events'] == []
 
 
 @pytest.mark.parametrize('size,point', [((1024, 768), (400, 90)), ((1280, 800), (700, 80)),
                                       ((2560, 1600), (1850, 150))])
 @pytest.mark.parametrize('fault', [None, 'outside', 'negative', 'missing', 'uncertain'])
-def test_semantic_pointer_uses_current_coordinates_once_at_any_framebuffer(size, point, fault):
+def test_coordinate_reply_route_refuses_before_pointer_input(size, point, fault):
     value = {'width': size[0], 'height': size[1], 'point': {'x': point[0], 'y': point[1]}}
     if fault == 'outside': value['point']['x'] = size[0]
     if fault == 'negative': value['point']['x'] = -1
     if fault == 'missing': del value['point']['y']
     if fault == 'uncertain': value['uncertain'] = True
     result = json.loads(run_perl(PROBE, json.dumps(value), 'functional').stdout)
-    assert result['ok'] == (fault is None)
-    assert result['events'] == ([] if fault not in (None, 'uncertain') else
-                                [['pointer', *point], ['click', 'left']])
+    assert not result['ok']
+    assert result['events'] == []
 
 
 PROMPT_PROBE = r'''
@@ -114,7 +109,7 @@ print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@eve
 
 @pytest.mark.parametrize('fault', [None, 'wrong-stage', 'wrong-sequence', 'unknown-dialog',
                                  'outside', 'uncertain', 'extra-field', 'stale-reply'])
-def test_shared_prompt_click_is_scoped_single_use_and_acknowledged_only_after_input(tmp_path, fault):
+def test_shared_prompt_coordinate_route_refuses_before_files_or_input(tmp_path, fault):
     request = {'stage': 'opened', 'sequence': 1, 'kind': 'login-keyring',
                'ui_pointer': {'x': 200, 'y': 330}}
     if fault == 'wrong-stage': request['stage'] = 'different'
@@ -126,12 +121,11 @@ def test_shared_prompt_click_is_scoped_single_use_and_acknowledged_only_after_in
     if fault == 'stale-reply': reply.write_text('{}')
     (tmp_path / 'opened.prompt-1.request.json').write_text(json.dumps(request))
     result = json.loads(run_perl(PROMPT_PROBE, str(tmp_path), '1' if fault == 'uncertain' else '0').stdout)
-    assert result['ok'] == (fault is None)
+    assert not result['ok']
     assert not result['replay']
-    assert result['events'] == ([['pointer', 200, 330], ['click', 'left']]
-                                if fault in (None, 'uncertain') else [])
-    if fault is None:
-        assert json.loads(reply.read_text()) == {'stage': 'opened', 'sequence': 1,
-                                                'action': 'cancel-click', 'outcome': 'sent'}
-    elif fault != 'stale-reply':
+    assert result['events'] == []
+    if fault == 'stale-reply':
+        assert reply.read_text() == '{}'
+    else:
         assert not reply.exists()
+    assert not (tmp_path / 'opened.prompt-1.input-started').exists()

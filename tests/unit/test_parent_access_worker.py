@@ -76,10 +76,9 @@ my $ok = eval {
     my $exchange = sub {
         push @events, ['stage', $_[0]];
         die 'functional observation failed' if $fault eq $_[0];
-        return {ui_pointer => {x => 700, y => 80}} if $_[0] eq 'app-grid';
         return {observed => $_[0]} if $_[0] eq 'system-prompt';
         return {observed => $_[0]} if $_[0] =~ /\Astandard-recipient-(?:qualified|rechecked)\z/;
-        return {ui_keys => ['home', 'down']};
+        return {ui_focused => 1};
     };
     if ($legacy) {
         onpc_parent::login_standard(onpc_journey->new(
@@ -101,10 +100,7 @@ def test_customer_path_uses_fixed_recipient_and_normal_app_search():
     assert stages == list(PLAN.screen_tags)
     assert all(tag.startswith('ui:') for tag in PLAN.screen_tags.values())
     assert not any(event[0] in ('assert', 'check') for event in result['events'])
-    assert result['events'].count(['click', 'left']) == 1
-    point = result['events'].index(['pointer', 700, 80])
-    assert result['events'][point:point + 3] == [
-        ['pointer', 700, 80], ['click', 'left'], ['stage', 'search-focused']]
+    assert not any(event[0] in ('pointer', 'click') for event in result['events'])
     assert result['events'].count(['secret']) == 1
     query = result["events"].index(["text", "O"])
     assert ''.join(event[1] for event in result['events'] if event[0] == 'text') == 'Oh No! Parent Control'
@@ -142,13 +138,12 @@ def test_failed_functional_checkpoint_stops_without_replay_or_review_bypass(revi
         assert not any(event[0] == "text" for event in result["events"])
 
 
-@pytest.mark.parametrize('fault', ['click-input', 'text-input-1', 'text-input-20'])
+@pytest.mark.parametrize('fault', ['text-input-1', 'text-input-20'])
 def test_uncertain_search_input_stops_before_readback_and_never_replays(fault):
     result = json.loads(run_perl(PROBE, '0', fault).stdout)
     assert not result['ok']
     inputs = [event for event in result['events'] if event[0] in ('click', 'text')]
-    expected = [['click', 'left']]
-    if fault != 'click-input': expected.append(['text', 'O'])
+    expected = [['text', 'O']]
     if fault == 'text-input-20': expected.append(['text', 'h No! Parent Control'])
     assert inputs == expected
     assert result['events'][-1] == expected[-1]
@@ -179,7 +174,7 @@ package main;
 require onpc_parent;
 require onpc_journey;
 my $journey = onpc_journey->new(prefix => 'independent', review => $fault eq 'review' ? 1 : 0,
-    exchange => sub { push @events, ['stage', $_[0]]; return {ui_pointer => {x => 20, y => 30}}; });
+    exchange => sub { push @events, ['stage', $_[0]]; return {}; });
 my $stage = $block eq 'open' ? 'desktop' : $block eq 'focus' ? 'app-grid' : 'search-focused';
 my $proof = $journey->seen($stage);
 $journey->seen('unrelated') if $fault eq 'stale';
@@ -195,7 +190,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     assert result['ok'] == (not fault)
     inputs = [event for event in result['events'] if event[0] != 'stage']
     assert inputs == ([] if fault else {
-        'open': [['key', 'super-a']], 'focus': [['click']],
+        'open': [['key', 'super-a']], 'focus': [],
         'query': [['text', 'O'], ['text', 'h No! Parent Control']],
     }[block])
 

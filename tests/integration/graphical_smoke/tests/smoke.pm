@@ -27,12 +27,8 @@ sub exchange {
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage eq 'setup-detached' ? 1500 : 420);
-    my $prompt_sequence = 1;
     while (!-f "$stage.reply.json") {
         die 'smoke:controller-timeout' if time >= $deadline;
-        if ($prompt_sequence <= 3 && onpc_journey::service_system_prompt($stage, $prompt_sequence)) {
-            $prompt_sequence++;
-        }
         sleep 0.1;
     }
     open(my $reply, '<', "$stage.reply.json") or die 'smoke:reply';
@@ -41,10 +37,7 @@ sub exchange {
 }
 
 sub capture {
-    my ($stage) = @_;
-    my $result = onpc_password::capture_before_authentication();
-    die 'smoke:no-screenshot' unless $result && $result->{screenshot};
-    return exchange($stage, $result->{screenshot});
+    die 'smoke:image-capture-route-refused';
 }
 
 sub run {
@@ -57,7 +50,6 @@ sub run {
         $journey->finish();
         return;
     }
-    select_console('sut');
     if ($ready->{parent_about}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
@@ -112,83 +104,10 @@ sub run {
         onpc_parent_discovery::run_none(\&exchange);
         return;
     }
-    if ($ready->{parent_setup}) {
-        # Fixture setup owns the reboot, before customer interaction. Disable
-        # VNC polling first; no serial console or password API is attached.
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_gdm::reattach_after_setup();
-        capture('installed-greeter');
-        if ($ready->{parent_input}) {
-            onpc_gdm::inspect_installed_parent();
-            capture('installed-parent-prompt');
-            send_key('esc');
-            assert_screen('onpc-gdm-parent-installed-account', 30);
-            capture('installed-parent-dismissed');
-        }
-        if ($ready->{parent_standard_input}) {
-            onpc_gdm::inspect_installed_standard();
-            capture('installed-standard-prompt');
-            send_key('esc');
-            assert_screen('onpc-gdm-parent-installed-account', 30);
-            capture('installed-standard-dismissed');
-        }
-        console('sut')->disable();
-        power('off');
-        die 'smoke:shutdown-unverified' unless check_shutdown(0);
-        record_info('setup', 'Installed fixture greeter observed; no password submitted.');
-        return;
-    }
-    # Backend/session readiness can precede GDM rendering. Wait for the
-    # reviewed account region instead of sleeping through that transition.
-    onpc_gdm::wait_list(90);
-    my $screen = capture('gdm');
-    onpc_gdm::select_parent();
-    capture('selected');
-    onpc_gdm::dismiss_prompt();
-    capture('dismissed');
-    if ($ready->{vt6_prompt}) {
-        onpc_vt6::inspect_prompt(\&exchange);
-    }
-    if ($ready->{vt6_auth}) {
-        onpc_vt6::authenticate(\&exchange);
-        record_info('vt6-authentication', 'Fixture terminal command completion independently verified.');
-    }
-    if ($ready->{install_refusal}) {
-        onpc_serial::run_install_refusal(\&exchange);
-    } elsif ($ready->{install}) {
-        onpc_serial::run_install(\&exchange);
-    } elsif ($ready->{serial}) {
-        onpc_serial::run(\&exchange);
-    }
-    if ($ready->{authenticate}) {
-        # Prove the role-specific password needle refuses the account list
-        # before allowing any secret operation. A failed assertion stops here.
-        die 'smoke:prompt-false-positive' if check_screen('onpc-gdm-parent-masked-password', 1);
-        assert_and_click('onpc-gdm-other-parent-account', timeout => 30, mousehide => 1);
-        wait_still_screen(1, 10);
-        die 'smoke:wrong-role-prompt' if check_screen('onpc-gdm-parent-masked-password', 1);
-        record_info('prompt-refusal', 'Parent password needle refused the account list and other fixture prompt.');
-        onpc_gdm::dismiss_prompt();
-        onpc_gdm::select_parent();
-        onpc_password::enter_password('parent', 'gdm');
-        send_key('ret');
-        # The controller waits for the actual canonical fixture's local GDM
-        # session. No raw authentication screen or terminal output is exported.
-        exchange('authenticated', undef);
-        record_info('authentication', 'Fixture graphical session independently verified.');
-    }
-    record_info('smoke', 'Credential-free mouse and keyboard screen changes completed.');
-    # End the complete attempt through the public lifecycle API. generalhw's
-    # final status command must observe a genuinely stopped lease-owned guest.
-    # Stop VNC polling/reconnects before revoking the owned graphics endpoint.
-    # The documented console proxy calls the console's public disable method.
-    console('sut')->disable();
-    power('off');
-    # assert_shutdown also takes a screenshot; after shutdown no display may
-    # be reacquired. Use its public status-only counterpart and fail explicitly.
-    die 'smoke:shutdown-unverified' unless check_shutdown(0);
-    record_info('shutdown', 'Owned guest poweroff and off-state verification completed.');
+    # Remaining modes use retired image, pointer, VT or unqualified graphical
+    # input routes. Keep the modes visible for their owning controllers, but
+    # refuse before selecting a console, matching pixels or sending input.
+    die 'smoke:legacy-ui-route-refused';
 }
 
 1;

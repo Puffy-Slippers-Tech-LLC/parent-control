@@ -46,14 +46,14 @@ sub open_search {
     return $journey->seen('app-grid');
 }
 
-# UI21: a fresh public target routes one click; a separate read proves focus.
+# UI21: the controller focuses the ID-addressed provider field semantically and
+# independently observes focus before acknowledging this stage.
 sub focus_search {
     onpc_progress::operation('Focusing the app search field');
     my ($journey, $field, $surface) = @_;
     die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && $surface eq 'overview';
     $journey->consume_observation('app-grid', $field);
-    $journey->click_target($field);
     return $journey->seen('search-focused');
 }
 
@@ -147,73 +147,27 @@ sub login_standard_functional {
 # Parent customers. An observation tag alone never authorizes password input.
 sub login {
     onpc_progress::operation('Signing in as [Parent user]');
-    my ($journey, $functional) = @_;
-    onpc_gdm::reattach_after_setup();
-    $journey->seen('installed-greeter');
-    die 'parent:list-is-password' if testapi::check_screen('onpc-gdm-parent-masked-password', 0);
-    onpc_pointer::click('onpc-gdm-other-parent-installed-input-account', 30);
-    testapi::wait_still_screen(1, 10);
-    die 'parent:other-prompt-is-list' if testapi::check_screen('onpc-gdm-parent-installed-account', 0);
-    die 'parent:wrong-password-recipient' if testapi::check_screen('onpc-gdm-parent-masked-password', 0);
-    testapi::send_key('esc');
-    onpc_pointer::click('onpc-gdm-parent-installed-input-account', 30);
-    die 'parent:list-still-visible' if testapi::check_screen('onpc-gdm-parent-installed-account', 0);
-    testapi::assert_screen('onpc-gdm-parent-masked-password', 30);
-    $journey->seen('recipient-qualified');
-    onpc_password::enter_password('parent', 'gdm');
-    testapi::send_key('ret');
-    testapi::assert_screen('onpc-parent-desktop', 90) unless $functional;
-    $journey->seen('desktop');
+    die 'parent:legacy-login-refused';
 }
 
 sub launch_from_app_grid {
     onpc_progress::operation('Launching Parent from the app grid');
-    my ($journey) = @_;
-    open_app_grid($journey);
-    testapi::type_string('Oh No! Parent Control');
-    testapi::wait_still_screen(1, 10);
-    testapi::send_key('ret');
+    die 'parent:legacy-search-refused';
 }
 
 sub open_app_grid {
     onpc_progress::operation('Opening the app grid');
-    my ($journey) = @_;
-    testapi::send_key('super-a');
-    testapi::assert_screen('onpc-parent-app-grid', 30);
-    $journey->seen('app-grid');
+    die 'parent:legacy-search-refused';
 }
 
 sub login_standard {
     onpc_progress::operation('Signing in as [Standard user]');
-    my ($journey) = @_;
-    onpc_gdm::reattach_after_setup();
-    $journey->seen('installed-greeter');
-    die 'parent-access:list-is-password'
-        if testapi::check_screen('onpc-gdm-other-child-masked-password', 0);
-    onpc_gdm::inspect_installed_standard(sub {
-        die 'parent-access:parent-matches-standard'
-            if testapi::check_screen('onpc-gdm-other-child-masked-password', 0);
-    });
-    die 'parent-access:list-still-visible'
-        if testapi::check_screen('onpc-gdm-parent-installed-account', 0);
-    die 'parent-access:wrong-password-recipient'
-        if testapi::check_screen('onpc-gdm-parent-masked-password', 0);
-    testapi::assert_screen('onpc-gdm-other-child-masked-password', 30);
-    $journey->seen('recipient-qualified');
-    onpc_password::enter_password('other-child', 'gdm');
-    testapi::send_key('ret');
-    testapi::assert_screen('onpc-parent-desktop', 90);
-    $journey->seen('desktop');
+    die 'parent:legacy-login-refused';
 }
 
 sub select_existing_child {
     onpc_progress::operation('Selecting [Existing child] from the child selector');
-    my ($journey) = @_;
-    onpc_pointer::click('onpc-parent-child-picker', 90);
-    # Choose the reviewed existing fixture through the ordinary dropdown.
-    onpc_pointer::click('onpc-parent-child-choice', 30);
-    $journey->observe('onpc-parent-child-selected', 30);
-    $journey->seen('parent-selected');
+    die 'parent:legacy-picker-refused';
 }
 
 1;

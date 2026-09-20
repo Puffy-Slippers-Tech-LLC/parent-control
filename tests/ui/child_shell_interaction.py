@@ -18,7 +18,6 @@ from dogtail.hermetic.mutter import MutterInputBackend
 
 from child_shell_screenshot import capture_screenshot
 from mutter_input import press_key as _press_key
-from shell_overview import set_overview
 from tests.support.automation import Automation
 
 
@@ -206,10 +205,9 @@ def _wait(predicate, description):
 
 
 def _prepare_indicator_input():
-    # Set an explicit state on the owned bus. Super toggles and Escape can
-    # reach the request form when overview/focus transitions are delayed.
-    set_overview(True, _wait)
-    button = _wait(_find_request_button, "the ID-addressed indicator in Shell's overview")
+    # The owned public ID is the input recipient. No Shell state mutation or
+    # overview shortcut is allowed to manufacture reachability.
+    button = _wait(_find_request_button, "the ID-addressed Shell request indicator")
     UI.focus(REQUEST_BUTTON_ID)
     _wait(
         lambda: _state(_find_request_button(), Atspi.StateType.FOCUSED),
@@ -285,7 +283,6 @@ def main():
         # focus, then exercise the same action directly during startup.
         _press_key(input_backend, X_KEYCODE_SPACE)
         _activate_repeatedly(5, input_backend)
-        set_overview(False, _wait)
         _wait(lambda: len(_launch_records()) == 1, "one opening request process")
         print("interaction stage=opening-single-flight", flush=True)
         _wait(lambda: _one_overlay(1), "one visible child request overlay")
@@ -293,9 +290,7 @@ def main():
         print("interaction stage=overlay-visible", flush=True)
 
         # Exercise the same guard after the shared request form is fully mapped.
-        set_overview(True, _wait)
         _activate_repeatedly(5, input_backend)
-        set_overview(False, _wait)
         windows, cancel = _overlay_surfaces()
         if len(_launch_records()) != 1 or len(windows) != 1 or len(cancel) != 1:
             raise AssertionError("Repeated activation created a duplicate request overlay")
@@ -312,7 +307,6 @@ def main():
         _wait(_find_request_button, "the reusable Shell request action")
         _prepare_indicator_input()
         _press_key(input_backend, X_KEYCODE_SPACE)
-        set_overview(False, _wait)
         _wait(lambda: _one_overlay(2), "one reopened child request overlay")
         print("interaction stage=overlay-reopened", flush=True)
         records = _launch_records()

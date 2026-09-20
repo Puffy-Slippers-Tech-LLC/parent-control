@@ -185,11 +185,6 @@ package main;
 require onpc_desktop_session;
 my $journey = onpc_journey->new(prefix => 'unit', review => 0, exchange => sub {
     push @events, ['seen', $_[0]];
-    return {ui_pointer => {x => 1200, y => 20}} if $_[0] eq 'session-menu-toggle';
-    return {ui_pointer => {x => 1180, y => 52}} if $_[0] eq 'session-menu-power';
-    return {ui_pointer => {x => 1180, y => 84}} if $_[0] eq 'switch-user';
-    return {ui_pointer => {x => 1180, y => 108}} if $_[0] eq 'logout';
-    return {ui_pointer => {x => 680, y => 416}} if $_[0] eq 'logout-confirm';
     return {};
 });
 my $ok = eval {
@@ -238,19 +233,14 @@ def test_session_helpers_consume_fresh_proofs_without_replay(block, fault):
         return
     if block == 'open_menu':
         assert result['events'] == [['seen', 'session-menu-toggle'],
-                                   ['pointer', 1200, 20], ['click', 'left'],
                                    ['seen', 'session-menu-power'],
-                                   ['pointer', 1180, 52], ['click', 'left'],
                                    ['seen', 'session-menu']]
     elif block == 'switch_user':
         assert result['events'] == [['seen', 'switch-user'],
-                                   ['pointer', 1180, 84], ['click', 'left'],
                                    ['seen', 'gdm-switched']]
     else:
         assert result['events'] == [['seen', 'logout'],
-                                   ['pointer', 1180, 108], ['click', 'left'],
                                    ['seen', 'logout-confirm'],
-                                   ['pointer', 680, 416], ['click', 'left'],
                                    ['seen', 'gdm-logged-out']]
 
 
@@ -287,12 +277,7 @@ my $ok = eval {
     onpc_desktop_session::run(sub {
         push @events, ['stage', $_[0]];
         return {observed => $_[0]} if $_[0] =~ /recipient-(?:qualified|rechecked)\z/;
-        return {ui_keys => ['home', 'down']} if $_[0] =~ /(?:greeter|list)$/;
-        return {ui_pointer => {x => 1200, y => 20}} if $_[0] eq 'session-menu-toggle';
-        return {ui_pointer => {x => 1180, y => 52}} if $_[0] eq 'session-menu-power';
-        return {ui_pointer => {x => 1180, y => 84}} if $_[0] eq 'switch-user';
-        return {ui_pointer => {x => 1180, y => 108}} if $_[0] eq 'logout';
-        return {ui_pointer => {x => 680, y => 416}} if $_[0] eq 'logout-confirm';
+        return {ui_focused => 1} if $_[0] =~ /(?:greeter|list)$/;
         return {observed => $_[0]};
     }, $action);
     1;

@@ -369,6 +369,8 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("Automation", interaction)
         self.assertIn("UI.focus(REQUEST_BUTTON_ID)", interaction)
         self.assertIn("_press_key(input_backend, X_KEYCODE_SPACE)", interaction)
+        self.assertNotIn("set_overview", interaction)
+        self.assertNotIn("OverviewActive", interaction)
         self.assertNotIn("get_extents", interaction)
         self.assertNotIn("click_at", interaction)
         self.assertNotIn(".oh-no-parent-control-content {", stylesheet)

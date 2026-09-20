@@ -99,52 +99,15 @@ sub type_fixture_secret {
 
 sub enter_password {
     onpc_progress::operation('Checking the password recipient before secret input');
-    my ($role, $surface) = @_;
-    die "secret:input-refused\n" if $failed;
-    # Latch before any operation that might capture an authentication screen.
     $authentication_started = 1;
-    my $ok = eval {
-        die "secret:arguments\n" unless @_ == 2 && defined($role) && defined($surface)
-          && exists($variables{$role}) && exists($prompts{$surface});
-        die "secret:video-policy\n" unless testapi::get_var('NOVIDEO', 0) eq '1';
-        my $password = testapi::get_required_var($variables{$role});
-        die "secret:value\n" unless defined($password) && !ref($password)
-          && $password =~ /\A[\x20-\x7e]{1,256}\z/;
-        # One maintained needle must establish the intended fixture identity
-        # AND its empty, focused, masked field. A generic password-field match
-        # could otherwise accept an unrelated account on this baseline.
-        # Missing needles/timeouts fail before typing; no coordinate fallback.
-        testapi::assert_screen($prompts{$surface} . '-' . $role . '-masked-password', 30)
-          or die "secret:prompt\n";
-        # No caller options: type_password permits overriding secret => 1.
-        testapi::type_password($password);
-        1;
-    };
-    unless ($ok) {
-        $failed = 1;
-        die "secret:input-failed\n";  # Never propagate raw API/credential errors.
-    }
-    # Do not submit, infer authentication success or collect a screen here.
-    return 1;
+    $failed = 1;
+    die "secret:public-recipient-id-required\n";
 }
 
 sub capture_before_authentication {
     onpc_progress::operation('Capturing the unauthenticated screen');
-    if ($failed || $authentication_started || @_) {
-        $failed = 1;
-        die "secret:capture-refused\n";
-    }
-    my $result;
-    my $ok = eval {
-        $result = testapi::save_screenshot();
-        die "secret:capture\n" unless ref($result) eq 'HASH' && $result->{screenshot};
-        1;
-    };
-    unless ($ok) {
-        $failed = 1;
-        die "secret:capture-failed\n";
-    }
-    return $result;
+    $failed = 1;
+    die "secret:image-capture-refused\n";
 }
 
 sub seal_capture {

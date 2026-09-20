@@ -116,6 +116,20 @@ sub record_info {
 sub save_screenshot { die 'capture must remain sealed'; }
 package main;
 require onpc_serial;
+# The legacy wrapper's graphical return is independently provider-blocked.
+# Stub only that terminal observation so these cases continue to exercise the
+# supported serial proof, secret and command boundaries.
+{
+    no warnings 'redefine';
+    *onpc_gdm::return_from_serial = sub {
+        die 'provider return missing' if $mode eq 'return-missing';
+        1;
+    };
+    *onpc_gdm::return_after_reboot = sub {
+        die 'provider return missing' if $mode eq 'install-return-missing';
+        1;
+    };
+}
 if (defined($fragments)) {
     require lib;
     lib->import('/usr/lib/os-autoinst');
@@ -159,7 +173,7 @@ my $exchange = sub {
     die 'private-canary' if $mode eq 'install-password-proof-error' && $stage eq 'reboot-password';
     return {serial_login_process_verified => ($mode ne 'process'),
             active_graphical_greeter => 1, unexpected_user_session => 0,
-            ui_keys => ['home', 'down'],
+            ui_focused => 1,
             ui => {operation => 'gdm-select-parent', outcome => 'passed', interface => 'AT-SPI'},
             customer_reboot_authorized => ($mode ne 'install-unauthorized'),
             active_local_serial_session => ($mode ne 'install-session'),
@@ -211,8 +225,8 @@ def test_flow00_composes_real_graphical_and_serial_blocks_in_wire_order():
               'serial-authenticated', 'serial-command', 'serial-logout', 'gdm-return']
     events = data['events']
     assert [event for event in events if event in stages] == stages
-    assert [event for event in events if event != 'record'][:9] == ['console:sut', 'gdm', 'key:home', 'key:down', 'focused',
-                          'key:ret', 'selected', 'key:esc', 'dismissed']
+    assert [event for event in events if event != 'record'][:7] == [
+        'console:sut', 'gdm', 'focused', 'key:ret', 'selected', 'key:esc', 'dismissed']
     assert events.count('password') == 1 and 'gdm-match' not in events
 
 
@@ -339,10 +353,10 @@ def test_serial_secret_boundary_and_command_output(mode):
         assert events.index('serial-authenticated') < events.index('serial-command')
         assert events.index('serial-authenticated') < events.index('shell-ready') < events.index('command')
         assert events.index('serial-command') < events.index('logout') < events.index('serial-logout')
-        assert events[-5:] == ['console:sut', 'gdm-match', 'record', 'gdm-return', 'record']
+        assert events[-2:] == ['gdm-return', 'record']
         assert events.index('serial-logout') < events.index('gdm-return')
     elif mode == 'return-missing':
-        assert 'serial-logout' in events and events[-1] == 'gdm-match'
+        assert 'serial-logout' in events and 'gdm-return' not in events
     elif mode in ('typing', 'echo', 'shell-not-ready'):
         assert 'password' in events and 'serial-command' not in events
         if mode == 'shell-not-ready':

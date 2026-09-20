@@ -455,7 +455,19 @@ defers marker creation for Livepatch, `postinst` still records the reboot needed
 by our PAM/display-manager integration. Configuration retries avoid duplicate
 entries and retain the activation comparison if the hook fails.
 `make installdeb` locates the built `.deb`, refreshes APT package indexes, and
-hands off to ordinary `apt install --reinstall <deb>`; `make uninstalldeb` runs
+copies the package to a temporary `/tmp` file readable by APT's `_apt` user.
+It runs ordinary `apt install --reinstall <deb>` on that copy and removes it after
+APT exits. This supports checkouts under private home directories without
+disabling APT's download sandbox. This staging is specific to installation of a
+local build: a published PPA installation downloads the package through APT into
+APT-managed storage and never reads the developer checkout. The Makefile change
+is part of published source packages, while no binary-package payload or
+maintainer-script change is applicable to this path-access condition: APT must
+open a local `.deb` before it can unpack or run any code from that package. A
+manually downloaded published `.deb` passed to APT from a private directory has
+the same caller-side constraint; moving or copying it to an APT-readable path is
+necessarily done before package installation.
+`make uninstalldeb` runs
 `apt remove oh-no-parent-control`. The refresh fails if any configured repository
 cannot update, so installation does not retry removed dependency versions from
 stale indexes.

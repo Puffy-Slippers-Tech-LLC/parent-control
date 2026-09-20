@@ -152,7 +152,8 @@ build: check-release-version
 installdeb:
 	@set -e; \
 	step='checking prerequisites'; \
-	trap 'status=$$?; if [ "$$status" -ne 0 ]; then printf "FAIL: installdeb: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
+	staged_deb=''; \
+	trap 'status=$$?; if [ -n "$$staged_deb" ]; then rm -f -- "$$staged_deb"; fi; if [ "$$status" -ne 0 ]; then printf "FAIL: installdeb: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
 	if ! command -v dpkg-parsechangelog >/dev/null 2>&1 || ! command -v dpkg-architecture >/dev/null 2>&1; then \
 		echo "Run ./setup.sh --dependencies-only to install dpkg-dev" >&2; \
 		exit 1; \
@@ -167,8 +168,12 @@ installdeb:
 	echo "Installing $$deb_file"; \
 	step='refreshing APT package indexes'; \
 	$(APT) update -o APT::Update::Error-Mode=any; \
+	step='staging package for APT'; \
+	staged_deb="$$(mktemp '/tmp/onpc-installdeb.XXXXXXXXXX.deb')"; \
+	cp -- "$$deb_file" "$$staged_deb"; \
+	chmod 644 "$$staged_deb"; \
 	step='installing package with APT'; \
-	exec $(APT) install --reinstall "$$deb_file"
+	$(APT) install --reinstall "$$staged_deb"
 
 uninstalldeb:
 	$(APT) remove oh-no-parent-control

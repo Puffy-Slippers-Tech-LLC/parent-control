@@ -59,6 +59,14 @@ def test_attachment_automation_keys_are_stable_and_never_duplicate():
     assert feedback._attachment_automation_key(other, {first_key}) != first_key
 
 
+def test_kiosk_forbidden_controls_do_not_publish_automation_ids():
+    for identity in (
+            "feedback-add-files", "feedback-download-logs",
+            "feedback-full-privacy-link"):
+        assert feedback._non_kiosk_automation_id(True, identity) is None
+        assert feedback._non_kiosk_automation_id(False, identity) == identity
+
+
 def test_open_collects_before_send_without_blocking_editor(dialog):
     dialog._visibility_changed()
     assert dialog._collecting

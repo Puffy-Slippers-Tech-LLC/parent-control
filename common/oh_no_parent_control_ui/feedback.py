@@ -29,6 +29,11 @@ LOG = get_logger("feedback")
 PRIVACY_URL = "https://tech.puffyslippers.com/oh-no-parent-control/privacy/"
 
 
+def _non_kiosk_automation_id(kiosk_session: bool, identity: str):
+    """Do not publish identities for controls unavailable in the kiosk."""
+    return None if kiosk_session else identity
+
+
 def _attachment_automation_key(attachment, existing_keys):
     """Return one stable, non-identifying key that is unique in this dialog."""
     base = hashlib.sha256(
@@ -187,7 +192,8 @@ class FeedbackDialog(Adw.Window):
         self._add_attachment_button.set_child(add_files_content)
         describe_control(self._add_attachment_button, "Add files",
                          "Attach up to 5 files to your feedback.",
-                         automation_id="feedback-add-files")
+                         automation_id=_non_kiosk_automation_id(
+                             kiosk_session, "feedback-add-files"))
         self._add_attachment_button.connect("clicked", self._choose_attachments)
         attachments.set_header_suffix(self._add_attachment_button)
         self._add_attachment_button.set_visible(not kiosk_session)
@@ -221,7 +227,8 @@ class FeedbackDialog(Adw.Window):
         )
         describe_control(self._download_button, "Download",
                          "Save a ZIP containing a readable diagnostic report and validated technical events.",
-                         automation_id="feedback-download-logs")
+                         automation_id=_non_kiosk_automation_id(
+                             kiosk_session, "feedback-download-logs"))
         self._download_button.connect("clicked", self._download_logs)
         self._download_button.set_visible(not kiosk_session)
         attachment_actions.append(self._download_button)
@@ -394,7 +401,8 @@ class FeedbackDialog(Adw.Window):
             portal_link,
             "View full privacy notice",
             "Open the Oh No! Parent Control privacy notice in your browser.",
-            automation_id="feedback-full-privacy-link",
+            automation_id=_non_kiosk_automation_id(
+                self._kiosk_session, "feedback-full-privacy-link"),
         )
         privacy_content.append(portal_link)
         dialog.get_content_area().append(privacy_content)

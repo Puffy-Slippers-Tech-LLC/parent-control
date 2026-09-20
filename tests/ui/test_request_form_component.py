@@ -328,9 +328,8 @@ def test_outcomes_are_actionable_and_redacted(launch_ui, request_ui,
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "request outcome")
     if scenario == "denied":
-        wait_for_accessible_state(lambda: request_ui.find("kiosk-result-title") is not None
-                                  and request_ui.text("kiosk-result-title") == expected,
-                                  "denial result is public")
+        status(request_ui, wait_for_accessible_state, expected)
+        ready(request_ui, wait_for_accessible_state)
     else:
         status(request_ui, wait_for_accessible_state, expected)
 
@@ -365,11 +364,12 @@ def test_single_flight_ignores_escape_while_authentication_is_active(
     wait_for_accessible_state(
         lambda: not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE),
         "single-flight request is disabled")
+    method = "RequestOwnAccess" if overlay else "RequestAccess"
+    wait_for_accessible_state(lambda: len(calls(path, method)) == 1,
+                              "one in-flight request")
     send_escape(request_ui)
     wait_for_accessible_state(lambda: bool(events(path, "escape")), "active-request Escape")
     assert events(path, "escape")[0]["handled"] is False
-    method = "RequestOwnAccess" if overlay else "RequestAccess"
-    wait_for_accessible_state(lambda: len(calls(path, method)) == 1, "one in-flight request")
     wait_for_accessible_state(lambda: bool(events(path, "result")), "completed request")
     assert not events(path, "logout")
     assert not events(path, "close_overlay")

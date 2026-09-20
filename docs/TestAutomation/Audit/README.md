@@ -3,7 +3,7 @@
 Execute one numbered task per new session, in the order below. This plan breaks
 down the supplied accessibility/UI automation handoff; creating it performs no
 implementation or test qualification. The next task is
-[08 — Host UI verification](08-host-ui-verification.md). Its current
+[09 — Child static and runtime verification](09-child-static-runtime.md). The current
 inventory is in [02 — Owned UI and inventory](02-owned-ui-and-inventory.md#current-callable-inventory).
 
 This is a temporary remediation queue for the existing audit. The
@@ -25,7 +25,7 @@ acceptance. Finishing this queue does not mark their scenarios complete.
 | [05](05-legacy-input-routes.md) | Close Perl image/pointer and direct Shell routes, including retained callers | 03–04 dispositions recorded | GPT-6 Astra / high | Complete; L1–L10 closed or safely provider-contained |
 | [06](06-fixture-lifecycle.md) | Review fixture process ownership, runtime packaging and mechanical compatibility | 02; execute after 05 to keep one session active | GPT-6 Astra / high | Complete; lifecycle, payload inventory, mechanical and GUI checks passed |
 | [07](07-focused-unit-verification.md) | Complete focused unit selection on final implementation | 01–06 resolved or safely contained | GPT-5.6 Sol / high | Complete; 1,476 + 3-subtest safety gate and 1,890 + 21-subtest focused selection passed |
-| [08](08-host-ui-verification.md) | Complete all twelve host UI files on frozen implementation | 07 passed | GPT-5.6 Sol / high | Not started |
+| [08](08-host-ui-verification.md) | Complete all twelve host UI files on frozen implementation | 07 passed | GPT-5.6 Sol / high | Complete; cleanup passed 1,476 + 3 subtests and full UI passed 136 with 2 expected deselections |
 | [09](09-child-static-runtime.md) | Child Node, static and applicable isolated fixture-runtime checks | 08 passed | GPT-5.6 Sol / high | Not started |
 | [10](10-reconcile-and-close.md) | Reconcile contracts, generate coverage inventory, validate documents and close scope | 07–09 results recorded | GPT-6 Astra / high | Not started |
 

@@ -4,16 +4,18 @@ Start each new session with:
 
 > Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
 
-Read this short master, then the **Next task** brief. The full scheduling table
-is a separate index so ordinary implementation sessions do not load hundreds
-of unrelated tasks. This master owns selection, execution and completion;
-the [queue](E2E-Task-Queue.md) is its canonical checklist.
+Read this master, then the **Next task** brief. The
+[documentation map](README.md) defines ownership and status terms. The full
+scheduling table is separate so ordinary implementation sessions do not load
+hundreds of unrelated tasks. This master owns selection, execution and
+completion; the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-- [x] **235 — E2E-042: command-help (case 193)**.
+- [x] **235 — E2E-042: command-help (case 193), historical delivery**.
   Prerequisites: 185c — INFO02.
-  Acceptance: case 193 passed its complete installed journey, collection and cleanup.
+  Acceptance at completion: case 193 passed its installed journey, collection
+  and cleanup. Its current scenario status is pending after the provider-ID audit.
 
 - [x] **003 — Open session controls and switch or sign out (DESK02, DESK03, DESK04)**.
   Prerequisites: Baseline.
@@ -29,20 +31,17 @@ pointer never overrides the queue. Keep only current continuation information.
 
 ## Current scope
 
-The UI inventory has **241 cases in 48 families**: **240 pending customer cases**
-and **1 pending harness case**. Retired E2E IDs 140–150
-remain separate system-test obligations and cannot be selected as UI cases.
-Preserve the implementations and regressions for formerly runnable cases
-**1, 3, 4, 5, 6, 151 and 193**, but do not execute them until their external
-provider-ID paths are qualified. The catalogue has **178 blocks: 30 ready and
-148 pending**. These are declarations, not new VM passes.
+Current scenario status and counts come from `tests/e2e/scenarios.json`; block
+status comes from the catalogue. Preserve implementations and regressions for
+formerly runnable cases 1, 3, 4, 5, 6, 151 and 193, but do not execute them until
+their external provider-ID paths are qualified. A checked queue task records its
+delivered scope; it does not override a later `pending` block or scenario status.
 
-The queue has **349 active tasks**: **135 capability slices**, **202 scenario
-tasks covering all 236 initially pending customer cases**, **11 system tasks**
-and **1 metadata task**. Deferred mute task **154** is outside current-release
-completion; no active task depends on it. Consumerless SEC01/GDM10 extractions
-retain their existing qualification. Preserve displaced engineering obligations
-under their maintained owners; a customer pass cannot replace them.
+Retired E2E IDs 140–150 remain separate system-test obligations and cannot be
+selected as UI cases. Deferred mute task 154 is outside current-release
+completion and blocks no active task. Consumerless SEC01/GDM10 extractions retain
+their recorded scope. A customer pass cannot replace displaced engineering
+obligations under their maintained owners.
 
 ## Execute one task
 
@@ -59,12 +58,10 @@ under their maintained owners; a customer pass cannot replace them.
 4. Implement that slice, its meaningful supporting checks and stated acceptance.
    Implement leaves before composites, including within a small task. Bind
    entry, finite inputs, expected public results, precision and deadlines first.
-   Apply the [UI automation mandate](../../AGENTS.md#ui-automation-mandate).
-   Verify the shared public ID contract for every required surface and control
-   before implementing its consumer. Missing app IDs require app accessibility
-   changes first; missing external IDs block that consumer. Prior qualification
-   does not exempt setup, login or retained paths. Use the operational contract
-   in [functional validation](E2E-Building-Blocks.md#functional-validation).
+   Apply the [UI automation mandate](../../AGENTS.md#ui-automation-mandate) and
+   [functional validation](E2E-Building-Blocks.md#functional-validation) to every
+   required surface, including setup, login and retained paths. Fix missing owned
+   IDs first; missing external IDs block the consumer.
 5. Finish live verification, cleanup and close-out. Report the task ID, result
    and next task. The next identical prompt repeats this workflow.
 
@@ -166,8 +163,9 @@ desktop user for VM work.
 
 Each attempt starts with fresh declared state and its own session/window ledger.
 For post-installation work, run `./tools/prepare-appsnapshot --overwrite false`
- (if app code is changed, `--overwrite` must be `true`. non-app code such as docs, tests don't count)
 under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenarios).
+Use `--overwrite true` when application code changed; documentation-only and
+test-only changes continue to use `false`.
 Wait for completion without monitoring or reporting incremental output; proceed
 only on success. The normal dispatcher owns preparation/restoration. Package
 lifecycle cases use their declared product-free start and real customer install.

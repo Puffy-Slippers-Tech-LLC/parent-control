@@ -416,6 +416,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("exec {event_fd}<>", orchestration)
         self.assertIn("org.gnome.Shell.Screenshot", screenshot)
         self.assertIn('"Screenshot"', screenshot)
+        self.assertIn('if [[ $scenario != e2e-search ]]', runner)
 
     def test_request_icon_spins_during_the_final_ten_seconds(self):
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()

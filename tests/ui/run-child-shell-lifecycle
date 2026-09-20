@@ -137,6 +137,11 @@ elif ! probe_generation generation-one; then
 fi
 onpc_preview_record_mutter_devkit
 if [[ $scenario != reload ]]; then
-    capture_screenshot 1
+    # Provider-refusal coverage deliberately stops before traversing or acting
+    # on Shell UI.  A Shell screenshot is neither evidence for that refusal nor
+    # available on every supported nested-Shell configuration.
+    if [[ $scenario != e2e-search ]]; then
+        capture_screenshot 1
+    fi
     onpc_preview_stop_shell
 fi

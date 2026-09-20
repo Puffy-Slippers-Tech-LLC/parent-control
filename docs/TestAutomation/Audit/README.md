@@ -3,9 +3,8 @@
 Execute one numbered task per new session, in the order below. This plan breaks
 down the supplied accessibility/UI automation handoff; creating it performs no
 implementation or test qualification. The next task is
-[02b — Spectator UI](02b-spectator-ui.md), the final remaining slice of task 02.
-Its current inventory is in
-[02 — Owned UI and inventory](02-owned-ui-and-inventory.md#current-callable-inventory).
+[03 — Authentication surfaces](03-authentication-surfaces.md). Its current
+inventory is in [02 — Owned UI and inventory](02-owned-ui-and-inventory.md#current-callable-inventory).
 
 This is a temporary remediation queue for the existing audit. The
 [E2E execution plan](../E2E-Execution-Plan.md),
@@ -18,15 +17,15 @@ acceptance. Finishing this queue does not mark their scenarios complete.
 | Task | Deliverable | Prerequisites | Recommended model / effort | Status |
 | --- | --- | --- | --- | --- |
 | [01](01-legend-expansion.md) | Correct legend state query and independently observe identified expanded content | Session preflight | GPT-5.6 Sol / high | Complete |
-| [02](02-owned-ui-and-inventory.md) | Audit callable identity paths; finish product/preview ID gaps | 01 | GPT-6 Astra / high | In progress; 02a complete, 02b remains |
+| [02](02-owned-ui-and-inventory.md) | Audit callable identity paths; finish product/preview ID gaps | 01 | GPT-6 Astra / high | Complete; O1–O4 and 02a–02b closed |
 | [02a](02a-owned-identity-closure.md) | Finish guest/preview ownership, complete absence and selected-account identities | 02 inventory | GPT-6 Astra / high | Complete; central read regression and final 79-case UI selection passed |
-| [02b](02b-spectator-ui.md) | Migrate newly found spectator UI and retain mechanical obligations | 02a | GPT-6 Astra / high | Not started |
+| [02b](02b-spectator-ui.md) | Migrate newly found spectator UI and retain mechanical obligations | 02a | GPT-6 Astra / high | Complete; 303 units and synthetic host UI passed |
 | [03](03-authentication-surfaces.md) | GDM, authentication and keyring paths use scoped IDs or refuse safely | 02 complete, including 02a–02b | GPT-6 Astra / high | Not started |
 | [04](04-desktop-and-external-apps.md) | Desktop, search, terminal and viewer paths use scoped IDs or refuse safely | 02 inventory; 03 shared adapter changes settled | GPT-6 Astra / high | Not started |
 | [05](05-legacy-input-routes.md) | Close Perl image/pointer and direct Shell routes, including retained callers | 03–04 dispositions recorded | GPT-6 Astra / high | Not started |
 | [06](06-fixture-lifecycle.md) | Review fixture process ownership, runtime packaging and mechanical compatibility | 02; execute after 05 to keep one session active | GPT-6 Astra / high | Not started |
 | [07](07-focused-unit-verification.md) | Complete focused unit selection on final implementation | 01–06 resolved or safely contained | GPT-5.6 Sol / high | Not started |
-| [08](08-host-ui-verification.md) | Complete all eleven host UI files on frozen implementation | 07 passed | GPT-5.6 Sol / high | Not started |
+| [08](08-host-ui-verification.md) | Complete all twelve host UI files on frozen implementation | 07 passed | GPT-5.6 Sol / high | Not started |
 | [09](09-child-static-runtime.md) | Child Node, static and applicable isolated fixture-runtime checks | 08 passed | GPT-5.6 Sol / high | Not started |
 | [10](10-reconcile-and-close.md) | Reconcile contracts, generate coverage inventory, validate documents and close scope | 07–09 results recorded | GPT-6 Astra / high | Not started |
 
@@ -126,7 +125,7 @@ The following are **handoff-reported results**, not new executions:
 - The earlier search-readiness failure is preserved at
   `/var/tmp/onpc-ui-preview-lc9c1y5f`. The existence guard progressed past it in
   the narrower run. The original full run's final totals were unrecoverable.
-- Focused units, the final eleven-file UI run, child-node, static, optional
+- Focused units, the final twelve-file UI run, child-node, static, optional
   fixture-runtime and coverage regeneration remained outstanding. Previous link,
   JSON and diff checks must be repeated on the final documents/code.
 

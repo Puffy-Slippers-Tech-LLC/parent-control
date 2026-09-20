@@ -15,6 +15,9 @@ from tests.e2e.accessible_ui import (
     AccessibleUI,
     EXTERNAL_PROVIDER_CONTRACTS,
     UiError,
+    WATCH_APPLICATION,
+    owned_applications,
+    owned_surface_id,
     public_automation_id,
 )
 
@@ -67,6 +70,18 @@ def test_id_is_independent_of_order_and_unnamed_containers():
     assert ui.target("submit") is target
     root.children.reverse()
     assert ui.target("submit") is target
+
+
+def test_spectator_ids_are_scoped_to_the_owned_window_and_application():
+    assert owned_surface_id("e2e-watch-progress") == "e2e-watch-window"
+    assert owned_surface_id("e2e-watch-window") is None
+    assert owned_applications("e2e-watch-close") == (WATCH_APPLICATION,)
+    progress = Node("e2e-watch-progress")
+    window = Node("e2e-watch-window", [progress])
+    ui = adapter(window)
+    ui.application_ids = lambda: {WATCH_APPLICATION}
+    ui.application_owners = lambda: {WATCH_APPLICATION: {100}}
+    assert ui.find("e2e-watch-progress") is progress
 
 
 def test_missing_and_duplicate_ids_refuse_input():

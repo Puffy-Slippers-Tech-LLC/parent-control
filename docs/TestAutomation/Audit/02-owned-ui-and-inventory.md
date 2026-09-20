@@ -4,9 +4,8 @@
 identity review and a complete accounting of reachable legacy paths.
 
 **Prerequisite:** [01](01-legend-expansion.md) and [shared preflight](README.md).
-**Status:** In progress; inventory and 02a owned-identity closure complete, 02b remains.
-**Next:** [02b — Spectator UI](02b-spectator-ui.md), before
-[03](03-authentication-surfaces.md).
+**Status:** Complete; inventory and owned-identity slices 02a–02b are closed.
+**Next:** [03](03-authentication-surfaces.md).
 
 ## Scope and work
 
@@ -82,9 +81,9 @@ scenario is an execution guard. All external return conditions are in the
 | Key / callable path | Caller or consumer | Owner / required public identity | Current mechanism and disposition | Task |
 | --- | --- | --- | --- | --- |
 | O1 `parent`, `about`, `open_about`, `settings`, `parent_page`, `parent_empty`, `child_id_control`, `focus`, `open_child_picker`, `child_highlighted`, `selected_child`, `read_label`, About branches of `window_ready_to_close`/`window_closed`, `management_denied`/`management_absent` | Parent discovery, About, terminal refusal; host adapter tests | Parent application; `parent-window`, `about-dialog`, `parent-access-denied-window`, UID-scoped child IDs | **Complete (02a).** Both full Parent scales, empty/denial and About return pass. Transient incomplete reads are wholly discarded within bounded waits; effective inherited sensitivity, complete ownership/absence and separate focus/readback/Enter passed the final 79-case run. This closes the owned denial side only; D3's external terminal return remains unqualified. | Complete (02a) |
-| O2 `Automation.find_all/find/target/state/text/content/focus/reveal/activate`; `feedback_editor`, `type_feedback`, `dismiss_feedback_dialog` | All eleven host files; `child_shell_interaction` | Product window/dialog IDs from `owned_surface_id`; rich editor's WebKit `id` | **Complete for owned 02a scope.** Ownership, feedback/error/overflow, effective DISABLED publication, strict complete negative observations and bounded complete-tree pre-action retry passed. Ownership, ambiguity, missing-ID and input failures remain immediate; input dispatch remains single-shot. D5 and L9 stay with their recorded tasks. | Complete (02a); D5/L9 retained |
+| O2 `Automation.find_all/find/target/state/text/content/focus/reveal/activate`; `feedback_editor`, `type_feedback`, `dismiss_feedback_dialog` | All twelve host files; `child_shell_interaction` | Product window/dialog IDs from `owned_surface_id`; rich editor's WebKit `id` | **Complete for owned 02a scope.** Ownership, feedback/error/overflow, effective DISABLED publication, strict complete negative observations and bounded complete-tree pre-action retry passed. Ownership, ambiguity, missing-ID and input failures remain immediate; input dispatch remains single-shot. D5 and L9 stay with their recorded tasks. | Complete (02a); D5/L9 retained |
 | O3 `kiosk_request_form`, `AccountDropdown.set_items/set_selected` | `kiosk_entry`, request-form host tests | `kiosk-request-form` and explicit child/approver UID identities | **Complete (02a).** Station projection, both shared forms' selected UID exposure, submission/validation, error feedback and remembered-mute absence pass. Exact duration selection continues to use GTK ToggleButton `PRESSED`. | Complete (02a) |
-| O4 `e2e_watch_window_probe.inspect/finish`, `test_e2e_watch.run_probe`, `e2e_watch_viewer.application` | Spectator branch in `tools/regression_ui.py`, including retained live variants | Owned spectator window/progress/status/terminal/close IDs, currently missing | Probe accesses widget objects, titles, layouts, colors and geometry directly; no public ID acceptance path. Separate mechanical frame/transport checks from functional UI work without dropping obligations. | 02b |
+| O4 `e2e_watch_window_probe.inspect`, `test_e2e_watch.run_probe`, `e2e_watch_viewer.application` | Spectator branch in `tools/regression_ui.py`, including retained live variants | `org.onpc.E2EWatch`; `e2e-watch-window`, progress, status, display, output and close IDs | **Complete (02b).** The shared scoped adapter binds the declared application to the recorded preview PID. Waiting, progress, status, bounded VTE output, same-window retention/resumption, timer advance and close use public IDs and semantic action. Frame/cursor format, line layout/ellipsis, terminal color/read-only state and resize isolation remain mechanical checks. Cosmetic titles no longer gate. Live variants retain the same ID path but were not executed. | Complete (02b) |
 | R1 `choice_order(...child-picker-order)` | Retained direct adapter entry; `test_child_collection_uses_an_independent_current_list` | `parent-child-choices`, `parent-child-choice-<uid>` | **Complete (02a).** UID collection passed at both Parent scales, ignores nested content IDs, tolerates not-yet-created fixture accounts and refuses unregistered rows. Duplicate/stale/cardinality guards remain; output order never calculates input. | Complete (02a) |
 | R2 `preview_applications.launch`, `launch_request`, `boot_preview_session` | `launch_ui`, request fixtures, nested compositor setup | Explicit Popen handles and caller's public surface ID | Default returns process/log; forbidden name-based readiness refuses before spawn. Added live owned PID projection, retained reverse owned cleanup and spawn/discovery-failure cleanup. | 02; final checks 07 |
 | R3 `mutter_input.press_key/reconnect/click_at` | `child_shell_interaction`, retained imports | ID-proved keyboard recipient; no coordinate target permitted | Keyboard delivery/disconnect checks retained; coordinate entry refuses before backend access. Recipient/overview caller work remains L9. | 02 / 05 |
@@ -111,11 +110,12 @@ scenario is an execution guard. All external return conditions are in the
 | F1 `FixtureUI.target/text/focus_draft/submit/move/closed`, `test_fixture_gui` | Native/game/Flatpak/Snap independent instances | `onpc-fixture-<kind>-<instance>` and child control IDs | Scoped IDs and public action/readback exist; ownership, closure/absence and native child lifecycle review pending. | 06 |
 | F2 `onpc_test_application.c`, `gui_application.py`, `gui_runtime.py`, `build_test_applications.py` | Runtime payload tests, system enforcement mechanical fixture, setup prerequisites | Native executable/owned child, GUI instance IDs, separate mechanical fixture | Preserve offline payload closure, independent instances, mechanical marker and `installed_qualified=false`; review pending. | 06 |
 
-Frozen remaining groups: **owned 1 (O4), authentication 3 (A1–A3),
+Frozen remaining groups: **owned 0, authentication 3 (A1–A3),
 desktop/external 6 (D1–D6), legacy/transport 10 (L1–L10), fixture 2 (F1–F2)**.
 D6 is contained by the shared provider lookup, with live consumers pending;
 the other external/legacy rows are not yet safely contained. R1–R4 record
-implemented work without subtracting their unresolved caller obligations.
+implemented work without subtracting their unresolved caller obligations. O1–O4
+are closed; their final broad verification remains assigned to tasks 07–09.
 Later tasks update these keys, not a replacement inventory.
 
 ## Session evidence and split
@@ -125,7 +125,7 @@ The starting worktree and index were clean; index SHA256 was
 The expanded audit includes shared negative-read/ownership contracts and the
 previously unlisted spectator consumer. Their remaining work is split into 02a
 and 02b so neither becomes an unassigned owned-product/provider backlog item.
-Task 02 stays incomplete until both are complete; 03 follows them.
+Both follow-up slices are complete; task 03 follows them.
 
 Focused command:
 
@@ -215,3 +215,13 @@ complete the interaction. Preserve the working row action and failure evidence.
 All recorded test invocations have finished; no suite is left running.
 All modified files remain in tasks 07/08's final verification scope. No external
 provider, installed customer journey or fixture runtime was qualified here.
+
+Task 02b published the spectator IDs, registered its preview application owner,
+and moved its normal functional reads and close action to the shared scoped
+adapter. Focused watcher/protocol/activity/scheduler/cleanup and adapter units:
+**303 passed**. The synthetic non-live UI run's automatic cleanup gate passed
+**1,476 tests and 3 subtests**; its selected result was **1 passed, 2 live-E2E
+variants deselected**. The passing preview log is
+`/var/tmp/onpc-ui-preview-t_5g7sav/e2e_watch_window_probe.log`. The two live
+variants remain explicit obligations requiring an independently active E2E run;
+they were not executed and no VM or installed customer acceptance is claimed.

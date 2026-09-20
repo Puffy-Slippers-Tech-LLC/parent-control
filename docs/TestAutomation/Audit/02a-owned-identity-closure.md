@@ -206,7 +206,7 @@ changed product/control tests. Use host UI tests only after the automatic
 cleanup gate. Run the affected owned files/nodes, including shared request
 form, feedback/error/About, Parent picker/empty/denial and overflow. Verify all
 new IDs through public AT-SPI; string/source tests cannot establish exposure.
-The complete eleven-file run still belongs to task 08 after D5 is resolved.
+The complete twelve-file run still belongs to task 08 after D5 is resolved.
 
 Preserve task 02's failed-run artifacts and original behavioral assertions.
 Report actual final statuses, artifacts and any remaining safety blockers.

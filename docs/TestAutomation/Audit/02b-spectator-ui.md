@@ -4,8 +4,8 @@
 surface mixes UI acceptance with mechanical rendering and transport checks.
 
 **Prerequisite:** [02a](02a-owned-identity-closure.md) and
-[shared preflight](README.md). **Status:** Not started.
-**Next:** [03](03-authentication-surfaces.md), after closing parent task 02.
+[shared preflight](README.md). **Status:** Complete.
+**Next:** [03](03-authentication-surfaces.md); parent task 02 is closed.
 
 ## Frozen remaining scope
 
@@ -46,8 +46,39 @@ regression rule; do not redefine expected behavior.
 
 Record retained live-variant obligations without claiming their execution. Add
 the spectator file to task 08's final host selection with an explicit non-live
-scope; update its eleven-file wording/count consistently. Update O4 and the
+scope; update its prior eleven-file wording/count consistently. Update O4 and the
 frozen remaining counts in task 02. Close parent task 02 only when O1–O4 and all
 owned verification requirements are resolved; otherwise record the concrete
 remaining blocker. Advance the README pointer to 03 and stop. Apply shared
 diff/link/index-preservation close checks.
+
+## Completion evidence
+
+The spectator publishes an owned application/window chain and stable IDs for
+progress, status, display, bounded terminal output and Close. The synthetic
+probe now uses the shared scoped adapter and recorded preview PID for all normal
+functional observation and input. Direct texture/cursor format, line-count and
+ellipsis, VTE color/read-only, and resize-isolation checks remain explicitly
+mechanical; the cosmetic title is covered by `progress_text` units and no longer
+gates UI acceptance.
+
+Focused watcher, protocol, progress, activity, cleanup, scheduler, adapter and
+preview-support units passed **303 tests**:
+
+```sh
+tools/run-unit-tests -q 'tests/unit/test_automation_ids.py' 'tests/unit/test_support.py' 'tests/unit/test_e2e_watch.py' 'tests/unit/test_e2e_progress.py' 'tests/unit/test_watch_activity.py' 'tests/unit/test_e2e_watch_cleanup_safety.py' 'tests/unit/test_e2e_suite_cleanup_safety.py' 'tests/unit/test_regression_schedule.py' 'tests/unit/test_regression_ui.py' 'tests/unit/test_regression_cleanup.py'
+```
+
+The non-live UI command was:
+
+```sh
+tools/run-ui-tests --timeout 120s -q -m 'not live_e2e' 'tests/ui/test_e2e_watch.py'
+```
+
+Its cleanup prerequisite passed **1,476 tests and 3 subtests**; the selected UI
+result was **1 passed, 2 live-E2E variants deselected**. Passing log:
+`/var/tmp/onpc-ui-preview-t_5g7sav/e2e_watch_window_probe.log`. Both live
+variants retain public-ID observation/close paths and still require a separately
+active E2E attempt; they were not run. No VM or installed behavior was qualified.
+The session began with an empty staged and unstaged diff; the index SHA256 was
+and remains `39087350e0a6cdf07a70cc0537bfdc1d38b42dbf3ca3729fb3948506caa50fac`.

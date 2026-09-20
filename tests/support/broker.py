@@ -64,6 +64,9 @@ class Accounts:
             raise RuntimeError("rollback failed")
         self.filter = value
 
+    def validate_filter(self, uid, value):
+        pass
+
     def get_extension(self, uid):
         self.events.append(("get_extension", uid))
         return self.extension

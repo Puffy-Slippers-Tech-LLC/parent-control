@@ -3,6 +3,8 @@
 - Software Updater: Fixed the description to match app name
 - Harden execution probes with isolated D-Bus clients, retained late replies, recoverable cleanup, and stricter execution identity checks.
 - Packaging: Removed some non-product files (internal tools, docs) from package.
+- Screen-time changes failed when fapolicyd 1.3.6 couldn’t represent certain filenames; the fix skips unnecessary exceptions for already-blocked files and validates rules before changing  settings, with clearer errors for unsupported cases.
+
 
 ### New Features
 - Logging: Added bunch of logging to help troubleshoot - no PII logged, as promised

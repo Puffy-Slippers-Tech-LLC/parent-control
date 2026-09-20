@@ -117,6 +117,11 @@ class FapolicydPolicy:
                     cls._safe_directory(child)
                     lines.append(f"allow perm=execute uid={uid} : dir={child}")
                 elif entry.is_file(follow_symlinks=False) and os.access(entry.path, os.X_OK):
+                    # Concrete denials were emitted above. They need no
+                    # exception to the directory guard, even when their name
+                    # no longer matches a saved version wildcard.
+                    if entry.path in blocked:
+                        continue
                     if not any(fnmatch.fnmatchcase(entry.name, pattern) for pattern in basenames):
                         if any(character.isspace() for character in entry.path) or "," in entry.path:
                             raise ExecutionPolicyError("existing nonmatching executable cannot be represented")

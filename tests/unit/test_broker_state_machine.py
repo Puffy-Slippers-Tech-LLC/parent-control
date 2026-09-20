@@ -75,6 +75,9 @@ class ModelAccounts:
         self._fail("set_filter")
         self.filters[uid] = value
 
+    def validate_filter(self, uid, value):
+        pass
+
     def get_extension(self, uid):
         self._fail("get_extension")
         return self.extensions[uid]

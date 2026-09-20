@@ -99,10 +99,25 @@ filename against an unambiguous target directory. Directory whitespace and
 unsupported rule characters are rejected. The renderer also refuses a pattern
 when an existing nonmatching executable's whitespace/comma path cannot be
 expressed as an allowance; it reports a failed save rather than silently
-blocking that existing nonmatch. Default patterns are suggested for recognized
+blocking that existing nonmatch. Explicitly blocked executables need no
+allowance and are excluded from this check, even when they do not match the
+saved wildcard. They retain their preceding path or hash denial. No hash-based
+allowance is emitted: identical bytes under a matching filename must not bypass
+the directory guard. This remains compatible with fapolicyd 1.3.6.
+Default patterns are suggested for recognized
 versioned `.AppImage` names; explicitly saving that detected default is not a
 custom override. Existing immediate subdirectories receive prefix allowances;
 new nonmatching files/directories require reconciliation before receiving them.
+
+Before changing screen-time settings, the broker renders the aggregate rules
+with the proposed complete saved blocklist, including other accounts' live
+filters and applicable patterns. A rendering failure leaves time limits,
+grants, extension activation and preferences untouched. Unsupported wildcard
+folder contents produce an App Limits error. Commit still reconciles again;
+preflight does not prevent filesystem or external policy changes afterward,
+and existing rollback remains necessary for later failures. This broker change
+uses `process-restart` activation, adds no dependency and changes no saved-data
+schema. Unit checks do not establish installed enforcement acceptance.
 
 Every broker `AppFilter` write synchronously reconciles the aggregate fapolicyd
 policy. The renderer skips replacement and reload only when the disk contents

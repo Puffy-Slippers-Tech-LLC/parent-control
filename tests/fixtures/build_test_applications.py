@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import select
 import shutil
 import signal
@@ -42,6 +43,11 @@ NATIVE_NAMES = (
     "Lunar Client-3.8.0.AppImage",
     "PrismLauncher.AppImage",
 )
+VOLATILE_FILES = frozenset({
+    "flatpak-repository/summary",
+    "flatpak-repository/summary.idx",
+    "onpc-test-application.flatpak",
+})
 
 
 class FixtureError(RuntimeError):
@@ -94,26 +100,24 @@ def _digest(path: Path) -> str:
 
 def _write_manifest(output: Path) -> None:
     files = {}
+    manifest_path = output / "SHA256SUMS.json"
     for item in sorted(output.rglob("*")):
         relative = item.relative_to(output).as_posix()
         # Flatpak's public export API writes a wall-clock timestamp into these
         # delivery indexes. They do not alter the application/runtime commits.
         # The bundle is made from that index, so it has the same container-only
         # variation. Verify its presence, while hashing the stable payload.
-        volatile = relative in {
-            "flatpak-repository/summary",
-            "flatpak-repository/summary.idx",
-            "onpc-test-application.flatpak",
-        }
-        if item.is_file() and item.name != "SHA256SUMS.json" and not volatile:
+        volatile = relative in VOLATILE_FILES
+        if item.is_file() and item != manifest_path and not volatile:
             files[item.relative_to(output).as_posix()] = _digest(item)
     _write_text(
-        output / "SHA256SUMS.json",
+        manifest_path,
         json.dumps({"algorithm": "sha256", "files": files}, indent=2, sort_keys=True) + "\n",
     )
 
 
 def verify(output: Path) -> None:
+    output = Path(output).resolve(strict=True)
     manifest_path = output / "SHA256SUMS.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -122,8 +126,20 @@ def verify(output: Path) -> None:
         raise FixtureError("fixture digest manifest is invalid") from error
     if manifest.get("algorithm") != "sha256" or not isinstance(files, dict):
         raise FixtureError("fixture digest manifest has an unsupported format")
+    actual_files = {
+        item.relative_to(output).as_posix()
+        for item in output.rglob("*")
+        if item.is_file() and item != manifest_path
+    }
+    if actual_files != set(files) | VOLATILE_FILES:
+        raise FixtureError("fixture digest manifest does not describe the complete payload")
+    for relative in VOLATILE_FILES:
+        candidate = (output / relative).resolve(strict=False)
+        if output not in candidate.parents or not candidate.is_file():
+            raise FixtureError("fixture volatile container escapes its output directory")
     for relative, expected in files.items():
-        if not isinstance(relative, str) or not isinstance(expected, str):
+        if (not isinstance(relative, str) or not isinstance(expected, str)
+                or re.fullmatch(r'[0-9a-f]{64}', expected) is None):
             raise FixtureError("fixture digest manifest has invalid entries")
         candidate = (output / relative).resolve(strict=False)
         if output not in candidate.parents or not candidate.is_file():
@@ -141,7 +157,8 @@ def _compile_native(output: Path, *, kind="native", headless=False) -> Path:
           f'-DFIXTURE_KIND="{kind}"', f'-DFIXTURE_GUI_DEFAULT={0 if headless else 1}',
           "-o", str(native), str(SOURCE)])
     native.chmod(0o755)
-    shutil.copyfile(GUI_SOURCE, native.parent / "onpc-test-gui.py")
+    if not headless:
+        shutil.copyfile(GUI_SOURCE, native.parent / "onpc-test-gui.py")
     return native
 
 
@@ -370,8 +387,7 @@ def launch_native(binary: Path, uid: int) -> subprocess.Popen[str]:
     )
     marker = _read_readiness(process)
     if marker.strip() != READY_MARKER:
-        process.terminate()
-        process.wait(timeout=5)
+        terminate(process)
         raise FixtureError("native fixture did not report readiness")
     _log("launch-native", "ready")
     return process
@@ -429,10 +445,8 @@ def launch_flatpak(output: Path, uid: int, *, system_bus_address: str) -> subpro
     )
     marker = _read_readiness(process)
     if marker.strip() != READY_MARKER:
-        diagnostic = process.stderr.read().strip() if process.stderr is not None else ""
         terminate(process)
-        category = diagnostic.splitlines()[-1] if diagnostic else "no readiness marker"
-        raise FixtureError(f"Flatpak fixture did not report readiness: {category}")
+        raise FixtureError("Flatpak fixture did not report readiness")
     _log("launch-flatpak", "ready")
     return process
 

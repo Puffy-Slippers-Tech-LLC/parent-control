@@ -87,6 +87,7 @@ def activation_for(path: str) -> str:
         "usr/libexec/oh-no-parent-control-broker",
         "usr/libexec/oh-no-parent-control-execution-probe-gate",
         "usr/libexec/oh-no-parent-control-execution-probe-witness",
+        "usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui/app_policy.py",
         "usr/lib/systemd/system/oh-no-parent-control-broker.service",
     } or path.startswith((
         "usr/lib/oh-no-parent-control/broker/",

@@ -27,6 +27,7 @@ from common.oh_no_parent_control_ui.accessibility import (
     set_automation_id,
 )
 from common.oh_no_parent_control_ui.duration import format_duration
+from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui.feedback import FeedbackDialog
 from common.oh_no_parent_control_ui.errors import (
     ErrorHandler, GENERIC_TITLE, GENERIC_DETAIL, install_exception_hooks,
@@ -1449,13 +1450,18 @@ class ParentWindow(Adw.ApplicationWindow):
         preferences = getattr(self, "_preferences", None)
         if preferences is None:
             return
+        applications = getattr(self, "_app_catalog", None)
+        if applications is None:
+            applications = [row.app for row in self._rows]
+        replacements = replacement_policy_ids(preferences["apps"], applications)
         was_loading = self._loading
         self._loading = True
         try:
             for row in self._rows:
-                state = preferences["apps"].get(row.app["id"], {}).get("state", "allowed")
+                row.saved_policy_id = replacements.get(row.app["id"], row.app["id"])
+                policy = preferences["apps"].get(row.saved_policy_id, {})
+                state = policy.get("state", "allowed")
                 row.policy_buttons[state].set_active(True)
-                policy = preferences["apps"].get(row.app["id"], {})
                 row.user_saved_match_rule = policy.get("user_saved_match_rule", False)
                 row.match_rule = (policy.get("patterns") or [None])[0]
                 if row.match_rule is None and row.user_saved_match_rule:
@@ -2002,6 +2008,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # the account was last managed. Replacing the visible rows below is
         # therefore the only change made by this save.
         visible_ids = {row.app["id"] for row in self._rows}
+        visible_ids.update(getattr(row, "saved_policy_id", row.app["id"]) for row in self._rows)
         value["apps"] = {
             app_id: policy for app_id, policy in self._preferences["apps"].items()
             if app_id not in visible_ids

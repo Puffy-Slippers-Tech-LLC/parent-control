@@ -27,11 +27,33 @@ Relative native commands use an explicit absolute desktop `Path`, when present,
 then the selected child's `.local/bin` and `bin`. Bare command names fall back
 to `/usr/local/bin`, `/usr/bin`, and `/bin`, in that order, without inheriting
 the broker's administrator `PATH` or current directory. Native targets are
-canonicalized before generic-wrapper exclusion. This fixed discovery policy
-does not evaluate account shell profiles or arbitrary session PATH changes.
+canonicalized before generic-wrapper exclusion. For the installed
+`/usr/bin/AppImageLauncher` wrapper, discovery resolves its first argument when
+that argument is an absolute `.AppImage` path. The payload must exist and must
+not resolve to a generic launcher. `TryExec` does not supply application identity;
+unsupported argument layouts never turn the shared wrapper into a block target.
+This fixed discovery policy does not evaluate account shell profiles or arbitrary
+session PATH changes.
 On every app-policy save it resolves each still-present desktop ID again; a
 self-updated executable is not replaced by a stale target, while a missing
-app's saved rule remains intact. The Parent catalogue itself is a selection-time
+app's saved rule remains intact. If an updater replaces the desktop ID, Parent
+associates the disappeared launcher's saved wildcard with the current row only
+when exactly one new launcher matches it, and exactly one disappeared policy
+selects that launcher. Matching uses the saved basename glob in its exact
+directory, never a displayed name or desktop-ID resemblance. Existing choices
+for a current ID take precedence when they differ. Equivalent duplicate choices
+can consolidate, including a default previously saved against the shared
+AppImageLauncher when the actual payload now supplies the same wildcard.
+Precise overrides and ambiguous matches remain under their original IDs.
+Parent shows the inherited access choice and pattern,
+then replaces that old ID on the next save, including when changing it to
+Always Allowed. The broker repeats this association at commit time to handle
+an update after the catalogue was displayed. Unrelated missing launchers remain
+preserved. The shared matcher and broker changes use `process-restart`
+activation; Parent loads the new view behavior on its next launch. The existing
+preference format remains compatible and needs no data migration.
+
+The Parent catalogue itself is a selection-time
 snapshot; a new Parent window or changing children refreshes its rows. This
 differs from the periodic account-list and enforcement-rule refreshes.
 After installing and verifying the complete policy, the broker stops applications
@@ -105,7 +127,14 @@ allowance is emitted: identical bytes under a matching filename must not bypass
 the directory guard. This remains compatible with fapolicyd 1.3.6.
 Default patterns are suggested for recognized
 versioned `.AppImage` names; explicitly saving that detected default is not a
-custom override. Existing immediate subdirectories receive prefix allowances;
+custom override. The default keeps the application prefix while allowing
+trailing version/integration suffixes to change or disappear: both
+`Lunar Client-3.7.17-ow_GUID.AppImage` and `Lunar Client-3.7.20-ow.AppImage`
+suggest `Lunar Client-*.AppImage`. Hash-only names retain their application
+prefix and separator. This catalog correction uses `process-restart` activation;
+existing saved patterns remain unchanged and can be corrected through the match
+editor. It adds no dependency or saved-data migration.
+Existing immediate subdirectories receive prefix allowances;
 new nonmatching files/directories require reconciliation before receiving them.
 
 Production reconciliation isolates local rule-generation failures. A directory

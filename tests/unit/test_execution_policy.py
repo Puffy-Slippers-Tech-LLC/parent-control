@@ -4,12 +4,33 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from oh_no_parent_control.catalog import suggested_patterns
 from oh_no_parent_control.execution_policy import (
     ExecutionPolicyError, FapolicydPolicy,
 )
 
 
 class ExecutionPolicyTests(unittest.TestCase):
+    def test_generated_lunar_pattern_guards_update_without_integration_hash(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            old = directory / 'Lunar Client-3.7.17-ow_2efff2fd1cdfecc506766be231242432.AppImage'
+            updated = directory / 'Lunar Client-3.7.20-ow.AppImage'
+            other = directory / 'pCloud_42870ec3026efef69e0bdaa75c9347c4.AppImage'
+            for path in (updated, other):
+                path.write_bytes(b'app')
+                path.chmod(0o755)
+            (directory / '.trash').mkdir()
+            issues = []
+            rules = FapolicydPolicy.render(
+                {1001: (str(old),)}, {1001: suggested_patterns(str(old))}, issues=issues)
+            self.assertEqual(issues, [])
+            self.assertIn(f'deny_syslog perm=execute uid=1001 : dir={directory}/', rules)
+            self.assertIn(f'allow perm=execute uid=1001 : path={other}', rules)
+            self.assertIn(f'allow perm=execute uid=1001 : dir={directory}/.trash/', rules)
+            self.assertNotIn(f'path={updated}', rules)
+            self.assertNotIn('sha256hash=', rules)
+
     def test_recoverable_pattern_failure_keeps_other_rules_and_retries_saved_pattern(self):
         for name in ("Other Client.AppImage", "Other,Client.AppImage"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:

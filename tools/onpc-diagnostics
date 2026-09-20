@@ -2,10 +2,12 @@
 """Read system diagnostics with fixed commands, no pagers, writes or command options."""
 
 import argparse
+import configparser
 from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import stat
 import subprocess
@@ -62,6 +64,13 @@ def arguments(argv):
     for name in ('processes', 'disks', 'mounts', 'memory', 'cpu', 'kernel', 'network',
                  'sockets', 'packages', 'sessions'):
         commands.add_parser(name, allow_abbrev=False)
+    applications = commands.add_parser('applications', allow_abbrev=False,
+                                       help='list one account\'s Applications folder metadata')
+    applications.add_argument('uid', type=int)
+    launcher = commands.add_parser('launcher', allow_abbrev=False,
+                                  help='read launch metadata from one user desktop entry')
+    launcher.add_argument('uid', type=int)
+    launcher.add_argument('desktop_id')
     return parser.parse_args(argv)
 
 
@@ -145,9 +154,90 @@ def read_file(args):
             raise ValueError('operation does not match file type')
 
 
+def application_parts(uid):
+    if not 1000 <= uid < 2 ** 32 - 1:
+        raise ValueError('expected an ordinary account UID')
+    try:
+        account = pwd.getpwuid(uid)
+    except KeyError as error:
+        raise ValueError('account does not exist') from error
+    parts = account.pw_dir.split('/')
+    if (account.pw_uid != uid or len(parts) != 3 or parts[:2] != ['', 'home']
+            or not parts[2] or parts[2] in ('.', '..')
+            or any(ord(c) < 32 for c in account.pw_dir)):
+        raise ValueError('expected a direct account home under /home')
+    return [*parts[1:], 'Applications']
+
+
+def read_applications(uid):
+    # Only metadata in this fixed directory: no arbitrary private-file reader,
+    # recursion, symlink traversal, executable invocation or application input.
+    parts = application_parts(uid)
+    with ExitStack() as stack:
+        def directory(name, parent=None):
+            fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                         dir_fd=parent)
+            stack.callback(os.close, fd)
+            return fd
+        parent = directory('/')
+        for part in parts:
+            parent = directory(part, parent)
+        entries = []
+        with os.scandir(parent) as scan:
+            for entry in scan:
+                if len(entries) >= 4096:
+                    raise ValueError('Applications folder exceeds diagnostic entry limit')
+                info = entry.stat(follow_symlinks=False)
+                kind = ('file' if stat.S_ISREG(info.st_mode) else
+                        'directory' if stat.S_ISDIR(info.st_mode) else
+                        'symlink' if stat.S_ISLNK(info.st_mode) else 'special')
+                entries.append({'name': entry.name, 'kind': kind,
+                                'mode': oct(stat.S_IMODE(info.st_mode)),
+                                'bytes': info.st_size})
+        print(json.dumps(sorted(entries, key=lambda entry: entry['name'])))
+
+
+def read_launcher(uid, desktop_id):
+    if (not re.fullmatch(r'[A-Za-z0-9_ .+-]{1,240}\.desktop', desktop_id)
+            or desktop_id.startswith('.')):
+        raise ValueError('expected one desktop filename without traversal')
+    parts = [*application_parts(uid)[:-1], '.local', 'share', 'applications', desktop_id]
+    with ExitStack() as stack:
+        def opened(name, flags, parent=None):
+            fd = os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+            stack.callback(os.close, fd)
+            return fd
+        parent = opened('/', os.O_RDONLY | os.O_DIRECTORY)
+        for part in parts[:-1]:
+            parent = opened(part, os.O_RDONLY | os.O_DIRECTORY, parent)
+        fd = opened(parts[-1], os.O_RDONLY | os.O_NONBLOCK, parent)
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 65536:
+            raise ValueError('expected a small regular singly linked desktop entry')
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            contents = stream.read(65537)
+        if len(contents) > 65536:
+            raise ValueError('desktop entry exceeds diagnostic limit')
+        entry = configparser.ConfigParser(interpolation=None)
+        try:
+            entry.read_string(contents.decode('utf-8'))
+            desktop = entry['Desktop Entry']
+        except (UnicodeError, configparser.Error, KeyError) as error:
+            raise ValueError('invalid desktop entry') from error
+        keys = ('Type', 'Exec', 'TryExec', 'Path', 'X-AppImage-Version',
+                'X-AppImage-Name', 'X-AppImage-Arch', 'X-AppImageLauncher-Version')
+        print(json.dumps({key: desktop[key] for key in keys if key in desktop}))
+
+
 def main(argv=None):
     try:
         args = arguments(sys.argv[1:] if argv is None else argv)
+        if args.action == 'applications':
+            read_applications(args.uid)
+            return 0
+        if args.action == 'launcher':
+            read_launcher(args.uid, args.desktop_id)
+            return 0
         selected = command(args)
         if selected is None:
             read_file(args)

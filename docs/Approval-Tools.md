@@ -363,6 +363,7 @@ tools/diagnose systemctl status 'libvirtd.service'
 tools/diagnose read '/etc/polkit-1/rules.d/50-onpc-test-runner.rules'
 tools/diagnose tail '/var/log/oh-no-parent-control/broker/2026-09-17.events'
 tools/diagnose processes
+tools/diagnose applications 1001
 ```
 
 Other fixed reads are `disks`, `mounts`, `memory`, `cpu`, `kernel`, `network`,
@@ -371,6 +372,23 @@ list-units, list-unit-files, is-active and is-enabled. Journal options only
 select units, date bounds, boot, kernel, output format and line count. Commands
 disable pagers/authentication requests and have a bounded execution timeout.
 Raw source output is for local inspection; only redacted evidence is shared.
+
+`applications UID` lists only immediate filenames, types, modes and sizes in
+that account's `Applications` folder. It resolves an ordinary UID through NSS,
+requires a direct home under `/home`, pins every directory without following
+symlinks, and refuses more than 4096 entries. It reads no application contents,
+does not recurse, and accepts no arbitrary private path. This supports local
+diagnosis of omitted AppImage wildcard rules in private child homes. The helper
+update activates on its next invocation after `./setup.sh --test-tools-only`
+(`none`); it changes no product service, saved data or privilege grant.
+
+`launcher UID DESKTOP_ID` reads only selected launch metadata from a single
+desktop file in that account's `.local/share/applications`. It uses the same
+home boundary, refuses path components in the filename, symlinks at every
+level, hardlinks, special files and entries over 64 KiB. It returns the main
+entry's `Type`, `Exec`, `TryExec`, `Path` and selected AppImage metadata, never
+other sections or arbitrary file contents. This is a local diagnostic for
+incorrect AppImage target discovery; it never executes the launcher.
 
 File read/tail/list/stat covers `/var/log`, systemd/Polkit/AppArmor/fapolicyd
 configuration, installed systemd/Polkit definitions, dpkg package info, and

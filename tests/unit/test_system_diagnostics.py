@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 import runpy
 import subprocess
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import Mock, MagicMock
 
 import pytest
 
@@ -19,6 +20,10 @@ diag = runpy.run_path(str(ROOT / 'tools/onpc-diagnostics'))
     ['systemctl', 'show', '--root=/tmp'], ['systemctl', 'status', '--pager-end'],
     ['systemctl', 'status', '--property=ExecStart'], ['systemctl', 'cat', '/tmp/unit'],
     ['processes', '-e', 'arbitrary'], ['network', 'link', 'delete'], ['packages', '--install'],
+    ['applications', '/home/child'], ['applications', '1001', '/etc/shadow'],
+    ['applications', '--exec', '1001'], ['applications', '0'],
+    ['launcher', '1001', '../secret.desktop'], ['launcher', '1001', '/etc/shadow'],
+    ['launcher', '1001', 'app.desktop', '--exec'], ['launcher', '0', 'app.desktop'],
 ])
 def test_write_exec_and_option_injection_rejected(argv, monkeypatch):
     execute = Mock()
@@ -70,6 +75,117 @@ def test_open_refuses_symlinks_hardlinks_and_fifo(tmp_path, monkeypatch):
     for path in (link, fifo, hard):
         with pytest.raises((ValueError, OSError)):
             reader(diag['arguments'](['read', str(path)]))
+
+
+@pytest.mark.parametrize('uid,home', [
+    (0, '/root'), (999, '/home/service'), (2 ** 32 - 1, '/home/child'),
+    (1001, '/etc'), (1001, '/home/..'), (1001, '/home/child/../other'),
+    (1001, '/home/child/'), (1001, '/home/child\n'),
+])
+def test_applications_refuses_unrelated_paths(uid, home, monkeypatch):
+    monkeypatch.setattr(diag['pwd'], 'getpwuid',
+                        lambda value: SimpleNamespace(pw_uid=value, pw_dir=home))
+    with pytest.raises(ValueError):
+        diag['application_parts'](uid)
+
+
+def test_applications_uses_nss_home_and_refuses_unknown_account(monkeypatch):
+    lookup = Mock(return_value=SimpleNamespace(pw_uid=1001, pw_dir='/home/child'))
+    monkeypatch.setattr(diag['pwd'], 'getpwuid', lookup)
+    assert diag['application_parts'](1001) == ['home', 'child', 'Applications']
+    lookup.side_effect = KeyError(1001)
+    with pytest.raises(ValueError):
+        diag['application_parts'](1001)
+
+
+def test_applications_lists_metadata_without_following_entries(tmp_path, monkeypatch, capsys):
+    directory = tmp_path / 'Applications'
+    directory.mkdir()
+    regular = directory / 'Lunar Client.AppImage'
+    regular.write_bytes(b'private contents')
+    regular.chmod(0o755)
+    (directory / 'folder').mkdir()
+    (directory / 'link').symlink_to(tmp_path)
+    os.mkfifo(directory / 'fifo')
+    reader = diag['read_applications']
+    monkeypatch.setitem(reader.__globals__, 'application_parts',
+                        lambda uid: directory.parts[1:])
+    assert diag['main'](['applications', '1001']) == 0
+    entries = json.loads(capsys.readouterr().out)
+    assert [entry['name'] for entry in entries] == ['Lunar Client.AppImage', 'fifo', 'folder', 'link']
+    assert [entry['kind'] for entry in entries] == ['file', 'special', 'directory', 'symlink']
+    assert entries[0]['mode'] == '0o755'
+    assert entries[0]['bytes'] == len(b'private contents')
+
+
+def test_applications_refuses_symlinked_directory_components(tmp_path, monkeypatch):
+    actual = tmp_path / 'actual'
+    actual.mkdir()
+    (actual / 'Applications').mkdir()
+    linked = tmp_path / 'linked'
+    linked.symlink_to(actual, target_is_directory=True)
+    reader = diag['read_applications']
+    for path in (linked, linked / 'Applications'):
+        monkeypatch.setitem(reader.__globals__, 'application_parts', lambda uid: path.parts[1:])
+        with pytest.raises(OSError):
+            reader(1001)
+
+
+def test_applications_refuses_excess_entries_without_partial_output(tmp_path, monkeypatch, capsys):
+    reader = diag['read_applications']
+    monkeypatch.setitem(reader.__globals__, 'application_parts', lambda uid: tmp_path.parts[1:])
+    entry = Mock(name='entry')
+    entry.name = 'app'
+    entry.stat.return_value = SimpleNamespace(st_mode=0o100755, st_size=1)
+    scan = MagicMock()
+    scan.__enter__.return_value = iter([entry] * 4097)
+    monkeypatch.setattr(diag['os'], 'scandir', lambda fd: scan)
+    with pytest.raises(ValueError, match='entry limit'):
+        reader(1001)
+    assert capsys.readouterr().out == ''
+
+
+def test_launcher_reports_only_launch_metadata(tmp_path, monkeypatch, capsys):
+    reader = diag['read_launcher']
+    monkeypatch.setitem(reader.__globals__, 'application_parts',
+                        lambda uid: [*tmp_path.parts[1:], 'Applications'])
+    directory = tmp_path / '.local/share/applications'
+    directory.mkdir(parents=True)
+    (directory / 'lunar.desktop').write_text(
+        '[Desktop Entry]\nType=Application\nExec=AppImageLauncher /apps/Lunar.AppImage\n'
+        'Name=Private label\nX-Unrelated=private value\n'
+        '[Desktop Action Other]\nExec=unrelated\n')
+    assert diag['main'](['launcher', '1001', 'lunar.desktop']) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        'Type': 'Application', 'Exec': 'AppImageLauncher /apps/Lunar.AppImage'}
+
+
+@pytest.mark.parametrize('kind', ['symlink', 'hardlink', 'fifo', 'oversized', 'invalid', 'parent-link'])
+def test_launcher_refuses_unsafe_files(tmp_path, monkeypatch, kind):
+    reader = diag['read_launcher']
+    monkeypatch.setitem(reader.__globals__, 'application_parts',
+                        lambda uid: [*tmp_path.parts[1:], 'Applications'])
+    directory = tmp_path / '.local/share/applications'
+    directory.mkdir(parents=True)
+    source = tmp_path / 'source'
+    source.write_text('[Desktop Entry]\nType=Application\n')
+    target = directory / 'app.desktop'
+    if kind == 'symlink':
+        target.symlink_to(source)
+    elif kind == 'hardlink':
+        os.link(source, target)
+    elif kind == 'fifo':
+        os.mkfifo(target)
+    elif kind == 'oversized':
+        target.write_bytes(b'x' * 65537)
+    elif kind == 'invalid':
+        target.write_bytes(b'\xff')
+    else:
+        directory.rmdir()
+        directory.symlink_to(tmp_path, target_is_directory=True)
+        (tmp_path / 'app.desktop').write_text(source.read_text())
+    with pytest.raises((ValueError, OSError)):
+        reader(1001, 'app.desktop')
 
 
 @pytest.mark.parametrize('override,allowed', [

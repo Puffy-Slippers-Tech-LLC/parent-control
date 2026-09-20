@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
 import re
@@ -623,6 +624,9 @@ class Broker:
                 application["id"]: list(application["targets"])
                 for application in applications
             }
+            replacements = replacement_policy_ids(preferences["apps"], applications)
+            for desktop_id, previous_id in replacements.items():
+                preferences["apps"][desktop_id] = preferences["apps"].pop(previous_id)
             for desktop_id, policy in preferences["apps"].items():
                 if desktop_id in current_targets:
                     policy["targets"] = current_targets[desktop_id]

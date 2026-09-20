@@ -5,7 +5,7 @@ retained absence/readiness paths need a consistent identity boundary.
 
 **Prerequisite:** [02 inventory](02-owned-ui-and-inventory.md),
 [03](03-authentication-surfaces.md) shared adapter edits settled, and
-[shared preflight](README.md). **Status:** Not started.
+[shared preflight](README.md). **Status:** Complete; provider blocked.
 **Next:** [05](05-legacy-input-routes.md).
 
 ## Scope and work
@@ -55,3 +55,37 @@ safe under existing prerequisites; full host UI verification remains task 08.
 Close each task-02 row as migrated or contained/provider blocked. A blocked
 provider is not qualified by source review, unit success, scenario status or an
 old name-based run. No installed desktop journey is executed in this session.
+
+## Completion evidence
+
+D1–D4 now preflight complete external mappings before traversal, resolve targets
+only inside registered application/surface/control ID scopes, and preserve
+query/readback, focus, bounded content, stable absence and return checks on
+ID-capable doubles. The adapter no longer emits search/session pointer geometry.
+Actual Shell, terminal and document-viewer mappings remain absent, so installed
+consumers stop at `ui:unqualified-provider-application` before discovery or
+input. The nested Shell probe retains that same refusal. Legacy Perl
+pointer/keyboard callers remain explicitly assigned to task 05 and cannot be
+reached through a successful installed adapter observation.
+
+D5 is now observation-only: it retains the installed Settings Builder-ID
+inventory but performs no global activation. D6 remains contained by the shared
+provider lookup, with all named chooser, Files, archive, editor, viewer and
+Settings consumers retained in the provider-gap catalogue. Unit doubles do not
+qualify any installed provider or customer journey.
+
+Verification completed on 2026-09-19:
+
+```text
+tools/run-unit-tests -q 'tests/unit/test_accessible_e2e_ui.py' 'tests/unit/test_e2e_desktop_session.py' 'tests/unit/test_e2e_terminal.py' 'tests/unit/test_parent_about_worker.py' 'tests/unit/test_parent_access_worker.py'
+454 passed in 2.93s
+
+tools/run-unit-tests -q 'tests/unit/test_automation_ids.py' 'tests/unit/test_installed_journey_cleanup_safety.py'
+141 passed in 10.44s
+
+tools/run-ui-tests --timeout 120s 'tests/ui/test_e2e_accessible_adapter.py::test_installed_settings_users_publishes_builder_ids' -q
+1476 cleanup tests and 3 subtests passed; selected UI test: 1 passed in 7.80s
+```
+
+No VM, installed product journey, broad E2E run or provider qualification was
+performed. Task 05 is next.

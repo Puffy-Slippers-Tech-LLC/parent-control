@@ -242,10 +242,6 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation in ('standard-app-grid', *accessible_ui.SESSION_POINTER_OPERATIONS):
-            require(type(result) is dict and set(result) == {*expected, 'pointer'}, 'ui:response')
-            point = result['pointer']
-            expected['pointer'] = self.point(point)
         if operation in accessible_ui.PICKER_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'focused'}
                     and result['focused'] is True, 'ui:response')

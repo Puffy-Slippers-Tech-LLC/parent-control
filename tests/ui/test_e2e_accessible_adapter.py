@@ -93,11 +93,10 @@ def test_installed_settings_users_publishes_builder_ids(hermetic_ui_session, tmp
                     ],
                     identity,
                 )
-            ui.activate(ui.id_target('search_button', sensitive=True))
-            assert ui.wait(
-                lambda: ui.find_id('search_entry', showing=False),
-                'search_entry',
-            )
+            # Partial Builder IDs are inventory only. Settings publishes no
+            # qualified application/surface chain, so this test must not
+            # activate the globally discovered search button.
+            assert ui.provider_contracts['gnome-settings']['application_id'] is None
         finally:
             if process.poll() is None:
                 process.terminate()

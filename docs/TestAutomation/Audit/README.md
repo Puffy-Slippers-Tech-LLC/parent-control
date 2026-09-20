@@ -3,7 +3,9 @@
 Execute one numbered task per new session, in the order below. This plan breaks
 down the supplied accessibility/UI automation handoff; creating it performs no
 implementation or test qualification. The next task is
-[02 — Owned UI and inventory](02-owned-ui-and-inventory.md).
+[02a — Remaining owned identity](02a-owned-identity-closure.md), the first
+remaining slice of task 02. Its current inventory is in
+[02 — Owned UI and inventory](02-owned-ui-and-inventory.md#current-callable-inventory).
 
 This is a temporary remediation queue for the existing audit. The
 [E2E execution plan](../E2E-Execution-Plan.md),
@@ -16,8 +18,10 @@ acceptance. Finishing this queue does not mark their scenarios complete.
 | Task | Deliverable | Prerequisites | Recommended model / effort | Status |
 | --- | --- | --- | --- | --- |
 | [01](01-legend-expansion.md) | Correct legend state query and independently observe identified expanded content | Session preflight | GPT-5.6 Sol / high | Complete |
-| [02](02-owned-ui-and-inventory.md) | Audit callable identity paths; finish product/preview ID gaps | 01 | GPT-6 Astra / high | Not started |
-| [03](03-authentication-surfaces.md) | GDM, authentication and keyring paths use scoped IDs or refuse safely | 02 inventory | GPT-6 Astra / high | Not started |
+| [02](02-owned-ui-and-inventory.md) | Audit callable identity paths; finish product/preview ID gaps | 01 | GPT-6 Astra / high | In progress; inventory and first fixes done, 02a–02b remain |
+| [02a](02a-owned-identity-closure.md) | Finish guest/preview ownership, complete absence and selected-account identities | 02 inventory | GPT-6 Astra / high | In progress; About diagnosis verified, effective-sensitivity publication needs live verification |
+| [02b](02b-spectator-ui.md) | Migrate newly found spectator UI and retain mechanical obligations | 02a | GPT-6 Astra / high | Not started |
+| [03](03-authentication-surfaces.md) | GDM, authentication and keyring paths use scoped IDs or refuse safely | 02 complete, including 02a–02b | GPT-6 Astra / high | Not started |
 | [04](04-desktop-and-external-apps.md) | Desktop, search, terminal and viewer paths use scoped IDs or refuse safely | 02 inventory; 03 shared adapter changes settled | GPT-6 Astra / high | Not started |
 | [05](05-legacy-input-routes.md) | Close Perl image/pointer and direct Shell routes, including retained callers | 03–04 dispositions recorded | GPT-6 Astra / high | Not started |
 | [06](06-fixture-lifecycle.md) | Review fixture process ownership, runtime packaging and mechanical compatibility | 02; execute after 05 to keep one session active | GPT-6 Astra / high | Not started |

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 
 import pytest
 from tests.support.events import read_events
@@ -12,10 +13,12 @@ pytestmark = pytest.mark.ui
 
 
 def start_parent(launch_ui, ui, wait, *, launcher="parent_component_preview",
-                 scenario="normal", events_path=None):
+                 scenario="normal", events_path=None, loading_release=None):
     environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario}
     if events_path is not None:
         environment["ONPC_PARENT_COMPONENT_EVENTS_PATH"] = str(events_path)
+    if loading_release is not None:
+        environment["ONPC_PARENT_COMPONENT_LOADING_RELEASE"] = str(loading_release)
     launch_ui(launcher, environment_overrides=environment, wait_for_application=False)
     wait(lambda: ui.find("parent-window") is not None, "Parent publishes its window ID")
     return ui
@@ -65,6 +68,25 @@ def test_parent_failed_discovery_disables_management_until_report_closes(
     ui = automation
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "startup feedback opens")
+    from tests.e2e.accessible_ui import public_automation_id
+    evidence = {}
+    for identity in ("parent-child-selector", "parent-screen-limit-toggle", "parent-revoke-button"):
+        node = ui.target(identity)
+        ancestors = []
+        seen = set()
+        while node is not None and node not in seen and len(seen) < 32:
+            seen.add(node)
+            node.clear_cache_single()
+            ancestors.append({
+                "id": public_automation_id(node),
+                "sensitive": node.get_state_set().contains(ui.api.StateType.SENSITIVE),
+                "defunct": node.get_state_set().contains(ui.api.StateType.DEFUNCT),
+            })
+            node = node.get_parent()
+        evidence[identity] = ancestors
+    diagnostic = _log.with_name("parent-failed-discovery-public-state.json")
+    diagnostic.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    print("Failed-discovery public states:", diagnostic)
     for identity in ("parent-child-selector", "parent-screen-limit-toggle",
                      "parent-revoke-button"):
         assert not ui.state(identity, ui.api.StateType.SENSITIVE)
@@ -84,11 +106,25 @@ def test_parent_no_child_message_is_explicit(
 
 
 def test_parent_loading_state_disables_conflicting_controls(
-        launch_ui, automation, wait_for_accessible_state):
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    events_path = tmp_path / "loading-events.jsonl"
+    release = tmp_path / "loading-release"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
-                      scenario="loading")
-    assert not ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE)
-    assert not ui.state("parent-daily-limit-selector", ui.api.StateType.SENSITIVE)
+                      scenario="loading", events_path=events_path, loading_release=release)
+    evidence = {
+        "events_before_public_read": read_events(events_path),
+        "toggle_sensitive": ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE),
+        "allowance_sensitive": ui.state("parent-daily-limit-selector", ui.api.StateType.SENSITIVE),
+        "events_after_public_read": read_events(events_path),
+    }
+    diagnostic = tmp_path / "loading-public-state.json"
+    diagnostic.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    print("Loading public state:", diagnostic)
+    try:
+        assert not ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE)
+        assert not ui.state("parent-daily-limit-selector", ui.api.StateType.SENSITIVE)
+    finally:
+        release.touch()
     wait_parent_ready(ui, wait_for_accessible_state)
     wait_for_accessible_state(
         lambda: ui.state("parent-daily-limit-selector", ui.api.StateType.SENSITIVE),
@@ -227,8 +263,7 @@ def test_shared_request_preview_smoke(
                      "kiosk-soft-apps-toggle", "kiosk-request-submit",
                      "kiosk-request-cancel", "kiosk-menu-button"):
         assert ui.target(identity).get_accessible_id() == identity
-    mute = ui.find("kiosk-mute-button")
-    assert mute is None or not ui.showing("kiosk-mute-button")
+    assert ui.absent("kiosk-mute-button", within="kiosk-request-window")
     ui.activate("kiosk-menu-button", action_name="menu.popup")
     if overlay:
         assert ui.showing("kiosk-menu-item-help")

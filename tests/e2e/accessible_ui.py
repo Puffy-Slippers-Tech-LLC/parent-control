@@ -113,6 +113,7 @@ GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list
                                 'gdm-station-list'})
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form'})
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
+APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
 KEYRING_LABELS = (
     'Unlock Login Keyring',
     'The login keyring did not get unlocked when you logged into your computer.',
@@ -300,6 +301,62 @@ def public_automation_id(node):
     return node.get_accessible_id()
 
 
+def owned_surface_id(identity):
+    """The public containing surface for repository-owned control namespaces.
+
+    Longest/specialized prefixes precede their shared window namespace. These
+    are product IDs, not external-provider aliases or label-derived selectors.
+    A surface itself is discovered by its unique ID by the caller.
+    """
+    if identity in ('child-request-tooltip', 'child-countdown-menu'):
+        return None  # Shell chrome siblings; application ownership is checked separately.
+    for prefix, surface in (
+        ('parent-access-denied-', 'parent-access-denied-window'),
+        ('parent-revoke-', 'parent-revoke-dialog'),
+        ('parent-match-rule-', 'parent-match-rule-dialog'),
+        ('feedback-full-privacy-', 'feedback-privacy-dialog'),
+        ('feedback-privacy-', 'feedback-privacy-dialog'),
+        ('feedback-success-', 'feedback-success-dialog'),
+        ('error-report-unavailable-', 'error-report-unavailable-dialog'),
+        ('startup-error-', 'startup-error-window'),
+        ('preview-screen-', 'preview-screen-dialog'),
+        ('preview-viewer-', 'preview-viewer-window'),
+        ('about-', 'about-dialog'),
+        ('feedback-', 'feedback-dialog'),
+        ('parent-', 'parent-window'),
+        ('kiosk-', 'kiosk-request-window'),
+        ('child-countdown-', 'child-countdown-menu'),
+        ('child-', 'child-screen-time-indicator'),
+    ):
+        if identity.startswith(prefix):
+            # The privacy link opens the modal and the revoke button opens its
+            # confirmation; both belong to their original containing window.
+            if identity == 'feedback-privacy-link':
+                return 'feedback-dialog'
+            if identity == 'parent-revoke-button':
+                return 'parent-window'
+            return None if identity == surface else surface
+    return None
+
+
+PARENT_APPLICATION = 'com.puffyslippers.OhNoParentControl.Parent'
+KIOSK_APPLICATION = 'com.puffyslippers.OhNoParentControl'
+CHILD_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildRequest'
+PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION)
+
+
+def owned_applications(identity):
+    if identity.startswith('parent-'):
+        return (PARENT_APPLICATION,)
+    if identity.startswith(('kiosk-', 'preview-screen-')):
+        return (KIOSK_APPLICATION, CHILD_APPLICATION)
+    if identity.startswith('preview-viewer-'):
+        return ('com.puffyslippers.ScreenPreview',)
+    if identity.startswith(('about-', 'feedback-', 'startup-error-', 'error-report-')):
+        return PRODUCT_APPLICATIONS
+    return ()
+
+
 class AccessibleUI:
     """Fresh semantic lookup, bounded waits, unique targets and public actions.
 
@@ -309,7 +366,8 @@ class AccessibleUI:
     """
 
     def __init__(self, api, *, timeout=45, query_errors=(), dispatch=None, system_prompt=None,
-                 reset_observer=None, provider_contracts=None, fixture_uids=None):
+                 reset_observer=None, provider_contracts=None, fixture_uids=None,
+                 application_ids=None, owner_pids=None, application_owners=None):
         self.api = api
         self.timeout = timeout
         self.query_errors = query_errors
@@ -325,6 +383,11 @@ class AccessibleUI:
         # Preview callers provide their declared fixture UIDs. Installed callers
         # resolve the fixed fixture account, never infer identity from UI labels.
         self.fixture_uids = fixture_uids
+        self.application_ids = application_ids
+        self.owner_pids = owner_pids
+        self.application_owners = application_owners
+        self.input_uncertain = False
+        self.incomplete_observations = []
 
     def nodes(self, root=None, *, strict=False):
         root = root if root is not None else self.api.get_desktop(0)
@@ -334,6 +397,7 @@ class AccessibleUI:
         while pending:
             node = pending.pop()
             if node is None:
+                require(not strict, 'ui:incomplete-tree')
                 continue
             visited += 1
             require(visited <= 6000, 'ui:tree-bound')
@@ -345,11 +409,21 @@ class AccessibleUI:
             seen.add(node)
             try:
                 node.clear_cache_single()
+                if strict:
+                    require(node.get_attributes() is not None, 'ui:incomplete-tree')
                 yield node
-                # Never traverse editable text, including a revealed password.
-                if node.get_role_name() not in ('password text', 'text', 'entry'):
-                    pending.extend(node.get_child_at_index(i)
-                                   for i in reversed(range(node.get_child_count())))
+                # Never traverse password contents. Strict owned observations
+                # include ordinary text descendants without reading text values.
+                role = node.get_role_name()
+                if role != 'password text' and (strict or role not in ('text', 'entry')):
+                    children = [node.get_child_at_index(i)
+                                for i in reversed(range(node.get_child_count()))]
+                    if strict and None in children:
+                        error = UiError('ui:incomplete-tree')
+                        error.add_note('Null child under public automation-id: '
+                                       + (public_automation_id(node) or '[unidentified]'))
+                        raise error
+                    pending.extend(children)
             except self.query_errors:
                 if strict:
                     raise
@@ -359,7 +433,80 @@ class AccessibleUI:
     def find_id(self, identity, *, root=None, nodes=None, showing=True):
         """Resolve exactly one public automation ID without selector fallbacks."""
         require(type(identity) is str and identity, 'ui:automation-id')
-        candidates = self.nodes(root) if nodes is None else nodes
+        found = self.find_all_ids(identity, root=root, nodes=nodes)
+        require(len(found) <= 1, 'ui:ambiguous-automation-id')
+        if not found or (showing and not self.showing(found[0])):
+            return None
+        return found[0]
+
+    def find_all_ids(self, identity, *, root=None, nodes=None):
+        applications = owned_applications(identity)
+        shell_owned = identity.startswith('child-')
+        if shell_owned:
+            public_nodes = list(self.nodes(strict=True))
+            anchors = [node for node in public_nodes
+                       if public_automation_id(node) == 'child-screen-time-indicator']
+            require(len(anchors) <= 1, 'ui:ambiguous-automation-id')
+            if not anchors:
+                return []
+            application = anchors[0].get_application()
+            require(application is not None, 'ui:missing-application-owner')
+            scope = list(self.nodes(application, strict=True))
+            require(anchors[0] in scope, 'ui:wrong-application-owner')
+            surface_id = owned_surface_id(identity)
+            if surface_id is not None:
+                surfaces = [node for node in scope if public_automation_id(node) == surface_id]
+                require(len(surfaces) <= 1, 'ui:ambiguous-automation-id')
+                if not surfaces:
+                    return []
+                scope = list(self.nodes(surfaces[0], strict=True))
+            if root is not None:
+                require(root in public_nodes and bool(public_automation_id(root)), 'ui:wrong-scope')
+                scope = [node for node in scope if node in set(self.nodes(root, strict=True))]
+            candidates = scope if nodes is None else [node for node in nodes if node in scope]
+        elif applications:
+            requested = (self.application_ids() if callable(self.application_ids)
+                         else self.application_ids)
+            if requested is not None:
+                applications = tuple(value for value in applications if value in requested)
+            desktop = list(self.nodes(strict=True))
+            owners = [node for node in desktop if public_automation_id(node) in applications]
+            require(len(owners) <= 1, 'ui:ambiguous-application')
+            if not owners:
+                return []
+            application = owners[0]
+            if self.owner_pids is not None:
+                require(application.get_process_id() in self.owner_pids(), 'ui:wrong-owner')
+            if self.application_owners is not None:
+                owners = self.application_owners()
+                require(application.get_process_id() in owners.get(
+                    public_automation_id(application), ()), 'ui:wrong-application-owner')
+            scope = list(self.nodes(application, strict=True))
+            surface_id = owned_surface_id(identity)
+            if surface_id is not None:
+                surfaces = [node for node in scope if public_automation_id(node) == surface_id]
+                require(len(surfaces) <= 1, 'ui:ambiguous-automation-id')
+                if not surfaces:
+                    return []
+                self.validate_owned_surface(surfaces[0], application)
+                scope = list(self.nodes(surfaces[0], strict=True))
+            elif identity.endswith(('-dialog', '-window')):
+                for surface in scope:
+                    if public_automation_id(surface) == identity:
+                        self.validate_owned_surface(surface, application)
+            if root is not None:
+                root_id = public_automation_id(root)
+                require(bool(root_id), 'ui:unidentified-scope')
+                # A caller may pass a wider application/window or a narrower
+                # form/webview. In both directions require actual containment.
+                current = [node for node in self.nodes(application, strict=True)
+                           if public_automation_id(node) == root_id]
+                require(len(current) == 1 and current[0] == root, 'ui:wrong-scope')
+                subtree = set(self.nodes(current[0], strict=True))
+                scope = [node for node in scope if node in subtree]
+            candidates = scope if nodes is None else [node for node in nodes if node in scope]
+        else:
+            candidates = self.nodes(root) if nodes is None else nodes
         found = []
         for node in candidates:
             try:
@@ -367,11 +514,72 @@ class AccessibleUI:
                     continue
                 found.append(node)
             except self.query_errors:
+                if applications or shell_owned:
+                    raise
                 continue
-        require(len(found) <= 1, 'ui:ambiguous-automation-id')
-        if not found or (showing and not self.showing(found[0])):
-            return None
-        return found[0]
+        return found
+
+    def validate_owned_surface(self, surface, application, *, visited=()):
+        """Bind a dialog to its actual originating surface in the same app."""
+        identity = public_automation_id(surface)
+        app_id = public_automation_id(application)
+        primary = (('parent-window', 'parent-access-denied-window', 'startup-error-window')
+                   if app_id == PARENT_APPLICATION else
+                   ('kiosk-request-window', 'startup-error-window')
+                   if app_id in (KIOSK_APPLICATION, CHILD_APPLICATION) else
+                   ('preview-viewer-window',))
+        require(identity not in visited and len(visited) < 8, 'ui:surface-owner-cycle')
+        if identity in primary:
+            return
+        expected = (('feedback-dialog',) if identity == 'feedback-privacy-dialog' else
+                    ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else
+                    ('kiosk-request-window',) if identity == 'preview-screen-dialog' else
+                    tuple(value for value in primary if value != 'parent-access-denied-window'))
+        app_nodes = list(self.nodes(application, strict=True))
+        # Embedded Adw dialogs can retain true containment. Separate GTK
+        # toplevels publish CONTROLLED_BY from their native transient parent.
+        containers = [node for node in app_nodes if public_automation_id(node) in expected]
+        for container in containers:
+            if surface in set(self.nodes(container, strict=True)):
+                self.validate_owned_surface(container, application, visited=(*visited, identity))
+                return
+        parents = []
+        for relation in surface.get_relation_set():
+            if relation.get_relation_type() == self.api.RelationType.CONTROLLED_BY:
+                parents.extend(relation.get_target(index)
+                               for index in range(relation.get_n_targets()))
+        require(len(parents) == 1 and parents[0] in app_nodes, 'ui:missing-surface-owner')
+        parent = parents[0]
+        parent_id = public_automation_id(parent)
+        require(parent_id in expected, 'ui:wrong-surface-owner')
+        matches = [node for node in app_nodes if public_automation_id(node) == parent_id]
+        require(len(matches) == 1, 'ui:ambiguous-surface-owner')
+        self.validate_owned_surface(parent, application, visited=(*visited, identity))
+
+    def absent_id(self, identity, *, within):
+        """Fresh complete negative observation with a positive surrounding ID."""
+        try:
+            nodes = list(self.nodes(strict=True))
+            if not nodes or any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                for node in nodes):
+                return False
+            anchor = self.find_id(within, nodes=nodes)
+            if anchor is None:
+                return False
+            matches = [node for node in nodes if public_automation_id(node) == identity]
+            require(len(matches) <= 1, 'ui:ambiguous-automation-id')
+            if matches:
+                target = self.find_id(identity, nodes=nodes, showing=False)
+                require(target == matches[0], 'ui:wrong-absence-owner')
+                if self.showing(target):
+                    return False
+            return self.find_id(within) == anchor
+        except self.query_errors:
+            return False  # An incomplete read never proves absence.
+        except UiError as error:
+            if str(error) == 'ui:incomplete-tree':
+                return False
+            raise
 
     def find_provider_control(self, provider, surface, control, *, root=None, showing=True):
         """Resolve one registered control inside its provider-owned ID scopes.
@@ -449,6 +657,7 @@ class AccessibleUI:
 
     def wait(self, predicate, code):
         deadline = time.monotonic() + self.timeout
+        incomplete = None
         while True:
             # Deliver pending public AT-SPI events before fresh reads. Cache
             # invalidation alone cannot deliver focus/text/registry changes.
@@ -463,10 +672,22 @@ class AccessibleUI:
                 # UI objects can disappear during search/animation. Retry only
                 # the read, never replay an action whose effect is uncertain.
                 value = None
+            except UiError as error:
+                if str(error) != 'ui:incomplete-tree':
+                    raise
+                # Discard the entire observation. A child can disappear between
+                # ChildCount and GetChildAtIndex during a public UI transition.
+                # Only a later complete read may satisfy the predicate; no
+                # action is replayed and the original deadline is retained.
+                incomplete = error
+                self.incomplete_observations.append({
+                    'checkpoint': code, 'notes': getattr(error, '__notes__', [])})
+                self.incomplete_observations = self.incomplete_observations[-16:]
+                value = None
             if value:
                 return value
             if time.monotonic() >= deadline:
-                raise UiError('ui:timeout:' + code)
+                raise UiError('ui:timeout:' + code) from incomplete
             time.sleep(.2)
 
     def target(self, name=None, roles=(), **kwargs):
@@ -489,18 +710,24 @@ class AccessibleUI:
         return node
 
     def activate(self, node):
+        require(not self.input_uncertain, 'ui:uncertain-input')
         self.handle_system_prompt()
+        node = self.fresh_owned_target(node)
         require(self.showing(node) and node.get_state_set().contains(self.api.StateType.SENSITIVE),
                 'ui:unusable-target')
         action = node.get_action_iface()
         require(action is not None, 'ui:missing-action')
         count = self.api.Action.get_n_actions(action)
         require(count == 1, 'ui:missing-or-ambiguous-action')
+        self.input_uncertain = True
         require(self.api.Action.do_action(action, 0), 'ui:action-refused')
+        self.input_uncertain = False
 
     def activate_named(self, node, action_name):
         """Invoke one named public action on an already ID-resolved control."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
         self.handle_system_prompt()
+        node = self.fresh_owned_target(node)
         require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
                 'ui:unusable-target')
         action = node.get_action_iface()
@@ -518,7 +745,17 @@ class AccessibleUI:
                 names.append(self.api.Action.get_action_name(action, index))
         matches = [index for index, name in enumerate(names) if name == action_name]
         require(len(matches) == 1, 'ui:missing-or-ambiguous-action')
+        self.input_uncertain = True
         require(self.api.Action.do_action(action, matches[0]), 'ui:action-refused')
+        self.input_uncertain = False
+
+    def fresh_owned_target(self, node):
+        identity = public_automation_id(node)
+        if owned_applications(identity):
+            current = self.find_id(identity)
+            require(current is not None and current == node, 'ui:wrong-action-owner')
+            return current
+        return node  # External and legacy callers retain their task 03–05 obligations.
 
     def reveal(self, name, roles, *, root):
         """Scroll existing content into view through the public UI interface."""
@@ -559,7 +796,8 @@ class AccessibleUI:
         return self.id_target('parent-window')
 
     def about(self):
-        return self.id_target('about-dialog')
+        application = self.id_target(PARENT_APPLICATION, showing=False)
+        return self.id_target('about-dialog', root=application)
 
     def open_about(self, version):
         """ABOUT01: independent Parent entry; menu, About, text and license link."""
@@ -574,10 +812,10 @@ class AccessibleUI:
     def reveal_id(self, identity, *, root):
         node = self.id_target(identity, root=root, showing=False)
         if not self.showing(node):
-            component = node.get_component_iface()
-            require(component is not None and component.scroll_to(self.api.ScrollType.ANYWHERE),
-                    'ui:scroll-refused')
-        return self.id_target(identity, root=root)
+            surface = owned_surface_id(identity)
+            require(surface is not None, 'ui:missing-reveal-surface')
+            self.activate_named(self.id_target(surface), 'focus.' + identity)
+        return self.id_target(identity)
 
     def read_document(self, root, projection, *, maximum):
         """UI03: only the bounded GPL heading projection; never return raw text."""
@@ -624,14 +862,11 @@ class AccessibleUI:
         require((window, destination) in (('license', 'about'), ('about', 'parent')),
                 'ui:window-binding')
         def closed():
+            if window == 'about':
+                return self.absent_id('about-dialog', within='parent-window')
             nodes = list(self.nodes(strict=True))
             if not nodes:
                 return False
-            if window == 'about':
-                require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
-                            for node in nodes), 'ui:stale-window')
-                return (self.find_id('parent-window', nodes=nodes) is not None
-                        and self.find_id('about-dialog', nodes=nodes) is None)
             present = False
             underlying = False
             for node in nodes:
@@ -778,23 +1013,45 @@ class AccessibleUI:
 
     def focus(self, node):
         """Focus one already ID-resolved public control without keyboard routing."""
-        require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
-                'ui:unusable-target')
-        if self.has_state(node, self.api.StateType.FOCUSED):
-            return True
+        require(not self.input_uncertain, 'ui:uncertain-input')
         identity = public_automation_id(node)
         match = re.fullmatch(r'parent-child-choice-([0-9]+)', identity)
         require(match is not None, 'ui:child-choice-id')
+        current = self.find_id(identity, root=self.parent(), showing=False)
+        require(current is not None and current == node, 'ui:wrong-focus-owner')
+        node = current
+        labels = []
+        for label in CHILD_IDENTITIES:
+            if self.fixture_uids is not None:
+                uid = self.fixture_uids.get(label)
+            else:
+                try:
+                    uid = pwd.getpwnam(CHILD_ACCOUNTS[label]).pw_uid
+                except KeyError:
+                    continue
+            if uid is not None and str(uid) == match.group(1):
+                labels.append(label)
+        require(len(labels) == 1, 'ui:fixture-child-uid')
+        self.read_label(node, 'child', expected=labels[0], maximum=80)
+        require(not self.has_state(node, self.api.StateType.DEFUNCT)
+                and self.has_state(node, self.api.StateType.VISIBLE)
+                and self.has_state(node, self.api.StateType.SENSITIVE),
+                'ui:unusable-target')
+        if self.showing(node) and self.has_state(node, self.api.StateType.FOCUSED):
+            return True
         selector = self.id_target(
             'parent-child-selector', root=self.parent(), sensitive=True,
         )
         self.activate_named(selector, 'child.focus-' + match.group(1))
+        self.input_uncertain = True
         def focused():
             current = self.find_id(identity, root=self.parent())
             return (current is not None
                     and self.has_state(current, self.api.StateType.SENSITIVE)
                     and self.has_state(current, self.api.StateType.FOCUSED))
-        return self.wait(focused, 'focus')
+        result = self.wait(focused, 'focus')
+        self.input_uncertain = False
+        return result
 
     def open_child_picker(self, child):
         """UI15 opening: activate by ID and focus the UID-scoped choice by ID."""
@@ -807,7 +1064,7 @@ class AccessibleUI:
         choices = self.id_target('parent-child-choices', root=popover)
         choice = self.wait(
             lambda: self.child_id_control(
-                child, 'parent-child-choice-', root=choices, showing=True,
+                child, 'parent-child-choice-', root=choices, showing=False,
             ),
             'child-choice',
         )
@@ -844,7 +1101,7 @@ class AccessibleUI:
             nodes = list(self.nodes(root, strict=True))
             require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
                         for node in nodes), 'ui:stale-picker')
-            return self.find_id('parent-child-popover', nodes=nodes) is None
+            return self.absent_id('parent-child-popover', within='parent-window')
         self.wait(closed, 'picker-close')
         return self.settings(child)
 
@@ -942,13 +1199,22 @@ class AccessibleUI:
         return bool(value and re.search(r'(?:^|\n)onpc-parent-jamie@[^\s:]+:[^\n]*\$\s*', value))
 
     def help_product_absent(self):
-        self.management_absent()
+        surrounding = self.terminal_return_surface()
+        self.management_absent(within=surrounding)
         for node in self.nodes(strict=True):
             require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-surface')
             if self.showing(node):
-                require(node.get_name() not in ('Request More Time', 'Request Access',
-                    'Request', 'Send Feedback', 'Administrator access required'),
+                require(public_automation_id(node) not in (
+                    'kiosk-request-window', 'kiosk-request-form', 'feedback-dialog',
+                    'parent-access-denied-window', 'startup-error-window'),
                     'ui:help-product-window')
+
+    def terminal_return_surface(self):
+        # D3/task 04 owns this external boundary. Until its full provider
+        # contract is qualified, silence or a role/name-selected terminal
+        # cannot establish the surrounding UI for owned-window disappearance.
+        self.find_provider_control('terminal', 'terminal', 'input-output')
+        raise UiError('ui:terminal-return-unqualified')
 
     def help_content(self, binding):
         import re
@@ -982,15 +1248,16 @@ class AccessibleUI:
         require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:denial-not-active')
         self.management_absent()
 
-    def management_absent(self):
+    def management_absent(self, *, within='parent-access-denied-window'):
         """UI11: complete fresh exclusion; stale or missing trees refuse."""
+        require(self.find_id(within) is not None, 'ui:missing-surrounding-surface')
         root = self.api.get_desktop(0)
         require(root is not None, 'ui:missing-surface')
         for node in self.nodes(root, strict=True):
             require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-surface')
             if self.showing(node):
                 require(public_automation_id(node) not in (
-                    'parent-window', 'parent-page-screen-limits', 'parent-page-app-limits',
+                    'parent-window', 'parent-screen-limits-page', 'parent-app-limits-page',
                     'parent-screen-limit-toggle'), 'ui:management-exposed')
 
     def search_result(self, product, expected, *, stable_seconds=2):
@@ -1080,7 +1347,7 @@ class AccessibleUI:
                     return False
                 nodes = list(self.nodes(root, strict=True))
                 return (not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes)
-                        and self.find_id('parent-child-popover', nodes=nodes) is None)
+                        and self.absent_id('parent-child-popover', within='parent-window'))
             return self.wait(closed, 'picker-close')
         require(surface == 'greeter' and target in ('password', 'account')
                 and name in GREETER_IDENTITIES and mode == 'snapshot', 'ui:absence-binding')
@@ -1119,6 +1386,41 @@ class AccessibleUI:
                      or (identities == CHILD_IDENTITIES and projection == 'child-picker-order')),
                 'ui:collection-binding')
         choices = []
+        if projection == 'child-picker-order':
+            require(public_automation_id(root) == 'parent-child-choices',
+                    'ui:child-collection-surface')
+            require(self.find_id('parent-child-choices', showing=False) == root,
+                    'ui:wrong-collection-owner')
+            bindings = {}
+            for label, canonical in CHILD_IDENTITIES.items():
+                if self.fixture_uids is not None:
+                    if label not in self.fixture_uids:
+                        continue  # The new account may not have been created yet.
+                    uid = self.fixture_uids[label]
+                else:
+                    try:
+                        uid = pwd.getpwnam(CHILD_ACCOUNTS[label]).pw_uid
+                    except KeyError:
+                        continue
+                require(type(uid) is int and uid >= 1000, 'ui:fixture-child-uid')
+                identity = 'parent-child-choice-' + str(uid)
+                require(identity not in bindings, 'ui:duplicate-choice-identity')
+                bindings[identity] = (label, canonical)
+            for node in self.nodes(root, strict=True):
+                require(not self.has_state(node, self.api.StateType.DEFUNCT),
+                        'ui:stale-collection')
+                identity = public_automation_id(node)
+                if re.fullmatch(r'parent-child-choice-[0-9]+', identity) is None:
+                    continue
+                require(identity in bindings, 'ui:unregistered-child-choice')
+                label, canonical = bindings[identity]
+                self.read_label(node, 'child', expected=label, maximum=80)
+                require(canonical not in choices, 'ui:duplicate-choice-identity')
+                choices.append(canonical)
+                require(len(choices) <= maximum, 'ui:collection-bound')
+            require(cardinality[0] <= len(choices) <= cardinality[1],
+                    'ui:collection-cardinality')
+            return tuple(choices)
         for node in self.nodes(root, strict=True):
             require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-collection')
             roles = ('list item',) if projection == 'child-picker-order' else ('button', 'push button')
@@ -1204,49 +1506,84 @@ class AccessibleUI:
                 fresh_reader()
                 return None
 
-            form = self.find_id('kiosk-request-form', nodes=public_nodes)
+            application = self.find_id(KIOSK_APPLICATION, nodes=public_nodes, showing=False)
+            form = (self.find_id('kiosk-request-form', root=application, nodes=public_nodes)
+                    if application is not None else None)
             diagnostic['form_count'] = int(form is not None)
             if form is None:
                 fresh_reader()
                 return None
 
-            child = self.find_id('kiosk-child-selector', nodes=public_nodes)
-            approver = self.find_id('kiosk-approver-selector', nodes=public_nodes)
-            request = self.find_id('kiosk-request-submit', nodes=public_nodes)
-            cancel = self.find_id('kiosk-request-cancel', nodes=public_nodes)
-            allow_soft = self.find_id('kiosk-soft-apps-toggle', nodes=public_nodes)
+            # A matching ID in another window must never fill a missing field
+            # in this form. Keep a complete fresh read for absence checks too.
+            form_nodes = list(self.nodes(form, strict=True))
+            require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
+                        for node in form_nodes), 'ui:stale-request-form')
+            child = self.find_id('kiosk-child-selector', nodes=form_nodes)
+            approver = self.find_id('kiosk-approver-selector', nodes=form_nodes)
+            request = self.find_id('kiosk-request-submit', nodes=form_nodes)
+            cancel = self.find_id('kiosk-request-cancel', nodes=form_nodes)
+            allow_soft = self.find_id('kiosk-soft-apps-toggle', nodes=form_nodes)
             if None in (child, approver, request, cancel, allow_soft):
                 return None
 
             def selected_identity(control, label, identities, code):
-                descriptions = {
-                    f'Selected {label.casefold()}: {name}.': identity
-                    for name, identity in identities.items()
-                }
+                namespace = 'child' if identities == CHILD_IDENTITIES else 'approver'
+                accounts = CHILD_ACCOUNTS if namespace == 'child' else APPROVER_ACCOUNTS
+                selected_nodes = [node for node in self.nodes(control, strict=True)
+                                  if public_automation_id(node).startswith(f'kiosk-{namespace}-selected-')
+                                  and self.showing(node)]
+                require(len(selected_nodes) == 1, 'ui:' + code)
+                selected = []
+                for name, canonical in identities.items():
+                    if self.fixture_uids is not None:
+                        uid = self.fixture_uids.get(name)
+                        if uid is None:
+                            continue
+                    else:
+                        try:
+                            uid = pwd.getpwnam(accounts[name]).pw_uid
+                        except KeyError:
+                            continue
+                    require(type(uid) is int and uid >= 1000, 'ui:fixture-account-uid')
+                    node = self.find_id(f'kiosk-{namespace}-selected-{uid}', root=control)
+                    if node is not None and node == selected_nodes[0]:
+                        selected.append((name, canonical))
+                require(len(selected) == 1, 'ui:' + code)
+                name, canonical = selected[0]
                 description = ' '.join(control.get_description().split())
-                require(description in descriptions, 'ui:' + code)
-                return descriptions[description]
+                require(description == f'Selected {label.casefold()}: {name}.', 'ui:' + code)
+                return canonical
 
             duration_ids = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')
             durations = [
-                self.find_id(f'kiosk-duration-{identity}', nodes=public_nodes)
+                self.find_id(f'kiosk-duration-{identity}', nodes=form_nodes)
                 for identity in duration_ids
             ]
             if any(button is None for button in durations):
                 return None
             selected = [index for index, button in enumerate(durations)
-                        if self.has_state(button, self.api.StateType.CHECKED)]
+                        if self.has_state(button, self.api.StateType.PRESSED)]
+            diagnostic['durations'] = {
+                str(identity): {
+                    'role': button.get_role_name(),
+                    'checked': self.has_state(button, self.api.StateType.CHECKED),
+                    'pressed': self.has_state(button, self.api.StateType.PRESSED),
+                    'sensitive': self.has_state(button, self.api.StateType.SENSITIVE),
+                }
+                for identity, button in zip(duration_ids, durations)
+            }
             require(selected == [2], 'ui:kiosk-duration-selection')
             require(not any(self.has_state(button, self.api.StateType.SENSITIVE)
                             for button in durations), 'ui:kiosk-duration-availability')
 
-            notice = self.find_id('kiosk-screen-limit-notice', nodes=public_nodes)
+            notice = self.find_id('kiosk-screen-limit-notice', nodes=form_nodes)
             if notice is None:
                 return None
             message = ' '.join(notice.get_name().split())
             require(message == 'Screen limit is not enabled in Parent App',
                     'ui:kiosk-disabled-message')
-            custom = self.find_id('kiosk-custom-duration', nodes=public_nodes)
+            custom = self.find_id('kiosk-custom-duration', nodes=form_nodes)
             require(self.find_id('kiosk-mute-button', nodes=public_nodes) is None,
                     'ui:kiosk-mute-present')
             return {
@@ -1661,9 +1998,10 @@ class AccessibleUI:
         elif operation == 'standard-management-denied':
             self.management_denied()
         elif operation == 'standard-denial-closed':
-            self.wait(lambda: self.find_id('parent-access-denied-window') is None
-                and self.terminal_input(focused=True), 'denial-closed')
-            self.management_absent()
+            surrounding = self.terminal_return_surface()
+            self.wait(lambda: self.absent_id('parent-access-denied-window', within=surrounding),
+                      'denial-closed')
+            self.management_absent(within=surrounding)
         elif operation == 'standard-app-grid':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
             field = self.search_ready('overview')

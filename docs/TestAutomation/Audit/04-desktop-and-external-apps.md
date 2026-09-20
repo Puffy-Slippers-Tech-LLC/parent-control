@@ -16,6 +16,11 @@ command-help observations, `license_content`, document-close/return methods,
 and associated operations in `run`. Trace consumers identified by task 02;
 include secondary windows and absence paths. Read
 [e2e_search_probe.py](../../../tests/ui/e2e_search_probe.py) and relevant tests.
+Use inventory keys D1–D6. In particular, D5's
+`test_installed_settings_users_publishes_builder_ids` performs a global
+`search_button` activation despite missing provider application/surface IDs.
+Migrate or contain that input before the full host adapter file is run; retain
+its partial-ID observations as inventory, not interaction qualification.
 
 1. Bind each target to actual public IDs scoped to provider application and
    surface. Preserve query/readback, focus, semantic actions, bounded output,

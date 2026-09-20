@@ -3,7 +3,10 @@
 
 # Handoff requirements
 - Whenever asked to "handoff time", find a good time to wrap it up as early as possible but cleanly (not leaving things in a mess in the middle),
-  and generate a prompt (don't save on files) for a new session to finish what's remaining. The prompt must disregard unrelevant context that belongs to the past and won't be necessary to finish the job. Recommend model and effort.
+  and generate a prompt (don't save on files) for a new session to finish what's remaining. The prompt must disregard unrelevant context that belongs to the past and no longer is necessary to finish the job. Recommend model and effort.
+
+# Command execution reports
+- When executing a command, e.g. running tests, do not report incremental updates until it finishes or fails.
 
 # Unattended execution
 
@@ -67,6 +70,7 @@
 - Prioritize the customer queue; deferred policy-acknowledgement design is no
   dependency. Add infrastructure only for a named blocked consumer. Measure
   completed scenarios and shrinking frozen remaining scope.
+
 # UI automation mandate
 
 - All UI automation MUST use stable, unified semantic identifiers exposed as

@@ -85,7 +85,7 @@ def test_parent_app_controls_and_filters_remain_reachable(
         )
         assert ui.state(choice, ui.api.StateType.FOCUSED)
         press_key("Escape")
-        wait_for_accessible_state(lambda c=choice: not ui.showing(c),
+        wait_for_accessible_state(lambda c=choice: ui.absent(c, within="parent-window"),
                                   choice + " menu closes")
 
 
@@ -115,11 +115,11 @@ def test_feedback_editor_and_actions_remain_reachable(
     )
     ui.activate(f"feedback-remove-attachment-{key}")
     wait_for_accessible_state(
-        lambda: ui.find(f"feedback-attachment-{key}") is None,
+        lambda: ui.absent(f"feedback-attachment-{key}", within="feedback-dialog"),
         "last attachment is removed",
     )
     ui.activate("feedback-close")
-    wait_for_accessible_state(lambda: not ui.showing("feedback-dialog"),
+    wait_for_accessible_state(lambda: ui.absent("feedback-dialog", within="parent-window"),
                               "feedback closes")
 
 

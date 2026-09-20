@@ -72,6 +72,49 @@ arbitrary inherited action or target the internal toggle by tree position.
 This accessibility addition activates with the next frontend process (`none`)
 and requires no saved-data migration.
 
+Identified list rows publish `row.activate` through the same widget-action
+mechanism. It emits GTK's documented native
+[row activation signal](https://docs.gtk.org/gtk4/signal.ListBoxRow.activate.html)
+while the row is sensitive. The preview resolution selector uses this action;
+consumers still reveal the row by ID and independently observe the selected
+result. Inherited actions or an unsupported AT-SPI focus operation are not
+substitutes for row activation. This also activates on the next frontend process
+(`none`) and changes no saved data.
+
+Identified native windows/dialogs publish `focus.<automation-id>` actions for
+their contained controls. GTK Entry's specialized AT-SPI Action interface does
+not expose arbitrary inserted action groups, and GTK's Component provider does
+not implement `GrabFocus`/`ScrollTo`. The owning surface action requests normal
+GTK focus, including scrolling into view, only for its mapped, visible, sensitive
+control in the active native window. Consumers reacquire the ID and verify focus
+and reachability before keyboard input; failed or uncertain readback cannot
+authorize replay. WebKit controls retain their supported public Component route.
+
+Dialogs publish their originating window/dialog through `CONTROLS`, using the
+public [Gtk.AccessibleList](https://docs.gtk.org/gtk4/struct.AccessibleList.html)
+boxed value required by the language binding. GTK supplies the inverse AT-SPI
+`CONTROLLED_BY`; unmapping removes the relation. Readers require actual
+containment or this public owner chain within the identified application.
+Preview readers additionally bind each application ID to its live recorded
+launch process. Closure requires a complete fresh negative observation and a
+positive identified surrounding surface. Read-only waits discard incomplete
+trees and repeat the whole observation within the original deadline; a partial
+tree never proves presence or absence, persistent incompleteness fails, and
+input is not replayed. External terminal return remains
+unqualified until its own provider identity contract is available. These GTK
+metadata changes activate on the next frontend process (`none`) without a
+saved-data migration.
+
+Identified GTK controls publish `DISABLED` from their effective
+[`is_sensitive()`](https://docs.gtk.org/gtk4/method.Widget.is_sensitive.html)
+state, including inherited disabling. The shared helper updates it on state-flag
+changes and local sensitivity notifications: GTK's own accessibility update in
+[`set_sensitive()`](https://github.com/GNOME/gtk/blob/gtk-4-22/gtk/gtkwidget.c)
+otherwise reports the local property, even under a disabled container. This
+keeps the public control state consistent with actual interaction availability;
+it does not change widget sensitivity or management policy. It activates on the
+next frontend process (`none`) and changes no saved data.
+
 The Parent child selector additionally publishes `child.focus-<uid>` actions.
 Consumers first resolve `parent-child-choice-<uid>` using the declared fixture
 account UID, then verify its label, request focus through the matching action
@@ -82,9 +125,12 @@ display labels.
 
 Request account choices use their account UID within separate child and
 approver namespaces, independently of list order. Each selector keeps its ID
-fixed and publishes the selected display value in its accessible description,
-so readback does not traverse labels or depend on list layout. Duration choices
-distinguish zero seconds (rest of day) from custom duration. GTK metadata
+fixed and publishes `kiosk-child-selected-<uid>` or
+`kiosk-approver-selected-<uid>` on its selected value (`selected-none` while
+empty). Readers resolve this identity first and verify the accessible description
+as meaning. Duration choices distinguish zero seconds (rest of day) from custom
+duration. Their `Gtk.ToggleButton` selection is exposed as AT-SPI `PRESSED`;
+switch/checkbox values use `CHECKED`. GTK metadata
 changes activate with the next frontend process (`none` package activation).
 Child panel metadata activates with the next graphical session
 (`session-renewal`). Neither requires a saved-data migration.

@@ -279,7 +279,7 @@ def test_child_lookup_never_discovers_uid_from_a_matching_label():
                      children=[Node(CHILD, 'label')])
     target = Node('', 'button', identity='parent-child-choice-1001',
                   children=[Node(NEW_CHILD, 'label')])
-    root = Node(children=[wrong_uid, target])
+    root = Node(identity='parent-window', children=[wrong_uid, target])
     ui = ui_for(root)
     with pytest.raises(UiError, match='child-label'):
         ui.child_id_control(CHILD, 'parent-child-choice-', root=root, showing=True)
@@ -450,12 +450,19 @@ def test_return_waits_for_the_window_to_finish_closing(operation):
     closing, destination = (('LICENSE', 'About') if operation == 'license-closed' else ('About', PRODUCT))
     old = Node(closing, identity='about-dialog' if closing == 'About' else '')
     underlying = Node(destination, identity='parent-window' if destination == PRODUCT else 'about-dialog')
-    ui = ui_for(Node())
+    root = Node(children=[old, underlying], identity='parent-window' if operation == 'license-closed' else '')
+    ui = ui_for(root)
     ui.timeout = .5
-    ui.nodes = Mock(side_effect=[iter([old, underlying]), iter([underlying])])
+    observations = []
+    def dispatch():
+        observations.append(old in root.children)
+        if len(observations) == 2:
+            root.children.remove(old)
+        return False
+    ui.dispatch = dispatch
     ui.settings = Mock(return_value={'child': 'fixture-child'})
     assert ui.run(operation, '1.1')['outcome'] == 'passed'
-    assert ui.nodes.call_count == 2
+    assert observations == [True, True]
 
 
 @pytest.mark.parametrize('fault', [None, 'wrong-document', 'hidden', 'password'])
@@ -465,7 +472,7 @@ def test_license_reads_the_text_interface_and_requires_actual_visible_content(fa
     if fault == 'hidden': document.states.remove('showing')
     document.get_text_iface = lambda: document
     document.get_text = Mock(side_effect=AssertionError('wrong Accessible interface'))
-    root = Node(children=[Node('About', 'frame', children=[link], identity='about-dialog'),
+    root = Node(identity='parent-window', children=[Node('About', 'frame', children=[link], identity='about-dialog'),
                           Node('LICENSE', 'frame', children=[document],
                                states=('showing', 'visible', 'sensitive', 'active'))])
     ui = ui_for(root)
@@ -495,7 +502,7 @@ def test_keyboard_close_requires_a_fresh_active_unique_window(window, fault):
     if fault == 'hidden': node.states.remove('showing')
     nodes = [] if fault == 'missing' else [node]
     if fault == 'duplicate': nodes.append(Node(node.name, identity=node.identity))
-    ui = ui_for(Node(children=nodes))
+    ui = ui_for(Node(identity='parent-window', children=nodes))
     if fault:
         with pytest.raises(UiError): ui.window_ready_to_close(window)
     else:
@@ -541,7 +548,7 @@ def test_document_projection_rejects_unregistered_or_unsafe_reads(fault):
 def test_about_text_projections_require_the_exact_showing_label(projection, label):
     node = Node(label, 'label', identity={'about-product': 'about-product-name',
         'about-version': 'about-version', 'about-footer': 'about-copyright'}[projection])
-    ui = ui_for(Node(children=[node]))
+    ui = ui_for(Node(identity='parent-window', children=[Node(identity='about-dialog', children=[node])]))
     assert ui.read_label(ui.api.get_desktop(0), projection, maximum=80, expected='1.1')
     node.states.remove('showing')
     with pytest.raises(UiError):
@@ -734,12 +741,16 @@ def test_settings_comparison_is_immutable_and_independent_of_selection_history()
 @pytest.mark.parametrize('fault', [None, 'duplicate', 'stale', 'bound', 'unknown-target'])
 def test_child_collection_uses_an_independent_current_list(fault):
     from accessible_ui import CHILD_IDENTITIES, CHILD, NEW_CHILD
-    rows = [Node('', 'list item', children=[Node(NEW_CHILD, 'label')]),
-            Node('', 'list item', children=[Node(CHILD, 'label')])]
-    if fault == 'duplicate': rows.append(Node('', 'list item', children=[Node(NEW_CHILD, 'label')]))
+    rows = [Node('', 'list item', identity='parent-child-choice-1003',
+                 children=[Node(NEW_CHILD, 'label')]),
+            Node('', 'list item', identity='parent-child-choice-1001',
+                 children=[Node(CHILD, 'label')])]
+    if fault == 'duplicate':
+        rows.append(Node('', 'list item', identity='parent-child-choice-1003',
+                         children=[Node(NEW_CHILD, 'label')]))
     if fault == 'stale': rows[1].states.add('defunct')
-    root = Node('', 'list box', children=rows)
-    ui = ui_for(Node())
+    root = Node('', 'list box', identity='parent-child-choices', children=rows)
+    ui = ui_for(Node(identity='parent-window', children=[root]))
     def collect():
         return ui.choice_order(root, identities={} if fault == 'unknown-target' else CHILD_IDENTITIES,
             maximum=1 if fault == 'bound' else 32, cardinality=(1, 1 if fault == 'bound' else 32),
@@ -758,6 +769,55 @@ def test_closed_picker_cannot_hide_a_stale_subtree():
     ui = ui_for(Node(PRODUCT, identity='parent-window', children=[picker, stale]))
     with pytest.raises(UiError, match='stale-picker'):
         ui.selected_child(NEW_CHILD)
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-id', 'wrong-uid', 'wrong-label'])
+def test_child_collection_uses_uid_identity_with_nested_content(fault):
+    from accessible_ui import CHILD, CHILD_IDENTITIES
+    content = Node('', identity='parent-child-choice-1001-content', children=[
+        Node(CHILD if fault != 'wrong-label' else 'Other child', 'label')])
+    choice = Node('', 'push button', identity=(
+        '' if fault == 'missing-id' else 'parent-child-choice-9999'
+        if fault == 'wrong-uid' else 'parent-child-choice-1001'), children=[content])
+    root = Node(identity='parent-child-choices', children=[choice])
+    ui = ui_for(Node(identity='parent-window', children=[root]))
+    def collect():
+        return ui.choice_order(root, identities=CHILD_IDENTITIES, maximum=32,
+                               cardinality=(1, 32), projection='child-picker-order')
+    if fault:
+        with pytest.raises(UiError):
+            collect()
+    else:
+        assert collect() == ('fixture-child',)
+
+
+def test_child_collection_allows_not_yet_created_fixture_but_refuses_unregistered_rows():
+    from accessible_ui import CHILD, CHILD_IDENTITIES
+    choice = Node('', 'button', identity='parent-child-choice-1001', children=[Node(CHILD, 'label')])
+    choices = Node(identity='parent-child-choices', children=[choice])
+    ui = ui_for(Node(identity='parent-window', children=[choices]))
+    ui.fixture_uids = {CHILD: 1001}
+    def collect():
+        return ui.choice_order(choices, identities=CHILD_IDENTITIES, maximum=32,
+                               cardinality=(1, 32), projection='child-picker-order')
+    assert collect() == ('fixture-child',)
+    choices.children.append(Node('Private unrelated account', identity='parent-child-choice-4000'))
+    with pytest.raises(UiError, match='unregistered-child-choice'):
+        collect()
+
+
+@pytest.mark.parametrize('fault', ['unidentified', 'wrong-owner', 'wrong-uid'])
+def test_already_focused_nodes_do_not_bypass_picker_identity(fault):
+    from accessible_ui import CHILD
+    choice = Node(CHILD, 'button', identity='parent-child-choice-1001',
+                  states=('showing', 'visible', 'sensitive', 'focused'))
+    root = Node(identity='parent-window', children=[choice] if fault != 'wrong-owner' else [])
+    if fault == 'unidentified': choice.identity = ''
+    if fault == 'wrong-uid': choice.identity = 'kiosk-child-choice-1001'
+    ui = ui_for(root)
+    with pytest.raises(UiError):
+        ui.focus(choice)
+    choice.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('operation', ['gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
@@ -985,6 +1045,45 @@ def test_accessibility_wait_delivers_pending_events_before_fresh_read():
     ui.dispatch = Mock(side_effect=lambda: field.states.add('focused'))
     assert ui.wait(lambda: ui.has_state(field, ui.api.StateType.FOCUSED), 'focus')
     ui.dispatch.assert_called_once_with()
+
+
+@pytest.mark.parametrize('outcome', ['complete', 'persistent', 'duplicate', 'wrong-owner'])
+def test_incomplete_transition_discards_the_read_without_replaying_input(monkeypatch, outcome):
+    button = Node('About', 'button', identity='parent-menu-about')
+    root = Node(identity='parent-window', children=[button])
+    ui = ui_for(root)
+    ui.activate(button)
+    reads = []
+
+    def child(index):
+        reads.append(index)
+        if len(reads) == 1:
+            if outcome == 'duplicate':
+                root.children.append(Node(identity='parent-menu-about'))
+            elif outcome == 'wrong-owner':
+                ui.owner_pids = lambda: {999}
+            return None
+        return None if outcome == 'persistent' else root.children[index]
+
+    root.get_child_at_index = child
+    ui.timeout = 1
+    monkeypatch.setattr('accessible_ui.time.sleep', lambda _seconds: None)
+    clock = iter((0, 0, 2))
+    monkeypatch.setattr('accessible_ui.time.monotonic', lambda: next(clock))
+    if outcome == 'complete':
+        assert ui.id_target('parent-menu-about') is button
+    else:
+        expected = {'persistent': 'timeout:automation-id', 'duplicate': 'ambiguous-automation-id',
+                    'wrong-owner': 'wrong-owner'}[outcome]
+        with pytest.raises(UiError, match=expected) as caught:
+            ui.id_target('parent-menu-about')
+        if outcome == 'persistent':
+            assert str(caught.value.__cause__) == 'ui:incomplete-tree'
+    assert ui.incomplete_observations[0] == {
+        'checkpoint': 'automation-id',
+        'notes': ['Null child under public automation-id: parent-window'],
+    }
+    button.action.do_action.assert_called_once_with(0)
 
 
 def test_event_storm_cannot_prevent_bounded_predicate_or_replay_action():

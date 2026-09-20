@@ -191,11 +191,21 @@ def wait_for_accessible_state():
     """Wait for an AT-SPI state transition without host-time sleeps."""
 
     from gi.repository import GLib
+    from tests.e2e.accessible_ui import UiError
+    from tests.support.automation import AutomationError
 
     def wait(predicate, description: str):
         deadline = time.monotonic() + UI_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
-            if predicate():
+            try:
+                ready = predicate()
+            except (UiError, AutomationError) as error:
+                if str(error) not in ("ui:incomplete-tree", "automation:incomplete-tree"):
+                    raise
+                # Retry the whole read, never accept a partial tree as presence
+                # or absence. Input and ownership failures still propagate.
+                ready = False
+            if ready:
                 return
             loop = GLib.MainLoop()
             timeout_id = GLib.timeout_add(50, loop.quit)
@@ -210,14 +220,18 @@ def wait_for_accessible_state():
 
 
 @pytest.fixture
-def automation(hermetic_ui_session):
+def automation(hermetic_ui_session, launch_ui, wait_for_accessible_state):
     """Return the shared public-ID AT-SPI adapter for the private session."""
     import gi
     gi.require_version("Atspi", "2.0")
     from gi.repository import Atspi, GLib
     from tests.support.automation import Automation
 
-    return Automation(Atspi, lambda: Atspi.get_desktop(0), query_errors=(GLib.Error,))
+    return Automation(Atspi, lambda: Atspi.get_desktop(0), query_errors=(GLib.Error,),
+                      owner_pids=launch_ui.owner_pids,
+                      application_ids=launch_ui.application_ids,
+                      application_owners=launch_ui.application_owners,
+                      complete_read_wait=wait_for_accessible_state)
 
 
 @pytest.fixture

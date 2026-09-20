@@ -235,7 +235,9 @@ class ParentAccountSelector(Gtk.MenuButton):
 
             def focus(_action, _parameter, target=target):
                 button = target()
-                if button is not None and button.is_sensitive():
+                if (button is not None and button.is_sensitive() and button.is_visible()
+                        and button.get_mapped() and button.get_root() is not None
+                        and button.get_root().is_active()):
                     button.grab_focus()
 
             focus_action.connect("activate", focus)

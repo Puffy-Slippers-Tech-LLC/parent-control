@@ -2,7 +2,7 @@
 
 import warnings
 
-from tests.e2e.accessible_ui import public_automation_id
+from tests.e2e.accessible_ui import AccessibleUI, UiError, owned_surface_id, public_automation_id
 
 
 def public_action_name(api, action, index):
@@ -21,40 +21,89 @@ class AutomationError(RuntimeError):
 
 
 class Automation:
-    def __init__(self, api, root, *, query_errors=()):
+    def __init__(self, api, root, *, query_errors=(), owner_pids=None, application_ids=None,
+                 application_owners=None, complete_read_wait=None):
         self.api = api
         self.root = root
         self.query_errors = query_errors
+        self.owner_pids = owner_pids
+        self.application_ids = application_ids
+        self.application_owners = application_owners
+        self.complete_read_wait = complete_read_wait
+        self.input_uncertain = False
 
-    def nodes(self):
+    def nodes(self, root=None, *, strict=False):
         """Traverse the current public tree without retaining stale nodes."""
-        pending = [self.root()]
+        pending = [self.root() if root is None else root]
         seen = set()
         while pending:
             node = pending.pop()
-            if node is None or node in seen:
+            if node is None:
+                if strict:
+                    raise UiError("ui:incomplete-tree")
+                continue
+            if node in seen:
                 continue
             seen.add(node)
             if len(seen) > 6000:
                 raise AutomationError("automation:tree-bound")
             try:
                 node.clear_cache_single()
-                pending.extend(node.get_child_at_index(i)
-                               for i in range(node.get_child_count()))
+                if strict and node.get_attributes() is None:
+                    raise UiError("ui:incomplete-tree")
+                children = [node.get_child_at_index(i)
+                            for i in range(node.get_child_count())]
+                if strict and None in children:
+                    error = UiError("ui:incomplete-tree")
+                    error.add_note("Null child under public automation-id: "
+                                   + (public_automation_id(node) or "[unidentified]"))
+                    raise error
+                pending.extend(children)
             except self.query_errors:
+                if strict:
+                    raise
                 continue
             yield node
 
     def find_all(self, identity):
         """Return every fresh match so callers can assert surface cardinality."""
-        matches = []
-        for node in self.nodes():
+        reader = AccessibleUI(self.api, query_errors=self.query_errors,
+                              owner_pids=self.owner_pids, application_ids=self.application_ids,
+                              application_owners=self.application_owners)
+        reader.nodes = self.nodes
+
+        def read():
             try:
-                if public_automation_id(node) == identity:
-                    matches.append(node)
-            except self.query_errors:
-                continue
-        return matches
+                return reader.find_all_ids(identity)
+            except UiError as error:
+                raise AutomationError(str(error).replace("ui:", "automation:").replace(
+                    "ambiguous-automation-id", "ambiguous-id")) from error
+
+        if self.complete_read_wait is None:
+            return read()
+        result = None
+
+        def capture_complete_read():
+            nonlocal result
+            result = read()
+            return True
+
+        self.complete_read_wait(capture_complete_read,
+                                f"complete public tree for {identity}")
+        if result is None:
+            raise AutomationError("automation:complete-read-wait-returned")
+        return result
+
+    def absent(self, identity, *, within):
+        """Complete fresh exclusion anchored by a positive public surface ID."""
+        reader = AccessibleUI(self.api, query_errors=self.query_errors,
+                              owner_pids=self.owner_pids, application_ids=self.application_ids,
+                              application_owners=self.application_owners)
+        reader.nodes = self.nodes
+        try:
+            return reader.absent_id(identity, within=within)
+        except UiError as error:
+            raise AutomationError(str(error).replace("ui:", "automation:")) from error
 
     def find(self, identity):
         matches = self.find_all(identity)
@@ -100,15 +149,35 @@ class Automation:
 
     def focus(self, identity):
         """Move normal keyboard focus only to a published, revealed control."""
-        node = self.reveal(identity)
-        if not node.get_state_set().contains(self.api.StateType.SENSITIVE):
-            raise AutomationError("automation:disabled:" + identity)
-        component = node.get_component_iface()
-        if component is None or not component.grab_focus():
-            raise AutomationError("automation:focus-refused:" + identity)
+        if self.input_uncertain:
+            raise AutomationError("automation:uncertain-input")
         node = self.target(identity)
-        if not node.get_state_set().contains(self.api.StateType.FOCUSED):
+        states = node.get_state_set()
+        if states.contains(self.api.StateType.DEFUNCT):
+            raise AutomationError("automation:defunct:" + identity)
+        if not states.contains(self.api.StateType.SENSITIVE):
+            raise AutomationError("automation:disabled:" + identity)
+        surface = owned_surface_id(identity)
+        if (surface is not None and not identity.startswith("child-")
+                and node.get_attributes().get("toolkit") != "WebKitGTK"):
+            self.activate(surface, action_name="focus." + identity)
+            # An accepted action does not prove which control received focus.
+            # Keep uncertainty latched if reacquisition itself raises.
+            self.input_uncertain = True
+        else:
+            node = self.reveal(identity)
+            component = node.get_component_iface()
+            self.input_uncertain = True
+            if component is None or not component.grab_focus():
+                raise AutomationError("automation:focus-refused:" + identity)
+        node = self.target(identity)
+        states = node.get_state_set()
+        if states.contains(self.api.StateType.DEFUNCT) or not all(states.contains(state) for state in (
+                self.api.StateType.FOCUSED, self.api.StateType.SHOWING,
+                self.api.StateType.VISIBLE, self.api.StateType.SENSITIVE)):
+            self.input_uncertain = True
             raise AutomationError("automation:focus-unconfirmed:" + identity)
+        self.input_uncertain = False
         return node
 
     def reveal(self, identity):
@@ -117,17 +186,24 @@ class Automation:
         if states.contains(self.api.StateType.DEFUNCT):
             raise AutomationError("automation:defunct:" + identity)
         if not states.contains(self.api.StateType.SHOWING):
-            component = node.get_component_iface()
-            if component is None or not component.scroll_to(self.api.ScrollType.ANYWHERE):
-                raise AutomationError("automation:reveal-refused:" + identity)
+            surface = owned_surface_id(identity)
+            if (surface is not None and not identity.startswith("child-")
+                    and node.get_attributes().get("toolkit") != "WebKitGTK"):
+                self.focus(identity)
+            else:
+                component = node.get_component_iface()
+                if component is None or not component.scroll_to(self.api.ScrollType.ANYWHERE):
+                    raise AutomationError("automation:reveal-refused:" + identity)
         node = self.target(identity)
         states = node.get_state_set()
-        if not all(states.contains(state) for state in (
+        if states.contains(self.api.StateType.DEFUNCT) or not all(states.contains(state) for state in (
                 self.api.StateType.SHOWING, self.api.StateType.VISIBLE)):
             raise AutomationError("automation:unreachable:" + identity)
         return node
 
     def activate(self, identity, *, action_name=None):
+        if self.input_uncertain:
+            raise AutomationError("automation:uncertain-input")
         node = self.reveal(identity)
         if not node.get_state_set().contains(self.api.StateType.SENSITIVE):
             raise AutomationError("automation:disabled:" + identity)
@@ -138,7 +214,10 @@ class Automation:
             raise AutomationError("automation:ambiguous-action:" + identity)
         count = action.get_n_actions()
         if action_name is None:
-            candidates = [0] if count == 1 else []
+            # The shared native navigation actions are not a control's
+            # primary activation. All other ambiguity still refuses input.
+            candidates = [index for index in range(count)
+                          if not public_action_name(self.api, action, index).startswith("focus.")]
         else:
             candidates = [index for index in range(count)
                           if public_action_name(self.api, action, index) == action_name]
@@ -146,5 +225,7 @@ class Automation:
             raise AutomationError("automation:ambiguous-action:" + identity)
         # Never retry input: a false result or transport exception can leave
         # its effect uncertain. Consumers independently observe the outcome.
+        self.input_uncertain = True
         if not action.do_action(candidates[0]):
             raise AutomationError("automation:action-refused:" + identity)
+        self.input_uncertain = False

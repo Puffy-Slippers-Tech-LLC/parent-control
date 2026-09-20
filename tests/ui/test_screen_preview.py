@@ -52,7 +52,9 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
         "selected scale is readable",
     )
     audit_product_controls(ui, "preview-screen-dialog")
-    ui.activate("preview-screen-resolution-custom")
+    ui.activate("preview-screen-resolution-custom", action_name="row.activate")
+    wait_for_accessible_state(lambda: ui.showing("preview-screen-width"),
+                              "custom resolution reveals its dimension fields")
     ui.focus("preview-screen-width")
     rawinput.keyCombo("<Control>a")
     rawinput.typeText("479")
@@ -65,5 +67,5 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
     assert ui.state("preview-screen-save", ui.api.StateType.SENSITIVE)
     assert ui.state("preview-screen-cancel", ui.api.StateType.SENSITIVE)
     ui.activate("preview-screen-cancel")
-    wait_for_accessible_state(lambda: not ui.showing("preview-screen-dialog"),
+    wait_for_accessible_state(lambda: ui.absent("preview-screen-dialog", within="kiosk-request-window"),
                               "screen dialog closes")

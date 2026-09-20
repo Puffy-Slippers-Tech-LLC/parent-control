@@ -1,41 +1,38 @@
 """Session menu, Switch User and confirmed Log Out stay on public controls."""
 
 import json
-from types import SimpleNamespace
+import copy
 
 import pytest
 
-from accessible_ui import SESSION_ACTION_NAMES, SESSION_POINTER_OPERATIONS, UiError
-from tests.support.accessible_ui import Node, ui_for
+from accessible_ui import SESSION_ACTION_NAMES, UiError
+from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
 from tests.support.perl import run_perl
 
 
-def pointer_box(x, y, width, height):
-    return SimpleNamespace(
-        get_extents=lambda _: SimpleNamespace(x=x, y=y, width=width, height=height))
-
-
-POINTS = {
-    'system': {'x': 1220, 'y': 20},
-    'power': {'x': 1180, 'y': 52},
-    'switch': {'x': 1180, 'y': 84},
-    'logout': {'x': 1180, 'y': 108},
-    'confirm': {'x': 680, 'y': 416},
+SHELL_CONTROLS = {
+    'desktop': {'desktop': 'test-shell-desktop-control'},
+    'panel': {'quick-settings': 'test-shell-quick-settings'},
+    'session-menu': {'power': 'test-shell-power', 'switch-user': 'test-shell-switch-user',
+                     'log-out': 'test-shell-log-out'},
+    'logout-dialog': {'confirm': 'test-shell-log-out-confirm'},
+}
+SHELL_CONTRACTS = copy.deepcopy(TEST_PROMPT_CONTRACTS)
+SHELL_CONTRACTS['gnome-shell'] = {
+    'application_id': 'test-shell-application',
+    'surfaces': {surface: ('test-shell-' + surface, controls)
+                 for surface, controls in SHELL_CONTROLS.items()},
+    'blocked_consumers': (),
 }
 
 
 def session_desktop(*, system_open=False, power_open=False, actions=True, confirm=False):
-    activities = Node('Activities', 'button')
-    system = Node('System', 'menu')
-    system.get_component_iface = lambda: pointer_box(1200, 8, 40, 24)
-    power = Node('Power Off Menu', 'push button')
-    power.get_component_iface = lambda: pointer_box(1100, 40, 160, 24)
-    switch = Node('Switch User…', 'menu item')
-    switch.get_component_iface = lambda: pointer_box(1080, 72, 200, 24)
-    logout = Node('Log Out…', 'menu item')
-    logout.get_component_iface = lambda: pointer_box(1080, 96, 200, 24)
-    confirm_button = Node('Log Out', 'push button')
-    confirm_button.get_component_iface = lambda: pointer_box(600, 400, 160, 32)
+    desktop = Node(identity=SHELL_CONTROLS['desktop']['desktop'])
+    system = Node('System', 'menu', identity=SHELL_CONTROLS['panel']['quick-settings'])
+    power = Node('Power Off Menu', 'push button', identity=SHELL_CONTROLS['session-menu']['power'])
+    switch = Node('Switch User…', 'menu item', identity=SHELL_CONTROLS['session-menu']['switch-user'])
+    logout = Node('Log Out…', 'menu item', identity=SHELL_CONTROLS['session-menu']['log-out'])
+    confirm_button = Node('Log Out', 'push button', identity=SHELL_CONTROLS['logout-dialog']['confirm'])
     for node in (power, switch, logout, confirm_button):
         node.states.clear()
     if system_open:
@@ -45,36 +42,43 @@ def session_desktop(*, system_open=False, power_open=False, actions=True, confir
         logout.states.update(('showing', 'visible', 'sensitive'))
     if confirm:
         confirm_button.states.update(('showing', 'visible', 'sensitive'))
-    children = [activities, system, power, switch, logout]
-    if confirm:
-        children.append(confirm_button)
-    return ui_for(Node(role='desktop frame', children=children)), system, power, switch, logout, confirm_button
+    surfaces = [
+        Node(identity='test-shell-desktop', children=[desktop]),
+        Node(identity='test-shell-panel', children=[system]),
+        Node(identity='test-shell-session-menu', children=[power, switch, logout]),
+        Node(identity='test-shell-logout-dialog', children=[confirm_button]),
+    ]
+    application = Node(identity='test-shell-application', children=surfaces)
+    return (ui_for(application, provider_contracts=SHELL_CONTRACTS), system, power,
+            switch, logout, confirm_button)
 
 
 @pytest.mark.parametrize('fault', [None, 'no-desktop', 'no-system'])
-def test_session_menu_toggle_returns_pointer_without_an_atk_action(fault):
+def test_session_menu_toggle_requires_scoped_ids_without_an_atk_action(fault):
     ui, system, power, switch, logout, _ = session_desktop()
     if fault == 'no-desktop':
-        ui.api.get_desktop(0).children[:] = [system, power, switch, logout]
+        ui.api.get_desktop(0).children[0].children.clear()
     if fault == 'no-system':
-        ui.api.get_desktop(0).children.remove(system)
+        ui.api.get_desktop(0).children[1].children.clear()
     if fault:
         with pytest.raises(UiError):
             ui.session_menu_toggle()
         return
-    assert ui.session_menu_toggle() == {'x': 1220, 'y': 20}
+    assert ui.session_menu_toggle() is system
     assert system.action.do_action.call_count == 0
     assert power.action.do_action.call_count == 0
 
 
-@pytest.mark.parametrize('fault', [None, 'closed'])
-def test_session_menu_power_returns_pointer_without_an_atk_action(fault):
+@pytest.mark.parametrize('fault', [None, 'closed', 'disabled'])
+def test_session_menu_power_requires_scoped_id_without_an_atk_action(fault):
     ui, system, power, switch, logout, _ = session_desktop(system_open=fault is None)
+    if fault == 'disabled':
+        power.states.update(('showing', 'visible'))
     if fault:
         with pytest.raises(UiError):
             ui.session_menu_power()
         return
-    assert ui.session_menu_power() == POINTS['power']
+    assert ui.session_menu_power() is power
     assert system.action.do_action.call_count == 0
     assert power.action.do_action.call_count == 0
     assert switch.action.do_action.call_count == 0
@@ -105,27 +109,27 @@ def test_session_menu_observes_both_actions_without_activating(fault):
     ('switch-user', 'closed'), ('logout', 'closed'),
     ('lock', None), ('switch-user', 'three-dots'),
 ])
-def test_session_action_points_at_only_the_named_open_item(action, fault):
+def test_session_action_resolves_only_the_registered_open_item(action, fault):
     ui, _, _, switch, logout, confirm = session_desktop(system_open=True, power_open=True)
     if fault == 'closed':
         switch.states.clear()
         logout.states.clear()
     if fault == 'three-dots':
-        switch.name = 'Switch User...'
+        switch.identity = ''
     if action not in SESSION_ACTION_NAMES or fault:
         with pytest.raises(UiError):
             ui.choose_session_action(action)
         assert switch.action.do_action.call_count == 0
         assert logout.action.do_action.call_count == 0
         return
-    assert ui.choose_session_action(action) == POINTS['switch' if action == 'switch-user' else 'logout']
+    assert ui.choose_session_action(action) is (switch if action == 'switch-user' else logout)
     assert switch.action.do_action.call_count == 0
     assert logout.action.do_action.call_count == 0
     assert confirm.action.do_action.call_count == 0
 
 
 @pytest.mark.parametrize('fault', [None, 'menu-only', 'missing'])
-def test_logout_confirm_points_at_the_dialog_button_not_the_ellipsis_item(fault):
+def test_logout_confirm_uses_the_dialog_scope_not_the_menu_item(fault):
     ui, _, _, switch, logout, confirm = session_desktop(
         system_open=True, power_open=True, confirm=fault != 'missing')
     if fault == 'menu-only':
@@ -135,37 +139,18 @@ def test_logout_confirm_points_at_the_dialog_button_not_the_ellipsis_item(fault)
             ui.logout_confirm()
         assert confirm.action.do_action.call_count == 0
     else:
-        assert ui.logout_confirm() == POINTS['confirm']
+        assert ui.logout_confirm() is confirm
         assert confirm.action.do_action.call_count == 0
     assert switch.action.do_action.call_count == 0
     assert logout.action.do_action.call_count == 0
 
 
-def test_session_action_follows_a_public_label_to_the_menu_item():
-    activities = Node('Activities', 'button')
-    system = Node('System', 'menu')
-    system.get_component_iface = lambda: pointer_box(1200, 8, 40, 24)
-    item = Node('', 'menu item')
-    item.get_component_iface = lambda: pointer_box(1080, 72, 200, 24)
-    label = Node('Switch User…', 'label')
-    item.children = [label]
-    label.parent = item
-    logout = Node('Log Out…', 'menu item')
-    logout.get_component_iface = lambda: pointer_box(1080, 96, 200, 24)
-    ui = ui_for(Node(role='desktop frame', children=[activities, system, item, logout]))
-    assert ui.choose_session_action('switch-user') == POINTS['switch']
-    assert item.action.do_action.call_count == 0
-    assert label.action.do_action.call_count == 0
-
-
-def test_session_power_pointer_uses_the_smaller_showing_glyph():
-    ui, _, power, *_ = session_desktop(system_open=True)
-    icon = Node('', 'icon')
-    icon.get_component_iface = lambda: pointer_box(1224, 48, 24, 24)
-    power.children = [icon]
-    icon.parent = power
-    assert ui.session_menu_power() == {'x': 1236, 'y': 60}
-    assert power.action.do_action.call_count == 0
+def test_session_action_refuses_matching_label_outside_registered_surface():
+    ui, _, _, switch, *_ = session_desktop(system_open=True, power_open=True)
+    switch.identity = ''
+    ui.api.get_desktop(0).children.append(Node('Switch User…', 'menu item'))
+    with pytest.raises(UiError):
+        ui.choose_session_action('switch-user')
 
 
 @pytest.mark.parametrize('operation', [
@@ -176,11 +161,6 @@ def test_run_dispatches_session_operations(operation):
     ui, *_ = session_desktop(system_open=True, power_open=True, confirm=True)
     result = ui.run(operation, '')
     expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-    if operation in SESSION_POINTER_OPERATIONS:
-        expected['pointer'] = POINTS[{
-            'session-menu-toggle': 'system', 'session-menu-power': 'power',
-            'switch-user': 'switch', 'logout': 'logout', 'logout-confirm': 'confirm',
-        }[operation]]
     assert result == expected
 
 

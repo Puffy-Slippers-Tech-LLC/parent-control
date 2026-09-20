@@ -1,15 +1,16 @@
 """Functional GUI selection tolerates decoration but refuses unusable controls."""
 
 import json
+import copy
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from accessible_ui import UiError, greeter_account, session_environment
+from accessible_ui import PARENT_APPLICATION, UiError, greeter_account, session_environment
 from private_artifacts import EvidenceError
 from ui_observations import UiObservations
-from tests.support.accessible_ui import Node, ui_for
+from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
 
 
 GDM_CONTROLS = {
@@ -40,6 +41,41 @@ KEYRING_CONTRACTS = {'gcr-keyring-prompter': {
                 'recipient': 'test-polkit-recipient', 'secret': 'test-polkit-secret',
                 'confirm': 'test-polkit-confirm', 'cancel': 'test-polkit-cancel'})},
         'blocked_consumers': ()}}
+
+SEARCH_CONTROLS = {
+    'search': 'test-shell-search', 'result::parent': 'test-shell-parent-result',
+    'web-suggestion::parent': 'test-shell-web-suggestion',
+}
+SEARCH_CONTRACTS = copy.deepcopy(TEST_PROMPT_CONTRACTS)
+SEARCH_CONTRACTS['gnome-shell'] = {
+    'application_id': 'test-shell-application',
+    'surfaces': {'app-grid': ('test-shell-app-grid', SEARCH_CONTROLS)},
+    'blocked_consumers': (),
+}
+DOCUMENT_CONTROLS = {'content': 'test-viewer-content', 'close': 'test-viewer-close'}
+DOCUMENT_CONTRACTS = copy.deepcopy(TEST_PROMPT_CONTRACTS)
+DOCUMENT_CONTRACTS['document-viewer'] = {
+    'application_id': 'test-viewer-application',
+    'surfaces': {'license-document': ('test-viewer-license', DOCUMENT_CONTROLS)},
+    'blocked_consumers': (),
+}
+
+
+def search_ui(surface, *, outside=()):
+    surface.identity = 'test-shell-app-grid'
+    application = Node(identity='test-shell-application', children=[surface])
+    return ui_for(Node(children=[*outside, application]), provider_contracts=SEARCH_CONTRACTS)
+
+
+def document_ui(product_root, *, document=None):
+    children = [Node(identity=PARENT_APPLICATION, children=[product_root])]
+    if document is not None:
+        document.identity = DOCUMENT_CONTROLS['content']
+        close = Node('Close', 'push button', identity=DOCUMENT_CONTROLS['close'])
+        surface = Node(identity='test-viewer-license', children=[document, close],
+                       states=('showing', 'visible', 'sensitive', 'active'))
+        children.append(Node(identity='test-viewer-application', children=[surface]))
+    return ui_for(Node(children=children), provider_contracts=DOCUMENT_CONTRACTS)
 
 
 def gdm_ui(*, rows=(), recipient=None, field=None, list_showing=True):
@@ -428,6 +464,22 @@ def test_unqualified_keyring_provider_blocks_before_tree_discovery_or_input():
     ui.api.get_desktop.assert_not_called()
 
 
+@pytest.mark.parametrize('entry', ['desktop', 'search', 'terminal', 'license'])
+def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input(entry):
+    from accessible_ui import PARENT
+    ui = ui_for(Node(), qualify_prompts=False)
+    ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
+    call = {
+        'desktop': lambda: ui.desktop_result(PARENT, 'success'),
+        'search': lambda: ui.search_query(''),
+        'terminal': lambda: ui.terminal_input(),
+        'license': lambda: ui.open_license(),
+    }[entry]
+    with pytest.raises(UiError, match='unqualified-provider-application'):
+        call()
+    ui.api.get_desktop.assert_not_called()
+
+
 def test_dead_unrelated_subtree_does_not_hide_live_control():
     dead = Node('dead')
     dead.get_name = Mock(side_effect=LookupError('disconnected'))
@@ -449,15 +501,16 @@ def test_duplicate_tree_paths_are_one_control_but_distinct_matches_are_ambiguous
 def test_search_result_supports_named_buttons_and_their_public_labels(nested):
     label = Node('Oh No! Parent Control', 'label')
     button = Node('' if nested else label.name, 'push button',
-                  children=[Node(children=[label])] if nested else [])
-    ui = ui_for(Node(children=[button]))
+                  children=[Node(children=[label])] if nested else [],
+                  identity=SEARCH_CONTROLS['result::parent'])
+    ui = search_ui(Node(children=[button]))
     assert ui.labelled_button(label.name) is button
     assert ui.run('app-grid', '1.1')['outcome'] == 'passed'
 
 
 def test_search_text_without_a_launchable_control_is_not_a_result():
-    ui = ui_for(Node(children=[Node('Oh No! Parent Control', 'label')]))
-    with pytest.raises(UiError, match='labelled-button'):
+    ui = search_ui(Node(children=[Node('Oh No! Parent Control', 'label')]))
+    with pytest.raises(UiError, match='search-result'):
         ui.run('app-grid', '1.1')
 
 
@@ -532,13 +585,25 @@ def test_return_waits_for_the_window_to_finish_closing(operation):
     old = Node(closing, identity='about-dialog' if closing == 'About' else '')
     underlying = Node(destination, identity='parent-window' if destination == PRODUCT else 'about-dialog')
     root = Node(children=[old, underlying], identity='parent-window' if operation == 'license-closed' else '')
-    ui = ui_for(root)
+    if operation == 'license-closed':
+        old.identity = 'test-viewer-license'
+        close = Node(identity=DOCUMENT_CONTROLS['close'])
+        old.children.append(close)
+        close.parent = old
+        application = Node(identity='test-viewer-application', children=[old])
+        root.children.remove(old)
+        application.parent = root
+        root.children.append(application)
+        ui = document_ui(root)
+    else:
+        ui = ui_for(root)
     ui.timeout = .5
     observations = []
     def dispatch():
-        observations.append(old in root.children)
+        container = old.parent.children
+        observations.append(old in container)
         if len(observations) == 2:
-            root.children.remove(old)
+            container.remove(old)
         return False
     ui.dispatch = dispatch
     ui.settings = Mock(return_value={'child': 'fixture-child'})
@@ -553,10 +618,9 @@ def test_license_reads_the_text_interface_and_requires_actual_visible_content(fa
     if fault == 'hidden': document.states.remove('showing')
     document.get_text_iface = lambda: document
     document.get_text = Mock(side_effect=AssertionError('wrong Accessible interface'))
-    root = Node(identity='parent-window', children=[Node('About', 'frame', children=[link], identity='about-dialog'),
-                          Node('LICENSE', 'frame', children=[document],
-                               states=('showing', 'visible', 'sensitive', 'active'))])
-    ui = ui_for(root)
+    root = Node(identity='parent-window', children=[
+        Node('About', 'frame', children=[link], identity='about-dialog')])
+    ui = document_ui(root, document=document)
     content = ('An unrelated document' if fault == 'wrong-document' else
                'GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n' + 'x' * 2000)
     ui.api.Text = SimpleNamespace(get_character_count=lambda node: len(content),
@@ -582,8 +646,22 @@ def test_keyboard_close_requires_a_fresh_active_unique_window(window, fault):
     if fault == 'inactive': node.states.remove('active')
     if fault == 'hidden': node.states.remove('showing')
     nodes = [] if fault == 'missing' else [node]
-    if fault == 'duplicate': nodes.append(Node(node.name, identity=node.identity))
-    ui = ui_for(Node(identity='parent-window', children=nodes))
+    if window == 'about' and fault == 'duplicate':
+        nodes.append(Node('About', identity='about-dialog'))
+    if window == 'license':
+        product = Node(identity='parent-window', children=[Node(identity='about-dialog')])
+        ui = document_ui(product, document=Node(role='text'))
+        surface = ui.find_id('test-viewer-license', showing=False)
+        if fault == 'inactive': surface.states.remove('active')
+        if fault == 'hidden': surface.states.remove('showing')
+        if fault == 'missing':
+            surface.parent.children.remove(surface)
+        if fault == 'duplicate':
+            duplicate = Node(identity='test-viewer-license')
+            duplicate.parent = surface.parent
+            surface.parent.children.append(duplicate)
+    else:
+        ui = ui_for(Node(identity='parent-window', children=nodes))
     if fault:
         with pytest.raises(UiError): ui.window_ready_to_close(window)
     else:
@@ -593,12 +671,11 @@ def test_keyboard_close_requires_a_fresh_active_unique_window(window, fault):
 
 @pytest.mark.parametrize('fault', [None, 'still-open', 'missing-destination', 'stale', 'defunct'])
 def test_closed_window_requires_complete_reads_and_recognized_destination(fault):
-    nodes = [Node('About')]
-    if fault == 'still-open': nodes.append(Node('LICENSE'))
-    if fault == 'missing-destination': nodes = []
-    if fault == 'defunct': nodes[0].states.add('defunct')
-    if fault == 'stale': nodes[0].get_child_count = Mock(side_effect=LookupError('stale'))
-    ui = ui_for(Node(children=nodes))
+    about = Node('About', identity='about-dialog')
+    product = Node(identity='parent-window', children=[] if fault == 'missing-destination' else [about])
+    ui = document_ui(product, document=Node(role='text') if fault == 'still-open' else None)
+    if fault == 'defunct': about.states.add('defunct')
+    if fault == 'stale': about.get_child_count = Mock(side_effect=LookupError('stale'))
     ui.query_errors = (LookupError,)
     if fault:
         with pytest.raises(UiError): ui.window_closed('license', 'about')
@@ -611,7 +688,8 @@ def test_document_projection_rejects_unregistered_or_unsafe_reads(fault):
     node = Node(role='password text' if fault == 'masked' else 'text')
     if fault == 'hidden': node.states.remove('showing')
     node.get_text_iface = Mock(return_value=node)
-    ui = ui_for(node)
+    ui = document_ui(Node(identity='parent-window', children=[Node(identity='about-dialog')]),
+                     document=node)
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: 2000,
         get_text=Mock(return_value='x' * 1025))
     with pytest.raises(UiError):
@@ -980,16 +1058,17 @@ def test_controller_requires_ordered_wrong_recipient_then_fresh_parent_recheck(f
 def test_standard_search_requires_query_web_result_and_stable_complete_absence(monkeypatch, fault):
     import accessible_ui
     product = accessible_ui.PRODUCT
-    field = Node(product, 'text')
+    field = Node(product, 'text', identity=SEARCH_CONTROLS['search'])
     field.states.add('editable')
     field.value = 'wrong query' if fault == 'wrong-query' else product
     field.get_text_iface = lambda: field
     description = Node('Search "' + product + '" on the web', 'label')
-    suggestion = Node('Search online', 'push button', children=[description])
+    suggestion = Node('Search online', 'push button', children=[description],
+                      identity=SEARCH_CONTROLS['web-suggestion::parent'])
     overview = Node('Overview', 'panel', children=[field, suggestion],
                     appearance={'scale': 2.5, 'font': 'ugly', 'misaligned': True})
-    root = Node(children=[overview])
-    if fault == 'defunct-subtree': root.children.append(Node('private-canary', states=('defunct',)))
+    outside = []
+    if fault == 'defunct-subtree': outside.append(Node('private-canary', states=('defunct',)))
     if fault == 'missing-field': overview.children.remove(field)
     if fault == 'hidden-field': field.states.remove('showing')
     if fault == 'disabled-field': field.states.remove('sensitive')
@@ -1006,15 +1085,19 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
         overview.children.append(description)
     if fault == 'hidden-description': description.states.remove('showing')
     if fault == 'wrong-description': description.name = 'Search for unrelated information'
-    if fault == 'launcher': overview.children.append(Node(product, 'push button'))
+    if fault == 'launcher': overview.children.append(Node(
+        product, 'push button', identity=SEARCH_CONTROLS['result::parent']))
     if fault == 'unnamed-launcher':
-        overview.children.append(Node('', 'push button', children=[Node(product, 'label')]))
-    if fault == 'management': root.children.append(Node(product, 'frame'))
+        overview.children.append(Node('', 'push button', children=[Node(product, 'label')],
+                                      identity=SEARCH_CONTROLS['result::parent']))
+    if fault == 'management': outside.append(Node(product, 'frame', identity='parent-window'))
     if fault == 'stale-subtree':
         stale = Node('private-canary')
         stale.get_child_count = Mock(side_effect=LookupError('private-canary'))
         overview.children.append(stale)
-    ui = ui_for(root)
+    ui = search_ui(overview, outside=outside)
+    root = ui.api.get_desktop(0)
+    if fault == 'missing-overview': overview.identity = ''
     ui.query_errors = (LookupError,)
     ui.timeout = 5
     ui.api.Text = SimpleNamespace(get_character_count=lambda text: len(text.value),
@@ -1026,7 +1109,9 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
         if fault == 'transient-stale':
             root.states = {'defunct'} if 1 <= now[0] < 2 else {'showing', 'visible'}
         if fault == 'delayed-launcher' and now[0] >= 1:
-            overview.children.append(Node(product, 'push button'))
+            child = Node(product, 'push button', identity=SEARCH_CONTROLS['result::parent'])
+            child.parent = overview
+            overview.children.append(child)
     monkeypatch.setattr(accessible_ui.time, 'sleep', tick)
     if fault not in (None, 'labelled-result', 'transient-stale'):
         expected = 'system-prompt-ready' if fault == 'stale-subtree' else 'standard-parent-unavailable'
@@ -1044,7 +1129,6 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
                                       'standard-parent-unavailable'])
 def test_standard_controller_rejects_private_text_and_wrong_operation(operation):
     result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-    if operation == 'standard-app-grid': result['pointer'] = {'x': 731, 'y': 80}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
     assert UiObservations(transport).observe(operation) == result
     result['private'] = 'private-canary'
@@ -1055,29 +1139,28 @@ def test_standard_controller_rejects_private_text_and_wrong_operation(operation)
 
 @pytest.mark.parametrize('fault', [None, 'hidden', 'disabled', 'noneditable', 'nonempty'])
 def test_standard_typeahead_requires_visible_enabled_editable_empty_search(fault):
-    field = Node('', 'text')
+    field = Node('', 'text', identity=SEARCH_CONTROLS['search'])
     field.states.add('editable')
     field.get_text_iface = lambda: field
     if fault == 'hidden': field.states.remove('showing')
     if fault == 'disabled': field.states.remove('sensitive')
     if fault == 'noneditable': field.states.remove('editable')
-    field.get_component_iface = Mock(return_value=SimpleNamespace(get_extents=lambda _: SimpleNamespace(
-        x=100, y=200, width=300, height=50)))
-    ui = ui_for(Node(children=[Node('Overview', 'panel', children=[field])]))
+    ui = search_ui(Node('Overview', 'panel', children=[field]))
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: 1 if fault == 'nonempty' else 0,
                                  get_text=lambda *_: '')
     if fault:
         with pytest.raises((UiError, LookupError)): ui.run('standard-app-grid', '')
     else:
         assert ui.run('standard-app-grid', '')['outcome'] == 'passed'
-    assert field.get_component_iface.call_count == (0 if fault else 1)
+    field.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('value', ['', 'wrong', 'O'])
 def test_typeahead_requires_actual_first_character_before_remaining_input(value):
-    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'),
+                 identity=SEARCH_CONTROLS['search'])
     field.get_text_iface = lambda: field
-    ui = ui_for(Node(children=[Node('Overview', 'panel', children=[field])]))
+    ui = search_ui(Node('Overview', 'panel', children=[field]))
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value), get_text=lambda *_: value)
     if value == 'O':
         assert ui.run('standard-search-started', '')['outcome'] == 'passed'
@@ -1089,9 +1172,10 @@ def test_typeahead_requires_actual_first_character_before_remaining_input(value)
 @pytest.mark.parametrize('value', ['', 'O', 'Oh No! Parent Control', 'Oh No! Parent Controls'])
 def test_full_query_checkpoint_reads_exact_value_before_result(value):
     from accessible_ui import PRODUCT
-    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'),
+                 identity=SEARCH_CONTROLS['search'])
     field.get_text_iface = lambda: field
-    ui = ui_for(Node(children=[Node('Overview', 'panel', children=[field])]))
+    ui = search_ui(Node('Overview', 'panel', children=[field]))
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value), get_text=lambda *_: value)
     if value == PRODUCT:
         assert ui.run('standard-search-entered', '')['outcome'] == 'passed'
@@ -1104,9 +1188,10 @@ def test_full_query_checkpoint_reads_exact_value_before_result(value):
 def test_text_projection_uses_independent_field_and_never_reads_masked_or_unbounded_text(fault):
     from accessible_ui import PRODUCT
     field = Node('', 'password text' if fault == 'masked' else 'text',
-                 states=('visible', 'editable') if fault == 'hidden' else ('showing', 'visible', 'editable'))
+                 states=('visible', 'editable') if fault == 'hidden' else ('showing', 'visible', 'editable'),
+                 identity=SEARCH_CONTROLS['search'])
     field.get_text_iface = Mock(return_value=field)
-    ui = ui_for(Node())
+    ui = search_ui(Node(children=[field]))
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: 10000 if fault == 'too-long' else len(PRODUCT),
                                  get_text=Mock(return_value=PRODUCT))
     def read():
@@ -1182,11 +1267,12 @@ def test_event_storm_cannot_prevent_bounded_predicate_or_replay_action():
 
 
 def test_search_field_excludes_noneditable_text_and_requires_editable_state():
-    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'),
+                 identity=SEARCH_CONTROLS['search'])
     field.get_text_iface = lambda: field
     label_text = Node('Other text', 'text')
     label_text.get_text_iface = Mock(side_effect=AssertionError('noneditable text read'))
-    ui = ui_for(Node(children=[Node('Overview', 'panel', children=[field, label_text])]))
+    ui = search_ui(Node('Overview', 'panel', children=[field, label_text]))
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: 0, get_text=lambda *_: '')
     assert ui.search_query('')
     field.states.remove('editable')
@@ -1195,11 +1281,12 @@ def test_search_field_excludes_noneditable_text_and_requires_editable_state():
 
 
 @pytest.mark.parametrize('focused', [False, True])
-def test_pointer_input_requires_independent_search_focus(focused):
-    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+def test_search_checkpoint_requires_independent_search_focus(focused):
+    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'),
+                 identity=SEARCH_CONTROLS['search'])
     if focused: field.states.add('focused')
     field.get_text_iface = lambda: field
-    ui = ui_for(Node(children=[Node('Overview', 'panel', children=[field])]))
+    ui = search_ui(Node('Overview', 'panel', children=[field]))
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: 0, get_text=lambda *_: '')
     if focused:
         assert ui.run('standard-search-focused', '')['outcome'] == 'passed'
@@ -1210,18 +1297,17 @@ def test_pointer_input_requires_independent_search_focus(focused):
 
 @pytest.mark.parametrize('point', [{'x': -1, 'y': 2}, {'x': True, 'y': 2},
                                  {'x': 3.5, 'y': 2}, {'x': 3, 'y': 2, 'private': 'canary'}])
-def test_pointer_reply_rejects_invalid_or_private_fields(point):
+def test_retired_pointer_reply_is_rejected(point):
     result = {'operation': 'standard-app-grid', 'outcome': 'passed', 'interface': 'AT-SPI', 'pointer': point}
-    with pytest.raises(EvidenceError, match='pointer'):
+    with pytest.raises(EvidenceError, match='response'):
         UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))).observe('standard-app-grid')
 
 
 def test_search_failure_diagnostic_redacts_window_names_and_text():
-    root = Node(role='desktop frame', children=[Node('private-canary', 'dialog'), Node('Unlock Login Keyring', 'dialog'),
-                          Node('private-body', 'text')])
-    result = ui_for(root).search_diagnostic()
+    field = Node('private-canary', 'text', identity=SEARCH_CONTROLS['search'])
+    result = search_ui(Node(children=[field])).search_diagnostic()
     assert 'private' not in json.dumps(result)
-    assert [window['surface'] for window in result['search_windows']] == ['other', 'keyring']
+    assert result == {'provider_surface': 'identified', 'identified_controls': ['search']}
 
 
 @pytest.mark.parametrize('fault', [None, 'disabled', 'hidden', 'unfocused', 'unmasked',
@@ -1292,7 +1378,7 @@ def test_shared_prompt_handler_resumes_same_wait_without_replaying_customer_acti
         return True
     cancel.action.do_action.side_effect = dismiss
     if timing == 'before-operation':
-        ui.run('desktop', '')
+        ui.run('standard-system-prompt', '')
     else:
         ui.prompt_enabled = True
         if timing == 'after-action':

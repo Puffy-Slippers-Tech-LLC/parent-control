@@ -63,6 +63,9 @@ SESSION_OPERATIONS = frozenset({
     'session-menu-toggle', 'session-menu-power', 'session-menu',
     'switch-user', 'logout', 'logout-confirm',
 })
+# Task 05 still owns these legacy worker-side pointer callers. Keep their
+# inventory for caller regressions, but the public adapter exports no pointer
+# for them and cannot make the callers reachable without qualified Shell IDs.
 SESSION_POINTER_OPERATIONS = frozenset({
     'session-menu-toggle', 'session-menu-power', 'switch-user', 'logout', 'logout-confirm',
 })
@@ -71,7 +74,6 @@ SESSION_ACTION_NAMES = {
     'switch-user': 'Switch User…',
     'logout': 'Log Out…',
 }
-SESSION_ACTION_ROLES = ('menu item', 'button', 'push button')
 PRODUCT = 'Oh No! Parent Control'
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
@@ -134,9 +136,16 @@ EXTERNAL_PROVIDER_CONTRACTS = {
             }),
             'panel': (None, {
                 'activities': None, 'app-grid': None, 'quick-settings': None,
-                'session-menu': None, 'switch-user': None, 'log-out': None,
                 'lock': None,
             }),
+            'app-grid': (None, {
+                'search': None, 'result::parent': None,
+                'web-suggestion::parent': None,
+            }),
+            'session-menu': (None, {
+                'power': None, 'switch-user': None, 'log-out': None,
+            }),
+            'logout-dialog': (None, {'confirm': None}),
             'notifications': (None, {'notification': None, 'dismiss': None}),
             'lock-screen': (None, {'recipient': None, 'password': None, 'unlock': None}),
         },
@@ -242,6 +251,13 @@ EXTERNAL_PROVIDER_CONTRACTS = {
         },
         'blocked_consumers': ('ABOUT02', 'FILE08', 'FILE09',
                               'FEED08 saved-output review', 'retained-work scenarios'),
+    },
+    'document-viewer': {
+        'application_id': None,
+        'surfaces': {
+            'license-document': (None, {'content': None, 'close': None}),
+        },
+        'blocked_consumers': ('ABOUT02', 'ABOUT03'),
     },
     'gnome-papers': {
         'application_id': None,
@@ -853,6 +869,12 @@ class AccessibleUI:
         """UI03: only the bounded GPL heading projection; never return raw text."""
         require(projection == 'gpl-heading' and type(maximum) is int
                 and 64 <= maximum <= 1024, 'ui:document-binding')
+        _application_id, _surface_id, registered = self.require_provider_contract(
+            'document-viewer', 'license-document', ('content', 'close'))
+        require(public_automation_id(root) == registered['content']
+                and self.find_provider_control(
+                    'document-viewer', 'license-document', 'content') is root,
+                'ui:document-owner')
         require(root.get_role_name() in ('text', 'document text') and self.showing(root),
                 'ui:document-surface')
         text = root.get_text_iface()
@@ -865,18 +887,22 @@ class AccessibleUI:
         return 'GNU GENERAL PUBLIC LICENSE' in value and 'Version 3, 29 June 2007' in value
 
     def license_content(self):
-        """Read the actual named viewer, without opening or repairing it."""
+        """Read the ID-scoped registered viewer, without title discovery."""
         def document():
-            frame = self.find(roles=('frame',), contains='LICENSE')
-            if frame is None:
+            surface, registered = self.provider_surface(
+                'document-viewer', 'license-document', ('content', 'close'))
+            if surface is None:
                 return False
-            return any(self.read_document(node, 'gpl-heading', maximum=1024)
-                       for node in self.nodes(frame)
-                       if self.showing(node) and node.get_role_name() in ('text', 'document text'))
+            node = self.find_id(registered['content'], root=surface)
+            return (node is not None and node.get_role_name() in ('text', 'document text')
+                    and self.showing(node)
+                    and self.read_document(node, 'gpl-heading', maximum=1024))
         return self.wait(document, 'license-content')
 
     def open_license(self):
         """ABOUT02: one link action followed by actual viewer content."""
+        self.require_provider_contract(
+            'document-viewer', 'license-document', ('content', 'close'))
         self.activate(self.id_target('about-license-value', root=self.about(), sensitive=True))
         self.license_content()
 
@@ -884,8 +910,11 @@ class AccessibleUI:
         """UI01/02: fresh active named window before a worker's Alt-F4."""
         require(window in ('license', 'about'), 'ui:window-binding')
         def active():
-            root = (self.find(roles=('frame',), contains='LICENSE') if window == 'license'
-                    else self.find_id('about-dialog'))
+            if window == 'license':
+                root, _registered = self.provider_surface(
+                    'document-viewer', 'license-document', ('content', 'close'))
+            else:
+                root = self.find_id('about-dialog')
             return root is not None and self.has_state(root, self.api.StateType.ACTIVE)
         self.wait(active, 'active-' + window)
 
@@ -893,22 +922,23 @@ class AccessibleUI:
         """UI11: complete fresh absence within the positively recognized return UI."""
         require((window, destination) in (('license', 'about'), ('about', 'parent')),
                 'ui:window-binding')
+        if window == 'license':
+            _application_id, surface_id, registered = self.require_provider_contract(
+                'document-viewer', 'license-document', ('content', 'close'))
         def closed():
             if window == 'about':
                 return self.absent_id('about-dialog', within='parent-window')
             nodes = list(self.nodes(strict=True))
             if not nodes:
                 return False
-            present = False
-            underlying = False
             for node in nodes:
                 require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-window')
-                if node.get_role_name() not in ('frame', 'dialog') or not self.showing(node):
-                    continue
-                name = node.get_name()
-                present |= ('LICENSE' in name if window == 'license' else name == 'About')
-                underlying |= name == ('About' if destination == 'about' else PRODUCT)
-            return underlying and not present
+            underlying = self.find_id('about-dialog', nodes=nodes)
+            if underlying is None:
+                return False
+            external_ids = (surface_id, registered['content'], registered['close'])
+            return not any(public_automation_id(node) in external_ids and self.showing(node)
+                           for node in nodes)
         self.wait(closed, window + '-close')
 
     def about_footer(self):
@@ -961,6 +991,12 @@ class AccessibleUI:
         if projection == 'search-query':
             require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal') and len(expected) <= maximum,
                     'ui:search-binding')
+            _application_id, _surface_id, registered = self.require_provider_contract(
+                'gnome-shell', 'app-grid', ('search',))
+            require(public_automation_id(root) == registered['search']
+                    and self.find_provider_control(
+                        'gnome-shell', 'app-grid', 'search') is root,
+                    'ui:search-owner')
             require(root.get_role_name() in ('text', 'entry') and self.showing(root)
                     and self.has_state(root, self.api.StateType.EDITABLE), 'ui:search-field')
             text = root.get_text_iface()
@@ -972,6 +1008,12 @@ class AccessibleUI:
             return matches
         if projection == 'web-suggestion':
             require(expected == PRODUCT, 'ui:search-binding')
+            _application_id, _surface_id, registered = self.require_provider_contract(
+                'gnome-shell', 'app-grid', ('web-suggestion::parent',))
+            require(public_automation_id(root) == registered['web-suggestion::parent']
+                    and self.find_provider_control(
+                        'gnome-shell', 'app-grid', 'web-suggestion::parent') is root,
+                    'ui:search-owner')
             label = 'Search "' + expected + '" on the web'
             require(len(label) <= maximum, 'ui:text-bound')
             return self.find(label, ('label',), root=root) is not None
@@ -1163,9 +1205,23 @@ class AccessibleUI:
         print('ui:parent-page=filters-ready', file=sys.stderr, flush=True)
 
     def launchable_result(self, product):
-        """SEARCH04's registered launchable branch, without launching."""
+        """SEARCH04's ID-scoped registered launchable branch, without input."""
         require(product == PRODUCT, 'ui:search-binding')
-        return self.labelled_button(product)
+        surface, registered = self.provider_surface(
+            'gnome-shell', 'app-grid', ('result::parent',))
+        if surface is None:
+            return None
+        target = self.find_id(registered['result::parent'], root=surface)
+        if target is None:
+            return None
+        require(target.get_role_name() in ('button', 'push button')
+                and self.has_state(target, self.api.StateType.SENSITIVE),
+                'ui:search-result')
+        labels = [' '.join(node.get_name().split()) for node in self.nodes(target, strict=True)
+                  if self.showing(node) and node.get_role_name() == 'label']
+        require(' '.join(target.get_name().split()) == product or labels == [product],
+                'ui:search-result')
+        return target
 
     def terminal_input(self, *, focused=False):
         """FILE01/UI21: a unique terminal in its active application window.
@@ -1174,27 +1230,15 @@ class AccessibleUI:
         cannot authorize input. Window titles may contain private shell paths;
         select by the public terminal role and never export those titles.
         """
-        nodes = list(self.nodes(strict=True))
-        terminals = [node for node in nodes if node.get_role_name() == 'terminal'
-                     and self.showing(node)]
-        require(len(terminals) <= 1, 'ui:ambiguous-terminal')
-        if not terminals:
+        surface, registered = self.provider_surface(
+            'terminal', 'terminal', ('input-output',))
+        if surface is None:
             return None
-        field = terminals[0]
-        if not self.has_state(field, self.api.StateType.SENSITIVE):
+        field = self.find_id(registered['input-output'], root=surface)
+        if (field is None or field.get_role_name() != 'terminal'
+                or not self.has_state(field, self.api.StateType.SENSITIVE)):
             return None
-        window = field.get_parent()
-        for _ in range(16):
-            if window is None:
-                return None
-            if window.get_role_name() in ('frame', 'window'):
-                break
-            window = window.get_parent()
-        else:
-            return None
-        if not self.showing(window) or not self.has_state(window, self.api.StateType.ACTIVE):
-            return None
-        if self.find('Overview') is not None:
+        if not self.has_state(surface, self.api.StateType.ACTIVE):
             return None
         if focused and not self.has_state(field, self.api.StateType.FOCUSED):
             return None
@@ -1242,11 +1286,22 @@ class AccessibleUI:
                     'ui:help-product-window')
 
     def terminal_return_surface(self):
-        # D3/task 04 owns this external boundary. Until its full provider
-        # contract is qualified, silence or a role/name-selected terminal
-        # cannot establish the surrounding UI for owned-window disappearance.
-        self.find_provider_control('terminal', 'terminal', 'input-output')
-        raise UiError('ui:terminal-return-unqualified')
+        surface, registered = self.provider_surface(
+            'terminal', 'terminal', ('input-output',))
+        require(surface is not None and self.find_id(
+            registered['input-output'], root=surface) is not None,
+            'ui:terminal-return-unqualified')
+        return public_automation_id(surface)
+
+    def terminal_absent(self):
+        """Complete ID-scoped absence of the registered terminal surface."""
+        _application_id, surface_id, _registered = self.require_provider_contract(
+            'terminal', 'terminal', ('input-output',))
+        nodes = list(self.nodes(strict=True))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:incomplete-tree')
+        return not any(public_automation_id(node) == surface_id and self.showing(node)
+                       for node in nodes)
 
     def help_content(self, binding):
         import re
@@ -1305,34 +1360,54 @@ class AccessibleUI:
         """GDM06 success on the caller's qualified public desktop connection."""
         require(account in (PARENT, EXISTING_CHILD) and expected == 'success',
                 'ui:desktop-binding')
-        return self.target('Activities', ('toggle button', 'button', 'push button'))
+        surface, registered = self.provider_surface(
+            'gnome-shell', 'desktop', ('desktop',))
+        target = (self.find_id(registered['desktop'], root=surface)
+                  if surface is not None else None)
+        require(target is not None, 'ui:desktop')
+        return target
 
     def session_menu_toggle(self):
-        """DESK02 entry: locate the system menu. GNOME Shell exposes no AT-SPI action."""
+        """DESK02 entry target, observed only through Shell's panel IDs."""
         self.desktop_result(PARENT, 'success')
-        return self.stable_pointer(lambda: self.find(
-            'System', ('menu', 'toggle button', 'button', 'push button'), sensitive=True))
+        target = self.find_provider_control('gnome-shell', 'panel', 'quick-settings')
+        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
+                'ui:session-menu-toggle')
+        return target
 
     def session_menu_power(self):
-        """DESK02: locate Power Off Menu after the system menu is open."""
-        return self.stable_pointer(lambda: self.find(
-            'Power Off Menu', ('button', 'push button'), sensitive=True))
+        """DESK02 power target, observed only in the ID-scoped open menu."""
+        target = self.find_provider_control('gnome-shell', 'session-menu', 'power')
+        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
+                'ui:session-menu-power')
+        return target
 
     def session_menu(self):
         """DESK02: observe Switch User and Log Out after Power Off Menu is open."""
-        for name in SESSION_ACTION_NAMES.values():
-            self.wait(lambda n=name: self.find_labelled_control(n, SESSION_ACTION_ROLES), 'target')
+        surface, registered = self.provider_surface(
+            'gnome-shell', 'session-menu', ('switch-user', 'log-out'))
+        require(surface is not None, 'ui:session-menu')
+        for logical in ('switch-user', 'log-out'):
+            target = self.find_id(registered[logical], root=surface)
+            require(target is not None and self.has_state(
+                target, self.api.StateType.SENSITIVE),
+                    'ui:session-menu')
 
     def choose_session_action(self, action):
-        """Point at one already observed session-menu action; do not observe GDM."""
+        """Observe one exact ID-scoped action; task 05 owns legacy input."""
         require(action in SESSION_ACTION_NAMES, 'ui:session-action-binding')
-        name = SESSION_ACTION_NAMES[action]
-        return self.stable_pointer(lambda: self.find_labelled_control(name, SESSION_ACTION_ROLES))
+        logical = {'switch-user': 'switch-user', 'logout': 'log-out'}[action]
+        target = self.find_provider_control('gnome-shell', 'session-menu', logical)
+        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
+                'ui:session-action')
+        return target
 
     def logout_confirm(self):
-        """DESK04 confirmation: the Log Out button, not the menu item with an ellipsis."""
-        return self.stable_pointer(lambda: self.find(
-            'Log Out', ('button', 'push button'), sensitive=True))
+        """DESK04 confirmation target, distinct by provider surface and ID."""
+        target = self.find_provider_control('gnome-shell', 'logout-dialog', 'confirm')
+        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
+                'ui:logout-confirm')
+        return target
 
     def greeter_list(self, name=PARENT):
         """GDM01: resolve the greeter/list/account entirely by provider IDs."""
@@ -1644,13 +1719,19 @@ class AccessibleUI:
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
         require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal'), 'ui:search-binding')
-        overview = self.find('Overview')
-        self.search_status = 'overview-missing'
-        if overview is None:
+        surface, registered = self.provider_surface(
+            'gnome-shell', 'app-grid', ('search',))
+        self.search_status = 'surface-missing'
+        if surface is None:
             return False
-        field = self.find(roles=('text', 'entry'), root=overview, sensitive=True, editable=True)
+        field = self.find_id(registered['search'], root=surface)
         self.search_status = 'field-missing'
         if field is None:
+            return False
+        if (field.get_role_name() not in ('text', 'entry')
+                or not self.has_state(field, self.api.StateType.SENSITIVE)
+                or not self.has_state(field, self.api.StateType.EDITABLE)):
+            self.search_status = 'field-unusable'
             return False
         return self.read_label(field, 'search-query', expected=expected, maximum=80)
 
@@ -1660,8 +1741,10 @@ class AccessibleUI:
         def ready():
             if not self.search_query(''):
                 return False
-            field = self.find(roles=('text', 'entry'), root=self.find('Overview'),
-                              sensitive=True, editable=True)
+            surface, registered = self.provider_surface(
+                'gnome-shell', 'app-grid', ('search',))
+            field = (self.find_id(registered['search'], root=surface)
+                     if surface is not None else None)
             return field if field is not None and (not focused or self.has_state(
                 field, self.api.StateType.FOCUSED)) else False
         return self.wait_search(ready, 'standard-search-focus' if focused else 'standard-search-ready')
@@ -1674,30 +1757,41 @@ class AccessibleUI:
         interval; repeat reads only, with no replay of customer input.
         """
         stable_since = None
+        self.require_provider_contract(
+            'gnome-shell', 'app-grid',
+            ('search', 'result::parent', 'web-suggestion::parent'))
         def observed():
             nonlocal stable_since
             try:
-                root = self.api.get_desktop(0)
-                ready = root is not None and self.search_query(product)
+                self.search_status = 'surface-missing'
+                surface, registered = self.provider_surface(
+                    'gnome-shell', 'app-grid',
+                    ('search', 'result::parent', 'web-suggestion::parent'))
+                ready = surface is not None and self.search_query(product)
                 if ready:
-                    suggestion = self.find_labelled_button('Search online', root=self.find('Overview'))
-                    ready = suggestion is not None
+                    suggestion = self.find_id(
+                        registered['web-suggestion::parent'], root=surface)
+                    ready = (suggestion is not None and self.has_state(
+                        suggestion, self.api.StateType.SENSITIVE))
                     self.search_status = 'suggestion-matched' if ready else 'suggestion-missing'
                 if ready:
                     ready = self.read_label(suggestion, 'web-suggestion', expected=product, maximum=80)
                     self.search_status = 'description-matched' if ready else 'description-missing'
-                # This negative assertion must not skip inaccessible subtrees.
-                # Product labels include launch results even if their enclosing
-                # button has a missing/wrong accessible name.
-                for node in self.nodes(root, strict=True) if root is not None else ():
+                root = self.api.get_desktop(0)
+                nodes = list(self.nodes(root, strict=True)) if root is not None else []
+                for node in nodes:
                     if self.has_state(node, self.api.StateType.DEFUNCT):
                         ready = False
                         self.search_status = 'incomplete-read'
-                    if (self.showing(node) and node.get_role_name() in
-                            ('button', 'push button', 'label', 'frame', 'dialog')
-                            and ' '.join(node.get_name().split()) == product):
+                    if (self.showing(node) and public_automation_id(node)
+                            == registered['result::parent']):
                         ready = False
                         self.search_status = 'parent-available'
+                    if (self.showing(node) and public_automation_id(node) in (
+                            'parent-window', 'parent-access-denied-window',
+                            'kiosk-request-window', 'startup-error-window')):
+                        ready = False
+                        self.search_status = 'parent-window-available'
                 if not ready:
                     stable_since = None
                     return False
@@ -1720,46 +1814,15 @@ class AccessibleUI:
             raise
 
     def search_diagnostic(self):
-        """Fixed public UI vocabulary for a blocked case-5 input; no raw tree."""
-        windows = []
-        known = {'gnome-shell': 'shell', 'GNOME Shell': 'shell', 'Unlock Login Keyring': 'keyring',
-                 'Welcome to Ubuntu': 'welcome', 'Welcome': 'welcome',
-                 'Authentication Required': 'authentication', PRODUCT: 'parent',
-                 'Software Updater': 'software-updater'}
-        buttons, tokens, applications, focused = set(), set(), set(), set()
-        search_nodes = []
-        for node in self.nodes():
-            role = node.get_role_name()
-            name = node.get_name()
-            if role == 'application':
-                applications.add(name if name in ('gnome-shell', 'gcr-prompter', 'update-manager',
-                    'gnome-initial-setup', 'polkit-gnome-authentication-agent-1') else 'other')
-            if self.showing(node):
-                label = ' '.join(name.split())
-                search_label = ('search-online' if label == 'Search online' else
-                    'web-description' if label == 'Search "' + PRODUCT + '" on the web' else
-                    'query-containing' if PRODUCT in label else None)
-                if search_label is not None and role not in ('text', 'entry', 'password text'):
-                    parent = node.get_parent()
-                    search_nodes.append({'label': search_label, 'role': role,
-                        'parent_role': parent.get_role_name() if parent is not None else 'none'})
-                if role in ('button', 'push button') and name in (
-                        'Cancel', 'Unlock', 'Close', 'Remind Me Later', 'Install Now',
-                        'Not Now', 'Next', 'Skip', 'Start Tour', 'No Thanks', 'Log Out'):
-                    buttons.add(name)
-                if role in ('label', 'frame', 'dialog', 'window'):
-                    tokens.update(word for word in ('keyring', 'password', 'welcome', 'update',
-                        'authentication', 'keyboard', 'unlock', 'log out') if word in name.lower())
-                if self.has_state(node, self.api.StateType.FOCUSED):
-                    focused.add(role if role in ('text', 'entry', 'password text', 'button',
-                        'push button', 'window', 'frame', 'dialog') else 'other')
-            if role in ('window', 'frame', 'dialog', 'alert') and self.showing(node):
-                windows.append({'role': role, 'surface': known.get(node.get_name(), 'other'),
-                                'focused': self.has_state(node, self.api.StateType.FOCUSED),
-                                'modal': self.has_state(node, self.api.StateType.MODAL)})
-        return {'search_windows': windows[:8], 'buttons': sorted(buttons), 'tokens': sorted(tokens),
-                'applications': sorted(applications), 'focused_roles': sorted(focused),
-                'search_nodes': search_nodes[:12]}
+        """Fixed ID-presence diagnostic; it never becomes target identity."""
+        surface, registered = self.provider_surface(
+            'gnome-shell', 'app-grid',
+            ('search', 'result::parent', 'web-suggestion::parent'), showing=False)
+        if surface is None:
+            return {'provider_surface': 'absent', 'identified_controls': []}
+        identified = [logical for logical, identity in registered.items()
+                      if self.find_id(identity, root=surface, showing=False) is not None]
+        return {'provider_surface': 'identified', 'identified_controls': sorted(identified)}
 
     def system_prompt_control(self, *, qualify=True):
         """Resolve Cancel only through the qualified keyring provider contract."""
@@ -1965,9 +2028,7 @@ class AccessibleUI:
             require(self.help_terminal_text() is None, 'ui:help-wrong-surface')
         elif operation == 'help-terminal-closed':
             self.desktop_result(PARENT, 'success')
-            self.wait(lambda: not any(node.get_role_name() == 'terminal' and self.showing(node)
-                for node in self.nodes(strict=True)), 'terminal-closed')
-            self.help_product_absent()
+            self.wait(self.terminal_absent, 'terminal-closed')
         elif operation == 'help-shell-ready':
             self.wait(lambda: self.help_shell_prompt(self.help_terminal_text()), 'help-shell-ready')
             self.help_product_absent()
@@ -1985,8 +2046,7 @@ class AccessibleUI:
             require(self.terminal_input(focused=True) is None, 'ui:terminal-wrong-surface')
         elif operation == 'standard-terminal-closed':
             self.desktop_result(EXISTING_CHILD, 'success')
-            self.wait(lambda: not any(node.get_role_name() == 'terminal' and self.showing(node)
-                for node in self.nodes(strict=True)), 'terminal-closed')
+            self.wait(self.terminal_absent, 'terminal-closed')
         elif operation == 'standard-management-denied':
             self.management_denied()
         elif operation == 'standard-denial-closed':
@@ -1996,11 +2056,7 @@ class AccessibleUI:
             self.management_absent(within=surrounding)
         elif operation == 'standard-app-grid':
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
-            field = self.search_ready('overview')
-            # Public screen coordinates route ordinary pointer input only.
-            # They are never compared to a reference layout or used as an
-            # outcome: the next checkpoint must independently observe focus.
-            result['pointer'] = self.pointer_target(field)
+            self.search_ready('overview')
         elif operation == 'standard-search-focused':
             self.search_ready('overview', focused=True)
         elif operation == 'standard-search-started':
@@ -2014,7 +2070,7 @@ class AccessibleUI:
         elif operation == 'app-grid':
             # The worker entered the product query with real keyboard input.
             # Verify a launchable result, not GNOME's grid geometry or tiles.
-            self.launchable_result(PRODUCT)
+            require(self.launchable_result(PRODUCT) is not None, 'ui:search-result')
         elif operation == 'parent-window':
             self.parent()
         elif operation == 'parent-empty':
@@ -2047,15 +2103,15 @@ class AccessibleUI:
             self.window_closed('about', 'parent')
             result['settings'] = self.settings()
         elif operation == 'session-menu-toggle':
-            result['pointer'] = self.session_menu_toggle()
+            require(self.session_menu_toggle() is not None, 'ui:session-menu-toggle')
         elif operation == 'session-menu-power':
-            result['pointer'] = self.session_menu_power()
+            require(self.session_menu_power() is not None, 'ui:session-menu-power')
         elif operation == 'session-menu':
             self.session_menu()
         elif operation in SESSION_ACTION_NAMES:
-            result['pointer'] = self.choose_session_action(operation)
+            require(self.choose_session_action(operation) is not None, 'ui:session-action')
         elif operation == 'logout-confirm':
-            result['pointer'] = self.logout_confirm()
+            require(self.logout_confirm() is not None, 'ui:logout-confirm')
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         return result

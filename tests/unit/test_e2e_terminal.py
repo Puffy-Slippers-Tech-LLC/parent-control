@@ -2,12 +2,31 @@
 
 import pytest
 import json
+import copy
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 from accessible_ui import UiError
-from tests.support.accessible_ui import Node, ui_for
+from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
 from tests.support.perl import run_perl
+
+
+TERMINAL_CONTRACTS = copy.deepcopy(TEST_PROMPT_CONTRACTS)
+TERMINAL_CONTRACTS['terminal'] = {
+    'application_id': 'test-terminal-application',
+    'surfaces': {'terminal': ('test-terminal-window', {
+        'input-output': 'test-terminal-input-output'})},
+    'blocked_consumers': (),
+}
+
+
+def terminal_ui(field, *, active=True, outside=()):
+    field.identity = 'test-terminal-input-output'
+    surface = Node(identity='test-terminal-window', children=[field],
+                   states=('showing', 'visible', 'active') if active
+                   else ('showing', 'visible'))
+    application = Node(identity='test-terminal-application', children=[surface])
+    return ui_for(Node(children=[*outside, application]), provider_contracts=TERMINAL_CONTRACTS), surface
 
 
 @pytest.mark.parametrize('fault', [None, 'background', 'overview', 'hidden',
@@ -15,17 +34,19 @@ from tests.support.perl import run_perl
 def test_terminal_input_independent_entry_and_wrong_surface_refusal(fault):
     field = Node(role='password text' if fault == 'password' else 'terminal',
                  states=('showing', 'visible', 'sensitive', 'focused'))
-    window = Node(children=[field], states=('showing', 'visible', 'active'))
-    root = Node(children=[window])
-    if fault == 'background': window.states.remove('active')
-    if fault == 'overview': root.children.append(Node('Overview', 'panel'))
+    ui, window = terminal_ui(field, active=fault != 'background')
+    if fault == 'overview':
+        window.children.remove(field)
+        ui.api.get_desktop(0).children.append(field)
     if fault == 'hidden': field.states.remove('showing')
     if fault == 'disabled': field.states.remove('sensitive')
     if fault == 'unfocused': field.states.remove('focused')
-    if fault == 'duplicate': window.children.append(Node(role='terminal'))
-    ui = ui_for(root)
     if fault == 'duplicate':
-        with pytest.raises(UiError, match='ambiguous-terminal'):
+        duplicate = Node(role='terminal', identity='test-terminal-input-output')
+        duplicate.parent = window
+        window.children.append(duplicate)
+    if fault == 'duplicate':
+        with pytest.raises(UiError, match='ambiguous-automation-id'):
             ui.terminal_input(focused=True)
     else:
         assert ui.terminal_input(focused=True) is (None if fault else field)
@@ -33,10 +54,16 @@ def test_terminal_input_independent_entry_and_wrong_surface_refusal(fault):
 
 def test_terminal_focus_target_does_not_claim_focus():
     field = Node(role='terminal')
-    ui = ui_for(Node(children=[Node(children=[field],
-        states=('showing', 'visible', 'active'))]))
+    ui, _surface = terminal_ui(field)
     assert ui.terminal_input() is field
     assert ui.terminal_input(focused=True) is None
+
+
+def test_terminal_absence_allows_the_provider_application_to_remain():
+    field = Node(role='terminal')
+    ui, surface = terminal_ui(field)
+    surface.parent.children.remove(surface)
+    assert ui.terminal_absent()
 
 
 @pytest.mark.parametrize('fault', [None, 'already-focused', 'background', 'refused', 'unobserved'])
@@ -44,16 +71,13 @@ def test_terminal_focus_uses_component_once_and_requires_fresh_focus(fault):
     field = Node(role='terminal')
     if fault == 'already-focused':
         field.states.add('focused')
-    window = Node(children=[field], states=('showing', 'visible', 'active'))
-    if fault == 'background':
-        window.states.remove('active')
     def focus():
         if fault is None:
             field.states.add('focused')
         return fault != 'refused'
     component = SimpleNamespace(grab_focus=Mock(side_effect=focus))
     field.get_component_iface = lambda: component
-    ui = ui_for(Node(children=[window]))
+    ui, _surface = terminal_ui(field, active=fault != 'background')
     if fault not in (None, 'already-focused'):
         with pytest.raises(UiError):
             ui.focus_terminal()

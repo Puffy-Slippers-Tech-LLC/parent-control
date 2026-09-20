@@ -10,24 +10,12 @@ import struct
 import subprocess
 import time
 
+from common.oh_no_parent_control_ui.gtk_automation import set_automation_id
 from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames, require
 
 WAITING = 'Waiting for an E2E VM. You can leave this window open.'
 TITLE = 'E2E VM — View only'
 APPLICATION_ID = 'org.onpc.E2EWatch'
-
-
-def set_automation_id(widget, identity):
-    """Publish a stable GTK Buildable ID through the public AT-SPI tree."""
-    if type(identity) is not str or not re.fullmatch(r'e2e-watch-[a-z0-9-]+', identity):
-        raise ValueError('invalid spectator automation ID')
-    widget.set_name(identity)
-    # Gtk 4.22 publishes Buildable IDs as AccessibleId. The ID belongs to the
-    # object and survives the temporary Builder.
-    from gi.repository import Gtk
-    builder = Gtk.Builder()
-    builder.expose_object(identity, widget)
-
 
 def duration_text(seconds):
     minutes = max(0, int(seconds) // 60)

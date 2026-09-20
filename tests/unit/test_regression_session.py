@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import subprocess
 import time
+from unittest.mock import Mock
 
 import pytest
 
@@ -53,16 +54,50 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     assert session.follow(run, io.StringIO()) == 7
 
 
-@pytest.mark.parametrize('argv', [['--help'], ['-h']])
-def test_help_prints_usage_without_starting_a_session(tmp_path, workers, capsys, argv):
+@pytest.mark.parametrize('argv', [['--help'], ['-h'], ['--list']])
+def test_inspection_prints_without_starting_a_session(tmp_path, workers, capsys, argv):
     assert session.select(tmp_path, argv) == (None, False)
     assert workers == []
     assert not (tmp_path / 'artifacts/test-sessions/current.json').exists()
     assert session.main(tmp_path, argv) == 0
     output = capsys.readouterr().out
-    assert output == test_commands.usage() + '\n'
-    assert 'host and e2e' in output
+    if argv == ['--list']:
+        assert json.loads(output) == test_commands.CATEGORIES
+    else:
+        assert output == test_commands.usage() + '\n'
+        assert 'host and e2e' in output
     assert workers == []
+
+
+@pytest.mark.parametrize('argv', [['--help'], ['-h'], ['--list'],
+                                  ['unit', '--collect-only'], ['e2e', '--list']])
+@pytest.mark.parametrize('state', ['active', 'unread'])
+def test_inspection_preserves_existing_session(
+        tmp_path, workers, monkeypatch, capsys, argv, state):
+    run, _ = session.select(tmp_path, ['all'])
+    wait_for(tmp_path / 'started')
+    if state == 'unread':
+        (tmp_path / 'release').touch()
+        assert workers[0].wait(timeout=10) == 7
+        (run / 'result').write_text('0')
+    current = tmp_path / 'artifacts/test-sessions/current.json'
+    before = current.read_bytes()
+
+    def refuse(*args, **kwargs):
+        pytest.fail('help must not acquire session locks or follow a run')
+
+    monkeypatch.setattr(session, 'lock', refuse)
+    monkeypatch.setattr(session, 'follow', refuse)
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(test_commands, '_main', execute)
+    assert session.main(tmp_path, argv) == 0
+    execute.assert_called_once_with(argv)
+    assert current.read_bytes() == before
+    assert not (run / 'delivered').exists()
+    assert not (run / 'cancel').exists()
+    assert len(workers) == 1
+    if state == 'active':
+        assert workers[0].poll() is None
 
 
 def test_continue_on_errors_survives_detach_and_ignores_new_arguments(tmp_path, workers):
@@ -132,7 +167,7 @@ def test_every_category_preserves_arguments_and_reconnects_before_validation(
     def refuse(*_):
         pytest.fail('new arguments must not be validated during attachment')
     monkeypatch.setattr(test_commands, 'validate', refuse)
-    for replacement in ([], ['--help'], ['--list'], ['unknown', '--invalid'], ['e2e', '--list']):
+    for replacement in ([], ['unknown', '--invalid']):
         assert session.select(tmp_path, replacement) == (run, False)
     (tmp_path / 'release').touch()
     assert session.follow(run, io.StringIO()) == 7

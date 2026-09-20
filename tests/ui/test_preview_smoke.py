@@ -6,6 +6,7 @@ import hashlib
 import json
 
 import pytest
+from tests.support.automation_ids import audit_product_controls
 from tests.support.events import read_events
 
 
@@ -266,6 +267,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     ui.activate(f"parent-app-{key}-match-rule")
     wait_for_accessible_state(lambda: ui.showing("parent-match-rule-dialog"),
                               "match-rule dialog opens")
+    assert audit_product_controls(ui, "parent-match-rule-dialog")
     ui.focus("parent-match-rule-entry")
     rawinput.keyCombo("<Control>a")
     rawinput.typeText("/snap/bin/thunderbird")
@@ -280,6 +282,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     ui.activate("parent-revoke-button")
     wait_for_accessible_state(lambda: ui.showing("parent-revoke-dialog"),
                               "revoke confirmation opens")
+    assert audit_product_controls(ui, "parent-revoke-dialog")
     assert "Riley (Child)" in ui.text("parent-revoke-warning")
     ui.activate("parent-revoke-confirm")
     wait_for_accessible_state(

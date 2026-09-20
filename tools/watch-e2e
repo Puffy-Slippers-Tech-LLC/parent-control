@@ -1,5 +1,10 @@
 #!/usr/bin/python3 -B
 """User-owned optional E2E spectator; no privilege or VM-control access."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from e2e_watch_viewer import main
 
 raise SystemExit(main())

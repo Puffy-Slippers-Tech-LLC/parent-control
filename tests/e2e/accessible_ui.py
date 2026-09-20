@@ -672,36 +672,8 @@ class AccessibleUI:
 
     def find(self, name=None, roles=(), *, root=None, sensitive=False, contains=None,
              showing=True, editable=False):
-        found = []
-        self.last_roles = set()
-        for node in self.nodes(root):
-            try:
-                label = ' '.join(node.get_name().split())
-                if name is not None and label != ' '.join(name.split()):
-                    continue
-                if contains is not None and contains not in label:
-                    continue
-                role = node.get_role_name()
-                if name is not None or contains is not None:
-                    safe_roles = {'button', 'push button', 'toggle button', 'label', 'icon',
-                                  'text', 'entry', 'panel', 'frame', 'dialog', 'link', 'combo box',
-                                  'list box', 'list item', 'menu', 'menu item', 'check box', 'switch'}
-                    self.last_roles.add(role if role in safe_roles else 'other')
-                if roles and role not in roles:
-                    continue
-                if showing and not self.showing(node):
-                    continue
-                if not showing and not node.get_state_set().contains(self.api.StateType.VISIBLE):
-                    continue
-                if sensitive and not node.get_state_set().contains(self.api.StateType.SENSITIVE):
-                    continue
-                if editable and not node.get_state_set().contains(self.api.StateType.EDITABLE):
-                    continue
-            except self.query_errors:
-                continue
-            found.append(node)
-        require(len(found) <= 1, 'ui:ambiguous-target')
-        return found[0] if found else None
+        """Retired name/role selector; public automation IDs are mandatory."""
+        raise UiError('ui:legacy-selector-refused')
 
     def wait(self, predicate, code):
         deadline = time.monotonic() + self.timeout
@@ -739,12 +711,7 @@ class AccessibleUI:
             time.sleep(.2)
 
     def target(self, name=None, roles=(), **kwargs):
-        try:
-            return self.wait(lambda: self.find(name, roles, **kwargs), 'target')
-        except UiError as error:
-            if str(error) == 'ui:timeout:target':
-                raise UiError('ui:timeout:target:roles=' + ','.join(sorted(self.last_roles))) from None
-            raise
+        raise UiError('ui:legacy-selector-refused')
 
     def id_target(self, identity, *, root=None, sensitive=False, showing=True):
         """Wait for one public ID, optionally requiring an actionable state."""
@@ -806,39 +773,19 @@ class AccessibleUI:
         return node  # External and legacy callers retain their task 03–05 obligations.
 
     def reveal(self, name, roles, *, root):
-        """Scroll existing content into view through the public UI interface."""
-        self.scroll_target(name, roles, root=root)
-        return self.target(name, roles, root=root)
+        raise UiError('ui:legacy-selector-refused')
 
     def scroll_target(self, name, roles, *, root):
-        """UI23: one public scroll request, without asserting its result."""
-        node = self.target(name, roles, root=root, showing=False)
-        if not self.showing(node):
-            component = node.get_component_iface()
-            require(component is not None and component.scroll_to(self.api.ScrollType.ANYWHERE),
-                    'ui:scroll-refused')
+        raise UiError('ui:legacy-selector-refused')
 
     def find_labelled_control(self, name, roles, *, root=None):
-        """One fresh lookup by public name or its showing label's ancestry."""
-        control = self.find(name, roles, sensitive=True, root=root)
-        if control is not None:
-            return control
-        node = self.find(name, ('label',), root=root)
-        for _ in range(16):
-            if node is None or node == root:
-                return None
-            if node.get_role_name() in roles:
-                return node if self.showing(node) and self.has_state(
-                    node, self.api.StateType.SENSITIVE) else None
-            node = node.get_parent()
-        return None
+        raise UiError('ui:legacy-selector-refused')
 
     def find_labelled_button(self, name, *, root=None):
-        """One fresh lookup by button name or its showing label's ancestry."""
-        return self.find_labelled_control(name, ('button', 'push button'), root=root)
+        raise UiError('ui:legacy-selector-refused')
 
     def labelled_button(self, name):
-        return self.wait(lambda: self.find_labelled_button(name), 'labelled-button')
+        raise UiError('ui:legacy-selector-refused')
 
     def parent(self):
         return self.id_target('parent-window')
@@ -1016,7 +963,13 @@ class AccessibleUI:
                     'ui:search-owner')
             label = 'Search "' + expected + '" on the web'
             require(len(label) <= maximum, 'ui:text-bound')
-            return self.find(label, ('label',), root=root) is not None
+            matches = []
+            for node in self.nodes(root, strict=True):
+                if (node.get_role_name() == 'label' and self.showing(node)
+                        and ' '.join(node.get_name().split()) == label):
+                    matches.append(node)
+            require(len(matches) <= 1, 'ui:ambiguous-text-projection')
+            return len(matches) == 1
         if projection == 'empty-explanation':
             text = 'No interactive non-administrator account was found.'
             require(len(text) <= maximum, 'ui:text-bound')
@@ -1749,6 +1702,23 @@ class AccessibleUI:
                 field, self.api.StateType.FOCUSED)) else False
         return self.wait_search(ready, 'standard-search-focus' if focused else 'standard-search-ready')
 
+    def focus_search_field(self):
+        """Focus the ID-addressed provider search field without pointer geometry."""
+        surface, registered = self.provider_surface(
+            'gnome-shell', 'app-grid', ('search',))
+        require(surface is not None, 'ui:search-surface')
+        field = self.find_id(registered['search'], root=surface)
+        require(field is not None and self.has_state(field, self.api.StateType.SENSITIVE),
+                'ui:search-field')
+        component = field.get_component_iface()
+        require(component is not None and component.grab_focus(),
+                'ui:search-focus-refused')
+        def focused():
+            current = self.find_id(registered['search'], root=surface)
+            return current is not None and self.has_state(
+                current, self.api.StateType.FOCUSED)
+        self.wait(focused, 'standard-search-focus')
+
     def search_absence(self, product, *, stable_seconds):
         """Positive query/result witnesses plus fresh, complete absence reads.
 
@@ -1876,67 +1846,13 @@ class AccessibleUI:
         return dialog is not None and surface is not dialog
 
     def pointer_target(self, node):
-        require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
-                'ui:pointer-target-unusable')
-        component = node.get_component_iface()
-        require(component is not None, 'ui:pointer-unavailable')
-        rect = component.get_extents(self.api.CoordType.SCREEN)
-        require(rect.width > 0 and rect.height > 0, 'ui:pointer-unavailable')
-        point = {'x': rect.x + rect.width // 2, 'y': rect.y + rect.height // 2}
-        require(all(type(value) is int and 0 <= value <= 32767 for value in point.values()),
-                'ui:pointer-bounds')
-        return point
+        raise UiError('ui:pointer-route-refused')
 
     def pointer_glyph(self, node):
-        """Click the smallest showing box so a popup parent cannot pull the point off the glyph."""
-        require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
-                'ui:pointer-target-unusable')
-        boxes = []
-        for child in self.nodes(node):
-            if not self.showing(child):
-                continue
-            component = getattr(child, 'get_component_iface', lambda: None)()
-            if component is None:
-                continue
-            rect = component.get_extents(self.api.CoordType.SCREEN)
-            if rect.width < 8 or rect.height < 8:
-                continue
-            boxes.append(rect)
-        require(boxes, 'ui:pointer-unavailable')
-        rect = min(boxes, key=lambda item: item.width * item.height)
-        point = {'x': rect.x + rect.width // 2, 'y': rect.y + rect.height // 2}
-        require(all(type(value) is int and 0 <= value <= 32767 for value in point.values()),
-                'ui:pointer-bounds')
-        return point
+        raise UiError('ui:pointer-route-refused')
 
     def stable_pointer(self, locate, *, stable_seconds=0.4):
-        """Return a pointer only after the located control stops moving."""
-        last = None
-        since = None
-
-        def ready():
-            nonlocal last, since
-            node = locate()
-            if node is None:
-                last = since = None
-                return None
-            point = self.pointer_glyph(node)
-            now = time.monotonic()
-            if point != last:
-                last, since = point, now
-                if self.timeout <= 0:
-                    return point
-                return None
-            if now - since < stable_seconds:
-                return None
-            return point
-
-        try:
-            return self.wait(ready, 'target')
-        except UiError as error:
-            if str(error) == 'ui:timeout:target':
-                raise UiError('ui:timeout:target:roles=' + ','.join(sorted(self.last_roles))) from None
-            raise
+        raise UiError('ui:pointer-route-refused')
 
     def handle_system_prompt(self):
         """Pause a desktop wait for one semantic Cancel action, then observe closure.
@@ -2058,7 +1974,7 @@ class AccessibleUI:
             self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
             self.search_ready('overview')
         elif operation == 'standard-search-focused':
-            self.search_ready('overview', focused=True)
+            self.focus_search_field()
         elif operation == 'standard-search-started':
             # GNOME's public overview supports type-to-search without manually
             # focusing the entry. Observe the first character before continuing.
@@ -2103,15 +2019,15 @@ class AccessibleUI:
             self.window_closed('about', 'parent')
             result['settings'] = self.settings()
         elif operation == 'session-menu-toggle':
-            require(self.session_menu_toggle() is not None, 'ui:session-menu-toggle')
+            self.activate(self.session_menu_toggle())
         elif operation == 'session-menu-power':
-            require(self.session_menu_power() is not None, 'ui:session-menu-power')
+            self.activate(self.session_menu_power())
         elif operation == 'session-menu':
             self.session_menu()
         elif operation in SESSION_ACTION_NAMES:
-            require(self.choose_session_action(operation) is not None, 'ui:session-action')
+            self.activate(self.choose_session_action(operation))
         elif operation == 'logout-confirm':
-            require(self.logout_confirm() is not None, 'ui:logout-confirm')
+            self.activate(self.logout_confirm())
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         return result

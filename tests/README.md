@@ -155,12 +155,12 @@ The private compositor fixture is explicitly required by the nested-Shell module
 so its outer Devkit viewer never depends on a prior module's display setup. The
 checkout `dogtail_config.ini` disables Dogtail's shared `/tmp` debug file through
 supported configuration; captured console output and existing per-test
-diagnostics remain available. Nested-Shell overview transitions use the public
-`OverviewActive` property on the explicitly owned bus and wait for its observed
-state. Keyboard opening remains covered; repeated activation uses pointer input
-at the indicator's observed AT-SPI allocation inside overview, so a newly mapped
-app cannot receive those presses on its Cancel button. The launcher-count and
-single-overlay assertions remain.
+diagnostics remain available. Nested-Shell interaction resolves the owned
+`child-request-button` by its public automation ID, semantically focuses that
+control and reacquires it immediately before normal keyboard input. It does not
+set Shell overview state directly or derive input from an AT-SPI allocation.
+Repeated activation still proves the launcher count, single-flight request
+handling, one overlay and clean reopen.
 Test fixture setup/teardown failures and pytest infrastructure failures stop further host scheduling and cancel owned
 companions through normal cleanup. Assertions, deadlines and launcher safety
 prerequisites are unchanged; no automatic retries are used. Each UI raw stream

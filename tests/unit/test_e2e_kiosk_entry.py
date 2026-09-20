@@ -366,8 +366,8 @@ my $ok = eval {
     onpc_kiosk_entry::run(sub {
         my ($stage) = @_;
         push @events, ['exchange', $stage];
-        return {ui_keys => ['home', 'down']} if $stage eq 'station-list';
-        return {ui_keys => ['home']} if $stage eq 'installed-greeter';
+        return {ui_focused => 1} if $stage eq 'station-list';
+        return {ui_focused => 1} if $stage eq 'installed-greeter';
         return {observed => $stage};
     });
     1;
@@ -384,6 +384,6 @@ def test_station_worker_uses_one_wrong_route_then_one_passwordless_route():
         'installed-greeter', 'wrong-parent-focused', 'wrong-entry-refused',
         'station-list', 'station-focused', 'request-form']
     keys = [event[1] for event in result['events'] if event[0] == 'key']
-    assert keys == ['home', 'ret', 'esc', 'home', 'down', 'ret']
+    assert keys == ['ret', 'esc', 'ret']
     assert not any(event[0] == 'secret' for event in result['events'])
     assert result['events'][-1] == ['power', 'off']

@@ -180,10 +180,7 @@ class UiObservations:
 
     @staticmethod
     def point(value):
-        require(type(value) is dict and set(value) == {'x', 'y'}
-                and all(type(item) is int and 0 <= item <= 32767 for item in value.values()),
-                'ui:pointer')
-        return value
+        require(False, 'ui:pointer-route-refused')
 
     def call(self, argv, operation):
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
@@ -209,19 +206,7 @@ class UiObservations:
                 pending[:] = rest
                 value = json.loads(line)
                 if type(value) is dict and value.get('event') == 'system-prompt':
-                    require(operation not in accessible_ui.GREETER_OPERATIONS
-                            and not results and len(prompts) < 3
-                            and set(value) == {'event', 'kind', 'pointer'}
-                            and value['kind'] == 'login-keyring', 'ui:system-prompt-response')
-                    point = self.point(value['pointer'])
-                    # Ownership guards may issue their own recorded commands.
-                    # Their output must never enter this UI message parser.
-                    commands.progress = previous
-                    try:
-                        self.system_prompt(point)
-                    finally:
-                        commands.progress = output
-                    prompts.append({'kind': 'login-keyring', 'action': 'cancel-click'})
+                    require(False, 'ui:prompt-coordinate-route-refused')
                 else:
                     require(not results, 'ui:response-replay')
                     results.append(bytes(line))

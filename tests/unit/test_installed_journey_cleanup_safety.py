@@ -35,34 +35,14 @@ SYNTHETIC = journeys.JourneyPlan(
 )
 
 
-@pytest.mark.parametrize('fault', [None, 'wrong-reply', 'timeout', 'lost-worker', 'review', 'replay'])
-def test_shared_system_prompt_rendezvous_retains_request_and_refuses_uncertain_input(tmp_path, monkeypatch, fault):
-    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), parent_access.PLAN,
-                                        review=fault == 'review')
-    request = tmp_path / 'app-grid.prompt-1.request.json'
-    reply = tmp_path / 'app-grid.prompt-1.reply.json'
-    if fault == 'replay': request.write_text('{}')
-    guard = Mock(side_effect=RuntimeError('lost worker') if fault == 'lost-worker' else None)
-    ticks = iter([0, 16])
-    if fault == 'timeout': monkeypatch.setattr(journeys.time, 'monotonic', lambda: next(ticks))
-    def worker(_):
-        assert request.exists()
-        assert not (tmp_path / 'app-grid.reply.json').exists()
-        assert guard.call_count == 2
-        assert guard.call_args.kwargs == {'service': True}
-        assert json.loads(request.read_text()) == {'stage': 'app-grid', 'sequence': 1,
-            'kind': 'login-keyring', 'ui_pointer': {'x': 200, 'y': 330}}
-        value = {'stage': 'app-grid', 'sequence': 1, 'action': 'cancel-click', 'outcome': 'sent'}
-        if fault == 'wrong-reply': value['sequence'] = 2
-        reply.write_text(json.dumps(value))
-    monkeypatch.setattr(journeys.time, 'sleep', worker)
-    if fault:
-        with pytest.raises((EvidenceError, RuntimeError)):
-            journey.dismiss_system_prompt('app-grid', {'x': 200, 'y': 330}, guard)
-    else:
+def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guard(tmp_path):
+    journey = journeys.InstalledJourney(
+        SimpleNamespace(directory=tmp_path), Mock(), parent_access.PLAN)
+    guard = Mock(side_effect=AssertionError('guard must not run'))
+    with pytest.raises(EvidenceError, match='prompt-coordinate-route-refused'):
         journey.dismiss_system_prompt('app-grid', {'x': 200, 'y': 330}, guard)
-        assert guard.call_count == 3
-    assert not (tmp_path / 'app-grid.reply.json').exists()
+    guard.assert_not_called()
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN,
@@ -128,8 +108,6 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     def observe_ui(operation):
         import accessible_ui
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation in ('standard-app-grid', *accessible_ui.SESSION_POINTER_OPERATIONS):
-            result['pointer'] = {'x': 700, 'y': 80}
         if operation in accessible_ui.SETTINGS_OPERATIONS:
             result['settings'] = {'child': accessible_ui.CHILD_IDENTITIES[
                 accessible_ui.SETTINGS_OPERATIONS[operation]], 'limit_enabled': False,
@@ -203,12 +181,12 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 else:
                     provision.assert_called_once()
                 if plan is parent_access.PLAN and stage == 'app-grid':
-                    assert reply == {'observed': stage, 'ui_pointer': {'x': 700, 'y': 80}}
+                    assert reply == {'observed': stage}
                 if plan is parent_access.PLAN and stage == 'system-prompt':
                     assert reply == {'observed': stage}
                 tag = plan.screen_tags.get(stage, '')
                 if tag.startswith('ui:') and tag[3:] in accessible_ui.SESSION_POINTER_OPERATIONS:
-                    assert reply == {'observed': stage, 'ui_pointer': {'x': 700, 'y': 80}}
+                    assert reply == {'observed': stage}
                 acknowledged.append(stage)
             assert [s['stage'] for s in options['validate']()] == list(plan.screen_tags)
             return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)

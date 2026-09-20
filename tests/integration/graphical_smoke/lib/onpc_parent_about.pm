@@ -35,14 +35,12 @@ sub close_window {
     return $journey->seen($after);
 }
 
-# ABOUT04: explicit preserved keyboard route, then public reveal/text observation.
+# ABOUT04: the controller reveals and reads the ID-addressed footer.
 sub read_footer {
     onpc_progress::operation('Reading the About footer');
     my ($journey, $returned, $route) = @_;
-    die 'about:footer-binding' unless @_ == 3 && $route eq 'tab-end';
+    die 'about:footer-binding' unless @_ == 3 && $route eq 'semantic-reveal';
     $journey->consume_observation('license-closed', $returned);
-    testapi::send_key('tab');
-    testapi::send_key('end');
     return $journey->seen('about-returned');
 }
 
@@ -66,7 +64,7 @@ sub run {
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     my $about = open_about($journey, $selected);
     my $license = open_license($journey, $about);
-    return_to_parent($journey, $license, 'tab-end');
+    return_to_parent($journey, $license, 'semantic-reveal');
     $journey->finish();
 }
 

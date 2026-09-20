@@ -38,10 +38,10 @@ print encode_json({ok => $ok ? 1 : 0, clicked => $clicked});
 
 
 @pytest.mark.parametrize('mode', ['ok', 'wrong-console', 'missing-account', 'still-list'])
-def test_installed_selection_requires_reviewed_input_and_leaves_the_list(mode):
+def test_installed_image_selection_refuses_before_matching_or_clicking(mode):
     result = json.loads(run_perl(INSTALLED_INPUT, mode).stdout)
-    assert result['ok'] == (mode == 'ok')
-    assert result['clicked'] == (mode in ('ok', 'still-list'))
+    assert not result['ok']
+    assert not result['clicked']
 
 REATTACH = r'''
 use strict;
@@ -76,10 +76,11 @@ print encode_json({ok => $ok ? 1 : 0, connected => $connected, matched => $match
 
 
 @pytest.mark.parametrize('mode', ['ok', 'wrong-console', 'missing-list'])
-def test_setup_reattachment_requires_fresh_connection_and_match(mode):
+def test_setup_image_reattachment_refuses_before_connection_or_match(mode):
     result = json.loads(run_perl(REATTACH, mode).stdout)
-    assert result['ok'] == result['matched'] == (mode == 'ok')
-    assert result['connected'] == (mode != 'wrong-console')
+    assert not result['ok']
+    assert not result['matched']
+    assert not result['connected']
 
 
 PROBE = r'''
@@ -149,22 +150,12 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 @pytest.mark.parametrize('mode', ['ok', 'missing-list', 'missing-prompt',
     'false-positive', 'missing-return', 'wrong-console', 'wrong-return-console', 'deadline'])
 @pytest.mark.parametrize('installed', [False, True])
-def test_screen_readiness_refuses_before_next_action(mode, installed):
+def test_legacy_screen_readiness_always_refuses_before_backend_or_input(mode, installed):
     result = run_perl(PROBE, mode, str(int(installed)))
     data = json.loads(result.stdout)
-    assert data['ok'] == (mode == 'ok'), data
-    events = data['events']
-    if mode == 'ok':
-        assert events.index('negative') < events.index('escape') < events.index('return')
-        assert events[-1] == 'record:gdm-return'
-    elif mode in ('missing-list', 'wrong-console', 'deadline'):
-        assert 'click' not in events
-    elif mode in ('missing-prompt', 'false-positive'):
-        assert 'escape' not in events
-    elif mode == 'missing-return':
-        assert 'record:gdm-return' not in events
-    else:
-        assert 'return' not in events
+    assert not data['ok'], data
+    assert data['events'] == []
+    assert 'provider-id-required' in data['error']
 @pytest.mark.parametrize('failure', ['', 'gdm', 'focused', 'selected', 'dismissed'])
 def test_functional_greeter_uses_normal_keys_and_stops_on_failed_observation(failure):
     probe = r'''
@@ -186,14 +177,14 @@ require onpc_journey;
 my $journey = onpc_journey->new(prefix => 'smokeui', review => 0, exchange => sub {
     push @events, $_[0];
     die 'unavailable' if $_[0] eq $failure;
-    return {ui_keys => ['home', 'down'], ui => {
+    return {ui_focused => 1, ui => {
         operation => 'gdm-select-parent', outcome => 'passed', interface => 'AT-SPI'}};
 });
 my $ok = eval { onpc_gdm::functional_selection($journey); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
     data = json.loads(run_perl(probe, failure).stdout)
-    expected = ['gdm', 'key:home', 'key:down', 'focused', 'key:ret', 'selected', 'key:esc', 'dismissed']
+    expected = ['gdm', 'focused', 'key:ret', 'selected', 'key:esc', 'dismissed']
     assert data['ok'] == (not failure)
     assert data['events'] == (expected[:expected.index(failure) + 1] if failure else expected)
 

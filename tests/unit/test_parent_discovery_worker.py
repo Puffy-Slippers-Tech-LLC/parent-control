@@ -57,7 +57,7 @@ my $ok = eval {
         push @events, ['stage', $_[0]];
         die 'failed functional observation' if $fault eq $_[0];
         return {observed => $_[0]} if $_[0] =~ /\Arecipient-(?:qualified|rechecked)\z/;
-        return {ui_keys => ['home', 'down']};
+        return {ui_focused => 1};
     };
     $variant eq 'none' ? onpc_parent_discovery::run_none($exchange)
         : onpc_parent_discovery::run($exchange);
@@ -153,7 +153,7 @@ require onpc_parent;
 require onpc_journey;
 my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
     push @events, $_[0];
-    return {ui_keys => ['home', 'down'], observed => $_[0]};
+    return {ui_focused => 1, observed => $_[0]};
 });
 my $opened = $journey->seen('new-child-visible');
 $journey->seen('unrelated') if $fault eq 'stale';
@@ -166,9 +166,10 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', fault).stdout)
     assert result['ok'] == (not fault)
     if not fault:
-        assert result['events'] == ['new-child-visible', 'home', 'down',
+        assert result['events'] == ['new-child-visible',
             'new-child-choice-highlighted', 'ret', 'new-child-selected']
     elif fault == 'uncertain':
-        assert result['events'] == ['new-child-visible', 'home']
+        assert result['events'] == [
+            'new-child-visible', 'new-child-choice-highlighted', 'ret']
     else:
         assert not any(key in result['events'] for key in ('home', 'down', 'ret'))

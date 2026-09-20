@@ -6,14 +6,15 @@ use onpc_progress ();
 use onpc_journey ();
 use onpc_parent ();
 
-# DESK02: consume the observed Parent desktop, click the system menu, then read it.
+# DESK02: consume the observed Parent desktop; controller stages perform the
+# ID-addressed semantic actions and then read the resulting menu.
 sub open_menu {
     onpc_progress::operation('Opening the desktop session menu');
     my ($journey, $desktop) = @_;
     die 'desk:menu-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
     $journey->consume_observation('desktop', $desktop);
-    $journey->click_target($journey->seen('session-menu-toggle'));
-    $journey->click_target($journey->seen('session-menu-power'));
+    $journey->seen('session-menu-toggle');
+    $journey->seen('session-menu-power');
     return $journey->seen('session-menu');
 }
 
@@ -23,7 +24,7 @@ sub switch_user {
     my ($journey, $menu) = @_;
     die 'desk:switch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
     $journey->consume_observation('session-menu', $menu);
-    $journey->click_target($journey->seen('switch-user'));
+    $journey->seen('switch-user');
     return $journey->seen('gdm-switched');
 }
 
@@ -33,8 +34,8 @@ sub log_out {
     my ($journey, $menu) = @_;
     die 'desk:logout-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
     $journey->consume_observation('session-menu', $menu);
-    $journey->click_target($journey->seen('logout'));
-    $journey->click_target($journey->seen('logout-confirm'));
+    $journey->seen('logout');
+    $journey->seen('logout-confirm');
     return $journey->seen('gdm-logged-out');
 }
 

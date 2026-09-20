@@ -383,9 +383,9 @@ def test_greeter_reply_through_real_transport_and_command_stream(monkeypatch, tm
     {'x': 4, 'y': 1, 'font': 'large', 'width': 511, 'misaligned': True},
 ])
 def test_usable_target_is_independent_of_appearance(appearance):
-    button = Node('About', 'button', appearance=appearance)
+    button = Node('About', 'button', appearance=appearance, identity='test-about')
     ui = ui_for(Node(children=[Node('Help', 'button'), button]))
-    ui.activate(ui.target('About', ('button',), sensitive=True))
+    ui.activate(ui.id_target('test-about', sensitive=True))
     button.action.do_action.assert_called_once_with(0)
 
 
@@ -408,48 +408,52 @@ def test_child_lookup_never_discovers_uid_from_a_matching_label():
 
 @pytest.mark.parametrize('fault', ['hidden', 'disabled', 'wrong-name', 'ambiguous', 'refused'])
 def test_unusable_or_wrong_control_cannot_pass(fault):
-    button = Node('About', 'button')
+    button = Node('About', 'button', identity='test-about')
     root = Node(children=[button])
     if fault == 'hidden': button.states.remove('showing')
     if fault == 'disabled': button.states.remove('sensitive')
-    if fault == 'wrong-name': button.name = 'Help'
-    if fault == 'ambiguous': root.children.append(Node('About', 'button'))
+    if fault == 'wrong-name': button.identity = 'test-help'
+    if fault == 'ambiguous': root.children.append(Node('About', 'button', identity='test-about'))
     if fault == 'refused': button.action.do_action.return_value = False
     ui = ui_for(root)
     with pytest.raises(UiError):
-        ui.activate(ui.target('About', ('button',), sensitive=True))
+        ui.activate(ui.id_target('test-about', sensitive=True))
 
 
 def test_successful_action_without_expected_result_still_fails():
-    button = Node('Selected child', 'combo box')
+    button = Node('Selected child', 'combo box', identity='test-selector')
     ui = ui_for(Node(children=[button]))
     ui.activate(button)
     with pytest.raises(UiError, match='timeout'):
-        ui.target('Riley (Child)', ('list item',))
+        ui.id_target('parent-child-choice-1001')
 
 
 def test_stale_queries_retry_but_actions_are_never_replayed():
-    button = Node('About', 'button')
+    button = Node('About', 'button', identity='test-about')
     ui = ui_for(button)
     ui.timeout = .5
     ui.query_errors = (LookupError,)
-    button.get_name = Mock(side_effect=[LookupError('stale'), 'About'])
-    ui.activate(ui.target('About', ('button',)))
+    button.get_accessible_id = Mock(side_effect=[LookupError('stale')] + ['test-about'] * 8)
+    ui.activate(ui.id_target('test-about'))
     button.action.do_action.assert_called_once_with(0)
     button.action.do_action.side_effect = LookupError('uncertain delivery')
     with pytest.raises(LookupError): ui.activate(button)
     assert button.action.do_action.call_count == 2
 
 
-def test_text_reflow_does_not_change_semantic_selector():
-    label = Node('copyright\n   no warranty', 'label')
-    assert ui_for(label).target('copyright no warranty', ('label',)) is label
+def test_legacy_name_and_role_selector_refuses_before_tree_discovery():
+    root = Node('copyright\n   no warranty', 'label')
+    root.get_child_count = Mock(side_effect=AssertionError('tree traversed'))
+    with pytest.raises(UiError, match='legacy-selector-refused'):
+        ui_for(root).target('copyright no warranty', ('label',))
+    root.get_child_count.assert_not_called()
 
 
 def test_disabled_setting_can_be_read_but_cannot_authorize_input():
-    control = Node('Daily time allowance', 'button', states=('showing', 'visible'))
+    control = Node('Daily time allowance', 'button', states=('showing', 'visible'),
+                   identity='test-daily-limit-selector')
     ui = ui_for(control)
-    assert ui.target('Daily time allowance', ('button',)) is control
+    assert ui.id_target('test-daily-limit-selector') is control
     with pytest.raises(UiError, match='unusable-target'):
         ui.activate(control)
     control.action.do_action.assert_not_called()
@@ -483,18 +487,19 @@ def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input(entr
 def test_dead_unrelated_subtree_does_not_hide_live_control():
     dead = Node('dead')
     dead.get_name = Mock(side_effect=LookupError('disconnected'))
-    button = Node('About', 'button')
+    button = Node('About', 'button', identity='test-about')
     ui = ui_for(Node(children=[dead, button]))
     ui.query_errors = (LookupError,)
-    assert ui.target('About', ('button',)) is button
+    assert ui.id_target('test-about') is button
 
 
-def test_duplicate_tree_paths_are_one_control_but_distinct_matches_are_ambiguous():
-    button = Node('Search installed apps', 'entry')
+def test_duplicate_tree_paths_are_one_id_but_distinct_id_matches_are_ambiguous():
+    button = Node('Search installed apps', 'entry', identity='test-search-input')
     ui = ui_for(Node(children=[Node(children=[button]), Node(children=[button])]))
-    assert ui.target(button.name, ('entry',)) is button
-    with pytest.raises(UiError, match='ambiguous-target'):
-        ui_for(Node(children=[button, Node(button.name, 'entry')])).target(button.name, ('entry',))
+    assert ui.id_target('test-search-input') is button
+    with pytest.raises(UiError, match='ambiguous-automation-id'):
+        ui_for(Node(children=[button, Node(button.name, 'entry',
+                                           identity='test-search-input')])).id_target('test-search-input')
 
 
 @pytest.mark.parametrize('nested', [False, True])
@@ -504,7 +509,7 @@ def test_search_result_supports_named_buttons_and_their_public_labels(nested):
                   children=[Node(children=[label])] if nested else [],
                   identity=SEARCH_CONTROLS['result::parent'])
     ui = search_ui(Node(children=[button]))
-    assert ui.labelled_button(label.name) is button
+    assert ui.launchable_result(label.name) is button
     assert ui.run('app-grid', '1.1')['outcome'] == 'passed'
 
 
@@ -1281,18 +1286,15 @@ def test_search_field_excludes_noneditable_text_and_requires_editable_state():
 
 
 @pytest.mark.parametrize('focused', [False, True])
-def test_search_checkpoint_requires_independent_search_focus(focused):
+def test_search_checkpoint_semantically_focuses_the_id_target(focused):
     field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'),
                  identity=SEARCH_CONTROLS['search'])
     if focused: field.states.add('focused')
     field.get_text_iface = lambda: field
     ui = search_ui(Node('Overview', 'panel', children=[field]))
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: 0, get_text=lambda *_: '')
-    if focused:
-        assert ui.run('standard-search-focused', '')['outcome'] == 'passed'
-    else:
-        with pytest.raises(UiError, match='standard-search-focus'):
-            ui.run('standard-search-focused', '')
+    assert ui.run('standard-search-focused', '')['outcome'] == 'passed'
+    field.component.grab_focus.assert_called_once_with()
 
 
 @pytest.mark.parametrize('point', [{'x': -1, 'y': 2}, {'x': True, 'y': 2},
@@ -1481,12 +1483,7 @@ def test_streamed_prompt_input_is_narrow_ordered_and_restores_command_parser(fau
         if fault == 'uncertain': raise RuntimeError('uncertain pointer')
     handler = Mock(side_effect=cancel)
     session = UiObservations(SimpleNamespace(commands=commands, call=call), system_prompt=handler)
-    if fault:
-        with pytest.raises((EvidenceError, RuntimeError)):
-            session.observe(operation)
-    else:
-        assert session.observe(operation)['system_prompts'] == [
-            {'kind': 'login-keyring', 'action': 'cancel-click'}]
-    assert handler.call_count == (0 if fault in ('bad-point', 'wrong-kind', 'extra-field', 'greeter',
-                                                'after-result') else 1)
+    with pytest.raises(EvidenceError, match='prompt-coordinate-route-refused'):
+        session.observe(operation)
+    handler.assert_not_called()
     assert commands.progress is previous

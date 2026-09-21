@@ -317,15 +317,17 @@ def test_station_display_name_and_username_on_one_row_are_one_target():
     assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
 
 
-def test_unnamed_station_row_cannot_substitute_nested_labels_for_row_meaning():
+def test_unnamed_station_row_uses_exact_nested_labels_only_to_bind_its_button():
     parent = Node('Jamie (Parent)', 'push button')
-    station = Node('', 'push button',
-                   children=[Node('Oh No! Parent Control', 'label'),
-                             Node('oh-no-parent-control', 'label')],
+    labels = [Node('Oh No! Parent Control', 'label'),
+              Node('oh-no-parent-control', 'label')]
+    station = Node('', 'push button', children=labels,
                    states=('showing', 'visible', 'sensitive', 'focused'))
     ui = station_greeter(parent, station)
-    with pytest.raises(UiError, match='gdm-account-cardinality'):
-        ui.run('gdm-station-focused', '')
+    assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
+    for label in labels:
+        label.component.grab_focus.assert_not_called()
+        label.action.do_action.assert_not_called()
 
 
 RUN = r'''

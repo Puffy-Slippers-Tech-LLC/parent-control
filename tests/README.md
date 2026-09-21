@@ -151,6 +151,17 @@ For each round-1 category, the launcher highlights
 then retains it after the completed test output with its position in the discovered list.
 The exact argument arrays from that inventory are forwarded to the test runner.
 
+Optional categories restrict both repair and verification: `tools/fix-tests host`,
+`tools/fix-tests unit ui` and `tools/fix-tests "unit ui"` are supported.
+Expansion uses the same `suite_inventory` utility as the `run-tests` host coordinator.
+`host` (also `host-builds`) expands to all implemented host leaves, excluding
+`system` and `e2e`; `all` expands to every implemented leaf. Overlapping selections
+are deduplicated in inventory order, and unknown categories or diagnostic helpers
+are rejected. With explicit categories, round 2 repeats only those leaves until
+a complete selected pass needs no repairs; it never invokes the `all` aggregate.
+Without categories the existing two-round full-regression behavior is unchanged.
+Categories and model options apply to new runs; attaching keeps the active run's scope.
+
 The launcher itself is Python scripting. Repairs default to `gpt-5.6-sol` with
 high reasoning; `--model` and `--effort` override those defaults for a new run.
 Each agent uses `codex exec --ephemeral`, disabled conversation history and

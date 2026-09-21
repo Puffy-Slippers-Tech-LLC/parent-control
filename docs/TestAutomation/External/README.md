@@ -34,15 +34,15 @@ not. Repository-owned apps, child extension and fixtures still require IDs.
 
 ## Current task
 
-The next task is **G03** in [Entry and session controls](01-Entry.md). A session
+The next task is **G04** in [Entry and session controls](01-Entry.md). A session
 may therefore start with only: `Execute the next task in
 docs/TestAutomation/External/README.md`.
 
-G03 remains blocked at the initial greeter's `ui:gdm-account-cardinality`
-check. Detached-console reconnection and stdin observer execution succeeded,
-but neither the ordinary prompt/Escape/list sequence nor station-branch
-observation was reached. The task row links the failed run and its return
-condition; cleanup passed and the pinned VM is off. G04 is not yet eligible.
+G03 observed the ordinary prompt/Escape/list sequence and the offered station
+branch through the repaired provider adapter. The station followed the
+passwordless `default-request-form` branch and exposed no unresolved session
+choice, so G04 should bind and document that exact default branch without
+adding a session catalogue.
 
 Treat this pointer as part of every task's close-out. After completing a task,
 mark its row complete, append its short result or artifact pointer, and update
@@ -181,7 +181,8 @@ support or silent fallback. Do not build a translation/version matrix now.
   Markdown with `tools/read-only links`. Test-only changes activate on invocation;
   a necessary product fix gets its own package-activation classification.
 
-The completed G02 slice scopes prompt recognition and refusal to the station
-and desktop sessions without authenticating, auto-dismissing or requiring full
-provider ID maps. **G03** is now the first eligible unchecked row in plan order;
-it diagnoses only the offered station-entry branch in the guarded VM envelope.
+The completed G03 slice records the offered passwordless
+`default-request-form` station branch after the ordinary prompt/Escape/list
+sequence, without activating an unresolved choice. **G04** is now the first
+eligible unchecked row in plan order; it binds only that observed default
+branch and its independent readback.

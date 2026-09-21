@@ -25,6 +25,53 @@ def test_category_status_uses_the_discovered_inventory_position():
     assert fix_tests.category_status('all', categories) is None
 
 
+@pytest.mark.parametrize('requested, expected', [
+    ([], ['unit', 'ui', 'future-suite', 'system', 'e2e']),
+    (['host'], ['unit', 'ui', 'future-suite']),
+    (['host-builds', 'unit', 'system'], ['unit', 'ui', 'future-suite', 'system']),
+    (['ui', 'unit', 'ui'], ['unit', 'ui']),
+    (['unit ui'], ['unit', 'ui']),
+    (['all', 'host'], ['unit', 'ui', 'future-suite', 'system', 'e2e']),
+])
+def test_selected_inventory_expands_and_deduplicates(requested, expected):
+    inventory = {name: {'args': ['--case', 'two words']} for name in
+                 ('unit', 'ui', 'future-suite', 'system', 'e2e')}
+    selected = test_commands.suite_inventory(requested, inventory=inventory)
+    assert list(selected) == expected
+    assert all(selected[name] is inventory[name] for name in expected)
+
+
+@pytest.mark.parametrize('requested', [['typo'], ['unit', 'coverage'], [' ']])
+def test_invalid_selection_is_refused(requested):
+    with pytest.raises(ValueError):
+        test_commands.suite_inventory(requested, inventory={'unit': {'args': []}})
+
+
+def test_selected_rounds_reverify_earlier_leaves_after_repairs():
+    pending = iter([
+        ('unit', None), ('ui', failure('first ui', 'ui')), ('ui', None),
+        ('unit', failure('unit regression', 'unit')), ('unit', None), ('ui', None),
+        ('unit', None), ('ui', None),
+    ])
+    prompts = []
+
+    def test(category):
+        expected, result = next(pending)
+        assert category == expected
+        return result
+
+    fix_tests.run_loop(['unit', 'ui'], test, prompts.append, lambda: None, selected=True)
+    assert list(pending) == []
+    assert prompts == ['first ui', 'unit regression']
+
+
+def test_cli_forwards_category_arguments(monkeypatch):
+    select = Mock(return_value=(None, False))
+    monkeypatch.setattr(fix_tests, 'select', select)
+    assert fix_tests.main(['unit', 'ui']) == 0
+    assert select.call_args.kwargs['categories'] == ['unit', 'ui']
+
+
 def test_rounds_repair_only_failed_categories_with_latest_prompt(capsys):
     pending = iter([
         ('unit', failure('unit first', 'unit')),

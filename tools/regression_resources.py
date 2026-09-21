@@ -282,7 +282,9 @@ class Admission:
             self.reason = f'{HOST_WORKERS} host categories already running'
             return False
         if any(not compatible(candidate, name) for name in active):
-            self.reason = 'unqualified pairing requires an idle runner'
+            self.reason = ('exclusive work waits for all host branches to finish'
+                           if candidate in ('unit-exclusive', 'ui-exclusive', 'cleanup-exclusive')
+                           else 'waiting for incompatible active host work to finish')
             return False
         if candidate not in DEMANDS:
             return not active

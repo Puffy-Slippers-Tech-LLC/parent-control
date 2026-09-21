@@ -156,10 +156,11 @@ def distribution_inputs():
 
 
 def stage_distribution(directory, staged_inputs):
-    """Copy current validated bytes and record the private worker's input map."""
+    """Copy validated bytes and freeze or verify the private worker's input map."""
     files = distribution_inputs()
     prefix = DISTRIBUTION.relative_to(ROOT).as_posix() + '/'
     actual = {prefix + name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
+    require(not staged_inputs or staged_inputs == actual, 'e2e:inputs-changed')
     destination = directory / 'distribution'
     destination.mkdir(mode=0o700)
     for name, data in files.items():

@@ -170,10 +170,23 @@ def test_session_action_refuses_matching_label_outside_registered_surface():
     'switch-user', 'logout', 'logout-confirm',
 ])
 def test_run_dispatches_session_operations(operation):
-    ui, *_ = session_desktop(system_open=True, power_open=True, confirm=True)
+    ui, system, power, switch, logout, confirm = session_desktop(
+        system_open=True, power_open=True, confirm=True)
+    action_targets = {
+        'session-menu-toggle': system,
+        'session-menu-power': power,
+        'switch-user': switch,
+        'logout': logout,
+        'logout-confirm': confirm,
+    }
+    target = action_targets.get(operation)
+    if target is not None:
+        target.states.remove('showing')
     result = ui.run(operation, '')
     expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
     assert result == expected
+    if target is not None:
+        target.action.do_action.assert_called_once_with(0)
 
 
 LEAF = r'''

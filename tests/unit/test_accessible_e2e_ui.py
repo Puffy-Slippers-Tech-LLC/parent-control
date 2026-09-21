@@ -717,7 +717,7 @@ def test_greeter_reply_through_real_transport_and_command_stream(monkeypatch, tm
 def test_usable_target_is_independent_of_appearance(appearance):
     button = Node('About', 'button', appearance=appearance, identity='test-about')
     ui = action_ui(Node(children=[Node('Help', 'button'), button]), 'test-about')
-    ui.activate(ui.id_target('test-about', sensitive=True))
+    ui.activate_provider('action-fixture', 'main', 'action')
     button.action.do_action.assert_called_once_with(0)
 
 
@@ -781,7 +781,7 @@ def test_unusable_or_wrong_control_cannot_pass(fault):
     if fault == 'refused': button.action.do_action.return_value = False
     ui = action_ui(root, 'test-about')
     with pytest.raises(UiError):
-        ui.activate(ui.id_target('test-about', sensitive=True))
+        ui.activate_provider('action-fixture', 'main', 'action')
 
 
 def test_successful_action_without_expected_result_still_fails():
@@ -798,10 +798,11 @@ def test_stale_queries_retry_but_actions_are_never_replayed():
     ui.timeout = .5
     ui.query_errors = (LookupError,)
     button.get_accessible_id = Mock(side_effect=[LookupError('stale')] + ['test-about'] * 100)
-    ui.activate(ui.id_target('test-about'))
+    ui.activate_provider('action-fixture', 'main', 'action')
     button.action.do_action.assert_called_once_with(0)
     button.action.do_action.side_effect = LookupError('uncertain delivery')
-    with pytest.raises(LookupError): ui.activate(button)
+    with pytest.raises(LookupError):
+        ui.activate_provider('action-fixture', 'main', 'action')
     assert button.action.do_action.call_count == 2
 
 

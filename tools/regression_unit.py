@@ -14,8 +14,8 @@ from regression_ui import Bucket
 
 
 REVIEWED = frozenset("""
-about_dialog accessible_e2e_ui adapters app_policy app_termination apt_removal_notice
-authentication_evidence automation_ids backing_verification_cleanup_safety broker_properties
+about_dialog accessible_e2e_ui adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice
+authentication_evidence automation_ids backing_verification_cleanup_safety baseline_guest_cleanup_safety broker_properties
 broker_state_machine build_test_artifacts bump_version catalog catalog_scope child_preview
 child_preview_cleanup_safety codex_test_rules config core coverage_generation data_migration
 dbus_harness_cleanup_safety desktop_session_cleanup_safety dev_privileges dev_tool_installation
@@ -27,12 +27,12 @@ e2e_gdm_pixels e2e_install_helper e2e_install_password_observation e2e_installat
 e2e_installation_observations e2e_inventory e2e_kiosk_entry e2e_leased_recording_cleanup_safety
 e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_pointer_helper e2e_progress
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
-e2e_secret_variables e2e_serial_helper e2e_serial_observation e2e_shutdown
-e2e_startup_observations e2e_terminal e2e_vt6_authentication e2e_vt6_command e2e_vt6_controller
+e2e_request_exit e2e_secret_variables e2e_serial_helper e2e_serial_observation e2e_shutdown
+e2e_startup_observations e2e_suite_cleanup_safety e2e_terminal e2e_toggle e2e_vt6_authentication e2e_vt6_command e2e_vt6_controller
 e2e_vt6_diagnostic e2e_vt6_pixels e2e_vt6_prompt e2e_vt6_recipient e2e_vt6_shell e2e_watch
 e2e_watch_cleanup_safety e2e_worker_cleanup_safety error_reporting execution_policy
 execution_policy_ready execution_probe_cleanup_safety extension_manager feedback_collection
-feedback_transport fixture_cleanup_safety fixture_gui_adapter floating_islands
+feedback_transport fix_tests fix_tests_cleanup_safety fixture_cleanup_safety fixture_gui_adapter floating_islands
 graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical_host_policy
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety
@@ -45,7 +45,7 @@ parent_setup_cleanup_safety ppa_build preferences prepare_baseline
 prepare_baseline_cleanup_safety prepare_baseline_tool prepare_vm prepare_vm_contract
 preview_screen privileged_test_runner probe_bus_client_cleanup_safety
 probe_channel_cleanup_safety probe_generation_cleanup_safety provision publish
-publish_source_integrity publishing_tests read_only_launcher regression regression_cleanup
+publish_source_integrity publishing_tests qualification_storage_cleanup_safety read_only_launcher regression regression_cleanup
 regression_cleanup_safety regression_inputs regression_resources regression_schedule
 regression_selection regression_session regression_ui regression_ui_selection regression_unit
 regression_unit_selection release_signing request_selections request_time_estimate
@@ -59,17 +59,22 @@ system_info system_probe_decision system_probe_sandbox_cleanup_safety system_qua
 system_remote_accounts system_runner system_runner_cleanup_safety system_snapshots systemd_unit
 terminal_cleanup_safety test_account_password test_activity test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy thunder ui_artifacts_cleanup_safety
-ui_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
-vm_config vm_control_cleanup_safety vm_transport watch_activity
+ui_cleanup_safety ui_watch ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
+vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity
 """.split())
 
 # Full application-fixture construction remains exclusive because it builds
-# native/Snap/Flatpak runtimes. The three unreviewed cleanup modules retain their
-# existing exclusive classification. They are always included in the inventory.
+# native/Snap/Flatpak runtimes. Snapshot/suite/maintenance cleanup tests use the
+# private VM doubles; qualification storage uses private retention trees. Repair
+# loop tests use private checkouts and recorded process doubles, and UI watcher
+# tests use private sockets/memfds. Request-exit/toggle tests use API doubles,
+# including their Perl workers. None operates the installed product or test VM.
 
 # Ordering hints only; default weight balances selected case counts. Keep whole
 # modules together, including their module-scoped native build fixtures.
 ESTIMATES = {
+    'test_e2e_suite_cleanup_safety.py': 10,
+    'test_fix_tests_cleanup_safety.py': 20,
     'test_regression.py': 30,
     'test_regression_schedule.py': 25,
     'test_regression_session.py': 15,
@@ -113,4 +118,3 @@ def buckets(nodeids):
                      tuple(node for module in group for node in module.nodeids),
                      'unit', estimates[index]) for index, group in enumerate(groups)]
     return result + exclusive
-

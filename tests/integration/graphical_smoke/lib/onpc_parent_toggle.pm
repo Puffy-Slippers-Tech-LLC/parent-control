@@ -6,7 +6,7 @@ use testapi ();
 use onpc_gdm ();
 use onpc_journey ();
 
-sub next_observation {
+sub _next_observation {
     my ($journey, $prior_stage, $prior, $stage) = @_;
     die 'toggle:stage-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey';
     $journey->consume_observation($prior_stage, $prior);
@@ -31,7 +31,7 @@ sub run {
             : $stage eq 'limit-current' ? 'limit-disabled'
             : $stage eq 'hidden-control-refused' ? 'limit-current'
             : 'hidden-control-refused';
-        $observed = next_observation($journey, $prior, $observed, $stage);
+        $observed = _next_observation($journey, $prior, $observed, $stage);
     }
     $journey->consume_observation('disabled-settings', $observed);
     $journey->finish();

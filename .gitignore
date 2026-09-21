@@ -11,6 +11,7 @@ __pycache__/
 artifacts/test-activity/
 artifacts/test-retention/
 artifacts/test-sessions/
+artifacts/fix-tests/
 artifacts/coverage/
 .venv/
 artifacts/ui/

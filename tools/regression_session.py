@@ -153,27 +153,31 @@ def follow(run, stream=None):
 
 
 def main(root, argv):
-    run, started = select(root, argv)
-    if run is None:
-        from test_commands import _main
-        return _main(argv)
-    if not started:
-        print('WARNING: A previous run is in the background or has an unread result; '
-              'ignoring all new arguments and attaching to it.', file=sys.stderr, flush=True)
-    print(f'{"Started" if started else "Attached to"} run-tests session: {run.name}',
-          file=sys.stderr, flush=True)
-    print('Closing this terminal detaches; invoke tools/run-tests again to attach.',
-          file=sys.stderr, flush=True)
+    run = None
     requested = False
 
     def cancel(*_):
         nonlocal requested
-        if not requested:
-            requested = True
+        requested = True
+        if run is not None:
             (run / 'cancel').touch(mode=0o600)
 
     previous = signal.signal(signal.SIGINT, cancel)
     try:
+        run, started = select(root, argv)
+        if run is None:
+            from test_commands import _main
+            return _main(argv)
+        if requested:
+            cancel()
+        if not started:
+            print('WARNING: A previous run is in the background or has an unread result; '
+                  'ignoring all new arguments and attaching to it.', file=sys.stderr, flush=True)
+        # Install cancellation before advertising readiness to a supervisor.
+        print(f'{"Started" if started else "Attached to"} run-tests session: {run.name}',
+              file=sys.stderr, flush=True)
+        print('Closing this terminal detaches; invoke tools/run-tests again to attach.',
+              file=sys.stderr, flush=True)
         return follow(run)
     finally:
         signal.signal(signal.SIGINT, previous)
@@ -201,8 +205,7 @@ def worker(root, argv, run, owner):
         from test_commands import _main, selections
         with test_activity.activity(root):
             from test_recovery import before_run
-            categories = ([kind for kind, _ in selections(root, argv)]
-                          if argv and not argv[0].startswith('-') else [])
+            categories = [kind for kind, _ in selections(root, argv)] if argv else []
             before_run(root, argv, categories=categories)
             status = _main(argv, detached=True)
     finally:

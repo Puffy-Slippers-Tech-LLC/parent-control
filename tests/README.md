@@ -26,7 +26,27 @@ qualified parallel schedules.
 Help, listing and collection-only commands keep their inspection output and take
 one category at a time. `tools/run-tests --help` prints usage, including how
 the `all` aggregate breaks down into separately runnable pieces. `tools/run-tests --list`
-prints the JSON category inventory. Raw test output remains in the linked report streams.
+prints the ordered JSON granular inventory. Each entry has a `description` and
+an explicit `args` array; executing each entry with those arguments covers the
+same suites as `all`. It starts with unit and UI and ends with system and E2E.
+Raw test output remains in the linked report streams.
+
+Readiness and leaf/composite status are registered with each command in
+`tools/test_commands.py`. New implemented leaves join the inventory and the
+aggregate automatically; pending commands join when their registration becomes
+implemented. Display names and retry handoffs do not require a second registry.
+
+The inventory excludes composite aliases (`host`, `all`, `check`,
+`component-all`), focused/instrumented repetitions (`traceability`, `coverage`),
+fixture-building helpers and named integration/recovery operations. These remain
+available in the separate helper section of `--help`. Traceability is included
+in source checks; package artifacts include the fixture payload. Bare
+`tools/run-tests artifacts` now performs two fresh builds and their
+reproducibility comparison, matching the granular artifact category in `all`;
+`artifacts build` still requests just one build. UI's explicit inventory arguments
+select the aggregate's non-live scope; focused UI commands retain their exact
+selectors without implicit marker exclusions. Mandatory cleanup prerequisites
+and required package inputs still run wherever the selected suite needs them.
 
 The complete partition is **host + system + e2e = all**. Combine any of these
 categories in one invocation; execution always orders host first, then system,
@@ -110,6 +130,58 @@ investigation prompt as Ctrl+C. Use `tools/run-tests all --continue-on-errors`
 (or the corresponding aggregate) to continue independent tests after failures.
 Safety and infrastructure refusals still stop the run. Reattachment preserves
 the original options. The flag takes no value and can accompany `--serial-builds`.
+For selected granular categories, the leading `--stop-on-error` option enables
+the same cooperative first-reported-failure cancellation without disabling
+parallel scheduling, for example `tools/run-tests --stop-on-error unit`.
+Ordinary selected commands keep their existing failure policy. The option
+conflicts with `--continue-on-errors`.
+
+### Scripted repair loop
+
+Run [`tools/fix-tests`](../tools/fix-tests) to start or attach to the scripted
+repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
+arguments, until each passes. After a failure, a fresh Codex process receives
+that run's generated investigation prompt, applies a repair, exits, and the
+script reruns that category. Round 2 runs `run-tests all`; failures trigger
+repair/category retries before another complete `all` run. Only a passing
+complete run finishes the loop. Concurrently reported failures are handled by
+category; interrupted companion categories are not falsely marked passed.
+Before each round-1 category, the launcher highlights
+`Running category [category] (x/y)` with its position in the discovered list.
+The exact argument arrays from that inventory are forwarded to the test runner.
+
+The launcher itself is Python scripting. Repairs default to `gpt-5.6-sol` with
+high reasoning; `--model` and `--effort` override those defaults for a new run.
+Each agent uses `codex exec --ephemeral`, disabled conversation history and
+memories, and receives only the latest failure handoff. The script never resumes
+or forks a session and never feeds previous agent output into a later prompt.
+The [official noninteractive documentation](https://learn.chatgpt.com/docs/non-interactive-mode)
+defines the ephemeral invocation. Existing CLI authentication, configuration,
+workspace sandbox and command rules remain in effect; agents cannot request
+interactive approvals. Install/authenticate Codex separately before starting.
+
+Closing the terminal detaches; rerun `tools/fix-tests` to attach to the current
+output, with a bounded tail of earlier output. `tools/fix-tests --stop` and
+Ctrl+C request the same immediate cancellation. Tests receive the runner's
+Ctrl+C path and finish guarded cleanup before exit. Agents receive termination,
+with a three-second limit before their recorded process group is killed. If the
+loop owner dies, its supervisor detects EOF and cancels the current operation.
+Completed or dead owners never block a fresh run: file locks determine liveness,
+old cancel markers are isolated by run, and normal `run-tests` startup performs
+its existing retention/VM recovery. An attached predecessor's result is consumed
+before starting the requested category; it never counts as that category passing.
+
+Logs and small control files are private under `artifacts/fix-tests/`. They are
+not agent conversation history. Existing test evidence remains under the runner's
+retention policy. Machine-readable `failure.json` accompanies the printed prompt
+and supplies stable retry category IDs. A missing handoff, unresolved prerequisite,
+unmapped infrastructure failure or agent-reported blocker stops with evidence;
+the loop does not alter expectations or bypass permissions to continue.
+
+The process lifecycle is qualified using isolated test/agent doubles in
+`test_fix_tests_cleanup_safety.py`; these tests never invoke the model or VM.
+
+### Aggregate execution and reconnection
 
 Run `make test-all` (`tools/run-tests all`, also the default with no arguments)
 for development without backing-file byte scans, or `make test-all-verify`

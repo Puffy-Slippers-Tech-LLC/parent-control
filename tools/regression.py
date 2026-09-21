@@ -19,7 +19,7 @@ import test_launcher as host
 from regression_schedule import Job, run_jobs
 from regression_inputs import identity as source_identity
 from regression_resources import Admission, HOST_WORKERS, PRESSURE_RECOVERY_SECONDS, vm_demand
-from regression_ui import HOST_ARGS as UI_HOST_ARGS, buckets as ui_buckets
+from regression_ui import buckets as ui_buckets
 from regression_unit import buckets as unit_buckets
 from regression_cleanup import buckets as cleanup_buckets
 
@@ -63,6 +63,7 @@ class Category:
     launch_order: int = 0
     nodeids: tuple[str, ...] | None = None
     phase: str = 'host'
+    retry_category: str | None = None
 
     def duration(self, now):
         seconds = self.elapsed + (now - self.started if self.started is not None else 0)
@@ -592,6 +593,8 @@ class Run:
             item.state = 'Interrupted'
             return 130, ''
         self.check_inputs()
+        item.retry_category = ('ui' if Path(command[0]).name == 'run-ui-tests' else
+                               command[1] if Path(command[0]).name == 'run-tests' else None)
         if not collect and len(command) > 1 and command[1] in ('publish', 'artifacts', 'system', 'e2e'):
             self.wait_for_resources(item, command[1])
             if self.control.stopped.is_set():
@@ -647,6 +650,10 @@ class Run:
 
         def begin(job):
             self.check_inputs()
+            # Bucket builders retain the public category explicitly. Resource
+            # kinds and future command-name prefixes do not define ownership.
+            # Do not evaluate deferred commands again just to label evidence.
+            job.item.retry_category = job.item.retry_category or job.kind
             occupied = {other.item.branch for other in jobs if other.item.state == 'Running'}
             job.item.branch = next(branch for branch in range(1, HOST_WORKERS + 1)
                                    if branch not in occupied)
@@ -728,7 +735,8 @@ class Run:
         # Estimates come from retained complete runs; they only order work.
         # Deferred comparison arguments are resolved on the coordinator after
         # both successful builders have supplied distinct artifact directories.
-        return [Job('publish', publishing, self.command('publish'), estimate=360, key='publish'),
+        return [*([Job('publish', publishing, self.command('publish'), estimate=360, key='publish')]
+                  if publishing is not None else []),
                 Job('artifacts', builds[0], self.command('artifacts', 'build'),
                     estimate=7, key='build-a'),
                 Job('artifacts', builds[1], self.command('artifacts', 'build'),
@@ -740,7 +748,8 @@ class Run:
     def pytest_jobs(self, kind, inventory, args, *, exact=False):
         """Share module isolation and scheduling across host and selected runs."""
         buckets = {'ui': ui_buckets, 'unit': unit_buckets}[kind](inventory.nodeids)
-        items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids)
+        items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids,
+                          retry_category=kind)
                  for bucket in buckets]
         position = self.categories.index(inventory)
         self.categories[position:position + 1] = items
@@ -750,16 +759,19 @@ class Run:
                 for bucket, item in zip(buckets, items, strict=True)]
 
     def run(self):
+        from test_commands import suite_inventory
+        inventory = suite_inventory()
         self.inputs = source_identity(self.root)
         self.report.write('\nSource inputs SHA-256: ' + self.inputs + '\n')
         if 'host' not in self.phases:
             return self.run_vm_only()
         discovery = self.categories[0]
-        suites = [(CATEGORY_NAMES[kind], kind, args) for kind, args in (
-            ('unit', []), ('component', []), ('ui', list(UI_HOST_ARGS)), ('fixture-runtime', []))]
+        pytest_kinds = ('unit', 'component', 'ui', 'fixture-runtime')
+        suites = [(CATEGORY_NAMES[kind], kind, inventory[kind]['args']) for kind in pytest_kinds]
         suite_items = [Category(name) for name, _, _ in suites]
-        fixed = [(CATEGORY_NAMES[kind], kind) for kind in (
-            'source', 'static', 'child-node', 'child-gjs', 'backend', 'publish')]
+        fixed = [(CATEGORY_NAMES.get(kind, inventory[kind]['description']), kind) for kind in inventory
+                 if kind not in (*pytest_kinds, 'artifacts', 'system', 'e2e', 'publish')]
+        fixed.append((CATEGORY_NAMES['publish'], 'publish'))
         fixed_items = [Category(name, 1) for name, _ in fixed]
         builds = [Category(name, 1) for name in ('Package build A', 'Package build B',
                                                'Package reproducibility')]
@@ -788,7 +800,7 @@ class Run:
                     return
                 raise ValueError('pytest collection failed or collected no tests')
         unit_jobs = self.pytest_jobs('unit', suite_items[0], ['-q', '--durations=0'])
-        ui_jobs = self.pytest_jobs('ui', suite_items[2], [*UI_HOST_ARGS, '-q', '--durations=0'])
+        ui_jobs = self.pytest_jobs('ui', suite_items[2], [*inventory['ui']['args'], '-q', '--durations=0'])
         if self.includes_vm:
             ready = self.discover_vm(system, graphical)
             if self.control.stopped.is_set():
@@ -806,7 +818,7 @@ class Run:
                 if kind not in ('unit', 'ui')]
         jobs.extend(unit_jobs)
         jobs.extend(ui_jobs)
-        jobs.extend(Job(kind, item, self.command(kind), estimate=1)
+        jobs.extend(Job(kind, item, self.command(kind, *inventory[kind]['args']), estimate=1)
                     for (_, kind), item in zip(fixed, fixed_items) if kind != 'publish')
         package_jobs = self.build_jobs(fixed_items[-1], builds)
         if not self.serial_builds:
@@ -863,7 +875,7 @@ class Run:
     def cleanup_jobs(self, safety):
         buckets = cleanup_buckets(safety.nodeids)
         items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids,
-                          host=True, phase='cleanup') for bucket in buckets]
+                          host=True, phase='cleanup', retry_category='unit') for bucket in buckets]
         position = self.categories.index(safety)
         self.categories[position:position + 1] = items
         jobs = [Job(bucket.kind, item, self.command('unit', *bucket.paths, '-q', '--durations=0'),
@@ -969,7 +981,7 @@ def recover_initial_checks(root, state):
 
 
 def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
-         continue_on_errors=False, selections=None, phases=None):
+         continue_on_errors=False, selections=None, phases=None, stop_on_error=False):
     import test_retention
     root = root or Path(__file__).resolve().parents[1]
     # Keep repeated interrupts cooperative through storage rotation/finalization,
@@ -982,12 +994,12 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=F
             status = retained_main(root, verify_backing_bytes=verify_backing_bytes,
                                    host_only=host_only, host_builds=host_builds,
                                    serial_builds=serial_builds, continue_on_errors=continue_on_errors,
-                                   selections=selections, phases=phases)
+                                   selections=selections, phases=phases, stop_on_error=stop_on_error)
         return 130 if storage_control.stopped.is_set() else status
 
 
 def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
-                  continue_on_errors=False, selections=None, phases=None):
+                  continue_on_errors=False, selections=None, phases=None, stop_on_error=False):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -1002,7 +1014,7 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
                           continue_on_errors=continue_on_errors, phases=phases)
             else:
                 from regression_selection import SelectedRun
-                run = SelectedRun(root, report, control, selections)
+                run = SelectedRun(root, report, control, selections, stop_on_error=stop_on_error)
             run.run()
             status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
         except (Exception, KeyboardInterrupt) as error:
@@ -1058,10 +1070,20 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
     if report is not None and (status == 1 or (run is not None and any(
             item.failures or item.state == 'Failed' for item in run.categories))):
         print('\nCopy this prompt into a new Codex session:\n')
-        print(f'In {root.resolve()}, investigate and fix the failures in '
+        prompt = (f'In {root.resolve()}, investigate and fix the failures in '
               f'{(report.directory / "report.md").resolve()}. '
               'Read the adjacent progress.json for category results and follow '
               'any detailed evidence paths in the report. Fix the root causes, '
+              'On a behavior mismatch, report expected versus actual behavior, never assume app behavior is expected and test expectation is wrong. '
+              'Obtain developer confirmation before accepting the change or altering expectations unless that exact behavior change '
+              'is already authorized. Never weaken, skip or delete a check to match the app. '
               'ONLY rerun the relevant checks, do NOT run more tests than necessary to validate the fixes, and report anything still unresolved. '
               'If the run was manually interrupted, ignore the interruption, and just fix the recorded failures. ')
+        print(prompt)
+        retries = list(dict.fromkeys(item.retry_category for item in run.categories
+                                     if (item.failures or item.state == 'Failed')
+                                     and item.retry_category)) if run is not None else []
+        handoff = report.directory / 'failure.json'
+        handoff.write_text(json.dumps({'prompt': prompt, 'categories': retries}, indent=2))
+        print(f'Failure handoff: {handoff.resolve()}', flush=True)
     return status

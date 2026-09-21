@@ -1066,13 +1066,17 @@ def test_vm_aggregate_uses_one_suite_and_retains_progress_and_final_failure(
 @pytest.mark.parametrize('fail_unit,fail_publish,fail_safety', [
     (False, False, False), (True, False, False), (False, True, False), (False, False, True)])
 @pytest.mark.parametrize('verify_backing_bytes', [True, False])
-@pytest.mark.parametrize('scope', ['all', 'host', 'host-builds', 'host-builds-serial',
+@pytest.mark.parametrize('scope', ['all', 'all-future-category', 'host', 'host-builds', 'host-builds-serial',
                                   'host system', 'host e2e', 'system', 'e2e', 'system e2e'])
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         report, tmp_path, monkeypatch, fail_unit, fail_publish, fail_safety, verify_backing_bytes, scope):
     host_builds = scope.startswith('host-builds')
-    phases = (('host', 'system', 'e2e') if scope == 'all' else
+    phases = (('host', 'system', 'e2e') if scope in ('all', 'all-future-category') else
               ('host',) if host_builds else tuple(scope.split()))
+    if scope == 'all-future-category':
+        import test_commands
+        monkeypatch.setitem(test_commands.CATEGORIES, 'ui-future-suite',
+                            test_commands.CategorySpec('New implemented suite'))
     includes_host = 'host' in phases
     includes_vm = any(kind in phases for kind in ('system', 'e2e'))
     def authorize():
@@ -1157,6 +1161,20 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                                            for arg in call) for call in executed)
         return
     run.run()
+    if includes_host:
+        assert all(item.retry_category == 'ui' for item in run.categories
+                   if item.name.startswith('UI — '))
+        assert all(item.retry_category == 'unit' for item in run.categories
+                   if item.name.startswith(('Unit — ', 'Cleanup — ')))
+    if scope == 'all-future-category':
+        future, = [item for item in run.categories if item.name == 'New implemented suite']
+        assert future.retry_category == 'ui-future-suite'
+    if scope in ('all', 'all-future-category') and not (fail_unit or fail_publish):
+        from test_commands import suite_inventory
+        executed_kinds = {'ui' if call[0].endswith('run-ui-tests') else call[1]
+                          for call in control.calls
+                          if '--list' not in call and '--collect-only' not in call}
+        assert executed_kinds == set(suite_inventory())
     if not includes_host:
         executed = [call for call in control.calls if '--list' not in call]
         assert [call[1] for call in executed] == ['artifacts', *phases]

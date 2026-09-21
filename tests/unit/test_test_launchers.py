@@ -273,7 +273,7 @@ def test_help_prints_complete_categories_and_combinations(capsys, argv):
 
 def test_list_still_prints_category_json(capsys):
     assert commands._main(['--list']) == 0
-    assert json.loads(capsys.readouterr().out) == commands.CATEGORIES
+    assert json.loads(capsys.readouterr().out) == commands.suite_inventory()
 
 
 @pytest.mark.parametrize('argv', [['--help'], ['-h'], ['--list']])
@@ -289,7 +289,7 @@ def test_public_global_inspection_bypasses_activity_and_session(monkeypatch, cap
     assert commands.main(argv) == 0
     output = capsys.readouterr().out
     if argv == ['--list']:
-        assert json.loads(output) == commands.CATEGORIES
+        assert json.loads(output) == commands.suite_inventory()
     else:
         assert output == commands.usage() + '\n'
 

@@ -62,7 +62,7 @@ def test_inspection_prints_without_starting_a_session(tmp_path, workers, capsys,
     assert session.main(tmp_path, argv) == 0
     output = capsys.readouterr().out
     if argv == ['--list']:
-        assert json.loads(output) == test_commands.CATEGORIES
+        assert json.loads(output) == test_commands.suite_inventory()
     else:
         assert output == test_commands.usage() + '\n'
         assert 'host and e2e' in output

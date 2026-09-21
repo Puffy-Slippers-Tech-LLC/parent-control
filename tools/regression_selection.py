@@ -7,6 +7,7 @@ from regression import CATEGORY_NAMES, Category, Run
 from regression_inputs import identity as source_identity
 from regression_ui import selected_options, serial_options
 from test_launcher import pytest_command
+from test_commands import CATEGORIES
 
 
 def e2e_case_ids(root, args):
@@ -17,16 +18,16 @@ def e2e_case_ids(root, args):
 
 
 class SelectedRun(Run):
-    def __init__(self, root, report, control, selections):
+    def __init__(self, root, report, control, selections, *, stop_on_error=False):
         includes_vm = any(kind in ('system', 'e2e', 'integration') for kind, _ in selections)
         super().__init__(root, report, control, host_only=not includes_vm,
-                         scope='selected categories only', continue_on_errors=True)
+                         scope='selected categories only', continue_on_errors=not stop_on_error)
         self.selections = [(kind, args[1:] if args[:1] == ['--unattended'] else args)
                            for kind, args in selections]
         self.report.write('\nSelected categories: ' + ', '.join(kind for kind, _ in selections) + '\n')
         self.categories.clear()
         for kind, args in self.selections:
-            name = CATEGORY_NAMES[kind]
+            name = CATEGORY_NAMES.get(kind, CATEGORIES[kind].description)
             if kind in ('fixtures', 'artifacts') and args and args[0] != 'build':
                 name = ('Package reproducibility' if args[0] == 'compare' else
                         'Package verification' if kind == 'artifacts' else 'Test fixture verification')
@@ -108,7 +109,15 @@ class SelectedRun(Run):
             try:
                 # Preserve each category's own fail-fast options. The dashboard
                 # must not turn an ordinary assertion into aggregate cancellation.
-                if kind in ('unit', 'ui'):
+                if kind == 'artifacts' and not args:
+                    # Match all's complete artifact coverage, including comparison.
+                    builds = [Category(name, 1) for name in
+                              ('Package build A', 'Package build B', 'Package reproducibility')]
+                    index = self.categories.index(item)
+                    self.categories[index:index + 1] = builds
+                    self.host_jobs(self.build_jobs(None, builds))
+                    status = int(any(build.state != 'Passed' for build in builds))
+                elif kind in ('unit', 'ui'):
                     status = self.run_pytest(kind, item, args)
                 else:
                     status, _ = self.execute(item, self.command(kind, *args), events=self.events(kind, args))

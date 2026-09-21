@@ -96,9 +96,18 @@ HIGHLIGHT_OPERATIONS = {
 }
 SETTINGS_OPERATIONS = {
     'parent-selected': CHILD, 'parent-returned': CHILD, 'discovery-ready': EXISTING_CHILD,
+    'parent-toggle-disabled-settings': CHILD,
     'discovery-selected': EXISTING_CHILD,
     'new-child-selected': NEW_CHILD, 'new-child-screen': NEW_CHILD, 'existing-returned': EXISTING_CHILD,
 }
+TOGGLE_OPERATIONS = {
+    'parent-toggle-enabled': {'state': True, 'activated': True},
+    'parent-toggle-disabled': {'state': False, 'activated': True},
+    'parent-toggle-current': {'state': False, 'activated': False},
+    'parent-toggle-wrong-refused': {'refusal': 'wrong-control'},
+    'parent-toggle-hidden-refused': {'refusal': 'hidden-control', 'state': False},
+}
+OPERATIONS |= frozenset(TOGGLE_OPERATIONS)
 PARENT = 'Jamie (Parent)'
 OTHER_PARENT = 'Casey (Parent)'
 KIOSK = 'Oh No! Parent Control'
@@ -339,6 +348,17 @@ def require(value, code):
         raise UiError(code)
 
 
+def _public_automation_id(node, attributes):
+    if attributes is None:
+        # A provider can disappear between traversal and this query. With no
+        # attributes its ID contract cannot be qualified, so treat the stale
+        # node as unidentified rather than accepting a transient AccessibleId.
+        return ''
+    if attributes.get('toolkit') == 'WebKitGTK':
+        return attributes.get('id', '')
+    return node.get_accessible_id()
+
+
 def public_automation_id(node):
     """Normalize the provider's public stable ID, without selector fallbacks.
 
@@ -348,15 +368,7 @@ def public_automation_id(node):
     provider's toolkit attribute, never by a label, role or tree position.
     Keep this here so the standalone guest reader and preview reader share it.
     """
-    attributes = node.get_attributes()
-    if attributes is None:
-        # A provider can disappear between traversal and this query. With no
-        # attributes its ID contract cannot be qualified, so treat the stale
-        # node as unidentified rather than accepting a transient AccessibleId.
-        return ''
-    if attributes.get('toolkit') == 'WebKitGTK':
-        return attributes.get('id', '')
-    return node.get_accessible_id()
+    return _public_automation_id(node, node.get_attributes())
 
 
 def owned_surface_id(identity):
@@ -516,7 +528,8 @@ class AccessibleUI:
         self.gdm_row_diagnostic_emitted = False
         self.kiosk_diagnostic = None
 
-    def nodes(self, root=None, *, strict=False, protected_ids=(), snapshot=None):
+    def nodes(self, root=None, *, strict=False, protected_ids=(), snapshot=None,
+              facts=None, identities=None):
         diagnostic = self.kiosk_diagnostic
         if diagnostic is not None:
             diagnostic.check()
@@ -543,16 +556,32 @@ class AccessibleUI:
             seen.add(node)
             try:
                 node.clear_cache_single()
+                attributes = node.get_attributes()
                 if strict:
-                    require(node.get_attributes() is not None, 'ui:incomplete-tree')
+                    require(attributes is not None, 'ui:incomplete-tree')
+                role = node.get_role_name()
+                identity = _public_automation_id(node, attributes)
+                if identities is not None:
+                    identities[node] = identity
+                if facts is not None:
+                    states = node.get_state_set()
+                    facts[node] = {
+                        'identity': identity,
+                        'role': role,
+                        'name': node.get_name(),
+                        'showing': (states.contains(self.api.StateType.SHOWING)
+                                    and states.contains(self.api.StateType.VISIBLE)
+                                    and not states.contains(self.api.StateType.DEFUNCT)),
+                        'modal': states.contains(self.api.StateType.MODAL),
+                    }
                 yield node
                 if diagnostic is not None:
                     diagnostic.check()
                 # Never traverse password contents. Strict owned observations
                 # include ordinary text descendants without reading text values.
-                role = node.get_role_name()
-                protected = public_automation_id(node) in protected_ids
-                if not protected and role != 'password text' and (strict or role not in ('text', 'entry')):
+                protected = identity in protected_ids
+                if (not protected and role != 'password text'
+                        and (strict or role not in ('text', 'entry'))):
                     children = []
                     for i in reversed(range(node.get_child_count())):
                         if diagnostic is not None:
@@ -589,9 +618,125 @@ class AccessibleUI:
             pending.extend(snapshot.get(node, ()))
         return [node for node in nodes if node in descendants]
 
+    @staticmethod
+    def snapshot_matches(identity, nodes, *, showing=None, show=None, identities=None):
+        """Resolve one ID from an already complete snapshot.
+
+        ``show`` is injected by callers so this helper never starts another
+        tree read while an input recipient is being qualified.
+        """
+        matches = [node for node in nodes if (
+            public_automation_id(node) if identities is None else identities[node]) == identity]
+        require(len(matches) <= 1, 'ui:ambiguous-automation-id')
+        if not matches or (showing is True and not show(matches[0])):
+            return None
+        return matches[0]
+
+    def snapshot_owned_target(self, identity, *, root=None, showing=True,
+                              check_prompt=False):
+        """Resolve one repository-owned ID from one complete public snapshot."""
+        require(type(identity) is str and identity, 'ui:automation-id')
+        applications = owned_applications(identity)
+        shell_owned = identity.startswith('child-')
+        require(applications or shell_owned, 'ui:unowned-automation-id')
+        snapshot = {}
+        facts = {}
+        identities = {}
+        nodes = list(self.nodes(strict=True, snapshot=snapshot, identities=identities,
+                                **({'facts': facts} if check_prompt else {})))
+        if check_prompt:
+            self.handle_system_prompt(observation=(nodes, snapshot, facts))
+
+        if shell_owned:
+            anchors = [node for node in nodes
+                       if identities[node] == 'child-screen-time-indicator']
+            require(len(anchors) <= 1, 'ui:ambiguous-automation-id')
+            if not anchors:
+                return None
+            application = anchors[0].get_application()
+            require(application is not None and application in nodes,
+                    'ui:missing-application-owner')
+            scope = self.snapshot_scope(nodes, snapshot, application)
+            require(anchors[0] in scope, 'ui:wrong-application-owner')
+        else:
+            requested = (self.application_ids() if callable(self.application_ids)
+                         else self.application_ids)
+            if requested is not None:
+                applications = tuple(value for value in applications if value in requested)
+            owners = [node for node in nodes if identities[node] in applications]
+            require(len(owners) <= 1, 'ui:ambiguous-application')
+            if not owners:
+                return None
+            application = owners[0]
+            if self.owner_pids is not None:
+                require(application.get_process_id() in self.owner_pids(), 'ui:wrong-owner')
+            if self.application_owners is not None:
+                owners_by_id = self.application_owners()
+                require(application.get_process_id() in owners_by_id.get(
+                    identities[application], ()), 'ui:wrong-application-owner')
+            scope = self.snapshot_scope(nodes, snapshot, application)
+
+        surface_id = owned_surface_id(identity)
+        if surface_id is not None:
+            surface = self.snapshot_matches(
+                surface_id, scope, showing=False, show=self.showing, identities=identities)
+            if surface is None:
+                return None
+            if not shell_owned:
+                self.validate_owned_surface(
+                    surface, application, nodes=nodes, snapshot=snapshot, identities=identities)
+            scope = self.snapshot_scope(nodes, snapshot, surface)
+        elif not shell_owned and identity.endswith(('-dialog', '-window')):
+            surface = self.snapshot_matches(
+                identity, scope, showing=False, show=self.showing, identities=identities)
+            if surface is not None:
+                self.validate_owned_surface(
+                    surface, application, nodes=nodes, snapshot=snapshot, identities=identities)
+
+        if root is not None:
+            root_id = identities.get(root, '')
+            require(bool(root_id), 'ui:unidentified-scope')
+            application_scope = self.snapshot_scope(nodes, snapshot, application)
+            current = [node for node in application_scope if identities[node] == root_id]
+            require(len(current) == 1 and current[0] == root, 'ui:wrong-scope')
+            subtree = set(self.snapshot_scope(nodes, snapshot, root))
+            scope = [node for node in scope if node in subtree]
+        return self.snapshot_matches(
+            identity, scope, showing=showing, show=self.showing, identities=identities)
+
+    def snapshot_provider_target(self, provider, surface, control, *, showing=True,
+                                 check_prompt=False):
+        """Resolve a registered provider surface/control with one tree read."""
+        application_id, surface_id, registered = self.require_provider_contract(
+            provider, surface, (control,))
+        protected = tuple(registered[key] for key in ('password', 'secret')
+                          if key in registered and registered[key])
+        snapshot = {}
+        facts = {}
+        nodes = list(self.nodes(
+            strict=True, protected_ids=protected, snapshot=snapshot,
+            **({'facts': facts} if check_prompt else {})))
+        if check_prompt:
+            self.handle_system_prompt(observation=(nodes, snapshot, facts))
+        application = self.snapshot_matches(
+            application_id, nodes, showing=showing, show=self.showing)
+        if application is None:
+            return None
+        application_nodes = self.snapshot_scope(nodes, snapshot, application)
+        surface_root = self.snapshot_matches(
+            surface_id, application_nodes, showing=showing, show=self.showing)
+        if surface_root is None:
+            return surface_root
+        surface_nodes = self.snapshot_scope(nodes, snapshot, surface_root)
+        return self.snapshot_matches(
+            registered[control], surface_nodes, showing=showing, show=self.showing)
+
     def find_id(self, identity, *, root=None, nodes=None, showing=True):
         """Resolve exactly one public automation ID without selector fallbacks."""
         require(type(identity) is str and identity, 'ui:automation-id')
+        if owned_applications(identity) or identity.startswith('child-'):
+            found = self.snapshot_owned_target(identity, root=root, showing=showing)
+            return found if nodes is None or found is None or found in nodes else None
         found = self.find_all_ids(identity, root=root, nodes=nodes)
         require(len(found) <= 1, 'ui:ambiguous-automation-id')
         if not found or (showing and not self.showing(found[0])):
@@ -599,73 +744,9 @@ class AccessibleUI:
         return found[0]
 
     def find_all_ids(self, identity, *, root=None, nodes=None):
-        applications = owned_applications(identity)
-        shell_owned = identity.startswith('child-')
-        if shell_owned:
-            public_nodes = list(self.nodes(strict=True))
-            anchors = [node for node in public_nodes
-                       if public_automation_id(node) == 'child-screen-time-indicator']
-            require(len(anchors) <= 1, 'ui:ambiguous-automation-id')
-            if not anchors:
-                return []
-            application = anchors[0].get_application()
-            require(application is not None, 'ui:missing-application-owner')
-            scope = list(self.nodes(application, strict=True))
-            require(anchors[0] in scope, 'ui:wrong-application-owner')
-            surface_id = owned_surface_id(identity)
-            if surface_id is not None:
-                surfaces = [node for node in scope if public_automation_id(node) == surface_id]
-                require(len(surfaces) <= 1, 'ui:ambiguous-automation-id')
-                if not surfaces:
-                    return []
-                scope = list(self.nodes(surfaces[0], strict=True))
-            if root is not None:
-                require(root in public_nodes and bool(public_automation_id(root)), 'ui:wrong-scope')
-                scope = [node for node in scope if node in set(self.nodes(root, strict=True))]
-            candidates = scope if nodes is None else [node for node in nodes if node in scope]
-        elif applications:
-            requested = (self.application_ids() if callable(self.application_ids)
-                         else self.application_ids)
-            if requested is not None:
-                applications = tuple(value for value in applications if value in requested)
-            desktop = list(self.nodes(strict=True))
-            owners = [node for node in desktop if public_automation_id(node) in applications]
-            require(len(owners) <= 1, 'ui:ambiguous-application')
-            if not owners:
-                return []
-            application = owners[0]
-            if self.owner_pids is not None:
-                require(application.get_process_id() in self.owner_pids(), 'ui:wrong-owner')
-            if self.application_owners is not None:
-                owners = self.application_owners()
-                require(application.get_process_id() in owners.get(
-                    public_automation_id(application), ()), 'ui:wrong-application-owner')
-            scope = list(self.nodes(application, strict=True))
-            surface_id = owned_surface_id(identity)
-            if surface_id is not None:
-                surfaces = [node for node in scope if public_automation_id(node) == surface_id]
-                require(len(surfaces) <= 1, 'ui:ambiguous-automation-id')
-                if not surfaces:
-                    return []
-                self.validate_owned_surface(surfaces[0], application)
-                scope = list(self.nodes(surfaces[0], strict=True))
-            elif identity.endswith(('-dialog', '-window')):
-                for surface in scope:
-                    if public_automation_id(surface) == identity:
-                        self.validate_owned_surface(surface, application)
-            if root is not None:
-                root_id = public_automation_id(root)
-                require(bool(root_id), 'ui:unidentified-scope')
-                # A caller may pass a wider application/window or a narrower
-                # form/webview. In both directions require actual containment.
-                current = [node for node in self.nodes(application, strict=True)
-                           if public_automation_id(node) == root_id]
-                require(len(current) == 1 and current[0] == root, 'ui:wrong-scope')
-                subtree = set(self.nodes(current[0], strict=True))
-                scope = [node for node in scope if node in subtree]
-            candidates = scope if nodes is None else [node for node in nodes if node in scope]
-        else:
-            candidates = self.nodes(root) if nodes is None else nodes
+        require(not owned_applications(identity) and not identity.startswith('child-'),
+                'ui:owned-id-requires-direct-lookup')
+        candidates = self.nodes(root) if nodes is None else nodes
         found = []
         for node in candidates:
             try:
@@ -673,15 +754,15 @@ class AccessibleUI:
                     continue
                 found.append(node)
             except self.query_errors:
-                if applications or shell_owned:
-                    raise
                 continue
         return found
 
-    def validate_owned_surface(self, surface, application, *, visited=()):
+    def validate_owned_surface(self, surface, application, *, visited=(), nodes=None,
+                               snapshot=None, identities=None):
         """Bind a dialog to its actual originating surface in the same app."""
-        identity = public_automation_id(surface)
-        app_id = public_automation_id(application)
+        identify = public_automation_id if identities is None else identities.__getitem__
+        identity = identify(surface)
+        app_id = identify(application)
         primary = ((f'onpc-fixture-{"-".join(app_id.split(".")[-2:])}',)
                    if app_id.startswith('com.puffyslippers.ONPCFixture.') else
                    ('e2e-watch-window',) if app_id == WATCH_APPLICATION else
@@ -698,13 +779,20 @@ class AccessibleUI:
                     ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else
                     ('kiosk-request-window',) if identity == 'preview-screen-dialog' else
                     tuple(value for value in primary if value != 'parent-access-denied-window'))
-        app_nodes = list(self.nodes(application, strict=True))
+        if nodes is None or snapshot is None:
+            snapshot = {}
+            app_nodes = list(self.nodes(application, strict=True, snapshot=snapshot))
+            nodes = app_nodes
+        else:
+            app_nodes = self.snapshot_scope(nodes, snapshot, application)
         # Embedded Adw dialogs can retain true containment. Separate GTK
         # toplevels publish CONTROLLED_BY from their native transient parent.
-        containers = [node for node in app_nodes if public_automation_id(node) in expected]
+        containers = [node for node in app_nodes if identify(node) in expected]
         for container in containers:
-            if surface in set(self.nodes(container, strict=True)):
-                self.validate_owned_surface(container, application, visited=(*visited, identity))
+            if surface in self.snapshot_scope(nodes, snapshot, container):
+                self.validate_owned_surface(
+                    container, application, visited=(*visited, identity),
+                    nodes=nodes, snapshot=snapshot, identities=identities)
                 return
         parents = []
         for relation in surface.get_relation_set():
@@ -713,11 +801,14 @@ class AccessibleUI:
                                for index in range(relation.get_n_targets()))
         require(len(parents) == 1 and parents[0] in app_nodes, 'ui:missing-surface-owner')
         parent = parents[0]
-        parent_id = public_automation_id(parent)
+        require(identities is None or parent in identities, 'ui:wrong-surface-owner')
+        parent_id = identify(parent)
         require(parent_id in expected, 'ui:wrong-surface-owner')
-        matches = [node for node in app_nodes if public_automation_id(node) == parent_id]
+        matches = [node for node in app_nodes if identify(node) == parent_id]
         require(len(matches) == 1, 'ui:ambiguous-surface-owner')
-        self.validate_owned_surface(parent, application, visited=(*visited, identity))
+        self.validate_owned_surface(
+            parent, application, visited=(*visited, identity),
+            nodes=nodes, snapshot=snapshot, identities=identities)
 
     def absent_id(self, identity, *, within):
         """Fresh complete negative observation with a positive surrounding ID."""
@@ -762,15 +853,9 @@ class AccessibleUI:
         useful audit evidence but cannot become selectors until the owning
         application and surface publish stable IDs too.
         """
-        application_id, surface_id, controls = self.require_provider_contract(
-            provider, surface, (control,))
-        application = self.find_id(application_id, nodes=list(self.nodes(root, strict=True)), showing=showing)
-        if application is None:
-            return None
-        surface_root = self.find_id(surface_id, nodes=list(self.nodes(application, strict=True)), showing=showing)
-        if surface_root is None:
-            return None
-        return self.find_id(controls[control], nodes=list(self.nodes(surface_root, strict=True)), showing=showing)
+        require(root is None, 'ui:provider-root-unsupported')
+        return self.snapshot_provider_target(
+            provider, surface, control, showing=showing)
 
     def require_provider_contract(self, provider, surface, controls):
         """Validate a complete mapping before the first public-tree read."""
@@ -800,12 +885,16 @@ class AccessibleUI:
             provider, surface, controls)
         protected = tuple(registered[key] for key in ('password', 'secret')
                           if key in registered and registered[key])
-        desktop = list(self.nodes(strict=True, protected_ids=protected))
-        application = self.find_id(application_id, nodes=desktop, showing=showing)
+        snapshot = {}
+        desktop = list(self.nodes(
+            strict=True, protected_ids=protected, snapshot=snapshot))
+        application = self.snapshot_matches(
+            application_id, desktop, showing=showing, show=self.showing)
         if application is None:
             return None, registered
-        application_nodes = list(self.nodes(application, strict=True, protected_ids=protected))
-        return self.find_id(surface_id, nodes=application_nodes, showing=showing), registered
+        application_nodes = self.snapshot_scope(desktop, snapshot, application)
+        return self.snapshot_matches(
+            surface_id, application_nodes, showing=showing, show=self.showing), registered
 
     def showing(self, node):
         states = node.get_state_set()
@@ -874,60 +963,91 @@ class AccessibleUI:
 
     def id_target(self, identity, *, root=None, sensitive=False, showing=True):
         """Wait for one public ID, optionally requiring an actionable state."""
+        owned = bool(owned_applications(identity) or identity.startswith('child-'))
         node = self.wait(
-            lambda: self.find_id(identity, root=root, showing=showing),
+            (lambda: self.snapshot_owned_target(
+                identity, root=root, showing=showing, check_prompt=True))
+            if owned else
+            (lambda: self.find_id(identity, root=root, showing=showing)),
             'automation-id',
+            prompt_in_predicate=owned,
         )
         if sensitive:
             require(self.has_state(node, self.api.StateType.SENSITIVE),
                     'ui:unusable-target')
         return node
 
-    def activate(self, node):
+    def _invoke_target(self, node, action_name=None):
+        """Invoke an ID-qualified target without another public-tree traversal."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        self.handle_system_prompt()
-        node = self.fresh_owned_target(node)
-        require(self.showing(node) and node.get_state_set().contains(self.api.StateType.SENSITIVE),
+        states = node.get_state_set()
+        # SHOWING is a viewport/rendering state. A clipped or covered control
+        # remains directly actionable while the application keeps it VISIBLE
+        # and SENSITIVE; truly hidden or disabled application state still
+        # refuses input.
+        require(states.contains(self.api.StateType.VISIBLE)
+                and states.contains(self.api.StateType.SENSITIVE)
+                and not states.contains(self.api.StateType.DEFUNCT),
                 'ui:unusable-target')
         action = node.get_action_iface()
         require(action is not None, 'ui:missing-action')
         count = self.api.Action.get_n_actions(action)
-        require(count == 1, 'ui:missing-or-ambiguous-action')
-        self.input_uncertain = True
-        require(self.api.Action.do_action(action, 0), 'ui:action-refused')
-        self.input_uncertain = False
-
-    def activate_named(self, node, action_name):
-        """Invoke one named public action on an already ID-resolved control."""
-        require(not self.input_uncertain, 'ui:uncertain-input')
-        self.handle_system_prompt()
-        node = self.fresh_owned_target(node)
-        require(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE),
-                'ui:unusable-target')
-        action = node.get_action_iface()
-        require(action is not None, 'ui:missing-action')
-        names = []
-        for index in range(self.api.Action.get_n_actions(action)):
-            # GI incorrectly deprecates the recommended rename of this AT-SPI
-            # method. Suppress only that metadata warning at the exact call.
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    'ignore',
-                    message=r'^Atspi\.Action\.get_action_name is deprecated$',
-                    category=DeprecationWarning,
-                )
-                names.append(self.api.Action.get_action_name(action, index))
-        matches = [index for index, name in enumerate(names) if name == action_name]
-        require(len(matches) == 1, 'ui:missing-or-ambiguous-action')
+        if action_name is None:
+            require(count == 1, 'ui:missing-or-ambiguous-action')
+            matches = [0]
+        else:
+            names = []
+            for index in range(count):
+                # GI incorrectly deprecates the recommended rename of this
+                # AT-SPI method. Suppress only that metadata warning here.
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        'ignore',
+                        message=r'^Atspi\.Action\.get_action_name is deprecated$',
+                        category=DeprecationWarning,
+                    )
+                    names.append(self.api.Action.get_action_name(action, index))
+            matches = [index for index, name in enumerate(names) if name == action_name]
+            require(len(matches) == 1, 'ui:missing-or-ambiguous-action')
         self.input_uncertain = True
         require(self.api.Action.do_action(action, matches[0]), 'ui:action-refused')
         self.input_uncertain = False
+        return node
+
+    def activate_id(self, identity, *, action_name=None):
+        """Resolve and invoke one repository-owned automation ID in one snapshot."""
+        require(type(identity) is str and identity, 'ui:automation-id')
+        require(owned_applications(identity) or identity.startswith('child-'),
+                'ui:unowned-automation-id')
+        node = self.wait(
+            lambda: self.snapshot_owned_target(
+                identity, showing=False, check_prompt=True),
+            'automation-id', prompt_in_predicate=True,
+        )
+        return self._invoke_target(node, action_name)
+
+    def activate_provider(self, provider, surface, control, *, action_name=None):
+        """Resolve and invoke one qualified external-provider ID in one snapshot."""
+        node = self.wait(
+            lambda: self.snapshot_provider_target(
+                provider, surface, control, showing=False, check_prompt=True),
+            'provider-automation-id', prompt_in_predicate=True,
+        )
+        return self._invoke_target(node, action_name)
+
+    def activate(self, node):
+        return self._invoke_target(self.fresh_owned_target(node))
+
+    def activate_named(self, node, action_name):
+        """Invoke one named public action on an already ID-resolved control."""
+        return self._invoke_target(self.fresh_owned_target(node), action_name)
 
     def fresh_owned_target(self, node):
         identity = public_automation_id(node)
         require(bool(identity), 'ui:unidentified-action-target')
         if owned_applications(identity) or identity.startswith('child-'):
-            current = self.find_id(identity)
+            current = self.snapshot_owned_target(
+                identity, showing=False, check_prompt=True)
             require(current is not None and current == node, 'ui:wrong-action-owner')
             return current
         bindings = [(provider, surface, control)
@@ -935,7 +1055,8 @@ class AccessibleUI:
                     for surface, (_surface_id, controls) in contract.get('surfaces', {}).items()
                     for control, registered_id in controls.items() if registered_id == identity]
         require(len(bindings) == 1, 'ui:unregistered-or-ambiguous-action-target')
-        current = self.find_provider_control(*bindings[0])
+        current = self.snapshot_provider_target(
+            *bindings[0], showing=False, check_prompt=True)
         require(current is not None and current == node, 'ui:wrong-action-owner')
         return current
 
@@ -958,14 +1079,12 @@ class AccessibleUI:
         return self.id_target('parent-window')
 
     def about(self):
-        application = self.id_target(PARENT_APPLICATION, showing=False)
-        return self.id_target('about-dialog', root=application)
+        return self.id_target('about-dialog')
 
     def open_about(self, version):
         """ABOUT01: independent Parent entry; menu, About, text and license link."""
-        self.activate_named(self.id_target('parent-menu-button',
-                                          root=self.parent(), sensitive=True), 'menu.popup')
-        self.activate(self.id_target('parent-menu-about', root=self.parent(), sensitive=True))
+        self.activate_id('parent-menu-button', action_name='menu.popup')
+        self.activate_id('parent-menu-about')
         root = self.about()
         self.read_label(root, 'about-product', maximum=80)
         self.read_label(root, 'about-version', maximum=80, expected=version)
@@ -976,7 +1095,7 @@ class AccessibleUI:
         if not self.showing(node):
             surface = owned_surface_id(identity)
             require(surface is not None, 'ui:missing-reveal-surface')
-            self.activate_named(self.id_target(surface), 'focus.' + identity)
+            self.activate_id(surface, action_name='focus.' + identity)
         return self.id_target(identity)
 
     def read_document(self, root, projection, *, maximum):
@@ -1017,7 +1136,7 @@ class AccessibleUI:
         """ABOUT02: one link action followed by actual viewer content."""
         self.require_provider_contract(
             'document-viewer', 'license-document', ('content', 'close'))
-        self.activate(self.id_target('about-license-value', root=self.about(), sensitive=True))
+        self.activate_id('about-license-value')
         self.license_content()
 
     def window_ready_to_close(self, window):
@@ -1078,6 +1197,64 @@ class AccessibleUI:
         return {'child': CHILD_IDENTITIES[child],
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
+
+    def set_toggle(self, identity, desired, *, root):
+        """UI17: set the one qualified Parent switch to an explicit state."""
+        require(identity == 'parent-screen-limit-toggle' and type(desired) is bool,
+                'ui:toggle-binding')
+        target = self.id_target(identity, root=root, showing=False)
+        states = target.get_state_set()
+        require(states.contains(self.api.StateType.VISIBLE)
+                and not states.contains(self.api.StateType.DEFUNCT),
+                'ui:unusable-target')
+        initial = self.has_state(target, self.api.StateType.CHECKED)
+        activated = initial != desired
+        if activated:
+            self._invoke_target(target)
+
+        def desired_state():
+            current_root = self.find_id('parent-window')
+            if current_root is None:
+                return None
+            current = self.find_id(identity, root=current_root)
+            if current is None:
+                return None
+            return current if self.has_state(current, self.api.StateType.CHECKED) == desired else None
+
+        current = self.wait(desired_state, 'toggle-state')
+        require(self.has_state(current, self.api.StateType.CHECKED) == desired,
+                'ui:toggle-state')
+        return {'state': desired, 'activated': activated}
+
+    def parent_toggle_operation(self, operation):
+        """Installed Parent binding and bounded refusal checks for UI17."""
+        require(operation in TOGGLE_OPERATIONS, 'ui:toggle-operation')
+        root = self.parent()
+        if operation == 'parent-toggle-wrong-refused':
+            try:
+                self.set_toggle('parent-legend-toggle', True, root=root)
+            except UiError as error:
+                require(str(error) == 'ui:toggle-binding', 'ui:toggle-wrong-refusal')
+                return {'refusal': 'wrong-control'}
+            raise UiError('ui:toggle-wrong-accepted')
+        if operation == 'parent-toggle-hidden-refused':
+            self.activate_id('parent-page-app-limits')
+            target = self.id_target('parent-screen-limit-toggle', root=root, showing=False)
+            self.wait(lambda: not self.has_state(target, self.api.StateType.VISIBLE),
+                      'toggle-hidden')
+            try:
+                self.set_toggle('parent-screen-limit-toggle', True, root=root)
+            except UiError as error:
+                require(str(error) == 'ui:unusable-target', 'ui:toggle-hidden-refusal')
+            else:
+                raise UiError('ui:toggle-hidden-accepted')
+            self.activate_id('parent-page-screen-limits')
+            target = self.id_target('parent-screen-limit-toggle', root=self.parent())
+            require(not self.has_state(target, self.api.StateType.CHECKED),
+                    'ui:toggle-hidden-state-changed')
+            return {'refusal': 'hidden-control', 'state': False}
+        desired = operation == 'parent-toggle-enabled'
+        return self.set_toggle('parent-screen-limit-toggle', desired, root=root)
 
     def read_label(self, root, projection, *, maximum, expected=None):
         """UI03: bounded registered nonsecret projections; no arbitrary text."""
@@ -1233,10 +1410,9 @@ class AccessibleUI:
                 'ui:unusable-target')
         if self.showing(node) and self.has_state(node, self.api.StateType.FOCUSED):
             return True
-        selector = self.id_target(
-            'parent-child-selector', root=self.parent(), sensitive=True,
+        self.activate_id(
+            'parent-child-selector', action_name='child.focus-' + match.group(1),
         )
-        self.activate_named(selector, 'child.focus-' + match.group(1))
         self.input_uncertain = True
         def focused():
             current = self.find_id(identity, root=self.parent())
@@ -1250,10 +1426,7 @@ class AccessibleUI:
     def open_child_picker(self, child):
         """UI15 opening: activate by ID and focus the UID-scoped choice by ID."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
-        picker = self.id_target(
-            'parent-child-selector', root=self.parent(), sensitive=True,
-        )
-        self.activate_named(picker, 'menu.popup')
+        self.activate_id('parent-child-selector', action_name='menu.popup')
         popover = self.id_target('parent-child-popover', root=self.parent())
         choices = self.id_target('parent-child-choices', root=popover)
         choice = self.wait(
@@ -1310,7 +1483,7 @@ class AccessibleUI:
                                       showing=True) is not None, 'ui:selected-child')
         page_id = {'Screen Limits': 'parent-page-screen-limits',
                    'App Limits': 'parent-page-app-limits'}[page]
-        self.activate(self.id_target(page_id, root=root, sensitive=True))
+        self.activate_id(page_id)
         print('ui:parent-page=activated', file=sys.stderr, flush=True)
         if page == 'Screen Limits':
             return self.selected_child(child)
@@ -2139,11 +2312,12 @@ class AccessibleUI:
     def kiosk_exit_target(self, *, with_window=False):
         """Resolve the fresh owned Cancel control inside one showing form."""
         snapshot = {}
-        nodes = list(self.nodes(strict=True, snapshot=snapshot))
+        facts = {}
+        nodes = list(self.nodes(strict=True, snapshot=snapshot, facts=facts))
         require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
                                   for node in nodes), 'ui:stale-request-form')
-        identities = {node: public_automation_id(node) for node in nodes}
-        self.handle_system_prompt(observation=(nodes, snapshot, identities))
+        identities = {node: facts[node]['identity'] for node in nodes}
+        self.handle_system_prompt(observation=(nodes, snapshot, facts))
 
         def lookup(identity, scope, *, showing=True):
             matches = [node for node in scope if identities[node] == identity]
@@ -2463,10 +2637,12 @@ class AccessibleUI:
             'unlock keyring', 'unlock login keyring',
         )
 
-    def _provider_kind_from_ids(self, application, surface):
+    def _provider_kind_from_ids(self, application, surface, identities=None):
         """Use provider IDs when both available, without requiring control IDs."""
-        application_id = public_automation_id(application)
-        surface_id = public_automation_id(surface)
+        application_id = (public_automation_id(application) if identities is None
+                          else identities[application])
+        surface_id = (public_automation_id(surface) if identities is None
+                      else identities[surface])
         bindings = []
         for provider, kind in (
                 ('mate-polkit-agent', 'mate-polkit'),
@@ -2494,11 +2670,13 @@ class AccessibleUI:
             desktop = self.api.get_desktop(0)
             require(desktop is not None, 'ui:incomplete-tree')
             snapshot = {}
-            nodes = list(self.nodes(desktop, strict=True, snapshot=snapshot))
+            facts = {}
+            nodes = list(self.nodes(
+                desktop, strict=True, snapshot=snapshot, facts=facts))
             require(nodes, 'ui:incomplete-tree')
-            identities = {node: public_automation_id(node) for node in nodes}
         else:
-            nodes, snapshot, identities = observation
+            nodes, snapshot, facts = observation
+        identities = {node: facts[node]['identity'] for node in nodes}
         provider_application_ids = {
             contract.get('application_id')
             for provider, contract in self.provider_contracts.items()
@@ -2506,25 +2684,26 @@ class AccessibleUI:
                             'gcr-keyring-prompter') and contract.get('application_id')
         }
         applications = [node for node in nodes
-                        if node.get_role_name() == 'application'
+                        if facts[node]['role'] == 'application'
                         or identities[node] in provider_application_ids]
         candidates = []
         for application in applications:
             application_nodes = self.snapshot_scope(nodes, snapshot, application)
-            application_kind = self._prompt_application_kind(application.get_name())
+            application_kind = self._prompt_application_kind(facts[application]['name'])
             owned = bool(identities[application] in (
                 PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION,
                 WATCH_APPLICATION, UI_WATCH_APPLICATION))
             for surface in application_nodes:
-                if surface is application or not self.showing(surface):
+                if surface is application or not facts[surface]['showing']:
                     continue
                 descendants = self.snapshot_scope(nodes, snapshot, surface)
-                password = any(node.get_role_name() == 'password text'
+                password = any(facts[node]['role'] == 'password text'
                                for node in descendants)
-                prompt_title = self._prompt_title(surface.get_name())
-                id_kind = self._provider_kind_from_ids(application, surface)
-                modal = (surface.get_role_name() in ('alert', 'dialog')
-                         or self.has_state(surface, self.api.StateType.MODAL)
+                prompt_title = self._prompt_title(facts[surface]['name'])
+                id_kind = self._provider_kind_from_ids(
+                    application, surface, identities)
+                modal = (facts[surface]['role'] in ('alert', 'dialog')
+                         or facts[surface]['modal']
                          or id_kind is not None)
                 if not modal:
                     continue
@@ -2679,6 +2858,8 @@ class AccessibleUI:
             self.parent()
         elif operation == 'parent-empty':
             self.parent_empty()
+        elif operation in TOGGLE_OPERATIONS:
+            result['toggle'] = self.parent_toggle_operation(operation)
         elif operation in PICKER_OPERATIONS:
             result['focused'] = self.open_child_picker(PICKER_OPERATIONS[operation])
         elif operation in HIGHLIGHT_OPERATIONS:
@@ -2707,15 +2888,16 @@ class AccessibleUI:
             self.window_closed('about', 'parent')
             result['settings'] = self.settings()
         elif operation == 'session-menu-toggle':
-            self.activate(self.session_menu_toggle())
+            self.activate_provider('gnome-shell', 'panel', 'quick-settings')
         elif operation == 'session-menu-power':
-            self.activate(self.session_menu_power())
+            self.activate_provider('gnome-shell', 'session-menu', 'power')
         elif operation == 'session-menu':
             self.session_menu()
         elif operation in SESSION_ACTION_NAMES:
-            self.activate(self.choose_session_action(operation))
+            logical = {'switch-user': 'switch-user', 'logout': 'log-out'}[operation]
+            self.activate_provider('gnome-shell', 'session-menu', logical)
         elif operation == 'logout-confirm':
-            self.activate(self.logout_confirm())
+            self.activate_provider('gnome-shell', 'logout-dialog', 'confirm')
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-request-cancel':

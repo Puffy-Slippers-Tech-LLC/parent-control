@@ -2,7 +2,14 @@
 
 import warnings
 
-from tests.e2e.accessible_ui import AccessibleUI, UiError, owned_surface_id, public_automation_id
+from tests.e2e.accessible_ui import (
+    AccessibleUI,
+    UiError,
+    owned_applications,
+    owned_surface_id,
+    public_automation_id,
+    _public_automation_id,
+)
 
 
 def public_action_name(api, action, index):
@@ -32,7 +39,8 @@ class Automation:
         self.complete_read_wait = complete_read_wait
         self.input_uncertain = False
 
-    def nodes(self, root=None, *, strict=False):
+    def nodes(self, root=None, *, strict=False, protected_ids=(), snapshot=None,
+              identities=None):
         """Traverse the current public tree without retaining stale nodes."""
         pending = [self.root() if root is None else root]
         seen = set()
@@ -49,15 +57,25 @@ class Automation:
                 raise AutomationError("automation:tree-bound")
             try:
                 node.clear_cache_single()
-                if strict and node.get_attributes() is None:
+                attributes = node.get_attributes()
+                if strict and attributes is None:
                     raise UiError("ui:incomplete-tree")
-                children = [node.get_child_at_index(i)
-                            for i in range(node.get_child_count())]
+                identity = _public_automation_id(node, attributes)
+                if identities is not None:
+                    identities[node] = identity
+                protected = identity in protected_ids
+                role = node.get_role_name()
+                children = ([] if protected or role == "password text" else
+                            [node.get_child_at_index(i)
+                             for i in range(node.get_child_count())])
                 if strict and None in children:
                     error = UiError("ui:incomplete-tree")
                     error.add_note("Null child under public automation-id: "
                                    + (public_automation_id(node) or "[unidentified]"))
                     raise error
+                if snapshot is not None:
+                    snapshot.setdefault(node, []).extend(
+                        child for child in children if child is not None)
                 pending.extend(children)
             except self.query_errors:
                 if strict:
@@ -74,6 +92,9 @@ class Automation:
 
         def read():
             try:
+                if owned_applications(identity) or identity.startswith("child-"):
+                    target = reader.snapshot_owned_target(identity, showing=False)
+                    return [] if target is None else [target]
                 return reader.find_all_ids(identity)
             except UiError as error:
                 raise AutomationError(str(error).replace("ui:", "automation:").replace(
@@ -204,10 +225,18 @@ class Automation:
     def activate(self, identity, *, action_name=None):
         if self.input_uncertain:
             raise AutomationError("automation:uncertain-input")
-        node = self.reveal(identity)
-        if not node.get_state_set().contains(self.api.StateType.SENSITIVE):
+        # Resolve ownership, ambiguity and recipient from one complete fresh
+        # snapshot, then invoke the public action directly. SHOWING is a
+        # viewport/rendering state and cannot turn clipping into a requirement
+        # to scroll or focus before activation; VISIBLE is the application's
+        # public hidden/shown state.
+        node = self.target(identity)
+        states = node.get_state_set()
+        if not states.contains(self.api.StateType.VISIBLE):
+            raise AutomationError("automation:hidden:" + identity)
+        if not states.contains(self.api.StateType.SENSITIVE):
             raise AutomationError("automation:disabled:" + identity)
-        if node.get_state_set().contains(self.api.StateType.DEFUNCT):
+        if states.contains(self.api.StateType.DEFUNCT):
             raise AutomationError("automation:defunct:" + identity)
         action = node.get_action_iface()
         if action is None:

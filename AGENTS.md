@@ -98,6 +98,7 @@
   Prefer invoking the ID-resolved control's public accessibility action directly,
   including when a scroll viewport clips or covers an otherwise available control.
   Do not add focus, scrolling or repeated tree traversals before such an action.
+  Avoid control looping such as find_all_ids whenever direction id invocation is possible.
   Prefer a provider's direct ID lookup where available; otherwise reuse one fresh,
   complete scoped snapshot for prompt, ownership and target checks at each input
   boundary. Never reuse a snapshot across input or session transitions. Preserve

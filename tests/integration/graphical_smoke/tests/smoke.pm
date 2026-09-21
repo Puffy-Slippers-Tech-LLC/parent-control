@@ -15,6 +15,7 @@ use onpc_command_help ();
 use onpc_desktop_session ();
 use onpc_kiosk_entry ();
 use onpc_request_exit ();
+use onpc_parent_toggle ();
 use onpc_parent_discovery ();
 use onpc_journey ();
 use onpc_flow00 ();
@@ -85,6 +86,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_exit::run(\&exchange);
+        return;
+    }
+    if ($ready->{parent_toggle}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_toggle::run(\&exchange);
         return;
     }
     if ($ready->{parent_terminal}) {

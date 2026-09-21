@@ -403,6 +403,54 @@ def verify_installed():
     print('onpc-system: stage=snapshot-readiness outcome=passed', flush=True)
 
 
+def prepare_toggle_session():
+    """Prepare one disposable Parent autologin/autostart qualification session."""
+    guard()
+    installed()
+    import pwd
+    account = pwd.getpwnam('onpc-parent-jamie')
+    home = Path(account.pw_dir)
+    info = home.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == account.pw_uid
+            and info.st_gid == account.pw_gid, 'toggle-session-home')
+    executable = Path('/usr/bin/oh-no-parent-control-parent')
+    info = executable.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
+            and info.st_mode & 0o111, 'toggle-session-executable')
+
+    directory = home / '.config'
+    for path in (directory, directory / 'autostart'):
+        try:
+            info = path.lstat()
+            require(stat.S_ISDIR(info.st_mode) and info.st_uid == account.pw_uid
+                    and info.st_gid == account.pw_gid and not info.st_mode & 0o022,
+                    'toggle-session-directory')
+        except FileNotFoundError:
+            path.mkdir(mode=0o700)
+            os.chown(path, account.pw_uid, account.pw_gid)
+    target = directory / 'autostart' / 'onpc-toggle-qualification.desktop'
+    require(not target.exists() and not target.is_symlink(), 'toggle-session-collision')
+    content = ('[Desktop Entry]\nType=Application\n'
+               'Name=Parent Toggle Qualification\n'
+               'Exec=/usr/bin/oh-no-parent-control-parent\n'
+               'NoDisplay=true\nX-GNOME-Autostart-enabled=true\n')
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'w') as stream:
+        os.fchown(stream.fileno(), account.pw_uid, account.pw_gid)
+        stream.write(content)
+        stream.flush()
+        os.fsync(stream.fileno())
+    require(target.read_text() == content, 'toggle-session-autostart-readback')
+
+    object_path = f'/org/freedesktop/Accounts/User{account.pw_uid}'
+    run(['busctl', '--system', 'call', 'org.freedesktop.Accounts', object_path,
+         'org.freedesktop.Accounts.User', 'SetAutomaticLogin', 'b', 'true'])
+    require(run(['busctl', '--system', 'get-property', 'org.freedesktop.Accounts', object_path,
+                 'org.freedesktop.Accounts.User', 'AutomaticLogin']) == 'b true',
+            'toggle-session-autologin-readback')
+    print('onpc-system: stage=toggle-session-prepared outcome=passed', flush=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     try:
@@ -411,11 +459,13 @@ def main(argv=None):
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
                              ['install-previous'], ['upgrade'], ['install-setup'],
-                             ['verify-setup'], ['install-suite'], ['verify-installed']), 'invalid-command')
+                             ['verify-setup'], ['install-suite'], ['verify-installed'],
+                             ['prepare-toggle-session']), 'invalid-command')
             {'guard': guard, 'before-install': before_install, 'install': install,
              'install-previous': install_previous, 'upgrade': upgrade,
              'install-setup': install_setup, 'verify-setup': verify_setup,
-             'install-suite': install_suite, 'verify-installed': verify_installed}[argv[0]]()
+             'install-suite': install_suite, 'verify-installed': verify_installed,
+             'prepare-toggle-session': prepare_toggle_session}[argv[0]]()
         return 0
     except Exception as error:
         category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'

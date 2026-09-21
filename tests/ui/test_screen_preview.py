@@ -37,7 +37,7 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
     ui = automation
     wait_for_accessible_state(lambda: ui.find("kiosk-menu-button") is not None,
                               "request screen publishes its menu ID")
-    ui.activate("kiosk-menu-button")
+    ui.activate("kiosk-menu-button", action_name="menu.popup")
     wait_for_accessible_state(lambda: ui.showing("kiosk-menu-item-change-screens"),
                               "screen action opens")
     ui.activate("kiosk-menu-item-change-screens")

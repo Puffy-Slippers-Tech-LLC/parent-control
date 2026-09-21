@@ -19,8 +19,7 @@ class FixtureUI:
     def target(self, control):
         require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close'),
                 'ui:fixture-control')
-        surface = self.ui.id_target(self.scope)
-        return self.ui.id_target(self.target_id(control), root=surface)
+        return self.ui.id_target(self.target_id(control))
 
     def target_id(self, control):
         require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close'),
@@ -46,7 +45,7 @@ class FixtureUI:
     def focus_draft(self):
         node = self.target('draft')
         require(self.ui.has_state(node, self.ui.api.StateType.SENSITIVE), 'ui:unusable-target')
-        self.ui.activate(self.target('edit'))
+        self.ui.activate_id(self.target_id('edit'))
         self.ui.wait(lambda: self.ui.has_state(self.target('draft'), self.ui.api.StateType.FOCUSED),
                      'fixture-draft-focus')
 
@@ -57,13 +56,13 @@ class FixtureUI:
 
     def submit(self):
         expected = self.text('draft')
-        self.ui.activate(self.target('submit'))
+        self.ui.activate_id(self.target_id('submit'))
         self.ui.wait(lambda: self.text('submitted') == expected, 'fixture-submitted')
 
     def move(self):
         before = self.snapshot()
         moves = int(before['score'].split(';')[0].removeprefix('Moves: ')) + 1
-        self.ui.activate(self.target('move'))
+        self.ui.activate_id(self.target_id('move'))
         self.ui.wait(lambda: self.text('score') == f'Moves: {moves}; token: {moves % 4}',
                      'fixture-moved')
         return self.snapshot()

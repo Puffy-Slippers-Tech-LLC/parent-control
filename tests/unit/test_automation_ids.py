@@ -100,16 +100,16 @@ def test_find_all_supports_explicit_cardinality_checks():
     assert set(adapter(Node("", [first, second])).find_all("surface")) == {first, second}
 
 
-def test_reveal_reacquires_and_does_not_activate_hidden_control():
-    hidden = Node("submit", states=("visible", "sensitive"))
-    ui = adapter(Node("", [hidden]))
-    with pytest.raises(AutomationError, match="unreachable"):
-        ui.activate("submit")
-    hidden.component.scroll_to.assert_called_once_with("anywhere")
-    hidden.action.do_action.assert_not_called()
+def test_activation_invokes_clipped_control_without_reveal_or_focus():
+    clipped = Node("submit", states=("visible", "sensitive"))
+    ui = adapter(Node("", [clipped]))
+    ui.activate("submit")
+    clipped.component.scroll_to.assert_not_called()
+    clipped.component.grab_focus.assert_not_called()
+    clipped.action.do_action.assert_called_once_with(0)
 
 
-def test_reveal_uses_fresh_replacement_after_scrolling():
+def test_explicit_reveal_uses_fresh_replacement_after_scrolling():
     hidden = Node("submit", states=("visible", "sensitive"))
     replacement = Node("submit")
     root = Node("", [hidden])
@@ -117,9 +117,19 @@ def test_reveal_uses_fresh_replacement_after_scrolling():
         root.children = [replacement]
         return True
     hidden.component.scroll_to.side_effect = reveal
-    adapter(root).activate("submit")
+    assert adapter(root).reveal("submit") is replacement
     hidden.action.do_action.assert_not_called()
-    replacement.action.do_action.assert_called_once_with(0)
+    replacement.action.do_action.assert_not_called()
+
+
+def test_activation_refuses_application_hidden_control_without_reveal():
+    hidden = Node("submit", states=("sensitive",))
+    ui = adapter(Node("", [hidden]))
+    with pytest.raises(AutomationError, match="hidden"):
+        ui.activate("submit")
+    hidden.component.scroll_to.assert_not_called()
+    hidden.component.grab_focus.assert_not_called()
+    hidden.action.do_action.assert_not_called()
 
 
 def test_uncertain_input_is_never_replayed():
@@ -180,7 +190,9 @@ def test_pre_action_incomplete_read_retries_without_replaying_input():
 
     ui = adapter(root, complete_read_wait=wait)
     ui.activate("parent-menu-button")
-    assert complete_reads >= 3
+    # One discarded incomplete snapshot and one complete action-boundary
+    # snapshot; ownership validation must not traverse the tree again.
+    assert complete_reads == 2
     target.action.do_action.assert_called_once_with(0)
 
 

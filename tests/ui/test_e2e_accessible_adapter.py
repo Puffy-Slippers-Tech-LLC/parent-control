@@ -151,7 +151,7 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
     assert ui.id_target('parent-access-denied-brand', root=root).get_name() == 'Oh No! Parent Control'
     assert ui.id_target('parent-access-denied-heading', root=root).get_name() == 'Administrator Required'
     if dismissal == 'close':
-        ui.activate(ui.id_target('parent-access-denied-close', root=root))
+        ui.activate_id('parent-access-denied-close')
     else:
         from tests.support.keyboard import key_combo
         assert ui.has_state(ui.id_target('parent-access-denied-window'), Atspi.StateType.ACTIVE)
@@ -246,7 +246,7 @@ def test_parent_functional_adapter_at_display_scales(
         # The allowance remains readable when the switch normally disables it.
         toggle = ui.id_target('parent-screen-limit-toggle', root=ui.parent())
         if ui.has_state(toggle, Atspi.StateType.CHECKED):
-            ui.activate(toggle)
+            ui.activate_id('parent-screen-limit-toggle')
         ui.wait(lambda: not ui.has_state(toggle, Atspi.StateType.CHECKED), 'limit-off')
         disabled = ui.settings()
         assert not disabled['limit_enabled']

@@ -125,6 +125,11 @@ GDM_NONSECRET_OPERATIONS = frozenset({
 })
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
 GDM_ACCOUNT_ROLES = frozenset({'button', 'push button'})
+GDM_DIAGNOSTIC_ROLES = frozenset({
+    'application', 'button', 'push button', 'label', 'password text',
+    'toggle button', 'radio button', 'menu item', 'radio menu item',
+    'check menu item', 'combo box',
+})
 # G03 observation only: these are provider labels, never invented public IDs.
 GDM_SESSION_LABELS = {
     'Session': 'session-chooser', 'Select Session': 'session-chooser',
@@ -448,6 +453,7 @@ class AccessibleUI:
         self.application_owners = application_owners
         self.input_uncertain = False
         self.incomplete_observations = []
+        self.gdm_row_diagnostic_emitted = False
 
     def nodes(self, root=None, *, strict=False, protected_ids=()):
         root = root if root is not None else self.api.get_desktop(0)
@@ -1479,6 +1485,80 @@ class AccessibleUI:
                                   for node in nodes), 'ui:gdm-stale-tree')
         return owner, nodes
 
+    def gdm_semantic_account_rows(self, owner, nodes, names):
+        """Resolve exact account labels to their GDM button ancestors."""
+        rows = []
+        for node in nodes:
+            if not self.showing(node) or self.gdm_semantic_name(node) not in names:
+                continue
+            candidate = node if node.get_role_name() in GDM_ACCOUNT_ROLES else None
+            if node.get_role_name() == 'label':
+                current = node.get_parent()
+                while current is not None and current != owner:
+                    if current.get_role_name() in GDM_ACCOUNT_ROLES:
+                        candidate = current
+                        break
+                    current = current.get_parent()
+            if (candidate is not None and self.showing(candidate)
+                    and candidate not in rows):
+                rows.append(candidate)
+        return rows
+
+    def gdm_semantic_row_diagnostic(self, owner):
+        """Return only fixed categories describing failed account matching."""
+        desktop = self.api.get_desktop(0)
+        all_nodes = list(self.nodes(desktop, strict=True))
+
+        def ownership(node):
+            current = node
+            visited = set()
+            while current is not None and current not in visited:
+                if current == owner:
+                    return 'provider-owner'
+                visited.add(current)
+                current = current.get_parent()
+            return 'other-owner'
+
+        def role(node):
+            observed = node.get_role_name()
+            return observed if observed in GDM_DIAGNOSTIC_ROLES else 'other'
+
+        def matches(names):
+            found = [node for node in all_nodes
+                     if self.gdm_semantic_name(node) in names]
+            provider_nodes = [node for node in all_nodes
+                              if ownership(node) == 'provider-owner']
+            roles = {}
+            visibility = {'showing': 0, 'hidden': 0}
+            owners = {'provider-owner': 0, 'other-owner': 0}
+            for node in found:
+                observed_role = role(node)
+                roles[observed_role] = roles.get(observed_role, 0) + 1
+                observed_visibility = 'showing' if self.showing(node) else 'hidden'
+                visibility[observed_visibility] += 1
+                observed_owner = ownership(node)
+                owners[observed_owner] += 1
+            return {
+                'matching_nodes': len(found),
+                'matching_rows': len(self.gdm_semantic_account_rows(
+                    owner, provider_nodes, names)),
+                'roles': {key: roles[key] for key in sorted(roles)},
+                'visibility': visibility,
+                'ownership': owners,
+            }
+
+        return {
+            'event': 'gdm-account-observation',
+            'owner': {
+                'role': role(owner),
+                'showing': self.showing(owner),
+            },
+            'matches': {
+                'ordinary': matches((PARENT,)),
+                'station': matches((KIOSK, KIOSK_USERNAME)),
+            },
+        }
+
     def gdm_semantic_rows(self):
         """Return the unique ordinary and station rows in a complete list."""
         owner, nodes = self.gdm_semantic_nodes()
@@ -1486,13 +1566,15 @@ class AccessibleUI:
         require(not any(node.get_role_name() == 'password text' for node in showing),
                 'ui:gdm-list-prompt-overlap')
 
-        def rows(names):
-            return [node for node in showing
-                    if node.get_role_name() in GDM_ACCOUNT_ROLES
-                    and self.gdm_semantic_name(node) in names]
-
-        ordinary = rows((PARENT,))
-        station = rows((KIOSK, KIOSK_USERNAME))
+        ordinary = self.gdm_semantic_account_rows(owner, showing, (PARENT,))
+        station = self.gdm_semantic_account_rows(
+            owner, showing, (KIOSK, KIOSK_USERNAME))
+        if ((len(ordinary) != 1 or len(station) != 1
+                or (ordinary and station and ordinary[0] == station[0]))
+                and not self.gdm_row_diagnostic_emitted):
+            print(json.dumps(self.gdm_semantic_row_diagnostic(owner), sort_keys=True),
+                  file=sys.stderr, flush=True)
+            self.gdm_row_diagnostic_emitted = True
         require(len(ordinary) == 1 and len(station) == 1,
                 'ui:gdm-account-cardinality')
         require(ordinary[0] != station[0], 'ui:gdm-account-cardinality')
@@ -1535,12 +1617,10 @@ class AccessibleUI:
         if self.gdm_nonsecret_has_id_route():
             self.greeter_prompt()
             return
-        _owner, nodes = self.gdm_semantic_nodes()
+        owner, nodes = self.gdm_semantic_nodes()
         showing = [node for node in nodes if self.showing(node)]
-        account_rows = [node for node in showing
-                        if node.get_role_name() in GDM_ACCOUNT_ROLES
-                        and self.gdm_semantic_name(node)
-                        in (PARENT, KIOSK, KIOSK_USERNAME)]
+        account_rows = self.gdm_semantic_account_rows(
+            owner, showing, (PARENT, KIOSK, KIOSK_USERNAME))
         require(not account_rows, 'ui:gdm-list-prompt-overlap')
         recipients = [node for node in showing
                       if node.get_role_name() == 'label'

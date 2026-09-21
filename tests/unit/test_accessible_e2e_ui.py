@@ -254,6 +254,28 @@ def test_gdm_nonsecret_adapter_focuses_unique_ordinary_and_station_rows():
     station.action.do_action.assert_not_called()
 
 
+def test_gdm_nonsecret_adapter_resolves_and_deduplicates_provider_label_descendants():
+    parent_label = Node('Jamie (Parent)', 'label')
+    parent = Node('', 'push button', children=[parent_label])
+    station_name = Node('Oh No! Parent Control', 'label')
+    station_username = Node('oh-no-parent-control', 'label')
+    hidden_station_name = Node(
+        'Oh No! Parent Control', 'label', states=('visible', 'sensitive'))
+    station = Node('', 'push button', children=[
+        station_name, station_username, hidden_station_name])
+    ui, _shell = semantic_gdm_ui(rows=[station, parent])
+
+    assert ui.run('gdm-list', '')['focused'] is True
+    assert ui.run('gdm-focused', '')['outcome'] == 'passed'
+    assert ui.run('gdm-station-list', '')['focused'] is True
+    assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
+    parent.component.grab_focus.assert_called_once_with()
+    station.component.grab_focus.assert_called_once_with()
+    for label in (parent_label, station_name, station_username, hidden_station_name):
+        label.component.grab_focus.assert_not_called()
+        label.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['wrong-owner', 'duplicate-owner', 'duplicate-parent',
                                    'duplicate-station', 'defunct'])
 def test_gdm_nonsecret_adapter_rejects_wrong_or_ambiguous_ownership(fault):
@@ -274,6 +296,54 @@ def test_gdm_nonsecret_adapter_rejects_wrong_or_ambiguous_ownership(fault):
     ui, _shell = semantic_gdm_ui(rows=rows, applications=applications)
     with pytest.raises(UiError):
         ui.run('gdm-list', '')
+    parent.component.grab_focus.assert_not_called()
+    station.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize(('fault', 'category', 'matching_nodes', 'matching_rows',
+                          'role', 'showing', 'hidden', 'provider_owner', 'other_owner'), [
+    ('missing', 'ordinary', 0, 0, None, 0, 0, 0, 0),
+    ('duplicate', 'ordinary', 2, 2, 'push button', 2, 0, 2, 0),
+    ('hidden', 'ordinary', 1, 0, 'push button', 0, 1, 1, 0),
+    ('wrong-role', 'ordinary', 1, 0, 'label', 1, 0, 1, 0),
+    ('wrong-owner', 'ordinary', 1, 0, 'push button', 1, 0, 0, 1),
+])
+def test_gdm_account_cardinality_diagnostic_is_sanitized_and_distinguishes_faults(
+        fault, category, matching_nodes, matching_rows, role, showing, hidden,
+        provider_owner, other_owner, capsys):
+    parent, station = semantic_gdm_rows()
+    rows = [parent, station]
+    applications = []
+    if fault == 'missing':
+        rows.remove(parent)
+    elif fault == 'duplicate':
+        rows.append(Node('Jamie (Parent)', 'push button'))
+    elif fault == 'hidden':
+        parent.states.remove('showing')
+    elif fault == 'wrong-role':
+        parent.role = 'label'
+    else:
+        rows.remove(parent)
+        applications.append(Node('Unrelated', 'application', children=[parent]))
+    ui, _shell = semantic_gdm_ui(rows=rows, applications=applications)
+
+    with pytest.raises(UiError, match='gdm-account-cardinality'):
+        ui.run('gdm-list', '')
+
+    lines = capsys.readouterr().err.splitlines()
+    assert len(lines) == 1
+    diagnostic = json.loads(lines[0])
+    assert diagnostic['event'] == 'gdm-account-observation'
+    assert diagnostic['owner'] == {'role': 'application', 'showing': True}
+    observed = diagnostic['matches'][category]
+    assert observed['matching_nodes'] == matching_nodes
+    assert observed['matching_rows'] == matching_rows
+    assert observed['roles'] == ({} if role is None else {role: matching_nodes})
+    assert observed['visibility'] == {'showing': showing, 'hidden': hidden}
+    assert observed['ownership'] == {
+        'provider-owner': provider_owner, 'other-owner': other_owner}
+    assert 'Jamie' not in lines[0]
+    assert 'Oh No!' not in lines[0]
     parent.component.grab_focus.assert_not_called()
     station.component.grab_focus.assert_not_called()
 

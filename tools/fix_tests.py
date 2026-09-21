@@ -21,6 +21,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from regression_session import FRAME_DIRECTORY, busy, lock
+from test_commands import suite_inventory
 
 
 DEFAULT_MODEL = 'gpt-5.6-sol'
@@ -147,7 +148,7 @@ def category_status(category, categories):
             f'({index + 1}/{len(categories)})\033[0m')
 
 
-def run_loop(categories, test, repair, check_stop):
+def run_loop(categories, test, repair, check_stop, *, selected=False):
     """No session objects or past prompts survive a repair/category iteration."""
     def finish_category(category, failure):
         while failure is not None:
@@ -159,6 +160,19 @@ def run_loop(categories, test, repair, check_stop):
     for category in categories:
         check_stop()
         finish_category(category, test(category))
+    if selected:
+        # A later repair can break an earlier leaf. Require a whole selected
+        # pass without repairs before finishing, never widening to all.
+        while True:
+            clean = True
+            for category in categories:
+                check_stop()
+                failure = test(category)
+                if failure is not None:
+                    clean = False
+                    finish_category(category, failure)
+            if clean:
+                return
     while True:
         check_stop()
         failure = test('all')
@@ -286,7 +300,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         os.close(owner)
 
 
-def worker(root, run, owner, model, effort):
+def worker(root, run, owner, model, effort, requested='[]'):
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     def cancel(*_):
@@ -347,12 +361,16 @@ def worker(root, run, owner, model, effort):
         agent_command(root, model, effort)  # Fail before running expensive tests.
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
-        inventory = category_inventory(listing.stdout)
+        requested = json.loads(requested)
+        inventory = suite_inventory(requested, inventory=category_inventory(listing.stdout))
         categories = list(inventory)
-        print('fix-tests: category pass, then complete all passes until success', flush=True)
+        print('fix-tests: category pass, then ' +
+              ('selected leaf passes' if requested else 'complete all passes') +
+              ' until success', flush=True)
         print('fix-tests: categories: ' + ', '.join(categories), flush=True)
-        run_loop(categories, test, repair, check_stop)
-        print('\nfix-tests: all categories and the complete regression passed.', flush=True)
+        run_loop(categories, test, repair, check_stop, selected=bool(requested))
+        print('\nfix-tests: ' + ('all selected categories passed.' if requested else
+              'all categories and the complete regression passed.'), flush=True)
         status = 0
     except Stopped:
         print('\nfix-tests: stopped; owned operation cleanup finished.', flush=True)
@@ -365,7 +383,7 @@ def worker(root, run, owner, model, effort):
     return status
 
 
-def select(root, *, stop=False, model=DEFAULT_MODEL, effort=DEFAULT_EFFORT):
+def select(root, *, stop=False, model=DEFAULT_MODEL, effort=DEFAULT_EFFORT, categories=()):
     directory = private_directory(root / 'artifacts/fix-tests')
     with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner:
         fcntl.flock(gate, fcntl.LOCK_EX)
@@ -385,7 +403,8 @@ def select(root, *, stop=False, model=DEFAULT_MODEL, effort=DEFAULT_EFFORT):
         atomic(directory / 'current.json', {'run': run.name})
         with (run / 'output').open('xb') as output:
             subprocess.Popen(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                              '--worker', str(root), str(run), str(owner), model, effort],
+                              '--worker', str(root), str(run), str(owner), model, effort,
+                              json.dumps(categories)],
                              cwd=root, env=environment(), stdin=subprocess.DEVNULL,
                              stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
                              pass_fds=(owner,))
@@ -448,6 +467,9 @@ def main(argv=None):
     parser.add_argument('--model', default=DEFAULT_MODEL, help='repair model (default: Sol)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
                         default=DEFAULT_EFFORT, help='reasoning effort (default: high)')
+    parser.add_argument('categories', nargs='*', metavar='CATEGORY',
+                        help='leaf categories, host (or host-builds), or all; accepts "unit ui"; '
+                             'omitting categories preserves the full regression loop')
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     run = None
@@ -461,7 +483,8 @@ def main(argv=None):
 
     previous = signal.signal(signal.SIGINT, cancel)
     try:
-        run, started = select(root, stop=requested, model=args.model, effort=args.effort)
+        run, started = select(root, stop=requested, model=args.model, effort=args.effort,
+                              categories=args.categories)
         if run is None:
             print('fix-tests: no active launcher.')
             return 0

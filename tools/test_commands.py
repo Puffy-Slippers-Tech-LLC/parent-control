@@ -56,20 +56,41 @@ HELP_ARGV = (['--help'], ['-h'])
 INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
 
 
-def suite_inventory():
+def suite_inventory(categories=(), *, inventory=None):
     """The exact, ordered granular partition consumed by all and fix-tests.
 
     Arguments are explicit: focused UI selections never acquire an implicit
     marker exclusion. Live spectator qualification needs its active E2E run.
+
+    Composite selections expand to implemented leaves in inventory order. An
+    already discovered inventory may be supplied by reconnectable consumers;
+    its explicit argument arrays remain authoritative.
     """
-    from regression_ui import HOST_ARGS
-    leaves = {kind: spec for kind, spec in CATEGORIES.items() if spec.leaf and spec.implemented}
-    order = [*(kind for kind in ('unit', 'ui') if kind in leaves),
-             *(kind for kind in leaves if kind not in ('unit', 'ui', 'system', 'e2e')),
-             *(kind for kind in ('system', 'e2e') if kind in leaves)]
-    return {kind: {'description': leaves[kind].description,
-                   'args': list(HOST_ARGS) if kind == 'ui' else []}
-            for kind in order}
+    if inventory is None:
+        from regression_ui import HOST_ARGS
+        leaves = {kind: spec for kind, spec in CATEGORIES.items() if spec.leaf and spec.implemented}
+        order = [*(kind for kind in ('unit', 'ui') if kind in leaves),
+                 *(kind for kind in leaves if kind not in ('unit', 'ui', 'system', 'e2e')),
+                 *(kind for kind in ('system', 'e2e') if kind in leaves)]
+        inventory = {kind: {'description': leaves[kind].description,
+                            'args': list(HOST_ARGS) if kind == 'ui' else []}
+                     for kind in order}
+    if not categories:
+        return inventory
+    selected = set()
+    for argument in categories:
+        for category in argument.split():
+            if category == 'all':
+                selected.update(inventory)
+            elif category in ('host', 'host-builds'):
+                selected.update(name for name in inventory if name not in ('system', 'e2e'))
+            elif category in inventory:
+                selected.add(category)
+            else:
+                raise ValueError(f'unknown or unsupported inventory category: {category}')
+    if not selected:
+        raise ValueError('no categories selected')
+    return {name: spec for name, spec in inventory.items() if name in selected}
 
 
 def execution_arguments(argv):

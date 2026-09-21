@@ -763,7 +763,7 @@ class Run:
 
     def run(self):
         from test_commands import suite_inventory
-        inventory = suite_inventory()
+        inventory = suite_inventory(('host',))
         self.inputs = source_identity(self.root)
         self.report.write('\nSource inputs SHA-256: ' + self.inputs + '\n')
         if 'host' not in self.phases:
@@ -773,7 +773,7 @@ class Run:
         suites = [(CATEGORY_NAMES[kind], kind, inventory[kind]['args']) for kind in pytest_kinds]
         suite_items = [Category(name) for name, _, _ in suites]
         fixed = [(CATEGORY_NAMES.get(kind, inventory[kind]['description']), kind) for kind in inventory
-                 if kind not in (*pytest_kinds, 'artifacts', 'system', 'e2e', 'publish')]
+                 if kind not in (*pytest_kinds, 'artifacts', 'publish')]
         fixed.append((CATEGORY_NAMES['publish'], 'publish'))
         fixed_items = [Category(name, 1) for name, _ in fixed]
         builds = [Category(name, 1) for name in ('Package build A', 'Package build B',

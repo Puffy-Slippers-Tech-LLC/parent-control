@@ -191,6 +191,20 @@ def test_unread_predecessor_result_does_not_count_as_the_requested_category(chec
     assert all(call['kind'] == 'test' for call in calls)
 
 
+@pytest.mark.parametrize('categories', [('host',), ('unit', 'ui'), ('unit ui',)])
+def test_selected_categories_stay_scoped_through_worker_and_repair(checkout, categories):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-repeat')
+    run, _ = fix_tests.select(root, categories=categories)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['category'] for call in calls if call['kind'] == 'test'] == [
+        'unit', 'unit', 'unit', 'ui', 'unit', 'ui']
+    assert len([call for call in calls if call['kind'] == 'agent']) == 2
+    assert 'all selected categories passed' in output.getvalue()
+
+
 def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-repeat')

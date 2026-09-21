@@ -79,11 +79,8 @@ def test_shared_scenario_titles_identify_each_variant(document):
             (3, 'existing-and-new', 'children: existing and new'),
             (4, 'none', 'children: none')):
         title = f'Parent discovery and navigation ({description})'
-        cells = [f'[{number}](#scenario-{number})', title,
-                 f'`E2E-003/{variant}`', 'pending']
-        row = '| ' + ' | '.join(
-            f'<span style="color: gray">{cell}</span>' for cell in cells) + ' |'
-        assert row in rendered
+        assert (f'| [{number}](#scenario-{number}) | {title} | '
+                f'`E2E-003/{variant}` | ready |') in rendered
         assert f'### Scenario {number}\n\n**{title}**' in rendered
 
 

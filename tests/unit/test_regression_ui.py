@@ -25,6 +25,20 @@ def test_partition_covers_all_cases_once_and_keeps_modules_together():
         ('tests/ui/test_child_shell_lifecycle.py',)]
 
 
+def test_established_identity_and_fixture_gui_modules_are_parallel_buckets():
+    nodes = [
+        'tests/ui/test_automation_identity.py::test_public_ids',
+        'tests/ui/test_fixture_gui.py::test_payload[native]',
+    ]
+
+    plan = buckets(nodes)
+
+    assert [(bucket.name, bucket.kind) for bucket in plan] == [
+        ('UI — Automation identity', 'ui-identity'),
+        ('UI — Fixture GUI', 'ui-fixture-gui'),
+    ]
+
+
 @pytest.mark.parametrize('nodes', [None, [], ['tests/ui/test_a.py::test_a'] * 2,
     ['tests/unit/test_a.py::test_a'], ['tests/ui/../test_a.py::test_a'],
     ['/tests/ui/test_a.py::test_a'], ['tests/ui/test_a.py']])

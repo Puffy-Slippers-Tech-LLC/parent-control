@@ -641,7 +641,18 @@ class AccessibleUI:
             require(len(matches) <= 1, 'ui:ambiguous-automation-id')
             if matches:
                 target = self.find_id(identity, nodes=nodes, showing=False)
-                require(target == matches[0], 'ui:wrong-absence-owner')
+                if target != matches[0]:
+                    # A native dialog can disappear after the complete desktop
+                    # snapshot but before its application/surface ownership is
+                    # revalidated.  That mixed observation proves neither
+                    # absence nor wrong ownership; let the caller repeat the
+                    # whole read.  A node that remains in a second complete
+                    # snapshot really is outside the required owner scope and
+                    # must still fail closed.
+                    refreshed = list(self.nodes(strict=True))
+                    if matches[0] not in refreshed:
+                        return False
+                    raise UiError('ui:wrong-absence-owner')
                 if self.showing(target):
                     return False
             return self.find_id(within) == anchor

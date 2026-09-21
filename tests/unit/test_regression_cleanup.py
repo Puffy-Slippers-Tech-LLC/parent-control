@@ -235,7 +235,7 @@ def test_real_cleanup_phase_joins_before_publishing_gate(tmp_path, monkeypatch, 
         published.append(digest)
     monkeypatch.setattr(test_activity, 'record_cleanup', publish)
     try:
-        if fault in ('none', 'cancel', 'teardown') or (
+        if fault in ('none', 'source', 'cancel', 'teardown') or (
                 not continue_on_errors and fault in ('assertion', 'missing-completion')):
             # Teardown can latch cancellation before completion processing.
             try:
@@ -245,10 +245,10 @@ def test_real_cleanup_phase_joins_before_publishing_gate(tmp_path, monkeypatch, 
         else:
             with pytest.raises(ValueError):
                 run.cleanup_jobs(safety)
-        assert published == (['a' * 64] if fault == 'none' else [])
+        assert published == (['a' * 64] if fault in ('none', 'source') else [])
         assert downstream.state == 'Pending' and downstream.started is None
         assert all(item.started is None for item in run.categories)
-        if fault == 'none':
+        if fault in ('none', 'source'):
             events = [json.loads(line) for line in (report.directory / 'schedule.jsonl').read_text().splitlines()]
             assert len([event for event in events if event['event'] == 'finish']) == HOST_WORKERS
             assert all(event['phase'] == 'cleanup' for event in events if event['event'] == 'start')

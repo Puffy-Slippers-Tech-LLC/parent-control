@@ -236,14 +236,14 @@ baseline's guest preparation. Execution dispatch must use that capture.
 
 ## Run E2E scenarios
 
-Build once after finishing source, test, needle and documentation edits:
+Build the product version you want the installed tests to exercise:
 
 ```sh
 tools/run-tests artifacts build
 ```
 
 The builder prints `run-tests: output=/tmp/onpc-test-artifacts-...`. Substitute
-that exact directory for `REPLACE` below. Keep the checkout unchanged during runs.
+that exact directory for `REPLACE` below. Checkout edits are allowed during runs.
 
 ```sh
 # All currently implemented E2E variants:
@@ -377,14 +377,13 @@ activation is `none` (next invocation); no setup or product data change is neede
 Before a scenario recorder exists, the invocation retains reviewed, fixed
 provenance refusal codes through cleanup. Unknown exception text stays private
 and produces `execution:attempt-failed`; a later cleanup failure cannot replace
-the first refusal. A source-change refusal requires an unchanged checkout for
-the next complete attempt, including preparation and terminal collection.
+the first refusal. Checkout edits do not invalidate an attempt.
 Before lease acquisition, the controller fsyncs a private
 `input/selected-inputs.json` containing the source preflight identity, inventory
 identity and exact case. The shared SSH bootstrap binds its guest observation
 marker to that document's digest. This preparation input is required even for
 a product-free case; `VerifiedInputs` still independently verifies the full
-source/package/baseline contract under the lease.
+staged-package/baseline contract under the lease.
 
 The shared bootstrap now requires the
 [schema-2 prepared guest tools](../integration/Environment.md), with an
@@ -458,11 +457,12 @@ and connects evidence across all layers.
 
 The guarded controller constructs `EvidenceContract` before executing a selection,
 with a fresh `run_id`, the inventory path, selector and independently verified
-input identities. Construction refuses pending cases and stale inventory bytes.
+input identities. Construction refuses pending cases and uses the controller's
+already-resolved plan when supplied; later inventory edits do not replace it.
 The contract freezes the plan and inputs; it never obtains expected provenance
 from worker results. The source identity covers requirement mappings, test code
 and uncommitted changes through `provenance.VerifiedInputs`. The execution
-controller must use its preservation gate after execution. A null package digest is allowed
+controller must check staged artifacts and baseline after execution. A null package digest is allowed
 only when every selected case is a product-free runner smoke.
 
 `validate(records, collector)` accepts one record per selected case in selection
@@ -490,7 +490,8 @@ removing or replacing the first failure. Product, infrastructure, collection
 and cleanup remain independent outcomes. Any nonpassing outcome or step/assertion,
 recorded failure, or incomplete cleanup refuses acceptance. Cleanup requires
 `lease_phase=complete` plus true `owned_processes_stopped`, `vm_off`,
-`baseline_restored`, `host_preserved` and `source_preserved` fields.
+`baseline_restored`, `host_preserved` and `source_preserved` fields. The last field
+records that the runner preserved the checkout; it does not prohibit concurrent edits.
 
 `PrivateCollector(run_id=..., secrets=[...])` creates a new private
 `/tmp/onpc-e2e-evidence-*` directory. Keep it open through validation. Register
@@ -529,30 +530,31 @@ staging, since `copytree` retains the builder directory's permissions. Omit
 assets only for a product-free smoke. This API has no lifecycle operations and
 must retain the existing held lease through its final check.
 
-`inputs` returns copied expected identities; `source_files` supplies the earlier
-digest map required by `e2e_worker.run_distribution`. Source enumeration uses
-Git's tracked and nonignored untracked paths, hashes current bytes and modes in
-the artifact builder's format, and detects edits, additions, removals and file
-replacement. Tracked deletions already present before a fresh build are omitted,
-matching the builder; deletion or reappearance during an attempt refuses.
+`inputs` returns copied expected identities; `source_files` supplies initial
+source provenance for worker diagnostics. Source enumeration uses Git's tracked
+and nonignored untracked paths and hashes current bytes and modes in the artifact
+builder's format. Tracked deletions are omitted, matching the builder. Source
+identity is informational: later edits, additions, removals, mode changes and
+replacements do not invalidate the attempt. The selected acceptance plan remains
+the one resolved before execution even if the inventory file changes.
 Root controller reads scope Git's `safe.directory` to this invocation's
 trusted checkout, without changing global configuration. Ignored build outputs
 are excluded. The capture rejects symlinks,
 hardlinks and special input files, pins parent directory opens and checks file
 identity around each read. Source capture records identities; it does not copy
-the checkout. The worker still stages verified distribution bytes separately.
+the checkout. Callbacks load current trusted checkout bytes. The worker stages
+current validated distribution bytes separately and guards that private copy
+throughout execution.
 
 The [source-selection contract](../integration/README.md#package-and-fixture-inputs)
 defines the shared exact-path exception for supervisor-owned operator output.
 Both collectors exclude it before filesystem inspection; synthetic Git tests
-prove no reads/copies, matching digests and continued source-change refusal.
-Other documentation remains an input. This local qualification does not supply
-an owned stable-input window or change any held-lease recheck or failure latch.
-Existing manifests retain their original identities; fresh artifacts are required.
+prove no reads/copies and matching digests. Other documentation remains part of
+initial source provenance, without a mid-run preservation requirement.
 
 Staged package bytes and fixture manifests use the existing artifact verifier;
 fixture payload bytes also use the fixture verifier. The package manifest's
-source digest must match this checkout's current content identity. The exact
+source digest identifies the build's inputs, independently of later checkout edits. The exact
 staged tree, including the Flatpak delivery container, is hashed and rechecked.
 Baseline identity is independently derived from the held lease's durable state,
 retained snapshot proof and verified guest preparation. `environment_id` is a
@@ -563,8 +565,9 @@ records and exception text are never exported.
 Use `contract(run_id=..., selector=...)` to create the expected evidence contract,
 `recheck()` immediately before startup, and `validate(contract, records,
 collector)` after outer cleanup but before releasing the lease. Validation
-checks inputs before and after the existing evidence gate and rejects contracts
-created elsewhere. Any observed input failure is latched: restoring bytes or a
+checks staged artifacts and baseline before and after the existing evidence gate
+and rejects contracts created elsewhere. Any observed integrity failure is
+latched: restoring artifact bytes or a
 later successful worker result cannot clear it. The controller persists
 failure with its other attempt outcomes. Checks detect changes at these
 boundaries; they are not a filesystem monitor.
@@ -572,7 +575,7 @@ boundaries; they are not a filesystem monitor.
 ### Backing-file verification within an attempt
 
 `make test-all` selects development mode: backing-byte scans are skipped, while
-ownership, read leases, snapshot metadata, source/assets and cleanup checks stay
+ownership, read leases, snapshot metadata, staged assets and cleanup checks stay
 active. It records `metadata-only` in verification evidence and never creates a
 verified-byte proof. `make test-all-verify` and default direct system/E2E runs
 retain the full verification behavior described below.
@@ -581,7 +584,7 @@ The normal installed/graphical `Lease` now uses
 [BackingVerification](../integration/backing_verification.py) for `chain[1:]`.
 The writable top image remains outside this byte proof: guest writes are expected,
 while its retained internal-snapshot metadata is checked at every existing gate.
-No validation calls, source/asset checks, durable-state reads, authorization
+No validation calls, staged-asset checks, durable-state reads, authorization
 boundaries or checks around acceptance-report writes have been removed.
 
 Before the first full SHA-256 read, the controller opens each backing file through
@@ -706,15 +709,11 @@ Refresh the installed dispatcher through `./setup.sh --test-tools-only` when
 adding this option. Test-tool activation is `none` (next invocation), with no
 product schema or package activation change.
 
-Before acquiring a lease or connecting to libvirt, `preflight_source` compares
-the staged artifact's source digest with the current checkout and checks for
-changes during that comparison. Stale or unreadable inputs produce a private
-terminal diagnostic and refuse without VM preparation. This early check does
-not replace `VerifiedInputs` or any held-lease preservation check. Keep the
-checkout unchanged from artifact building through finalization; edits after
-preflight still invalidate the attempt. Intentional tracked-file deletions
-before a fresh build are represented in current inputs by the builder and
-provenance scanner; deletions or reappearances during an attempt still refuse.
+Before acquiring a lease or connecting to libvirt, `preflight_source` records
+checkout provenance and verifies the supplied artifact manifest and payloads.
+It accepts artifacts built before later checkout edits. Unreadable or invalid
+artifacts still refuse without VM preparation. Held-lease checks preserve the
+private staged artifacts and baseline; they do not rescan checkout files.
 
 The controller freezes artifacts with `stage_assets`, makes the staging root
 0700, and binds it to `VerifiedInputs`. `AssetTransfer.provision` accepts only
@@ -904,7 +903,9 @@ same-filesystem timestamp barrier. Python wall-clock comparison was found to
 race filesystem timestamp granularity; the barrier avoids that false refusal.
 Only a new regular caller-owned image in the pinned result directory, with
 stable identity/content metadata and matching reviewed pixels, can advance. Earlier or renamed
-images, links, directory replacement and changed source/boot/recipient refuse.
+images, links, directory replacement and changed boot/recipient refuse. The
+reference pixels are captured when authentication starts and remain fixed for
+that attempt despite later checkout edits.
 
 `run_distribution` supplies the trusted `guarded_observe` hook with a guard
 bound to its owned `Worker`, held lease and staged distribution bytes. `Smoke`
@@ -960,7 +961,7 @@ its atime diagnosis without retroactively claiming a live field measurement.
 `Authentication._pixels` now reuses `provenance.identity` for both descriptor and
 path, adding explicit UID/GID stability. Device/inode, mode, links, size and
 nanosecond mtime/ctime remain invariant; read-driven atime is excluded. All
-initial freshness, directory, reference/pixel, worker, source, boot and recipient
+initial freshness, directory, reference/pixel, worker, staged-asset, boot and recipient
 gates remain. A changed stable field retains its fixed descriptor/path predicate.
 [Controller regressions](../unit/test_e2e_vt6_controller.py) cover the installed
 writer with a 1.05-second first-read delay, every stable field on both views,
@@ -969,7 +970,7 @@ single-use refusal and publication ordering. The
 fixed-code checkpoints and reject private or malformed diagnostics.
 Attempts 9/10 below pass the corrected capture stage, and attempt 10 completes
 the authenticated command stage. Attempt 11 below also passes normal worker
-shutdown; complete qualification still requires final source preservation.
+shutdown; complete qualification still requires final artifact and baseline checks.
 Sudo/notice pixels remain unqualified; no new prompt collection is needed for
 the corrected worker deadline.
 
@@ -1078,15 +1079,15 @@ it requires no installed-helper refresh or product data migration.
 
 The controller stages and verifies artifacts before VM acquisition, prepares
 the existing lease and observation bootstrap, then captures `VerifiedInputs`.
-The inventory digest and exact case declaration must still match preflight.
+The inventory digest and exact case declaration come from the resolved preflight plan.
 It registers fixture secrets before any reports, including preparation reports.
 Failures before a recorder exists retain invocation diagnostics and use only
 the entered lease's restoration/release. No synthetic scenario actions are
 invented for failed preparation.
 
 A ready Python module defines `E2E_CASES = {'<test_id>': callback}`. The loader
-checks its bytes against the frozen source map before executing them and
-rechecks provenance before calling `callback(recorder, context)`. Module code
+loads current bytes from the selected safe path and rechecks artifact/baseline
+integrity before calling `callback(recorder, context)`. Module code
 is trusted checkout code; it is not a guest-supplied script or a CLI command.
 The callback return value never supplies acceptance. Record actual ordered
 actions, reviewed artifacts and assertions through the recorder. Use
@@ -1108,10 +1109,11 @@ worker integration evidence, not an executed E2E-001 variant. The distribution's
 Perl sources still live in `tests/integration/graphical_smoke`; this extraction
 does not replace its feasibility geometry with the graphical runner's stable matching.
 
-The outer controller supplies its previously recorded source digest map. The
-worker freezes distribution bytes, rejects changed/extra/missing inputs and
-unsafe source entries, and writes only those verified bytes into a fresh private
-distribution directory. Its fixed generalhw variables and command expose no
+The outer controller supplies its initial source map for diagnostics. The worker
+validates current distribution bytes, rejects unsafe source entries and writes
+those bytes into a fresh private distribution directory. Input guards use that
+staged copy's digest map, independently of later checkout edits. Its fixed
+generalhw variables and command expose no
 caller-selected backend, schedule, checkpoint, guest command or password input.
 `Adapter` must validate the prepared lease before callbacks or worker creation,
 and revalidates its identity on every poll, including worker completion. The
@@ -1236,7 +1238,7 @@ Distribution staging now accepts strictly paired PNG/JSON needles under
 `needles/onpc-<surface>-<role>-{account,masked-password}.*`, with matching tags, bounded
 dimensions/rectangles and 99–100% match thresholds. Both files enter the same
 source digest map and frozen copy as Perl sources. Missing pairs, extra fields,
-generic tags, links and changed bytes refuse before backend startup. Structural
+generic tags and links refuse before backend startup. Structural
 validation does not establish visual meaning. Reviewed GDM parent/other-parent
 account labels and the parent password prompt now have live evidence at 100%.
 The password needle jointly matches the fixture identity, empty field/visibility
@@ -1488,7 +1490,7 @@ before/after outer cleanup. A stage observation must be durable before its
 reply permits the next guest action. Screens are represented only by dimensions
 and digests; raw captures remain private and unapproved for export.
 
-Finalization checks source/baseline and host preservation while the completed
+Finalization checks staged artifacts/baseline and host preservation while the completed
 lease is held, writes the diagnostic report, verifies its private copies and
 rechecks provenance before release. A `finalization-rejected` event is terminal,
 including after an earlier candidate pass. The final `result.json` also accounts

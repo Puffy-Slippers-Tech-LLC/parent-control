@@ -44,16 +44,21 @@ GROUPS = (
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
     ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
     ('Test spectators', ('test_e2e_watch.py', 'test_ui_watch.py'), 6),
+    ('Automation identity', ('test_automation_identity.py',), 12),
+    ('Fixture GUI', ('test_fixture_gui.py',), 30),
 )
 
 # The adapter's Shell search has its own artifact/runtime root and outer
 # hermetic compositor; it does not publish Nested Shell's stable latest paths.
 # The spectator fixture uses process-local memfds and per-test output. Its live
 # checks only read a running E2E feed and are excluded from host aggregates.
+# Automation identity uses the standard private preview session. Fixture GUI
+# builds its payload and Flatpak installation below its private pytest root;
+# both use the worker's private compositor, accessibility bus and runtime.
 # Keep pairing identities separate even when buckets have the same reservation.
 # A qualified build companion must never implicitly authorize other UI fixtures.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
-         'ui-accessible', 'ui-watch')
+         'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')
 
 
 @dataclass(frozen=True)

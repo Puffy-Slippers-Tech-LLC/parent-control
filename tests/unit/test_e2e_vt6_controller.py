@@ -55,6 +55,19 @@ def advance(gate, count):
     return results
 
 
+def test_checkout_reference_edits_do_not_change_an_active_authentication(gate, tmp_path):
+    auth, guard, source, _ = gate
+    reference = tmp_path / 'checkout' / REFERENCE
+    reference.parent.mkdir(parents=True)
+    reference.write_bytes(source.read_bytes())
+    auth.verified.root = tmp_path / 'checkout'
+    advance(gate, 2)
+    reference.write_bytes(b'edited reference')
+    (auth.directory / 'testresults/smoke-9.png').write_bytes(source.read_bytes())
+    result = auth.observe('vt6-password-screen', 'smoke-9.png', guard)
+    assert result['vt6_password_input_authorized'] is True
+
+
 def test_controller_supplies_exact_worker_receipts_only_after_fresh_proofs(gate):
     auth, guard, _, _ = gate
     results = advance(gate, 5)
@@ -180,7 +193,7 @@ def test_password_diagnostics_bracket_cost_without_authorizing_or_hiding_failure
 
 
 @pytest.mark.parametrize('fault', ['existing', 'old-time', 'symlink', 'hardlink',
-    'wrong-pixels', 'reference', 'name', 'wrong-stage', 'late-boot', 'recipient',
+    'wrong-pixels', 'name', 'wrong-stage', 'late-boot', 'recipient',
     'before-worker', 'after-worker', 'before-inputs', 'after-inputs', 'directory-link',
     'directory-replaced', 'renamed-old-image'])
 def test_authorization_refuses_stale_capture_and_late_proof_loss(gate, fault):
@@ -202,8 +215,6 @@ def test_authorization_refuses_stale_capture_and_late_proof_loss(gate, fault):
         os.link(path, auth.directory / 'testresults/link.png')
     elif fault == 'wrong-pixels':
         path.write_bytes(b'bad image')
-    elif fault == 'reference':
-        auth.verified.source_files[REFERENCE] = 'b' * 64
     elif fault in ('directory-link', 'directory-replaced'):
         directory = auth.directory / 'testresults'
         directory.rename(auth.directory / 'old-results')

@@ -26,7 +26,7 @@ class Capacity:
 def test_host_work_fills_four_branches_despite_background_io(io_pressure, cleanup):
     nodes = [f'tests/ui/{name}::test_case' for name in (
         'test_request_layout.py', 'test_parent_feedback.py',
-        'test_e2e_accessible_adapter.py', 'test_e2e_watch.py')]
+        'test_automation_identity.py', 'test_fixture_gui.py')]
     plan = buckets(nodes)
     kinds = ['cleanup'] * 4 if cleanup else [bucket.kind for bucket in plan]
     release = threading.Event()

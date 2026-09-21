@@ -150,11 +150,24 @@ def test_parallel_cleanup_coordinator_joins_and_restores_activity(tmp_path, monk
     assert lines[2:] == ['final cleanup output']
 
 
-@pytest.mark.parametrize('payload', [b'not-a-digest', b'a' * 65, b'\xff' * 64, b'b' * 64])
-def test_cleanup_gate_refuses_invalid_or_changed_source(tmp_path, monkeypatch, payload):
+@pytest.mark.parametrize('payload', [b'not-a-digest', b'a' * 65, b'\xff' * 64])
+def test_cleanup_gate_refuses_invalid_record(tmp_path, monkeypatch, payload):
     monkeypatch.setattr(regression_inputs, 'identity', lambda root: 'a' * 64)
     with test_activity.activity(tmp_path / 'checkout'):
         descriptor, = test_activity.descriptors()
         os.pwrite(descriptor, payload, 0)
-        with pytest.raises(ValueError, match='no longer match'):
+        with pytest.raises(ValueError, match='invalid aggregate cleanup'):
             test_activity.cleanup_verified(tmp_path / 'checkout')
+
+
+def test_cleanup_gate_survives_checkout_edits_without_rescanning(tmp_path, monkeypatch):
+    monkeypatch.setattr(regression_inputs, 'identity', lambda _: pytest.fail('must not rescan'))
+    root = tmp_path / 'checkout'
+    with test_activity.activity(root):
+        target = root / 'test.py'
+        target.write_text('before')
+        test_activity.record_cleanup('a' * 64)
+        target.write_text('after')
+        assert test_activity.cleanup_verified(root)
+        assert child(tmp_path, os.environ | test_activity.environment(),
+                     test_activity.descriptors(), cleanup=True).stdout.strip() == 'True'

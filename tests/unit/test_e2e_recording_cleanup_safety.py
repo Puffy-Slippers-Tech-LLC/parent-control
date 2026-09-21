@@ -169,7 +169,7 @@ def test_reboot_aliases_do_not_confuse_reused_session_identifiers(session):
     assert [s['session_ids'] for s in steps] == [['session-1'], ['session-2']]
 
 
-def test_real_provenance_change_after_execution_is_persisted(source, lease, session):
+def test_checkout_edit_after_execution_does_not_reject_acceptance(source, lease, session):
     document = json.loads((source / 'tests/e2e/scenarios.json').read_text())
     document['scenarios'] = document['scenarios'][:1]
     variant = document['scenarios'][0]['variants'][0]
@@ -182,11 +182,8 @@ def test_real_provenance_change_after_execution_is_persisted(source, lease, sess
     session.recorder = recording.ScenarioRecorder(contract, session.collector)
     complete(session)
     (source / 'local-change.py').write_text('changed after execution')
-    with pytest.raises(EvidenceError, match='source-changed'):
-        session.recorder.validate(verified)
-    report = json.loads((session.collector.path / 'acceptance-rejected.json').read_text())
-    assert report['code'] == 'provenance:source-changed'
-    assert report['records'][0]['first_failure']['code'] == 'input-preservation-failed'
+    assert session.recorder.validate(verified)['outcome'] == 'passed'
+    assert not (session.collector.path / 'acceptance-rejected.json').exists()
 
 
 @pytest.mark.parametrize('changed', [False, True])

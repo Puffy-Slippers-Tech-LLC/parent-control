@@ -102,7 +102,7 @@ class SelectedRun(Run):
 
     def run(self):
         self.inputs = source_identity(self.root)
-        self.report.write('\nSource inputs SHA-256: ' + self.inputs + '\n')
+        self.report.write('\nInitial source inputs SHA-256 (informational): ' + self.inputs + '\n')
         # Categories stay ordered; unit/UI use the same buckets as host.
         # Keep a stable work list while collected inventories expand into jobs.
         host_elapsed = 0.0

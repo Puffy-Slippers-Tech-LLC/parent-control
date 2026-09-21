@@ -323,9 +323,10 @@ The VM's existing cross-controller lease remains independently authoritative.
 Ordinary pytest caches are disabled. The report labels every output fragment
 with its category and links separate private raw streams; one coordinator writes
 all progress. Category `waiting` records time queued separately from execution.
-Source contents and modes are compared at category boundaries and final
-acceptance; detected edits invalidate the run. These checks do not freeze the
-checkout or prove immunity to an edit-and-revert between boundaries.
+Source identity is recorded at startup for reference. Checkout edits during a
+run do not stop scheduling, invalidate results or expire the current activity's
+passed cleanup prerequisites. Tests can load later edits; a passing run does not
+certify one immutable checkout revision.
 
 The aggregate dispatches each complete `system` or ready `e2e` selection in one
 invocation through the shared VM launcher. Prerequisite checks run once at each

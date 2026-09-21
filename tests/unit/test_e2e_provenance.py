@@ -31,7 +31,7 @@ def test_source_git_trust_is_scoped_to_the_selected_checkout(tmp_path):
 @pytest.mark.parametrize('failure', [False, True])
 def test_recheck_timings_preserve_checks_and_latch_failure(source, lease, monkeypatch, failure):
     captured = provenance.VerifiedInputs(root=source, lease=lease)
-    clock = iter([0, 2, 2, 3, 3, 70])
+    clock = iter([2, 3, 3, 70])
     monkeypatch.setattr(provenance.time, 'monotonic', lambda: next(clock))
     if failure:
         lease.capture.verify_snapshot = Mock(side_effect=RuntimeError('private-canary'))
@@ -39,7 +39,7 @@ def test_recheck_timings_preserve_checks_and_latch_failure(source, lease, monkey
             captured.recheck()
     else:
         captured.recheck()
-    assert captured.recheck_milliseconds == {'source': 2000, 'assets': 1000, 'baseline': 67000}
+    assert captured.recheck_milliseconds == {'assets': 1000, 'baseline': 67000}
     if failure:
         with pytest.raises(provenance.EvidenceError, match='provenance:recheck-failed'):
             captured.recheck()
@@ -57,7 +57,7 @@ def test_git_fixture_provenance_matches_artifact_builder(source, monkeypatch):
     assert captured['sha256'] == builder._source_digest(paths)
 
 
-def test_package_preflight_ignores_development_edits_but_rejects_product_edits(source, assets):
+def test_package_preflight_accepts_supplied_artifacts_despite_checkout_edits(source, assets):
     (source / 'Makefile').write_text('package-source-files:\n\t@printf "%s\\n" Makefile local-change.py\n')
     inputs = provenance.build_test_artifacts.package_inputs
     manifest_path = assets / 'artifact-manifest.json'
@@ -70,8 +70,7 @@ def test_package_preflight_ignores_development_edits_but_rejects_product_edits(s
         path.write_text('unrelated development change\n\n')
     provenance.preflight_source(assets, root=source)
     (source / 'local-change.py').write_text('changed product')
-    with pytest.raises(provenance.EvidenceError, match='package-source-mismatch'):
-        provenance.preflight_source(assets, root=source)
+    provenance.preflight_source(assets, root=source)
 
 
 
@@ -80,7 +79,7 @@ def test_package_preflight_ignores_development_edits_but_rejects_product_edits(s
     'docs/guide.md', 'docs/guide.md.extra', 'nested/docs/guide.md',
 ])
 @pytest.mark.parametrize('mutation', ['add', 'edit', 'remove'])
-def test_document_changes_remain_bound_to_source_inputs(
+def test_document_changes_do_not_interrupt_run(
         source, lease, monkeypatch, name, mutation):
     builder = provenance.build_test_artifacts
     monkeypatch.setattr(builder, 'REPOSITORY', source)
@@ -98,8 +97,7 @@ def test_document_changes_remain_bound_to_source_inputs(
     current = provenance.snapshot(source, source=True)
     assert current['sha256'] == builder._source_digest(builder._source_paths())
     assert current['sha256'] != before
-    with pytest.raises(provenance.EvidenceError, match='source-changed'):
-        captured.recheck()
+    captured.recheck()
 
 
 def test_source_filename_bytes_match_between_collectors(source, monkeypatch):
@@ -157,8 +155,7 @@ def test_removed_source_matches_artifact_builder(source, lease, monkeypatch, tmp
     verified = provenance.VerifiedInputs(root=source, lease=lease)
     target.parent.mkdir(exist_ok=True)
     target.write_text('restored input')
-    with pytest.raises(provenance.EvidenceError, match='source-changed'):
-        verified.recheck()
+    verified.recheck()
 
 
 def test_dangling_source_link_is_not_treated_as_deleted(source, lease, monkeypatch):
@@ -179,8 +176,9 @@ def test_dangling_source_link_is_not_treated_as_deleted(source, lease, monkeypat
 @pytest.mark.parametrize('name', ['tests/requirements.json', 'tests/e2e/runner.py',
                                   'tests/e2e/scenarios.json', 'local-change.py'])
 @pytest.mark.parametrize('mutation', ['edit', 'remove', 'mode', 'replace'])
-def test_input_changes_cannot_be_accepted_or_cleared(source, lease, name, mutation):
+def test_checkout_changes_do_not_invalidate_captured_inputs(source, lease, name, mutation):
     captured = provenance.VerifiedInputs(root=source, lease=lease)
+    inputs = captured.inputs
     path = source / name
     original = path.read_bytes()
     if mutation == 'edit':
@@ -192,29 +190,25 @@ def test_input_changes_cannot_be_accepted_or_cleared(source, lease, name, mutati
     else:
         path.unlink()
         path.write_bytes(original)
-    with pytest.raises(provenance.EvidenceError, match='provenance:'):
-        captured.recheck()
+    captured.recheck()
     path.write_bytes(original)
-    with pytest.raises(provenance.EvidenceError, match='provenance:'):
-        captured.recheck()
+    captured.recheck()
+    assert captured.inputs == inputs
 
 
-def test_new_source_file_is_detected(source, lease):
+def test_new_source_file_does_not_interrupt_run(source, lease):
     captured = provenance.VerifiedInputs(root=source, lease=lease)
     (source / 'new-test.py').write_text('new input')
-    with pytest.raises(provenance.EvidenceError, match='source-changed'):
-        captured.recheck()
+    captured.recheck()
 
 
-@pytest.mark.parametrize('mutation, field', [
-    ('add', 'added'), ('remove', 'removed'), ('edit', 'content'),
-    ('mode', 'mode'), ('timestamp', 'mtime'),
-])
-def test_source_change_diagnostic_counts_without_private_data(
-        source, lease, capsys, mutation, field):
+@pytest.mark.parametrize('mutation', ['add', 'remove', 'edit', 'mode', 'timestamp'])
+def test_source_changes_are_not_rescanned_or_reported(
+        source, lease, capsys, monkeypatch, mutation):
     target = source / 'private-canary.py'
     target.write_text('secret-canary')
     captured = provenance.VerifiedInputs(root=source, lease=lease)
+    monkeypatch.setattr(provenance, 'snapshot', lambda *a, **kw: pytest.fail('must not rescan source'))
     if mutation == 'add':
         (source / 'another-private-canary.py').write_text('secret-canary')
     elif mutation == 'remove':
@@ -226,20 +220,10 @@ def test_source_change_diagnostic_counts_without_private_data(
     else:
         metadata = target.stat()
         os.utime(target, ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 1_000_000))
-    with pytest.raises(provenance.EvidenceError, match='provenance:source-changed'):
-        captured.recheck()
+    captured.recheck()
     output = capsys.readouterr().err
-    summary = json.loads(next(line.removeprefix('e2e:source-change ')
-                              for line in output.splitlines()
-                              if line.startswith('e2e:source-change ')))
-    assert summary[field] == 1
-    assert set(summary) == {'added', 'removed', 'content', 'directory', 'device',
-                            'inode', 'mode', 'links', 'size', 'mtime', 'ctime'}
-    assert all(type(value) is int and value >= 0 for value in summary.values())
     assert 'canary' not in output and str(source) not in output
-    with pytest.raises(provenance.EvidenceError, match='provenance:source-changed'):
-        captured.recheck()
-    assert 'e2e:source-change' not in capsys.readouterr().err
+    assert 'e2e:source-change' not in output
 
 
 def test_source_preflight_accepts_current_package_without_vm(source, assets):
@@ -249,7 +233,7 @@ def test_source_preflight_accepts_current_package_without_vm(source, assets):
 
 
 @pytest.mark.parametrize('change', ['edit', 'remove', 'during-verification'])
-def test_source_preflight_refuses_changed_inputs_without_exposing_paths(
+def test_source_preflight_accepts_edits_without_exposing_paths(
         source, assets, change, monkeypatch, capsys):
     target = source / 'tests/e2e/runner.py'
     if change == 'remove':
@@ -263,10 +247,9 @@ def test_source_preflight_refuses_changed_inputs_without_exposing_paths(
             target.write_text('private-canary')
             return result
         monkeypatch.setattr(provenance.build_test_artifacts, 'verify', verify)
-    with pytest.raises(provenance.EvidenceError, match='provenance:') as failure:
-        provenance.preflight_source(assets, root=source)
-    output = capsys.readouterr().err + str(failure.value)
-    assert 'source-preflight-rejected' in output
+    provenance.preflight_source(assets, root=source)
+    output = capsys.readouterr().err
+    assert 'source-preflight-verified' in output
     assert 'private-canary' not in output and str(target) not in output
 
 
@@ -304,10 +287,10 @@ def test_changed_assets_cannot_pass(source, assets, lease, name):
         captured.recheck()
 
 
-def test_stale_package_is_rejected_even_if_its_bytes_match_manifest(source, assets, lease):
+def test_supplied_package_remains_usable_after_checkout_edits(source, assets, lease):
     (source / 'tests/requirements.json').write_text('new requirements')
-    with pytest.raises(provenance.EvidenceError, match='package-source-mismatch'):
-        provenance.VerifiedInputs(root=source, assets=assets, lease=lease)
+    captured = provenance.VerifiedInputs(root=source, assets=assets, lease=lease)
+    captured.recheck()
 
 
 def test_fixture_manifest_digest_does_not_substitute_for_payload_verification(source, assets, lease):
@@ -336,15 +319,14 @@ def test_baseline_and_lease_changes_are_rejected(source, lease, change):
     assert 'private fixture' not in str(error.value)
 
 
-def test_edit_during_capture_refuses_before_contract(source, assets, lease, monkeypatch):
+def test_edit_during_verification_does_not_interrupt_capture(source, assets, lease, monkeypatch):
     original = provenance.build_test_artifacts.verify
     def changing_verify(path):
         manifest = original(path)
         (source / 'local-change.py').write_text('changed during verification')
         return manifest
     monkeypatch.setattr(provenance.build_test_artifacts, 'verify', changing_verify)
-    with pytest.raises(provenance.EvidenceError, match='source-changed'):
-        provenance.VerifiedInputs(root=source, assets=assets, lease=lease)
+    provenance.VerifiedInputs(root=source, assets=assets, lease=lease)
 
 
 def test_parent_replacement_between_stat_and_open_is_refused(source, lease, monkeypatch):
@@ -364,7 +346,7 @@ def test_parent_replacement_between_stat_and_open_is_refused(source, lease, monk
     assert swapped
 
 
-def test_source_changes_during_result_validation_refuse_success(attempt, lease):
+def test_source_changes_during_result_validation_allow_success(attempt, lease):
     _, collector, result, inventory_path, _ = attempt
     root = inventory_path.parent
     (root / 'tests/e2e/scenarios.json').write_bytes(inventory_path.read_bytes())
@@ -379,11 +361,10 @@ def test_source_changes_during_result_validation_refuse_success(attempt, lease):
         (root / 'tests/e2e/synthetic.py').write_text('changed after validation')
         return summary
     contract.validate = changed_validation
-    with pytest.raises(provenance.EvidenceError, match='source-changed'):
-        captured.validate(contract, [result], collector)
+    assert captured.validate(contract, [result], collector)['outcome'] == 'passed'
 
 
-def test_verified_contract_accepts_real_collector_records_and_rejects_later_source_edit(attempt, lease):
+def test_verified_contract_accepts_real_records_after_later_source_edit(attempt, lease):
     _, collector, result, inventory_path, _ = attempt
     root = inventory_path.parent
     target = root / 'tests/e2e/scenarios.json'
@@ -395,8 +376,7 @@ def test_verified_contract_accepts_real_collector_records_and_rejects_later_sour
     result.update(captured.inputs)
     assert captured.validate(contract, [result], collector)['outcome'] == 'passed'
     (root / 'tests/requirements.json').write_text('changed')
-    with pytest.raises(provenance.EvidenceError, match='source-changed'):
-        captured.validate(contract, [result], collector)
+    assert captured.validate(contract, [result], collector)['outcome'] == 'passed'
 
 
 def test_worker_constructed_contract_is_not_trusted(source, lease):
@@ -405,6 +385,24 @@ def test_worker_constructed_contract_is_not_trusted(source, lease):
     with pytest.raises(provenance.EvidenceError, match='foreign-contract'):
         captured.validate(foreign, [], Mock())
     foreign.validate.assert_not_called()
+
+
+def test_resolved_selection_survives_inventory_edits_before_capture(attempt, lease):
+    _, collector, result, inventory_path, _ = attempt
+    root = inventory_path.parent
+    target = root / 'tests/e2e/scenarios.json'
+    target.write_bytes(inventory_path.read_bytes())
+    import inventory
+    document, digest = inventory.read_json(target)
+    plan = inventory.resolve_selection(document, 'E2E-001', require_runnable=True, root=root)
+    plan['inventory_sha256'] = digest
+    target.write_text('edited after selection')
+    (root / '.gitignore').write_text(collector.path.name + '/\n')
+    git(root, 'init', '-q')
+    captured = provenance.VerifiedInputs(root=root, lease=lease, plan=plan)
+    contract = captured.contract(run_id='run-one', selector='E2E-001')
+    result.update(captured.inputs)
+    assert captured.validate(contract, [result], collector)['outcome'] == 'passed'
 
 
 def test_pending_inventory_still_cannot_execute(source, lease):

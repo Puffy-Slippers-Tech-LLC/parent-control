@@ -189,13 +189,16 @@ def test_backend_poll_failure_still_closes_worker_and_callback(tmp_path, worker_
     server.close.assert_called_once()
 
 
-@pytest.mark.parametrize('fault', [None, 'worker-exit', 'not-ready', 'backend-exit', 'distribution'])
+@pytest.mark.parametrize('fault', [None, 'earlier-source', 'worker-exit', 'not-ready', 'backend-exit', 'distribution'])
 def test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans(tmp_path, fault, worker_evidence):
     lease = Mock(state={'run': 'a' * 32})
     worker, server = Mock(ready=True, result=None), Mock(path=tmp_path / 'callback.sock')
     worker.poll.return_value = None
     adapter = Mock(events=[])
     tmp_path.chmod(0o700)
+    inputs = smoke.inputs()
+    if fault == 'earlier-source':
+        inputs = {key: '0' * 64 for key in inputs}
     verified = []
     def observe(guard):
         if fault == 'worker-exit':
@@ -214,9 +217,9 @@ def test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans(tmp_pa
             patch.object(smoke.e2e_worker, 'Worker', return_value=worker):
         with pytest.raises(RuntimeError):
             smoke.e2e_worker.run_distribution(tmp_path, lease, smoke.runner.RunLedger(),
-                expected_inputs=smoke.inputs(), observe=Mock(), validate=Mock(),
+                expected_inputs=inputs, observe=Mock(), validate=Mock(),
                 guarded_observe=observe)
-    assert verified == ([] if fault else [True])
+    assert verified == ([True] if fault in (None, 'earlier-source') else [])
     worker.close.assert_called_once()
     server.close.assert_called_once()
 

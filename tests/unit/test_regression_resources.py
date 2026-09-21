@@ -152,8 +152,8 @@ def test_two_ui_buckets_keep_growth_headroom_and_unreviewed_modules_stay_exclusi
     assert admission.allows('ui', [])
 
 
-@pytest.mark.parametrize('kind', ['ui-accessible', 'ui-watch'])
-def test_reviewed_e2e_ui_modules_keep_resource_and_pairing_limits(kind):
+@pytest.mark.parametrize('kind', ['ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui'])
+def test_reviewed_ui_modules_keep_resource_and_pairing_limits(kind):
     state, admission = gate()
     warm(state, admission, active=('ui-layout', 'ui-feedback'))
     assert admission.allows(kind, ['ui-layout', 'ui-feedback'])

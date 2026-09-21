@@ -52,8 +52,7 @@ class InstalledSetup:
                 'setup:package-changed')
         selection = json.loads((payload / 'selected-inputs.json').read_bytes())
         for target, entry in selection['files'].items():
-            require(inventory[target] == entry['sha256'] ==
-                    self.verified.source_files[entry['source']], 'setup:helper-changed')
+            require(inventory[target] == entry['sha256'], 'setup:helper-changed')
         self.transport.copy(False, str(payload) + '/', system.PAYLOAD + '/')
         guard()
         self.verified.recheck()

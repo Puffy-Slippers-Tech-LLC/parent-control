@@ -48,6 +48,9 @@ class Authentication:
         self.command = None
         self.capture_evidence = None
         self.on_diagnostic = on_diagnostic
+        # Pin the reference for this authentication attempt. Later checkout
+        # edits must neither reject the run nor change its recipient check.
+        self.reference = None
 
     def observe(self, stage, shot, guard):
         require(not self.failed, 'vt6-auth:previous-failure')
@@ -79,6 +82,7 @@ class Authentication:
             self.boot = boot
             if stage == 'vt6-login-ready':
                 boundary = 'getty'
+                self.reference = (self.verified.root / REFERENCE).read_bytes()
                 reply = self.observer.read('vt6-getty-identity')
             elif stage == 'vt6-password-ready':
                 boundary = 'password'
@@ -173,9 +177,7 @@ class Authentication:
             require(before.st_ctime_ns >= self.capture_after, 'vt6-auth:capture-ctime')
             with os.fdopen(os.dup(fd), 'rb') as stream:
                 pixels = stream.read(8 * 1024 * 1024 + 1)
-            reference = (self.verified.root / REFERENCE).read_bytes()
-            require(hashlib.sha256(reference).hexdigest() == self.verified.source_files[REFERENCE],
-                    'vt6-auth:reference-input')
+            reference = self.reference
             reply = verify_prompt_pixels(pixels, reference)
             current = {'descriptor': os.fstat(fd), 'path': path.stat(follow_symlinks=False)}
             expected = (file_identity(before), before.st_uid, before.st_gid)

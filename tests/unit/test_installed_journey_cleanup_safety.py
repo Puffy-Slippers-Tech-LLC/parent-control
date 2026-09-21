@@ -108,6 +108,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     def observe_ui(operation):
         import accessible_ui
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'station-entry-branch':
+            result['branch'] = {'destination': 'default-request-form', 'controls': []}
         if operation in accessible_ui.SETTINGS_OPERATIONS:
             result['settings'] = {'child': accessible_ui.CHILD_IDENTITIES[
                 accessible_ui.SETTINGS_OPERATIONS[operation]], 'limit_enabled': False,

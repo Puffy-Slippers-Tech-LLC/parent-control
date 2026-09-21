@@ -166,6 +166,30 @@ def gdm_row(name, identity, *, focused=False, showing=True):
     return Node(name, 'push button', identity=GDM_CONTROLS[identity], states=states)
 
 
+def semantic_gdm_ui(*, rows=(), recipient=None, field=None, applications=()):
+    children = list(rows)
+    if recipient is not None:
+        children.append(recipient)
+    if field is not None:
+        children.append(field)
+    shell = Node('GNOME Shell', 'application', children=children)
+    root = Node(role='desktop frame', children=[shell, *applications])
+    ui = ui_for(root)
+    ui.api.Text = SimpleNamespace(
+        get_character_count=Mock(side_effect=AssertionError('password length read')),
+        get_text=Mock(side_effect=AssertionError('password text read')),
+    )
+    return ui, shell
+
+
+def semantic_gdm_rows(*, focused=None):
+    parent = Node('Jamie (Parent)', 'push button')
+    station = Node('Oh No! Parent Control', 'push button')
+    if focused == 'parent': parent.states.add('focused')
+    if focused == 'station': station.states.add('focused')
+    return parent, station
+
+
 def keyring_ui(*, fault=None, root_children=()):
     recipient = Node('Login keyring', 'label', identity=KEYRING_CONTROLS['recipient'])
     secret = Node('', 'password text', identity=KEYRING_CONTROLS['secret'],
@@ -219,12 +243,103 @@ def test_gdm_navigation_uses_target_id_not_public_order_and_independently_requir
     assert all(row.action.do_action.call_count == 0 for row in rows)
 
 
-def test_unqualified_gdm_provider_blocks_before_tree_discovery_or_input():
+def test_gdm_nonsecret_adapter_focuses_unique_ordinary_and_station_rows():
+    parent, station = semantic_gdm_rows()
+    ui, _shell = semantic_gdm_ui(rows=[station, Node('Decoration', 'label'), parent])
+    assert ui.run('gdm-list', '')['focused'] is True
+    assert ui.run('gdm-focused', '')['outcome'] == 'passed'
+    assert ui.run('gdm-station-list', '')['focused'] is True
+    assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
+    parent.action.do_action.assert_not_called()
+    station.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['wrong-owner', 'duplicate-owner', 'duplicate-parent',
+                                   'duplicate-station', 'defunct'])
+def test_gdm_nonsecret_adapter_rejects_wrong_or_ambiguous_ownership(fault):
+    parent, station = semantic_gdm_rows()
+    applications = []
+    rows = [parent, station]
+    if fault == 'wrong-owner':
+        rows = []
+        applications.append(Node('Unrelated', 'application', children=[parent, station]))
+    elif fault == 'duplicate-owner':
+        applications.append(Node('gnome-shell', 'application'))
+    elif fault == 'duplicate-parent':
+        rows.append(Node('Jamie (Parent)', 'push button'))
+    elif fault == 'duplicate-station':
+        rows.append(Node('oh-no-parent-control', 'push button'))
+    else:
+        station.states.add('defunct')
+    ui, _shell = semantic_gdm_ui(rows=rows, applications=applications)
+    with pytest.raises(UiError):
+        ui.run('gdm-list', '')
+    parent.component.grab_focus.assert_not_called()
+    station.component.grab_focus.assert_not_called()
+
+
+def test_gdm_nonsecret_adapter_refuses_stale_focus_without_replay():
+    parent, station = semantic_gdm_rows()
+    ui, shell = semantic_gdm_ui(rows=[parent, station])
+
+    def replace_after_focus():
+        replacement = Node('Jamie (Parent)', 'push button',
+                           states=('showing', 'visible', 'sensitive', 'focused'))
+        shell.children[0] = replacement
+        replacement.parent = shell
+        return True
+
+    parent.component.grab_focus.side_effect = replace_after_focus
+    with pytest.raises(UiError, match='gdm-stale-focus'):
+        ui.run('gdm-list', '')
+    parent.component.grab_focus.assert_called_once_with()
+    assert ui.input_uncertain is True
+
+
+@pytest.mark.parametrize('operation', ['gdm-list', 'gdm-station-wrong-entry-refused'])
+def test_gdm_nonsecret_adapter_rejects_list_and_prompt_overlap(operation):
+    parent, station = semantic_gdm_rows()
+    recipient = Node('Jamie (Parent)', 'label')
+    field = Node('Password', 'password text',
+                 states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    field.get_text_iface = Mock(side_effect=AssertionError('password read'))
+    ui, _shell = semantic_gdm_ui(
+        rows=[parent, station], recipient=recipient, field=field)
+    with pytest.raises(UiError, match='gdm-list-prompt-overlap'):
+        ui.run(operation, '')
+    field.get_child_count.assert_not_called()
+    field.get_text_iface.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+
+
+def test_gdm_nonsecret_prompt_and_returned_list_never_read_or_submit_a_secret():
+    recipient = Node('Jamie (Parent)', 'label')
+    field = Node('Password', 'password text',
+                 states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    field.get_text_iface = Mock(side_effect=AssertionError('password read'))
+    ui, shell = semantic_gdm_ui(recipient=recipient, field=field)
+    assert ui.run('gdm-station-wrong-entry-refused', '')['outcome'] == 'passed'
+    field.get_child_count.assert_not_called()
+    field.get_text_iface.assert_not_called()
+    field.action.do_action.assert_not_called()
+    ui.api.Text.get_character_count.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+
+    parent, station = semantic_gdm_rows()
+    shell.children = [parent, station]
+    parent.parent = shell
+    station.parent = shell
+    assert ui.run('gdm-station-list', '')['focused'] is True
+
+
+def test_unqualified_gdm_id_only_route_blocks_before_tree_discovery_or_input():
     row = Node('Jamie (Parent)', 'push button')
     ui = ui_for(Node(children=[row]))
     ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
     with pytest.raises(UiError, match='unqualified-provider-application'):
-        ui.run('gdm-list', '')
+        ui.run('gdm-other-list', '')
     ui.api.get_desktop.assert_not_called()
     row.component.grab_focus.assert_not_called()
     row.action.do_action.assert_not_called()
@@ -521,13 +636,12 @@ def test_disabled_setting_can_be_read_but_cannot_authorize_input():
     control.action.do_action.assert_not_called()
 
 
-def test_unqualified_keyring_provider_blocks_before_tree_discovery_or_input():
-    root = Node(role='desktop frame')
-    ui = ui_for(root, qualify_prompts=False)
-    ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
-    with pytest.raises(UiError, match='unqualified-provider-application'):
-        ui.run('standard-app-grid', '')
-    ui.api.get_desktop.assert_not_called()
+def test_prompt_recognition_does_not_require_complete_provider_id_contracts():
+    ui = ui_for(Node(role='desktop frame'), qualify_prompts=False)
+    ui.prompt_enabled = True
+    ui.prompt_session = 'desktop'
+    assert ui.system_prompt_kind() is None
+    ui.handle_system_prompt()
 
 
 @pytest.mark.parametrize('entry', ['desktop', 'search', 'terminal', 'license'])
@@ -1195,7 +1309,8 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
             overview.children.append(child)
     monkeypatch.setattr(accessible_ui.time, 'sleep', tick)
     if fault not in (None, 'labelled-result', 'transient-stale'):
-        expected = 'system-prompt-ready' if fault == 'stale-subtree' else 'standard-parent-unavailable'
+        expected = ('system-prompt-observation-failed' if fault == 'stale-subtree'
+                    else 'standard-parent-unavailable')
         with pytest.raises(UiError, match=expected):
             ui.run('standard-parent-unavailable', '')
     else:
@@ -1445,94 +1560,80 @@ def test_system_prompt_checkpoint_cannot_authorize_unobserved_keyboard_input(key
         session.observe('standard-system-prompt')
 
 
-@pytest.mark.parametrize('timing', ['before-operation', 'during-wait', 'after-action'])
-def test_shared_prompt_handler_resumes_same_wait_without_replaying_customer_action(timing):
-    activity = Node('Activities', 'button', identity='test-activity')
-    activity_ui = action_ui(activity, 'test-activity')
-    ui, dialog, controls = keyring_ui(root_children=[activity_ui.api.get_desktop(0)])
-    ui.provider_contracts['action-fixture'] = activity_ui.provider_contracts['action-fixture']
-    application = ui.api.get_desktop(0).children[-1]
-    cancel = controls['cancel']
-    def dismiss(_index):
-        application.children.remove(dialog)
-        return True
-    cancel.action.do_action.side_effect = dismiss
-    if timing == 'before-operation':
-        ui.run('standard-system-prompt', '')
-    else:
-        ui.prompt_enabled = True
-        if timing == 'after-action':
-            ui.activate(activity)
-        else:
-            assert ui.wait(lambda: dialog not in application.children, 'pending-observation')
-    assert cancel.action.do_action.call_count == 1
-    assert activity.action.do_action.call_count == (1 if timing == 'after-action' else 0)
-    controls['secret'].action.do_action.assert_not_called()
+def semantic_prompt(kind, *, count=1, incomplete=False):
+    names = {
+        'mate-polkit': ('PolicyKit Authentication Agent', 'Authentication Required'),
+        'shell-polkit': ('GNOME Shell', 'Authentication Required'),
+        'keyring': ('gcr-prompter', 'Unlock Login Keyring'),
+        'unknown': ('Unregistered authentication agent', 'Password Required'),
+    }
+    application_name, title = names[kind]
+    dialogs = []
+    controls = []
+    for _ in range(count):
+        cancel = Node('Cancel', 'push button')
+        children = [cancel]
+        if kind != 'unknown':
+            children.insert(0, Node('', 'password text'))
+        dialog = Node(title, 'dialog', children=children,
+                      states=('showing', 'visible', 'sensitive', 'modal'))
+        dialogs.append(dialog)
+        controls.extend(children)
+    application = Node(application_name, 'application', children=dialogs)
+    ui = ui_for(Node(role='desktop frame', children=[application]), qualify_prompts=False)
+    if incomplete:
+        application.children.append(None)
+    return ui, controls
 
 
-@pytest.mark.parametrize('failure', ['still-visible', 'uncertain-action', 'lost-observation'])
-def test_shared_prompt_handler_never_retries_failed_or_uncertain_dismissal(failure):
+@pytest.mark.parametrize('session', ['station', 'desktop'])
+@pytest.mark.parametrize('kind', ['mate-polkit', 'shell-polkit', 'keyring', 'unknown'])
+def test_session_prompt_classifier_distinguishes_and_refuses_without_input(session, kind):
+    ui, controls = semantic_prompt(kind)
+    ui.prompt_enabled = True
+    ui.prompt_session = session
+    assert ui.system_prompt_kind() == kind
+    with pytest.raises(UiError, match=f'system-prompt-refused:{session}:{kind}'):
+        ui.handle_system_prompt()
+    for control in controls:
+        control.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['ambiguous', 'incomplete'])
+def test_system_prompt_ambiguous_or_incomplete_observation_blocks_without_input(fault):
+    ui, controls = semantic_prompt('keyring', count=2 if fault == 'ambiguous' else 1,
+                                   incomplete=fault == 'incomplete')
+    ui.prompt_enabled = True
+    ui.prompt_session = 'desktop'
+    expected = 'ambiguous-system-prompt' if fault == 'ambiguous' else 'incomplete-tree'
+    with pytest.raises(UiError, match=expected):
+        ui.handle_system_prompt()
+    for control in controls:
+        control.action.do_action.assert_not_called()
+
+
+def test_wrong_owner_prompt_surface_is_unknown_and_never_acted_on():
     ui, dialog, controls = keyring_ui()
-    ui.query_errors = (LookupError,)
-    def cancel(_index):
-        if failure == 'uncertain-action':
-            raise LookupError('uncertain')
-        if failure == 'lost-observation':
-            dialog.clear_cache_single = Mock(side_effect=LookupError('stale'))
-        return True
-    controls['cancel'].action.do_action.side_effect = cancel
-    with pytest.raises(UiError):
-        ui.run('standard-system-prompt', '')
-    controls['cancel'].action.do_action.assert_called_once_with(0)
+    application = ui.api.get_desktop(0).children[-1]
+    application.identity = 'wrong-application'
+    application.name = 'Unregistered authentication agent'
+    application.role = 'application'
+    dialog.name = 'Password Required'
+    dialog.role = 'dialog'
+    dialog.states.add('modal')
+    ui.prompt_enabled = True
+    ui.prompt_session = 'desktop'
+    with pytest.raises(UiError, match='system-prompt-refused:desktop:unknown'):
+        ui.handle_system_prompt()
+    for control in controls.values():
+        control.action.do_action.assert_not_called()
 
 
 def test_gdm_never_uses_desktop_prompt_handler():
     ui = gdm_ui(rows=[gdm_row('Jamie (Parent)', 'account-choice::parent')])
-    ui.system_prompt = Mock(side_effect=AssertionError('GDM must not dismiss'))
-    ui.system_prompt_control = Mock(side_effect=AssertionError('GDM must not inspect keyring'))
+    ui.system_prompt_kind = Mock(side_effect=AssertionError('GDM must not inspect prompts'))
     ui.run('gdm-list', '')
-    ui.system_prompt.assert_not_called()
-
-
-@pytest.mark.parametrize('count', [2, 3, 4])
-def test_distinct_queued_keyring_dialogs_require_independent_dismissals_and_finite_bound(count):
-    ui, first, controls = keyring_ui()
-    application = ui.api.get_desktop(0).children[-1]
-    dialogs = [first]
-    for _ in range(1, count):
-        _other_ui, dialog, _other_controls = keyring_ui()
-        dialogs.append(dialog)
-    clicked = []
-    def cancel(_index):
-        clicked.append(application.children.pop())
-        if len(clicked) < count:
-            replacement = dialogs[len(clicked)]
-            replacement.parent = application
-            application.children.append(replacement)
-        return True
-    for dialog in dialogs:
-        next(control for control in dialog.children
-             if control.identity == KEYRING_CONTROLS['cancel']).action.do_action.side_effect = cancel
-    if count > 3:
-        with pytest.raises(UiError, match='system-prompt-limit'):
-            ui.run('standard-system-prompt', '')
-    else:
-        assert ui.run('standard-system-prompt', '')['outcome'] == 'passed'
-    assert clicked == dialogs[:3]
-
-
-def test_second_keyring_dialog_does_not_authorize_reclick_while_first_remains_visible():
-    ui, original, controls = keyring_ui()
-    application = ui.api.get_desktop(0).children[-1]
-    _other_ui, replacement, _other_controls = keyring_ui()
-    def duplicate(_index):
-        replacement.parent = application
-        application.children.append(replacement)
-        return True
-    controls['cancel'].action.do_action.side_effect = duplicate
-    with pytest.raises(UiError, match='ambiguous-automation-id'):
-        ui.run('standard-system-prompt', '')
-    controls['cancel'].action.do_action.assert_called_once_with(0)
+    ui.system_prompt_kind.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'bad-point', 'wrong-kind', 'extra-field',

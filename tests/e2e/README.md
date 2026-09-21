@@ -206,8 +206,8 @@ scope and every omitted ID in `excluded_pending_cases`; `pending_cases` describe
 the selected cases only. A list operation may report an empty ready selection;
 execution refuses it before artifacts, privileges or VM access. Newly registered
 ready cases are discovered automatically on the next invocation. The current
-inventory intentionally has no ready cases while external provider-ID paths are
-blocked.
+ready set is reported by `tools/run-tests e2e --list --ready`; external-provider
+qualification gaps do not imply that the set is empty.
 
 `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-002` and
 `make check-e2e ARTIFACT_DIR=/tmp/onpc-... SCENARIO=E2E-002` fail with

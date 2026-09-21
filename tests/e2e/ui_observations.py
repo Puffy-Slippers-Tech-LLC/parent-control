@@ -91,6 +91,7 @@ OPERATION_LABELS.update({
     'gdm-station-list': 'Reading the greeter before request-station entry',
     'gdm-station-focused': 'Checking the request station is focused',
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
+    'station-entry-branch': 'Observing the offered station session branch without input',
 })
 
 
@@ -185,14 +186,14 @@ class UiObservations:
     def point(value):
         require(False, 'ui:pointer-route-refused')
 
-    def call(self, argv, operation):
+    def call(self, argv, operation, *, input=None):
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.
-        timeout = 390 if operation in accessible_ui.GREETER_OPERATIONS else (
+        timeout = 390 if operation in accessible_ui.GREETER_OPERATIONS or operation == 'station-entry-branch' else (
             120 if operation in accessible_ui.KIOSK_OPERATIONS else 90)
         if self.system_prompt is None:
-            return self.transport.call(argv, timeout=timeout), []
+            return self.transport.call(argv, input=input, timeout=timeout), []
         commands = self.transport.commands
         previous = commands.progress
         pending = bytearray()
@@ -214,7 +215,7 @@ class UiObservations:
                     require(not results, 'ui:response-replay')
                     results.append(bytes(line))
         try:
-            self.transport.call(argv, timeout=timeout, on_output=output)
+            self.transport.call(argv, input=input, timeout=timeout, on_output=output)
             require(not pending and len(results) == 1, 'ui:response-incomplete')
             return results[0], prompts
         finally:
@@ -226,10 +227,31 @@ class UiObservations:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
         version = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
-        raw, prompts = self.call(['/usr/bin/python3', '-I', '-c', program, operation, version], operation)
+        # The standalone observer can exceed Linux's per-argument limit after
+        # SSH shell quoting. Carry its bytes on the existing guarded stdin pipe.
+        raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version],
+                                 operation, input=program.encode())
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'station-entry-branch':
+            require(type(result) is dict and set(result) == {*expected, 'branch'}, 'ui:response')
+            branch = result['branch']
+            require(type(branch) is dict and set(branch) == {'destination', 'controls'}
+                    and type(branch['controls']) is list, 'ui:station-branch')
+            controls = branch['controls']
+            require((branch['destination'] == 'default-request-form' and not controls)
+                    or (branch['destination'] == 'greeter-controls' and 0 < len(controls) <= 12),
+                    'ui:station-branch')
+            for control in controls:
+                require(type(control) is dict and set(control) == {
+                    'label', 'role', 'public_id_present', 'sensitive', 'focused'}
+                    and control['label'] in {*accessible_ui.GDM_SESSION_LABELS.values(), 'unresolved'}
+                    and control['role'] in {'button', 'push button', 'toggle button', 'radio button',
+                                           'menu item', 'radio menu item', 'check menu item', 'combo box'}
+                    and all(type(control[key]) is bool for key in
+                            ('public_id_present', 'sensitive', 'focused')), 'ui:station-branch')
+            expected['branch'] = branch
         if operation in accessible_ui.PICKER_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'focused'}
                     and result['focused'] is True, 'ui:response')

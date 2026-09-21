@@ -5,7 +5,7 @@ import copy
 
 import pytest
 
-from accessible_ui import SESSION_ACTION_NAMES, UiError
+from accessible_ui import EXTERNAL_PROVIDER_CONTRACTS, SESSION_ACTION_NAMES, UiError
 from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
 from tests.support.perl import run_perl
 
@@ -51,6 +51,18 @@ def session_desktop(*, system_open=False, power_open=False, actions=True, confir
     application = Node(identity='test-shell-application', children=surfaces)
     return (ui_for(application, provider_contracts=SHELL_CONTRACTS), system, power,
             switch, logout, confirm_button)
+
+
+def test_desktop_positive_surface_permits_no_prompt_without_prompt_ids():
+    ui, system, power, switch, logout, confirm = session_desktop()
+    for provider in ('mate-polkit-agent', 'gnome-shell-polkit-agent',
+                     'gcr-keyring-prompter'):
+        ui.provider_contracts[provider] = copy.deepcopy(EXTERNAL_PROVIDER_CONTRACTS[provider])
+    assert ui.run('desktop', '') == {
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    assert ui.prompt_session == 'desktop'
+    for control in (system, power, switch, logout, confirm):
+        control.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'no-desktop', 'no-system'])

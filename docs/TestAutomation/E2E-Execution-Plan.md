@@ -36,6 +36,29 @@ completion and blocks no active task. Consumerless SEC01/GDM10 extractions retai
 their recorded scope. A customer pass cannot replace displaced engineering
 obligations under their maintained owners.
 
+### Planned Lunar Client regression
+
+[E2E-052, case 253](E2E-Scenario-Recipes.md#e2e-052) adds the real
+AppImageLauncher login-autostart route. E2E-019's native launches,
+E2E-022's reboot persistence and E2E-041/case 189's version patterns do not
+establish this coverage. Keep their existing scope and IDs unchanged.
+
+This is metadata/planning only: case 253 remains `pending`, with no executable
+binding. Queue tasks **295–297** cover the prepared fixture, external-provider
+qualification and complete scenario. Manual installation/configuration of Lunar,
+AppImageLauncher and Minecraft on the guarded VM is an allowed future
+prerequisite, not permission for installation on this development host or an
+in-journey setup fallback. The [fixture contract](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+requires reproducibility after the ordinary runner restore; an ad-hoc working
+VM or a disabled autostart cannot qualify the negative case.
+
+The case must distinguish a still-active **time-only** grant from explicit
+soft-app approval, preserve the active-grant session contract, and observe both
+the tray/autostart result and a real same-route launch denial. Its included-app
+control must actually reach usable Minecraft. Do not replace these results with
+process/rule probes or treat unavailable assets/provider observations as a pass.
+This addition does not change the current **Next task** or claim VM acceptance.
+
 ## Execute one task
 
 1. Follow repository AGENTS.md, start at [System-Design.md](../System-Design.md),
@@ -229,7 +252,8 @@ After the guard is released and cleanup succeeds:
    Recheck changed dependency rows and newly eligible scenarios. After a queue
    split/reorder, also verify unique IDs, matching brief/queue prerequisites,
    dependency order, immediate scenario placement and unchanged case assignment.
-   The frozen 236 customer cases must each occur exactly once; retain system
+   Preserve the original frozen 236 customer-case assignments and all subsequent
+   declared additions; new Lunar case 253 must also occur exactly once. Retain system
    obligations formerly numbered 140–150 outside the UI inventory and preserve
    all seven retained ready case implementations and bindings. Their shared
    provider routes still require qualification under the current mandate.

@@ -1,3 +1,5 @@
+import hashlib
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +13,178 @@ from oh_no_parent_control.execution_policy import (
 
 
 class ExecutionPolicyTests(unittest.TestCase):
+    @staticmethod
+    def _decision(rules, uid, permission, path, ftype="application/x-executable"):
+        """Evaluate the emitted subset using fapolicyd's first-match semantics.
+
+        These are policy event tests, not a substitute for daemon qualification.
+        In particular the caller supplies the observed object type explicitly.
+        """
+        for line in rules.splitlines():
+            if not line or line.startswith("#"):
+                continue
+            subject, obj = line.split(" : ")
+            decision, *fields = subject.split()
+            subject = dict(field.split("=", 1) for field in fields)
+            obj = dict(field.split("=", 1) for field in obj.split())
+            assert set(subject) == {"perm", "uid"}
+            assert set(obj) <= {"path", "dir", "sha256hash", "ftype"}
+            if int(subject["uid"]) != uid or subject["perm"] not in (permission, "any"):
+                continue
+            if "path" in obj and str(path) != obj["path"]:
+                continue
+            if "dir" in obj and not str(path).startswith(obj["dir"]):
+                continue
+            if "ftype" in obj and ftype not in obj["ftype"].split(","):
+                continue
+            if "sha256hash" in obj and hashlib.sha256(path.read_bytes()).hexdigest() != obj["sha256hash"]:
+                continue
+            return decision.split("_", 1)[0]
+        # The packaged fallback permits operations outside the product blocks.
+        return "allow"
+
+    def test_appimage_read_is_denied_before_launcher_can_copy_runtime(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            for name in ("Lunar.AppImage", "Lunar Client.AppImage", "Lunar,Client.AppImage"):
+                with self.subTest(name=name):
+                    target = Path(temporary) / name
+                    target.write_bytes(b"\x7fELF appimage runtime and payload")
+                    rules = FapolicydPolicy.render({1001: (str(target),)})
+                    for permission in ("open", "execute"):
+                        self.assertEqual(self._decision(rules, 1001, permission, target), "deny")
+                        self.assertEqual(self._decision(rules, 1000, permission, target), "allow")
+                    # Approving soft apps removes the target from the live filter.
+                    approved = FapolicydPolicy.render({1001: ()})
+                    self.assertEqual(self._decision(approved, 1001, "open", target), "allow")
+
+    def test_pattern_denies_future_appimage_reads_and_preserves_other_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            old = directory / "Lunar Client-1.AppImage"
+            allowed = directory / "pCloud.AppImage"
+            library = directory / "other.so"
+            document = directory / "My Notes.txt"
+            for path in (allowed, library):
+                path.write_bytes(b"\x7fELF same bytes")
+            allowed.chmod(0o755)
+            document.write_text("ordinary document")
+            (directory / ".trash").mkdir()
+            rules = FapolicydPolicy.render(
+                {1001: (str(old),)}, {1001: (f"{directory}/Lunar Client-*.AppImage",)})
+            # Install/update AFTER rendering: there must be no rescan window.
+            future = directory / "Lunar Client-2.AppImage"
+            future.write_bytes(allowed.read_bytes())
+            future.chmod(0o755)
+            for ftype in ("application/x-executable", "application/x-sharedlib", "application/x-bad-elf"):
+                with self.subTest(ftype=ftype):
+                    self.assertEqual(self._decision(rules, 1001, "open", future, ftype), "deny")
+                    self.assertEqual(self._decision(rules, 1001, "open", allowed, ftype), "allow")
+                    self.assertEqual(self._decision(rules, 1001, "open", library, ftype), "allow")
+                    self.assertEqual(self._decision(rules, 1000, "open", future, ftype), "allow")
+            for name in ("My Notes.txt", "new notes.txt", "photo.png"):
+                for ftype in ("text/plain", "image/png"):
+                    self.assertEqual(self._decision(rules, 1001, "open", directory / name, ftype), "allow")
+            self.assertEqual(self._decision(rules, 1001, "execute", future), "deny")
+            self.assertEqual(self._decision(rules, 1001, "open", directory / ".trash" / future.name), "allow")
+            self.assertNotIn("allow perm=open uid=1001 : sha256hash=", rules)
+
+    def test_open_denials_precede_enclosing_directory_exceptions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            child = parent / "nested"
+            child.mkdir()
+            target = child / "Other.AppImage"
+            target.write_bytes(b"\x7fELF blocked")
+            rules = FapolicydPolicy.render(
+                {1001: (str(target),)},
+                {1001: (f"{parent}/Game-*.AppImage", f"{child}/Lunar-*.AppImage")})
+            future = child / "Lunar-2.AppImage"
+            self.assertEqual(self._decision(rules, 1001, "open", target), "deny")
+            self.assertEqual(self._decision(rules, 1001, "open", future), "deny")
+
+    def test_non_executable_elf_with_unsafe_name_omits_entire_pattern_group(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            library = directory / "Other Library.so"
+            library.write_bytes(b"\x7fELF library")
+            library.chmod(0o644)
+            (directory / "safe-subdirectory").mkdir()
+            target = directory / "Lunar.AppImage"
+            target.write_bytes(b"\x7fELF blocked")
+            pattern = f"{directory}/Lunar*.AppImage"
+            with self.assertRaises(ExecutionPolicyError):
+                FapolicydPolicy.render({1001: (str(target),)}, {1001: (pattern,)})
+            issues = []
+            rules = FapolicydPolicy.render(
+                {1001: (str(target),)}, {1001: (pattern,)}, issues=issues)
+            self.assertEqual(issues, [(1001, "pattern", pattern)])
+            self.assertNotIn("dir=", rules)
+            self.assertEqual(self._decision(rules, 1001, "open", target), "deny")
+            library.rename(directory / "OtherLibrary.so")
+            rules = FapolicydPolicy.render({1001: (str(target),)}, {1001: (pattern,)})
+            self.assertEqual(self._decision(rules, 1001, "open", directory / "Lunar-new.AppImage"), "deny")
+
+    def test_elf_header_inspection_refuses_symlink_and_special_file_replacements(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            target = directory / "target"
+            target.write_bytes(b"\x7fELF")
+            link = directory / "link"
+            link.symlink_to(target)
+            fifo = directory / "fifo"
+            os.mkfifo(fifo)
+            self.assertTrue(FapolicydPolicy._has_elf_header(str(target)))
+            with self.assertRaises(OSError):
+                FapolicydPolicy._has_elf_header(str(link))
+            with self.assertRaises(ExecutionPolicyError):
+                FapolicydPolicy._has_elf_header(str(fifo))
+
+    def test_appimage_open_policy_follows_live_soft_approval_and_restoration(self):
+        from oh_no_parent_control.adapters import AccountsService
+        from oh_no_parent_control.core import UserAccount
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            soft, hard = root / "soft", root / "hard"
+            soft.mkdir()
+            hard.mkdir()
+            soft_target, hard_target = soft / "Lunar Client-1.AppImage", hard / "Game-1.AppImage"
+            for target in (soft_target, hard_target):
+                target.write_bytes(b"\x7fELF " + target.name.encode())
+            preferences = mock.Mock()
+            preferences.load.return_value = {"apps": {
+                "lunar.desktop": {"state": "conditional", "targets": [str(soft_target)],
+                                  "patterns": [f"{soft}/Lunar Client-*.AppImage"]},
+                "hard.desktop": {"state": "permanent", "targets": [str(hard_target)],
+                                 "patterns": [f"{hard}/Game-*.AppImage"]},
+            }}
+            policy = FapolicydPolicy(root / "policy.rules")
+            accounts = AccountsService(object(), policy, preferences)
+            users = (UserAccount(1001, "child", "Child", False, False, True),)
+            live = (False, ())
+
+            def write(_uid, _interface, _prop, value):
+                nonlocal live
+                allowlist, targets = value.unpack()
+                live = (allowlist, tuple(targets))
+
+            with mock.patch.object(accounts, "_set", side_effect=write), \
+                    mock.patch.object(accounts, "list_users", return_value=users), \
+                    mock.patch.object(accounts, "get_filter", side_effect=lambda _uid: live), \
+                    mock.patch.object(policy, "_reload") as reload:
+                for include_soft in (True, False, True):
+                    accounts.set_filter(1001, (False, (
+                        (str(soft_target), str(hard_target)) if include_soft else (str(hard_target),))))
+                    rules = policy._rules_path.read_text()
+                    expected = "deny" if include_soft else "allow"
+                    self.assertEqual(self._decision(rules, 1001, "open", soft_target), expected)
+                    future = soft / "Lunar Client-2.AppImage"
+                    future.write_bytes(b"\x7fELF new version")
+                    self.assertEqual(self._decision(rules, 1001, "open", future), expected)
+                    self.assertEqual(self._decision(rules, 1001, "open", hard_target), "deny")
+                    self.assertEqual(self._decision(rules, 1000, "open", soft_target), "allow")
+            self.assertEqual(reload.call_count, 3)
+
     def test_generated_lunar_pattern_guards_update_without_integration_hash(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

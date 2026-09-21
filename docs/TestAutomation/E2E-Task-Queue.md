@@ -208,6 +208,9 @@ when appending a current blocker. All unchecked rows need independent briefs.
 | [ ] | 230 | [E2E-041: special-paths](E2E-Tasks/230-case-188.md) | 035a, 180 | Cases 188 | 30–55 |
 | [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079a, 186, 052c | FIX04 AppImage versions; FILE05 and pattern launch results | 25–45 |
 | [ ] | 231 | [E2E-041: pattern-files](E2E-Tasks/231-case-189.md) | 035b, 180 | Cases 189 | 30–55 |
+| [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006, 036 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 25–45 |
+| [ ] | 296 | [Qualify Lunar tray, game and login observations](E2E-Tasks/296-lunar-provider.md) | 295, 007, 079a, 052c | APP06; Lunar/Minecraft APP01/02/03, UI18 and login-interval observation bindings. Blocker: external routes unqualified; resume after fixture and prerequisite capability qualification. | 40–60 |
+| [ ] | 297 | [E2E-052: appimagelauncher-login-autostart](E2E-Tasks/297-case-253.md) | 296, 180, 197 | Cases 253; pending metadata only. Blocker: complete public journey unimplemented; resume when required blocks are qualified. | 40–60 |
 | [ ] | 036a | [Launch native fixtures from the file manager](E2E-Tasks/036a-native-file-routes.md) | 036, 079a | APP01/02/03 native file-manager route | 30–50 |
 | [ ] | 096 | [E2E-019: native-file-manager-allowed-enabled / native-file-manager-allowed-disabled](E2E-Tasks/096-case-74-75.md) | 180, 036a | Cases 74, 75 | 35–55 |
 | [ ] | 097 | [E2E-019: native-file-manager-hard-blocked-enabled / native-file-manager-hard-blocked-disabled](E2E-Tasks/097-case-76-77.md) | 180, 036a | Cases 76, 77 | 35–55 |

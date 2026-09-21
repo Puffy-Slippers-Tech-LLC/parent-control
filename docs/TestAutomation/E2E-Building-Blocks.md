@@ -305,6 +305,7 @@ these blocks, not copies of them.
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | APP02(present) → UI03 → UI12 only for compare. A newly launched window cannot satisfy retained-activity expectations. No hidden process/window inspection. | pending |
 | APP05 | C | Choose the real offline game's offered windowed/fullscreen mode and reproducible level, then observe active gameplay. | UI15(mode/level) → APP03(start) → UI01 → UI03. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
+| APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. Task 296 qualifies the Lunar/Minecraft and Shell tray provider bindings, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
 ### Time and ordinary lifecycle boundaries
 
@@ -472,6 +473,7 @@ authentication outcome or app behavior being tested.
 | FIX03 | A | Prepare one declared account-eligibility profile before a kiosk journey: multiple, no child, no approver or ineligible approver. Do not generalize FIX02 into arbitrary account mutation. | Extend the supported fixture route only for E2E-017's named profile and its cleanup. | pending |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
+| FIX05 | A | Validate the one declared, manually prepared Lunar/AppImageLauncher/Minecraft profile after the normal installed-snapshot restore and before the attempt. Read-only setup verification, not installation, policy configuration or customer acceptance. | No callable yet. Task 295 binds versions/digests, original AppImage and launcher/autostart routes, local world, credential references and ordinary restore/provisioning ownership. Refuse missing/drifted assets; never synthesize a denial. [Profile contract](#lunar-client-preparation-and-observation-gate). | pending |
 
 Every recipe has the same surrounding phases, already present in all inventory declarations:
 
@@ -647,6 +649,61 @@ still use the guarded ownership interfaces.
 | E2E-049 / **231–246** | [Recipe](E2E-Scenario-Recipes.md#e2e-049) — Alternate temporary app permission on eight launch routes and both request surfaces. |
 | E2E-050 / **247–250** | [Recipe](E2E-Scenario-Recipes.md#e2e-050) — Three continuous work/game/time-source cycles, with both form orders and retained/fresh departures. |
 | E2E-051 / **251–252** | [Recipe](E2E-Scenario-Recipes.md#e2e-051) — Four rounds of two-child management, independent choices and retained work. |
+| E2E-052 / **253** | [Recipe](E2E-Scenario-Recipes.md#e2e-052) — Real Lunar AppImageLauncher login autostart with ungranted/time-only soft blocks, explicit approval and replacement exclusion. Pending manual fixture and public-provider qualification. |
+
+### Lunar Client preparation and observation gate
+
+Case 253 is a planned real-application regression, not an extension of the native
+fixture's qualified scope. Manual preparation of the guarded VM is permitted
+before the attempt: install a pinned Lunar Client AppImage and AppImageLauncher,
+integrate the original AppImage through the provider's normal route, enable
+Lunar's child-login autostart and tray behavior, and prepare Minecraft with a
+legitimately usable test account, downloaded runtime/assets and a disposable local
+world. Record versions/digests, the exact integrated launcher, original AppImage
+path (including spaces), same-directory version pattern, autostart entry and
+provider versions as private fixture inputs. No real child's name/path or account
+credentials belong in scenario metadata, ordinary logs or screenshots. Use the
+existing secret API for any required authentication; no new account purchase or
+external account creation is implied.
+
+Task 295/FIX05 must first establish how these inputs are present **after** the
+runner's ordinary installed-snapshot restore. Use the established guarded
+preparation/provisioning lifecycle; do not add snapshots, replace the baseline,
+skip restoration or rely on earlier manual VM state. FIX04 still only transfers
+verified assets. The manual prerequisite does not grant FIX05 an installer or
+unattended vendor sign-in. Missing integration, invalid sign-in, mandatory update,
+network dependence or unavailable assets blocks this profile until resolved in
+preparation. Pin a profile that runs the declared local activity without downloads
+or authentication during the measured launch checks; requalify after drift.
+
+Task 296 must qualify the external-provider bindings for tray restore, genuine
+Quit (not close-to-tray), Lunar's game launch and Minecraft's local-world action,
+alongside APP01/02/03, APP06 and UI18. Prefer provider IDs, then scoped public
+accessibility/keyboard routes under the repository exception. Any necessary
+image/geometry technique stays inside an explicit provider adapter with its
+documented limitations and live qualification; it is never a repository-owned
+selector or provider-assigned ID. Ownership, complete absence observations,
+ambiguity refusal and independent results remain mandatory.
+
+Reuse UI22's observer lifecycle and the existing reboot/session recorder: arm
+the public observation before child login submission, preserve secret filtering,
+and observe the login transition through **90 seconds after desktop readiness**.
+Qualify observer reattachment before any possible Lunar surface; a blind login
+interval cannot pass. APP06 observations must cover both tray and app/game
+surfaces, not just a final window list. A usable Lunar/Minecraft surface at any
+point in a denied interval fails even if it later closes. Require the allowed
+autostart control in the same attempt, plus a specific public access denial from
+one explicit original-AppImage launch in each denied checkpoint. A hidden grid
+entry, generic startup failure or absent tray alone is insufficient. These
+bindings remain pending until they can reliably establish the observations;
+process lists, rule files and daemon logs are not customer acceptance substitutes.
+
+No source extraction, direct embedded-binary/Java launch, alternative package,
+disabled autostart or post-login policy save may replace the registered route.
+The real AppImageLauncher route is the regression target; its read/copy/execute
+mechanics belong to engineering coverage. Future version matching and other-user
+isolation retain their existing owners. This planned profile changes no product
+dependency, activation or migration, and no VM preparation has been performed.
 
 ### Inventory reconciliation
 
@@ -1079,6 +1136,7 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 | Nautilus Files | Qualify synthetic fixture selection and the exact open/copy/rename actions required by the consumer. | FILE04/05/07/08 and retained work |
 | File Roller archive viewer | Qualify archive/entry identity, open, content and close. | FILE08, FEED08 |
 | Registered document editor | Qualify document identity, normal edit/save, saved-state readback and wrong-document refusal. | FILE08/09 and retained work |
+| Lunar Client, AppImageLauncher, Shell tray and Minecraft | No bindings are qualified. Require the prepared real-AppImage profile, allowed autostart control, complete login-interval tray/window observations, specific same-route denial, game launch/local-world action and genuine Quit. [Preparation and observation gate](#lunar-client-preparation-and-observation-gate); refuse incomplete ownership/absence observations. | E2E-052/case 253; APP01/02/03/06, UI18/22 and FIX05 |
 
 ### Reachability and result checks
 

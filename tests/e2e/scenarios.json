@@ -2747,6 +2747,63 @@
         {"coverage_id": 251, "id": "jordan", "owner": "household-routines", "parameters": {"first-child": "jordan"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 252, "id": "riley", "owner": "household-routines", "parameters": {"first-child": "riley"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
       ]
+    },
+    {
+      "id": "E2E-052",
+      "title": "Lunar Client login autostart cannot bypass an ungranted soft block",
+      "category": "customer-journey",
+      "owners": ["application-access"],
+      "requirements": ["ONPC-CORE-APPS-005", "ONPC-CORE-APPS-008", "ONPC-CORE-APPS-011", "ONPC-CORE-REQUEST-009"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Applications.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-052"],
+      "components": ["parent", "child", "broker"],
+      "environment": "ubuntu26.04",
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "manually-prepared-lunar-appimagelauncher-autostart-profile", "prepared-minecraft-test-account-and-local-world", "qualified-lunar-tray-and-minecraft-provider-adapters"],
+      "phases": {
+        "setup": [
+          {"id": "setup", "operation": "provision", "description": "Use the standard guarded installed-product setup and validate the declared manually prepared Lunar Client AppImage, AppImageLauncher integration, child login autostart, Minecraft runtime and local test world after restoration. Pin versions, digests, integrated launcher and original AppImage command. Missing assets, credentials or public observation routes block the case; do not install on demand, bypass AppImageLauncher or preconfigure product policy/grants."}
+        ],
+        "start": [
+          {"id": "start", "operation": "begin", "description": "Begin one independent attempt with the selected child, parent and finite provider profile; record boot/session continuity and secret-excluding evidence. No resume, in-journey snapshot restore or backend product probes."}
+        ],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Through Parent enable 120 daily minutes and confirm no grant, leaving Lunar Allowed. As the child launch the original AppImage through AppImageLauncher, use Lunar to enter the prepared Minecraft world and perform an observable game action. Exit Minecraft and close Lunar to its tray. Reboot through desktop controls and log in as the child first, without opening Parent. Observe Lunar autostart within 90 seconds of usable desktop entry, restore it from the tray and launch/use Minecraft again. Quit both applications through their normal controls."},
+          {"id": "step-2", "operation": "ui", "description": "As the parent save Lunar as Soft Blocked with its declared same-directory version pattern and read the saved choice. Return to the child's usable desktop with no grant and attempt the original AppImage command once in Terminal. Observe a specific access denial, no usable Lunar or Minecraft, and continued use of the declared unrelated allowed app."},
+          {"id": "step-3", "operation": "ui", "description": "As the child request 15 minutes with soft apps explicitly excluded and obtain real parent approval. Read the positive grant through a read-only Parent visit, return to the child, reboot normally and log in as the child first without opening Parent or changing policy. Observe the complete login-autostart interval through 90 seconds after desktop readiness: no Lunar tray/background control, usable Lunar window or Minecraft. Attempt the same original AppImage command once, observe a specific access denial, and use the unrelated allowed app. Only afterward visit Parent to confirm the grant stayed positive, then return to the child."},
+          {"id": "step-4", "operation": "ui", "description": "On the same child desktop request 15 minutes with soft apps explicitly included, obtain real approval, and launch the same original AppImage through AppImageLauncher. Use Lunar to launch Minecraft, enter the same prepared world and perform the declared game action. Exit Minecraft and Quit Lunar normally; closing a window to the tray is not quitting."},
+          {"id": "step-5", "operation": "ui", "description": "Request another 15 minutes with soft apps explicitly excluded and obtain real approval. Repeat the read-only grant checks bracketing the reboot and blocked observations: log in as the child first, observe the full 90-second autostart interval and one original-AppImage command denial before visiting Parent. Lunar and Minecraft remain unavailable while the grant stays positive and the unrelated allowed app is usable. Do not repair policy after boot or treat a hidden launcher, missing network, broken game or expired desktop time as successful blocking."}
+        ],
+        "end": [
+          {"id": "end", "operation": "collect", "description": "Reconcile each allowed/denied checkpoint, public login observations and boot continuity; collect private secret-excluding evidence and separate product, infrastructure, collection and cleanup outcomes. Preserve the first failure."}
+        ],
+        "cleanup": [
+          {"id": "cleanup", "operation": "outer-reset", "description": "Use the established guarded cleanup and snapshot lifecycle; remove only attempt-owned work, preserve private credentials and source/host state, and never create or replace a baseline for this scenario."}
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "allowed-route-control", "step_id": "step-1", "description": "The real prepared Lunar AppImage works through AppImageLauncher, its login autostart reaches the tray after reboot, and Minecraft is playable from Lunar before any block. Missing or broken setup cannot pass a denial check."},
+          {"id": "ungranted-soft-denial", "step_id": "step-2", "description": "The saved soft block prevents the child's original-AppImage launch with no grant, while desktop time and the unrelated allowed app remain usable."},
+          {"id": "time-only-boot-denial", "step_id": "step-3", "description": "A still-active time-only grant does not unlock Lunar: public observations cover the login/autostart interval without Lunar tray or usable Lunar/Minecraft, and an explicit same-route launch reports access denied. A hidden grid entry or final absent window alone is insufficient."},
+          {"id": "explicit-soft-approval", "step_id": "step-4", "description": "Explicit soft-app approval makes the same Lunar route and Minecraft activity usable, distinguishing policy enforcement from a broken launcher/game."},
+          {"id": "replacement-boot-denial", "step_id": "step-5", "description": "Replacing approval with soft apps excluded restores the block through reboot and fresh child login despite positive grant time; the same launch is denied and unrelated allowed activity still works."}
+        ],
+        "backend": [],
+        "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {
+          "route": ["appimagelauncher-login-autostart"]
+        },
+        "full_combinations": [],
+        "rationale": "One continuous real-application regression: allowed autostart control, ungranted denial, active time-only boot denial, explicit soft approval and replacement exclusion. Generic native routes, wildcard version updates and lifecycle persistence remain owned by E2E-019, E2E-041 and E2E-022; they do not qualify this launcher integration."
+      },
+      "variants": [
+        {"coverage_id": 253, "id": "appimagelauncher-login-autostart", "owner": "application-access", "parameters": {"route": "appimagelauncher-login-autostart"}, "status": "pending", "pending_reason": "Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified (tasks 295-297).", "executable": null}
+      ]
     }
   ]
 }

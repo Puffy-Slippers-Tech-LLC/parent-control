@@ -43,11 +43,11 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert [case['case_id'] for case in plan['cases']] == expected
     assert plan['pending_cases'] == [case['case_id'] for case in plan['cases']
                                      if case['status'] == 'pending']
-    assert len(document['scenarios']) == 48
-    assert len(plan['cases']) == 241
+    assert len(document['scenarios']) == 49
+    assert len(plan['cases']) == 242
     assert sorted(v['coverage_id'] for item in document['scenarios']
-                  for v in item['variants']) == [*range(1, 140), *range(151, 253)]
-    assert len(plan['pending_cases']) == 234
+                  for v in item['variants']) == [*range(1, 140), *range(151, 254)]
+    assert len(plan['pending_cases']) == 235
     assert [v['coverage_id'] for item in document['scenarios']
             for v in item['variants'] if v['status'] == 'ready'] == [1, 3, 4, 5, 6, 151, 193]
     assert plan['scope'] == 'full'
@@ -133,7 +133,8 @@ def test_invalid_selection_fails_without_broadening(document, selector, category
 
 
 @pytest.mark.parametrize('selector', [None, 'E2E-002', 'E2E-023/fullscreen',
-    'E2E-031/draft-reopen', 'E2E-051/riley'])
+    'E2E-031/draft-reopen', 'E2E-051/riley',
+    'E2E-052/appimagelauncher-login-autostart'])
 def test_pending_selection_cannot_run(document, selector):
     with pytest.raises(inventory.InventoryError, match='selection:pending'):
         inventory.resolve_selection(document, selector, require_runnable=True)

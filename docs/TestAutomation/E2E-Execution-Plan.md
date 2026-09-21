@@ -17,6 +17,11 @@ It needs GDM route qualification under the external-provider exception, then ins
 station exposure of the repository-owned request-form IDs; its brief records
 both return conditions. Host adapter/UI results qualify neither gate.
 
+Use the [external adapter tasks](External/README.md) for bounded prerequisite
+work. External IDs are optional; use readily available mappings or a qualified
+provider-specific workaround without an extended ID search. This does not move
+the customer Next task or qualify repository-owned controls.
+
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale
 pointer never overrides the queue. Keep only current continuation information.

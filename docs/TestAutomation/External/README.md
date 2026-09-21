@@ -32,6 +32,34 @@ rejection, secret-recipient proof and single-use/uncertain-input guards still
 apply. An unavailable safety proof is a blocker; an unavailable external ID is
 not. Repository-owned apps, child extension and fixtures still require IDs.
 
+## Current task
+
+The next task is **G03** in [Entry and session controls](01-Entry.md). A session
+may therefore start with only: `Execute the next task in
+docs/TestAutomation/External/README.md`.
+
+G03 remains blocked at the initial greeter's `ui:gdm-account-cardinality`
+check. Detached-console reconnection and stdin observer execution succeeded,
+but neither the ordinary prompt/Escape/list sequence nor station-branch
+observation was reached. The task row links the failed run and its return
+condition; cleanup passed and the pinned VM is off. G04 is not yet eligible.
+
+Treat this pointer as part of every task's close-out. After completing a task,
+mark its row complete, append its short result or artifact pointer, and update
+this section to the next task. First honor any customer task released by that
+row and the customer queue's lowest-eligible-case rule. Otherwise choose the
+first unchecked external row whose listed prerequisites are complete, using the
+file order below and then table order. Do not skip an eligible task merely
+because a later task is more convenient.
+
+If the current task is incomplete, keep its row unchecked and append its blocker
+and exact return condition. Keep this pointer on that task while the return
+condition can be pursued; when it cannot, point to the first independent eligible
+task and leave the blocked row unchecked. At the start of a session, verify the
+pointer against the task tables and repair a stale pointer before doing task work.
+When no task is eligible, point to the earliest blocked task and its return
+condition instead of claiming completion.
+
 ## Order and task size
 
 1. [Entry and session controls](01-Entry.md): unblock task 011's passwordless
@@ -153,6 +181,7 @@ support or silent fallback. Do not build a translation/version matrix now.
   Markdown with `tools/read-only links`. Test-only changes activate on invocation;
   a necessary product fix gets its own package-activation classification.
 
-The first bounded code slice is **G01**, after the small contract alignment P01.
-It implements nonsecret greeter selection and refusal, without building a
-general adapter framework or waiting for external IDs.
+The completed G02 slice scopes prompt recognition and refusal to the station
+and desktop sessions without authenticating, auto-dismissing or requiring full
+provider ID maps. **G03** is now the first eligible unchecked row in plan order;
+it diagnoses only the offered station-entry branch in the guarded VM envelope.

@@ -331,7 +331,8 @@ def test_all_public_ui_operations_have_descriptions_and_publish_before_call(monk
     progress = Progress(cases()[:1])
     progress.case(progress.cases[0]['case_id'])
     ui = UiObservations(None, progress=progress)
-    def call(_argv, operation):
+    def call(_argv, operation, *, input):
+        assert isinstance(input, bytes) and input
         assert progress.snapshot()['operation'] == OPERATION_LABELS[operation]
         return json.dumps(dict(operation=operation, outcome='passed', interface='AT-SPI')).encode(), []
     monkeypatch.setattr(ui, 'call', call)

@@ -31,6 +31,9 @@ sub run {
         $station_list, 'station-list', 'station-focused');
     $journey->consume_observation('station-focused', $station);
     testapi::send_key('ret');
+    my $branch = $journey->seen('station-branch');
+    die 'kiosk-entry:unresolved-session-choice' unless
+        ($branch->{station_destination} // '') eq 'default-request-form';
     $journey->seen('request-form');
     $journey->finish();
 }

@@ -75,6 +75,39 @@ print encode_json({ok => $ok ? 1 : 0, connected => $connected, matched => $match
 '''
 
 
+@pytest.mark.parametrize('source', ['detached', 'sut', 'onpc-serial', 'other', ''])
+@pytest.mark.parametrize('destination', ['sut', 'detached', 'onpc-serial'])
+def test_functional_reattachment_resets_and_verifies_only_sut(source, destination):
+    probe = r'''
+use strict;
+use warnings FATAL => 'uninitialized';
+use JSON::PP;
+our ($current, $destination) = @ARGV;
+$current = undef if $current eq 'detached';
+our @events;
+our $activated = 1;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub current_console { $main::current }
+sub reset_consoles { push @main::events, 'reset'; $main::activated = 0; }
+sub select_console {
+    die 'stale connection' if $main::activated;
+    push @main::events, 'select:' . $_[0];
+    $main::current = $main::destination eq 'detached' ? undef : $main::destination;
+}
+package main;
+require onpc_gdm;
+my $ok = eval { onpc_gdm::reattach_functional(); 1; };
+print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
+'''
+    result = json.loads(run_perl(probe, source, destination).stdout)
+    allowed = source in ('detached', 'sut')
+    assert result['ok'] == (allowed and destination == 'sut')
+    assert result['events'] == (['reset', 'select:sut'] if allowed else [])
+    if not result['ok']:
+        assert ('gdm:reconnect' if allowed else 'gdm:console') in result['error']
+
+
 @pytest.mark.parametrize('mode', ['ok', 'wrong-console', 'missing-list'])
 def test_setup_image_reattachment_refuses_before_connection_or_match(mode):
     result = json.loads(run_perl(REATTACH, mode).stdout)

@@ -111,11 +111,13 @@ sub reattach_after_setup {
 sub reattach_functional {
     onpc_progress::operation('Reconnecting the graphical console');
     die "gdm:arguments\n" if @_;
-    die "gdm:console\n" unless testapi::current_console() eq 'sut';
+    my $current = testapi::current_console();
+    die "gdm:console\n" if defined($current) && $current ne 'sut';
     # disable closes VNC but leaves the console activated. The documented
     # reboot reset makes select_console activate it again and obtain fresh pixels.
     testapi::reset_consoles();
     testapi::select_console('sut');
+    die "gdm:reconnect\n" unless (testapi::current_console() // '') eq 'sut';
 }
 
 # Installed input has a separate reviewed tag; the observation-only tag stays

@@ -144,12 +144,17 @@ Child panel metadata activates with the next graphical session
 (`session-renewal`). Neither requires a saved-data migration.
 
 The ID provider does not establish compliance for every consumer. Setup/login
-and retained legacy tests still require migration where they select by names,
-roles, structure or geometry. External GDM, authentication dialogs, GTK file
-choosers and document viewers require their own public stable IDs before those
-consumers can be qualified; image or name matching cannot substitute. GTK
-versions that do not publish Builder IDs likewise cannot qualify the ID-based
-adapter. Existing passing tests do not waive those gaps.
+and retained legacy tests still require migration where they use unscoped names,
+roles, structure or geometry. Repository-owned UI requires public stable IDs.
+External GDM, authentication dialogs, GTK file choosers and document viewers
+instead follow the provider-specific exception in `AGENTS.md`: prefer available
+IDs, then qualify scoped public accessibility semantics and ordinary keyboard
+navigation with ownership, ambiguity, input and result guards. Geometry or image
+matching is confined to an explicit provider adapter when accessibility actions
+and keyboard navigation cannot work reliably. GTK versions that do not publish
+Builder IDs cannot qualify the owned GTK ID adapter, but missing IDs alone do
+not block an external-provider adapter. Existing passing tests do not waive
+those qualification gaps.
 
 The child panel publishes `child-request-button` for the primary request action
 and `child-countdown-animation-toggle` for its context-menu setting. The latter

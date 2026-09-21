@@ -31,7 +31,7 @@ OPERATIONS = frozenset({
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
     'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused',
-    'kiosk-request-form',
+    'kiosk-request-form', 'station-entry-branch',
 })
 STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
@@ -119,14 +119,30 @@ GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 
     'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused'})
 GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list',
                                 'gdm-station-list'})
+GDM_NONSECRET_OPERATIONS = frozenset({
+    'gdm-list', 'gdm-focused', 'gdm-station-wrong-entry-refused',
+    'gdm-station-list', 'gdm-station-focused',
+})
+GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
+GDM_ACCOUNT_ROLES = frozenset({'button', 'push button'})
+# G03 observation only: these are provider labels, never invented public IDs.
+GDM_SESSION_LABELS = {
+    'Session': 'session-chooser', 'Select Session': 'session-chooser',
+    'Choose Session': 'session-chooser',
+    'Oh No! Parent Control': 'station', 'GNOME': 'gnome',
+    'GNOME on Xorg': 'gnome-xorg', 'Ubuntu': 'ubuntu',
+    'Ubuntu on Xorg': 'ubuntu-xorg', 'Sign In': 'sign-in',
+    'Log In': 'sign-in', 'Cancel': 'cancel',
+}
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form'})
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
 # host.  An observed Builder ID is recorded only when the installed provider
 # owns it; it is not usable until the application and surface roots are also
-# ID-addressable.  ``None`` is an exact provider gap, never an invitation to
-# substitute a title, role, label, object name, tree position or geometry.
+# ID-addressable. ``None`` is an exact provider-ID gap. Scoped provider
+# adapters such as G01 may still use the separately reviewed semantic contract;
+# generic label, object-name, tree-position and geometry fallbacks stay refused.
 EXTERNAL_PROVIDER_CONTRACTS = {
     'gnome-shell': {
         'application_id': None,
@@ -185,6 +201,15 @@ EXTERNAL_PROVIDER_CONTRACTS = {
             }),
         },
         'blocked_consumers': ('authentication', 'recipient safety'),
+    },
+    'mate-polkit-agent': {
+        'application_id': None,
+        'surfaces': {
+            'polkit': (None, {
+                'recipient': None, 'secret': None, 'confirm': None, 'cancel': None,
+            }),
+        },
+        'blocked_consumers': ('station authentication', 'recipient safety'),
     },
     'gcr-keyring-prompter': {
         'application_id': None,
@@ -410,8 +435,8 @@ class AccessibleUI:
         self.dispatch = dispatch
         self.last_roles = set()
         self.prompt_enabled = False
+        self.prompt_session = None
         self.handling_prompt = False
-        self.prompt_count = 0
         self.reset_observer = reset_observer
         self.provider_contracts = (EXTERNAL_PROVIDER_CONTRACTS if provider_contracts is None
                                    else provider_contracts)
@@ -1411,6 +1436,163 @@ class AccessibleUI:
         self.observe_absence('greeter', 'password', name=name, mode='snapshot')
         return target
 
+    def gdm_nonsecret_has_id_route(self):
+        """Whether G01 can use a complete public-ID route without tree reads."""
+        contract = self.provider_contracts.get('gdm', {})
+        surface = contract.get('surfaces', {}).get('greeter')
+        if not (type(contract.get('application_id')) is str
+                and contract['application_id'] and surface is not None
+                and type(surface[0]) is str and surface[0]):
+            return False
+        registered = surface[1]
+        required = ('account-list', 'account-choice::parent',
+                    'account-choice::station', 'selected-recipient', 'password')
+        return all(type(registered.get(control)) is str and registered[control]
+                   for control in required)
+
+    @staticmethod
+    def gdm_semantic_name(node):
+        return ' '.join(node.get_name().split())
+
+    def gdm_semantic_owner(self):
+        """Resolve the one Shell application on the active greeter bus.
+
+        This is the deliberately narrow provider-specific exception for G01.
+        It is not a generic name/role selector: the standalone process is bound
+        to the sole active local greeter account before this tree is read.
+        """
+        desktop = self.api.get_desktop(0)
+        require(desktop is not None, 'ui:incomplete-tree')
+        nodes = list(self.nodes(desktop, strict=True))
+        owners = [node for node in nodes
+                  if node.get_parent() == desktop
+                  and node.get_role_name() == 'application'
+                  and self.gdm_semantic_name(node).casefold()
+                  in GDM_SEMANTIC_APPLICATION_NAMES]
+        require(len(owners) == 1, 'ui:gdm-provider-owner')
+        return owners[0]
+
+    def gdm_semantic_nodes(self):
+        owner = self.gdm_semantic_owner()
+        nodes = list(self.nodes(owner, strict=True))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:gdm-stale-tree')
+        return owner, nodes
+
+    def gdm_semantic_rows(self):
+        """Return the unique ordinary and station rows in a complete list."""
+        owner, nodes = self.gdm_semantic_nodes()
+        showing = [node for node in nodes if self.showing(node)]
+        require(not any(node.get_role_name() == 'password text' for node in showing),
+                'ui:gdm-list-prompt-overlap')
+
+        def rows(names):
+            return [node for node in showing
+                    if node.get_role_name() in GDM_ACCOUNT_ROLES
+                    and self.gdm_semantic_name(node) in names]
+
+        ordinary = rows((PARENT,))
+        station = rows((KIOSK, KIOSK_USERNAME))
+        require(len(ordinary) == 1 and len(station) == 1,
+                'ui:gdm-account-cardinality')
+        require(ordinary[0] != station[0], 'ui:gdm-account-cardinality')
+        for row in (*ordinary, *station):
+            require(self.has_state(row, self.api.StateType.SENSITIVE),
+                    'ui:gdm-account-unavailable')
+        return owner, {PARENT: ordinary[0], KIOSK: station[0]}
+
+    def gdm_nonsecret_account(self, name):
+        require(name in (PARENT, KIOSK), 'ui:gdm-nonsecret-binding')
+        if self.gdm_nonsecret_has_id_route():
+            return self.greeter_list(name)
+        _owner, rows = self.gdm_semantic_rows()
+        return rows[name]
+
+    def gdm_nonsecret_navigation(self, name):
+        """Focus one fresh G01 row without deriving input from list position."""
+        if self.gdm_nonsecret_has_id_route():
+            return self.greeter_navigation(name)
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        target = self.gdm_nonsecret_account(name)
+        current = self.gdm_nonsecret_account(name)
+        require(current == target, 'ui:gdm-stale-focus')
+        component = current.get_component_iface()
+        require(component is not None, 'ui:gdm-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:gdm-focus-refused')
+
+        def focused():
+            refreshed = self.gdm_nonsecret_account(name)
+            require(refreshed == target, 'ui:gdm-stale-focus')
+            return self.has_state(refreshed, self.api.StateType.FOCUSED)
+
+        self.wait(focused, 'gdm-account-focus')
+        self.input_uncertain = False
+        return True
+
+    def gdm_nonsecret_prompt(self):
+        """Observe Parent's prompt without reading or authorizing its secret."""
+        if self.gdm_nonsecret_has_id_route():
+            self.greeter_prompt()
+            return
+        _owner, nodes = self.gdm_semantic_nodes()
+        showing = [node for node in nodes if self.showing(node)]
+        account_rows = [node for node in showing
+                        if node.get_role_name() in GDM_ACCOUNT_ROLES
+                        and self.gdm_semantic_name(node)
+                        in (PARENT, KIOSK, KIOSK_USERNAME)]
+        require(not account_rows, 'ui:gdm-list-prompt-overlap')
+        recipients = [node for node in showing
+                      if node.get_role_name() == 'label'
+                      and self.gdm_semantic_name(node) == PARENT]
+        fields = [node for node in showing
+                  if node.get_role_name() == 'password text']
+        require(len(recipients) == 1, 'ui:gdm-recipient')
+        require(len(fields) == 1
+                and self.has_state(fields[0], self.api.StateType.SENSITIVE)
+                and self.has_state(fields[0], self.api.StateType.FOCUSED),
+                'ui:gdm-password-focus')
+
+    def station_entry_branch(self, owner):
+        """Read the offered branch without selecting or dismissing any control."""
+        require(owner in ('greeter', 'station'), 'ui:station-branch-owner')
+        if owner == 'station':
+            def destination():
+                nodes = list(self.nodes(strict=True))
+                require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                for node in nodes), 'ui:station-stale-tree')
+                window = self.find_id('kiosk-request-window', nodes=nodes)
+                if window is None:
+                    return None
+                form = self.find_id('kiosk-request-form', root=window)
+                if form is None:
+                    return None
+                return {'destination': 'default-request-form', 'controls': []}
+            return self.wait(destination, 'station-default-destination')
+        _owner, nodes = self.gdm_semantic_nodes()
+        showing = [node for node in nodes if self.showing(node)]
+        recipients = [node for node in showing if node.get_role_name() == 'label'
+                      and self.gdm_semantic_name(node) in (KIOSK, KIOSK_USERNAME)]
+        require(len(recipients) == 1, 'ui:station-branch-recipient')
+        require(not any(node.get_role_name() == 'password text' for node in showing),
+                'ui:station-unexpected-password')
+        roles = {'button', 'push button', 'toggle button', 'radio button',
+                 'menu item', 'radio menu item', 'check menu item', 'combo box'}
+        controls = []
+        for node in showing:
+            role = node.get_role_name()
+            if role not in roles:
+                continue
+            label = GDM_SESSION_LABELS.get(self.gdm_semantic_name(node), 'unresolved')
+            controls.append({'label': label, 'role': role,
+                             'public_id_present': bool(public_automation_id(node)),
+                             'sensitive': self.has_state(node, self.api.StateType.SENSITIVE),
+                             'focused': self.has_state(node, self.api.StateType.FOCUSED)})
+        require(0 < len(controls) <= 12, 'ui:station-branch-controls')
+        known = [control['label'] for control in controls if control['label'] != 'unresolved']
+        require(len(known) == len(set(known)), 'ui:station-branch-ambiguous')
+        return {'destination': 'greeter-controls', 'controls': controls}
+
     def observe_absence(self, surface, target, *, name, mode, stable_seconds=None):
         """UI11: registered positive surfaces and complete fresh exclusion reads."""
         if surface == 'overview':
@@ -1891,6 +2073,102 @@ class AccessibleUI:
             return True
         return dialog is not None and surface is not dialog
 
+    @staticmethod
+    def _prompt_application_kind(name):
+        """Classify only the fixed provider application names for this image."""
+        normalized = ' '.join(name.casefold().replace('_', ' ').replace('-', ' ').split())
+        if normalized in (
+                'policykit authentication agent',
+                'mate polkit',
+                'mate polkit authentication agent',
+                'polkit mate authentication agent 1'):
+            return 'mate-polkit'
+        if normalized in ('gnome shell', 'gnome shell polkit agent'):
+            return 'shell-polkit'
+        if normalized in ('gcr prompter', 'gcr prompter 3', 'gcr prompter 4',
+                          'system prompter'):
+            return 'keyring'
+        return None
+
+    @staticmethod
+    def _prompt_title(name):
+        normalized = ' '.join(name.casefold().split())
+        return normalized in (
+            'authenticate', 'authentication required', 'password required',
+            'unlock keyring', 'unlock login keyring',
+        )
+
+    def _provider_kind_from_ids(self, application, surface):
+        """Use provider IDs when both available, without requiring control IDs."""
+        application_id = public_automation_id(application)
+        surface_id = public_automation_id(surface)
+        bindings = []
+        for provider, kind in (
+                ('mate-polkit-agent', 'mate-polkit'),
+                ('gnome-shell-polkit-agent', 'shell-polkit'),
+                ('gcr-keyring-prompter', 'keyring')):
+            contract = self.provider_contracts.get(provider, {})
+            expected_application = contract.get('application_id')
+            expected_surface = contract.get('surfaces', {}).get(
+                'keyring' if kind == 'keyring' else 'polkit', (None, {}))[0]
+            if (expected_application and expected_surface
+                    and application_id == expected_application and surface_id == expected_surface):
+                bindings.append(kind)
+        require(len(bindings) <= 1, 'ui:ambiguous-system-prompt')
+        return bindings[0] if bindings else None
+
+    def system_prompt_kind(self):
+        """Read one complete tree and classify a visible authentication modal.
+
+        This is the provider-specific G02 adapter.  It recognizes only the
+        fixed English provider semantics used by the prepared Ubuntu image, or
+        a provider's application/surface IDs when both are available.  It does
+        not resolve an input control and cannot authorize an action.
+        """
+        desktop = self.api.get_desktop(0)
+        require(desktop is not None, 'ui:incomplete-tree')
+        nodes = list(self.nodes(desktop, strict=True))
+        require(nodes, 'ui:incomplete-tree')
+        provider_application_ids = {
+            contract.get('application_id')
+            for provider, contract in self.provider_contracts.items()
+            if provider in ('mate-polkit-agent', 'gnome-shell-polkit-agent',
+                            'gcr-keyring-prompter') and contract.get('application_id')
+        }
+        applications = [node for node in nodes
+                        if node.get_role_name() == 'application'
+                        or public_automation_id(node) in provider_application_ids]
+        candidates = []
+        for application in applications:
+            application_nodes = list(self.nodes(application, strict=True))
+            application_kind = self._prompt_application_kind(application.get_name())
+            owned = bool(public_automation_id(application) in (
+                PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION,
+                WATCH_APPLICATION, UI_WATCH_APPLICATION))
+            for surface in application_nodes:
+                if surface is application or not self.showing(surface):
+                    continue
+                descendants = list(self.nodes(surface, strict=True))
+                password = any(node.get_role_name() == 'password text'
+                               for node in descendants)
+                prompt_title = self._prompt_title(surface.get_name())
+                id_kind = self._provider_kind_from_ids(application, surface)
+                modal = (surface.get_role_name() in ('alert', 'dialog')
+                         or self.has_state(surface, self.api.StateType.MODAL)
+                         or id_kind is not None)
+                if not modal:
+                    continue
+                kind = id_kind or application_kind
+                # Shell's logout confirmation is also modal. Known provider
+                # applications need authentication meaning; an unregistered
+                # external modal is itself an unknown surface and must block.
+                if kind is not None and not (password or prompt_title):
+                    continue
+                if not owned:
+                    candidates.append(kind or 'unknown')
+        require(len(candidates) <= 1, 'ui:ambiguous-system-prompt')
+        return candidates[0] if candidates else None
+
     def pointer_target(self, node):
         raise UiError('ui:pointer-route-refused')
 
@@ -1901,38 +2179,16 @@ class AccessibleUI:
         raise UiError('ui:pointer-route-refused')
 
     def handle_system_prompt(self):
-        """Pause a desktop wait for one semantic Cancel action, then observe closure.
-
-        The same adapter invocation resumes its pending read after dismissal;
-        neither the surrounding operation nor earlier input is replayed. The
-        provider-owned action receives no secret or coordinate. Unknown prompts
-        and GDM are excluded.
-        """
+        """Recognize and refuse session prompts without delivering input."""
         if not self.prompt_enabled or self.handling_prompt:
-            return
-        control = self.system_prompt_control()
-        if control is None:
             return
         self.handling_prompt = True
         try:
-            while control is not None:
-                require(self.prompt_count < 3, 'ui:system-prompt-limit')
-                self.prompt_count += 1
-                dialog = self.system_prompt_control(qualify=False)
-                require(dialog is not None, 'ui:system-prompt-dialog')
-                require(not self.input_uncertain, 'ui:uncertain-input')
-                control = self.fresh_owned_target(control)
-                action = control.get_action_iface()
-                require(action is not None and self.api.Action.get_n_actions(action) == 1,
-                        'ui:missing-or-ambiguous-action')
-                self.input_uncertain = True
-                require(self.api.Action.do_action(action, 0), 'ui:action-refused')
-                # Multiple applications may queue identical keyring requests.
-                # A new dialog is a new input target only after a complete read
-                # proves this exact dialog disappeared. Never reclick this one.
-                self.wait(lambda: self.system_prompt_absent(dialog), 'system-prompt-dismissed')
-                self.input_uncertain = False
-                control = self.system_prompt_control()
+            kind = self.system_prompt_kind()
+            if kind is not None:
+                require(self.prompt_session in ('station', 'desktop'),
+                        'ui:system-prompt-session')
+                raise UiError('ui:system-prompt-refused:' + self.prompt_session + ':' + kind)
         except self.query_errors:
             raise UiError('ui:system-prompt-observation-failed') from None
         finally:
@@ -1940,13 +2196,13 @@ class AccessibleUI:
 
     def run(self, operation, version):
         require(operation in OPERATIONS, 'ui:operation')
-        self.prompt_enabled = operation not in GREETER_OPERATIONS
-        # The first desktop query can race accessibility startup after login.
-        # Use the same bounded read wait as later observations. The prompt
-        # handler still latches uncertain input/dismissal failures as UiError.
-        self.wait(lambda: True, 'system-prompt-ready')
+        self.prompt_enabled = operation not in GREETER_OPERATIONS and operation != 'station-entry-branch'
+        self.prompt_session = ('station' if operation in KIOSK_OPERATIONS else
+                               None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation in GREETER_OPERATIONS:
+        if operation == 'station-entry-branch':
+            result['branch'] = self.station_entry_branch(self.branch_owner)
+        elif operation in GREETER_OPERATIONS:
             if operation in ('gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused'):
                 self.wait(lambda: self.password_recipient(OTHER_PARENT), 'gdm-other-recipient')
                 name = EXISTING_CHILD if operation == 'gdm-standard-wrong-recipient-refused' else PARENT
@@ -1957,6 +2213,8 @@ class AccessibleUI:
                 self.wait(lambda: self.password_recipient(EXISTING_CHILD), 'gdm-standard-recipient')
             elif operation == 'gdm-select-parent':
                 self.greeter_prompt()
+            elif operation == 'gdm-station-wrong-entry-refused':
+                self.gdm_nonsecret_prompt()
             elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused',
                               'gdm-station-focused'):
                 name = OTHER_PARENT if operation == 'gdm-other-focused' else PARENT
@@ -1964,7 +2222,9 @@ class AccessibleUI:
                     name = EXISTING_CHILD
                 if operation == 'gdm-station-focused':
                     name = KIOSK
-                self.wait(lambda: self.has_state(self.greeter_list(name), self.api.StateType.FOCUSED),
+                account = (self.gdm_nonsecret_account if operation in GDM_NONSECRET_OPERATIONS
+                           else self.greeter_list)
+                self.wait(lambda: self.has_state(account(name), self.api.StateType.FOCUSED),
                           'gdm-account-focus')
             elif operation in GREETER_NAVIGATION:
                 name = OTHER_PARENT if operation == 'gdm-other-list' else PARENT
@@ -1972,15 +2232,16 @@ class AccessibleUI:
                     name = EXISTING_CHILD
                 if operation == 'gdm-station-list':
                     name = KIOSK
-                result['focused'] = self.greeter_navigation(name)
-            elif operation == 'gdm-station-wrong-entry-refused':
-                self.greeter_prompt()
+                navigation = (self.gdm_nonsecret_navigation
+                              if operation in GDM_NONSECRET_OPERATIONS
+                              else self.greeter_navigation)
+                result['focused'] = navigation(name)
             else:
                 self.greeter_list()
         elif operation in ('desktop', 'standard-desktop'):
             self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
         elif operation == 'help-system-prompt':
-            self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
+            self.desktop_result(PARENT, 'success')
         elif operation == 'help-terminal-input':
             self.wait(self.terminal_input, 'terminal-input')
         elif operation == 'help-terminal-focused':
@@ -1998,7 +2259,7 @@ class AccessibleUI:
         elif operation.startswith('help-content-'):
             self.wait(lambda: self.help_content(operation.removeprefix('help-content-')), 'help-content')
         elif operation == 'standard-system-prompt':
-            self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
+            self.desktop_result(EXISTING_CHILD, 'success')
         elif operation == 'standard-terminal-input':
             self.wait(self.terminal_input, 'terminal-input')
         elif operation == 'standard-terminal-focused':
@@ -2018,7 +2279,6 @@ class AccessibleUI:
                       'denial-closed')
             self.management_absent(within=surrounding)
         elif operation == 'standard-app-grid':
-            self.wait(self.system_prompt_absent, 'system-prompt-dismissed')
             self.search_ready('overview')
         elif operation == 'standard-search-focused':
             self.focus_search_field()
@@ -2085,7 +2345,7 @@ class AccessibleUI:
         return result
 
 
-def greeter_account():
+def greeter_account(*, station_branch=False):
     """Resolve the sole active local greeter via public logind session metadata.
 
     Modern GDM can use a dynamic account instead of the legacy gdm UID. This
@@ -2094,7 +2354,7 @@ def greeter_account():
     # Installed boots gate GDM on enforcement readiness. Snapshot consumers
     # enter here directly after SSH, without the former setup boot-complete
     # wait. Observe the public greeter within its own finite boot budget.
-    deadline = time.monotonic() + 300
+    deadline = time.monotonic() + (90 if station_branch else 300)
     def call(*args):
         remaining = deadline - time.monotonic()
         require(remaining > 0, 'ui:timeout:greeter-identity')
@@ -2110,16 +2370,26 @@ def greeter_account():
             require(re.fullmatch(r'[a-zA-Z0-9]+', session), 'ui:session-id')
             props = dict(line.split('=', 1) for line in call('show-session', session,
                 '-p', 'Class', '-p', 'Active', '-p', 'Remote', '-p', 'Type', '-p', 'Seat', '-p', 'User').splitlines())
-            if (props.get('Class') == 'greeter' and props.get('Active') == 'yes'
+            if ((station_branch or props.get('Class') == 'greeter') and props.get('Active') == 'yes'
                     and props.get('Remote') == 'no' and props.get('Seat') == 'seat0'
                     and props.get('Type') in ('wayland', 'x11')):
                 require(props.get('User', '').isdecimal() and int(props['User']) > 0,
                         'ui:greeter-user')
-                found.append(int(props['User']))
+                uid = int(props['User'])
+                if station_branch:
+                    owner = 'greeter' if props.get('Class') == 'greeter' else 'station'
+                    require(owner == 'greeter' or (props.get('Class') == 'user'
+                            and uid == pwd.getpwnam(KIOSK_USERNAME).pw_uid),
+                            'ui:station-branch-owner')
+                    found.append((uid, owner))
+                else:
+                    found.append(uid)
         require(len(found) <= 1, 'ui:greeter-identity')
         remaining = deadline - time.monotonic()
         require(remaining > 0, 'ui:timeout:greeter-identity')
         if found:
+            if station_branch:
+                return pwd.getpwuid(found[0][0]), found[0][1]
             return pwd.getpwuid(found[0])
         # SSH can become ready before GDM after an installed snapshot boots.
         # Retry only absence, never an ambiguous identity or a failed read.
@@ -2161,9 +2431,14 @@ def main():
     greeter = sys.argv[1] in GREETER_OPERATIONS
     kiosk = sys.argv[1] in KIOSK_OPERATIONS
     require(os.geteuid() == 0, 'ui:fixture-identity')
-    account = greeter_account() if greeter else pwd.getpwnam(
-        'oh-no-parent-control' if kiosk else
-        ('onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
+    branch_owner = None
+    if sys.argv[1] == 'station-entry-branch':
+        account, branch_owner = greeter_account(station_branch=True)
+        greeter, kiosk = branch_owner == 'greeter', branch_owner == 'station'
+    else:
+        account = greeter_account() if greeter else pwd.getpwnam(
+            'oh-no-parent-control' if kiosk else
+            ('onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
     require(account.pw_uid > 0 and (greeter or account.pw_uid >= 1000), 'ui:fixture-identity')
     # Station entry is qualified by its public form. Bind the observation
     # client to the account without polling session services or treating their
@@ -2191,6 +2466,7 @@ def main():
     ui = AccessibleUI(Atspi, timeout=90 if kiosk else 45, query_errors=(GLib.Error,),
         reset_observer=reset_atspi_client if kiosk else None,
         dispatch=lambda: GLib.MainContext.default().iteration(False))
+    ui.branch_owner = branch_owner
     try:
         result = ui.run(sys.argv[1], sys.argv[2])
     except UiError:

@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">10532</span>/<span style="color: gray">0</span>/10532 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">10701</span>/<span style="color: gray">0</span>/10701 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">142</span>/<span style="color: gray">0</span>/142 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">20</span>/<span style="color: gray">0</span>/20 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">0</span>/<span style="color: gray">241</span>/241 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">11083</span>/<span style="color: gray">241</span>/11324** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">7</span>/<span style="color: gray">234</span>/241 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">11264</span>/<span style="color: gray">234</span>/11498** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,8 +23,8 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">0</span>/<span style="color: gray">240</span>/240 |
-| runner-smoke | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |
+| customer-journey | <span style="color: green">6</span>/<span style="color: gray">234</span>/240 |
+| runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
 
@@ -34,12 +34,14 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 
 | ID | Scenario | Variant | Status |
 | ---: | --- | --- | --- |
-| <span style="color: gray">[1](#scenario-1)</span> | <span style="color: gray">Fresh boot and graphical/observation transport</span> | <span style="color: gray">`E2E-001/gdm-observation`</span> | <span style="color: gray">pending</span> |
+| [1](#scenario-1) | Fresh boot and graphical/observation transport | `E2E-001/gdm-observation` | ready |
+| [3](#scenario-3) | Parent discovery and navigation (children: existing and new) | `E2E-003/existing-and-new` | ready |
+| [4](#scenario-4) | Parent discovery and navigation (children: none) | `E2E-003/none` | ready |
+| [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
+| [6](#scenario-6) | Standard user cannot manage policy (launch: terminal) | `E2E-004/terminal` | ready |
+| [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
+| [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
 | <span style="color: gray">[2](#scenario-2)</span> | <span style="color: gray">Install the app and begin managing a child</span> | <span style="color: gray">`E2E-002/clean`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[3](#scenario-3)</span> | <span style="color: gray">Parent discovery and navigation (children: existing and new)</span> | <span style="color: gray">`E2E-003/existing-and-new`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[4](#scenario-4)</span> | <span style="color: gray">Parent discovery and navigation (children: none)</span> | <span style="color: gray">`E2E-003/none`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[5](#scenario-5)</span> | <span style="color: gray">Standard user cannot manage policy (launch: app grid)</span> | <span style="color: gray">`E2E-004/app-grid`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -173,7 +175,6 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[137](#scenario-137)</span> | <span style="color: gray">Customer package update and activation (activation: session)</span> | <span style="color: gray">`E2E-026/session`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[139](#scenario-139)</span> | <span style="color: gray">Install through remove, reinstall and purge</span> | <span style="color: gray">`E2E-027/continuous`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[151](#scenario-151)</span> | <span style="color: gray">Installed About and license access</span> | <span style="color: gray">`E2E-030/parent`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[152](#scenario-152)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: draft reopen)</span> | <span style="color: gray">`E2E-031/draft-reopen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[154](#scenario-154)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: attachments)</span> | <span style="color: gray">`E2E-031/attachments`</span> | <span style="color: gray">pending</span> |
@@ -215,7 +216,6 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[190](#scenario-190)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: parent links)</span> | <span style="color: gray">`E2E-042/parent-links`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[191](#scenario-191)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: child overlay)</span> | <span style="color: gray">`E2E-042/child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[192](#scenario-192)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: kiosk)</span> | <span style="color: gray">`E2E-042/kiosk`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[193](#scenario-193)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: command help)</span> | <span style="color: gray">`E2E-042/command-help`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[194](#scenario-194)</span> | <span style="color: gray">Use local controls and approvals while offline (surface: child overlay)</span> | <span style="color: gray">`E2E-043/child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[195](#scenario-195)</span> | <span style="color: gray">Use local controls and approvals while offline (surface: kiosk)</span> | <span style="color: gray">`E2E-043/kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[196](#scenario-196)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset)</span> | <span style="color: gray">`E2E-044/ordinary-daily-reset`</span> | <span style="color: gray">pending</span> |
@@ -276,25 +276,100 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[251](#scenario-251)</span> | <span style="color: gray">Alternate two children's work and game routines without mixing their choices (first child: jordan)</span> | <span style="color: gray">`E2E-051/jordan`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[252](#scenario-252)</span> | <span style="color: gray">Alternate two children's work and game routines without mixing their choices (first child: riley)</span> | <span style="color: gray">`E2E-051/riley`</span> | <span style="color: gray">pending</span> |
 
-<div style="color: gray">
-
 ### Scenario 1
 
 **Fresh boot and graphical/observation transport**
 
-Case: `E2E-001/gdm-observation` · Category: runner-smoke · Status: **pending**
+Case: `E2E-001/gdm-observation` · Category: runner-smoke · Status: **ready**
 
 Variant: transport: gdm observation
 
 **Steps:**
 
-- Recognize real GDM through public accessibility on a fresh product-free boot, navigate from its public account-list order, verify the intended account's focus and press Enter. Independently verify the intended account label and focused password role with the account list hidden, then dismiss with Escape. No graphical password is submitted.
+- Recognize real GDM on a fresh product-free boot through the qualified provider adapter, select the intended account, verify its focus and press Enter. Independently verify the intended recipient and focused password field with the account list hidden, then dismiss with Escape. No graphical password is submitted.
 - Select the supported serial console, verify the real fixture login prompt and disabled echo, authenticate through the secret-safe API, require actual harmless command output, and perform real logout.
 - Select graphics after serial logout, independently acknowledge the session-free greeter and fresh public account-list UI, and reconcile ordered functional UI checkpoints and the command result before accepting shutdown.
 
-Pending: GDM does not have an installed qualified provider-ID mapping for the greeter surface, account rows, selected recipient, password field, submit/cancel controls or session choices; the retained worker still discovers external controls by labels, roles or list order.
+### Scenario 3
 
-</div>
+**Parent discovery and navigation (children: existing and new)**
+
+Case: `E2E-003/existing-and-new` · Category: customer-journey · Status: **ready**
+
+Variant: children: existing and new
+
+**Steps:**
+
+- Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
+- For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, prepare the declared no-eligible-child account fixture before launching Parent.
+- For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, launch Parent and read the no-eligible-account explanation and (None) child selection.
+
+### Scenario 4
+
+**Parent discovery and navigation (children: none)**
+
+Case: `E2E-003/none` · Category: customer-journey · Status: **ready**
+
+Variant: children: none
+
+**Steps:**
+
+- Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
+- For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, prepare the declared no-eligible-child account fixture before launching Parent.
+- For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, launch Parent and read the no-eligible-account explanation and (None) child selection.
+
+### Scenario 5
+
+**Standard user cannot manage policy (launch: app grid)**
+
+Case: `E2E-004/app-grid` · Category: customer-journey · Status: **ready**
+
+Variant: launch: app grid
+
+**Steps:**
+
+- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
+- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
+
+### Scenario 6
+
+**Standard user cannot manage policy (launch: terminal)**
+
+Case: `E2E-004/terminal` · Category: customer-journey · Status: **ready**
+
+Variant: launch: terminal
+
+**Steps:**
+
+- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
+- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
+
+### Scenario 151
+
+**Installed About and license access**
+
+Case: `E2E-030/parent` · Category: customer-journey · Status: **ready**
+
+Variant: surface: parent
+
+**Steps:**
+
+- Log in as Parent, launch the installed app from the app grid, select an existing child, open About, read its product/version information and open the installed license text.
+- Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy.
+
+### Scenario 193
+
+**Read Help, About and command usage on each surface (surface: command help)**
+
+Case: `E2E-042/command-help` · Category: customer-journey · Status: **ready**
+
+Variant: surface: command help
+
+**Steps:**
+
+- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal.
+- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals.
+- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
 
 <div style="color: gray">
 
@@ -313,84 +388,6 @@ Variant: installation: clean
 - Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 3
-
-**Parent discovery and navigation (children: existing and new)**
-
-Case: `E2E-003/existing-and-new` · Category: customer-journey · Status: **pending**
-
-Variant: children: existing and new
-
-**Steps:**
-
-- Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
-- For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, open Parent on the declared computer with no eligible child accounts.
-- For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, read the no-eligible-account explanation and (None) child selection.
-
-Pending: The installed GDM greeter and GNOME Shell desktop/app-grid path lack qualified provider-owned IDs for their surfaces, account/recipient/password controls, search field and launch result; retained label/role/order selectors cannot run under the automation mandate.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 4
-
-**Parent discovery and navigation (children: none)**
-
-Case: `E2E-003/none` · Category: customer-journey · Status: **pending**
-
-Variant: children: none
-
-**Steps:**
-
-- Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
-- For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, open Parent on the declared computer with no eligible child accounts.
-- For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, read the no-eligible-account explanation and (None) child selection.
-
-Pending: The installed GDM greeter and GNOME Shell desktop/app-grid path lack qualified provider-owned IDs for their surfaces, account/recipient/password controls, search field and launch result; retained label/role/order selectors cannot run under the automation mandate.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 5
-
-**Standard user cannot manage policy (launch: app grid)**
-
-Case: `E2E-004/app-grid` · Category: customer-journey · Status: **pending**
-
-Variant: launch: app grid
-
-**Steps:**
-
-- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
-- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
-
-Pending: GNOME Shell 50.1 exposes no nonempty public AccessibleId on the audited desktop tree, and the installed app-grid surface, search field and result/exclusion IDs remain unqualified.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 6
-
-**Standard user cannot manage policy (launch: terminal)**
-
-Case: `E2E-004/terminal` · Category: customer-journey · Status: **pending**
-
-Variant: launch: terminal
-
-**Steps:**
-
-- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
-- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
-
-Pending: GDM/Shell entry and the registered terminal application, surface and input/output area lack installed qualified provider-owned IDs; retained role/text lookup cannot identify the terminal.
 
 </div>
 
@@ -3073,25 +3070,6 @@ Pending: Customer recipe is documented; required public blocks and full installe
 
 <div style="color: gray">
 
-### Scenario 151
-
-**Installed About and license access**
-
-Case: `E2E-030/parent` · Category: customer-journey · Status: **pending**
-
-Variant: surface: parent
-
-**Steps:**
-
-- Log in as Parent, launch the installed app from the app grid, select an existing child, open About, read its product/version information and open the installed license text.
-- Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy.
-
-Pending: The installed GDM/Shell launch path and owning license viewer lack qualified provider-owned IDs for their surfaces, account/recipient/password controls, app-grid controls, document content and close action.
-
-</div>
-
-<div style="color: gray">
-
 ### Scenario 152
 
 **Feedback drafts, validation and attachment review (flow: draft reopen)**
@@ -3904,26 +3882,6 @@ Variant: surface: kiosk
 - Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 193
-
-**Read Help, About and command usage on each surface (surface: command help)**
-
-Case: `E2E-042/command-help` · Category: customer-journey · Status: **pending**
-
-Variant: surface: command help
-
-**Steps:**
-
-- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal.
-- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals.
-- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
-
-Pending: The installed GDM/Shell entry path and registered terminal surface/input-output area lack qualified provider-owned IDs; help text cannot make a role/title-selected terminal compliant.
 
 </div>
 

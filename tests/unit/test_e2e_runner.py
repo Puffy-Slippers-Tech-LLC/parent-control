@@ -72,7 +72,7 @@ def cli_checkout(checkout):
 def test_full_listing_keeps_pending_cases_and_exact_digest():
     plan = runner['preflight'](['--list'])
     assert len(plan['cases']) == 241
-    assert len(plan['pending_cases']) == 241
+    assert len(plan['pending_cases']) == 234
     assert plan['scope'] == 'full'
     assert plan['mode'] == 'list-only'
     assert plan['inventory_sha256'] == hashlib.sha256(
@@ -254,21 +254,27 @@ def test_public_ready_listing_and_installed_dispatcher_share_selection(cli_check
     listing = json.loads(result.stdout)
     assert listing == runner['preflight'](['--list', '--ready'])
     assert listing['scope'] == 'partial' and listing['ready_only'] is True
-    assert listing['cases'] == []
-    assert len(listing['excluded_pending_cases']) == 241
+    assert [c['case_id'] for c in listing['cases']] == [
+        'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',
+        'E2E-004/app-grid', 'E2E-004/terminal', 'E2E-030/parent', 'E2E-042/command-help']
+    assert len(listing['excluded_pending_cases']) == 234
     import tempfile
     with tempfile.TemporaryDirectory(prefix='onpc-ready-test-') as directory:
-        with pytest.raises(ValueError, match='selection:no-ready-cases'):
-            dispatcher['selection'](ROOT, ['e2e', '--ready', '--artifacts=' + directory])
+        command = dispatcher['selection'](ROOT, ['e2e', '--ready', '--artifacts=' + directory])
+        plan = runner['preflight'](command[3:])
+        assert plan['cases'] == listing['cases']
+        assert plan['excluded_pending_cases'] == listing['excluded_pending_cases']
+        assert plan['verify_backing_bytes'] is True
 
 
-def test_default_execution_refuses_when_provider_gaps_leave_no_ready_case():
+def test_default_execution_selects_every_ready_e2e_case():
     listing = runner['preflight'](['--list', '--ready'])
-    assert listing['cases'] == []
-    with pytest.raises(ValueError, match='selection:no-ready-cases'):
-        runner['preflight']([], allow_missing_artifacts=True)
-    with pytest.raises(ValueError, match='selection:no-ready-cases'):
-        commands.plan(ROOT, 'e2e', [])
+    plan = runner['preflight']([], allow_missing_artifacts=True)
+    assert plan['cases'] == listing['cases']
+    assert plan['excluded_pending_cases'] == listing['excluded_pending_cases']
+    commands_to_run, safety = commands.plan(ROOT, 'e2e', [])
+    assert commands_to_run == [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', 'e2e']]
+    assert safety is False
 
 
 def test_comma_separated_ids_keep_exact_selection_through_dispatch():
@@ -288,7 +294,8 @@ def test_invalid_id_list_refuses_before_execution(value):
         commands.plan(ROOT, 'e2e', ['--id', value])
 
 
-def test_empty_ready_selection_refuses_before_build_or_dispatch(monkeypatch):
+@pytest.mark.parametrize('status', [0, 7])
+def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, status):
     import tempfile
     import regression
     # Bare e2e now belongs to the complete-phase aggregate. Keep this direct
@@ -297,7 +304,7 @@ def test_empty_ready_selection_refuses_before_build_or_dispatch(monkeypatch):
     aggregate = Mock(side_effect=AssertionError('unexpected aggregate dispatch'))
     monkeypatch.setattr(regression, 'main', aggregate)
     with tempfile.TemporaryDirectory(prefix='onpc-e2e-command-test-') as directory:
-        build = Mock()
+        build = Mock(return_value=SimpleNamespace(returncode=status))
         execute = Mock()
         monkeypatch.setattr(commands.tempfile, 'mkdtemp', lambda **kwargs: directory)
         monkeypatch.setattr(commands.subprocess, 'run', build)
@@ -305,9 +312,18 @@ def test_empty_ready_selection_refuses_before_build_or_dispatch(monkeypatch):
         monkeypatch.setattr(dev_privileges, 'check', Mock())
         result = commands._main(['e2e', '--ready'])
         aggregate.assert_not_called()
-        assert result == 2
-        build.assert_not_called()
-        execute.assert_not_called()
+        build.assert_called_once()
+        assert build.call_args.args[0] == [
+            '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
+            '--output', directory]
+        if status:
+            assert result == status
+            execute.assert_not_called()
+        else:
+            execute.assert_called_once()
+            assert execute.call_args.args[1] == [
+                '/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
+                'e2e', '--ready', '--artifacts=' + directory]
 
 
 def test_make_selector_never_becomes_recipe_shell_code(tmp_path, cli_checkout):

@@ -32,15 +32,15 @@ as a documentation preference.
 - **Block ready** means the exact catalogue scope has an implementation and the
   required qualification under the current automation mandate. Readiness does
   not transfer to an unlisted surface, binding or consumer.
-- **Scenario ready** means the current `scenarios.json` variant has a complete
-  executable customer journey whose required blocks, collection and cleanup are
-  qualified. A declaration, host test, task checkmark or older passing run is not
-  enough.
+- **Scenario ready** is the inventory's executable registration status. Retained
+  ready cases keep their bindings while shared adapters are being requalified;
+  the label does not certify those adapters or a current installed pass. Execution
+  must still satisfy every runtime guard and the catalogue's route qualifications.
 - **Pending** means required implementation or qualification remains. Preserve a
   concrete blocker and return condition.
-- **Provider blocked** means every affected path safely refuses before prohibited
-  discovery/input, but a required external public-ID contract is unavailable.
-  This is containment, not readiness or customer acceptance.
+- **Provider blocked** means the current route safely refuses because neither a
+  usable public-ID mapping nor a qualified external-provider adapter is available.
+  Missing IDs alone do not prohibit adapter work authorized by AGENTS.md.
 - **Retired** means the route cannot execute. Preserve displaced behavioral or
   engineering obligations under their current owner.
 
@@ -63,7 +63,6 @@ requirements, external-provider gaps and their return conditions are maintained
 in [functional validation](E2E-Building-Blocks.md#functional-validation); keep
 them separate from customer scenario completion.
 
-All live UI work inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate):
-public scoped IDs establish identity; semantic state/text verifies results only
-after identity lookup; missing external IDs block the consumer; and customer
-outcomes require independent public observations.
+All live UI work inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate),
+including its external-provider exception. The catalogue records implementation
+gaps and route qualification; it does not redefine that mandate.

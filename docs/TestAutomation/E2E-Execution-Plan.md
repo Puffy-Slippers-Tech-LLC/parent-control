@@ -12,20 +12,8 @@ completion; the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-- [x] **235 — E2E-042: command-help (case 193), historical delivery**.
-  Prerequisites: 185c — INFO02.
-  Acceptance at completion: case 193 passed its installed journey, collection
-  and cleanup. Its current scenario status is pending under the provider-ID
-  requirements.
-
-- [x] **003 — Open session controls and switch or sign out (DESK02, DESK03, DESK04)**.
-  Prerequisites: Baseline.
-  Acceptance: live VM qualification `tools/run-tests integration check_e2e_desktop_session`
-  passed confirmed Log Out and Switch User, each observing GDM, with cleanup.
-  First scheduled consumer E2E-017 case 57 remains pending.
-
 Next task: **011 — [Enter and read the request station](E2E-Tasks/011-kiosk-entry.md)**.
-It is pending first on the exact GDM provider-ID mapping and then on installed
+It needs GDM route qualification under the external-provider exception, then installed
 station exposure of the repository-owned request-form IDs; its brief records
 both return conditions. Host adapter/UI results qualify neither gate.
 
@@ -37,8 +25,7 @@ pointer never overrides the queue. Keep only current continuation information.
 
 Current scenario status and counts come from `tests/e2e/scenarios.json`; block
 status comes from the catalogue. Preserve implementations and regressions for
-formerly runnable cases 1, 3, 4, 5, 6, 151 and 193, but do not execute them until
-their external provider-ID paths are qualified. A checked queue task records its
+ready cases 1, 3, 4, 5, 6, 151 and 193. A checked queue task records its
 delivered scope; it does not override a later `pending` block or scenario status.
 
 Retired E2E IDs 140–150 remain separate system-test obligations and cannot be
@@ -65,7 +52,7 @@ obligations under their maintained owners.
    Apply the [UI automation mandate](../../AGENTS.md#ui-automation-mandate) and
    [functional validation](E2E-Building-Blocks.md#functional-validation) to every
    required surface, including setup, login and retained paths. Fix missing owned
-   IDs first; missing external IDs block the consumer.
+   IDs first; qualify external-provider adapters where usable IDs are unavailable.
 5. Finish live verification, cleanup and close-out. Report the task ID, result
    and next task. The next identical prompt repeats this workflow.
 
@@ -180,7 +167,7 @@ integration. Use `tools/run-unit-tests` and relevant
 `tools/run-ui-tests --timeout <duration>` selections. Changes to shared GDM,
 secret handling, routing, recorder phases/reconciliation or cleanup also require
 live regressions **1, 3, 4, 5, 151**. Otherwise run the new consumer and directly
-   affected formerly runnable cases. Finish edits/builds first; keep source and documents
+affected ready cases. Finish edits/builds first; keep source and documents
 unchanged through live collection and cleanup.
 
 For a **capability**, pass every stated outcome, independent valid entry and
@@ -221,11 +208,12 @@ After the guard is released and cleanup succeeds:
    later inventory/collection changes.
 2. Update only relevant rows in [E2E-Building-Blocks.md](E2E-Building-Blocks.md):
    actual callable, qualified scope/selector and remaining scope. Update the
-   selected family's current status in
-   [E2E-Scenario-Recipes.md](E2E-Scenario-Recipes.md), inventory bindings and
-   current totals here and there. A block slice alone leaves its scenario pending.
-3. Check the completed task `[x]` in this master's current-task entry and its
-   canonical [queue](E2E-Task-Queue.md) row only after all acceptance and close-out
+   selected family's recipe in
+   [E2E-Scenario-Recipes.md](E2E-Scenario-Recipes.md) only if its composition or
+   implementation context changed. Keep runtime status/bindings in the inventory
+   and totals in generated coverage. A block slice alone does not complete a scenario.
+3. Check the completed task `[x]` in its canonical [queue](E2E-Task-Queue.md)
+   row only after all acceptance and close-out
    pass. Keep ID, delivered scope and prerequisites; remove resolved blockers.
    If a complete scenario passed during a capability task, close its row only
    after its exact selector, full recipe, cleanup and coverage refresh.
@@ -241,8 +229,8 @@ After the guard is released and cleanup succeeds:
    dependency order, immediate scenario placement and unchanged case assignment.
    The frozen 236 customer cases must each occur exactly once; retain system
    obligations formerly numbered 140–150 outside the UI inventory and preserve
-   all seven retained case implementations separately after their external
-   provider-ID prerequisites are qualified.
+   all seven retained ready case implementations and bindings. Their shared
+   provider routes still require qualification under the current mandate.
 
 For a paired task, update each completed case immediately; keep the task unchecked
 until both pass. Resume only remaining work unless later changes invalidate the

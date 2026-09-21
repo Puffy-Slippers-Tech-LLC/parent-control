@@ -10,8 +10,8 @@ entry/time rules.
 
 E2E-028, E2E-029 and E2E-034 are retired; their former coverage IDs 140–150
 remain system-test obligations outside the UI inventory. Cases 1, 3, 4, 5, 6,
-151 and 193 retain implementations and earlier evidence but are currently
-pending on installed provider-owned ID qualification. Each family below records
+151 and 193 retain implementations, earlier evidence and ready inventory
+bindings. Each family below records
 current implementation context, not an independent readiness authority. Follow
 the [execution plan](E2E-Execution-Plan.md#completion-and-document-cleanup) after
 a complete scenario pass. A block qualification alone leaves its scenario
@@ -42,10 +42,10 @@ Users settings. Case 179 adds that actual customer account-creation route.
 Case 1 is explicitly not a customer journey. Retired IDs 140–150 are not UI
 cases; their engineering checks remain in system-test tasks 169–179.
 
-Every recipe inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate).
-Names, labels, roles, text, order and positions below are customer inputs or
-expected results after ID lookup, never target selectors. A missing provider ID
-leaves the consumer pending.
+Every recipe inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate),
+including its external-provider exception. Names, labels, roles, text and order
+below describe customer inputs/results; they do not define selectors. Provider
+selection belongs to the qualified adapter, repository-owned selection to public IDs.
 
 Use the following common recipe notation. It expands to catalogue blocks; it
 does not permit hidden setup or automatic repair after a failed step.
@@ -216,8 +216,8 @@ Bindings: installation = clean.
 
 ### E2E-003
 
-Implementation status: Cases 3 and 4 retain complete implementations but are
-pending on the external GDM and GNOME Shell provider IDs.
+Implementation status: Cases 3 and 4 retain complete implementations and ready
+inventory bindings.
 
 **Parent discovery and navigation.** Cases 3, 4.
 
@@ -229,9 +229,8 @@ Bindings: children = existing-and-new / none.
 
 ### E2E-004
 
-Implementation status: Cases 5 and 6 retain complete implementations and
-behavioral verification but are pending on external GDM, GNOME Shell and
-terminal provider IDs.
+Implementation status: Cases 5 and 6 retain complete implementations,
+behavioral verification and ready inventory bindings.
 
 **Standard user cannot manage policy.** Cases 5, 6.
 
@@ -523,8 +522,8 @@ Bindings: lifecycle = continuous.
 
 ### E2E-030
 
-Implementation status: Case 151 retains its complete implementation but is
-pending on external GDM, GNOME Shell and license-viewer provider IDs.
+Implementation status: Case 151 retains its complete implementation and ready
+inventory binding.
 
 **Installed About and license access.** Cases 151.
 
@@ -656,8 +655,8 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 ### E2E-042
 
 Implementation status: Case 193 retains its complete installed-journey,
-collection and cleanup evidence but is pending on external GDM, GNOME Shell and
-terminal provider IDs. Cases 190–192 remain pending.
+collection and cleanup evidence and ready inventory binding. Cases 190–192
+remain pending.
 
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.
 

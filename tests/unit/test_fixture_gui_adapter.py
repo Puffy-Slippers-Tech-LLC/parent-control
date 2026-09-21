@@ -23,6 +23,13 @@ def fixture(kind='native', instance='primary'):
 
 
 def adapter(root):
+    def applications(node):
+        if node.identity.startswith('onpc-fixture-') and len(node.identity.split('-')) == 4:
+            kind, instance = node.identity.split('-')[-2:]
+            return Node(identity=f'com.puffyslippers.ONPCFixture.{kind}.{instance}', children=[node])
+        node.children = [applications(child) for child in node.children]
+        return node
+    root = applications(root)
     return AccessibleUI(SimpleNamespace(
         get_desktop=lambda _: root,
         StateType=SimpleNamespace(SHOWING='showing', VISIBLE='visible', SENSITIVE='sensitive',
@@ -80,3 +87,22 @@ def test_password_projection_refuses_before_reading_text():
     with pytest.raises(UiError, match='masked-text'):
         FixtureUI(adapter(surface), 'native').text('draft')
     nodes['draft'].get_text_iface.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['wrong-application', 'wrong-surface', 'duplicate-application'])
+def test_fixture_targets_require_unique_application_and_surface_ownership(fault):
+    surface, nodes = fixture()
+    ui = adapter(surface)
+    application = ui.api.get_desktop(0)
+    if fault == 'wrong-application':
+        application.identity = 'unrelated-application'
+    elif fault == 'wrong-surface':
+        surface.children.remove(nodes['move'])
+        application.children.append(nodes['move'])
+    else:
+        duplicate = Node(identity=application.identity)
+        desktop = Node(children=[application, duplicate])
+        ui.api.get_desktop = lambda _: desktop
+    with pytest.raises(UiError):
+        FixtureUI(ui, 'native').move()
+    nodes['move'].action.do_action.assert_not_called()

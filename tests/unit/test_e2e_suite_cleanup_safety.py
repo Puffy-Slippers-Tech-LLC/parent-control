@@ -526,10 +526,14 @@ def test_inventory_package_lifecycle_cases_use_clean_baseline():
         assert suite_lease.needs_installed(families[name])
 
 
-def test_no_unqualified_provider_case_is_ready_for_snapshot_dispatch(prepared_suite):
+def test_no_ready_provider_case_is_dispatched_to_snapshot_setup(prepared_suite):
     import inventory
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     document, _ = inventory.read_json(inventory.INVENTORY)
+    for family in document['scenarios']:
+        for variant in family['variants']:
+            variant.update(status='pending', executable=None,
+                           pending_reason='Unqualified provider fixture')
     cases = inventory.resolve_selection(document, ready_only=True)['cases']
     assert cases == []
     with pytest.raises(inventory.InventoryError, match='selection:no-ready-cases'):

@@ -67,6 +67,16 @@ def search_ui(surface, *, outside=()):
     return ui_for(Node(children=[*outside, application]), provider_contracts=SEARCH_CONTRACTS)
 
 
+def queried_search_ui(*results):
+    field = Node('Oh No! Parent Control', 'entry', identity=SEARCH_CONTROLS['search'],
+                 states=('showing', 'visible', 'sensitive', 'editable'))
+    field.get_text_iface = lambda: field
+    ui = search_ui(Node(children=[field, *results]))
+    ui.api.Text = SimpleNamespace(get_character_count=lambda node: len(node.name),
+                                  get_text=lambda node, start, end: node.name[start:end])
+    return ui
+
+
 def document_ui(product_root, *, document=None):
     children = [Node(identity=PARENT_APPLICATION, children=[product_root])]
     if document is not None:
@@ -76,6 +86,58 @@ def document_ui(product_root, *, document=None):
                        states=('showing', 'visible', 'sensitive', 'active'))
         children.append(Node(identity='test-viewer-application', children=[surface]))
     return ui_for(Node(children=children), provider_contracts=DOCUMENT_CONTRACTS)
+
+
+def action_ui(root, identity):
+    """Give generic action tests explicit provider/application/surface ownership."""
+    contracts = copy.deepcopy(TEST_PROMPT_CONTRACTS)
+    contracts['action-fixture'] = {'application_id': 'test-action-application',
+        'surfaces': {'main': ('test-action-surface', {'action': identity})}}
+    return ui_for(Node(identity='test-action-application', children=[
+        Node(identity='test-action-surface', children=[root])]), provider_contracts=contracts)
+
+
+@pytest.mark.parametrize('fault', ['missing-id', 'unregistered', 'wrong-owner', 'duplicate', 'stale'])
+@pytest.mark.parametrize('named', [False, True])
+def test_actions_reacquire_public_provider_ownership_before_input(fault, named):
+    button = Node(identity='test-action')
+    ui = action_ui(button, 'test-action')
+    surface = ui.api.get_desktop(0).children[0]
+    if fault == 'missing-id':
+        button.identity = ''
+    elif fault == 'unregistered':
+        button.identity = 'unregistered'
+    elif fault == 'wrong-owner':
+        surface.children.clear()
+        ui.api.get_desktop(0).children.append(button)
+    elif fault == 'duplicate':
+        surface.children.append(Node(identity='test-action'))
+    else:
+        surface.children[:] = [Node(identity='test-action')]
+    with pytest.raises(UiError):
+        ui.activate_named(button, 'click') if named else ui.activate(button)
+    button.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['search', 'greeter'])
+@pytest.mark.parametrize('failure', ['exception', 'refused', 'unobserved'])
+def test_provider_focus_is_not_replayed_after_uncertain_result(operation, failure):
+    if operation == 'search':
+        node = Node(identity=SEARCH_CONTROLS['search'])
+        ui = search_ui(Node(children=[node]))
+        focus = ui.focus_search_field
+    else:
+        node = gdm_row('Jamie (Parent)', 'account-choice::parent')
+        ui = gdm_ui(rows=[node])
+        focus = lambda: ui.greeter_navigation('Jamie (Parent)')
+    node.component.grab_focus.side_effect = (
+        LookupError('uncertain') if failure == 'exception' else None)
+    node.component.grab_focus.return_value = failure != 'refused'
+    with pytest.raises((UiError, LookupError)):
+        focus()
+    with pytest.raises(UiError, match='uncertain-input'):
+        focus()
+    node.component.grab_focus.assert_called_once_with()
 
 
 def gdm_ui(*, rows=(), recipient=None, field=None, list_showing=True):
@@ -384,7 +446,7 @@ def test_greeter_reply_through_real_transport_and_command_stream(monkeypatch, tm
 ])
 def test_usable_target_is_independent_of_appearance(appearance):
     button = Node('About', 'button', appearance=appearance, identity='test-about')
-    ui = ui_for(Node(children=[Node('Help', 'button'), button]))
+    ui = action_ui(Node(children=[Node('Help', 'button'), button]), 'test-about')
     ui.activate(ui.id_target('test-about', sensitive=True))
     button.action.do_action.assert_called_once_with(0)
 
@@ -415,14 +477,14 @@ def test_unusable_or_wrong_control_cannot_pass(fault):
     if fault == 'wrong-name': button.identity = 'test-help'
     if fault == 'ambiguous': root.children.append(Node('About', 'button', identity='test-about'))
     if fault == 'refused': button.action.do_action.return_value = False
-    ui = ui_for(root)
+    ui = action_ui(root, 'test-about')
     with pytest.raises(UiError):
         ui.activate(ui.id_target('test-about', sensitive=True))
 
 
 def test_successful_action_without_expected_result_still_fails():
     button = Node('Selected child', 'combo box', identity='test-selector')
-    ui = ui_for(Node(children=[button]))
+    ui = action_ui(Node(children=[button]), 'test-selector')
     ui.activate(button)
     with pytest.raises(UiError, match='timeout'):
         ui.id_target('parent-child-choice-1001')
@@ -430,10 +492,10 @@ def test_successful_action_without_expected_result_still_fails():
 
 def test_stale_queries_retry_but_actions_are_never_replayed():
     button = Node('About', 'button', identity='test-about')
-    ui = ui_for(button)
+    ui = action_ui(button, 'test-about')
     ui.timeout = .5
     ui.query_errors = (LookupError,)
-    button.get_accessible_id = Mock(side_effect=[LookupError('stale')] + ['test-about'] * 8)
+    button.get_accessible_id = Mock(side_effect=[LookupError('stale')] + ['test-about'] * 100)
     ui.activate(ui.id_target('test-about'))
     button.action.do_action.assert_called_once_with(0)
     button.action.do_action.side_effect = LookupError('uncertain delivery')
@@ -452,7 +514,7 @@ def test_legacy_name_and_role_selector_refuses_before_tree_discovery():
 def test_disabled_setting_can_be_read_but_cannot_authorize_input():
     control = Node('Daily time allowance', 'button', states=('showing', 'visible'),
                    identity='test-daily-limit-selector')
-    ui = ui_for(control)
+    ui = action_ui(control, 'test-daily-limit-selector')
     assert ui.id_target('test-daily-limit-selector') is control
     with pytest.raises(UiError, match='unusable-target'):
         ui.activate(control)
@@ -508,15 +570,29 @@ def test_search_result_supports_named_buttons_and_their_public_labels(nested):
     button = Node('' if nested else label.name, 'push button',
                   children=[Node(children=[label])] if nested else [],
                   identity=SEARCH_CONTROLS['result::parent'])
-    ui = search_ui(Node(children=[button]))
+    ui = queried_search_ui(button)
     assert ui.launchable_result(label.name) is button
     assert ui.run('app-grid', '1.1')['outcome'] == 'passed'
 
 
 def test_search_text_without_a_launchable_control_is_not_a_result():
-    ui = search_ui(Node(children=[Node('Oh No! Parent Control', 'label')]))
+    ui = queried_search_ui(Node('Oh No! Parent Control', 'label'))
     with pytest.raises(UiError, match='search-result'):
         ui.run('app-grid', '1.1')
+
+
+@pytest.mark.parametrize('failure', ['exception', 'refused', 'unobserved'])
+def test_search_launcher_requires_observed_focus_without_replay(failure):
+    button = Node('Oh No! Parent Control', 'button', identity=SEARCH_CONTROLS['result::parent'])
+    ui = queried_search_ui(button)
+    button.component.grab_focus.side_effect = (
+        LookupError('uncertain') if failure == 'exception' else None)
+    button.component.grab_focus.return_value = failure != 'refused'
+    with pytest.raises((UiError, LookupError)):
+        ui.focus_search_result()
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.focus_search_result()
+    button.component.grab_focus.assert_called_once_with()
 
 
 @pytest.mark.parametrize('fault', [None, 'hidden', 'missing', 'wrong-text', 'other-window',
@@ -1261,8 +1337,8 @@ def test_incomplete_transition_discards_the_read_without_replaying_input(monkeyp
 
 
 def test_event_storm_cannot_prevent_bounded_predicate_or_replay_action():
-    button = Node('About', 'button')
-    ui = ui_for(button)
+    button = Node('About', 'button', identity='test-about')
+    ui = action_ui(button, 'test-about')
     ui.dispatch = Mock(return_value=True)
     ui.activate(button)
     with pytest.raises(UiError, match='timeout:missing-result'):
@@ -1371,8 +1447,10 @@ def test_system_prompt_checkpoint_cannot_authorize_unobserved_keyboard_input(key
 
 @pytest.mark.parametrize('timing', ['before-operation', 'during-wait', 'after-action'])
 def test_shared_prompt_handler_resumes_same_wait_without_replaying_customer_action(timing):
-    activity = Node('Activities', 'button')
-    ui, dialog, controls = keyring_ui(root_children=[activity])
+    activity = Node('Activities', 'button', identity='test-activity')
+    activity_ui = action_ui(activity, 'test-activity')
+    ui, dialog, controls = keyring_ui(root_children=[activity_ui.api.get_desktop(0)])
+    ui.provider_contracts['action-fixture'] = activity_ui.provider_contracts['action-fixture']
     application = ui.api.get_desktop(0).children[-1]
     cancel = controls['cancel']
     def dismiss(_index):

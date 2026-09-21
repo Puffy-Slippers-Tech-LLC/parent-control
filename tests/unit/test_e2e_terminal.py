@@ -85,6 +85,10 @@ def test_terminal_focus_uses_component_once_and_requires_fresh_focus(fault):
         ui.focus_terminal()
         assert ui.terminal_input(focused=True) is field
     assert component.grab_focus.call_count == (0 if fault in ('background', 'already-focused') else 1)
+    if fault in ('refused', 'unobserved'):
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.focus_terminal()
+        component.grab_focus.assert_called_once_with()
 
 
 @pytest.mark.parametrize('fault', [None, 'generic', 'echo', 'management', 'stale', 'inactive'])

@@ -916,6 +916,58 @@ peer naturally expires before this check, that is a failed preparation margin,
 not evidence of cross-child interference and not an invitation to grant time
 silently. Work/game names describe activities, not nonexistent product modes.
 
+### E2E-052
+
+**Implementation:** pending metadata only; no executable binding or installed
+qualification. **Lunar Client login autostart cannot bypass an ungranted soft
+block.** Case 253, route `appimagelauncher-login-autostart`; one independent
+1800-second attempt, not a VM experiment or process/rule inspection.
+
+Use Jamie/Jordan fixture roles, never the reporting household's account names.
+FIX05 requires the [manually prepared real-app profile](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+after normal restore. Bind exact original AppImage path, integrated launcher,
+same-directory `Lunar Client-*.AppImage` pattern, tray/autostart settings, local
+world and one observable in-world action before implementation. The ordinary
+terminal command invokes that original AppImage with AppImageLauncher integration
+intact; it does not extract or invoke an inner runtime. Use the same bytes/route
+at all checkpoints. N is an existing unrelated allowed native app with a
+declared normal input/result, not Minecraft's embedded Java executable.
+
+| Step | Composition and required public result |
+| --- | --- |
+| 1 — allowed control | P0 → FLOW16(on,120) → PARENT09 reads daily remaining and zero grant; Lunar initially Allowed. G → C(fresh) → FLOW08(Lunar,usable) → APP03(Lunar starts Minecraft) → APP03(local-world action). Exit Minecraft normally, close Lunar to tray and observe APP06(present). LIFE02 → child-first GDM07, with UI22 armed before login submission. Observe working autostart by 90 seconds after DESK01, restore Lunar from its qualified tray control, start/use Minecraft again, then exit Minecraft and genuinely Quit Lunar with observed disappearance. |
+| 2 — soft, no grant | G → P(fresh/new after reboot) → FLOW03(Lunar,saved version pattern,Soft) → PARENT12/PARENT09 confirm Soft and zero grant. G → C(retained) → FLOW08(original-AppImage command,access denied) → APP06(absent) → FLOW08(N,usable). Desktop remains usable from daily time. |
+| 3 — active time-only reboot | FLOW20(overlay,Jordan,Jamie,15,exclude,same child) → G → P(retained) → PARENT09 reads positive grant → G → C(retained). LIFE02 → child-first GDM07 under the same public observer contract. For the complete login interval through 90 seconds after DESK01 require no Lunar tray/background control, usable Lunar window or Minecraft. Then FLOW08(original-AppImage command,access denied) → APP06(absent) → FLOW08(N,usable). Only after these results, G → P(fresh/new) → PARENT09 confirms the grant is still positive → G → C(retained). |
+| 4 — explicit soft permission | FLOW20(overlay,Jordan,Jamie,15,include,same child) → FLOW08(same Lunar command,usable) → APP03(start Minecraft) → APP03(same local-world action). Exit Minecraft and genuinely Quit Lunar normally; independently observe both gone. No app-policy or allowance edit. |
+| 5 — replacement exclusion | FLOW20(overlay,Jordan,Jamie,15,exclude,same child). Repeat step 3's read-only balance visits, reboot, child-first login, complete 90-second autostart observation, one explicit command denial and usable N. The replacement grant stays active; exclusion must restore blocking despite positive time. |
+
+Use fresh observations and unique stages for each repeated operation. Read the
+public grant balance through PARENT09 and require more than 600 seconds before
+each denied boot transition; read it again only after the blocked observations
+to verify it stayed positive. Those Parent visits are read-only and use the
+explicit fresh/retained entries above. Fixed requests add to the
+larger balance, so do not assert a 15-minute total. An insufficient margin or
+expired grant fails the declared precondition, never silently changes the case.
+Do not open Parent, resave policy, toggle limits or issue another approval between
+reboot and the blocked observations; the child must be first to sign in.
+
+The login observer must be ready before submission and cover every relevant
+public surface as it becomes available, without collecting secrets. A usable
+Lunar/Minecraft surface during a denied interval fails even if later closed.
+Fail incomplete observation rather than inferring absence. The ordinary terminal
+attempt supplies positive access-denied evidence; command echo, generic failure,
+hidden launcher or missing network/game assets cannot replace it. The allowed
+autostart and explicit-soft-approval controls prevent a broken preparation from
+masquerading as enforcement. Each allowed Minecraft launch has a 180-second
+readiness bound; failure retains evidence without input replay or downloading
+assets mid-case. A provider/profile unable to meet the fixed bounds stays pending.
+
+These are required checkpoints in one case, not optional variants. E2E-019 owns
+generic routes and other-user isolation; case 189 owns new wildcard versions;
+E2E-022 owns general lifecycle persistence. This case adds the AppImageLauncher
+autostart/Minecraft path without changing active-grant session behavior. No
+backend assertion, synthetic grant, clock change or service restart is allowed.
+
 ## Additional finite branch recipes
 
 ### App catalogue and matching
@@ -1087,6 +1139,7 @@ reuse it to reach a later distinct outcome.
 | Temporary soft permission by route and request surface, both parents | 231–246 |
 | Repeated work/game/time-source history and retained/fresh departures | 247–250; three complete cycles each |
 | Alternating two-parent/two-child routines and final targeted revocation | 251–252; four complete rounds each |
+| Lunar AppImageLauncher login autostart under an ungranted/time-only soft block | 253; allowed control, exclusion, explicit inclusion and replacement exclusion |
 
 The [engineering reconciliation](E2E-Building-Blocks.md#inventory-reconciliation)
 retains every displaced internal assertion, including retired E2E IDs 140–150,

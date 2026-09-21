@@ -106,7 +106,7 @@ participate only while their owning conditional target is in the live blocklist.
 Malcontent and GNOME enforce supported launcher, Snap command, and Flatpak
 identities. To prevent a native target from bypassing the launcher policy
 through a desktop file, file manager, or command, the broker mirrors live native
-targets into UID-scoped fapolicyd execute denials. Ordinary targets use exact
+targets into UID-scoped fapolicyd execute and open denials. Ordinary targets use exact
 paths. The rule renderer uses SHA-256 object identity for existing executable
 paths containing whitespace or commas, which its path-rule format cannot
 represent safely. Such a hash clause matches identical bytes at other paths
@@ -115,12 +115,43 @@ kernel clause in that case. Pattern rules put exact safe-file allowances before
 a denial for the guarded directory, so a matching new AppImage is denied before
 a later rescan while unrelated existing executables remain usable.
 
+The open denial prevents an interpreter from reading a blocked program and
+executing a different object. In particular, the supported AppImageLauncher
+[`binfmt-bypass` implementation](https://github.com/TheAssassin/AppImageLauncher/blob/96cb937/src/binfmt-bypass/lib.cpp)
+reads the original AppImage, copies and patches its runtime into a memfd, and
+executes that memfd. An execute-only denial on the original file cannot cover
+that route. Concrete targets use the same path or SHA-256 identity for both
+permissions, so the selected child also cannot read/copy those blocked program
+files. Other accounts are unaffected. Removing a soft target from the live
+filter removes both denials and its conditional wildcard guards.
+
+Wildcard directories retain their execute guard and add an open guard limited
+to ELF executable, shared-library and bad-ELF object types, using fapolicyd's
+[`ftype` rule contract](https://github.com/linux-application-whitelisting/fapolicyd/blob/v1.3.6/doc/fapolicyd.rules.5)
+and its own [ELF classification](https://github.com/linux-application-whitelisting/fapolicyd/blob/v1.3.6/src/library/file.c).
+This covers matching new AppImage versions before a rescan, including runtime
+variants classified as shared libraries or malformed ELF. Ordinary documents
+and images remain readable without waiting for reconciliation. Exact open
+exceptions preserve existing nonmatching regular files, including ELF files
+without an executable mode bit. Non-executable files with unrepresentable names
+need no exception if a bounded, no-follow header read establishes non-ELF
+content. A read failure or an unrepresentable ELF nonmatch isolates the entire
+wildcard group through the existing warning path. Open and execute exceptions
+remain behind concrete blocks and more specific nested guards.
+
+These renderer changes use `process-restart` activation with no dependency or
+saved-data migration. Unit regressions cover read-before-execute, future
+versions, unrelated files/accounts, approval/restoration and rule isolation;
+they do not establish installed AppImageLauncher or boot/login qualification.
+Session preparation retains its active-grant behavior described below; a
+screen-time grant alone does not remove a target from the live app blocklist.
+
 Patterns are validated as absolute paths with `*` or `?` in the basename and
 the same canonical directory as a native target. The editor can expand a bare
 filename against an unambiguous target directory. Directory whitespace and
 unsupported rule characters are rejected by preference validation. A wildcard
 directory can also become unrepresentable after saving, when an unrelated
-executable with whitespace or a comma appears in it. Explicitly blocked executables need no
+executable (or non-executable ELF file) with whitespace or a comma appears in it. Explicitly blocked executables need no
 allowance and are excluded from this check, even when they do not match the
 saved wildcard. They retain their preceding path or hash denial. No hash-based
 allowance is emitted: identical bytes under a matching filename must not bypass

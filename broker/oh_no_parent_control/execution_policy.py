@@ -14,6 +14,12 @@ from pathlib import Path
 
 LOG = get_logger("execution-policy")
 
+# fapolicyd classifies ELF objects itself, including PIE runtimes, rather than
+# relying on filename extensions or libmagic's AppImage classification. Include
+# shared-library and malformed ELF classifications so those cannot escape the
+# read guard. Ordinary documents in a wildcard directory remain readable.
+ELF_OBJECT_TYPES = "application/x-executable,application/x-sharedlib,application/x-bad-elf"
+
 
 class ExecutionPolicyError(RuntimeError):
     """The execution policy could not be generated or activated safely."""
@@ -24,7 +30,9 @@ class FapolicydPolicy:
 
     Malcontent filters launchers in GNOME Shell, but callers which open a
     trusted ``.desktop`` file directly bypass that UI check.  fapolicyd's
-    execute permission event closes that second launch path.
+    execute permission event closes that second launch path. Opening a blocked
+    program must also be denied: AppImageLauncher reads the original file and
+    executes a patched in-memory runtime instead of executing that file.
     """
 
     def __init__(
@@ -97,6 +105,20 @@ class FapolicydPolicy:
                 or any(character in directory for character in ',"\\\x00\r\n')):
             raise ExecutionPolicyError("pattern directory cannot be represented safely")
 
+    @staticmethod
+    def _has_elf_header(path: str) -> bool:
+        # Only needed for non-executable files whose names cannot be represented
+        # in an exception. Text/images need no open exception to an ELF guard;
+        # non-executable ELF libraries do. Never follow a replaced symlink or
+        # block on a substituted FIFO while inspecting an untrusted directory.
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ExecutionPolicyError("guarded directory entry is not a regular file")
+            return os.read(descriptor, 4) == b"\x7fELF"
+        finally:
+            os.close(descriptor)
+
     @classmethod
     def _pattern_rules(cls, uid: int, patterns: tuple[str, ...], blocked: set[str]) -> list[str]:
         """Compile basename globs into exact exceptions plus one directory guard."""
@@ -123,18 +145,27 @@ class FapolicydPolicy:
                     child = f"{directory.rstrip('/')}/{entry.name}/"
                     cls._safe_directory(child)
                     lines.append(f"allow perm=execute uid={uid} : dir={child}")
-                elif entry.is_file(follow_symlinks=False) and os.access(entry.path, os.X_OK):
+                    lines.append(f"allow perm=open uid={uid} : dir={child}")
+                elif entry.is_file(follow_symlinks=False):
                     # Concrete denials were emitted above. They need no
                     # exception to the directory guard, even when their name
                     # no longer matches a saved version wildcard.
                     if entry.path in blocked:
                         continue
                     if not any(fnmatch.fnmatchcase(entry.name, pattern) for pattern in basenames):
+                        executable = os.access(entry.path, os.X_OK)
                         if any(character.isspace() for character in entry.path) or "," in entry.path:
-                            raise ExecutionPolicyError("existing nonmatching executable cannot be represented")
-                        lines.append(f"allow perm=execute uid={uid} : path={entry.path}")
+                            if executable or cls._has_elf_header(entry.path):
+                                raise ExecutionPolicyError("existing nonmatching executable cannot be represented")
+                            continue
+                        if executable:
+                            lines.append(f"allow perm=execute uid={uid} : path={entry.path}")
+                        # Include non-executable nonmatches: the read guard also
+                        # sees ELF libraries and images before chmod +x.
+                        lines.append(f"allow perm=open uid={uid} : path={entry.path}")
             prefix = directory.rstrip("/") + "/"
             lines.append(f"deny_syslog perm=execute uid={uid} : dir={prefix}")
+            lines.append(f"deny_syslog perm=open uid={uid} : dir={prefix} ftype={ELF_OBJECT_TYPES}")
         return lines
 
     @classmethod
@@ -170,6 +201,9 @@ class FapolicydPolicy:
                     continue
                 lines.append(
                     f"deny_syslog perm=execute uid={uid} : {clause}"
+                )
+                lines.append(
+                    f"deny_syslog perm=open uid={uid} : {clause}"
                 )
             grouped: dict[str, list[str]] = {}
             for pattern in patterns.get(uid, ()):

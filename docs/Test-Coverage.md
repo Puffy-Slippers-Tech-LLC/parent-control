@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">10701</span>/<span style="color: gray">0</span>/10701 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">10948</span>/<span style="color: gray">0</span>/10948 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">20</span>/<span style="color: gray">0</span>/20 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">7</span>/<span style="color: gray">234</span>/241 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">11264</span>/<span style="color: gray">234</span>/11498** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">24</span>/<span style="color: gray">0</span>/24 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">7</span>/<span style="color: gray">235</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">11515</span>/<span style="color: gray">235</span>/11750** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">6</span>/<span style="color: gray">234</span>/240 |
+| customer-journey | <span style="color: green">6</span>/<span style="color: gray">235</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -275,6 +275,7 @@ Titles and steps below come directly from the runtime inventory. Pending declara
 | <span style="color: gray">[250](#scenario-250)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: fresh; surface order: kiosk first)</span> | <span style="color: gray">`E2E-050/kiosk-first-fresh`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[251](#scenario-251)</span> | <span style="color: gray">Alternate two children's work and game routines without mixing their choices (first child: jordan)</span> | <span style="color: gray">`E2E-051/jordan`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[252](#scenario-252)</span> | <span style="color: gray">Alternate two children's work and game routines without mixing their choices (first child: riley)</span> | <span style="color: gray">`E2E-051/riley`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[253](#scenario-253)</span> | <span style="color: gray">Lunar Client login autostart cannot bypass an ungranted soft block</span> | <span style="color: gray">`E2E-052/appimagelauncher-login-autostart`</span> | <span style="color: gray">pending</span> |
 
 ### Scenario 1
 
@@ -5062,5 +5063,27 @@ Variant: first child: riley
 - After round four revoke only the grant-only child's time and check its time-limit denial. The daily-only peer continues its original work with its own app restrictions. Read both children's final choices before ending this continuous attempt.
 
 Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
+
+</div>
+
+<div style="color: gray">
+
+### Scenario 253
+
+**Lunar Client login autostart cannot bypass an ungranted soft block**
+
+Case: `E2E-052/appimagelauncher-login-autostart` · Category: customer-journey · Status: **pending**
+
+Variant: route: appimagelauncher login autostart
+
+**Steps:**
+
+- Through Parent enable 120 daily minutes and confirm no grant, leaving Lunar Allowed. As the child launch the original AppImage through AppImageLauncher, use Lunar to enter the prepared Minecraft world and perform an observable game action. Exit Minecraft and close Lunar to its tray. Reboot through desktop controls and log in as the child first, without opening Parent. Observe Lunar autostart within 90 seconds of usable desktop entry, restore it from the tray and launch/use Minecraft again. Quit both applications through their normal controls.
+- As the parent save Lunar as Soft Blocked with its declared same-directory version pattern and read the saved choice. Return to the child's usable desktop with no grant and attempt the original AppImage command once in Terminal. Observe a specific access denial, no usable Lunar or Minecraft, and continued use of the declared unrelated allowed app.
+- As the child request 15 minutes with soft apps explicitly excluded and obtain real parent approval. Read the positive grant through a read-only Parent visit, return to the child, reboot normally and log in as the child first without opening Parent or changing policy. Observe the complete login-autostart interval through 90 seconds after desktop readiness: no Lunar tray/background control, usable Lunar window or Minecraft. Attempt the same original AppImage command once, observe a specific access denial, and use the unrelated allowed app. Only afterward visit Parent to confirm the grant stayed positive, then return to the child.
+- On the same child desktop request 15 minutes with soft apps explicitly included, obtain real approval, and launch the same original AppImage through AppImageLauncher. Use Lunar to launch Minecraft, enter the same prepared world and perform the declared game action. Exit Minecraft and Quit Lunar normally; closing a window to the tray is not quitting.
+- Request another 15 minutes with soft apps explicitly excluded and obtain real approval. Repeat the read-only grant checks bracketing the reboot and blocked observations: log in as the child first, observe the full 90-second autostart interval and one original-AppImage command denial before visiting Parent. Lunar and Minecraft remain unavailable while the grant stays positive and the unrelated allowed app is usable. Do not repair policy after boot or treat a hidden launcher, missing network, broken game or expired desktop time as successful blocking.
+
+Pending: Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified (tasks 295-297).
 
 </div>

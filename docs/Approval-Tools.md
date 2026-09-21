@@ -206,7 +206,10 @@ development-only changes activate on invocation (`none`) and change no product
 data. Codex restarts do not change Polkit authentication policy.
 
 Use `tools/run-tests --help` for usage and the `all` composition, or
-`tools/run-tests --list` for the JSON category inventory. Paths are relative to
+`tools/run-tests --list` for the ordered granular JSON inventory with explicit
+argument arrays. This partition is shared by `all` and `tools/fix-tests`;
+composites, instrumentation and diagnostics are listed separately in `--help`.
+Paths are relative to
 the checkout. Quote globs and parametrized pytest IDs so Codex sees a literal
 argument; the launcher expands file patterns without a shell.
 
@@ -259,6 +262,7 @@ the checkout activity lock.
 | Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all` / `tools/run-tests all` / `tools/run-tests` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. No arguments starts `all` when idle; an active or unread session still attaches. |
+| Scripted test repair | `tools/fix-tests [--model MODEL] [--effort high]` / `tools/fix-tests --stop` | Granular pass then complete regression retries; detached scripting owner, one fresh ephemeral agent per repair, existing sandbox/rules and test-runner cleanup; no automatic setup or authority expansion |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
 | Combined complete categories | `tools/run-tests host system e2e` | Equals `all`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; VM-only selections build their required input automatically |
 | Host compatibility alias | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same scope as `host`; `--serial-builds` retains publishing/builds after the host join for a scheduling comparison |
@@ -292,6 +296,15 @@ prompt is printed. Add the valueless `--continue-on-errors` flag to continue
 independent tests after failures. Cleanup, infrastructure and prerequisite safety
 refusals still apply. Reattachment preserves the original flags. `host-builds` also
 accepts `--serial-builds` alongside this flag.
+The leading `tools/run-tests --stop-on-error CATEGORY` option applies this
+policy to selected categories while preserving their qualified parallelism.
+The repair loop uses it, and reads the generated `failure.json` handoff after
+cleanup. It never treats an attached predecessor's result as a new category run.
+Its [`tests/README.md` contract](../tests/README.md#scripted-repair-loop) describes
+detachment, stop/restart behavior and agent isolation. Development activation is
+`none`: these are checkout tools; no product installation, service restart or
+saved-data migration is involved. The new executable joins the normal tools
+grant on a future rules refresh; no broad shell/interpreter permission is added.
 
 Every `tools/run-tests` category runs in a terminal-independent session. Closing
 the terminal detaches; Ctrl+C requests owned cancellation and cleanup. While a

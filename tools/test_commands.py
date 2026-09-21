@@ -1,5 +1,6 @@
 """Category dispatch, with no caller-selected commands, makefiles or interpreters."""
 
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -12,31 +13,41 @@ import test_launcher as host
 import test_activity
 
 
+@dataclass(frozen=True)
+class CategorySpec:
+    description: str
+    leaf: bool = True
+    implemented: bool = True
+
+
+# Register readiness and coverage ownership beside the public command. New
+# implemented leaves automatically join both all and fix-tests; aliases,
+# diagnostics and pending commands never become extra test coverage.
 CATEGORIES = {
-    'unit': 'selected unit, property, contract and harness tests in up to four reviewed module buckets',
-    'component': 'private-D-Bus pytest; quoted test_*.py patterns',
-    'ui': 'selected GTK and nested-Shell tests in up to four qualified UI branches; no other host suites',
-    'child-node': 'tests/child/**/*.test.mjs or *.test.js',
-    'child-gjs': 'tests/child/**/*_test.js',
-    'static': 'shell, gjs, or all (default)',
-    'backend': 'read-only graphical backend package/API prerequisite check',
-    'source': 'established syntax, traceability and source guards',
-    'publish': 'local source packaging, clean sbuild and Lintian; no publication',
-    'fixture-runtime': 'all established fixture runtime pytest cases',
-    'traceability': 'stage (default) or final requirement checks',
-    'coverage': 'unit and private-D-Bus Python coverage in a new private directory',
-    'check': 'the current make check aggregate',
-    'component-all': 'the current make check-component aggregate',
-    'fixtures': 'build, verify PATH; generated build output',
-    'artifacts': 'build, verify PATH, compare FIRST SECOND; generated build output',
-    'integration': 'installed dispatcher for check_* basenames; no script arguments',
-    'system': 'sequential installed VM tests; bare category builds inputs; focused --artifacts, --previous-artifacts, --area, --test, --list',
-    'e2e': 'all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)',
-    'fast': 'reserved for the make test-fast target',
-    'all': 'complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error',
-    'all-verify': 'all established regression suites with full backing-file verification; --continue-on-errors disables stop on first error',
-    'host': 'all host tests, publishing and two reproducibility builds in four branches; no VM; combines with system and e2e',
-    'host-builds': 'compatibility alias for host; optional --serial-builds for scheduling comparison',
+    'unit': CategorySpec('selected unit, property, contract and harness tests in up to four reviewed module buckets'),
+    'component': CategorySpec('private-D-Bus pytest; quoted test_*.py patterns'),
+    'ui': CategorySpec('selected GTK and nested-Shell tests in up to four qualified UI branches; no other host suites'),
+    'child-node': CategorySpec('tests/child/**/*.test.mjs or *.test.js'),
+    'child-gjs': CategorySpec('tests/child/**/*_test.js'),
+    'static': CategorySpec('shell, gjs, or all (default)'),
+    'backend': CategorySpec('read-only graphical backend package/API prerequisite check'),
+    'source': CategorySpec('established syntax, traceability and source guards'),
+    'publish': CategorySpec('local source packaging, clean sbuild and Lintian; no publication'),
+    'fixture-runtime': CategorySpec('all established fixture runtime pytest cases'),
+    'traceability': CategorySpec('stage (default) or final requirement checks', leaf=False),
+    'coverage': CategorySpec('unit and private-D-Bus Python coverage in a new private directory', leaf=False),
+    'check': CategorySpec('the current make check aggregate', leaf=False),
+    'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
+    'fixtures': CategorySpec('build, verify PATH; generated build output', leaf=False),
+    'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; focused build, verify PATH, compare FIRST SECOND'),
+    'integration': CategorySpec('installed dispatcher for check_* basenames; no script arguments', leaf=False),
+    'system': CategorySpec('sequential installed VM tests; bare category builds inputs; focused --artifacts, --previous-artifacts, --area, --test, --list'),
+    'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)'),
+    'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False),
+    'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
+    'all-verify': CategorySpec('all established regression suites with full backing-file verification; --continue-on-errors disables stop on first error', leaf=False),
+    'host': CategorySpec('all host tests, publishing and two reproducibility builds in four branches; no VM; combines with system and e2e', leaf=False),
+    'host-builds': CategorySpec('compatibility alias for host; optional --serial-builds for scheduling comparison', leaf=False),
 }
 
 AGGREGATES = ('all', 'all-verify', 'host', 'host-builds')
@@ -45,11 +56,39 @@ HELP_ARGV = (['--help'], ['-h'])
 INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
 
 
+def suite_inventory():
+    """The exact, ordered granular partition consumed by all and fix-tests.
+
+    Arguments are explicit: focused UI selections never acquire an implicit
+    marker exclusion. Live spectator qualification needs its active E2E run.
+    """
+    from regression_ui import HOST_ARGS
+    leaves = {kind: spec for kind, spec in CATEGORIES.items() if spec.leaf and spec.implemented}
+    order = [*(kind for kind in ('unit', 'ui') if kind in leaves),
+             *(kind for kind in leaves if kind not in ('unit', 'ui', 'system', 'e2e')),
+             *(kind for kind in ('system', 'e2e') if kind in leaves)]
+    return {kind: {'description': leaves[kind].description,
+                   'args': list(HOST_ARGS) if kind == 'ui' else []}
+            for kind in order}
+
+
+def execution_arguments(argv):
+    """The leading coordinator option does not alter category arguments."""
+    stop = argv[:1] == ['--stop-on-error']
+    args = argv[1:] if stop else argv
+    if stop and (not args or '--continue-on-errors' in args):
+        raise ValueError('--stop-on-error requires categories and conflicts with --continue-on-errors')
+    return args, stop
+
+
 def usage():
     """Human-readable launcher help. ``--list`` remains the JSON inventory."""
     width = max(map(len, CATEGORIES))
-    listing = '\n'.join(f'  {name:<{width}}  {detail}' for name, detail in CATEGORIES.items())
-    return f'''Usage: tools/run-tests [category [args ...]] ...
+    inventory = suite_inventory()
+    listing = '\n'.join(f'  {name:<{width}}  {CATEGORIES[name].description}' for name in inventory)
+    helpers = '\n'.join(f'  {name:<{width}}  {spec.description}'
+                        for name, spec in CATEGORIES.items() if name not in inventory)
+    return f'''Usage: tools/run-tests [--stop-on-error] [category [args ...]] ...
        tools/run-tests --help
        tools/run-tests --list
 
@@ -58,7 +97,10 @@ active or has an unread result; then this invocation attaches to that run.
 
 Inspection
   --help, -h   this usage, including how all breaks down into pieces
-  --list       JSON map of category names to one-line descriptions
+  --list       ordered JSON granular inventory: descriptions and explicit args
+               Iterating these selections covers exactly all, without aliases.
+  --stop-on-error  leading option: cancel selected work at the first reported
+                   failure, preserving parallel scheduling and owned cleanup
 
 Complete categories (combine in any order; execute host, then system, then e2e)
   host         all host/dev-machine work in four balanced branches, including
@@ -91,8 +133,9 @@ Aggregate aliases (no suite selectors)
   backend, publish, package builds A/B and their comparison.
   Combinations containing host use all's VM verification policy. VM-only
   runs verify backing bytes. Focused system/e2e options remain available.
-  Other commands below are focused checks or diagnostic/qualification routes,
-  not extra phases of all. Pending E2E variants remain excluded.
+  The granular inventory supplies both host's suites and fix-tests round 1.
+  Bare artifacts runs two builds and their reproducibility comparison.
+  Pending E2E variants remain excluded.
 
 UI-only validation (same UI buckets and resource limits as host)
   tools/run-tests ui --timeout 1800s -m 'not live_e2e'
@@ -117,8 +160,11 @@ Unit-only validation (same unit buckets and resource limits as host)
   -x/--exitfirst or positive --maxfail keeps one serial unit invocation.
   Direct tools/run-unit-tests remains serial for narrow iteration/diagnosis.
 
-Categories
-{listing}'''
+Granular categories (all's partition)
+{listing}
+
+Helper commands (composites, focused checks and diagnostic operations)
+{helpers}'''
 
 
 def phase_arguments(argv):
@@ -142,6 +188,7 @@ def selections(root, argv):
     component``). Only split at another category when the complete group is
     invalid, and validate every group before starting any work.
     """
+    argv, _ = execution_arguments(argv)
     phases = phase_arguments(argv)
     if phases is not None:
         return [(kind, []) for kind in phases['phases']]
@@ -309,11 +356,12 @@ def _main(argv=None, *, detached=False):
         print(usage())
         return 0
     if argv == ['--list']:
-        print(json.dumps(CATEGORIES, indent=2))
+        print(json.dumps(suite_inventory(), indent=2))
         return 0
     if not argv:
         argv = ['all']
     try:
+        argv, stop_on_error = execution_arguments(argv)
         if os.geteuid() == 0:
             raise ValueError('use this launcher as an unprivileged user')
         root = Path(__file__).resolve().parents[1]
@@ -327,7 +375,8 @@ def _main(argv=None, *, detached=False):
                     '--list' in args or '--help' in args or '-h' in args or '--collect-only' in args
                     for _, args in selected):
                 from regression import main as regression_main
-                return regression_main(root, selections=selected)
+                return regression_main(root, selections=selected,
+                                       **({'stop_on_error': True} if stop_on_error else {}))
         category, args = argv[0], argv[1:]
         if category in ('all', 'all-verify', 'host', 'host-builds'):
             aggregate_arguments(category, args)

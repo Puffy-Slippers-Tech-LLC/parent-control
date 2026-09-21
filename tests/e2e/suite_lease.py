@@ -105,6 +105,7 @@ class SuiteLease(system.Lease):
         # acceptance always waits for audit() after the last case or failure.
         return self.capture.state['proof']
 
+    @system.observed('Preparing an isolated VM attempt')
     def prepare(self):
         if not self._fast:
             super().prepare()
@@ -122,6 +123,7 @@ class SuiteLease(system.Lease):
         self._restored = False
         self._reset_attempted = False
 
+    @system.observed('Stopping the VM and restoring its snapshot')
     def stop(self):
         """Revert directly; never wait for ACPI or destroy a discovered guest."""
         self.guard()
@@ -148,6 +150,7 @@ class SuiteLease(system.Lease):
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)
+        self.close_watch()
         # generalhw still owes its final status-off callback. Preserve the run
         # tag until it closes, without booting or modifying restored disk data.
         self.source.connection.defineXML(self.test_xml)
@@ -158,6 +161,7 @@ class SuiteLease(system.Lease):
         self._restored = True
         self._restored_name = name
 
+    @system.observed('Restoring the VM and verifying cleanup')
     def finish(self):
         if not self._fast:
             return super().finish()
@@ -175,6 +179,7 @@ class SuiteLease(system.Lease):
             value['outcome'] == 'failed' for value in self.ledger.outcomes.values())
         # The suite retains the actual lock, including through case reporting.
 
+    @system.observed('Verifying VM cleanup and retained snapshots')
     def audit(self, *, validate=None, retain_installed=False):
         """No acceptance or next invocation can bypass this final full audit."""
         if not self._held:

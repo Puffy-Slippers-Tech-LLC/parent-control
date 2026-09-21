@@ -95,6 +95,8 @@ from owned_commands import Commands, CommandError
 
 watch_progress = None
 
+from watch_activity import observed, operation
+
 
 def log(stage):
     from watch_activity import event
@@ -345,11 +347,10 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
         graphics.set('autoport', 'yes')
         ET.SubElement(graphics, 'clipboard', copypaste='no')
         ET.SubElement(graphics, 'filetransfer', enable='no')
-    else:
-        # Independent, private output collector. Neither endpoint listens on
-        # the host; users receive copied frames, never this QEMU connection.
-        observer = ET.SubElement(devices, 'graphics', type='dbus', p2p='yes')
-        ET.SubElement(observer, 'gl', enable='no')
+    # Every lease has the same private output collector, including system and
+    # maintenance work. Users receive copies, never this QEMU connection.
+    from e2e_watch import display_endpoint
+    display_endpoint(root)
     for name in ('serial', 'console'):
         require(all(node.get('type') == 'pty' for node in devices.findall(name)), 'guard:host-character-device')
     interfaces = devices.findall('interface')
@@ -366,14 +367,7 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
 def validate_private_vnc(root):
     """Refuse display replacement or any host listener, including normalized XML."""
     displays = root.findall('devices/graphics')
-    # Accept the previous VNC-only layout for durable interrupted-run recovery.
-    require(len(displays) in (1, 2), 'guard:graphics-count')
-    if len(displays) == 2:
-        observer = displays[1]
-        require(observer.attrib == {'type': 'dbus', 'p2p': 'yes'} and
-                len(observer) == 1 and observer[0].tag == 'gl' and
-                observer[0].attrib == {'enable': 'no'} and len(observer[0]) == 0,
-                'guard:graphics-observer-endpoint')
+    validate_observer(displays)
     display = displays[0]
     require(display.get('type') == 'vnc' and
             set(display.attrib) <= {'type', 'port', 'autoport'} and
@@ -382,6 +376,17 @@ def validate_private_vnc(root):
     require(len(display) == 1 and display[0].tag == 'listen' and
             display[0].attrib == {'type': 'none'} and len(display[0]) == 0,
             'guard:graphics-listener')
+
+
+def validate_observer(displays):
+    # Accept the previous VNC-only layout for durable interrupted-run recovery.
+    require(len(displays) in (1, 2), 'guard:graphics-count')
+    if len(displays) == 2:
+        observer = displays[1]
+        require(observer.attrib == {'type': 'dbus', 'p2p': 'yes'} and
+                len(observer) == 1 and observer[0].tag == 'gl' and
+                observer[0].attrib == {'enable': 'no'} and len(observer[0]) == 0,
+                'guard:graphics-observer-endpoint')
 
 
 class SourceView:
@@ -402,6 +407,8 @@ class SourceView:
             require(root.findtext('description') == TAG + self.run, 'guard:run-identity')
             if self.graphics_type == 'vnc':
                 validate_private_vnc(root)
+            else:
+                validate_observer(root.findall('devices/graphics'))
             require(not layout['source_shares'] and not root.findall('devices/filesystem') and
                     not root.findall('devices/hostdev') and not root.findall('devices/channel') and
                     not root.findall('devices/redirdev'), 'guard:host-sharing')
@@ -437,6 +444,8 @@ class Lease:
         # the lease is held. It must never restore or release this lease itself.
         self.finalize = finalize
         self.backing_run = None
+        self.watch = None
+        self.watch_detached = False
 
     def save(self, phase):
         if self.capture.backing_verification is not None:
@@ -452,6 +461,7 @@ class Lease:
         baseline.sync_directory(self.directory)
         log('stage:' + phase)
 
+    @observed('Validating VM ownership and baseline')
     def __enter__(self):
         try:
             self.capture.directory_identity = self.capture.private_directory()
@@ -516,6 +526,7 @@ class Lease:
     def attempt_released(self):
         return self.fd is None
 
+    @observed('Preparing an isolated VM attempt')
     def prepare(self):
         self.snapshot_xml = self.source.baseline()
         # The initial shutdown is authorized for this identity-recorded source VM.
@@ -537,7 +548,7 @@ class Lease:
     def snapshot_status(self, action, name):
         progress = getattr(self, 'watch_progress', None) or watch_progress
         label = f'{action} snapshot "{name}"'
-        with progress.snapshot_operation(label) if progress is not None else nullcontext():
+        with operation(label), progress.snapshot_operation(label) if progress is not None else nullcontext():
             yield
 
     def restore(self):
@@ -551,6 +562,7 @@ class Lease:
         self.view.domain_id = None
         self.guard(off=True)
 
+    @observed('Starting the VM')
     def start(self):
         self.guard(off=True)
         # QEMU can open backing storage writable while constructing its normal
@@ -568,7 +580,10 @@ class Lease:
         if self.backing_run is not None:
             self.capture.begin_backing_verification(self)
         self.save('running')
+        from e2e_watch import attach
+        attach(self)
 
+    @observed('Stopping the VM')
     def stop(self):
         """Stop the recorded instance without restoring between backend callbacks."""
         self.guard()
@@ -591,7 +606,15 @@ class Lease:
                 self.guard()
                 self.source.domain.destroyFlags(0)
         self.guard(off=True)
+        self.close_watch()
 
+    def close_watch(self):
+        if self.watch is not None:
+            observer = self.watch
+            observer.close()
+            self.watch = None
+
+    @observed('Restoring the VM and verifying cleanup')
     def finish(self):
         if not self.mutated:
             self.save('complete')
@@ -627,6 +650,14 @@ class Lease:
 
     def release(self):
         pending = None
+        try:
+            if self.watch_detached and self.watch is not None:
+                self.watch.detach()
+                self.watch = None
+            else:
+                self.close_watch()
+        except BaseException as error:
+            pending = error
         if self.capture.backing_verification is not None:
             try:
                 self.capture.backing_verification.close()
@@ -660,6 +691,7 @@ class Lease:
         require(self.fd is None and self.view.graphics_type == 'spice', 'recovery:invalid-lease')
         self._recover_recorded_cleanup()
 
+    @observed('Validating and recovering the recorded VM attempt')
     def _recover_recorded_cleanup(self):
         """Reacquire ownership and verify every saved identity before mutation."""
         try:
@@ -709,7 +741,8 @@ class Lease:
                 if self.view.graphics_type == 'vnc':
                     validate_private_vnc(display_root)
                 else:
-                    require(len(displays) == 1 and displays[0].get('type') == self.view.graphics_type,
+                    validate_observer(displays)
+                    require(displays[0].get('type') == self.view.graphics_type,
                             'recovery:graphics-changed')
             self.original_xml = state['original_xml']
             require(baseline.domain_layout(self.original_xml, self.source.uuid) ==
@@ -941,6 +974,7 @@ def retire_snapshot_payload(g, run):
     require(not g.exists(PAYLOAD) and g.exists(previous), 'bootstrap:payload-retirement')
 
 
+@observed('Preparing the VM SSH transport and guest inputs')
 def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
     lease.guard(off=True)
@@ -1030,6 +1064,7 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
     return ' '.join(host_key[:2])
 
 
+@observed('Waiting for the VM network address')
 def address(source, timeout=300):
     """Wait on libvirt's DHCP lease list with a bounded event-loop timer."""
     deadline = time.monotonic() + timeout
@@ -1139,6 +1174,7 @@ def is_qualification_failure(directory, selection):
         return False
 
 
+@observed('Capturing the VM screen after session diagnostics')
 def capture_session_screen(lease, output):
     """Capture the already-owned VM after fixed session diagnostics complete.
 

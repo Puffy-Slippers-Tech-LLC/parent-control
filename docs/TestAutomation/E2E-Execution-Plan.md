@@ -154,7 +154,7 @@ internal faults and cosmetic/screenshot comparisons cannot pass customer cases.
 Reuse the existing [consumer path](E2E-Building-Blocks.md#add-a-consumer):
 `InstalledJourney/JourneyPlan`, `UiObservations`, `AccessibleUI` and the shared
 worker/dispatch. Locate only the relevant callables through the catalogue.
-Publish nonsecret operation/progress labels and open `tools/watch-e2e` as the
+Publish nonsecret operation/progress labels and open `tools/watchvm` as the
 desktop user for VM work.
 
 Each attempt starts with fresh declared state and its own session/window ledger.

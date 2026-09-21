@@ -34,7 +34,7 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
     wait(lambda: ui.showing('e2e-watch-window'),
          'spectator publishes its owned window ID')
     assert ui.text('e2e-watch-status') == (
-        'Waiting for an E2E VM. You can leave this window open.')
+        'Waiting for VM activity. You can leave this window open.')
     for identity in ('e2e-watch-progress', 'e2e-watch-display',
                      'e2e-watch-output', 'e2e-watch-close'):
         assert ui.target(identity).get_accessible_id() == identity
@@ -73,6 +73,15 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
              'operation timing advances without another frame')
         wait(lambda: evidence(output).get('resize_did_not_change_guest'),
              'viewer resize remains isolated from the synthetic guest')
+
+        advance(control, 4)
+        wait(lambda: ui.text('e2e-watch-status').startswith('Inspecting the VM greeter - ('),
+             'a VM experiment without an E2E recorder publishes its intention')
+        wait(lambda: 'VM observation ready' in ui.content('e2e-watch-output', maximum=8000),
+             'non-E2E SSH output reaches the same command pane')
+        advance(control, 5)
+        wait(lambda: ui.text('e2e-watch-status') == 'VM running · Waiting for the next operation',
+             'completed operations do not leave stale intent in the footer')
 
     ui.activate('e2e-watch-close')
     deadline = time.monotonic() + 10

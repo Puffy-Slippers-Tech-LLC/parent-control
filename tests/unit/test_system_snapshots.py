@@ -1,6 +1,5 @@
 """System lifecycle and installed cases share E2E snapshot preparation safely."""
 
-from contextlib import nullcontext
 import json
 from unittest.mock import Mock
 
@@ -62,7 +61,6 @@ def test_snapshot_verification_failure_never_installs_or_runs_tests(tmp_path):
 
 @pytest.mark.parametrize('failure', [None, 'prepare', 'test', 'evidence'])
 def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monkeypatch, failure):
-    import e2e_watch
     import vm_transport
     selection = system.resolve_selection(inventories=INVENTORIES)
     (tmp_path / 'input').mkdir()
@@ -76,7 +74,6 @@ def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monk
     monkeypatch.setattr(system, 'bootstrap', Mock(return_value='host-key'))
     monkeypatch.setattr(system, 'address', lambda _: 'guest')
     monkeypatch.setattr(vm_transport, 'Transport', Mock())
-    monkeypatch.setattr(e2e_watch, 'running_display', lambda _: nullcontext())
     manifest = {'artifacts': {'package': {'sha256': 'package'}}}
     seen = []
 

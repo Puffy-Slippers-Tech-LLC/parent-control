@@ -18,6 +18,7 @@ import tempfile
 import threading
 
 import system_runner as runner
+from watch_activity import operation
 
 
 def check_identity(source, expected):
@@ -92,6 +93,12 @@ def resume(lease, *, stopping=False):
 
 
 def operate(lease, action, keys):
+    # All maintenance paths use the same intent scope as transport and leases.
+    with operation('VM maintenance: ' + action):
+        return _operate(lease, action, keys)
+
+
+def _operate(lease, action, keys):
     if action in ('start', 'reset'):
         lease.__enter__()
         # Don't shut down an existing manually started VM to claim ownership.
@@ -101,6 +108,7 @@ def operate(lease, action, keys):
         save_owner(lease)
         lease.prepare()
         if action == 'start':
+            lease.watch_detached = True
             lease.start()
         else:
             lease.finish()
@@ -158,14 +166,15 @@ def main(argv=None):
         event('Maintenance: ' + args.action)
         api = importlib.import_module('libvirt')
         if args.action in ('status', 'xml'):
-            connection = api.openReadOnly('qemu:///system')
-            domain = connection.lookupByUUIDString(args.expected_uuid)
-            runner.require(connection.getURI() == 'qemu:///system' and
-                           domain.UUIDString() == args.expected_uuid and
-                           domain.name() == runner.baseline.DOMAIN, 'vm-control:identity-mismatch')
-            print(domain.XMLDesc(0) if args.action == 'xml' else
-                  json.dumps({'state': domain.state()[0], 'id': domain.ID(),
-                              'scope': 'pinned-test-vm'}))
+            with operation('VM maintenance: ' + args.action):
+                connection = api.openReadOnly('qemu:///system')
+                domain = connection.lookupByUUIDString(args.expected_uuid)
+                runner.require(connection.getURI() == 'qemu:///system' and
+                               domain.UUIDString() == args.expected_uuid and
+                               domain.name() == runner.baseline.DOMAIN, 'vm-control:identity-mismatch')
+                print(domain.XMLDesc(0) if args.action == 'xml' else
+                      json.dumps({'state': domain.state()[0], 'id': domain.ID(),
+                                  'scope': 'pinned-test-vm'}))
             event('Maintenance: ' + args.action + ' complete')
             return 0
         api.virEventRegisterDefaultImpl()

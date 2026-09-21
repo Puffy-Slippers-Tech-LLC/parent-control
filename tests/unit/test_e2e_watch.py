@@ -14,6 +14,17 @@ from e2e_watch_collector import Display
 from e2e_watch_viewer import Feed
 
 
+def test_headless_feed_import_needs_no_checkout_or_desktop_environment():
+    import subprocess
+    import sys
+    from pathlib import Path
+    directory = Path(__file__).resolve().parents[2] / 'tools'
+    result = subprocess.run([sys.executable, '-IB', '-c',
+        f'import sys; sys.path.insert(0, {str(directory)!r}); '
+        'from e2e_watch_viewer import Feed; Feed()'], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
 def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
     from e2e_watch_viewer import desktop_launch_command
     monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
@@ -27,13 +38,13 @@ def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
     assert '--setenv=WAYLAND_DISPLAY=wayland-test' in command
     assert not any('SNAP' in item or 'LD_PRELOAD' in item for item in command)
     assert command[-3] == '--'
-    assert command[-2].endswith('/tools/watch-e2e')
+    assert command[-2].endswith('/tools/watchvm')
     assert command[-1] == '--desktop-session'
 
 
 def test_snap_launch_propagates_service_failure_without_opening_editor_owned_window(monkeypatch):
     import e2e_watch_viewer as viewer
-    monkeypatch.setattr('sys.argv', ['watch-e2e'])
+    monkeypatch.setattr('sys.argv', ['watchvm'])
     monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
     monkeypatch.setattr(viewer.Path, 'read_text', lambda self: 'snap.code.code (complain)\n')
     launch = Mock(return_value=Mock(returncode=7))
@@ -47,7 +58,7 @@ def test_snap_launch_propagates_service_failure_without_opening_editor_owned_win
 
 def test_snap_identity_after_delegation_refuses_instead_of_launching_forever(monkeypatch):
     import e2e_watch_viewer as viewer
-    monkeypatch.setattr('sys.argv', ['watch-e2e', '--desktop-session'])
+    monkeypatch.setattr('sys.argv', ['watchvm', '--desktop-session'])
     monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
     monkeypatch.setattr(viewer.Path, 'read_text', lambda self: 'snap.code.code (complain)\n')
     launch = Mock(side_effect=AssertionError('Do not retry delegation'))

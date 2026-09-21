@@ -10,14 +10,10 @@ import struct
 import subprocess
 import time
 
-from common.oh_no_parent_control_ui.gtk_automation import (
-    add_identified_window_controls,
-    set_automation_id,
-)
 from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames, require
 
-WAITING = 'Waiting for an E2E VM. You can leave this window open.'
-TITLE = 'E2E VM — View only'
+WAITING = 'Waiting for VM activity. You can leave this window open.'
+TITLE = 'VM — View only'
 APPLICATION_ID = 'org.onpc.E2EWatch'
 
 def duration_text(seconds):
@@ -48,6 +44,22 @@ def progress_text(meta, *, now_ns=None):
             progress['step'], operation)
 
 
+def activity_text(activity, progress=None, *, now_ns=None):
+    """Current shared intent wins over older case metadata, with its own timer."""
+    if not activity or not activity.get('operation') or activity.get('operation_active') is False:
+        return ''
+    started = activity['operation_started_ns']
+    # Explicit scopes survive nested progress updates, including restoration
+    # of an older parent. Generic command labels defer to newer worker prose.
+    if (activity.get('operation_priority', 1) < 2
+            and (progress or {}).get('operation_started_ns', 0) > started):
+        return ''
+    now = time.monotonic_ns() if now_ns is None else now_ns
+    minutes, seconds = divmod(max(0, (now - started) // 1_000_000_000), 60)
+    elapsed = f'{minutes}m {seconds}s' if minutes else f'{seconds}s'
+    return activity['operation'] + f' - ({elapsed})'
+
+
 class Feed:
     """Reconnect to subsequent attempts without any dependency on window life."""
 
@@ -58,6 +70,10 @@ class Feed:
         self.last_frame = time.monotonic()
         self.next_activity = 0
         self.activity_value = None
+        self.activity_offsets = {}
+        self.activity_buffer = ''
+        self.activity_offset = 0
+        self.activity_sequence = 0
 
     def activity(self):
         """Authenticated output-only snapshots, independent of QEMU frames."""
@@ -66,13 +82,63 @@ class Feed:
             return self.activity_value
         self.next_activity = now + .25
         directory = BASE / str(os.getuid())
+        values = []
+        # Include the old single registry for already-running controllers during
+        # a checkout update. All new publishers use independent registrations.
         try:
-            for path in (BASE, directory, directory / 'activity.json'):
-                info = path.lstat()
+            paths = sorted(directory.glob('activity-*.json'))
+            paths.append(directory / 'activity.json')
+            for path in paths:
+                value = self.activity_packet(directory, path)
+                if value is not None:
+                    values.append(value)
+                    if len(values) == 128:
+                        break
+                # A crashed producer can leave a registry behind. Only live,
+                # authenticated replies count toward the retained bound.
+        except (OSError, ValueError):
+            values = []
+        if not values:
+            self.activity_value = None
+            return None
+        offsets = {}
+        for value in sorted(values, key=lambda item: item.get('operation_started_ns', 0)):
+            offset = value.get('offset', 0)
+            end = offset + len(value['text'])
+            previous = self.activity_offsets.get(value['run'], offset)
+            if not offset <= previous <= end:
+                previous = offset
+            addition = value['text'][previous - offset:]
+            if addition:
+                combined = self.activity_buffer + addition
+                self.activity_offset += max(0, len(combined) - 8000)
+                self.activity_buffer = combined[-8000:]
+                self.activity_sequence += 1
+            offsets[value['run']] = end
+        # A transient publisher timeout must not replay its entire retained
+        # transcript when it answers again. Bound history across ended callers.
+        self.activity_offsets.update(offsets)
+        while len(self.activity_offsets) > 128:
+            self.activity_offsets.pop(next(iter(self.activity_offsets)))
+        latest = max(values, key=lambda value: (value.get('operation_active', False),
+                                               value.get('operation_priority', 1),
+                                               value.get('operation_started_ns', 0)))
+        self.activity_value = dict(run='0' * 32, sequence=self.activity_sequence,
+            text=self.activity_buffer, offset=self.activity_offset,
+            operation=latest.get('operation', ''),
+            operation_active=latest.get('operation_active', False),
+            operation_priority=latest.get('operation_priority', 1),
+            operation_started_ns=latest.get('operation_started_ns', 0))
+        return self.activity_value
+
+    def activity_packet(self, directory, path):
+        """Authenticate every producer independently; viewers never send input."""
+        try:
+            for entry in (BASE, directory, path):
+                info = entry.lstat()
                 require(info.st_uid == 0 and not info.st_mode & 0o022
                         and not stat.S_ISLNK(info.st_mode), 'registry-owner')
-            path = directory / 'activity.json'
-            require(path.stat().st_size < 128, 'activity-registry-size')
+            require(stat.S_ISREG(info.st_mode) and info.st_size < 128, 'activity-registry-size')
             run = json.loads(path.read_text())['run']
             require(type(run) is str and re.fullmatch('[0-9a-f]{32}', run), 'run-identity')
             with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
@@ -83,16 +149,26 @@ class Feed:
                 packet, _, flags, _ = peer.recvmsg(100000)
                 require(not flags & socket.MSG_TRUNC, 'activity-size')
                 value = json.loads(packet)
-                require(set(value) in ({'run', 'sequence', 'text'}, {'run', 'sequence', 'text', 'offset'})
+                require(set(value) in ({'run', 'sequence', 'text'}, {'run', 'sequence', 'text', 'offset'},
+                                      {'run', 'sequence', 'text', 'offset', 'operation', 'operation_started_ns',
+                                       'operation_active', 'operation_priority'},
+                                      {'run', 'sequence', 'text', 'offset', 'operation', 'operation_started_ns',
+                                       'operation_active'})
                         and value['run'] == run
                         and type(value['sequence']) is int and value['sequence'] >= 0
                         and type(value.get('offset', 0)) is int and value.get('offset', 0) >= 0
                         and type(value['text']) is str and len(value['text']) <= 8000,
                         'activity-fields')
-            self.activity_value = value
+                require(type(value.get('operation', '')) is str and len(value.get('operation', '')) <= 384
+                        and type(value.get('operation_active', False)) is bool
+                        and type(value.get('operation_priority', 1)) is int
+                        and 0 <= value.get('operation_priority', 1) <= 2
+                        and type(value.get('operation_started_ns', 0)) is int
+                        and 0 <= value.get('operation_started_ns', 0) <= time.monotonic_ns(),
+                        'activity-operation')
+            return value
         except (OSError, ValueError, KeyError, TypeError):
-            self.activity_value = None
-        return self.activity_value
+            return None
 
     def connect(self):
         directory = BASE / str(os.getuid())
@@ -163,6 +239,10 @@ class Feed:
 
 def application(feed=None):
     # Importing transport helpers for tests does not connect to the host desktop.
+    from common.oh_no_parent_control_ui.gtk_automation import (
+        add_identified_window_controls,
+        set_automation_id,
+    )
     import gi
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')
@@ -170,7 +250,7 @@ def application(feed=None):
     try:
         gi.require_version('Vte', '3.91')
     except ValueError as error:
-        raise RuntimeError('watch-e2e needs GTK 4 VTE; run ./setup.sh --test-tools-only') from error
+        raise RuntimeError('watchvm needs GTK 4 VTE; run ./setup.sh --test-tools-only') from error
     from gi.repository import Gdk, Gio, GLib, Graphene, Gtk, Pango, Vte
 
     # A terminal launched by an editor can pass its desktop/startup identity
@@ -254,7 +334,7 @@ def application(feed=None):
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             self.screen = Screen()
             set_automation_id(self.screen, 'e2e-watch-display')
-            self.screen.update_property([Gtk.AccessibleProperty.LABEL], ['E2E VM display'])
+            self.screen.update_property([Gtk.AccessibleProperty.LABEL], ['VM display'])
             self.step = Gtk.Label(xalign=0, yalign=0, wrap=True,
                                   wrap_mode=Pango.WrapMode.WORD_CHAR,
                                   ellipsize=Pango.EllipsizeMode.END, lines=3)
@@ -351,8 +431,8 @@ def application(feed=None):
             title, step, operation = progress_text(meta)
             self.window.set_title(title)
             self.step.set_label(step)
-            self.status.set_label(operation or ('VM commands · View only' if activity else
-                ('Live · View only' if meta.get('state') == 'live' else WAITING)))
+            self.status.set_label(activity_text(activity, meta.get('progress')) or operation or
+                ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else WAITING))
             return True
 
         def do_shutdown(self):
@@ -377,13 +457,13 @@ def desktop_launch_command():
                  'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS'):
         if name in os.environ:
             command.append('--setenv=' + name + '=' + os.environ[name])
-    return command + ['--', str(Path(__file__).resolve().with_name('watch-e2e')),
+    return command + ['--', str(Path(__file__).resolve().with_name('watchvm')),
                       '--desktop-session']
 
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Watch E2E output. Close this window whenever you want.')
+    parser = argparse.ArgumentParser(description='Watch VM activity. Close this window whenever you want.')
     parser.add_argument('--desktop-session', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     require(os.getuid() != 0, 'launch-as-your-desktop-user')
@@ -396,4 +476,4 @@ def main():
     if snap_parent:
         require(not args.desktop_session, 'desktop-session-still-has-snap-identity')
         return subprocess.run(desktop_launch_command(), check=False).returncode
-    return application().run(['watch-e2e'])
+    return application().run(['watchvm'])

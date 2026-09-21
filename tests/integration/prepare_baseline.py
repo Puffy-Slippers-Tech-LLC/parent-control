@@ -34,6 +34,7 @@ if __name__ == '__main__':
     sys.dont_write_bytecode = True
 
 import prepare_vm as guest_contract
+from watch_activity import observed
 
 
 URI = guest_contract.vm_config.URI
@@ -58,6 +59,8 @@ def require(condition, category):
 
 
 def log(stage):
+    from watch_activity import event
+    event(stage)
     print(f"prepare-baseline: [{stage}]", file=sys.stderr, flush=True)
 
 
@@ -134,6 +137,11 @@ class Commands:
         self.lock_fd = None
 
     def run(self, arguments, *, timeout=120):
+        from watch_activity import operation
+        with operation('Host $ ' + Path(arguments[0]).name, priority=1):
+            return self._run(arguments, timeout=timeout)
+
+    def _run(self, arguments, *, timeout):
         with subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                               stderr=subprocess.DEVNULL,
                               pass_fds=(() if self.lock_fd is None else (self.lock_fd,))) as child:
@@ -243,6 +251,7 @@ class LibvirtSource:
             require(not domain.blockJobInfo(layout["target"], 0), "guard:block-job")
         return layout, state == self.api.VIR_DOMAIN_SHUTOFF
 
+    @observed('Waiting for VM shutdown')
     def shutdown(self, revalidate, requested, timeout=180):
         expired = False
         changed = threading.Event()
@@ -280,6 +289,7 @@ class LibvirtSource:
         require(len(matches) <= 1, "snapshot:ambiguous-baseline")
         return matches[0].getXMLDesc(0) if matches else None
 
+    @observed('Creating the VM baseline snapshot')
     def create_baseline(self, layout, description):
         current, off = self.snapshot()
         require(off and current == layout, "snapshot:source-changed")
@@ -295,6 +305,7 @@ class LibvirtSource:
         self.domain.snapshotCreateXML(ET.tostring(root, encoding="unicode"),
                                       self.api.VIR_DOMAIN_SNAPSHOT_CREATE_ATOMIC)
 
+    @observed('Deleting the VM baseline snapshot')
     def delete_baseline(self, layout):
         current, off = self.snapshot()
         require(off and current == layout, "snapshot:source-changed")
@@ -649,6 +660,7 @@ class Capture:
         self.save('validation')
         log('replacement:retired-record-preserved')
 
+    @observed('Preparing and validating the VM baseline')
     def run(self, *, replace_missing=False, refresh=False):
         # Resolve the existing disk and chain before filesystem writes/shutdown.
         inventory, _off = self.inventory()
@@ -691,6 +703,7 @@ class Capture:
             self.commands.lock_fd = None
             os.close(fd)
 
+    @observed('Verifying the VM baseline snapshot')
     def verify_snapshot(self, *, force_bytes=False, boundary='checkpoint'):
         started = time.monotonic()
         require(boundary in ('checkpoint', 'acquisition', 'restoration', 'recovery'),

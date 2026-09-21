@@ -4,9 +4,11 @@ from contextlib import contextmanager
 from pathlib import Path
 import stat
 import time
+import xml.etree.ElementTree as ET
 
 import prepare_vm
 from test_account_password import matches
+from watch_activity import observed
 
 STAGE = '/var/lib/onpc-baseline-preparation'
 UNIT = '/etc/systemd/system/onpc-baseline-preparation.service'
@@ -84,6 +86,7 @@ def write(g, path, content):
     g.chmod(0o600, path)
 
 
+@observed('Preparing the baseline VM; waiting for guest setup and shutdown')
 def prepare(capture, guestfs, password):
     """Operate only on the off, journal-bound source. Never restore a baseline."""
     with mounted(guestfs, capture) as g:
@@ -110,10 +113,26 @@ def prepare(capture, guestfs, password):
             g.ln_s(UNIT, LINK)
     capture.revalidate(off=True)
     source = capture.source
+    # Baseline preparation explicitly maintains this guest's configuration.
+    # Install the same output-only endpoint used by all later isolated leases;
+    # it has no host listener and becomes part of the accepted baseline.
+    from e2e_watch import DisplayAdapter, configuration_digest, display_endpoint, start
+    root = ET.fromstring(source.domain.XMLDesc(source.api.VIR_DOMAIN_XML_INACTIVE))
+    display_endpoint(root)
+    source.connection.defineXML(ET.tostring(root, encoding='unicode'))
+    capture.revalidate(off=True)
     source.domain.create()
     instance = source.domain.ID()
     require(instance >= 0, 'guest:preparation-start')
+    observer = None
     try:
+        xml_digest = configuration_digest(source.domain.XMLDesc(0))
+        def guard_display():
+            capture.revalidate()
+            require(source.domain.ID() == instance
+                    and configuration_digest(source.domain.XMLDesc(0)) == xml_digest,
+                    'guest:preparation-display-changed')
+        observer = start(DisplayAdapter(source, instance, guard_display, capture.state['operation']))
         deadline = time.monotonic() + 2700
         while not source.snapshot()[1]:
             require(source.domain.ID() == instance, 'guest:preparation-instance-changed')
@@ -124,6 +143,9 @@ def prepare(capture, guestfs, password):
         if not source.snapshot()[1] and source.domain.ID() == instance:
             source.shutdown(capture.revalidate, requested=False)
         raise
+    finally:
+        if observer is not None:
+            observer.close()
     capture.revalidate(off=True)
     with mounted(guestfs, capture) as g:
         require(g.exists(STAGE + '/success')

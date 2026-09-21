@@ -114,7 +114,7 @@ def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypat
             str(data_root / 'applications' / (app_id + '.desktop')))
         assert entry is not None
         parsed, command = GLib.shell_parse_argv(entry.get_commandline())
-        assert parsed and command == [str(ROOT / 'tools' / ('watch-ui' if ui_watch else 'watch-e2e'))]
+        assert parsed and command == [str(ROOT / 'tools' / ('watch-ui' if ui_watch else 'watchvm'))]
         icon_name = entry.get_icon().to_string()
         lookup = Gtk.IconTheme.new()
         lookup.set_search_path([str(data_root / 'icons'), '/usr/share/icons'])

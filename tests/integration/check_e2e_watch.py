@@ -104,6 +104,38 @@ def probe(lease, commands, directory, host_key):
         adapter.close_observer()
 
 
+def maintenance_probe(lease, commands, directory, host_key, *, detached=True):
+    """Exercise automatic observation and handoff with no graphical/E2E owner."""
+    from vm_transport import Transport
+    from watch_activity import operation
+    lease.watch_detached = detached
+    lease.start()
+    require(lease.watch is not None, 'watch:maintenance-collector-unavailable')
+    # The short-lived maintenance launcher closes precisely these handles on
+    # return. The keeper must retain its feed without holding the VM lease.
+    if detached:
+        lease.watch.detach()
+        lease.watch = None
+    hostname = runner.address(lease.source)
+    (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
+    vm = Transport(dict(directory=str(directory), hostname=hostname,
+        run=lease.state['run'], domain_uuid=lease.source.uuid,
+        domain_id=lease.view.domain_id), commands, guard=lambda _: lease.guard())
+    vm.ready()
+    vm.call(['printf', 'ONPC-WATCH-SSH-STDOUT\\n'])
+    vm.call(['ls', '--', '/onpc-watch-missing-entry'], check=False)
+    reader = ['/usr/bin/python3', '-B', str(Path(__file__).with_name('e2e_watch_probe.py'))]
+    with operation('Qualifying VM maintenance observation'):
+        result = json.loads(commands.run([*reader, '--experiment'], timeout=40))
+    lease.stop()
+    result.update(json.loads(commands.run([*reader, '--stopped'], timeout=20)))
+    return result
+
+
+def system_probe(lease, commands, directory, host_key):
+    return maintenance_probe(lease, commands, directory, host_key, detached=False)
+
+
 def main():
     require(len(sys.argv) == 1 and os.geteuid() == os.getegid() == 0, 'watch:invocation')
     require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT, 'watch:checkout')
@@ -127,19 +159,25 @@ def main():
                 api.virEventRunDefaultImpl()
         threading.Thread(target=events, daemon=True, name='libvirt-events').start()
         source = runner.baseline.LibvirtSource(api)
-        lease = runner.Lease(source, commands,
-            lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
-            ledger=ledger, graphics_type='vnc')
-        with lease:
-            lease.prepare()
-            inputs = directory / 'input'
-            inputs.mkdir(mode=0o700)
-            (inputs / 'selected-inputs.json').write_text(json.dumps({'scope': 'spectator-harness'}))
-            host_key = runner.bootstrap(commands, lease, directory, guestfs, observation_only=True)
-            lease.save('isolated')
-            result['probe'] = probe(lease, commands, directory, host_key)
-            ledger.pass_outcome('infrastructure')
-            ledger.pass_outcome('collection')
+        for name, graphics, run_probe in (('maintenance', 'vnc', maintenance_probe),
+                                         ('system', 'spice', system_probe),
+                                         ('probe', 'vnc', probe)):
+            attempt = directory / name
+            attempt.mkdir(mode=0o700)
+            commands.directory = attempt
+            lease = runner.Lease(source, commands,
+                lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
+                ledger=ledger, graphics_type=graphics)
+            with lease:
+                lease.prepare()
+                inputs = attempt / 'input'
+                inputs.mkdir(mode=0o700)
+                (inputs / 'selected-inputs.json').write_text(json.dumps({'scope': 'spectator-harness'}))
+                host_key = runner.bootstrap(commands, lease, attempt, guestfs, observation_only=True)
+                lease.save('isolated')
+                result[name] = run_probe(lease, commands, attempt, host_key)
+                ledger.pass_outcome('infrastructure')
+                ledger.pass_outcome('collection')
         result['outcome'] = 'passed'
     except (Exception, KeyboardInterrupt) as error:
         result['category'] = runner.record_caught_failure(ledger, error)

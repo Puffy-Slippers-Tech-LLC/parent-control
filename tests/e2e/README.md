@@ -93,8 +93,8 @@ remain host-safe; a listing is never an execution pass.
 
 ### Optional live viewing
 
-Run `tools/watch-e2e` from your desktop terminal whenever you want to watch the
-guarded E2E VM. Tests remain headless by default: the runner never launches a
+Run `tools/watchvm` from your desktop terminal whenever you want to watch the
+guarded test VM, during E2E or any other VM work. Tests remain headless by default: the runner never launches a
 window. You can open, close or reopen the viewer during an attempt. Leave it
 open across reboot, shutdown, failure cleanup and subsequent attempts; it shows
 Waiting between available displays and resumes automatically. Only closing the
@@ -107,6 +107,38 @@ announce their fixed operation and result; validated kiosk diagnostic phases
 stream into that pane even if the observation later times out. Observer source,
 stdin and raw private replies remain hidden. New experiments must reuse these
 channels rather than add another viewer or terminal connection.
+
+Display attachment belongs to `system_runner.Lease.start`, so system tests,
+app-snapshot setup, graphical qualifications and maintenance all receive it
+automatically. Callers must not attach a second collector. Maintenance hands the
+same collector/watchdog to a keeper when `test-vm start` returns. It retains no
+VM lease or input channel and checks the exact domain instance and configuration
+through read-only libvirt calls. It exits on shutdown or identity change, so
+separate reboot/input/status commands and a viewer opened between commands see
+the same running guest. All display attachments share a configuration fingerprint
+that excludes only the numeric
+[`currentMemory` runtime allocation](https://libvirt.org/formatdomain.html#memory-allocation),
+which changes during boot; memory configuration, devices, disks and ownership
+remain checked. Explicit baseline preparation installs the same private
+D-Bus endpoint and uses the shared display adapter for its preparation boot;
+ordinary tests never rebuild the baseline for observation.
+
+Every operation publishes nonsecret intention **before** work through
+[`watch_activity.operation` / `observed`](../integration/watch_activity.py).
+The shared command runner supplies a guarded command label for otherwise unnamed
+work. Explicit scopes retain useful intent during internal ownership probes and
+blocking waits, and nested scopes restore their parent's label even on failure.
+Explicit intent takes precedence over generic commands from child publishers
+and remains visible when an older parent scope resumes. Completed event messages
+remain in the transcript without posing as a currently running operation.
+The footer renders this intent and elapsed time without requiring an E2E recorder;
+between operations on a running VM it says that it is waiting for the next one.
+Each controller/transport publishes independently through the same authenticated
+transcript protocol. The viewer merges their bounded output, so subprocesses and
+concurrent readers cannot overwrite another publisher's registration. Private
+programs, stdin, credentials and binary/private replies keep the existing filters.
+The [repository mandate](../../AGENTS.md#tests-artifacts-and-vm) applies to every
+future consumer, including experiments written during development.
 
 The title is `[current/total] [ID]: Title`, using the selected invocation's case
 count (including the case in progress), numeric coverage ID and inventory title.
@@ -154,7 +186,11 @@ connection and input behavior do not enforce these boundaries.
 
 Qualification uses `tools/run-tests integration check_e2e_watch` for repeated
 client connections, premature closes, rejected input and collector stalls while
-the automation VNC endpoint remains responsive. The isolated GTK test is
+the automation VNC endpoint remains responsive. It also starts a lease without
+an E2E recorder, hands off the maintenance collector, checks live screen/SSH and
+footer intent through repeated reader connections, and verifies keeper shutdown.
+The same check covers the system-test SPICE display through the shared collector.
+The isolated GTK test is
 `tests/ui/test_e2e_watch.py::test_window_survives_stop_reconnect_and_resize`.
 For acceptance, run `E2E-030/parent` (verified installation setup, real reboot,
 Parent About journey and final shutdown), and select

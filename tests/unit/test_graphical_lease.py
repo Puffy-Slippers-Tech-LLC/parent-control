@@ -271,6 +271,25 @@ def test_separate_graphics_connection_identity_checked_before_attach(prepared, f
     lease.source.connection.close.assert_not_called()
 
 
+def test_graphics_attachment_tolerates_live_balloon_report_changes(prepared):
+    lease, current = prepared
+    adapter = start_adapter(lease)
+    current['xml'] = current['xml'].replace('</domain>',
+        '<currentMemory unit="KiB">1024</currentMemory></domain>')
+    connection = lease.source.api.open.return_value
+    domain = connection.lookupByUUIDString.return_value
+    domain.XMLDesc.side_effect = lambda *_: current['xml'].replace('>1024<', '>512<')
+    local, remote = socket.socketpair()
+    with local, remote:
+        domain.openGraphicsFD.side_effect = lambda *_: local.detach()
+        try:
+            display = adapter.request('graphics', adapter.run)
+            remote.sendall(b'frame')
+            assert display.recv(16) == b'frame'
+        finally:
+            adapter.close_display()
+
+
 def test_released_lease_refuses_callback_before_libvirt(prepared):
     lease, _ = prepared
     adapter = graphical.Adapter(lease)

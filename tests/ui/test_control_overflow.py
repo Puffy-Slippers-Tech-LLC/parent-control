@@ -136,7 +136,7 @@ def test_about_content_remains_semantically_reachable(
     ui = automation
     wait_for_accessible_state(lambda: ui.find(menu) is not None,
                               "application menu publishes its ID")
-    ui.activate(menu)
+    ui.activate(menu, action_name="menu.popup")
     about = ("parent-menu-about" if launcher == "parent_component_preview"
              else "kiosk-menu-item-about")
     wait_for_accessible_state(lambda: ui.showing(about), "About action opens")

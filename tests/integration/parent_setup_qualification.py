@@ -102,6 +102,10 @@ class ParentJourneyQualification(smoke.Qualification):
         """Reuse a prepared app snapshot; default qualifications stay on baseline."""
         return
 
+    def prepare_context(self, context):
+        """Optional fixed preparation before the graphical worker starts."""
+        return
+
     def execute(self, lease, guestfs):
         self.checkpoint('attempt-started')
         try:
@@ -116,6 +120,7 @@ class ParentJourneyQualification(smoke.Qualification):
                 lease, self.verified, self.directory, guestfs, self.commands)
             context = SimpleNamespace(directory=self.directory, lease=lease, verified=self.verified,
                                       commands=self.commands, host_key=host_key)
+            self.prepare_context(context)
 
             def progress(stage, observed):
                 self.active_stage = stage
@@ -196,3 +201,33 @@ class RequestExitQualification(KioskEntryQualification):
         version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
         context.installed_snapshot = snapshot_name(version)
         return RequestExitJourney(context, progress)
+
+
+class ParentToggleQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from parent_toggle import ParentToggleJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ParentToggleJourney(context, progress)
+
+    def prepare_context(self, context):
+        """Create a disposable Parent session without qualifying login or launch."""
+        with smoke.runner.operation('Preparing the Parent toggle qualification session'):
+            context.lease.start()
+            hostname = smoke.runner.address(context.lease.source, timeout=90)
+            (context.directory / 'known-hosts').write_text(f'{hostname} {context.host_key}\n')
+            config = {'directory': str(context.directory), 'hostname': hostname,
+                      'domain_uuid': context.lease.source.uuid,
+                      'domain_id': context.lease.view.domain_id,
+                      'run': context.lease.state['run']}
+            transport = smoke.Transport(
+                config, context.commands, guard=lambda _: context.lease.guard())
+            transport.probe_ready(timeout=180)
+            smoke.installed_setup.InstalledSetup(
+                context.directory, context.verified, transport).provision(context.lease.guard)
+            transport.call(smoke.runner.guest_command(
+                context.lease.state['run'], 'prepare-toggle-session'), timeout=120)
+            context.lease.source.shutdown(context.lease.guard, requested=False)
+            context.lease.guard(off=True)

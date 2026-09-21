@@ -43,6 +43,12 @@ OPERATION_LABELS = {
     'license-closed': 'Checking the license window is closed',
     'about-returned': 'Reading the About footer',
     'parent-returned': 'Checking the returned child and unchanged settings',
+    'parent-toggle-enabled': 'Enabling the Parent screen time limit',
+    'parent-toggle-disabled': 'Disabling the Parent screen time limit',
+    'parent-toggle-current': 'Reading the already-disabled Parent screen time limit',
+    'parent-toggle-wrong-refused': 'Refusing an unregistered Parent toggle binding',
+    'parent-toggle-hidden-refused': 'Refusing the hidden Parent screen time limit',
+    'parent-toggle-disabled-settings': 'Reading settings while screen time is disabled',
     'discovery-ready': 'Checking existing-child settings and remaining time',
     'new-child-picker-opened': 'Expanding the child selector for [New child]',
     'new-child-choice-highlighted': 'Checking [New child] is highlighted',
@@ -331,6 +337,11 @@ class UiObservations:
                 r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', value)
                         for value in settings['allowance']), 'ui:settings')
             expected['settings'] = settings
+        if operation in accessible_ui.TOGGLE_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'toggle'}
+                    and result['toggle'] == accessible_ui.TOGGLE_OPERATIONS[operation],
+                    'ui:toggle-response')
+            expected['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
         if operation in accessible_ui.KIOSK_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'])

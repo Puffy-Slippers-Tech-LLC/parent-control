@@ -62,6 +62,89 @@ DOCUMENT_CONTRACTS['document-viewer'] = {
 }
 
 
+def parent_toggle_ui(*, states=('showing', 'visible', 'sensitive')):
+    toggle = Node('Screen time limit', 'switch', states=states,
+                  identity='parent-screen-limit-toggle')
+    root = Node('Oh No! Parent Control', identity='parent-window', children=[toggle])
+    return ui_for(root), root, toggle
+
+
+def test_owned_lookup_reads_each_subtree_once_and_reacquires_after_transition():
+    ui, root, toggle = parent_toggle_ui()
+    toggle.get_attributes = Mock(wraps=toggle.get_attributes)
+    toggle.get_accessible_id = Mock(wraps=toggle.get_accessible_id)
+    original_nodes = ui.nodes
+    ui.nodes = Mock(wraps=original_nodes)
+    assert ui.find_id('parent-screen-limit-toggle', root=root) is toggle
+    assert ui.nodes.call_count == 1
+    toggle.get_attributes.assert_called_once_with()
+    toggle.get_accessible_id.assert_called_once_with()
+    replacement = Node(identity='parent-screen-limit-toggle')
+    root.children[:] = [replacement]
+    replacement.parent = root
+    ui.nodes.reset_mock()
+    assert ui.find_id('parent-screen-limit-toggle', root=root) is replacement
+    assert ui.nodes.call_count == 1
+
+
+def test_explicit_toggle_activates_once_and_reads_a_fresh_result():
+    ui, root, toggle = parent_toggle_ui()
+    replacement = Node('Screen time limit', 'switch',
+                       states=('showing', 'visible', 'sensitive', 'checked'),
+                       identity='parent-screen-limit-toggle')
+
+    def activate(_index):
+        root.children[:] = [replacement]
+        replacement.parent = root
+        return True
+
+    toggle.action.do_action.side_effect = activate
+    assert ui.set_toggle('parent-screen-limit-toggle', True, root=root) == {
+        'state': True, 'activated': True}
+    toggle.action.do_action.assert_called_once_with(0)
+
+
+def test_explicit_toggle_already_current_reads_disabled_setting_without_input():
+    ui, root, toggle = parent_toggle_ui(states=('showing', 'visible'))
+    assert ui.set_toggle('parent-screen-limit-toggle', False, root=root) == {
+        'state': False, 'activated': False}
+    toggle.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['hidden', 'wrong-control'])
+def test_explicit_toggle_refuses_unqualified_or_hidden_input(fault):
+    states = ('sensitive',) if fault == 'hidden' else ('showing', 'visible', 'sensitive')
+    ui, root, toggle = parent_toggle_ui(states=states)
+    identity = 'parent-legend-toggle' if fault == 'wrong-control' else toggle.identity
+    with pytest.raises(UiError, match='ui:(?:toggle-binding|unusable-target)'):
+        ui.set_toggle(identity, True, root=root)
+    toggle.action.do_action.assert_not_called()
+
+
+def test_explicit_toggle_never_replays_an_uncertain_or_unobserved_action():
+    ui, root, toggle = parent_toggle_ui()
+    with pytest.raises(UiError, match='ui:timeout:toggle-state'):
+        ui.set_toggle('parent-screen-limit-toggle', True, root=root)
+    toggle.action.do_action.assert_called_once_with(0)
+
+
+@pytest.mark.parametrize('operation', [
+    'parent-toggle-enabled', 'parent-toggle-disabled', 'parent-toggle-current',
+    'parent-toggle-wrong-refused', 'parent-toggle-hidden-refused',
+])
+def test_toggle_observation_accepts_only_its_fixed_sanitized_result(operation):
+    from accessible_ui import TOGGLE_OPERATIONS
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'toggle': TOGGLE_OPERATIONS[operation]}
+    session = UiObservations(SimpleNamespace(call=Mock(
+        return_value=(json.dumps(result) + '\n').encode())))
+    assert session.observe(operation)['toggle'] == TOGGLE_OPERATIONS[operation]
+    result['toggle'] = {'state': True, 'activated': False}
+    session.transport.call.return_value = (json.dumps(result) + '\n').encode()
+    with pytest.raises(EvidenceError, match='ui:toggle-response'):
+        session.observe(operation)
+
+
 def search_ui(surface, *, outside=()):
     surface.identity = 'test-shell-app-grid'
     application = Node(identity='test-shell-application', children=[surface])
@@ -638,6 +721,38 @@ def test_usable_target_is_independent_of_appearance(appearance):
     button.action.do_action.assert_called_once_with(0)
 
 
+def test_public_action_invokes_clipped_id_target_without_focus_or_scroll():
+    button = Node('About', 'button', states=('visible', 'sensitive'),
+                  identity='parent-menu-about')
+    window = Node(identity='parent-window', children=[button])
+    ui = ui_for(window)
+    public_tree = ui.api.get_desktop(0)
+    pending = [public_tree]
+    nodes = []
+    while pending:
+        node = pending.pop()
+        nodes.append(node)
+        pending.extend(node.children)
+    for node in nodes:
+        node.get_child_count = Mock(wraps=node.get_child_count)
+
+    ui.activate_id('parent-menu-about')
+
+    for node in nodes:
+        node.get_child_count.assert_called_once_with()
+    button.component.scroll_to.assert_not_called()
+    button.component.grab_focus.assert_not_called()
+    button.action.do_action.assert_called_once_with(0)
+
+
+def test_owned_id_never_routes_through_plural_lookup():
+    button = Node('About', 'button', identity='parent-menu-about')
+    ui = ui_for(Node(identity='parent-window', children=[button]))
+    with pytest.raises(UiError, match='owned-id-requires-direct-lookup'):
+        ui.find_all_ids('parent-menu-about')
+    assert ui.find_id('parent-menu-about') is button
+
+
 def test_child_lookup_never_discovers_uid_from_a_matching_label():
     from accessible_ui import CHILD, NEW_CHILD
     wrong_uid = Node('', 'button', identity='parent-child-choice-1003',
@@ -659,7 +774,7 @@ def test_child_lookup_never_discovers_uid_from_a_matching_label():
 def test_unusable_or_wrong_control_cannot_pass(fault):
     button = Node('About', 'button', identity='test-about')
     root = Node(children=[button])
-    if fault == 'hidden': button.states.remove('showing')
+    if fault == 'hidden': button.states.remove('visible')
     if fault == 'disabled': button.states.remove('sensitive')
     if fault == 'wrong-name': button.identity = 'test-help'
     if fault == 'ambiguous': root.children.append(Node('About', 'button', identity='test-about'))
@@ -1669,6 +1784,41 @@ def test_session_prompt_classifier_distinguishes_and_refuses_without_input(sessi
         ui.handle_system_prompt()
     for control in controls:
         control.action.do_action.assert_not_called()
+
+
+def test_system_prompt_classification_uses_one_complete_snapshot_without_rereads():
+    ui, _controls = semantic_prompt('keyring')
+    pending = [ui.api.get_desktop(0)]
+    nodes = []
+    while pending:
+        node = pending.pop()
+        nodes.append(node)
+        pending.extend(node.children)
+    getters = ('get_attributes', 'get_accessible_id', 'get_role_name',
+               'get_name', 'get_state_set')
+    for node in nodes:
+        for getter in getters:
+            setattr(node, getter, Mock(wraps=getattr(node, getter)))
+
+    assert ui.system_prompt_kind() == 'keyring'
+
+    for node in nodes:
+        for getter in getters:
+            getattr(node, getter).assert_called_once_with()
+
+
+def test_system_prompt_observation_keeps_owned_subtrees_complete():
+    owned_child = Node(identity='parent-window')
+    owned_child.get_role_name = Mock(wraps=owned_child.get_role_name)
+    owned = Node(role='application', identity=PARENT_APPLICATION,
+                 children=[owned_child])
+    external_ui, _controls = semantic_prompt('keyring')
+    external = external_ui.api.get_desktop(0).children[0]
+    ui = ui_for(Node(role='desktop frame', children=[owned, external]),
+                qualify_prompts=False)
+
+    assert ui.system_prompt_kind() == 'keyring'
+    owned_child.get_role_name.assert_called_once_with()
 
 
 @pytest.mark.parametrize('fault', ['ambiguous', 'incomplete'])

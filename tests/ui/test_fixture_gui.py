@@ -74,7 +74,7 @@ def test_payload_gui_preserves_independent_activity(hermetic_ui_session, gui_pay
                 assert primary.snapshot() == {
                     'draft': 'ONPC primary', 'submitted': 'ONPC primary', 'score': 'Moves: 1; token: 1'}
                 secondary = FixtureUI(ui, kind, 'secondary')
-                ui.activate(secondary.target('close'))
+                ui.activate_id(secondary.target_id('close'))
                 secondary.closed(surrounding_id=primary.scope)
                 assert primary.snapshot()['draft'] == 'ONPC primary'
             except Exception:

@@ -638,40 +638,46 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          install_refusal=False, vt6_prompt=False, vt6_auth=False, parent_setup=False,
          parent_input=False, parent_standard_input=False, parent_about=False,
          parent_access=False, desktop_session_logout=False, desktop_session_switch=False,
-         kiosk_entry=False, request_exit=False):
+         kiosk_entry=False, request_exit=False, parent_toggle=False):
+    require(type(parent_toggle) is bool and (not parent_toggle or (
+            assets is not None and provision_credentials and not any((
+                serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
+                parent_input, parent_standard_input, parent_about, parent_access,
+                desktop_session_logout, desktop_session_switch, kiosk_entry, request_exit)))),
+            'smoke:parent-toggle-prerequisites')
     require(type(kiosk_entry) is bool and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, desktop_session_switch, request_exit)))),
+                desktop_session_logout, desktop_session_switch, request_exit, parent_toggle)))),
             'smoke:kiosk-entry-prerequisites')
     require(type(request_exit) is bool and (not request_exit or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, desktop_session_switch, kiosk_entry)))),
+                desktop_session_logout, desktop_session_switch, kiosk_entry, parent_toggle)))),
             'smoke:request-exit-prerequisites')
     require(type(desktop_session_logout) is bool and (not desktop_session_logout or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_switch, kiosk_entry, request_exit)))), 'smoke:desktop-session-logout-prerequisites')
+                desktop_session_switch, kiosk_entry, request_exit, parent_toggle)))), 'smoke:desktop-session-logout-prerequisites')
     require(type(desktop_session_switch) is bool and (not desktop_session_switch or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, kiosk_entry, request_exit)))), 'smoke:desktop-session-switch-prerequisites')
+                desktop_session_logout, kiosk_entry, request_exit, parent_toggle)))), 'smoke:desktop-session-switch-prerequisites')
     require(type(parent_access) is bool and (not parent_access or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_setup, parent_input, parent_standard_input,
                 parent_about, desktop_session_logout, desktop_session_switch, kiosk_entry,
-                request_exit)))),
+                request_exit, parent_toggle)))),
             'smoke:parent-access-prerequisites')
     require(type(parent_about) is bool and (not parent_about or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_setup, parent_input,
                 parent_standard_input, desktop_session_logout, desktop_session_switch,
-                kiosk_entry, request_exit)))),
+                kiosk_entry, request_exit, parent_toggle)))),
             'smoke:parent-about-prerequisites')
     require(type(parent_input) is bool and (not parent_input or parent_setup),
             'smoke:parent-input-prerequisites')
@@ -681,7 +687,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:parent-standard-input-prerequisites')
     require(type(parent_setup) is bool and (not parent_setup or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
-                                                   vt6_prompt, vt6_auth)))),
+                vt6_prompt, vt6_auth, parent_about, parent_access,
+                desktop_session_logout, desktop_session_switch, kiosk_entry,
+                request_exit, parent_toggle)))),
             'smoke:parent-setup-prerequisites')
     require(type(vt6_auth) is bool and (not vt6_auth or (provision_credentials
             and assets is None and not serial and not install and not install_refusal
@@ -741,6 +749,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-kiosk-entry-qualification'
         if request_exit:
             result['scope'] = 'installed-request-exit-qualification'
+        if parent_toggle:
+            result['scope'] = 'installed-parent-toggle-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -759,7 +769,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     staged.chmod(0o700)
                     result['source_preflight'] = preflight_source(staged)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
-                        or desktop_session_switch or kiosk_entry or request_exit):
+                        or desktop_session_switch or kiosk_entry or request_exit or parent_toggle):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                 else:
                     (directory / 'input').mkdir(mode=0o700)
@@ -801,6 +811,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if request_exit:
                     from parent_setup_qualification import RequestExitQualification
                     qualification_class = RequestExitQualification
+                if parent_toggle:
+                    from parent_setup_qualification import ParentToggleQualification
+                    qualification_class = ParentToggleQualification
                 qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
                                               staged, credentials, serial, install, install_refusal, vt6_prompt,
                                               vt6_auth)

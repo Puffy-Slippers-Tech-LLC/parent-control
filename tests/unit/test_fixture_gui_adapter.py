@@ -33,7 +33,7 @@ def adapter(root):
     return AccessibleUI(SimpleNamespace(
         get_desktop=lambda _: root,
         StateType=SimpleNamespace(SHOWING='showing', VISIBLE='visible', SENSITIVE='sensitive',
-                                  DEFUNCT='defunct', FOCUSED='focused'),
+                                  DEFUNCT='defunct', FOCUSED='focused', MODAL='modal'),
         Action=SimpleNamespace(get_n_actions=lambda a: 1, do_action=lambda a, i: a.do_action(i)),
         Text=SimpleNamespace(get_character_count=lambda n: len(n.name),
                              get_text=lambda n, a, b: n.name[a:b]),
@@ -56,11 +56,11 @@ def test_instance_state_is_read_by_id_despite_equal_titles_labels_and_order(kind
 
 
 @pytest.mark.parametrize('fault', ['duplicate-id', 'hidden', 'disabled', 'no-effect', 'uncertain'])
-def test_move_requires_unique_reachable_control_and_independent_result(fault):
+def test_move_requires_unique_usable_control_and_independent_result(fault):
     surface, nodes = fixture()
     if fault == 'duplicate-id':
         surface.children.append(Node('different label', identity=nodes['move'].identity))
-    if fault == 'hidden': nodes['move'].states.remove('showing')
+    if fault == 'hidden': nodes['move'].states.remove('visible')
     if fault == 'disabled': nodes['move'].states.remove('sensitive')
     if fault == 'uncertain': nodes['move'].action.do_action.side_effect = LookupError('uncertain')
     with pytest.raises((UiError, LookupError)):

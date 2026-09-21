@@ -93,6 +93,11 @@ if [[ $scenario == e2e-search ]]; then
 elif [[ $scenario == indicator-interaction ]]; then
     onpc_preview_wait_for_bus_name org.gnome.Mutter.RemoteDesktop \
         "$onpc_preview_log_path"
+    # Scope the interaction reader to the exact nested Shell process this
+    # runner started.  A child overlay is a separate AT-SPI application and
+    # can remain briefly as a defunct desktop child after it exits; it must not
+    # make fresh Shell-owned ID reads incomplete while the probe reopens it.
+    export ONPC_CHILD_SHELL_PID="$onpc_preview_shell_pid"
     if ! "${ONPC_CHILD_SHELL_PYTHON:-python3}" \
             "$repo_root/tests/ui/child_shell_interaction.py"; then
         record_stage interaction failed interaction

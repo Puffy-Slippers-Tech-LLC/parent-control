@@ -235,7 +235,7 @@ class Dashboard:
 
         def priority(index):
             plain = cls.ANSI.sub('', lines[index])
-            if plain.startswith(('Overall - ', 'Tests interrupted.')):
+            if plain.startswith(('Overall - ', 'Running category [', 'Tests interrupted.')):
                 return 0
             if '[Running]' in plain or '[Waiting]' in plain or '[✗]' in plain:
                 return 1
@@ -986,11 +986,12 @@ def recover_initial_checks(root, state):
 def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
          continue_on_errors=False, selections=None, phases=None, stop_on_error=False):
     import test_retention
+    import test_activity
     root = root or Path(__file__).resolve().parents[1]
     # Keep repeated interrupts cooperative through storage rotation/finalization,
     # including after the inner command controller has restored its handlers.
     with Control().installed() as storage_control:
-        with test_retention.Store(root / 'artifacts/test-retention').session(
+        with test_retention.Store(test_activity.retention_path(root)).session(
                 recover=lambda state: recover_initial_checks(root, state)):
             if storage_control.stopped.is_set():
                 return 130

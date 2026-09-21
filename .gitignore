@@ -10,6 +10,7 @@ __pycache__/
 .pytest_cache/
 artifacts/test-activity/
 artifacts/test-retention/
+artifacts/test-retention-host/
 artifacts/test-sessions/
 artifacts/fix-tests/
 artifacts/coverage/

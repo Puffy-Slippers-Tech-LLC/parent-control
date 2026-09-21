@@ -481,6 +481,14 @@ def validate(root, argv):
     if len(selected) > 1 and any('--list' in args or '--help' in args or '-h' in args or '--collect-only' in args
                                  for _, args in selected):
         raise ValueError('listing/help requires a single category')
+    return selected
+
+
+def host_only_selection(selected):
+    """VM and privileged integration selections retain the VM checkout lock."""
+    return bool(selected) and all(kind in CATEGORIES and kind not in (
+        'all', 'all-verify', 'system', 'e2e', 'integration', 'fast')
+        for kind, _ in selected)
 
 
 def is_inspection(argv):

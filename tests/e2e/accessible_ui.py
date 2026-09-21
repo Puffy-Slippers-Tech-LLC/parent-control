@@ -343,6 +343,7 @@ def owned_surface_id(identity):
         ('preview-screen-', 'preview-screen-dialog'),
         ('preview-viewer-', 'preview-viewer-window'),
         ('e2e-watch-', 'e2e-watch-window'),
+        ('ui-watch-', 'ui-watch-window'),
         ('about-', 'about-dialog'),
         ('feedback-', 'feedback-dialog'),
         ('parent-', 'parent-window'),
@@ -365,12 +366,15 @@ PARENT_APPLICATION = 'com.puffyslippers.OhNoParentControl.Parent'
 KIOSK_APPLICATION = 'com.puffyslippers.OhNoParentControl'
 CHILD_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildRequest'
 WATCH_APPLICATION = 'org.onpc.E2EWatch'
+UI_WATCH_APPLICATION = 'org.onpc.UIWatch'
 PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION)
 
 
 def owned_applications(identity):
     if identity.startswith('e2e-watch-'):
         return (WATCH_APPLICATION,)
+    if identity.startswith('ui-watch-'):
+        return (UI_WATCH_APPLICATION,)
     if identity.startswith('parent-'):
         return (PARENT_APPLICATION,)
     if identity.startswith(('kiosk-', 'preview-screen-')):
@@ -549,6 +553,7 @@ class AccessibleUI:
         identity = public_automation_id(surface)
         app_id = public_automation_id(application)
         primary = (('e2e-watch-window',) if app_id == WATCH_APPLICATION else
+                   ('ui-watch-window',) if app_id == UI_WATCH_APPLICATION else
                    ('parent-window', 'parent-access-denied-window', 'startup-error-window')
                    if app_id == PARENT_APPLICATION else
                    ('kiosk-request-window', 'startup-error-window')

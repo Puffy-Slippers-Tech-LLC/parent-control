@@ -246,3 +246,13 @@ def test_later_vm_selection_still_requires_startup_recovery(tmp_path, monkeypatc
     monkeypatch.setattr(regression_process, 'category_run', recovery)
     assert test_recovery.before_run(tmp_path, ['unit', 'e2e'], categories=['unit', 'e2e']) == 0
     recovery.assert_called_once_with(tmp_path, 'integration', ['check_test_recovery'], pipe=False)
+
+
+@pytest.mark.parametrize('categories, host_only', [
+    (['ui'], True), (['unit', 'ui'], True), (['host'], True),
+    (['host-builds'], True), (['unit', 'e2e'], False),
+    (['host', 'system'], False), (['all'], False), (['all-verify'], False),
+    (['integration'], False), (['future-category'], False),
+])
+def test_checkout_scope_covers_every_selected_category(categories, host_only):
+    assert test_commands.host_only_selection([(kind, []) for kind in categories]) is host_only

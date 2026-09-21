@@ -47,7 +47,29 @@ REQUEST_BUTTON_ID = "child-request-button"
 COUNTDOWN_ANIMATION_ID = "child-countdown-animation-toggle"
 OVERLAY_WINDOW_ID = "kiosk-request-window"
 OVERLAY_CANCEL_ID = "kiosk-request-cancel"
-UI = Automation(Atspi, lambda: Atspi.get_desktop(0), query_errors=(GLib.Error,))
+SHELL_PID = int(os.environ["ONPC_CHILD_SHELL_PID"])
+
+
+def _shell_application():
+    """Return only the runner-owned Shell application from the public desktop."""
+    desktop = Atspi.get_desktop(0)
+    applications = []
+    for index in range(desktop.get_child_count()):
+        application = desktop.get_child_at_index(index)
+        try:
+            if application is not None and application.get_process_id() == SHELL_PID:
+                applications.append(application)
+        except GLib.Error:
+            # A separate application such as a just-closed request overlay may
+            # still have a defunct desktop entry.  It is outside this Shell ID
+            # scope and cannot invalidate the owned application lookup.
+            continue
+    if len(applications) > 1:
+        raise AssertionError("The nested Shell published multiple applications")
+    return applications[0] if applications else None
+
+
+UI = Automation(Atspi, _shell_application, query_errors=(GLib.Error,))
 
 
 def _node_role(node):

@@ -18,6 +18,13 @@ def failure(prompt, *categories):
     return {'prompt': prompt, 'categories': list(categories)}
 
 
+def test_category_status_uses_the_discovered_inventory_position():
+    categories = ['unit', 'future-suite', 'e2e']
+    assert fix_tests.category_status('future-suite', categories) == (
+        '\033[1;36mRunning category [future-suite] (2/3)\033[0m')
+    assert fix_tests.category_status('all', categories) is None
+
+
 def test_rounds_repair_only_failed_categories_with_latest_prompt(capsys):
     pending = iter([
         ('unit', failure('unit first', 'unit')),
@@ -38,10 +45,7 @@ def test_rounds_repair_only_failed_categories_with_latest_prompt(capsys):
     assert list(pending) == []
     assert calls.count('system') == calls.count('e2e') == 1
     assert prompts == ['unit first', 'unit second', 'aggregate ui', 'ui only']
-    output = capsys.readouterr().out
-    for index, category in enumerate(('unit', 'ui', 'system', 'e2e'), 1):
-        assert f'\033[1;36mRunning category [{category}] ({index}/4)\033[0m' in output
-    assert output.count('Running category') == 4
+    assert 'Running category' not in capsys.readouterr().out
 
 
 def test_multiple_aggregate_failures_recheck_companions_before_repair():
@@ -97,6 +101,7 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
     run.mkdir()
     (run / 'output').write_text('category started\n')
     fix_tests.atomic(run / 'frame.json', ['Overall - 0%'])
+    fix_tests.atomic(run / 'category.json', 'Running category [unit] (1/4)')
     fix_tests.atomic(run / 'result.json', {'status': 0})
     monkeypatch.setattr(fix_tests, 'current_run', lambda _: run)
     monkeypatch.setattr(fix_tests, 'busy', lambda _: True)
@@ -119,9 +124,10 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
     text = output.getvalue()
     assert text.count('category started') == text.count('final summary') == 1
     assert 'Overall - 0%' in text and 'Overall - 50%' in text
+    assert 'Overall - 50%\n\033[2KRunning category [unit] (1/4)' in text
     if tty:
         assert text.count('\033[?1049h') == text.count('\033[?1049l') == 1
-        assert '\033[1F' in text
+        assert '\033[2F' in text
         assert text.index('\033[?1049l') < text.index('final summary')
     else:
         assert text.count('Overall - 50%') == 1

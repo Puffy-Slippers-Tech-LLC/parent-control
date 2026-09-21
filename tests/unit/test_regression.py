@@ -390,6 +390,14 @@ def test_terminal_frames_stay_reachable_without_scrolling(monkeypatch, height):
             assert 'Completed 0' in plain
 
 
+def test_terminal_height_keeps_fix_tests_category_beneath_overall():
+    lines = [f'[Pending] Category {index}' for index in range(20)]
+    lines.extend(['Overall - 50% (10/20) - 1.0m',
+                  'Running category [unit] (1/13)'])
+    visible = regression.Dashboard.fit_height(lines, 5)
+    assert visible[-2:] == lines[-2:]
+
+
 def test_terminal_dimensions_ignore_stale_environment(monkeypatch):
     class Terminal(io.StringIO):
         def isatty(self):

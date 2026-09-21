@@ -76,6 +76,33 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     assert session.follow(run, io.StringIO()) == 7
 
 
+@pytest.mark.parametrize('category, expected', [('ui', 0), ('unit', 0), ('host', 0),
+                                              ('system', 2), ('e2e', 2), ('all', 2)])
+def test_snapshot_probe_can_overlap_only_host_session(tmp_path, workers, monkeypatch,
+                                                      category, expected):
+    from contextlib import nullcontext
+    from unittest.mock import Mock
+    import prepare_appsnapshot
+
+    monkeypatch.setattr(test_commands, 'validate', lambda root, argv: [(argv[0], [])])
+    run, started = session.select(tmp_path, [category])
+    assert started
+    wait_for(tmp_path / 'child-ready')
+    monkeypatch.setattr(prepare_appsnapshot, '__file__',
+                        str(tmp_path / 'tools/prepare_appsnapshot.py'))
+    check = Mock()
+    monkeypatch.setattr(prepare_appsnapshot, 'check', check)
+    control = Mock()
+    control.installed.return_value = nullcontext(control)
+    control.run.return_value = 0
+    monkeypatch.setattr(prepare_appsnapshot, 'Control', lambda: control)
+    assert prepare_appsnapshot.main(['--overwrite', 'false']) == expected
+    assert control.run.call_count == int(expected == 0)
+    assert check.call_count == int(expected == 0)
+    (tmp_path / 'release').touch()
+    assert session.follow(run, io.StringIO()) == 7
+
+
 @pytest.mark.parametrize('argv', [['--help'], ['-h'], ['--list']])
 def test_inspection_prints_without_starting_a_session(tmp_path, workers, capsys, argv):
     assert session.select(tmp_path, argv) == (None, False)

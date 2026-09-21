@@ -146,8 +146,9 @@ script reruns that category. Round 2 runs `run-tests all`; failures trigger
 repair/category retries before another complete `all` run. Only a passing
 complete run finishes the loop. Concurrently reported failures are handled by
 category; interrupted companion categories are not falsely marked passed.
-Before each round-1 category, the launcher highlights
-`Running category [category] (x/y)` with its position in the discovered list.
+For each round-1 category, the launcher highlights
+`Running category [category] (x/y)` beneath the test dashboard's `Overall` row,
+then retains it after the completed test output with its position in the discovered list.
 The exact argument arrays from that inventory are forwarded to the test runner.
 
 The launcher itself is Python scripting. Repairs default to `gpt-5.6-sol` with
@@ -300,10 +301,13 @@ same cooperative cleanup behavior. After owned commands exit, the notice changes
 to “Tests interrupted. Shutdown finished; see cleanup results above.” This applies
 to host-only runs and every stage of both complete aggregates.
 
-The maintained launchers hold one checkout activity lock for the full command,
+The maintained launchers hold a checkout activity lock for the full command,
 including cleanup. Aggregate children join through an inherited locked file
 descriptor; another terminal's `tools/run-tests` attaches to its session.
-Other launchers refuse competing execution while the checkout is owned.
+Host-only selections use `artifacts/test-activity/host.lock`; selections with
+VM or privileged integration work and standalone VM preparation keep
+`artifacts/test-activity/lock`. Competing owners within each scope refuse.
+Host-only tests can therefore run alongside `tools/prepare-appsnapshot`.
 The VM's existing cross-controller lease remains independently authoritative.
 Ordinary pytest caches are disabled. The report labels every output fragment
 with its category and links separate private raw streams; one coordinator writes
@@ -395,7 +399,11 @@ the current run, removing older registered directories, including logs and
 failed-test evidence. Failed or cooperatively interrupted runs count toward the
 same three-run limit. Copy any evidence needed for longer work before it expires.
 
-The host journal lives in `artifacts/test-retention/`. Privileged system/E2E
+Host-only runs use `artifacts/test-retention-host/`; VM-containing runs and
+snapshot preparation keep `artifacts/test-retention/`. Each journal retains
+its own last three runs, so active host evidence cannot block VM preparation
+or be rotated by it. Existing records stay in their original journal.
+Privileged system/E2E
 outputs have a separate root-owned journal under
 `/var/tmp/onpc-test-retention-root-<uid>-<checkout-id>/`; all VM categories in
 one aggregate share its run token. Privileged outputs older than its three-run
@@ -418,8 +426,11 @@ untouched, and subsequent runs use a fresh journal.
 Storage leases exclude active owners; deletion uses recorded directory identities
 and pinned descriptors, refusing replacements, symlink ancestors and mounts.
 No `/tmp/onpc-*` or `/var/tmp/onpc-*` prefix sweep is used. An unfinished retention
-journal after abrupt termination triggers automatic recovery in `tools/run-tests`
-before the selected checks start. The launcher must hold checkout activity ownership
+journal on the VM side after abrupt termination triggers automatic recovery
+before selected VM checks start. Host-only runs never inspect or recover that
+journal. Unfinished host retention still refuses a new retained host run;
+`tools/cleanup-e2e` reconciles both scopes under their respective locks.
+The launcher must hold checkout activity ownership
 and acquire the storage owner locks; a live owner is never killed or displaced.
 The installed `check_test_recovery` route reconciles the VM through the existing
 identity-checked recovery controller and shared VM lease. It also runs before a
@@ -670,6 +681,40 @@ Nested-Shell tests reuse `child/preview-orchestration.sh`, a controlled copy of
 the packaged extension, and private runtime state. They must not change the
 developer's desktop, extension settings or live source. Preview launchers are
 development tools, not customer E2E commands.
+
+### Watching host UI tests
+
+Open `tools/watch-ui` as the desktop user before or during a run. It discovers
+private UI workers from this checkout for both `tools/run-ui-tests` and all
+aggregate paths (`tools/run-tests ui`, `host`, `all`, and mixed selections).
+**All branches** lays out up to four workers in a 2×2 grid, with a separate tab
+for each worker. Both views show the current pytest node ID and phase. Workers
+appear when their private compositor fixture starts, disappear on shutdown or
+expired heartbeat, and later workers reconnect automatically. The viewer may be
+opened, closed, resized or reopened without controlling the tests. Runs started
+before this feature was loaded need to finish and start again to publish frames.
+
+The shared [fixture](ui/conftest.py) owns an optional
+[collector](../tools/ui_watch_capture.py) and private PipeWire/WirePlumber
+policy services. Capture uses Mutter 50's existing monitor through ScreenCast,
+as permitted for the development preview; it creates no monitor or input session.
+The unprivileged per-checkout registry is user-private. Spectators receive only
+sealed read-only frame memory, never test buses, input handles or process controls.
+Publication is bounded to ten updates per second, with no reader backpressure.
+Display changes may interrupt PipeWire capture. The collector clears the old
+image and reconnects its capture session, preserving the worker tab and grid
+cell. Recovery is limited to three retries within a 15-second outage window.
+Capture failure is reported in the viewer when publication is available, with
+diagnostics at the printed `/var/tmp/onpc-ui-watch-*/capture.log`. Earlier setup
+failures are reported by the runner. Optional observation never retries a test
+action or changes test outcomes. Owned collector/service cleanup still runs.
+Frames are review aids, never automation targets or acceptance evidence.
+
+Activation is `none`: new test fixtures and viewer invocations load the source;
+no product package, service or data migration is involved. The existing
+`./setup.sh --test-tools-only` route installs the optional viewer desktop/icon
+identity, and the existing executable-tool discovery includes `tools/watch-ui`
+at the next rules refresh. No broader command or privilege grant is needed.
 
 The bare-Mutter fixture disables its opening-window scale effect through
 `MUTTER_DEBUG_DISABLE_ANIMATIONS`, the upstream default plugin's test switch.

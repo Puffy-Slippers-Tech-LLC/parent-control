@@ -130,6 +130,21 @@ def test_standalone_cleanup_uses_the_shared_module_under_activity(tmp_path, monk
     assert cleanup_e2e.main([]) == 7
 
 
+def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypatch):
+    monkeypatch.setattr(cleanup_e2e, '__file__', str(tmp_path / 'tools/cleanup_e2e.py'))
+    monkeypatch.setattr(cleanup_e2e.os, 'geteuid', lambda: 1000)
+    (tmp_path / 'artifacts/test-retention-host').mkdir(parents=True)
+    paths = []
+    def cleanup(root):
+        assert cleanup_e2e.test_activity.descriptors()
+        paths.append(cleanup_e2e.test_activity.retention_path(root))
+        return 0
+    monkeypatch.setattr(cleanup_e2e, 'cleanup', cleanup)
+    assert cleanup_e2e.main([]) == 0
+    assert paths == [tmp_path / 'artifacts/test-retention',
+                     tmp_path / 'artifacts/test-retention-host']
+
+
 @pytest.fixture
 def dispatch():
     module = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))

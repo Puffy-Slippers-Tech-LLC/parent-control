@@ -9,6 +9,7 @@ from regression_process import Control
 from regression_resources import Admission, GIB, Sample
 from regression_schedule import Job, ordered_jobs, run_jobs
 from regression_ui import buckets
+from regression_unit import buckets as unit_buckets
 
 
 class Capacity:
@@ -22,13 +23,25 @@ class Capacity:
 
 
 @pytest.mark.parametrize('io_pressure', [0, 25, 100])
-@pytest.mark.parametrize('cleanup', [False, True])
-def test_host_work_fills_four_branches_despite_background_io(io_pressure, cleanup):
+@pytest.mark.parametrize('category', ['ui', 'cleanup', 'unit'])
+def test_host_work_fills_four_branches_despite_background_io(io_pressure, category):
     nodes = [f'tests/ui/{name}::test_case' for name in (
         'test_request_layout.py', 'test_parent_feedback.py',
         'test_automation_identity.py', 'test_fixture_gui.py')]
     plan = buckets(nodes)
-    kinds = ['cleanup'] * 4 if cleanup else [bucket.kind for bucket in plan]
+    if category == 'unit':
+        # These previously formed eleven exclusive jobs behind the four unit
+        # buckets, leaving three branches idle throughout the serial tail.
+        nodes = [f'tests/unit/test_{name}.py::test_case' for name in (
+            'appsnapshot_cleanup_safety', 'baseline_guest_cleanup_safety',
+            'e2e_request_exit', 'e2e_suite_cleanup_safety', 'e2e_toggle',
+            'fix_tests', 'fix_tests_cleanup_safety',
+            'qualification_storage_cleanup_safety', 'ui_watch',
+            'ui_watch_cleanup_safety', 'vm_watch_session_cleanup_safety')]
+        plan = unit_buckets(nodes)
+        assert len(plan) == 4
+        assert sorted(node for bucket in plan for node in bucket.nodeids) == sorted(nodes)
+    kinds = ['cleanup'] * 4 if category == 'cleanup' else [bucket.kind for bucket in plan]
     release = threading.Event()
     state = SimpleNamespace(now=0)
     sample = Sample(20, 2, 32 * GIB, 24 * GIB, 0, 0, io_pressure, False)
@@ -44,7 +57,7 @@ def test_host_work_fills_four_branches_despite_background_io(io_pressure, cleanu
             finish=lambda _: finished.append(job.kind), close=lambda: None)
 
     def command(argv, emit):
-        assert release.wait(10), 'reviewed UI modules left available branches idle'
+        assert release.wait(10), 'reviewed modules left available branches idle'
         return 0
 
     def tick():

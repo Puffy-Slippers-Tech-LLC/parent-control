@@ -455,23 +455,18 @@ def test_absence_requires_a_complete_read_and_positive_owned_surface(fault):
     assert ui.absent("feedback-dialog", within="parent-window") is (fault is None)
 
 
-def test_absence_retries_when_dialog_closes_during_owner_validation():
-    surrounding = Node("kiosk-request-window")
+def test_absence_uses_one_complete_snapshot_per_observation():
     dialog = Node("feedback-success-dialog")
-    root = Node("", [surrounding, dialog])
+    surrounding = Node("kiosk-request-window", [dialog])
+    root = Node("", [surrounding])
     automation = adapter(root)
     reader = AccessibleUI(automation.api)
-    reader.nodes = automation.nodes
-    original_find = reader.find_id
-
-    def close_before_owner_validation(identity, **kwargs):
-        if identity == "feedback-success-dialog" and dialog in root.children:
-            root.children.remove(dialog)
-        return original_find(identity, **kwargs)
-
-    reader.find_id = close_before_owner_validation
+    reader.nodes = Mock(wraps=automation.nodes)
     assert reader.absent_id("feedback-success-dialog", within="kiosk-request-window") is False
+    assert reader.nodes.call_count == 1
+    surrounding.children.remove(dialog)
     assert reader.absent_id("feedback-success-dialog", within="kiosk-request-window") is True
+    assert reader.nodes.call_count == 2
 
 
 def test_absence_rejects_a_stable_dialog_outside_its_owned_application():

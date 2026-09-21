@@ -7,6 +7,7 @@ use onpc_journey ();
 use onpc_progress ();
 
 sub enter_station {
+    onpc_progress::operation('Entering the request station through the greeter');
     my ($journey, $route) = @_;
     die 'request-exit:entry-arguments' unless @_ == 2
         && ref($journey) eq 'onpc_journey'

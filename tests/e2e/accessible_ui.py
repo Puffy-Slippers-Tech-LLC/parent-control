@@ -100,6 +100,7 @@ SETTINGS_OPERATIONS = {
     'discovery-selected': EXISTING_CHILD,
     'new-child-selected': NEW_CHILD, 'new-child-screen': NEW_CHILD, 'existing-returned': EXISTING_CHILD,
 }
+OPERATIONS |= frozenset(SETTINGS_OPERATIONS)
 TOGGLE_OPERATIONS = {
     'parent-toggle-enabled': {'state': True, 'activated': True},
     'parent-toggle-disabled': {'state': False, 'activated': True},
@@ -633,18 +634,25 @@ class AccessibleUI:
         return matches[0]
 
     def snapshot_owned_target(self, identity, *, root=None, showing=True,
-                              check_prompt=False):
+                              check_prompt=False, observation=None):
         """Resolve one repository-owned ID from one complete public snapshot."""
         require(type(identity) is str and identity, 'ui:automation-id')
         applications = owned_applications(identity)
         shell_owned = identity.startswith('child-')
         require(applications or shell_owned, 'ui:unowned-automation-id')
-        snapshot = {}
-        facts = {}
-        identities = {}
-        nodes = list(self.nodes(strict=True, snapshot=snapshot, identities=identities,
-                                **({'facts': facts} if check_prompt else {})))
+        if observation is None:
+            snapshot = {}
+            facts = {}
+            identities = {}
+            nodes = list(self.nodes(strict=True, snapshot=snapshot, identities=identities,
+                                    **({'facts': facts} if check_prompt else {})))
+        else:
+            nodes, snapshot, identities, facts = observation
+            require(all(node in snapshot and node in identities for node in nodes),
+                    'ui:incomplete-tree')
         if check_prompt:
+            require(facts is not None and all(node in facts for node in nodes),
+                    'ui:incomplete-tree')
             self.handle_system_prompt(observation=(nodes, snapshot, facts))
 
         if shell_owned:
@@ -737,11 +745,19 @@ class AccessibleUI:
         if owned_applications(identity) or identity.startswith('child-'):
             found = self.snapshot_owned_target(identity, root=root, showing=showing)
             return found if nodes is None or found is None or found in nodes else None
-        found = self.find_all_ids(identity, root=root, nodes=nodes)
-        require(len(found) <= 1, 'ui:ambiguous-automation-id')
-        if not found or (showing and not self.showing(found[0])):
+        candidates = self.nodes(root) if nodes is None else nodes
+        found = None
+        for node in candidates:
+            try:
+                if public_automation_id(node) != identity:
+                    continue
+                require(found is None, 'ui:ambiguous-automation-id')
+                found = node
+            except self.query_errors:
+                continue
+        if found is None or (showing and not self.showing(found)):
             return None
-        return found[0]
+        return found
 
     def find_all_ids(self, identity, *, root=None, nodes=None):
         require(not owned_applications(identity) and not identity.startswith('child-'),
@@ -813,32 +829,36 @@ class AccessibleUI:
     def absent_id(self, identity, *, within):
         """Fresh complete negative observation with a positive surrounding ID."""
         try:
-            nodes = list(self.nodes(strict=True))
+            snapshot = {}
+            identities = {}
+            nodes = list(self.nodes(
+                strict=True, snapshot=snapshot, identities=identities))
             if not nodes or any(self.has_state(node, self.api.StateType.DEFUNCT)
                                 for node in nodes):
                 return False
-            anchor = self.find_id(within, nodes=nodes)
+            observation = (nodes, snapshot, identities, None)
+            anchor = (self.snapshot_owned_target(
+                within, observation=observation)
+                if owned_applications(within) or within.startswith('child-') else
+                self.snapshot_matches(
+                    within, nodes, showing=True, show=self.showing,
+                    identities=identities))
             if anchor is None:
                 return False
-            matches = [node for node in nodes if public_automation_id(node) == identity]
+            matches = [node for node in nodes if identities[node] == identity]
             require(len(matches) <= 1, 'ui:ambiguous-automation-id')
             if matches:
-                target = self.find_id(identity, nodes=nodes, showing=False)
+                target = (self.snapshot_owned_target(
+                    identity, showing=False, observation=observation)
+                    if owned_applications(identity) or identity.startswith('child-') else
+                    self.snapshot_matches(
+                        identity, nodes, showing=False, show=self.showing,
+                        identities=identities))
                 if target != matches[0]:
-                    # A native dialog can disappear after the complete desktop
-                    # snapshot but before its application/surface ownership is
-                    # revalidated.  That mixed observation proves neither
-                    # absence nor wrong ownership; let the caller repeat the
-                    # whole read.  A node that remains in a second complete
-                    # snapshot really is outside the required owner scope and
-                    # must still fail closed.
-                    refreshed = list(self.nodes(strict=True))
-                    if matches[0] not in refreshed:
-                        return False
                     raise UiError('ui:wrong-absence-owner')
                 if self.showing(target):
                     return False
-            return self.find_id(within) == anchor
+            return True
         except self.query_errors:
             return False  # An incomplete read never proves absence.
         except UiError as error:
@@ -1161,16 +1181,20 @@ class AccessibleUI:
         def closed():
             if window == 'about':
                 return self.absent_id('about-dialog', within='parent-window')
-            nodes = list(self.nodes(strict=True))
+            snapshot = {}
+            identities = {}
+            nodes = list(self.nodes(
+                strict=True, snapshot=snapshot, identities=identities))
             if not nodes:
                 return False
             for node in nodes:
                 require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-window')
-            underlying = self.find_id('about-dialog', nodes=nodes)
+            underlying = self.snapshot_owned_target(
+                'about-dialog', observation=(nodes, snapshot, identities, None))
             if underlying is None:
                 return False
             external_ids = (surface_id, registered['content'], registered['close'])
-            return not any(public_automation_id(node) in external_ids and self.showing(node)
+            return not any(identities[node] in external_ids and self.showing(node)
                            for node in nodes)
         self.wait(closed, window + '-close')
 
@@ -1213,10 +1237,7 @@ class AccessibleUI:
             self._invoke_target(target)
 
         def desired_state():
-            current_root = self.find_id('parent-window')
-            if current_root is None:
-                return None
-            current = self.find_id(identity, root=current_root)
+            current = self.find_id(identity, showing=False)
             if current is None:
                 return None
             return current if self.has_state(current, self.api.StateType.CHECKED) == desired else None
@@ -1249,7 +1270,7 @@ class AccessibleUI:
             else:
                 raise UiError('ui:toggle-hidden-accepted')
             self.activate_id('parent-page-screen-limits')
-            target = self.id_target('parent-screen-limit-toggle', root=self.parent())
+            target = self.id_target('parent-screen-limit-toggle')
             require(not self.has_state(target, self.api.StateType.CHECKED),
                     'ui:toggle-hidden-state-changed')
             return {'refusal': 'hidden-control', 'state': False}
@@ -1377,7 +1398,9 @@ class AccessibleUI:
                 continue
             require(identity not in identities, 'ui:ambiguous-automation-id')
             identities.add(identity)
-        node = self.find_id(prefix + str(uid), nodes=nodes, showing=showing)
+        node = self.snapshot_matches(
+            prefix + str(uid), nodes, showing=showing, show=self.showing,
+        )
         if node is not None:
             self.read_label(node, 'child', expected=child, maximum=80)
         return node
@@ -1415,7 +1438,7 @@ class AccessibleUI:
         )
         self.input_uncertain = True
         def focused():
-            current = self.find_id(identity, root=self.parent())
+            current = self.find_id(identity)
             return (current is not None
                     and self.has_state(current, self.api.StateType.SENSITIVE)
                     and self.has_state(current, self.api.StateType.FOCUSED))
@@ -1427,8 +1450,7 @@ class AccessibleUI:
         """UI15 opening: activate by ID and focus the UID-scoped choice by ID."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
         self.activate_id('parent-child-selector', action_name='menu.popup')
-        popover = self.id_target('parent-child-popover', root=self.parent())
-        choices = self.id_target('parent-child-choices', root=popover)
+        choices = self.id_target('parent-child-choices')
         choice = self.wait(
             lambda: self.child_id_control(
                 child, 'parent-child-choice-', root=choices, showing=False,
@@ -1945,13 +1967,19 @@ class AccessibleUI:
         require(owner in ('greeter', 'station'), 'ui:station-branch-owner')
         if owner == 'station':
             def destination():
-                nodes = list(self.nodes(strict=True))
+                snapshot = {}
+                identities = {}
+                nodes = list(self.nodes(
+                    strict=True, snapshot=snapshot, identities=identities))
                 require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
                                 for node in nodes), 'ui:station-stale-tree')
-                window = self.find_id('kiosk-request-window', nodes=nodes)
+                observation = (nodes, snapshot, identities, None)
+                window = self.snapshot_owned_target(
+                    'kiosk-request-window', observation=observation)
                 if window is None:
                     return None
-                form = self.find_id('kiosk-request-form', root=window)
+                form = self.snapshot_owned_target(
+                    'kiosk-request-form', root=window, observation=observation)
                 if form is None:
                     return None
                 return {'destination': 'default-request-form', 'controls': []}
@@ -1985,14 +2013,20 @@ class AccessibleUI:
         require(owner == 'station', 'ui:station-default-branch')
 
         def destination():
-            nodes = list(self.nodes(strict=True))
+            snapshot = {}
+            identities = {}
+            nodes = list(self.nodes(
+                strict=True, snapshot=snapshot, identities=identities))
             require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
                             for node in nodes), 'ui:station-stale-tree')
-            window = self.find_id('kiosk-request-window', nodes=nodes)
+            observation = (nodes, snapshot, identities, None)
+            window = self.snapshot_owned_target(
+                'kiosk-request-window', observation=observation)
             if window is None:
                 return None
             require(self.showing(window), 'ui:station-default-window')
-            form = self.find_id('kiosk-request-form', root=window)
+            form = self.snapshot_owned_target(
+                'kiosk-request-form', root=window, observation=observation)
             if form is None:
                 return None
             require(self.showing(form), 'ui:station-default-form')
@@ -2343,7 +2377,9 @@ class AccessibleUI:
         application_nodes = self.snapshot_scope(nodes, snapshot, application)
         window = lookup('kiosk-request-window', application_nodes)
         require(window is not None, 'ui:kiosk-request-window')
-        self.validate_owned_surface(window, application)
+        self.validate_owned_surface(
+            window, application, nodes=nodes, snapshot=snapshot, identities=identities,
+        )
         window_nodes = self.snapshot_scope(nodes, snapshot, window)
         form = lookup('kiosk-request-form', window_nodes)
         require(form is not None, 'ui:kiosk-request-form')
@@ -2355,16 +2391,10 @@ class AccessibleUI:
 
     def cancel_kiosk_request(self):
         """UI04: activate Cancel once after refusing any system prompt."""
-        require(not self.input_uncertain, 'ui:uncertain-input')
         # The station's scoped public action is explicitly authorized even
         # when its Cancel control is clipped by the scroll viewport.
         target = self.kiosk_exit_target()
-        action = target.get_action_iface()
-        require(action is not None and self.api.Action.get_n_actions(action) == 1,
-                'ui:missing-or-ambiguous-action')
-        self.input_uncertain = True
-        require(self.api.Action.do_action(action, 0), 'ui:action-refused')
-        self.input_uncertain = False
+        self._invoke_target(target)
 
     def focus_kiosk_escape_recipient(self):
         """UI05: focus and freshly recheck the owned recipient before Escape."""
@@ -2452,13 +2482,13 @@ class AccessibleUI:
     def focus_search_field(self):
         """Focus the ID-addressed provider search field without pointer geometry."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        surface, registered = self.provider_surface(
-            'gnome-shell', 'app-grid', ('search',))
-        require(surface is not None, 'ui:search-surface')
-        field = self.find_id(registered['search'], root=surface)
+        field = self.wait(
+            lambda: self.snapshot_provider_target(
+                'gnome-shell', 'app-grid', 'search', check_prompt=True),
+            'search-field', prompt_in_predicate=True,
+        )
         require(field is not None and self.has_state(field, self.api.StateType.SENSITIVE),
                 'ui:search-field')
-        field = self.fresh_owned_target(field)
         component = field.get_component_iface()
         require(component is not None, 'ui:search-focus-unavailable')
         self.input_uncertain = True

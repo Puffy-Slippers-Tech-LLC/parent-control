@@ -23,11 +23,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Blockers, in required order:
 
-1. GDM lacks qualified provider-owned IDs for its application/greeter surface,
-   account list, station account, selected recipient and session controls. The
-   migrated adapter refuses before traversal or input. Resume this entry route
-   only after those actual IDs are registered and its installed ambiguity,
-   wrong-surface and missing-ID checks pass.
+1. The current GDM adapter refuses without a complete public-ID mapping.
+   Implement and qualify the station entry route under the approved
+   [external-provider exception](../../../AGENTS.md#ui-automation-mandate),
+   preserving ownership, ambiguity, recipient and input guards. Missing provider
+   IDs do not require renewed approval or an upstream ID change.
 2. After GDM entry is qualified, the guarded kiosk GUI must expose its existing
    repository-owned `kiosk-*` IDs on the installed station accessibility bus.
    The earlier guarded attempt visibly reached the form, but its observer
@@ -35,9 +35,9 @@ Blockers, in required order:
    form qualification when the installed observer can resolve and read those
    IDs.
 
-Do not replace either gate with coordinates, screenshots, labels, roles, tree
-position or application internals. Host adapter/UI results establish the owned
-ID implementation and safe refusal behavior only.
+The provider exception applies only to GDM; the repository-owned request form
+still requires public IDs. Host adapter/UI results establish the owned ID
+implementation and safe refusal behavior only.
 
 ## Implementation
 

@@ -42,6 +42,7 @@ TERMINAL_OPERATIONS = frozenset({
     'standard-terminal-closed', 'standard-management-denied', 'standard-denial-closed',
 })
 OPERATIONS |= TERMINAL_OPERATIONS
+OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
 STANDARD_OPERATIONS |= TERMINAL_OPERATIONS
 HELP_BINDINGS = {
     'parent-help': ('oh-no-parent-control-parent', 'help',
@@ -329,6 +330,9 @@ def owned_surface_id(identity):
     are product IDs, not external-provider aliases or label-derived selectors.
     A surface itself is discovered by its unique ID by the caller.
     """
+    fixture = re.match(r'^(onpc-fixture-(?:native|flatpak|snap|game)-(?:primary|secondary))(?:-|$)', identity)
+    if fixture:
+        return None if identity == fixture[1] else fixture[1]
     if identity in ('child-request-tooltip', 'child-countdown-menu'):
         return None  # Shell chrome siblings; application ownership is checked separately.
     for prefix, surface in (
@@ -371,6 +375,9 @@ PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION
 
 
 def owned_applications(identity):
+    fixture = re.match(r'^onpc-fixture-(native|flatpak|snap|game)-(primary|secondary)(?:-|$)', identity)
+    if fixture:
+        return (f'com.puffyslippers.ONPCFixture.{fixture[1]}.{fixture[2]}',)
     if identity.startswith('e2e-watch-'):
         return (WATCH_APPLICATION,)
     if identity.startswith('ui-watch-'):
@@ -552,7 +559,9 @@ class AccessibleUI:
         """Bind a dialog to its actual originating surface in the same app."""
         identity = public_automation_id(surface)
         app_id = public_automation_id(application)
-        primary = (('e2e-watch-window',) if app_id == WATCH_APPLICATION else
+        primary = ((f'onpc-fixture-{"-".join(app_id.split(".")[-2:])}',)
+                   if app_id.startswith('com.puffyslippers.ONPCFixture.') else
+                   ('e2e-watch-window',) if app_id == WATCH_APPLICATION else
                    ('ui-watch-window',) if app_id == UI_WATCH_APPLICATION else
                    ('parent-window', 'parent-access-denied-window', 'startup-error-window')
                    if app_id == PARENT_APPLICATION else
@@ -621,13 +630,13 @@ class AccessibleUI:
         """
         application_id, surface_id, controls = self.require_provider_contract(
             provider, surface, (control,))
-        application = self.find_id(application_id, root=root, showing=showing)
+        application = self.find_id(application_id, nodes=list(self.nodes(root, strict=True)), showing=showing)
         if application is None:
             return None
-        surface_root = self.find_id(surface_id, root=application, showing=showing)
+        surface_root = self.find_id(surface_id, nodes=list(self.nodes(application, strict=True)), showing=showing)
         if surface_root is None:
             return None
-        return self.find_id(controls[control], root=surface_root, showing=showing)
+        return self.find_id(controls[control], nodes=list(self.nodes(surface_root, strict=True)), showing=showing)
 
     def require_provider_contract(self, provider, surface, controls):
         """Validate a complete mapping before the first public-tree read."""
@@ -770,13 +779,19 @@ class AccessibleUI:
 
     def fresh_owned_target(self, node):
         identity = public_automation_id(node)
-        if owned_applications(identity):
+        require(bool(identity), 'ui:unidentified-action-target')
+        if owned_applications(identity) or identity.startswith('child-'):
             current = self.find_id(identity)
             require(current is not None and current == node, 'ui:wrong-action-owner')
             return current
-        # External targets are validated by their registered
-        # provider-surface paths.
-        return node
+        bindings = [(provider, surface, control)
+                    for provider, contract in self.provider_contracts.items()
+                    for surface, (_surface_id, controls) in contract.get('surfaces', {}).items()
+                    for control, registered_id in controls.items() if registered_id == identity]
+        require(len(bindings) == 1, 'ui:unregistered-or-ambiguous-action-target')
+        current = self.find_provider_control(*bindings[0])
+        require(current is not None and current == node, 'ui:wrong-action-owner')
+        return current
 
     def reveal(self, name, roles, *, root):
         raise UiError('ui:legacy-selector-refused')
@@ -1187,7 +1202,7 @@ class AccessibleUI:
 
         No previous launch is required. Overview and inactive/background windows
         cannot authorize input. Window titles may contain private shell paths;
-        select by the public terminal role and never export those titles.
+        select by the provider's scoped public ID and never export those titles.
         """
         surface, registered = self.provider_surface(
             'terminal', 'terminal', ('input-output',))
@@ -1207,13 +1222,16 @@ class AccessibleUI:
         # Application SCREEN extents are not reliable global coordinates on
         # Wayland. Focus the qualified public component without translating
         # its window-local geometry into framebuffer pointer input.
-        field = self.wait(self.terminal_input, 'terminal-input')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        field = self.fresh_owned_target(self.wait(self.terminal_input, 'terminal-input'))
         if not self.has_state(field, self.api.StateType.FOCUSED):
             component = field.get_component_iface()
             require(component is not None, 'ui:terminal-focus-unavailable')
+            self.input_uncertain = True
             require(component.grab_focus(), 'ui:terminal-focus-refused')
         # Never retry the action, even if the resulting observation times out.
         self.wait(lambda: self.terminal_input(focused=True), 'terminal-focus')
+        self.input_uncertain = False
 
     def help_terminal_text(self):
         """INFO02's bounded local projection; never export terminal contents."""
@@ -1489,12 +1507,14 @@ class AccessibleUI:
             return tuple(choices)
     def greeter_navigation(self, name):
         """Focus one ID-addressed row without calculating input from list order."""
-        target = self.greeter_list(name)
         require(not self.input_uncertain, 'ui:uncertain-input')
+        target = self.fresh_owned_target(self.greeter_list(name))
         component = target.get_component_iface()
         require(component is not None, 'ui:gdm-focus-unavailable')
         self.input_uncertain = True
         require(component.grab_focus(), 'ui:gdm-focus-refused')
+        self.wait(lambda: self.has_state(self.greeter_list(name), self.api.StateType.FOCUSED),
+                  'gdm-account-focus')
         self.input_uncertain = False
         return True
 
@@ -1710,20 +1730,40 @@ class AccessibleUI:
 
     def focus_search_field(self):
         """Focus the ID-addressed provider search field without pointer geometry."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
         surface, registered = self.provider_surface(
             'gnome-shell', 'app-grid', ('search',))
         require(surface is not None, 'ui:search-surface')
         field = self.find_id(registered['search'], root=surface)
         require(field is not None and self.has_state(field, self.api.StateType.SENSITIVE),
                 'ui:search-field')
+        field = self.fresh_owned_target(field)
         component = field.get_component_iface()
-        require(component is not None and component.grab_focus(),
-                'ui:search-focus-refused')
+        require(component is not None, 'ui:search-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:search-focus-refused')
         def focused():
-            current = self.find_id(registered['search'], root=surface)
+            current = self.find_provider_control('gnome-shell', 'app-grid', 'search')
             return current is not None and self.has_state(
                 current, self.api.StateType.FOCUSED)
         self.wait(focused, 'standard-search-focus')
+        self.input_uncertain = False
+
+    def focus_search_result(self):
+        """Qualify the exact launcher recipient before the worker sends Enter."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        self.wait(lambda: self.search_query(PRODUCT), 'parent-search-query')
+        target = self.wait(lambda: self.launchable_result(PRODUCT), 'parent-search-result')
+        target = self.fresh_owned_target(target)
+        component = target.get_component_iface()
+        require(component is not None, 'ui:search-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:search-focus-refused')
+        def focused():
+            current = self.launchable_result(PRODUCT)
+            return current is not None and self.has_state(current, self.api.StateType.FOCUSED)
+        self.wait(focused, 'parent-result-focus')
+        self.input_uncertain = False
 
     def search_absence(self, product, *, stable_seconds):
         """Positive query/result witnesses plus fresh, complete absence reads.
@@ -1881,16 +1921,17 @@ class AccessibleUI:
                 dialog = self.system_prompt_control(qualify=False)
                 require(dialog is not None, 'ui:system-prompt-dialog')
                 require(not self.input_uncertain, 'ui:uncertain-input')
+                control = self.fresh_owned_target(control)
                 action = control.get_action_iface()
                 require(action is not None and self.api.Action.get_n_actions(action) == 1,
                         'ui:missing-or-ambiguous-action')
                 self.input_uncertain = True
                 require(self.api.Action.do_action(action, 0), 'ui:action-refused')
-                self.input_uncertain = False
                 # Multiple applications may queue identical keyring requests.
                 # A new dialog is a new input target only after a complete read
                 # proves this exact dialog disappeared. Never reclick this one.
                 self.wait(lambda: self.system_prompt_absent(dialog), 'system-prompt-dismissed')
+                self.input_uncertain = False
                 control = self.system_prompt_control()
         except self.query_errors:
             raise UiError('ui:system-prompt-observation-failed') from None
@@ -1989,10 +2030,15 @@ class AccessibleUI:
             self.wait_search(lambda: self.search_query(PRODUCT), 'standard-search-entered')
         elif operation == 'standard-parent-unavailable':
             self.search_result(PRODUCT, 'unavailable', stable_seconds=2)
+        elif operation == 'parent-search-ready':
+            self.search_ready('overview')
+        elif operation == 'parent-search-focused':
+            self.focus_search_field()
+            self.search_ready('overview', focused=True)
+        elif operation == 'parent-search-entered':
+            self.wait_search(lambda: self.search_query(PRODUCT), 'parent-search-entered')
         elif operation == 'app-grid':
-            # The worker entered the product query with real keyboard input.
-            # Verify a launchable result, not GNOME's grid geometry or tiles.
-            require(self.launchable_result(PRODUCT) is not None, 'ui:search-result')
+            self.focus_search_result()
         elif operation == 'parent-window':
             self.parent()
         elif operation == 'parent-empty':

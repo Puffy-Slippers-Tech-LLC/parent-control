@@ -26,7 +26,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Recognize real GDM through public accessibility on a fresh product-free boot, navigate from its public account-list order, verify the intended account's focus and press Enter. Independently verify the intended account label and focused password role with the account list hidden, then dismiss with Escape. No graphical password is submitted."},
+          {"id": "step-1", "operation": "ui", "description": "Recognize real GDM on a fresh product-free boot through the qualified provider adapter, select the intended account, verify its focus and press Enter. Independently verify the intended recipient and focused password field with the account list hidden, then dismiss with Escape. No graphical password is submitted."},
           {"id": "step-2", "operation": "ui", "description": "Select the supported serial console, verify the real fixture login prompt and disabled echo, authenticate through the secret-safe API, require actual harmless command output, and perform real logout."},
           {"id": "step-3", "operation": "ui", "description": "Select graphics after serial logout, independently acknowledge the session-free greeter and fresh public account-list UI, and reconcile ordered functional UI checkpoints and the command result before accepting shutdown."}
         ],
@@ -59,7 +59,7 @@
         "rationale": "One canonical runner smoke covers functional GDM selection, prompt/list exclusion, dismissal and graphical return, real serial command, boot continuity, credential/asset forwarding and final controller evidence. It supersedes E2E-034/serial-controller without dropping its assertions or duplicating ordinary execution. No customer coverage is claimed."
       },
       "variants": [
-        {"coverage_id": 1, "id": "gdm-observation", "owner": "graphical-harness", "parameters": {"transport": "gdm-observation"}, "status": "pending", "pending_reason": "GDM does not have an installed qualified provider-ID mapping for the greeter surface, account rows, selected recipient, password field, submit/cancel controls or session choices; the retained worker still discovers external controls by labels, roles or list order.", "executable": null}
+        {"coverage_id": 1, "id": "gdm-observation", "owner": "graphical-harness", "parameters": {"transport": "gdm-observation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/controller_qualification.py", "test_id": "gdm-observation"}}
       ]
     },
     {
@@ -83,7 +83,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "On a supported computer without the app, sign in as a parent, open Terminal and install the supplied release with the documented package command. Authenticate if asked and read the completion and reboot notice."},
           {"id": "step-2", "operation": "ui", "description": "Restart using the desktop controls. At sign-in, check that personal accounts remain available and the Oh No! Parent Control request station is offered."},
-          {"id": "step-3", "operation": "observe", "description": "Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in."}
+          {"id": "step-3", "operation": "ui", "description": "Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -134,8 +134,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open."},
-          {"id": "step-2", "operation": "ui", "description": "For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, open Parent on the declared computer with no eligible child accounts."},
-          {"id": "step-3", "operation": "observe", "description": "For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, read the no-eligible-account explanation and (None) child selection."}
+          {"id": "step-2", "operation": "ui", "description": "For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, prepare the declared no-eligible-child account fixture before launching Parent."},
+          {"id": "step-3", "operation": "ui", "description": "For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, launch Parent and read the no-eligible-account explanation and (None) child selection."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -162,8 +162,8 @@
         "rationale": "Existing-and-new keeps Parent open while one supported eligible-account fixture is provisioned, then visibly selects both children. None separately covers the visible empty state. The scenario implementation retains both stable IDs and audits remaining visible requirements before family acceptance."
       },
       "variants": [
-        {"coverage_id": 3, "id": "existing-and-new", "owner": "parent-navigation", "parameters": {"children": "existing-and-new"}, "status": "pending", "pending_reason": "The installed GDM greeter and GNOME Shell desktop/app-grid path lack qualified provider-owned IDs for their surfaces, account/recipient/password controls, search field and launch result; retained label/role/order selectors cannot run under the automation mandate.", "executable": null},
-        {"coverage_id": 4, "id": "none", "owner": "parent-navigation", "parameters": {"children": "none"}, "status": "pending", "pending_reason": "The installed GDM greeter and GNOME Shell desktop/app-grid path lack qualified provider-owned IDs for their surfaces, account/recipient/password controls, search field and launch result; retained label/role/order selectors cannot run under the automation mandate.", "executable": null}
+        {"coverage_id": 3, "id": "existing-and-new", "owner": "parent-navigation", "parameters": {"children": "existing-and-new"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_discovery.py", "test_id": "existing-and-new"}},
+        {"coverage_id": 4, "id": "none", "owner": "parent-navigation", "parameters": {"children": "none"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_discovery.py", "test_id": "none"}}
       ]
     },
     {
@@ -213,8 +213,8 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the scenario implementation must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"coverage_id": 5, "id": "app-grid", "owner": "parent-navigation", "parameters": {"launch": "app-grid"}, "status": "pending", "pending_reason": "GNOME Shell 50.1 exposes no nonempty public AccessibleId on the audited desktop tree, and the installed app-grid surface, search field and result/exclusion IDs remain unqualified.", "executable": null},
-        {"coverage_id": 6, "id": "terminal", "owner": "parent-navigation", "parameters": {"launch": "terminal"}, "status": "pending", "pending_reason": "GDM/Shell entry and the registered terminal application, surface and input/output area lack installed qualified provider-owned IDs; retained role/text lookup cannot identify the terminal.", "executable": null}
+        {"coverage_id": 5, "id": "app-grid", "owner": "parent-navigation", "parameters": {"launch": "app-grid"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_access.py", "test_id": "app-grid"}},
+        {"coverage_id": 6, "id": "terminal", "owner": "parent-navigation", "parameters": {"launch": "terminal"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_terminal.py", "test_id": "terminal"}}
       ]
     },
     {
@@ -793,7 +793,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval."},
-          {"id": "step-2", "operation": "observe", "description": "Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time."}
+          {"id": "step-2", "operation": "ui", "description": "Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -905,7 +905,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off and inspects the missing eligible-parent explanation and empty list; it needs no hidden enabled-policy setup. Enter the station normally."},
           {"id": "step-2", "operation": "ui", "description": "Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise."},
-          {"id": "step-3", "operation": "observe", "description": "For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control."}
+          {"id": "step-3", "operation": "ui", "description": "For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1591,7 +1591,7 @@
         "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the scenario implementation must audit its full requirements before acceptance, retaining these stable IDs."
       },
       "variants": [
-        {"coverage_id": 151, "id": "parent", "owner": "parent-navigation", "parameters": {"surface": "parent"}, "status": "pending", "pending_reason": "The installed GDM/Shell launch path and owning license viewer lack qualified provider-owned IDs for their surfaces, account/recipient/password controls, app-grid controls, document content and close action.", "executable": null}
+        {"coverage_id": 151, "id": "parent", "owner": "parent-navigation", "parameters": {"surface": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_about.py", "test_id": "parent"}}
       ]
     },
     {
@@ -1667,7 +1667,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Open Parent feedback, enter authorized synthetic text and reply address, add reviewed files, inspect Privacy and select Send once with the authorized service profile."},
-          {"id": "step-2", "operation": "observe", "description": "Observe unavailable edits and duplicate Send while sending. Read acceptance and the reply-address follow-up; leave thanks until manually dismissing it. Reopen feedback and read the cleared draft and files."}
+          {"id": "step-2", "operation": "ui", "description": "Observe unavailable edits and duplicate Send while sending. Read acceptance and the reply-address follow-up; leave thanks until manually dismissing it. Reopen feedback and read the cleared draft and files."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1720,7 +1720,7 @@
           {"id": "step-2", "operation": "ui", "description": "Disconnect the declared connection using desktop network controls, preserving the independent observation channel."},
           {"id": "step-3", "operation": "ui", "description": "Return to feedback, select Send once and read retry progress and unavailable editing/duplicate Send."},
           {"id": "step-4", "operation": "ui", "description": "Reconnect through those same normal controls within the retry period."},
-          {"id": "step-5", "operation": "observe", "description": "Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft."}
+          {"id": "step-5", "operation": "ui", "description": "Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2183,7 +2183,7 @@
         {"coverage_id": 190, "id": "parent-links", "owner": "continuous-journeys", "parameters": {"surface": "parent-links"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 191, "id": "child-overlay", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 192, "id": "kiosk", "owner": "continuous-journeys", "parameters": {"surface": "kiosk"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 193, "id": "command-help", "owner": "continuous-journeys", "parameters": {"surface": "command-help"}, "status": "pending", "pending_reason": "The installed GDM/Shell entry path and registered terminal surface/input-output area lack qualified provider-owned IDs; help text cannot make a role/title-selected terminal compliant.", "executable": null}
+        {"coverage_id": 193, "id": "command-help", "owner": "continuous-journeys", "parameters": {"surface": "command-help"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/command_help.py", "test_id": "command-help"}}
       ]
     },
     {

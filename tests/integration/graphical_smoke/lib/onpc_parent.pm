@@ -79,7 +79,12 @@ sub search_whole_query {
         && $product eq 'Oh No! Parent Control' && $result_stage eq 'app-grid';
     $journey->consume_observation('desktop', $desktop);
     testapi::send_key('super-a');
+    my $field = $journey->seen('search-ready');
+    $journey->consume_observation('search-ready', $field);
+    my $focused = $journey->seen('search-focused');
+    $journey->consume_observation('search-focused', $focused);
     testapi::type_string($product);
+    $journey->seen('search-entered');
     return $journey->seen($result_stage);
 }
 

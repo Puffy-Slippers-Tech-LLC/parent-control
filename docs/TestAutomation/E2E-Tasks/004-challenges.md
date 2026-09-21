@@ -28,7 +28,7 @@ Replace the one-authentication-per-worker limitation with explicit, single-use c
 
 ## Live VM acceptance
 
-In one guarded VM attempt, authenticate the Parent, log out through the normal UI, then authenticate again with a new challenge. Reject stale/reused proofs in safety regressions; no reset of the existing failure latch. After external provider-ID qualification, run affected credential safety and retained cases 1, 3, 4, 5, 151.
+In one guarded VM attempt, authenticate the Parent, log out through the normal UI, then authenticate again with a new challenge. Reject stale/reused proofs in safety regressions; no reset of the existing failure latch. After external-provider route qualification, run affected credential safety and retained cases 1, 3, 4, 5, 151.
 
 Run affected safety/adapter checks, then use the complete first consumer if runnable.
 Otherwise implement/reuse the planned fixed qualification:

@@ -47,11 +47,13 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert len(plan['cases']) == 241
     assert sorted(v['coverage_id'] for item in document['scenarios']
                   for v in item['variants']) == [*range(1, 140), *range(151, 253)]
-    assert len(plan['pending_cases']) == 241
+    assert len(plan['pending_cases']) == 234
     assert [v['coverage_id'] for item in document['scenarios']
-            for v in item['variants'] if v['status'] == 'ready'] == []
+            for v in item['variants'] if v['status'] == 'ready'] == [1, 3, 4, 5, 6, 151, 193]
     assert plan['scope'] == 'full'
-    assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == []
+    assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
+        'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',
+        'E2E-004/app-grid', 'E2E-004/terminal', 'E2E-030/parent', 'E2E-042/command-help']
     assert all(case['assertions'] and case['expected_evidence'] for case in plan['cases'])
     assert plan['evidence_contract']['outcomes'] == ['product', 'infrastructure', 'collection', 'cleanup']
 
@@ -66,14 +68,12 @@ def test_shared_form_family_selects_both_surfaces_and_all_variants(document, sid
 
 def test_ready_selection_explicitly_accounts_for_every_pending_case(document):
     full = inventory.resolve_selection(document)
-    plan = inventory.resolve_selection(document, ready_only=True)
+    plan = inventory.resolve_selection(document, ready_only=True, require_runnable=True)
     assert plan['scope'] == 'partial' and plan['ready_only'] is True
     assert plan['pending_cases'] == []
     assert plan['excluded_pending_cases'] == full['pending_cases']
     assert plan['cases'] == [c for c in full['cases'] if c['status'] == 'ready']
     assert len(plan['cases']) + len(plan['excluded_pending_cases']) == len(full['cases'])
-    with pytest.raises(inventory.InventoryError, match='selection:no-ready-cases'):
-        inventory.resolve_selection(document, ready_only=True, require_runnable=True)
     with pytest.raises(inventory.InventoryError, match='conflicting-selectors'):
         inventory.resolve_selection(document, 'E2E-030', ready_only=True)
 
@@ -467,7 +467,7 @@ def test_external_retry_is_customer_journey_and_requires_delivery_profile(docume
     assert chosen['category'] == 'customer-journey'
     assert chosen['interventions'] == []
     assert [step['operation'] for step in chosen['phases']['steps']] == [
-        'ui', 'ui', 'ui', 'ui', 'observe']
+        'ui', 'ui', 'ui', 'ui', 'ui']
     assert chosen['assertions']['visible']
     assert chosen['assertions']['backend'] == chosen['assertions']['other_user'] == []
     assert not {'backend', 'other-user', 'intervention', 'delivery'} & set(

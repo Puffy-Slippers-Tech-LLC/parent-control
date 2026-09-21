@@ -28,7 +28,7 @@ def main(argv=None):
     if Gtk.get_major_version() != 4 or Gtk.get_minor_version() < 22:
         parser.error('GTK 4.22 or newer is required to publish public automation IDs')
     scope = f'onpc-fixture-{options.kind}-{options.instance}'
-    app = Gtk.Application(application_id='com.puffyslippers.ONPCFixture',
+    app = Gtk.Application(application_id=f'com.puffyslippers.ONPCFixture.{options.kind}.{options.instance}',
                           flags=Gio.ApplicationFlags.NON_UNIQUE)
 
     def activate(application):

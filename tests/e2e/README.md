@@ -10,14 +10,12 @@ names/roles/states, normal GUI actions and resulting behavior replace appearance
 matching. Fail blocked interactions, wrong targets/results and unavailable
 required information. Keep backend probes out of customer acceptance.
 
-Case 151 (`E2E-030/parent`) is the reference migration: functional app-search,
-picker, selected settings, About, license viewer, footer and unchanged return
-settings. `ui:` stages retain sanitized public accessibility observations as
-screen evidence; ordered worker markers alone cannot pass. Existing GDM
-recipient needles protect secret input separately. Historical pixel-based
-guidance below applies to unmigrated consumers and credential qualification,
-not new customer feature assertions. Do not repair cosmetic differences by
-continually adding new reference images.
+The [documentation map](../../docs/TestAutomation/README.md) owns status terms;
+the [UI mandate](../../AGENTS.md#ui-automation-mandate) owns selector policy,
+including the external-provider exception. Retained ready bindings do not prove
+current provider qualification. Legacy pixel routes described below are migration
+references, not executable exemptions. `ui:` stages retain public observations
+as screen evidence; worker markers alone cannot pass.
 
 ## Customer scope and runtime transition — 2026-09-14
 
@@ -43,22 +41,12 @@ evidence framework. Pending selectors still provide no customer coverage.
 ### Parent consumer composition limits
 
 The [building-block guide](../../docs/TestAutomation/E2E-Building-Blocks.md) owns
-the reusable APIs, composition recipe and lessons: installed setup and fresh VNC
-reattachment, strict recipient qualification, framebuffer-aware matched clicks,
-Parent navigation, durable acknowledgements, phase timing and ordered screen
+the reusable APIs, composition recipe and lessons: installed setup and graphical
+reattachment, recipient qualification, Parent navigation, durable acknowledgements,
+phase timing and ordered screen
 reconciliation. Start there when adding a customer scenario or repairing one of
 these boundaries. The thin About worker is
 [onpc_parent_about.pm](../integration/graphical_smoke/lib/onpc_parent_about.pm).
-
-Legacy app-grid readiness matches the active Show Apps button and the grid's page
-navigation controls at 100%. It excludes app tiles, whose positions and rendered
-labels depend on the installed application set. Pixel regressions require all
-three controls, allow changed tile contents, and refuse desktop/login screens.
-The child dropdown retains both reviewed row renderings for the existing fixture
-child, including the two-child list. Its fixed `PARENT_RENDERINGS` alias keeps
-the canonical selection tag, exact matched click point and 100% threshold;
-another child's label must not match. Selecting a child still requires the
-subsequent visible account and allowance controls before the journey advances.
 
 A customer family's `installed-digest-verified-product` prerequisite selects
 verified package setup before its journey. Mechanical startup/fault assertions
@@ -426,7 +414,9 @@ including through a symlink.
 
 Each attempt has distinct setup, start, ordered steps, end and cleanup phases.
 Provisioning belongs only in setup and the outer reset only in cleanup.
-Customer steps are UI actions, read-only observations or real waits. Fault and
+Customer steps use `ui` when any branch performs input or navigation, including
+steps that also read results. Reserve `observe` for wholly read-only steps and
+`wait` for real waits. Fault and
 controlled-environment operations require the matching category and a declared
 intervention with actor, step and expected evidence. Every family declares
 visible assertions tied to actual journey steps. Runner, fault and environment

@@ -87,7 +87,8 @@ def test_customer_worker_selects_existing_and_new_children_in_order():
 @pytest.mark.parametrize('stage', ['child-picker-opened', 'child-choice-highlighted',
     'installed-greeter', 'other-parent-focused', 'wrong-recipient-refused',
     'parent-list', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
-    'desktop', 'app-grid', 'parent-window', 'parent-selected', 'existing-apps',
+    'desktop', 'search-ready', 'search-focused', 'search-entered',
+    'app-grid', 'parent-window', 'parent-selected', 'existing-apps',
     'fixture-requested', 'new-child-visible',
     'new-child-choice-highlighted', 'new-child-selected', 'new-child-apps', 'new-child-screen',
     'existing-child-picker-opened',
@@ -109,6 +110,8 @@ def test_empty_worker_observes_explanation_without_child_input():
     assert not any(event[0] in ('assert', 'click') for event in result['events'])
     events = result['events']
     query = events.index(['text', 'Oh No! Parent Control'])
+    assert events.index(['stage', 'search-ready']) < events.index(['stage', 'search-focused']) < query
+    assert query < events.index(['stage', 'search-entered']) < events.index(['stage', 'app-grid'])
     fixture = events.index(['stage', 'fixture-requested'])
     assert query < events.index(['stage', 'app-grid']) < fixture
     assert events[fixture + 1:fixture + 3] == [['key', 'ret'], ['stage', 'empty']]
@@ -119,7 +122,8 @@ def test_empty_worker_observes_explanation_without_child_input():
 @pytest.mark.parametrize('stage', [
     'installed-greeter', 'other-parent-focused', 'wrong-recipient-refused',
     'parent-list', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
-    'desktop', 'app-grid', 'fixture-requested', 'empty',
+    'desktop', 'search-ready', 'search-focused', 'search-entered',
+    'app-grid', 'fixture-requested', 'empty',
 ])
 def test_empty_worker_never_continues_after_an_uncertain_observation(stage):
     result = json.loads(run_perl(PROBE, 'none', stage).stdout)

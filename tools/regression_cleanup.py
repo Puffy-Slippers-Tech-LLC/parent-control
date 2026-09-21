@@ -13,25 +13,31 @@ from regression_resources import HOST_WORKERS
 
 
 REVIEWED = frozenset('''
-backing_verification child_preview dbus_harness e2e_asset_transfer
+appsnapshot backing_verification baseline_guest child_preview dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_fixture_credentials
-e2e_leased_recording e2e_recording e2e_watch e2e_worker execution_probe fixture
+e2e_leased_recording e2e_recording e2e_suite e2e_watch e2e_worker execution_probe fixture fix_tests
 graphical_attachment graphical_serial graphical_smoke graphical_transport
 graphical_worker installed_journey desktop_session parent_about parent_setup prepare_baseline
 probe_bus_client probe_channel probe_generation
 regression screen_preview screenshot session_expiry system_accounts system_agent
 system_caller system_enforcement system_probe_sandbox system_runner terminal
-test_retention ui ui_artifacts vm_control
+test_retention ui ui_artifacts ui_watch vm_control
 '''.split())
 
 # Installed journey/setup/About tests write only beneath tmp_path and replace
 # guest operations with process-local doubles. About's matcher reads repository
 # fixtures in its own Perl child; watcher sockets, processes and signals are
 # mocked. These modules therefore share the same isolation as cleanup buckets.
+# App-snapshot and suite tests use private locks with mocked libvirt sources;
+# baseline-guest uses an in-memory guestfs double. Fix-tests owns every child it
+# starts beneath a private checkout, and UI-watch uses recorded process doubles
+# plus unique private sockets. They do not share mutable state across workers.
 
 # Measured costs guide packing and dispatch only; never reuse passing results.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 11,
+             'test_fix_tests_cleanup_safety.py': 14,
              'test_e2e_leased_recording_cleanup_safety.py': 10,
+             'test_e2e_suite_cleanup_safety.py': 9,
              'test_graphical_lease.py': 7,
              'test_e2e_execution_cleanup_safety.py': 14,
              'test_e2e_recording_cleanup_safety.py': 8.5,
@@ -39,7 +45,10 @@ ESTIMATES = {'test_backing_verification_cleanup_safety.py': 11,
              'test_execution_probe_cleanup_safety.py': 3,
              'test_regression_cleanup_safety.py': 4,
              'test_test_retention_cleanup_safety.py': 4,
-             'test_child_preview_cleanup_safety.py': 2}
+             'test_child_preview_cleanup_safety.py': 2,
+             'test_appsnapshot_cleanup_safety.py': 1,
+             'test_baseline_guest_cleanup_safety.py': 1,
+             'test_ui_watch_cleanup_safety.py': 1}
 
 
 def buckets(nodeids):

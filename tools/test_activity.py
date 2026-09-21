@@ -1,8 +1,9 @@
-"""Checkout-wide advisory ownership for the maintained test launchers.
+"""Scoped checkout advisory ownership for the maintained test launchers.
 
 An inherited, locked descriptor permits the aggregate's own category children.
 An environment variable without that descriptor cannot bypass a competing run.
 This is coordination among trusted launchers, not a privilege boundary.
+Host-only activity and retention are independent of VM-side operations.
 """
 
 from contextlib import contextmanager
@@ -13,6 +14,12 @@ import stat
 
 VARIABLE = 'ONPC_TEST_ACTIVITY_FD'
 _descriptor = None
+_host_only = False
+
+
+def retention_path(root):
+    return Path(root) / ('artifacts/test-retention-host' if _host_only
+                         else 'artifacts/test-retention')
 
 
 def descriptors():
@@ -56,29 +63,38 @@ def cleanup_verified(root):
 
 
 @contextmanager
-def activity(root):
-    global _descriptor
+def activity(root, *, host_only=None):
+    global _descriptor, _host_only
     directory = Path(root) / 'artifacts/test-activity'
     for parent in (directory, *directory.parents):
         if parent.is_symlink():
             raise ValueError('test activity path contains a symlink')
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / 'lock'
-    opened = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-    inherited = None
     previous = _descriptor
+    previous_host_only = _host_only
+    value = os.environ.get(VARIABLE)
+    inherited = previous
+    if inherited is None and value is not None:
+        if not value.isdecimal() or int(value) < 3:
+            raise ValueError('invalid inherited test activity descriptor')
+        inherited = int(value)
+    if host_only is None:
+        host_only = previous_host_only if previous is not None else False
+        if inherited is not None and previous is None:
+            other = os.fstat(inherited)
+            try:
+                candidate = (directory / 'host.lock').lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                host_only = (other.st_dev, other.st_ino) == (candidate.st_dev, candidate.st_ino)
+    path = directory / ('host.lock' if host_only else 'lock')
+    opened = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     try:
         identity = os.fstat(opened)
         if (not stat.S_ISREG(identity.st_mode) or identity.st_uid != os.geteuid()
                 or stat.S_IMODE(identity.st_mode) != 0o600 or identity.st_nlink != 1):
             raise ValueError('unsafe test activity lock')
-        value = os.environ.get(VARIABLE)
-        if previous is not None:
-            inherited = previous
-        elif value is not None:
-            if not value.isdecimal() or int(value) < 3:
-                raise ValueError('invalid inherited test activity descriptor')
-            inherited = int(value)
         if inherited is not None:
             other = os.fstat(inherited)
             if (other.st_dev, other.st_ino) != (identity.st_dev, identity.st_ino):
@@ -93,8 +109,10 @@ def activity(root):
             # an interrupted/crashed aggregate that left its lock file behind.
             os.ftruncate(descriptor, 0)
         _descriptor = descriptor
+        _host_only = host_only
         os.set_inheritable(descriptor, True)
         yield
     finally:
         _descriptor = previous
+        _host_only = previous_host_only
         os.close(opened)

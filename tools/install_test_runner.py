@@ -142,18 +142,19 @@ def repair_checkout_bytecode(root):
             print('test-runner-install: restored checkout bytecode directory ownership')
 
 
-def install_watch_desktop(root, *, data_root=Path('/usr/local/share')):
+def install_watch_desktop(root, *, data_root=Path('/usr/local/share'),
+                          application_id='org.onpc.E2EWatch', launcher='watch-e2e',
+                          title='E2E VM — View only'):
     """Give the development viewer its own GNOME dock/window identity."""
     from gi.repository import GLib
 
-    application_id = 'org.onpc.E2EWatch'
     # Exec has its own quoting layer inside the desktop file's string encoding.
-    executable = str(root / 'tools/watch-e2e').replace('%', '%%')
+    executable = str(root / 'tools' / launcher).replace('%', '%%')
     for character in ('\\', '"', '`', '$'):
         executable = executable.replace(character, '\\' + character)
     entry = GLib.KeyFile()
     for key, value in {
-        'Type': 'Application', 'Name': 'E2E VM — View only',
+        'Type': 'Application', 'Name': title,
         'Exec': '"' + executable + '"', 'Icon': application_id,
         'StartupWMClass': application_id, 'NoDisplay': 'true',
         'Terminal': 'false',
@@ -183,6 +184,8 @@ def main():
         compile(data, name, 'exec')
     install_missing_dependencies()
     install_watch_desktop(root)
+    install_watch_desktop(root, application_id='org.onpc.UIWatch', launcher='watch-ui',
+                          title='UI tests — View only')
     for name, data in rendered.items():
         install_file(Path('/usr/local/libexec') / name, data, 0o755)
     policy = 'com.puffyslippers.onpc.development.policy'

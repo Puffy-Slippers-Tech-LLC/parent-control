@@ -145,10 +145,10 @@ def test_launcher_reconciles_only_idle_pending_storage(tmp_path, monkeypatch, fa
     monkeypatch.setattr(regression_process, 'category_run', recover)
     if failed:
         with pytest.raises(ValueError, match='automatic recovery failed'):
-            test_recovery.before_run(tmp_path, ['unit', 'selected'])
+            test_recovery.before_run(tmp_path, ['integration', 'check_test_recovery'])
         assert (store.path / 'recovery-required').exists()
     else:
-        test_recovery.before_run(tmp_path, ['unit', 'selected'])
+        test_recovery.before_run(tmp_path, ['integration', 'check_test_recovery'])
         test_recovery.before_run(tmp_path, ['unit', 'selected'])
         assert not (store.path / 'recovery-required').exists()
     assert calls == [('integration', ['check_test_recovery'])]
@@ -190,8 +190,8 @@ def test_clean_host_or_listing_does_not_request_recovery(tmp_path, monkeypatch, 
     assert test_recovery.before_run(tmp_path, argv) == 0
 
 
-@pytest.mark.parametrize('category', ['host', 'host-builds'])
-def test_host_refuses_pending_vm_recovery_without_touching_vm(tmp_path, monkeypatch, category):
+@pytest.mark.parametrize('category', ['unit', 'ui', 'host', 'host-builds'])
+def test_host_leaves_pending_vm_recovery_untouched(tmp_path, monkeypatch, category):
     import test_recovery
     import test_retention as live_retention
     monkeypatch.setattr(test_recovery.test_activity, 'descriptors', lambda: (123,))
@@ -201,8 +201,7 @@ def test_host_refuses_pending_vm_recovery_without_touching_vm(tmp_path, monkeypa
     original = (store.path / 'current.json').read_bytes()
     monkeypatch.setattr(test_recovery, 'cleanup',
                         lambda *_: pytest.fail('host attempted VM recovery'))
-    with pytest.raises(ValueError, match='host will not touch the VM'):
-        test_recovery.before_run(tmp_path, [category])
+    assert test_recovery.before_run(tmp_path, [category]) == 0
     assert (store.path / 'current.json').read_bytes() == original
     assert (store.path / 'recovery-required').exists()
 

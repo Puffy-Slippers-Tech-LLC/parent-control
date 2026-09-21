@@ -11,15 +11,21 @@ import test_activity
 import regression_inputs
 
 
-def child(tmp_path, env, pass_fds=(), *, cleanup=False):
+def child(tmp_path, env, pass_fds=(), *, cleanup=False, host_only=None, retention=False):
     script = tmp_path / 'lock_child.py'
     script.write_text('''import pathlib,sys
 sys.path.insert(0, sys.argv[1])
 import test_activity
 import regression_inputs
+import test_retention
 regression_inputs.identity = lambda root: 'a' * 64
 try:
-    with test_activity.activity(pathlib.Path(sys.argv[2])):
+    root = pathlib.Path(sys.argv[2])
+    scope = {'auto': None, 'host': True, 'vm': False}[sys.argv[4]]
+    with test_activity.activity(root, host_only=scope):
+        if sys.argv[5] == 'retain':
+            with test_retention.Store(test_activity.retention_path(root)).session():
+                pass
         print(test_activity.cleanup_verified(pathlib.Path(sys.argv[2])) if sys.argv[3] == 'cleanup' else 'owned')
 except (ValueError, OSError) as error:
     print(type(error).__name__)
@@ -27,7 +33,9 @@ except (ValueError, OSError) as error:
 ''')
     return subprocess.run([sys.executable, '-B', str(script),
                            str(Path(test_activity.__file__).parent), str(tmp_path / 'checkout'),
-                           'cleanup' if cleanup else 'ownership'],
+                           'cleanup' if cleanup else 'ownership',
+                           'auto' if host_only is None else 'host' if host_only else 'vm',
+                           'retain' if retention else 'none'],
                           env=env, pass_fds=pass_fds, capture_output=True, text=True, timeout=10)
 
 
@@ -37,6 +45,21 @@ def test_competing_process_refuses_then_succeeds_after_owner_exits(tmp_path):
     with test_activity.activity(tmp_path / 'checkout'):
         assert child(tmp_path, env).returncode == 2
     assert child(tmp_path, env).returncode == 0
+
+
+@pytest.mark.parametrize('host_only', [False, True])
+def test_host_and_vm_owners_and_retention_can_overlap(tmp_path, host_only):
+    import test_retention
+    root = tmp_path / 'checkout'
+    with test_activity.activity(root, host_only=host_only):
+        with test_retention.Store(test_activity.retention_path(root)).session():
+            assert child(tmp_path, {}, host_only=host_only).returncode == 2
+            assert child(tmp_path, {}, host_only=not host_only, retention=True).returncode == 0
+            inherited = child(tmp_path, test_activity.environment(), test_activity.descriptors())
+            assert inherited.returncode == 0
+            # A real descriptor cannot be reused for the other ownership scope.
+            assert child(tmp_path, test_activity.environment(), test_activity.descriptors(),
+                         host_only=not host_only).returncode == 2
 
 
 def test_owned_child_can_join_but_environment_alone_cannot(tmp_path):

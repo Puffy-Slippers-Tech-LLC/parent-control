@@ -15,7 +15,13 @@ def main(argv=None):
             raise ValueError('invoke as an unprivileged administrator')
         root = Path(__file__).resolve().parents[1]
         with test_activity.activity(root):
-            return cleanup(root)
+            status = cleanup(root)
+        if status:
+            return status
+        if (root / 'artifacts/test-retention-host').exists():
+            with test_activity.activity(root, host_only=True):
+                return cleanup(root)
+        return 0
     except (ValueError, OSError) as error:
         print('cleanup-e2e: ' + str(error), file=sys.stderr)
         return 2

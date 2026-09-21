@@ -222,7 +222,10 @@ def test_discovered_arguments_reach_each_test_without_reconstruction(checkout):
         ['--stop-on-error', 'unit', '--future-option'],
         ['--stop-on-error', 'future-suite', '--case', 'two words'],
         ['--stop-on-error', 'e2e'], ['--stop-on-error', 'all']]
-    assert '\033[1;36mRunning category [future-suite] (2/3)\033[0m' in output.getvalue()
+    marker = '\033[1;36mRunning category [future-suite] (2/3)\033[0m'
+    text = output.getvalue()
+    assert marker in text
+    assert text.rfind('Overall - ', 0, text.index(marker)) >= 0
 
 
 @pytest.mark.parametrize('reason', ['cancel-marker', 'parent-death'])

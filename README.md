@@ -64,6 +64,15 @@ Restart Codex after refreshing rules; trust this checkout.
 
 Close the preview or press Ctrl+C to stop. Use **Change Screens** in kiosk/overlay previews to set resolution and scale.
 
+To watch automated UI tests, open `tools/watch-ui` at any time. **All branches**
+shows concurrent UI workers in a 2×2 grid; each worker also has its own tab with
+the current test and phase. It follows `tools/run-ui-tests` and every
+`tools/run-tests` selection that includes UI work, including `ui`, `host` and
+`all`. Closing and reopening the viewer leaves the tests running. The viewer
+receives only copied frames and cannot send keyboard, pointer or resize input
+to tests. It can stay open between runs; capture starts with the UI fixture, so
+already-running workers from before this feature need a new test run.
+
 ## Build and install locally
 
 ```sh

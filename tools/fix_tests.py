@@ -138,6 +138,15 @@ def category_inventory(output):
         *(name for name in ('system', 'e2e') if name in inventory))}
 
 
+def category_status(category, categories):
+    try:
+        index = categories.index(category)
+    except ValueError:
+        return None
+    return (f'\033[1;36mRunning category [{category}] '
+            f'({index + 1}/{len(categories)})\033[0m')
+
+
 def run_loop(categories, test, repair, check_stop):
     """No session objects or past prompts survive a repair/category iteration."""
     def finish_category(category, failure):
@@ -147,10 +156,8 @@ def run_loop(categories, test, repair, check_stop):
             check_stop()
             failure = test(category)
 
-    for index, category in enumerate(categories, 1):
+    for category in categories:
         check_stop()
-        print(f'\n\033[1;36mRunning category [{category}] ({index}/{len(categories)})\033[0m',
-              flush=True)
         finish_category(category, test(category))
     while True:
         check_stop()
@@ -307,6 +314,8 @@ def worker(root, run, owner, model, effort):
 
     def test(category):
         while True:
+            status_line = category_status(category, categories)
+            atomic(run / 'category.json', status_line)
             print(f'\nfix-tests: running {category}', flush=True)
             status = execute('test', category, inventory.get(category, {}).get('args', []))
             # run-tests consumes an active/unread predecessor before honoring
@@ -314,6 +323,8 @@ def worker(root, run, owner, model, effort):
             with (run / 'last-test.log').open('rb') as stream:
                 attached = b'Attached to run-tests session:' in stream.read(8192)
             if not attached:
+                if status_line is not None:
+                    print(status_line, flush=True)
                 return None if status == 0 else handoff(run)
             print('fix-tests: previous run-tests output delivered; starting the requested category.', flush=True)
 
@@ -416,6 +427,13 @@ def follow_output(run, stream, dashboard):
             frame = run / 'frame.json'
             if frame.exists():
                 lines = json.loads(frame.read_text())
+                if lines:
+                    try:
+                        category_status = json.loads((run / 'category.json').read_text())
+                    except (OSError, ValueError):
+                        category_status = None
+                    if isinstance(category_status, str):
+                        lines.append(category_status)
                 if not lines:
                     dashboard.restore_terminal()
                 elif stream.isatty() or lines != last_frame:

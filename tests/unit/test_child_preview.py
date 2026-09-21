@@ -378,6 +378,17 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertNotIn(".oh-no-parent-control-content {", stylesheet)
         self.assertNotIn(".oh-no-parent-control-choice {", stylesheet)
 
+    def test_child_interaction_scopes_ids_to_the_owned_shell_process(self):
+        runner = (ROOT / "tests" / "ui" / "run-child-shell-lifecycle").read_text()
+        interaction = (ROOT / "tests" / "ui" / "child_shell_interaction.py").read_text()
+
+        self.assertIn(
+            'export ONPC_CHILD_SHELL_PID="$onpc_preview_shell_pid"', runner
+        )
+        self.assertIn('SHELL_PID = int(os.environ["ONPC_CHILD_SHELL_PID"])', interaction)
+        self.assertIn("application.get_process_id() == SHELL_PID", interaction)
+        self.assertIn("UI = Automation(Atspi, _shell_application", interaction)
+
     def test_request_icon_uses_the_product_logo(self):
         branding = (ROOT / "child" / "branding.js").read_text()
         extension = (ROOT / "child" / "extension.js").read_text()

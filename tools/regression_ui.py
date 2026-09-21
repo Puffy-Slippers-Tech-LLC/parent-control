@@ -43,7 +43,7 @@ GROUPS = (
     ('Screen fidelity', ('test_screen_preview.py',), 12),
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
     ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
-    ('E2E spectator', ('test_e2e_watch.py',), 6),
+    ('Test spectators', ('test_e2e_watch.py', 'test_ui_watch.py'), 6),
 )
 
 # The adapter's Shell search has its own artifact/runtime root and outer

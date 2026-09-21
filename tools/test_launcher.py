@@ -221,7 +221,8 @@ def main(argv=None, *, category='unit'):
         argv = list(sys.argv[1:] if argv is None else argv)
         # Validate before creating ownership files or running prerequisites.
         pytest_command(root, argv[1:] if argv[:1] == ['--unattended'] else argv, category)
-        with test_activity.activity(root):
+        inherited = test_activity.descriptors() or test_activity.VARIABLE in os.environ
+        with test_activity.activity(root, host_only=None if inherited else True):
             if argv[:1] == ['--unattended']:
                 from regression_process import host_run
                 return host_run(root, category, argv[1:])

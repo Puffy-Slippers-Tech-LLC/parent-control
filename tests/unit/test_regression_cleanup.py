@@ -63,6 +63,20 @@ def test_installed_and_watcher_cleanup_share_buckets_without_a_serial_tail():
         assert sum(path in bucket.paths for bucket in plan) == 1
 
 
+def test_private_process_and_vm_double_cleanup_modules_have_no_serial_tail():
+    names = ('appsnapshot', 'baseline_guest', 'e2e_suite', 'fix_tests', 'ui_watch')
+    nodes = [f'tests/unit/test_{name}_cleanup_safety.py::test_case[{variant}]'
+             for name in names for variant in ('a', 'b')]
+    plan = buckets(nodes)
+    assert len(plan) == HOST_WORKERS
+    assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+    assert all(bucket.kind == 'cleanup' for bucket in plan)
+    assert all(compatible(first.kind, second.kind) for first in plan for second in plan)
+    for name in names:
+        path = f'tests/unit/test_{name}_cleanup_safety.py'
+        assert sum(path in bucket.paths for bucket in plan) == 1
+
+
 def test_unknown_only_scope_is_included_without_parallel_admission():
     nodes = ['tests/unit/test_future_cleanup_safety.py::test_case']
     plan = buckets(nodes)

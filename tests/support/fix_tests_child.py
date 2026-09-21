@@ -54,6 +54,7 @@ def main():
             handoff.write_text(json.dumps({'prompt': prompt, 'categories': [category]}))
             print(f'Failure handoff: {handoff}', flush=True)
             return 1
+        print('Overall - 100% (1/1) - 0.0m', flush=True)
         return 0
 
     if mode == 'agent-wait':

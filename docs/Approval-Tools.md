@@ -322,6 +322,11 @@ unread result.
 Internal workers inherit the verified checkout activity lock and execute their
 assigned work without reattaching to their own session. Older runs without
 session metadata still refuse competing launches through that lock.
+Host-only selections use a separate activity lock and retention journal, so
+`tools/prepare-appsnapshot` can run alongside `tools/run-tests ui` or other
+host-only tests. Selections containing system, E2E or integration work retain
+the VM-side checkout lock; the privileged cross-controller VM lease remains
+authoritative. Existing processes keep their original locks until they exit.
 
 When starting a new run, system and E2E listings run as the ordinary user without safety tests, privilege
 or VM mutation. `fast --list` forwards `LIST=1` once its target exists. `all`
@@ -387,8 +392,10 @@ commands do not produce complete customer-journey evidence. The existing
 `integration check_graphical_recovery` remains the separate narrow recovery
 route for an interrupted graphical runner, under its recorded identity checks.
 `tools/run-tests` invokes `integration check_test_recovery` automatically for
-idle unfinished retention or before a new VM category. Host-only aggregates
-refuse unfinished retention requiring recovery, without touching the VM. This uses the same
+idle unfinished VM-side retention or before a new VM category. Host-only runs
+leave VM-side retention untouched and refuse unfinished records in their own
+journal. `tools/cleanup-e2e` also reconciles that host journal under its activity
+lock after VM recovery succeeds. This uses the same
 identity-checked recovery, mandatory cleanup prerequisites and exclusive leases;
 it archives recovery markers after validation and leaves evidence in normal
 retention. It never signals an unrecorded process or bypasses a failed VM audit.

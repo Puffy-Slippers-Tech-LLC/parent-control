@@ -33,6 +33,27 @@ TEST_ENVIRONMENT_OVERRIDES = (
     "MUTTER_DEBUG_DISABLE_ANIMATIONS",
 )
 ORIGINAL_ENVIRONMENT = os.environ.copy()
+UI_OBSERVER = None
+UI_WATCH_TEST = ('', 'setup')
+
+
+def _watch_phase(item, phase):
+    global UI_WATCH_TEST
+    UI_WATCH_TEST = (item.nodeid, phase)
+    if UI_OBSERVER is not None:
+        UI_OBSERVER.update(*UI_WATCH_TEST)
+
+
+def pytest_runtest_setup(item):
+    _watch_phase(item, 'setup')
+
+
+def pytest_runtest_call(item):
+    _watch_phase(item, 'call')
+
+
+def pytest_runtest_teardown(item):
+    _watch_phase(item, 'teardown')
 
 # Dogtail imports GTK while loading its hermetic-session module.  Isolate the
 # launcher environment before that import so GTK cannot bind AT-SPI to the
@@ -50,7 +71,8 @@ os.environ.update({
     # before it launches the application on the private bus.
     "NO_AT_BRIDGE": "1",
     "GTK_THEME": "Adwaita:dark",
-    "GSK_RENDERER": "cairo",
+    # Keep GTK's default GPU renderer. Cairo cannot render the request form's
+    # perspective node and substitutes a solid magenta rectangle.
     # Keep mapping deterministic for state/readiness observations. Application
     # animations (including spinner coverage) remain separate.
     "MUTTER_DEBUG_DISABLE_ANIMATIONS": "1",
@@ -68,7 +90,7 @@ def ui_monitor_size():
 
 
 @pytest.fixture(scope="session")
-def hermetic_ui_session(ui_monitor_size):
+def hermetic_ui_session(ui_monitor_size, request):
     """Boot one deterministic private Wayland session for this pytest process."""
 
     session = HermeticSession(virtual_monitor=ui_monitor_size)
@@ -101,10 +123,23 @@ def hermetic_ui_session(ui_monitor_size):
         "window, .popover, .tooltip { box-shadow: none; }\n",
         encoding="utf-8",
     )
+    global UI_OBSERVER
+    from tests.support.ui_watch import start
+    from tools.regression_ui import buckets
+    selected = buckets([item.nodeid for item in request.session.items])
+    branch = selected[0].name.removeprefix('UI — ') if len(selected) == 1 else 'UI tests'
+    UI_OBSERVER = start(session, branch=branch)
+    if UI_OBSERVER is not None:
+        UI_OBSERVER.update(*UI_WATCH_TEST)
     try:
         yield session
     finally:
-        session.teardown()
+        try:
+            if UI_OBSERVER is not None:
+                UI_OBSERVER.close()
+        finally:
+            UI_OBSERVER = None
+            session.teardown()
         # Pytest and other libraries can add their own environment variables
         # while this session runs.  Restore only the variables this fixture
         # owns rather than clearing those external variables during teardown.

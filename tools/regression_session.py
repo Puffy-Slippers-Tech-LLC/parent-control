@@ -68,7 +68,7 @@ def prepare(root):
 
 
 def select(root, argv):
-    from test_commands import is_inspection, validate
+    from test_commands import host_only_selection, is_inspection, validate
     # Inspection never attaches, waits for locks, or consumes an unread result.
     if is_inspection(argv):
         return None, False
@@ -98,10 +98,10 @@ def select(root, argv):
         # selections. Validate only when starting a new run, under the same gate.
         # Idle invocations with no arguments start the complete aggregate.
         requested = list(argv) or ['all']
-        validate(root, requested)
-        # The regular activity lock also excludes older runners and other tests.
+        selected = validate(root, requested)
+        # Keep host-only ownership independent of standalone VM preparation.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
-        with test_activity.activity(root):
+        with test_activity.activity(root, host_only=host_only_selection(selected)):
             run = directory / uuid.uuid4().hex
             run.mkdir(mode=0o700)
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:

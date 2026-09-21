@@ -16,7 +16,7 @@ _OWNED_ID = re.compile(
     r"(?:"
     r"(?:about|child|error-report|feedback|kiosk|parent|preview-screen|preview-viewer|startup-error)-"
     r"[a-z0-9]+(?:-[a-z0-9]+)*"
-    r"|e2e-watch-[a-z0-9]+(?:-[a-z0-9]+)*"
+    r"|(?:e2e|ui)-watch-[a-z0-9]+(?:-[a-z0-9]+)*"
     r"|onpc-fixture-(?:native|flatpak|snap|game)-(?:primary|secondary)"
     r"(?:-[a-z0-9]+)*"
     r")\Z"

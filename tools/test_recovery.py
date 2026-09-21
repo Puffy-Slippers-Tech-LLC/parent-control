@@ -6,11 +6,11 @@ import test_retention
 
 def before_run(root, argv, *, categories=None):
     # Help/collection and owned aggregate children must remain read-only here.
-    if not argv or argv[0].startswith('-') or '--list' in argv or '--help' in argv:
+    from test_commands import host_only_selection, is_inspection
+    if not argv or is_inspection(argv):
         return 0
     if not test_activity.descriptors():
         raise ValueError('retention: checkout activity ownership required')
-    from test_commands import host_only_selection
     if host_only_selection([(kind, []) for kind in (categories or [argv[0]])]):
         # Host journals remain subject to Store.session's identity/recovery
         # checks, but host work never inspects or recovers VM-owned storage.

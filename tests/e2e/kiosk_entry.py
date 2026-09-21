@@ -11,7 +11,7 @@ PLAN = JourneyPlan(
         'wrong-entry-refused': 'ui:gdm-station-wrong-entry-refused',
         'station-list': 'ui:gdm-station-list',
         'station-focused': 'ui:gdm-station-focused',
-        'station-branch': 'ui:station-entry-branch',
+        'station-branch': 'ui:station-default-entry',
         'request-form': 'ui:kiosk-request-form',
     },
     phases={

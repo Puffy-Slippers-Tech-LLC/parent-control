@@ -212,6 +212,8 @@ class InstalledJourney:
             reply = {'observed': stage}
             if tag == 'ui:station-entry-branch':
                 reply['station_destination'] = observed['ui']['branch']['destination']
+            if tag == 'ui:station-default-entry':
+                reply['station_destination'] = observed['ui']['entry']['destination']
             if observed.get('ui', {}).get('focused') is True:
                 reply['ui_focused'] = True
         self.check_settings(stage, observed)

@@ -42,6 +42,13 @@ def main():
             print('Attached to run-tests session: previous', flush=True)
             return 0
         print('Started run-tests session: harmless', flush=True)
+        if mode == 'retention-once':
+            if category == 'unit' and not (root / 'recovered').exists():
+                print('retention: previous owner did not finish; preserve evidence for recovery',
+                      flush=True)
+                return 1
+            if category == 'integration':
+                (root / 'recovered').touch()
         if mode == 'test-wait':
             (root / 'test-ready').touch()
             deadline = time.monotonic() + 15

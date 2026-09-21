@@ -28,6 +28,7 @@ DEFAULT_MODEL = 'gpt-5.6-sol'
 DEFAULT_EFFORT = 'high'
 TAIL_BYTES = 128 * 1024
 AGENT_GRACE = 3.0
+STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
 class Stopped(Exception):
@@ -327,20 +328,44 @@ def worker(root, run, owner, model, effort, requested='[]'):
         return status
 
     def test(category):
+        def run_requested(requested, options, description):
+            while True:
+                status = execute('test', requested, options)
+                # run-tests consumes an active/unread predecessor before honoring
+                # new arguments. Its result must never count as our requested run.
+                with (run / 'last-test.log').open('rb') as stream:
+                    attached = b'Attached to run-tests session:' in stream.read(8192)
+                if not attached:
+                    return status
+                print(f'fix-tests: previous run-tests output delivered; starting {description}.',
+                      flush=True)
+
+        recovered = False
         while True:
             status_line = category_status(category, categories)
             atomic(run / 'category.json', status_line)
             print(f'\nfix-tests: running {category}', flush=True)
-            status = execute('test', category, inventory.get(category, {}).get('args', []))
-            # run-tests consumes an active/unread predecessor before honoring
-            # new arguments. Its result must never count as our requested run.
-            with (run / 'last-test.log').open('rb') as stream:
-                attached = b'Attached to run-tests session:' in stream.read(8192)
-            if not attached:
+            status = run_requested(category, inventory.get(category, {}).get('args', []),
+                                   'the requested category')
+            if status == 0:
                 if status_line is not None:
                     print(status_line, flush=True)
-                return None if status == 0 else handoff(run)
-            print('fix-tests: previous run-tests output delivered; starting the requested category.', flush=True)
+                return None
+            if STALE_RETENTION in read_tail(run / 'last-test.log'):
+                if recovered:
+                    raise ValueError('test runner remained stale after automatic recovery; '
+                                     'see last-test.log')
+                print('fix-tests: interrupted test ownership found; asking run-tests to recover it.',
+                      flush=True)
+                recovery_status = run_requested('integration', ['check_test_recovery'],
+                                                'automatic recovery')
+                if recovery_status:
+                    raise ValueError('run-tests automatic recovery failed; see last-test.log')
+                recovered = True
+                continue
+            if status_line is not None:
+                print(status_line, flush=True)
+            return handoff(run)
 
     def repair(prompt):
         print(f'\nfix-tests: fresh repair session ({model}, {effort})', flush=True)

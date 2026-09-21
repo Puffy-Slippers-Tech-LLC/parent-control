@@ -1204,7 +1204,7 @@ checks remain harness qualification, with no customer feature coverage credit.
 The shared reconciler requires fresh controller results for each ordered worker
 marker, and case 1 additionally requires logout before graphical return.
 
-### Station branch diagnosis scope
+### Station branch diagnosis and default-entry scope
 
 The kiosk qualification's `station-branch` checkpoint calls
 `AccessibleUI.station_entry_branch` after the freshly focused station row is
@@ -1226,8 +1226,19 @@ On the station bus, the observer requires the owned `kiosk-request-window` and
 destination observation does not run prompt handling or validate the form's
 selectors, values and unavailable controls; those remain the separate
 `kiosk-request-form` checkpoint and its prompt-refusal contract. No input is
-authorized by the branch observation. The current G03 run stopped at the first
-greeter read, before either branch; see the [task blocker](External/01-Entry.md).
+authorized by the branch observation. The G03 run reached the station and
+recorded `default-request-form` with no
+unresolved greeter controls; see the [task result](External/01-Entry.md).
+
+G04 binds the installed tuple's observed passwordless default only; it does not
+add UI15 or a session catalogue. The worker consumes the fresh focused station
+row proof once before Enter. Its separate `station-default-entry` checkpoint
+then waits for the active dedicated station account and independently reads back
+one showing, nondefunct owned request window/form destination. A greeter owner,
+another or ambiguous active session, duplicate/hidden/stale owned destination,
+or any result other than `default-request-form` refuses. This host binding does
+not qualify the installed route or the complete request form; O01 and G05 own
+those live checks.
 
 ### Search and standard sign-in contracts
 

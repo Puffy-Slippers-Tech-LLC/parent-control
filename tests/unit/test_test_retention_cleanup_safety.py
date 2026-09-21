@@ -12,6 +12,7 @@ import shutil
 import stat
 import tempfile
 from types import SimpleNamespace
+from unittest.mock import Mock
 import uuid
 
 import pytest
@@ -153,6 +154,17 @@ def test_launcher_reconciles_only_idle_pending_storage(tmp_path, monkeypatch, fa
         test_recovery.before_run(tmp_path, ['unit', 'selected'])
         assert not (store.path / 'recovery-required').exists()
     assert calls == [('integration', ['check_test_recovery'])]
+
+
+def test_execution_option_does_not_bypass_required_recovery(tmp_path, monkeypatch):
+    import test_recovery
+    monkeypatch.setattr(test_recovery.test_activity, 'descriptors', lambda: (123,))
+    cleanup = Mock(return_value=0)
+    monkeypatch.setattr(test_recovery, 'cleanup', cleanup)
+    assert test_recovery.before_run(
+        tmp_path, ['--stop-on-error', 'integration', 'check_test_recovery'],
+        categories=['integration']) == 0
+    cleanup.assert_called_once_with(tmp_path)
 
 
 @pytest.mark.parametrize('fault', [None, 'busy', 'recovery-failed'])

@@ -397,6 +397,61 @@ def test_station_default_branch_requires_owned_window_and_form_ids():
         ui.run('station-entry-branch', '')
 
 
+@pytest.mark.parametrize('fault', [
+    None, 'wrong-session', 'duplicate-window', 'duplicate-form',
+    'hidden-window', 'hidden-form', 'stale',
+])
+def test_station_default_entry_requires_one_fresh_owned_destination(fault):
+    ui, _ = request_form()
+    ui.branch_owner = 'greeter' if fault == 'wrong-session' else 'station'
+    desktop = ui.api.get_desktop(0)
+    window = ui.find_id('kiosk-request-window')
+    form = ui.find_id('kiosk-request-form')
+    if fault == 'duplicate-window':
+        desktop.children.append(Node(identity='kiosk-request-window'))
+    elif fault == 'duplicate-form':
+        form.parent.children.append(Node(identity='kiosk-request-form'))
+    elif fault == 'hidden-window':
+        window.states.discard('showing')
+    elif fault == 'hidden-form':
+        form.states.discard('showing')
+    elif fault == 'stale':
+        form.states.add('defunct')
+    if fault:
+        with pytest.raises(UiError):
+            ui.run('station-default-entry', '')
+    else:
+        assert ui.run('station-default-entry', '')['entry'] == {
+            'destination': 'default-request-form'}
+
+
+@pytest.mark.parametrize('destination', [
+    'greeter-controls', 'desktop', '', None,
+])
+def test_station_default_entry_transport_rejects_every_unsupported_branch(destination):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from ui_observations import UiObservations
+
+    result = {'operation': 'station-default-entry', 'outcome': 'passed',
+              'interface': 'AT-SPI', 'entry': {'destination': destination}}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    with pytest.raises(EvidenceError, match='ui:station-default-entry'):
+        UiObservations(transport).observe('station-default-entry')
+
+
+def test_station_default_entry_transport_accepts_only_the_bound_default():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from ui_observations import UiObservations
+
+    result = {'operation': 'station-default-entry', 'outcome': 'passed',
+              'interface': 'AT-SPI',
+              'entry': {'destination': 'default-request-form'}}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    assert UiObservations(transport).observe('station-default-entry') == result
+
+
 @pytest.mark.parametrize('fault', [None, 'unknown-destination', 'extra', 'unresolved-default', 'private-label', 'invalid-state'])
 def test_station_branch_transport_only_accepts_bounded_sanitized_evidence(fault):
     from types import SimpleNamespace

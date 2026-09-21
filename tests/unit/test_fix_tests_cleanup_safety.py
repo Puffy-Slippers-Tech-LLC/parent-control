@@ -191,6 +191,23 @@ def test_unread_predecessor_result_does_not_count_as_the_requested_category(chec
     assert all(call['kind'] == 'test' for call in calls)
 
 
+def test_stale_runner_uses_existing_recovery_route_then_retries_category(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('retention-once')
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['args'] for call in calls] == [
+        ['--stop-on-error', 'unit'],
+        ['--stop-on-error', 'integration', 'check_test_recovery'],
+        ['--stop-on-error', 'unit'],
+        ['--stop-on-error', 'unit'],
+    ]
+    assert 'asking run-tests to recover it' in output.getvalue()
+    assert not [call for call in calls if call['kind'] == 'agent']
+
+
 @pytest.mark.parametrize('categories', [('host',), ('unit', 'ui'), ('unit ui',)])
 def test_selected_categories_stay_scoped_through_worker_and_repair(checkout, categories):
     root, _ = checkout

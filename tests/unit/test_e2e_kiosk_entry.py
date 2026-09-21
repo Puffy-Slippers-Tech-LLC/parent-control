@@ -202,6 +202,16 @@ def test_kiosk_request_form_returns_only_the_fixed_public_projection():
     assert all(button.action.do_action.call_count == 0 for button in durations)
 
 
+def test_kiosk_request_form_uses_two_complete_tree_reads_at_most(capsys):
+    ui, _ = request_form()
+    RequestObservation.from_request(ui.run('kiosk-request-form', '')['request'])
+    records = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    passed = next(record for record in reversed(records) if record['status'] == 'passed')
+    assert passed['tree'] == 'complete'
+    assert passed['tree_reads'] <= 2
+    assert passed['nodes_read'] <= 2 * len(list(ui.nodes(strict=True)))
+
+
 def test_station_positive_form_observation_permits_no_prompt_without_prompt_ids():
     ui, durations = request_form()
     ui.provider_contracts = EXTERNAL_PROVIDER_CONTRACTS
@@ -221,6 +231,27 @@ def test_station_never_borrows_a_control_from_another_surface(identity):
     form.children.remove(target)
     ui.api.get_desktop(0).children.append(Node(identity='unrelated-window', children=[target]))
     with pytest.raises(UiError, match='timeout:kiosk-request-form'):
+        ui.kiosk_request_form()
+
+
+def test_station_refuses_a_duplicate_owned_control():
+    ui, _ = request_form()
+    form = ui.find_id('kiosk-request-form')
+    form.children.append(Node(identity='kiosk-child-selector'))
+    with pytest.raises(UiError, match='ambiguous-automation-id'):
+        ui.kiosk_request_form()
+
+
+@pytest.mark.parametrize('owner_check', ['allowed-application', 'pid', 'application-owner'])
+def test_station_refuses_the_form_under_a_wrong_runtime_owner(owner_check):
+    ui, _ = request_form()
+    if owner_check == 'allowed-application':
+        ui.application_ids = lambda: ()
+    elif owner_check == 'pid':
+        ui.owner_pids = lambda: set()
+    else:
+        ui.application_owners = lambda: {}
+    with pytest.raises(UiError, match='wrong-(?:application-)?owner'):
         ui.kiosk_request_form()
 
 
@@ -286,14 +317,15 @@ def test_station_deadline_interrupts_a_slow_predicate_and_retains_exact_phase(mo
     ui, _ = request_form()
     now = [0.0]
     monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
-    original = ui.find_id
+    original = ui.showing
 
-    def slow_lookup(identity, **kwargs):
-        if identity == 'kiosk-child-selector':
+    def slow_showing(node):
+        if node.identity == 'kiosk-child-selector':
             now[0] = 91.0
-        return original(identity, **kwargs)
+            ui.kiosk_diagnostic.check()
+        return original(node)
 
-    monkeypatch.setattr(ui, 'find_id', slow_lookup)
+    monkeypatch.setattr(ui, 'showing', slow_showing)
     with pytest.raises(UiError, match='timeout:kiosk-request-form'):
         ui.kiosk_request_form()
     records = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
@@ -302,7 +334,7 @@ def test_station_deadline_interrupts_a_slow_predicate_and_retains_exact_phase(mo
     assert records[-1]['tree'] == 'complete'
     assert records[-1]['public_ids']['kiosk-request-form'] == 1
     assert records[-1]['public_ids'][accessible_ui.KIOSK_APPLICATION] == 1
-    assert records[-1]['tree_reads'] > 1
+    assert records[-1]['tree_reads'] == 1
     assert ui.kiosk_diagnostic is None
 
 

@@ -92,7 +92,10 @@ OPERATION_LABELS.update({
     'gdm-station-wrong-entry-refused': 'Checking a password account does not enter the request station',
     'gdm-station-list': 'Reading the greeter before request-station entry',
     'gdm-station-focused': 'Checking the request station is focused',
+    'gdm-station-returned': 'Checking the usable greeter after leaving the request station',
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
+    'kiosk-request-cancel': 'Cancelling the request station through its public control',
+    'kiosk-request-escape-ready': 'Checking the request station recipient before Escape',
     'station-entry-branch': 'Observing the offered station session branch without input',
     'station-default-entry': 'Reading back the passwordless default request-station session',
 })
@@ -219,8 +222,8 @@ class UiObservations:
         # Kiosk waits only for the public form, with transport margin.
         timeout = 390 if (operation in accessible_ui.GREETER_OPERATIONS
                           or operation in accessible_ui.STATION_BRANCH_OPERATIONS) else (
-            120 if operation in accessible_ui.KIOSK_OPERATIONS else 90)
-        kiosk = operation in accessible_ui.KIOSK_OPERATIONS
+            120 if operation in accessible_ui.KIOSK_SESSION_OPERATIONS else 90)
+        kiosk = operation in accessible_ui.KIOSK_SESSION_OPERATIONS
         if self.system_prompt is None and not kiosk:
             return self.transport.call(argv, input=input, timeout=timeout), []
         commands = self.transport.commands

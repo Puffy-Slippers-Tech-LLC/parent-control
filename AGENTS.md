@@ -95,11 +95,18 @@
   ID requirements in subordinate documents.
 - After ID lookup (or qualified external-provider resolution), names, roles,
   text and states may verify meaning and results.
-  Use public accessibility actions and ordinary keyboard input. For overflow or
-  covered content, semantically reveal, scroll, focus or navigate, then reacquire
-  the target by ID or its qualified external-provider adapter. Never activate
-  hidden controls to conceal a reachability failure. Cosmetic differences cannot
-  gate acceptance.
+  Prefer invoking the ID-resolved control's public accessibility action directly,
+  including when a scroll viewport clips or covers an otherwise available control.
+  Do not add focus, scrolling or repeated tree traversals before such an action.
+  Prefer a provider's direct ID lookup where available; otherwise reuse one fresh,
+  complete scoped snapshot for prompt, ownership and target checks at each input
+  boundary. Never reuse a snapshot across input or session transitions. Preserve
+  ambiguity, completeness, sensitivity, ownership and uncertain-input checks.
+  Use ordinary keyboard input when appropriate. If a direct public action is
+  unavailable, semantically reveal, scroll, focus or navigate, then reacquire by
+  ID or the qualified external-provider adapter. Truly hidden or disabled controls
+  still refuse; viewport clipping alone is not hidden application state. Cosmetic
+  differences cannot gate acceptance.
 - A successful input is not a successful result. Independently observe the
   required public state. Preserve ownership, secret-recipient, single-use input
   and uncertain-input guards; never replay an action whose effect is uncertain.

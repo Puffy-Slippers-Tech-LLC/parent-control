@@ -186,3 +186,13 @@ class KioskEntryQualification(ParentJourneyQualification):
         lease.state['domain_id'] = None
         lease.guard(off=True)
         lease.save('isolated')
+
+
+class RequestExitQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from request_exit import RequestExitJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RequestExitJourney(context, progress)

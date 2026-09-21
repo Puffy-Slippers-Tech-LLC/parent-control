@@ -17,6 +17,7 @@ import parent_terminal
 import command_help
 import desktop_session
 import kiosk_entry
+import request_exit
 import parent_discovery
 import accessible_ui
 import inventory
@@ -48,10 +49,11 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
 @pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN,
                                  parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN,
                                  command_help.PLAN, desktop_session.LOGOUT_PLAN,
-                                 desktop_session.SWITCH_PLAN, kiosk_entry.PLAN],
+                                 desktop_session.SWITCH_PLAN, kiosk_entry.PLAN,
+                                 request_exit.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
-                              'desktop-switch', 'kiosk-entry'])
+                              'desktop-switch', 'kiosk-entry', 'request-exit'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):

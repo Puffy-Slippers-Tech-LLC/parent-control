@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 import uuid
+from qualification_storage import allocate, session as storage_session
 
 import graphical_backend
 from owned_commands import Commands, require
@@ -637,33 +638,40 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          install_refusal=False, vt6_prompt=False, vt6_auth=False, parent_setup=False,
          parent_input=False, parent_standard_input=False, parent_about=False,
          parent_access=False, desktop_session_logout=False, desktop_session_switch=False,
-         kiosk_entry=False):
+         kiosk_entry=False, request_exit=False):
     require(type(kiosk_entry) is bool and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, desktop_session_switch)))),
+                desktop_session_logout, desktop_session_switch, request_exit)))),
             'smoke:kiosk-entry-prerequisites')
+    require(type(request_exit) is bool and (not request_exit or (
+            assets is not None and provision_credentials and not any((
+                serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
+                parent_input, parent_standard_input, parent_about, parent_access,
+                desktop_session_logout, desktop_session_switch, kiosk_entry)))),
+            'smoke:request-exit-prerequisites')
     require(type(desktop_session_logout) is bool and (not desktop_session_logout or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_switch, kiosk_entry)))), 'smoke:desktop-session-logout-prerequisites')
+                desktop_session_switch, kiosk_entry, request_exit)))), 'smoke:desktop-session-logout-prerequisites')
     require(type(desktop_session_switch) is bool and (not desktop_session_switch or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, kiosk_entry)))), 'smoke:desktop-session-switch-prerequisites')
+                desktop_session_logout, kiosk_entry, request_exit)))), 'smoke:desktop-session-switch-prerequisites')
     require(type(parent_access) is bool and (not parent_access or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_setup, parent_input, parent_standard_input,
-                parent_about, desktop_session_logout, desktop_session_switch, kiosk_entry)))),
+                parent_about, desktop_session_logout, desktop_session_switch, kiosk_entry,
+                request_exit)))),
             'smoke:parent-access-prerequisites')
     require(type(parent_about) is bool and (not parent_about or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_setup, parent_input,
                 parent_standard_input, desktop_session_logout, desktop_session_switch,
-                kiosk_entry)))),
+                kiosk_entry, request_exit)))),
             'smoke:parent-about-prerequisites')
     require(type(parent_input) is bool and (not parent_input or parent_setup),
             'smoke:parent-input-prerequisites')
@@ -691,139 +699,145 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(os.geteuid() == os.getegid() == 0, 'smoke:root-required')
     require(Path.cwd() == ROOT == runner.baseline.guest_contract.CHECKOUT, 'smoke:checkout')
     os.umask(0o077)
-    directory = Path(tempfile.mkdtemp(prefix='onpc-graphical-smoke-'))
-    commands, ledger = Commands(), runner.RunLedger()
-    private = directory / 'private'
-    private.mkdir(mode=0o700)
-    commands.directory = private
-    source = lease = host_before = None
-    result = {'scope': 'credential-free-graphical-feasibility', 'outcome': 'failed',
-              'raw_capture': 'root-private-not-approved-for-export',
-              'evidence_directory': str(directory), 'steps': []}
-    if assets is not None:
-        result['scope'] = 'credential-free-asset-transfer-qualification'
-    if credentials is not None:
-        result['scope'] = 'fixture-authentication-qualification'
-    if serial:
-        result['scope'] = 'fixture-serial-command-qualification'
-    if install:
-        result['scope'] = 'authenticated-installation-qualification'
-    if install_refusal:
-        result['scope'] = 'deliberate-installation-refusal-qualification'
-    if vt6_prompt:
-        result['scope'] = 'credential-free-vt6-prompt-qualification'
-    if vt6_auth:
-        result['scope'] = 'authenticated-vt6-shell-qualification'
-    if parent_setup:
-        result['scope'] = 'installed-parent-setup-qualification'
-    if parent_input:
-        result['scope'] = 'installed-parent-input-qualification'
-    if parent_standard_input:
-        result['scope'] = 'installed-standard-input-qualification'
-    if parent_about:
-        result['scope'] = 'installed-parent-about-qualification'
-    if parent_access:
-        result['scope'] = 'installed-parent-access-qualification'
-    if desktop_session_logout:
-        result['scope'] = 'installed-desktop-logout-qualification'
-    if desktop_session_switch:
-        result['scope'] = 'installed-desktop-switch-qualification'
-    if kiosk_entry:
-        result['scope'] = 'installed-kiosk-entry-qualification'
-    started = time.monotonic()
-    def interrupted(*_):
-        raise KeyboardInterrupt
-    signal.signal(signal.SIGTERM, interrupted)
-    try:
-        with ledger.measure('preparation'):
-            result['inputs_sha256'] = inputs()
-            result['backend'] = graphical_backend.check(commands)
-            if credentials is not None:
-                credential_preflight(commands)
-            schedule_preflight(directory, commands)
-            staged = None
-            if assets is not None:
-                staged = directory / 'assets'
-                runner.stage_assets(runner.artifact_source(assets), staged, commands)
-                staged.chmod(0o700)
-                result['source_preflight'] = preflight_source(staged)
-            if (parent_setup or parent_about or parent_access or desktop_session_logout
-                    or desktop_session_switch or kiosk_entry):
-                installed_setup.stage(directory, staged, result['inputs_sha256'])
-            else:
-                (directory / 'input').mkdir(mode=0o700)
-                (directory / 'input/selected-inputs.json').write_text(json.dumps(result['inputs_sha256'], sort_keys=True))
-            host_before = runner.host_fingerprint(commands)
-            api, guestfs = importlib.import_module('libvirt'), importlib.import_module('guestfs')
-            api.virEventRegisterDefaultImpl()
-            def events():
-                while True:
-                    api.virEventRunDefaultImpl()
-            threading.Thread(target=events, daemon=True, name='libvirt-events').start()
-            source = runner.baseline.LibvirtSource(api)
-            lease = runner.Lease(source, commands,
-                                 lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
-                                 ledger=ledger, graphics_type='vnc')
-        with PrivateCollector(run_id='qualification-' + uuid.uuid4().hex,
-                              secrets=credentials.variables.registered_secrets
-                              if credentials is not None else []) as collector:
-            result['qualification_evidence'] = str(collector.path)
-            qualification_class = Qualification
-            if parent_setup:
-                from parent_setup_qualification import ParentSetupQualification
-                qualification_class = ParentSetupQualification
-            if parent_about:
-                from parent_setup_qualification import ParentAboutQualification
-                qualification_class = ParentAboutQualification
-            if parent_access:
-                from parent_setup_qualification import ParentAccessQualification
-                qualification_class = ParentAccessQualification
-            if desktop_session_logout:
-                from parent_setup_qualification import DesktopLogoutQualification
-                qualification_class = DesktopLogoutQualification
-            if desktop_session_switch:
-                from parent_setup_qualification import DesktopSwitchQualification
-                qualification_class = DesktopSwitchQualification
-            if kiosk_entry:
-                from parent_setup_qualification import KioskEntryQualification
-                qualification_class = KioskEntryQualification
-            qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
-                                          staged, credentials, serial, install, install_refusal, vt6_prompt,
-                                          vt6_auth)
-            lease.finalize = qualification.finalize
-            with lease:
-                result['baseline_sha256'] = lease.state['baseline_sha256']
-                qualification.execute(lease, guestfs)
-    except (Exception, KeyboardInterrupt) as error:
-        result['outcome'] = 'failed'
-        if isinstance(error, EvidenceError) and not any(
-                value['outcome'] == 'failed' for value in ledger.outcomes.values()):
-            ledger.fail_outcome('infrastructure', str(error))
-        result['category'] = runner.record_caught_failure(ledger, error)
-        result['exception_type'] = type(error).__name__
-    finally:
-        with ledger.measure('cleanup'):
-            try:
-                if host_before is not None:
-                    require(runner.host_fingerprint(commands) == host_before, 'smoke:host-state-changed')
-            except BaseException:
-                ledger.fail_outcome('cleanup', 'smoke:host-state-unverifiable')
-                result['outcome'] = 'failed'
-            finally:
-                if source is not None:
-                    try:
-                        source.close()
-                    except BaseException:
-                        ledger.fail_outcome('cleanup', 'smoke:connection-close-failed')
-                        result['outcome'] = 'failed'
-        if any(v['outcome'] == 'failed' for v in ledger.outcomes.values()):
+    with storage_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-graphical-smoke-', dir='/tmp'))
+        commands, ledger = Commands(), runner.RunLedger()
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        commands.directory = private
+        source = lease = host_before = None
+        result = {'scope': 'credential-free-graphical-feasibility', 'outcome': 'failed',
+                  'raw_capture': 'root-private-not-approved-for-export',
+                  'evidence_directory': str(directory), 'steps': []}
+        if assets is not None:
+            result['scope'] = 'credential-free-asset-transfer-qualification'
+        if credentials is not None:
+            result['scope'] = 'fixture-authentication-qualification'
+        if serial:
+            result['scope'] = 'fixture-serial-command-qualification'
+        if install:
+            result['scope'] = 'authenticated-installation-qualification'
+        if install_refusal:
+            result['scope'] = 'deliberate-installation-refusal-qualification'
+        if vt6_prompt:
+            result['scope'] = 'credential-free-vt6-prompt-qualification'
+        if vt6_auth:
+            result['scope'] = 'authenticated-vt6-shell-qualification'
+        if parent_setup:
+            result['scope'] = 'installed-parent-setup-qualification'
+        if parent_input:
+            result['scope'] = 'installed-parent-input-qualification'
+        if parent_standard_input:
+            result['scope'] = 'installed-standard-input-qualification'
+        if parent_about:
+            result['scope'] = 'installed-parent-about-qualification'
+        if parent_access:
+            result['scope'] = 'installed-parent-access-qualification'
+        if desktop_session_logout:
+            result['scope'] = 'installed-desktop-logout-qualification'
+        if desktop_session_switch:
+            result['scope'] = 'installed-desktop-switch-qualification'
+        if kiosk_entry:
+            result['scope'] = 'installed-kiosk-entry-qualification'
+        if request_exit:
+            result['scope'] = 'installed-request-exit-qualification'
+        started = time.monotonic()
+        def interrupted(*_):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, interrupted)
+        try:
+            with ledger.measure('preparation'):
+                result['inputs_sha256'] = inputs()
+                result['backend'] = graphical_backend.check(commands)
+                if credentials is not None:
+                    credential_preflight(commands)
+                schedule_preflight(directory, commands)
+                staged = None
+                if assets is not None:
+                    staged = directory / 'assets'
+                    runner.stage_assets(runner.artifact_source(assets), staged, commands)
+                    staged.chmod(0o700)
+                    result['source_preflight'] = preflight_source(staged)
+                if (parent_setup or parent_about or parent_access or desktop_session_logout
+                        or desktop_session_switch or kiosk_entry or request_exit):
+                    installed_setup.stage(directory, staged, result['inputs_sha256'])
+                else:
+                    (directory / 'input').mkdir(mode=0o700)
+                    (directory / 'input/selected-inputs.json').write_text(json.dumps(result['inputs_sha256'], sort_keys=True))
+                host_before = runner.host_fingerprint(commands)
+                api, guestfs = importlib.import_module('libvirt'), importlib.import_module('guestfs')
+                api.virEventRegisterDefaultImpl()
+                def events():
+                    while True:
+                        api.virEventRunDefaultImpl()
+                threading.Thread(target=events, daemon=True, name='libvirt-events').start()
+                source = runner.baseline.LibvirtSource(api)
+                lease = runner.Lease(source, commands,
+                                     lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
+                                     ledger=ledger, graphics_type='vnc')
+            with PrivateCollector(run_id='qualification-' + uuid.uuid4().hex,
+                                  secrets=credentials.variables.registered_secrets
+                                  if credentials is not None else []) as collector:
+                result['qualification_evidence'] = str(collector.path)
+                qualification_class = Qualification
+                if parent_setup:
+                    from parent_setup_qualification import ParentSetupQualification
+                    qualification_class = ParentSetupQualification
+                if parent_about:
+                    from parent_setup_qualification import ParentAboutQualification
+                    qualification_class = ParentAboutQualification
+                if parent_access:
+                    from parent_setup_qualification import ParentAccessQualification
+                    qualification_class = ParentAccessQualification
+                if desktop_session_logout:
+                    from parent_setup_qualification import DesktopLogoutQualification
+                    qualification_class = DesktopLogoutQualification
+                if desktop_session_switch:
+                    from parent_setup_qualification import DesktopSwitchQualification
+                    qualification_class = DesktopSwitchQualification
+                if kiosk_entry:
+                    from parent_setup_qualification import KioskEntryQualification
+                    qualification_class = KioskEntryQualification
+                if request_exit:
+                    from parent_setup_qualification import RequestExitQualification
+                    qualification_class = RequestExitQualification
+                qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
+                                              staged, credentials, serial, install, install_refusal, vt6_prompt,
+                                              vt6_auth)
+                lease.finalize = qualification.finalize
+                with lease:
+                    result['baseline_sha256'] = lease.state['baseline_sha256']
+                    qualification.execute(lease, guestfs)
+        except (Exception, KeyboardInterrupt) as error:
             result['outcome'] = 'failed'
-        result.update(ledger.data())
-        result['duration_seconds'] = round(time.monotonic() - started, 3)
-        result['lease_phase'] = lease.state['phase'] if lease and lease.state else None
-        (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
-        print(json.dumps(result, sort_keys=True))
-    return 0 if result['outcome'] == 'passed' else 1
+            if isinstance(error, EvidenceError) and not any(
+                    value['outcome'] == 'failed' for value in ledger.outcomes.values()):
+                ledger.fail_outcome('infrastructure', str(error))
+            result['category'] = runner.record_caught_failure(ledger, error)
+            result['exception_type'] = type(error).__name__
+        finally:
+            with ledger.measure('cleanup'):
+                try:
+                    if host_before is not None:
+                        require(runner.host_fingerprint(commands) == host_before, 'smoke:host-state-changed')
+                except BaseException:
+                    ledger.fail_outcome('cleanup', 'smoke:host-state-unverifiable')
+                    result['outcome'] = 'failed'
+                finally:
+                    if source is not None:
+                        try:
+                            source.close()
+                        except BaseException:
+                            ledger.fail_outcome('cleanup', 'smoke:connection-close-failed')
+                            result['outcome'] = 'failed'
+            if any(v['outcome'] == 'failed' for v in ledger.outcomes.values()):
+                result['outcome'] = 'failed'
+            result.update(ledger.data())
+            result['duration_seconds'] = round(time.monotonic() - started, 3)
+            result['lease_phase'] = lease.state['phase'] if lease and lease.state else None
+            (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+            print(json.dumps(result, sort_keys=True))
+        return 0 if result['outcome'] == 'passed' else 1
 
 
 if __name__ == '__main__':

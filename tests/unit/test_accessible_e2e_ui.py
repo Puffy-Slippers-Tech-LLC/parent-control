@@ -7,7 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from accessible_ui import PARENT_APPLICATION, UiError, greeter_account, session_environment
+from accessible_ui import (KIOSK_SESSION_OPERATIONS, PARENT_APPLICATION, UiError,
+                           greeter_account, session_environment)
 from private_artifacts import EvidenceError
 from ui_observations import UiObservations
 from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
@@ -577,13 +578,14 @@ def test_greeter_discovery_does_not_retry_failed_session_reads(monkeypatch):
 
 @pytest.mark.parametrize('operation,timeout', [
     ('gdm-other-list', 390), ('desktop', 90), ('kiosk-request-form', 120),
+    ('kiosk-request-cancel', 120), ('kiosk-request-escape-ready', 120),
 ])
 @pytest.mark.parametrize('streamed', [True, False])
 def test_ui_transport_allows_greeter_boot_wait_inside_worker_deadline(operation, timeout, streamed):
     commands = SimpleNamespace(progress=None)
     def call(argv, **kwargs):
         assert kwargs['timeout'] == timeout < 420
-        if streamed or operation == 'kiosk-request-form':
+        if streamed or operation in KIOSK_SESSION_OPERATIONS:
             kwargs['on_output'](b'{}\n')
         return b'{}'
     transport = SimpleNamespace(commands=commands, call=Mock(side_effect=call))

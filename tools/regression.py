@@ -269,6 +269,9 @@ class Dashboard:
 
     def draw_lines(self, lines):
         """Render a local or reconnected frame using this terminal's size."""
+        if hasattr(self.stream, 'frame'):
+            self.stream.frame(lines)
+            return
         tty = self.stream.isatty()
         prefix = f'\033[{self.lines}F' if self.lines and tty else ''
         ending = '\n'

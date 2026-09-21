@@ -1,6 +1,7 @@
 """The scripting loop never resumes an agent or repeats composite categories."""
 
 import json
+import io
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -76,7 +77,7 @@ def test_unmapped_aggregate_failure_is_not_a_fabricated_category_pass():
 def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monkeypatch):
     monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
     for key in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
-                'ONPC_TEST_ACTIVITY_FD'):
+                'ONPC_TEST_ACTIVITY_FD', fix_tests.FRAME_DIRECTORY):
         monkeypatch.setenv(key, 'previous-context')
     command = fix_tests.agent_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
     assert command[:5] == ['/opt/codex', '--ask-for-approval', 'never', 'exec', '--ephemeral']
@@ -88,6 +89,43 @@ def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monk
     assert command[-1] == '-'
     assert 'previous-context' not in fix_tests.environment().values()
     assert fix_tests.repair_prompt('LATEST FAILURE').startswith('LATEST FAILURE\n')
+
+
+@pytest.mark.parametrize('tty', [False, True])
+def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypatch, tty):
+    run = tmp_path / 'run'
+    run.mkdir()
+    (run / 'output').write_text('category started\n')
+    fix_tests.atomic(run / 'frame.json', ['Overall - 0%'])
+    fix_tests.atomic(run / 'result.json', {'status': 0})
+    monkeypatch.setattr(fix_tests, 'current_run', lambda _: run)
+    monkeypatch.setattr(fix_tests, 'busy', lambda _: True)
+    polls = 0
+
+    def advance(_):
+        nonlocal polls
+        polls += 1
+        if polls == 1:
+            fix_tests.atomic(run / 'frame.json', ['Overall - 50%'])
+        elif polls == 3:
+            fix_tests.atomic(run / 'frame.json', [])
+            (run / 'output').write_text('category started\nfinal summary\n')
+            monkeypatch.setattr(fix_tests, 'busy', lambda _: False)
+
+    monkeypatch.setattr(fix_tests.time, 'sleep', advance)
+    output = io.StringIO()
+    monkeypatch.setattr(output, 'isatty', lambda: tty)
+    assert fix_tests.follow(run, output) == 0
+    text = output.getvalue()
+    assert text.count('category started') == text.count('final summary') == 1
+    assert 'Overall - 0%' in text and 'Overall - 50%' in text
+    if tty:
+        assert text.count('\033[?1049h') == text.count('\033[?1049l') == 1
+        assert '\033[1F' in text
+        assert text.index('\033[?1049l') < text.index('final summary')
+    else:
+        assert text.count('Overall - 50%') == 1
+        assert '\033[?1049' not in text
 
 
 def test_granular_inventory_order_excludes_every_duplicate_helper():

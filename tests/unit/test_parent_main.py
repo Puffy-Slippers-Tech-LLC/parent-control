@@ -578,6 +578,14 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn("close their running blocked apps", source)
         self.assertIn("lock their desktop when no time remains", source)
 
+    def test_revoke_confirmation_constrains_and_word_wraps_its_warning(self):
+        source = inspect.getsource(ParentWindow._confirm_revoke)
+
+        self.assertIn("wrap=True, max_width_chars=72", source)
+        self.assertIn(
+            "warning.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)", source,
+        )
+
     def test_revoke_is_disabled_when_authoritative_remaining_time_is_zero(self):
         class Label:
             def set_label(self, _label):

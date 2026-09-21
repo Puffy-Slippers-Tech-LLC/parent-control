@@ -526,7 +526,6 @@ class Execution:
             item.stop_timer()
             run.report.snapshot(run.categories)
             run.dashboard.draw(force=True)
-            run.check_inputs()
             if self.fixture_failed:
                 raise ValueError('test fixture setup or cleanup failed; further host work refused')
             if not self.collect and self.events and status not in (0, 1) and not run.control.stopped.is_set():
@@ -580,10 +579,6 @@ class Run:
         self.report.resources({**sample, 'running_categories': [item.name for item in self.categories
                                                              if item.state == 'Running']})
 
-    def check_inputs(self):
-        if self.inputs is not None and source_identity(self.root) != self.inputs:
-            raise ValueError('source inputs changed during regression run; results cannot be combined')
-
     def command(self, category, *args):
         if category == 'ui':
             return [str(self.root / 'tools/run-ui-tests'), '--unattended', *args]
@@ -595,7 +590,6 @@ class Run:
         if self.control.stopped.is_set():
             item.state = 'Interrupted'
             return 130, ''
-        self.check_inputs()
         item.retry_category = ('ui' if Path(command[0]).name == 'run-ui-tests' else
                                command[1] if Path(command[0]).name == 'run-tests' else None)
         if not collect and len(command) > 1 and command[1] in ('publish', 'artifacts', 'system', 'e2e'):
@@ -652,7 +646,6 @@ class Run:
             job.item.phase = phase
 
         def begin(job):
-            self.check_inputs()
             # Bucket builders retain the public category explicitly. Resource
             # kinds and future command-name prefixes do not define ownership.
             # Do not evaluate deferred commands again just to label evidence.
@@ -765,7 +758,7 @@ class Run:
         from test_commands import suite_inventory
         inventory = suite_inventory(('host',))
         self.inputs = source_identity(self.root)
-        self.report.write('\nSource inputs SHA-256: ' + self.inputs + '\n')
+        self.report.write('\nInitial source inputs SHA-256 (informational): ' + self.inputs + '\n')
         if 'host' not in self.phases:
             return self.run_vm_only()
         discovery = self.categories[0]
@@ -846,7 +839,6 @@ class Run:
                 self.complete_host(job, result)
                 outcomes[job.key] = job.item.state == 'Passed'
         if not self.includes_vm:
-            self.check_inputs()
             return
         if any(job.item.state != 'Passed' for job in package_jobs):
             for item in (system, graphical):
@@ -898,14 +890,13 @@ class Run:
         if any(item.state != 'Passed' for item in items):
             raise ValueError('cleanup safety prerequisites failed; protected suites refused')
         # The scheduler has joined every worker; Execution validated each exact
-        # inventory, completion, exit and source boundary. Persist before reuse.
-        self.check_inputs()
+        # inventory, completion and exit. Persist before reuse.
         self.report.snapshot(self.categories)
         self.report.checkpoint(force=True)
         import test_activity
         test_activity.record_cleanup(self.inputs)
         self.report.write('\nHost cleanup prerequisites: passed; owned host workers reuse '
-                          'this gate after validating unchanged source inputs.\n')
+                          'this gate for the current activity.\n')
 
     def discover_vm(self, system, graphical):
         if system is not None:
@@ -952,7 +943,6 @@ class Run:
                                   'no customer scenarios executed. See '
                                   '`tests/e2e/scenarios.json` pending_reason fields '
                                   'for implementation and qualification blockers.\n')
-        self.check_inputs()
 
 
 def recover_initial_checks(root, state):

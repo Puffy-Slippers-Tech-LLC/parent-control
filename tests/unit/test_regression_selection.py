@@ -21,6 +21,27 @@ def source_identity(monkeypatch):
     monkeypatch.setattr(regression_selection, 'source_identity', lambda _: 'fixed-test-inputs')
 
 
+def test_edits_during_a_category_do_not_block_later_categories(tmp_path, monkeypatch):
+    target = tmp_path / 'source.py'
+    target.write_text('before')
+    identity = Mock(side_effect=lambda _: target.read_text())
+    monkeypatch.setattr(regression, 'source_identity', identity)
+    monkeypatch.setattr(regression_selection, 'source_identity', identity)
+    monkeypatch.setattr(regression_process, 'session_stop', None)
+    commands = []
+
+    def execute(self, command, *, output, **kwargs):
+        commands.append(command)
+        target.write_text('after')
+        return 0
+
+    monkeypatch.setattr(regression.Control, 'run', execute)
+    assert regression.retained_main(tmp_path, selections=[
+        ('static', ['shell']), ('static', ['gjs'])]) == 0
+    assert len(commands) == 2
+    identity.assert_called_once_with(tmp_path)
+
+
 @pytest.mark.parametrize('category', [kind for kind in test_commands.CATEGORIES
                                      if kind not in test_commands.AGGREGATES])
 def test_detached_categories_use_the_shared_report(monkeypatch, category):

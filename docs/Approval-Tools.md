@@ -348,9 +348,9 @@ artifacts under the [shared storage roots](../tests/README.md#prompt-free-test-a
 Host-integrated categories run all `test_*cleanup_safety.py` and
 `test_graphical_lease.py` in isolation before the protected operation. The
 aggregate's UI, component and fixture-runtime workers may reuse its passing
-gate only through the inherited checkout activity lock and an unchanged source
-digest. Fresh invocations clear this temporary record; standalone commands still
-run prerequisites, and stale/invalid records refuse. Publishing, artifact and VM
+gate only through the inherited checkout activity lock. Checkout edits do not
+expire this passing gate. Fresh invocations clear the temporary record;
+standalone commands still run prerequisites, and invalid records refuse. Publishing, artifact and VM
 gates do not use this host optimization. The
 privileged dispatcher runs these as the caller, then starts the selected
 controller as root. A failed prerequisite prevents the operation. Tests that

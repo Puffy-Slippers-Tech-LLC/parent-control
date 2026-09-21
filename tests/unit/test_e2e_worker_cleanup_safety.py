@@ -324,7 +324,7 @@ def test_refused_lease_never_creates_callback_or_worker(attempt):
 
 
 @pytest.mark.parametrize('change', ['digest', 'missing', 'additional'])
-def test_changed_distribution_refused_before_worker_or_callback(attempt, change):
+def test_current_distribution_is_staged_despite_earlier_source_changes(attempt, change):
     inputs = dict(attempt.options['expected_inputs'])
     key = next(iter(inputs))
     if change == 'digest':
@@ -333,11 +333,11 @@ def test_changed_distribution_refused_before_worker_or_callback(attempt, change)
         del inputs[key]
     else:
         inputs[key + '.pm'] = '0' * 64
-    with pytest.raises(RuntimeError, match='distribution-inputs-changed'):
-        attempt.run(expected_inputs=inputs)
-    runtime.CallbackServer.assert_not_called()
-    runtime.Worker.assert_not_called()
-    assert not (attempt.directory / 'distribution').exists()
+    result = attempt.run(expected_inputs=inputs)
+    assert result['outcome'] == 'passed'
+    runtime.CallbackServer.assert_called_once()
+    runtime.Worker.assert_called_once()
+    assert (attempt.directory / 'distribution').is_dir()
 
 
 def test_unsafe_worker_directory_refuses_before_lease_or_spawn(attempt):

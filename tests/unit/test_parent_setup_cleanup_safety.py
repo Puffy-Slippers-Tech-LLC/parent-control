@@ -48,6 +48,13 @@ def test_suite_setup_installs_and_reboots_without_product_validation(setup):
     assert vm.call.call_args.args[0][-1] == 'install-suite'
 
 
+def test_staged_helpers_survive_checkout_changes_before_capture(setup):
+    adapter, vm, _ = setup
+    adapter.verified.source_files = {'tests/integration/system_guest.py': 'b' * 64}
+    adapter.provision(Mock())
+    vm.copy.assert_called_once()
+
+
 @pytest.mark.parametrize('failure', [None, 'copy', 'changed-source'])
 def test_reused_snapshot_refreshes_guarded_payload_before_customer_input(
         setup, tmp_path, monkeypatch, failure):

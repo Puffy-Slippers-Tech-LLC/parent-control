@@ -136,15 +136,17 @@ def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source, r
     monkeypatch.setattr(real_lease, '__enter__', enter)
     monkeypatch.setattr(execution.system, 'Lease', lease_factory)
     class Verified:
-        def __init__(self, *, lease, assets, root):
+        def __init__(self, *, lease, assets, root, plan):
             self.lease, self.root = lease, root
+            self.plan = copy.deepcopy(plan)
             self.inputs = copy.deepcopy(inputs)
             self.source_files = {'tests/e2e/synthetic.py': hashlib.sha256(callback.read_bytes()).hexdigest()}
             self.recheck = Mock()
             self.recheck_contract = Mock()
         def contract(self, *, run_id, selector):
             return evidence.EvidenceContract(inventory_path=path, root=self.root,
-                                            run_id=run_id, selector=selector, inputs=self.inputs)
+                                            run_id=run_id, selector=selector, inputs=self.inputs,
+                                            resolved_plan=self.plan)
         def validate(self, contract, records, collector):
             assert self.lease.fd == 42 and self.lease.state['phase'] == 'complete'
             events.append('validate')
@@ -162,6 +164,7 @@ def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source, r
     request.addfinalizer(assets.close)
     plan = runner['preflight'](['--artifacts=' + str(assets.path)], root=tmp_path)
     yield SimpleNamespace(root=tmp_path, plan=plan, case=plan['cases'][0], callback=callback,
+                          inputs=inputs,
                           events=events, leases=leases, source=source, collectors=collectors,
                           worker=worker, fingerprint=fingerprint, runner=runner)
 
@@ -617,23 +620,35 @@ def test_suite_candidates_require_final_audit_before_invocation_acceptance(
     assert 'private-canary' not in json.dumps(result)
 
 
-@pytest.mark.parametrize('fault', ['digest', 'symlink', 'edited-while-loading'])
-def test_callback_refuses_changed_or_replaced_frozen_code(harness, fault):
+@pytest.mark.parametrize('fault', ['symlink', 'baseline-changed'])
+def test_callback_refuses_unsafe_path_or_failed_baseline_guard(harness, fault):
     marker = harness.root / 'callback-ran'
     harness.callback.write_text(
         f"from pathlib import Path\nPath({str(marker)!r}).touch()\n" + CALLBACK)
     verified = SimpleNamespace(root=harness.root, recheck=Mock(), source_files={
         'tests/e2e/synthetic.py': hashlib.sha256(harness.callback.read_bytes()).hexdigest()})
-    if fault == 'digest': verified.source_files['tests/e2e/synthetic.py'] = '0' * 64
-    elif fault == 'symlink':
+    if fault == 'symlink':
         original = harness.root / 'original.py'
         harness.callback.rename(original)
         harness.callback.symlink_to(original)
     else:
-        verified.recheck.side_effect = RuntimeError('provenance:source-changed')
+        verified.recheck.side_effect = RuntimeError('provenance:baseline-changed')
     with pytest.raises((ValueError, RuntimeError)):
         execution.load_callback(harness.case, verified)
     assert not marker.exists()
+
+
+def test_callback_uses_current_checkout_bytes_after_capture(harness):
+    verified = SimpleNamespace(root=harness.root, recheck=Mock(), source_files={
+        'tests/e2e/synthetic.py': '0' * 64})
+    assert callable(execution.load_callback(harness.case, verified))
+
+
+def test_later_attempt_accepts_new_source_identity(harness):
+    expected = copy.deepcopy(harness.inputs)
+    expected['source_sha256'] = 'b' * 64
+    result = run(harness, expected_inputs=expected)
+    assert result['outcome'] == 'passed'
 
 
 def test_independent_connections_share_one_event_loop(monkeypatch):

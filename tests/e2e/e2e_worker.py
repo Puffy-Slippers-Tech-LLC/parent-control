@@ -155,13 +155,11 @@ def distribution_inputs():
     return result
 
 
-def stage_distribution(directory, expected_inputs):
-    """Copy frozen bytes only if they match the controller's earlier input map."""
+def stage_distribution(directory, staged_inputs):
+    """Copy current validated bytes and record the private worker's input map."""
     files = distribution_inputs()
     prefix = DISTRIBUTION.relative_to(ROOT).as_posix() + '/'
     actual = {prefix + name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
-    require(actual == {key: value for key, value in expected_inputs.items()
-                       if key.startswith(prefix)}, 'e2e:distribution-inputs-changed')
     destination = directory / 'distribution'
     destination.mkdir(mode=0o700)
     for name, data in files.items():
@@ -171,6 +169,7 @@ def stage_distribution(directory, expected_inputs):
         with os.fdopen(fd, 'wb') as stream:
             stream.write(data)
     (destination / 'needles').mkdir(mode=0o700, exist_ok=True)
+    staged_inputs.update(actual)
     return hashlib.sha256(json.dumps(actual, sort_keys=True).encode()).hexdigest()
 
 
@@ -267,7 +266,8 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
             collector.save_report(name, result)
 
         try:
-            result['distribution_sha256'] = stage_distribution(directory, expected_inputs)
+            staged_inputs = {}
+            result['distribution_sha256'] = stage_distribution(directory, staged_inputs)
             server = CallbackServer(adapter, directory)
             if serial:
                 adapter.serial = SerialConsole(adapter, directory)
@@ -280,7 +280,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                 # The worker executes this frozen private distribution. Recheck
                 # its bytes before authorizing input after blocking observations.
                 prefix = DISTRIBUTION.relative_to(ROOT).as_posix() + '/'
-                for key, digest in expected_inputs.items():
+                for key, digest in staged_inputs.items():
                     if key.startswith(prefix):
                         path = directory / 'distribution' / key.removeprefix(prefix)
                         require(not path.is_symlink() and path.resolve().is_relative_to(

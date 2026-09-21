@@ -443,6 +443,37 @@ def test_absence_requires_a_complete_read_and_positive_owned_surface(fault):
     assert ui.absent("feedback-dialog", within="parent-window") is (fault is None)
 
 
+def test_absence_retries_when_dialog_closes_during_owner_validation():
+    surrounding = Node("kiosk-request-window")
+    dialog = Node("feedback-success-dialog")
+    root = Node("", [surrounding, dialog])
+    automation = adapter(root)
+    reader = AccessibleUI(automation.api)
+    reader.nodes = automation.nodes
+    original_find = reader.find_id
+
+    def close_before_owner_validation(identity, **kwargs):
+        if identity == "feedback-success-dialog" and dialog in root.children:
+            root.children.remove(dialog)
+        return original_find(identity, **kwargs)
+
+    reader.find_id = close_before_owner_validation
+    assert reader.absent_id("feedback-success-dialog", within="kiosk-request-window") is False
+    assert reader.absent_id("feedback-success-dialog", within="kiosk-request-window") is True
+
+
+def test_absence_rejects_a_stable_dialog_outside_its_owned_application():
+    surrounding = Node("kiosk-request-window")
+    application = Node("com.puffyslippers.OhNoParentControl", [surrounding])
+    foreign = Node("foreign-application", [Node("feedback-success-dialog")])
+    automation = adapter(Node("", [application, foreign]))
+    reader = AccessibleUI(automation.api)
+    reader.nodes = automation.nodes
+
+    with pytest.raises(UiError, match="wrong-absence-owner"):
+        reader.absent_id("feedback-success-dialog", within="kiosk-request-window")
+
+
 def test_live_launches_cannot_exchange_their_application_identity():
     ui = adapter(Node("parent-window", [Node("parent-menu-button")]))
     ui.owner_pids = lambda: {100, 200}

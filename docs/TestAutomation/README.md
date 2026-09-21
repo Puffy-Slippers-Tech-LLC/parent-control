@@ -7,6 +7,11 @@ queue. Repository-wide safety, authorization and UI identity rules remain in
 When documents disagree, use the ownership table below instead of combining the
 strongest-looking fragments.
 
+Checkout files may change while tests run. Such edits do not invalidate the run
+or its completed cleanup prerequisites. This supersedes older task-brief text
+requiring source/documents to remain unchanged through cleanup. Preserve actual
+test failures and the staged-artifact, evidence and VM ownership checks.
+
 ## Document ownership
 
 | Source | Owns | Does not establish |

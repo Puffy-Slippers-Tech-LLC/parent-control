@@ -80,10 +80,18 @@ class EvidenceContract:
     """
 
     def __init__(self, *, inventory_path=inventory.INVENTORY, selector=None,
-                 inputs, run_id, root=inventory.ROOT):
+                 inputs, run_id, root=inventory.ROOT, resolved_plan=None):
         require(token(run_id), 'result:run-id')
-        document, digest = inventory.read_json(inventory_path)
-        plan = inventory.resolve_selection(document, selector, require_runnable=True, root=root)
+        if resolved_plan is None:
+            document, digest = inventory.read_json(inventory_path)
+            plan = inventory.resolve_selection(document, selector, require_runnable=True, root=root)
+        else:
+            # The controller already resolved this selection before execution.
+            # Later checkout edits must not replace the running acceptance plan.
+            plan = copy.deepcopy(resolved_plan)
+            digest = plan['inventory_sha256']
+            require(bool(plan['cases']), 'selection:no-ready-cases')
+            require(all(case['status'] == 'ready' for case in plan['cases']), 'selection:pending')
         fields(inputs, INPUT_FIELDS, 'result:input-fields')
         for key in INPUT_FIELDS:
             if key == 'environment_id':

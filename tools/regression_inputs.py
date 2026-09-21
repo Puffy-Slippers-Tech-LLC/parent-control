@@ -1,4 +1,4 @@
-"""Detect changed aggregate inputs at category boundaries and final acceptance."""
+"""Record initial aggregate source identity for informational provenance."""
 
 import hashlib
 import subprocess

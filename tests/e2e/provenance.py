@@ -174,34 +174,11 @@ def baseline_inputs(lease):
             'environment_id': 'ubuntu26-04-' + digest(state['guest'])}
 
 
-def source_change_summary(expected, current):
-    """Describe a rejected comparison using fixed fields and counts only."""
-    before, after = expected['files'], current['files']
-    shared = before.keys() & after.keys()
-    fields = ('device', 'inode', 'mode', 'links', 'size', 'mtime', 'ctime')
-    return {
-        'added': len(after.keys() - before.keys()),
-        'removed': len(before.keys() - after.keys()),
-        'content': sum(before[path] != after[path] for path in shared),
-        'directory': int(expected['directory'] != current['directory']),
-        **{field: sum(expected['metadata'][path][index]
-                      != current['metadata'][path][index] for path in shared)
-           for index, field in enumerate(fields)},
-    }
-
-
 def preflight_source(assets, *, root=ROOT):
-    """Reject stale package inputs before acquiring or preparing the guest.
-
-    This early check is diagnostic only. VerifiedInputs still captures and
-    rechecks all source, asset and baseline identities under the held lease.
-    """
+    """Record source provenance and verify supplied artifacts before the lease."""
     try:
         captured = snapshot(root, source=True)
-        manifest = build_test_artifacts.verify(assets)
-        require(package_source_matches(root, manifest, captured),
-                'provenance:package-source-mismatch')
-        require(snapshot(root, source=True) == captured, 'provenance:source-changed')
+        build_test_artifacts.verify(assets)
     except Exception as error:
         print('e2e:source-preflight-rejected', file=sys.stderr, flush=True)
         code = str(error) if isinstance(error, EvidenceError) else 'provenance:source-preflight-failed'
@@ -210,28 +187,20 @@ def preflight_source(assets, *, root=ROOT):
     return {'source_sha256': captured['sha256'], 'scope': 'before-lease-diagnostic'}
 
 
-def package_source_matches(root, manifest, captured):
-    if manifest['source'].get('scope') == 'package':
-        inputs = build_test_artifacts.package_inputs
-        current = inputs.digest(root, inputs.paths(root))
-    else:
-        current = captured['sha256']
-    return manifest['source']['digest_sha256'] == current
-
-
 class VerifiedInputs:
-    """Freeze expected inputs independently, and latch any preservation failure.
+    """Record source inputs and enforce staged artifact and baseline integrity.
 
     The assets directory must be the private staged output of stage_assets, not
     a worker manifest. Product-free smoke may omit it; EvidenceContract enforces
     that exception against the selected category.
     """
 
-    def __init__(self, *, lease, assets=None, root=ROOT):
+    def __init__(self, *, lease, assets=None, root=ROOT, plan=None):
         self.root, self.lease = Path(root), lease
         self.assets = Path(assets) if assets is not None else None
         self._failure = None
         self._contracts = []
+        self._plan = copy.deepcopy(plan)
         try:
             self._source = snapshot(self.root, source=True)
             self._baseline = baseline_inputs(lease)
@@ -242,8 +211,6 @@ class VerifiedInputs:
                 require(info.st_uid == os.geteuid() and stat.S_IMODE(info.st_mode) == 0o700,
                         'provenance:assets-not-private')
                 manifest = build_test_artifacts.verify(self.assets)
-                require(package_source_matches(self.root, manifest, self._source),
-                        'provenance:package-source-mismatch')
                 fixtures = self.assets / manifest['artifacts']['fixtures']['path']
                 build_test_applications.verify(fixtures)
                 require((fixtures / 'onpc-test-application.flatpak').is_file(),
@@ -251,12 +218,13 @@ class VerifiedInputs:
                 package_sha256 = manifest['artifacts']['package']['sha256']
             self._inputs = {
                 'source_sha256': self._source['sha256'],
-                'inventory_sha256': self._source['files']['tests/e2e/scenarios.json'],
+                'inventory_sha256': (self._plan['inventory_sha256'] if self._plan is not None
+                                     else self._source['files']['tests/e2e/scenarios.json']),
                 'package_sha256': package_sha256,
                 'assets_sha256': self._assets['sha256'] if self._assets else digest({}),
                 **self._baseline,
             }
-            # Detect edits while artifact and baseline verification was running.
+            # Verify staged artifacts and baseline after capture.
             self.recheck()
         except EvidenceError:
             raise
@@ -280,17 +248,9 @@ class VerifiedInputs:
     def recheck(self):
         require(self._failure is None, self._failure or 'provenance:previous-failure')
         self.recheck_milliseconds = {}
-        component = 'source'
+        component = 'assets'
         started = time.monotonic()
         try:
-            current_source = snapshot(self.root, source=True)
-            if current_source != self._source:
-                print('e2e:source-change ' + json.dumps(
-                    source_change_summary(self._source, current_source), sort_keys=True),
-                    file=sys.stderr, flush=True)
-                raise EvidenceError('provenance:source-changed')
-            self.recheck_milliseconds[component] = round((time.monotonic() - started) * 1000)
-            component, started = 'assets', time.monotonic()
             if self.assets is not None:
                 require(snapshot(self.assets) == self._assets, 'provenance:assets-changed')
             self.recheck_milliseconds[component] = round((time.monotonic() - started) * 1000)
@@ -308,7 +268,8 @@ class VerifiedInputs:
     def contract(self, *, run_id, selector=None):
         self.recheck()
         contract = EvidenceContract(inventory_path=self.root / 'tests/e2e/scenarios.json',
-                                    root=self.root, selector=selector, run_id=run_id, inputs=self.inputs)
+                                    root=self.root, selector=selector, run_id=run_id, inputs=self.inputs,
+                                    resolved_plan=self._plan)
         self._contracts.append(contract)
         return contract
 

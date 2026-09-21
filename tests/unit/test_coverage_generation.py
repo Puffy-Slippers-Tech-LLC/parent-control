@@ -115,11 +115,14 @@ def test_pending_number_refuses_execution_before_artifact_or_privilege_checks():
         coverage.test_commands.plan(ROOT, 'e2e', ['--id', '2'])
 
 
-def test_retired_numeric_execution_refuses_before_existing_installed_dispatcher():
+def test_numeric_execution_forwards_exact_case_to_existing_installed_dispatcher():
     with tempfile.TemporaryDirectory(prefix='onpc-coverage-selector-', dir='/tmp') as directory:
-        with pytest.raises(ValueError, match='selection:pending'):
-            coverage.test_commands.plan(
-                ROOT, 'e2e', ['--id', '1', '--artifacts', directory])
+        commands, safety = coverage.test_commands.plan(
+            ROOT, 'e2e', ['--id', '1', '--artifacts', directory])
+    assert safety is False
+    assert commands == [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
+                         'e2e', '--artifacts=' + directory,
+                         '--scenario=E2E-001/gdm-observation']]
 
 
 @pytest.fixture
@@ -148,10 +151,10 @@ def test_generation_replaces_entire_document_and_is_deterministic(checkout, monk
     assert (b'| Unit | <span style="color: green">7</span>/'
             b'<span style="color: gray">0</span>/7 | Checks isolated behavior. |') in first
     summary, scenarios = first.split(b'## E2E scenarios\n', 1)
-    assert b'| E2E | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |' in summary
+    assert b'| E2E | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |' in summary
     subcategories = scenarios.split(b'| ID | Scenario | Variant | Status |', 1)[0]
-    assert b'| runner-smoke | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |' in subcategories
-    assert b'| **Total** | **<span style="color: green">7</span>/<span style="color: gray">1</span>/8** |' in first
+    assert b'| runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |' in subcategories
+    assert b'| **Total** | **<span style="color: green">8</span>/<span style="color: gray">0</span>/8** |' in first
     coverage.generate(checkout)
     assert target.read_bytes() == first
     assert not list(target.parent.glob('.Test-Coverage-*'))

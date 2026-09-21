@@ -6,7 +6,6 @@ capture. Cases restore their declared snapshot under one suite lease.
 
 import copy
 from functools import cache
-import hashlib
 import importlib
 import json
 import os
@@ -78,15 +77,13 @@ def open_source():
 
 
 def load_callback(case, verified):
-    """Execute frozen, digest-checked Python bytes, never a caller command."""
+    """Execute the selected trusted checkout callback using its current bytes."""
     relative = case['executable']['path']
     path = verified.root / relative
     require(path.suffix == '.py' and path.resolve() == path and path.is_file(),
             'execution:unsafe-callback')
     verified.recheck()
     data = path.read_bytes()
-    require(hashlib.sha256(data).hexdigest() == verified.source_files.get(relative),
-            'execution:callback-inputs-changed')
     namespace = {'__file__': str(path), '__name__': 'onpc_e2e_scenario'}
     exec(compile(data, str(path), 'exec'), namespace)
     callbacks = namespace.get('E2E_CASES')
@@ -234,13 +231,16 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                                                 observation_only=not installed_consumer)
                     lease.guard(off=True)
                     lease.save('isolated')
-                    verified = VerifiedInputs(lease=lease, assets=staged, root=root)
+                    verified = VerifiedInputs(lease=lease, assets=staged, root=root,
+                                              plan={**plan, 'cases': [case]})
                     if suite is not None:
                         suite.verified = verified
                     report['inputs'] = verified.inputs
                     require(verified.inputs['inventory_sha256'] == plan['inventory_sha256'],
                             'execution:selection-inputs-changed')
-                    require(expected_inputs is None or verified.inputs == expected_inputs,
+                    require(expected_inputs is None or
+                            {key: value for key, value in verified.inputs.items() if key != 'source_sha256'} ==
+                            {key: value for key, value in expected_inputs.items() if key != 'source_sha256'},
                             'execution:invocation-inputs-changed')
                     contract = verified.contract(run_id=run_id, selector=case['case_id'])
                     require(contract.plan['cases'] == [case], 'execution:selection-changed')

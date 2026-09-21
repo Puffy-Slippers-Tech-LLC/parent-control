@@ -1680,9 +1680,11 @@ class ParentWindow(Adw.ApplicationWindow):
                    f"granted to {child_name}, close their running blocked apps, and "
                    "lock their desktop when no time remains. "
                    "Their remaining daily time allowance is not impacted."),
-            wrap=True, xalign=0, margin_top=18, margin_bottom=18,
+            wrap=True, max_width_chars=72, xalign=0,
+            margin_top=18, margin_bottom=18,
             margin_start=18, margin_end=18,
         )
+        warning.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)
         set_automation_id(warning, "parent-revoke-warning")
         dialog.get_content_area().append(warning)
         add_dialog_button(

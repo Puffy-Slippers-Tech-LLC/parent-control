@@ -16,6 +16,7 @@ strongest-looking fragments.
 | [Scenario recipes](E2E-Scenario-Recipes.md) | Exact scenario composition, finite inputs and expected public results | Current runner status or scheduling |
 | [Execution plan](E2E-Execution-Plan.md) | Next-task selection, implementation workflow, live verification and close-out | Product behavior or reusable block semantics |
 | [Task queue](E2E-Task-Queue.md) | Ordered dependency checklist and delivered task scope | Current block or scenario readiness |
+| [External adapter plan](External/README.md) | Bounded tasks to remove external-provider blockers for the customer queue | Provider qualification or customer completion merely from a checked host task |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |
 
@@ -66,3 +67,8 @@ them separate from customer scenario completion.
 All live UI work inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate),
 including its external-provider exception. The catalogue records implementation
 gaps and route qualification; it does not redefine that mandate.
+
+Use the [external adapter plan](External/README.md) to break provider work into
+tasks of at most one hour. External IDs are optional conveniences: a brief tree
+inspection or online lookup is enough before using the approved provider
+workaround. Repository-owned UI retains its mandatory public-ID contract.

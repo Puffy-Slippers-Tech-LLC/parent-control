@@ -100,6 +100,14 @@ open across reboot, shutdown, failure cleanup and subsequent attempts; it shows
 Waiting between available displays and resumes automatically. Only closing the
 window yourself ends it. Automation neither owns nor signals your viewer process.
 
+The same viewer follows guarded VM experiments and integration qualifications:
+the existing display collector supplies the guest screen, and the command pane
+shows SSH activity independently of a scenario recorder. Public UI observations
+announce their fixed operation and result; validated kiosk diagnostic phases
+stream into that pane even if the observation later times out. Observer source,
+stdin and raw private replies remain hidden. New experiments must reuse these
+channels rather than add another viewer or terminal connection.
+
 The title is `[current/total] [ID]: Title`, using the selected invocation's case
 count (including the case in progress), numeric coverage ID and inventory title.
 The top reserves three lines for the current inventory step description; the

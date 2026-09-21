@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 import test_activity
+import test_retention
 from test_recovery import cleanup
 
 
@@ -20,7 +21,9 @@ def main(argv=None):
             return status
         if (root / 'artifacts/test-retention-host').exists():
             with test_activity.activity(root, host_only=True):
-                return cleanup(root)
+                # VM recovery and its cleanup gate passed above. Repeating that
+                # gate under host ownership would contend with this very lock.
+                test_retention.Store(test_activity.retention_path(root)).reconcile(lambda: None)
         return 0
     except (ValueError, OSError) as error:
         print('cleanup-e2e: ' + str(error), file=sys.stderr)

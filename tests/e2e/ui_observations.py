@@ -1,9 +1,11 @@
 """Guarded controller for public UI operations, with sanitized evidence."""
 
 import json
+import sys
 from dataclasses import dataclass
 
 import accessible_ui
+import watch_activity
 from private_artifacts import require
 import system_runner as system
 
@@ -187,6 +189,30 @@ class UiObservations:
     def point(value):
         require(False, 'ui:pointer-route-refused')
 
+    @staticmethod
+    def retain_kiosk_diagnostic(value):
+        """Validate before forwarding; guest text never becomes a diagnostic."""
+        require(set(value) == {'event', 'phase', 'status', 'elapsed_ms', 'tree',
+                'public_ids', 'tree_reads', 'nodes_read', 'incomplete_reads', 'query_errors'}
+                and value['phase'] in accessible_ui.KIOSK_DIAGNOSTIC_PHASES
+                and value['status'] in {'reading', 'missing', 'incomplete', 'query-error',
+                                        'passed', 'failed'}
+                and value['tree'] in {'unread', 'complete', 'incomplete'}, 'ui:diagnostic')
+        require(all(type(value[key]) is int and 0 <= value[key] <= 10**9
+                    for key in ('elapsed_ms', 'tree_reads', 'nodes_read',
+                                'incomplete_reads', 'query_errors')), 'ui:diagnostic')
+        counts = value['public_ids']
+        require(type(counts) is dict and (not counts or
+                set(counts) == set(accessible_ui.KIOSK_DIAGNOSTIC_IDS))
+                and all(type(count) is int and 0 <= count <= 6000
+                        for count in counts.values())
+                and (value['tree'] == 'complete') == bool(counts), 'ui:diagnostic')
+        # Controller stderr is retained by the owned command even when its SSH
+        # child times out. Keep this evidence separate from the final UI result.
+        line = json.dumps(value, sort_keys=True)
+        print(line, file=sys.stderr, flush=True)
+        watch_activity.event(line)
+
     def call(self, argv, operation, *, input=None):
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
@@ -194,24 +220,33 @@ class UiObservations:
         timeout = 390 if (operation in accessible_ui.GREETER_OPERATIONS
                           or operation in accessible_ui.STATION_BRANCH_OPERATIONS) else (
             120 if operation in accessible_ui.KIOSK_OPERATIONS else 90)
-        if self.system_prompt is None:
+        kiosk = operation in accessible_ui.KIOSK_OPERATIONS
+        if self.system_prompt is None and not kiosk:
             return self.transport.call(argv, input=input, timeout=timeout), []
         commands = self.transport.commands
         previous = commands.progress
         pending = bytearray()
         prompts, results = [], []
         received = 0
+        diagnostic_count = 0
 
         def output(data):
-            nonlocal received
+            nonlocal received, diagnostic_count
             received += len(data)
-            require(received <= 8192, 'ui:response-size')
+            require(received <= (131072 if kiosk else 8192), 'ui:response-size')
             pending.extend(data)
             while b'\n' in pending:
                 line, _, rest = pending.partition(b'\n')
                 pending[:] = rest
                 value = json.loads(line)
-                if type(value) is dict and value.get('event') == 'system-prompt':
+                if type(value) is dict and value.get('event') == 'kiosk-form-observation':
+                    diagnostic_count += 1
+                    require(kiosk and not results and diagnostic_count <= 128,
+                            'ui:diagnostic-order')
+                    require(bytes(line) == json.dumps(value, sort_keys=True).encode(),
+                            'ui:diagnostic')
+                    self.retain_kiosk_diagnostic(value)
+                elif type(value) is dict and value.get('event') == 'system-prompt':
                     require(False, 'ui:prompt-coordinate-route-refused')
                 else:
                     require(not results, 'ui:response-replay')
@@ -225,14 +260,22 @@ class UiObservations:
 
     def observe(self, operation):
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
+        # Qualifications lack a scenario recorder, but use the same existing
+        # spectator command pane as customer cases. Keep private program/stdin
+        # and raw UI replies hidden; expose the fixed operation and its result.
+        watch_activity.event('SSH UI: ' + OPERATION_LABELS[operation])
         if self.progress is not None:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
         version = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
         # The standalone observer can exceed Linux's per-argument limit after
         # SSH shell quoting. Carry its bytes on the existing guarded stdin pipe.
-        raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version],
-                                 operation, input=program.encode())
+        try:
+            raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version],
+                                     operation, input=program.encode())
+        except BaseException:
+            watch_activity.event('SSH UI observation failed: ' + operation)
+            raise
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
@@ -303,6 +346,7 @@ class UiObservations:
         elif operation == 'gdm-standard-recipient-rechecked':
             require(self.last_operation == 'gdm-standard-recipient', 'ui:recipient-order')
         self.last_operation = operation
+        watch_activity.event('SSH UI observation passed: ' + operation)
         if prompts:
             result['system_prompts'] = prompts
         return result

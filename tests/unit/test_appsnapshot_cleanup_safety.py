@@ -130,19 +130,28 @@ def test_standalone_cleanup_uses_the_shared_module_under_activity(tmp_path, monk
     assert cleanup_e2e.main([]) == 7
 
 
-def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypatch):
+@pytest.mark.parametrize('status', [0, 7])
+def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypatch, status):
     monkeypatch.setattr(cleanup_e2e, '__file__', str(tmp_path / 'tools/cleanup_e2e.py'))
     monkeypatch.setattr(cleanup_e2e.os, 'geteuid', lambda: 1000)
-    (tmp_path / 'artifacts/test-retention-host').mkdir(parents=True)
+    retention = cleanup_e2e.test_retention
+    store = retention.Store(tmp_path / 'artifacts/test-retention-host')
+    with store.session() as run:
+        retention.preserve_for_recovery()
     paths = []
     def cleanup(root):
         assert cleanup_e2e.test_activity.descriptors()
         paths.append(cleanup_e2e.test_activity.retention_path(root))
-        return 0
+        assert paths == [tmp_path / 'artifacts/test-retention']
+        return status
     monkeypatch.setattr(cleanup_e2e, 'cleanup', cleanup)
-    assert cleanup_e2e.main([]) == 0
-    assert paths == [tmp_path / 'artifacts/test-retention',
-                     tmp_path / 'artifacts/test-retention-host']
+    assert cleanup_e2e.main([]) == status
+    assert paths == [tmp_path / 'artifacts/test-retention']
+    assert (store.path / 'recovery-required').exists() == bool(status)
+    assert (store.path / f'recovered-{run}.json').exists() == (status == 0)
+    if not status:
+        with store.session():
+            pass
 
 
 @pytest.fixture

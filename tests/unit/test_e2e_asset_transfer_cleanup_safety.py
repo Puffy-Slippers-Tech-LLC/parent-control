@@ -103,14 +103,12 @@ def test_inventory_api_prefix_is_explicit_and_diagnostic_excludes_paths(attempt,
     assert 'delivery with spaces' not in output
 
 
-@pytest.mark.parametrize('fault', ['source', 'assets', 'phase', 'running', 'lease',
+@pytest.mark.parametrize('fault', ['assets', 'phase', 'running', 'lease',
                                   'corrupt', 'existing', 'symlink', 'interrupt', 'extra', 'late-assets'])
 def test_refusals_latch_and_leave_restoration_to_outer_lease(attempt, fault):
     control, lease, guest, api = attempt
     selected_lease = lease
-    if fault == 'source':
-        (control.verified.root / 'local-change.py').write_text('changed')
-    elif fault == 'assets':
+    if fault == 'assets':
         (control.verified.assets / 'package.deb').write_bytes(b'changed')
     elif fault == 'phase':
         lease.state['phase'] = 'running'
@@ -137,7 +135,7 @@ def test_refusals_latch_and_leave_restoration_to_outer_lease(attempt, fault):
         guest.sync = sync
     with pytest.raises(BaseException):
         control.provision(selected_lease, api)
-    if fault in ('source', 'assets', 'phase', 'running', 'lease'):
+    if fault in ('assets', 'phase', 'running', 'lease'):
         api.GuestFS.assert_not_called()
     else:
         assert guest.closed

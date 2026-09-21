@@ -511,7 +511,7 @@ class AccessibleUI:
         self.gdm_row_diagnostic_emitted = False
         self.kiosk_diagnostic = None
 
-    def nodes(self, root=None, *, strict=False, protected_ids=()):
+    def nodes(self, root=None, *, strict=False, protected_ids=(), snapshot=None):
         diagnostic = self.kiosk_diagnostic
         if diagnostic is not None:
             diagnostic.check()
@@ -558,12 +558,31 @@ class AccessibleUI:
                         error.add_note('Null child under public automation-id: '
                                        + (public_automation_id(node) or '[unidentified]'))
                         raise error
+                    if snapshot is not None:
+                        snapshot.setdefault(node, []).extend(
+                            child for child in children if child is not None)
                     pending.extend(children)
+                elif snapshot is not None:
+                    snapshot.setdefault(node, [])
             except self.query_errors:
                 if strict:
                     raise
                 # A dead unrelated subtree must not hide live controls.
                 continue
+
+    @staticmethod
+    def snapshot_scope(nodes, snapshot, root):
+        """Return root's scope from one complete traversal, without rereading it."""
+        require(root in snapshot and root in nodes, 'ui:wrong-scope')
+        pending = [root]
+        descendants = set()
+        while pending:
+            node = pending.pop()
+            if node in descendants:
+                continue
+            descendants.add(node)
+            pending.extend(snapshot.get(node, ()))
+        return [node for node in nodes if node in descendants]
 
     def find_id(self, identity, *, root=None, nodes=None, showing=True):
         """Resolve exactly one public automation ID without selector fallbacks."""
@@ -1917,10 +1936,15 @@ class AccessibleUI:
         self.kiosk_diagnostic = diagnostic
         diagnostic.emit()
 
-        def lookup(identity, **kwargs):
-            diagnostic.emit(identity)
+        def lookup(identity, nodes, identities, *, showing=True, emit=True):
+            if emit:
+                diagnostic.emit(identity)
             diagnostic.check()
-            return self.find_id(identity, **kwargs)
+            matches = [node for node in nodes if identities[node] == identity]
+            require(len(matches) <= 1, 'ui:ambiguous-automation-id')
+            if not matches or (showing and not self.showing(matches[0])):
+                return None
+            return matches[0]
 
         def fresh_reader():
             nonlocal last_reset
@@ -1937,12 +1961,15 @@ class AccessibleUI:
             diagnostic.ids = {}
             diagnostic.emit('public-tree')
             try:
-                public_nodes = list(self.nodes(strict=True))
+                snapshot = {}
+                public_nodes = list(self.nodes(strict=True, snapshot=snapshot))
                 diagnostic.emit('public-ids')
                 counts = dict.fromkeys(KIOSK_DIAGNOSTIC_IDS, 0)
+                identity_by_node = {}
                 for node in public_nodes:
                     diagnostic.check()
                     identity = public_automation_id(node)
+                    identity_by_node[node] = identity
                     if identity in counts:
                         counts[identity] += 1
                 diagnostic.ids = counts
@@ -1957,9 +1984,33 @@ class AccessibleUI:
                 diagnostic.tree = 'incomplete'
                 raise
 
-            application = lookup(KIOSK_APPLICATION, nodes=public_nodes, showing=False)
-            form = (lookup('kiosk-request-form', root=application, nodes=public_nodes)
-                    if application is not None else None)
+            application = lookup(KIOSK_APPLICATION, public_nodes, identity_by_node,
+                                 showing=False)
+            if application is None:
+                diagnostic.emit(status='missing')
+                fresh_reader()
+                return None
+
+            requested = (self.application_ids() if callable(self.application_ids)
+                         else self.application_ids)
+            if requested is not None:
+                require(KIOSK_APPLICATION in requested, 'ui:wrong-application-owner')
+            if self.owner_pids is not None:
+                require(application.get_process_id() in self.owner_pids(), 'ui:wrong-owner')
+            if self.application_owners is not None:
+                owners = self.application_owners()
+                require(application.get_process_id() in owners.get(KIOSK_APPLICATION, ()),
+                        'ui:wrong-application-owner')
+
+            application_nodes = self.snapshot_scope(public_nodes, snapshot, application)
+            window = lookup('kiosk-request-window', application_nodes, identity_by_node)
+            if window is None:
+                diagnostic.emit(status='missing')
+                fresh_reader()
+                return None
+            self.validate_owned_surface(window, application)
+            window_nodes = self.snapshot_scope(public_nodes, snapshot, window)
+            form = lookup('kiosk-request-form', window_nodes, identity_by_node)
             if form is None:
                 diagnostic.emit(status='missing')
                 fresh_reader()
@@ -1968,28 +2019,30 @@ class AccessibleUI:
             # A matching ID in another window must never fill a missing field
             # in this form. Keep a complete fresh read for absence checks too.
             diagnostic.emit('form-tree')
-            form_nodes = list(self.nodes(form, strict=True))
+            form_nodes = self.snapshot_scope(public_nodes, snapshot, form)
             diagnostic.emit('form-states')
             require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
                         for node in form_nodes), 'ui:stale-request-form')
-            child = lookup('kiosk-child-selector', nodes=form_nodes)
-            approver = lookup('kiosk-approver-selector', nodes=form_nodes)
-            request = lookup('kiosk-request-submit', nodes=form_nodes)
-            cancel = lookup('kiosk-request-cancel', nodes=form_nodes)
-            allow_soft = lookup('kiosk-soft-apps-toggle', nodes=form_nodes)
+            child = lookup('kiosk-child-selector', form_nodes, identity_by_node)
+            approver = lookup('kiosk-approver-selector', form_nodes, identity_by_node)
+            request = lookup('kiosk-request-submit', form_nodes, identity_by_node)
+            cancel = lookup('kiosk-request-cancel', form_nodes, identity_by_node)
+            allow_soft = lookup('kiosk-soft-apps-toggle', form_nodes, identity_by_node)
             if None in (child, approver, request, cancel, allow_soft):
                 return None
 
-            def selected_identity(control, label, identities, code):
-                namespace = 'child' if identities == CHILD_IDENTITIES else 'approver'
+            def selected_identity(control, label, canonical_identities, code):
+                namespace = 'child' if canonical_identities == CHILD_IDENTITIES else 'approver'
                 diagnostic.emit('selected-' + namespace)
                 accounts = CHILD_ACCOUNTS if namespace == 'child' else APPROVER_ACCOUNTS
-                selected_nodes = [node for node in self.nodes(control, strict=True)
-                                  if public_automation_id(node).startswith(f'kiosk-{namespace}-selected-')
+                control_nodes = self.snapshot_scope(public_nodes, snapshot, control)
+                selected_nodes = [node for node in control_nodes
+                                  if identity_by_node[node].startswith(
+                                      f'kiosk-{namespace}-selected-')
                                   and self.showing(node)]
                 require(len(selected_nodes) == 1, 'ui:' + code)
                 selected = []
-                for name, canonical in identities.items():
+                for name, canonical in canonical_identities.items():
                     if self.fixture_uids is not None:
                         uid = self.fixture_uids.get(name)
                         if uid is None:
@@ -2000,7 +2053,8 @@ class AccessibleUI:
                         except KeyError:
                             continue
                     require(type(uid) is int and uid >= 1000, 'ui:fixture-account-uid')
-                    node = self.find_id(f'kiosk-{namespace}-selected-{uid}', root=control)
+                    node = lookup(f'kiosk-{namespace}-selected-{uid}',
+                                  control_nodes, identity_by_node, emit=False)
                     if node is not None and node == selected_nodes[0]:
                         selected.append((name, canonical))
                 require(len(selected) == 1, 'ui:' + code)
@@ -2011,7 +2065,7 @@ class AccessibleUI:
 
             duration_ids = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')
             durations = [
-                lookup(f'kiosk-duration-{identity}', nodes=form_nodes)
+                lookup(f'kiosk-duration-{identity}', form_nodes, identity_by_node)
                 for identity in duration_ids
             ]
             if any(button is None for button in durations):
@@ -2023,15 +2077,15 @@ class AccessibleUI:
             require(not any(self.has_state(button, self.api.StateType.SENSITIVE)
                             for button in durations), 'ui:kiosk-duration-availability')
 
-            notice = lookup('kiosk-screen-limit-notice', nodes=form_nodes)
+            notice = lookup('kiosk-screen-limit-notice', form_nodes, identity_by_node)
             if notice is None:
                 return None
             diagnostic.emit('message')
             message = ' '.join(notice.get_name().split())
             require(message == 'Screen limit is not enabled in Parent App',
                     'ui:kiosk-disabled-message')
-            custom = lookup('kiosk-custom-duration', nodes=form_nodes)
-            require(lookup('kiosk-mute-button', nodes=public_nodes) is None,
+            custom = lookup('kiosk-custom-duration', form_nodes, identity_by_node)
+            require(lookup('kiosk-mute-button', window_nodes, identity_by_node) is None,
                     'ui:kiosk-mute-present')
             diagnostic.emit('projection')
             return {
@@ -2335,8 +2389,10 @@ class AccessibleUI:
         """
         desktop = self.api.get_desktop(0)
         require(desktop is not None, 'ui:incomplete-tree')
-        nodes = list(self.nodes(desktop, strict=True))
+        snapshot = {}
+        nodes = list(self.nodes(desktop, strict=True, snapshot=snapshot))
         require(nodes, 'ui:incomplete-tree')
+        identities = {node: public_automation_id(node) for node in nodes}
         provider_application_ids = {
             contract.get('application_id')
             for provider, contract in self.provider_contracts.items()
@@ -2345,18 +2401,18 @@ class AccessibleUI:
         }
         applications = [node for node in nodes
                         if node.get_role_name() == 'application'
-                        or public_automation_id(node) in provider_application_ids]
+                        or identities[node] in provider_application_ids]
         candidates = []
         for application in applications:
-            application_nodes = list(self.nodes(application, strict=True))
+            application_nodes = self.snapshot_scope(nodes, snapshot, application)
             application_kind = self._prompt_application_kind(application.get_name())
-            owned = bool(public_automation_id(application) in (
+            owned = bool(identities[application] in (
                 PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION,
                 WATCH_APPLICATION, UI_WATCH_APPLICATION))
             for surface in application_nodes:
                 if surface is application or not self.showing(surface):
                     continue
-                descendants = list(self.nodes(surface, strict=True))
+                descendants = self.snapshot_scope(nodes, snapshot, surface)
                 password = any(node.get_role_name() == 'password text'
                                for node in descendants)
                 prompt_title = self._prompt_title(surface.get_name())

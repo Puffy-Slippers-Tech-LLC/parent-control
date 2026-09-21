@@ -225,9 +225,11 @@ def test_input_guard_binds_live_worker_and_staged_bytes_and_always_cleans(tmp_pa
 
 
 def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
+    from contextlib import nullcontext
     def stage(_source, destination, _commands):
         destination.mkdir()
     with patch.object(smoke.os, 'geteuid', return_value=0), \
+            patch.object(smoke, 'storage_session', side_effect=nullcontext), \
             patch.object(smoke.os, 'getegid', return_value=0), \
             patch.object(smoke.runner.baseline.guest_contract, 'CHECKOUT', smoke.ROOT), \
             patch.object(smoke.os, 'umask'), patch.object(smoke.signal, 'signal'), \

@@ -430,6 +430,26 @@ run or a failure before VM execution does not discard the last VM diagnostics.
 Refresh the installed dispatcher with `./setup.sh --test-tools-only` after this
 change. Test tooling has package update activation **none**.
 
+Standalone graphical smoke qualifications (including their installed-journey
+wrappers) and spectator qualifications join this same privileged journal.
+Their working directories and private collectors are registered before use;
+the three-run limit applies to failed qualifications too. When already inside
+an E2E retention session they reuse its run rather than rotate it. Invocation
+validation precedes storage allocation, and unfinished VM recovery still blocks
+rotation. These checkout-side changes activate on the next invocation without
+an installed-helper refresh.
+
+For older unregistered qualification directories, `tools/run-tests integration
+check_tmp_storage` prints a read-only inventory with sizes and directory
+identities. After reviewing the inventory, put only explicitly selected records
+(`path`, `device`, `inode`, `mode`) in `artifacts/tmp-storage-cleanup.json`, then
+run `tools/run-tests integration check_tmp_storage_cleanup`. This developer
+cleanup requires an idle privileged retention owner and completed VM recovery,
+refuses live process references, and validates every identity and mount boundary
+before deleting anything. It never selects deletion targets by prefix or age.
+Keep needed recent diagnostics out of the manifest. Both commands use the
+existing integration dispatcher and its cleanup-safety gate.
+
 System evidence keeps its registered allocation root at mode 0700; use the
 installed artifact reader for privileged results. Older system exporters changed
 that root to 0755 after registering 0700. On the next privileged aggregate, a

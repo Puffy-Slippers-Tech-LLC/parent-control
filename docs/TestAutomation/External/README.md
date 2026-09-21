@@ -34,16 +34,16 @@ not. Repository-owned apps, child extension and fixtures still require IDs.
 
 ## Current task
 
-G05 released customer task **013 — [Observe request results and
-exits](../E2E-Tasks/013-request-exit.md)**, which is now the next task under the
-customer queue's ordering rule. A session may therefore start with only:
+Next task: customer **010 — [Set one public toggle explicitly](../E2E-Tasks/010-toggle.md)**,
+the first eligible capability after task 013's kiosk Cancel/Escape qualification.
+No unfinished customer scenario is eligible: case 57 still needs 012, cases
+54/55 need 024, and case 2 needs 007 and 077a. A session may start with only:
 `Execute the next task in docs/TestAutomation/External/README.md`.
 
-Run task 013 under its customer brief. It adds and qualifies only the kiosk
-Cancel and Escape exits and their independent GDM result; approval, rejection
-and overlay destinations remain with their consumers. After the released
-customer work is complete, re-evaluate the customer queue before returning to
-the first eligible external row, S01.
+Run task 010 under its customer brief to qualify the Parent Screen time limit
+toggle for 017 and 012. After the released customer work is complete,
+re-evaluate the customer queue before returning to the first eligible external
+row, S01.
 
 Treat this pointer as part of every task's close-out. After completing a task,
 mark its row complete, append its short result or artifact pointer, and update
@@ -186,5 +186,6 @@ support or silent fallback. Do not build a translation/version matrix now.
 G05 qualified the nonsecret passwordless station-entry route and the fixed
 disabled-child kiosk REQUEST03 projection on the prepared Ubuntu 26.04 image.
 It did not qualify GDM secrets, ordinary-account entry, enabled request choices,
-the overlay form or case 57. Customer task 013 is now the first eligible work;
+the overlay form or case 57. Task 013 subsequently qualified kiosk Cancel/Escape
+and their GDM returns; customer task 010 is now the first eligible work.
 S01 remains the first eligible external row after released customer work.

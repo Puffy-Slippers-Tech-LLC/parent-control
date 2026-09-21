@@ -26,7 +26,7 @@ when appending a current blocker. All unchecked rows need independent briefs.
 | [x] | 235 | E2E-042: command-help | 185c | Cases 193 | 30–55 |
 | [x] | 003 | Open session controls and switch or sign out | Baseline | DESK02, DESK03, DESK04 | 35–55 |
 | [x] | 011 | Enter and read the request station | Baseline | REQUEST01, REQUEST03 | 35–55 |
-| [ ] | 013 | [Observe request results and exits](E2E-Tasks/013-request-exit.md) | 011 | REQUEST11/12 kiosk Cancel and Escape | 25–45 |
+| [x] | 013 | Observe request results and exits | 011 | REQUEST11/12 kiosk Cancel and Escape | 25–45 |
 | [ ] | 010 | [Set one public toggle explicitly](E2E-Tasks/010-toggle.md) | Baseline | UI17 | 25–45 |
 | [ ] | 017 | [Observe Parent save results](E2E-Tasks/017-parent-save.md) | 010 | PARENT08 snapshot saved/control states | 25–45 |
 | [ ] | 012 | [Select kiosk accounts and read availability](E2E-Tasks/012-request-choices.md) | 011, 017, 003 | REQUEST04 kiosk child/approver; REQUEST08 unavailable state | 25–45 |

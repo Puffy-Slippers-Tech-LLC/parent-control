@@ -31,7 +31,8 @@ OPERATIONS = frozenset({
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
     'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused',
-    'kiosk-request-form', 'station-entry-branch', 'station-default-entry',
+    'gdm-station-returned', 'kiosk-request-form', 'kiosk-request-cancel',
+    'kiosk-request-escape-ready', 'station-entry-branch', 'station-default-entry',
 })
 STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
@@ -116,12 +117,13 @@ GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
-    'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused'})
+    'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused',
+    'gdm-station-returned'})
 GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list',
                                 'gdm-station-list'})
 GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-station-wrong-entry-refused',
-    'gdm-station-list', 'gdm-station-focused',
+    'gdm-station-list', 'gdm-station-focused', 'gdm-station-returned',
 })
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
 GDM_ACCOUNT_ROLES = frozenset({'button', 'push button'})
@@ -140,6 +142,9 @@ GDM_SESSION_LABELS = {
     'Log In': 'sign-in', 'Cancel': 'cancel',
 }
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form'})
+KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
+                                   'kiosk-request-escape-ready'})
+KIOSK_SESSION_OPERATIONS = KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
@@ -817,7 +822,7 @@ class AccessibleUI:
         """Retired name/role selector; public automation IDs are mandatory."""
         raise UiError('ui:legacy-selector-refused')
 
-    def wait(self, predicate, code):
+    def wait(self, predicate, code, *, prompt_in_predicate=False):
         deadline = time.monotonic() + self.timeout
         incomplete = None
         while True:
@@ -833,7 +838,8 @@ class AccessibleUI:
             try:
                 if self.kiosk_diagnostic is not None:
                     self.kiosk_diagnostic.emit('prompt-check')
-                self.handle_system_prompt()
+                if not prompt_in_predicate:
+                    self.handle_system_prompt()
                 value = predicate()
             except self.query_errors:
                 # UI objects can disappear during search/animation. Retry only
@@ -1726,6 +1732,20 @@ class AccessibleUI:
         self.input_uncertain = False
         return True
 
+    def kiosk_gdm_returned(self):
+        """Observe the exited station's usable greeter and absent owned UI."""
+        self.gdm_semantic_rows()
+        nodes = list(self.nodes(strict=True))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:gdm-stale-tree')
+        forbidden = {
+            KIOSK_APPLICATION, 'kiosk-request-window', 'kiosk-request-form',
+            'feedback-dialog', 'startup-error-window',
+            'error-report-unavailable-dialog',
+        }
+        require(not any(public_automation_id(node) in forbidden and self.showing(node)
+                        for node in nodes), 'ui:kiosk-exit-incomplete')
+
     def gdm_nonsecret_prompt(self):
         """Observe Parent's prompt without reading or authorizing its secret."""
         if self.gdm_nonsecret_has_id_route():
@@ -2116,6 +2136,89 @@ class AccessibleUI:
         finally:
             self.kiosk_diagnostic = None
 
+    def kiosk_exit_target(self, *, with_window=False):
+        """Resolve the fresh owned Cancel control inside one showing form."""
+        snapshot = {}
+        nodes = list(self.nodes(strict=True, snapshot=snapshot))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:stale-request-form')
+        identities = {node: public_automation_id(node) for node in nodes}
+        self.handle_system_prompt(observation=(nodes, snapshot, identities))
+
+        def lookup(identity, scope, *, showing=True):
+            matches = [node for node in scope if identities[node] == identity]
+            require(len(matches) <= 1, 'ui:ambiguous-automation-id')
+            if not matches or (showing and not self.showing(matches[0])):
+                return None
+            return matches[0]
+
+        # Resolve this observation from its complete scoped snapshot. Generic
+        # find_id re-traverses ownership trees even when supplied these nodes.
+        application = lookup(KIOSK_APPLICATION, nodes, showing=False)
+        require(application is not None, 'ui:kiosk-application')
+        requested = (self.application_ids() if callable(self.application_ids)
+                     else self.application_ids)
+        if requested is not None:
+            require(KIOSK_APPLICATION in requested, 'ui:wrong-application-owner')
+        if self.owner_pids is not None:
+            require(application.get_process_id() in self.owner_pids(), 'ui:wrong-owner')
+        if self.application_owners is not None:
+            owners = self.application_owners()
+            require(application.get_process_id() in owners.get(KIOSK_APPLICATION, ()),
+                    'ui:wrong-application-owner')
+        application_nodes = self.snapshot_scope(nodes, snapshot, application)
+        window = lookup('kiosk-request-window', application_nodes)
+        require(window is not None, 'ui:kiosk-request-window')
+        self.validate_owned_surface(window, application)
+        window_nodes = self.snapshot_scope(nodes, snapshot, window)
+        form = lookup('kiosk-request-form', window_nodes)
+        require(form is not None, 'ui:kiosk-request-form')
+        form_nodes = self.snapshot_scope(nodes, snapshot, form)
+        target = lookup('kiosk-request-cancel', form_nodes)
+        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
+                'ui:kiosk-request-cancel')
+        return (window, target) if with_window else target
+
+    def cancel_kiosk_request(self):
+        """UI04: activate Cancel once after refusing any system prompt."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        # The station's scoped public action is explicitly authorized even
+        # when its Cancel control is clipped by the scroll viewport.
+        target = self.kiosk_exit_target()
+        action = target.get_action_iface()
+        require(action is not None and self.api.Action.get_n_actions(action) == 1,
+                'ui:missing-or-ambiguous-action')
+        self.input_uncertain = True
+        require(self.api.Action.do_action(action, 0), 'ui:action-refused')
+        self.input_uncertain = False
+
+    def focus_kiosk_escape_recipient(self):
+        """UI05: focus and freshly recheck the owned recipient before Escape."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        window, target = self.kiosk_exit_target(with_window=True)
+        identity = public_automation_id(target)
+        require(self.has_state(window, self.api.StateType.SENSITIVE), 'ui:unusable-target')
+        action = window.get_action_iface()
+        require(action is not None, 'ui:missing-action')
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore',
+                message=r'^Atspi\.Action\.get_action_name is deprecated$',
+                category=DeprecationWarning)
+            matches = [index for index in range(self.api.Action.get_n_actions(action))
+                       if self.api.Action.get_action_name(action, index) == 'focus.' + identity]
+        require(len(matches) == 1, 'ui:missing-or-ambiguous-action')
+        self.input_uncertain = True
+        require(self.api.Action.do_action(action, matches[0]), 'ui:action-refused')
+
+        def focused():
+            current = self.kiosk_exit_target()
+            require(current == target, 'ui:kiosk-exit-stale-focus')
+            return self.has_state(current, self.api.StateType.FOCUSED)
+
+        # kiosk_exit_target checks prompts in every fresh predicate snapshot.
+        self.wait(focused, 'kiosk-exit-focus', prompt_in_predicate=True)
+        self.input_uncertain = False
+
     def password_recipient(self, name):
         """Read only public identity, masked role, focus and empty length.
 
@@ -2379,7 +2482,7 @@ class AccessibleUI:
         require(len(bindings) <= 1, 'ui:ambiguous-system-prompt')
         return bindings[0] if bindings else None
 
-    def system_prompt_kind(self):
+    def system_prompt_kind(self, *, observation=None):
         """Read one complete tree and classify a visible authentication modal.
 
         This is the provider-specific G02 adapter.  It recognizes only the
@@ -2387,12 +2490,15 @@ class AccessibleUI:
         a provider's application/surface IDs when both are available.  It does
         not resolve an input control and cannot authorize an action.
         """
-        desktop = self.api.get_desktop(0)
-        require(desktop is not None, 'ui:incomplete-tree')
-        snapshot = {}
-        nodes = list(self.nodes(desktop, strict=True, snapshot=snapshot))
-        require(nodes, 'ui:incomplete-tree')
-        identities = {node: public_automation_id(node) for node in nodes}
+        if observation is None:
+            desktop = self.api.get_desktop(0)
+            require(desktop is not None, 'ui:incomplete-tree')
+            snapshot = {}
+            nodes = list(self.nodes(desktop, strict=True, snapshot=snapshot))
+            require(nodes, 'ui:incomplete-tree')
+            identities = {node: public_automation_id(node) for node in nodes}
+        else:
+            nodes, snapshot, identities = observation
         provider_application_ids = {
             contract.get('application_id')
             for provider, contract in self.provider_contracts.items()
@@ -2442,13 +2548,14 @@ class AccessibleUI:
     def stable_pointer(self, locate, *, stable_seconds=0.4):
         raise UiError('ui:pointer-route-refused')
 
-    def handle_system_prompt(self):
+    def handle_system_prompt(self, *, observation=None):
         """Recognize and refuse session prompts without delivering input."""
         if not self.prompt_enabled or self.handling_prompt:
             return
         self.handling_prompt = True
         try:
-            kind = self.system_prompt_kind()
+            kind = (self.system_prompt_kind() if observation is None else
+                    self.system_prompt_kind(observation=observation))
             if kind is not None:
                 require(self.prompt_session in ('station', 'desktop'),
                         'ui:system-prompt-session')
@@ -2461,7 +2568,7 @@ class AccessibleUI:
     def run(self, operation, version):
         require(operation in OPERATIONS, 'ui:operation')
         self.prompt_enabled = operation not in GREETER_OPERATIONS and operation not in STATION_BRANCH_OPERATIONS
-        self.prompt_session = ('station' if operation in KIOSK_OPERATIONS
+        self.prompt_session = ('station' if operation in KIOSK_SESSION_OPERATIONS
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
@@ -2482,6 +2589,8 @@ class AccessibleUI:
                 self.greeter_prompt()
             elif operation == 'gdm-station-wrong-entry-refused':
                 self.gdm_nonsecret_prompt()
+            elif operation == 'gdm-station-returned':
+                self.kiosk_gdm_returned()
             elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused',
                               'gdm-station-focused'):
                 name = OTHER_PARENT if operation == 'gdm-other-focused' else PARENT
@@ -2609,6 +2718,10 @@ class AccessibleUI:
             self.activate(self.logout_confirm())
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
+        elif operation == 'kiosk-request-cancel':
+            self.cancel_kiosk_request()
+        elif operation == 'kiosk-request-escape-ready':
+            self.focus_kiosk_escape_recipient()
         return result
 
 
@@ -2687,7 +2800,7 @@ def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):
 
 
 def observation_environment(account, operation):
-    if operation in KIOSK_OPERATIONS or operation == 'station-default-entry':
+    if operation in KIOSK_SESSION_OPERATIONS or operation == 'station-default-entry':
         runtime = '/run/user/' + str(account.pw_uid)
         return {'XDG_RUNTIME_DIR': runtime,
                 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + runtime + '/bus'}
@@ -2697,7 +2810,7 @@ def observation_environment(account, operation):
 def main():
     require(len(sys.argv) == 3 and sys.argv[1] in OPERATIONS, 'ui:arguments')
     greeter = sys.argv[1] in GREETER_OPERATIONS
-    kiosk = sys.argv[1] in KIOSK_OPERATIONS or sys.argv[1] == 'station-default-entry'
+    kiosk = sys.argv[1] in KIOSK_SESSION_OPERATIONS or sys.argv[1] == 'station-default-entry'
     require(os.geteuid() == 0, 'ui:fixture-identity')
     branch_owner = None
     if sys.argv[1] in STATION_BRANCH_OPERATIONS:

@@ -12,11 +12,12 @@ completion; the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-Next task: **013 — [Observe request results and exits](E2E-Tasks/013-request-exit.md)**.
-Task 011 qualified the passwordless station entry and fixed disabled-child form
-projection. Task 013 now adds the separately observed kiosk Cancel and Escape
-routes and their usable-GDM result; approval, rejection and overlay exits remain
-with their later consumers.
+Next task: **010 — [Set one public toggle explicitly](E2E-Tasks/010-toggle.md)**.
+Task 013 qualified kiosk Cancel/Escape and their independently observed GDM
+returns. No unfinished customer scenario is eligible yet: case 57 still needs
+012, cases 54/55 need 024, and case 2 needs 007 and 077a. Task 010 is the first
+eligible capability in queue order; qualify the Parent Screen time limit toggle
+before 017's save observations and 012's kiosk choices.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale

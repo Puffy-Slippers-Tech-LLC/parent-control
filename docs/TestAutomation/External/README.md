@@ -34,19 +34,16 @@ not. Repository-owned apps, child extension and fixtures still require IDs.
 
 ## Current task
 
-The next task is **G05** in [Entry and session controls](01-Entry.md). A session
-may therefore start with only: `Execute the next task in
-docs/TestAutomation/External/README.md`.
+G05 released customer task **013 — [Observe request results and
+exits](../E2E-Tasks/013-request-exit.md)**, which is now the next task under the
+customer queue's ordering rule. A session may therefore start with only:
+`Execute the next task in docs/TestAutomation/External/README.md`.
 
-O02 replaced the diagnosed repeated tree walks with one complete fresh snapshot
-for prompt recognition and one for the owned form observation. Indexed scopes
-retain application, window and form ownership, duplicate rejection,
-stale/incomplete-read refusal and the immutable form assertions. Its regression
-bound permits at most two traversals for the combined operation, compared with
-O01's 157 traversals and 6,551 node visits. This is a test-only change and needs
-no product rebuild. G05 should now run the complete guarded installed
-qualification with the current prepared assets. Both the guest screen and
-sanitized SSH observation progress use the existing `tools/watchvm` channels.
+Run task 013 under its customer brief. It adds and qualifies only the kiosk
+Cancel and Escape exits and their independent GDM result; approval, rejection
+and overlay destinations remain with their consumers. After the released
+customer work is complete, re-evaluate the customer queue before returning to
+the first eligible external row, S01.
 
 Treat this pointer as part of every task's close-out. After completing a task,
 mark its row complete, append its short result or artifact pointer, and update
@@ -105,26 +102,27 @@ required by AGENTS.md.
 ## Evidence and assumptions
 
 The [provider catalogue](../E2E-Building-Blocks.md#external-provider-qualification)
-records no route qualified under the updated exception. Recorded inspection of
-Shell 50.1 found no nonempty IDs. A `None` entry in
+records only the narrow nonsecret GDM station route qualified under the updated
+exception. Recorded inspection of Shell 50.1 found no nonempty IDs. A `None` entry in
 [accessible_ui.py](../../../tests/e2e/accessible_ui.py) means an incomplete
 mapping, not proof that a provider can never expose an ID. Settings and the
 portal chooser have partial Builder IDs; those observations do not qualify input.
 
 The kiosk uses [MATE Polkit](../../../data/systemd/user/oh-no-parent-control-polkit-agent.service),
 which is missing from the current registry. Shell Polkit is explicitly refused.
-The shared prompt middleware preflights both Shell Polkit and keyring mappings
-on non-GDM operations, including station observation. These are implementation
-gaps, not new product requirements.
+The shared prompt middleware recognizes or refuses MATE, Shell Polkit, keyring
+and unknown modal surfaces without requiring complete mappings for a positive
+no-prompt station observation. Real prompt input and dismissal remain
+implementation gaps, not new product requirements.
 
-[Task 011](../E2E-Tasks/011-kiosk-entry.md) records a prior installed observer
-seeing only the desktop root. Its cause remains unverified. Host owned-ID tests
-do not qualify the installed kiosk bus. UI15 session-choice handling, actual
-terminal/viewer handlers and public saved-document state also need investigation.
+Completed task 011 replaced the prior installed observation that saw only the
+desktop root: G05 qualified the fixed disabled-child kiosk projection. UI15
+session-choice handling, enabled request choices, the overlay binding, actual
+terminal/viewer handlers and public saved-document state still need investigation.
 
 | Provider / scope | Current gap | First consumers / task group |
 | --- | --- | --- |
-| GDM | Complete mapping absent; guarded consumers exist | GDM01–09, REQUEST01; G tasks in Entry |
+| GDM | Passwordless station entry is qualified through scoped semantics; other accounts, secrets, prompt dismissal and session choices remain unqualified | REQUEST01 ready in its station scope; GDM01–09 and remaining G tasks pending |
 | Shell desktop/session menu | Observed ID absence; retained consumers need migration | DESK01–04; S tasks in Entry |
 | MATE Polkit / Shell Polkit | Missing MATE binding; Shell refusal; AUTH consumers pending | AUTH01/02/04, tasks 019–021 and 048b; A tasks |
 | gcr keyring | Mapping absent; Cancel mechanics retained | Desktop prompt handling; A01 |
@@ -185,9 +183,8 @@ support or silent fallback. Do not build a translation/version matrix now.
   Markdown with `tools/read-only links`. Test-only changes activate on invocation;
   a necessary product fix gets its own package-activation classification.
 
-The completed G04 slice binds only the observed passwordless
-`default-request-form` station branch and its independent readback after one
-fresh station-focus proof. **O01** is complete as diagnosis only and **O02**
-completes the host observer repair. **G05** is the first eligible unchecked row;
-provider/customer readiness remains pending until that installed qualification
-passes.
+G05 qualified the nonsecret passwordless station-entry route and the fixed
+disabled-child kiosk REQUEST03 projection on the prepared Ubuntu 26.04 image.
+It did not qualify GDM secrets, ordinary-account entry, enabled request choices,
+the overlay form or case 57. Customer task 013 is now the first eligible work;
+S01 remains the first eligible external row after released customer work.

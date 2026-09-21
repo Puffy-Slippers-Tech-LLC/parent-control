@@ -12,15 +12,11 @@ completion; the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-Next task: **011 — [Enter and read the request station](E2E-Tasks/011-kiosk-entry.md)**.
-It needs GDM route qualification under the external-provider exception, then installed
-station exposure of the repository-owned request-form IDs; its brief records
-both return conditions. Host adapter/UI results qualify neither gate.
-
-Use the [external adapter tasks](External/README.md) for bounded prerequisite
-work. External IDs are optional; use readily available mappings or a qualified
-provider-specific workaround without an extended ID search. This does not move
-the customer Next task or qualify repository-owned controls.
+Next task: **013 — [Observe request results and exits](E2E-Tasks/013-request-exit.md)**.
+Task 011 qualified the passwordless station entry and fixed disabled-child form
+projection. Task 013 now adds the separately observed kiosk Cancel and Escape
+routes and their usable-GDM result; approval, rejection and overlay exits remain
+with their later consumers.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale

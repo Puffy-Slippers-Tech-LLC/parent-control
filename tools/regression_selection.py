@@ -10,6 +10,9 @@ from test_launcher import pytest_command
 from test_commands import CATEGORIES
 
 
+CLEANUP_SELECTION = '__cleanup_prerequisites__'
+
+
 def e2e_case_ids(root, args):
     """Resolve the same host-safe selection before build or VM preparation."""
     runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
@@ -27,12 +30,13 @@ class SelectedRun(Run):
         self.report.write('\nSelected categories: ' + ', '.join(kind for kind, _ in selections) + '\n')
         self.categories.clear()
         for kind, args in self.selections:
-            name = CATEGORY_NAMES.get(kind, CATEGORIES[kind].description)
+            name = ('Cleanup safety prerequisites' if kind == CLEANUP_SELECTION else
+                    CATEGORY_NAMES.get(kind, CATEGORIES[kind].description))
             if kind in ('fixtures', 'artifacts') and args and args[0] != 'build':
                 name = ('Package reproducibility' if args[0] == 'compare' else
                         'Package verification' if kind == 'artifacts' else 'Test fixture verification')
             events = self.events(kind, args)
-            item = Category(name, None if events else 1,
+            item = Category(name, None if events or kind == CLEANUP_SELECTION else 1,
                             host=kind not in ('system', 'e2e', 'integration'))
             if kind == 'e2e' and events:
                 item.nodeids = e2e_case_ids(root, args)
@@ -47,6 +51,19 @@ class SelectedRun(Run):
             return not any(arg.startswith('--qualify-') for arg in args)
         return kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage', 'system') and (
             '--collect-only' not in args)
+
+    def run_cleanup(self, safety):
+        """Collect and run the one shared cleanup gate through its four buckets."""
+        status, _ = self.execute(safety, self.command(
+            'unit', 'tests/unit/test_*cleanup_safety.py',
+            'tests/unit/test_graphical_lease.py', '--collect-only', '-q'),
+            collect=True, events=True)
+        if self.control.stopped.is_set():
+            return 130
+        if status or not safety.total:
+            raise ValueError('cleanup prerequisite collection failed or collected no tests')
+        self.cleanup_jobs(safety)
+        return 130 if self.control.stopped.is_set() else 0
 
     def run_pytest(self, kind, inventory, args):
         if kind == 'ui':
@@ -75,15 +92,9 @@ class SelectedRun(Run):
         if kind == 'ui':
             safety = Category('Cleanup safety prerequisites')
             self.categories.insert(self.categories.index(jobs[0].item), safety)
-            status, _ = self.execute(safety, self.command('unit', 'tests/unit/test_*cleanup_safety.py',
-                                                         'tests/unit/test_graphical_lease.py',
-                                                         '--collect-only', '-q'),
-                                     collect=True, events=True)
-            if self.control.stopped.is_set():
-                return 130
-            if status or not safety.total:
-                raise ValueError('cleanup prerequisite collection failed or collected no tests')
-            self.cleanup_jobs(safety)
+            status = self.run_cleanup(safety)
+            if status:
+                return status
         if self.control.stopped.is_set():
             return 130
         self.host_jobs(jobs)
@@ -119,6 +130,8 @@ class SelectedRun(Run):
                     status = int(any(build.state != 'Passed' for build in builds))
                 elif kind in ('unit', 'ui'):
                     status = self.run_pytest(kind, item, args)
+                elif kind == CLEANUP_SELECTION:
+                    status = self.run_cleanup(item)
                 else:
                     status, _ = self.execute(item, self.command(kind, *args), events=self.events(kind, args))
                     status = status or int(item.state != 'Passed')

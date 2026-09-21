@@ -101,11 +101,12 @@ def test_unattended_integration_runs_safety_before_recovery(tmp_path, monkeypatc
         assert 'selected operation was not started' in capsys.readouterr().err
 
 
-def test_recovery_safety_output_names_each_check():
+def test_recovery_safety_uses_shared_parallel_cleanup_coordinator():
     import regression_process
     root = Path(__file__).resolve().parents[2]
     command = regression_process.safety_command(root)
-    assert '-v' in command and '-q' not in command
+    assert command == ['/usr/bin/python3', '-B', str(root / 'tools/regression_process.py'),
+                       '--cleanup-prerequisites']
 
 
 def test_idle_reconciliation_retries_after_marker_archive_and_failed_commit(tmp_path, monkeypatch):

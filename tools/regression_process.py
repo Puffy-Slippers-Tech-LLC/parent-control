@@ -1,6 +1,8 @@
 """Owned subprocess cancellation and streaming for unattended regression runs."""
 
 from contextlib import contextmanager
+from pathlib import Path
+import json
 import os
 import selectors
 import signal
@@ -14,6 +16,76 @@ import threading
 session_stop = None
 
 
+FRAME_PREFIX = 'ONPC_CLEANUP_FRAME '
+
+
+class PipeFrameOutput:
+    """Carry live frames through dispatcher pipes without terminal escapes."""
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.live = False
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+    def frame(self, lines):
+        # Only the session observer owns a terminal. Preserve the complete
+        # dashboard for its existing replaceable-frame channel.
+        self.stream.write(FRAME_PREFIX + json.dumps(lines) + '\n')
+        self.stream.flush()
+        self.live = bool(lines)
+
+    def write(self, value):
+        # Do not let the observer redraw a stale frame over the final summary.
+        if value and self.live:
+            self.frame([])
+        return self.stream.write(value)
+
+
+class PipeFrameReader:
+    """Separate nested frames from ordinary output across arbitrary reads."""
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.pending = b''
+        self.dashboard = None
+        if not hasattr(stream, 'frame'):
+            from regression import Dashboard
+            self.dashboard = Dashboard([], stream=stream)
+
+    def frame(self, lines):
+        if self.dashboard is None:
+            self.stream.frame(lines)
+        elif lines and self.stream.isatty():
+            self.dashboard.draw_lines(lines)
+        else:
+            self.dashboard.restore_terminal()
+
+    def write(self, data):
+        if self.dashboard is not None:
+            self.dashboard.restore_terminal()
+        self.stream.buffer.write(data)
+        self.stream.buffer.flush()
+
+    def __call__(self, data):
+        self.pending += data
+        while b'\n' in self.pending:
+            line, self.pending = self.pending.split(b'\n', 1)
+            prefix = FRAME_PREFIX.encode()
+            if line.startswith(prefix):
+                self.frame(json.loads(line[len(prefix):]))
+            else:
+                self.write(line + b'\n')
+
+    def finish(self):
+        if self.pending:
+            self.write(self.pending)
+            self.pending = b''
+        if self.dashboard is not None:
+            self.dashboard.restore_terminal()
+
+
 class Control:
     """Latch cancellation and signal only a directly spawned child's pidfd.
 
@@ -24,6 +96,7 @@ class Control:
     def __init__(self):
         self.stopped = session_stop if session_stop is not None else threading.Event()
         self.interrupted = False
+        self.pipe = False
 
     def stop(self, *_):
         self.stopped.set()
@@ -37,6 +110,7 @@ class Control:
 
     @contextmanager
     def installed(self, *, pipe=False):
+        self.pipe = pipe
         previous = {sig: signal.signal(sig, self.interrupt)
                     for sig in (signal.SIGINT, signal.SIGTERM)}
         if pipe:
@@ -56,7 +130,13 @@ class Control:
         import test_activity
         if self.stopped.is_set():
             return 130
-        if output is None:
+        frames = None
+        # Pipe workers (including the privileged dispatcher) relay frames;
+        # the outer caller renders them or publishes to its session observer.
+        if output is None and (not self.pipe or hasattr(sys.stdout, 'frame')):
+            frames = PipeFrameReader(sys.stdout)
+            output = frames
+        elif output is None:
             def output(data):
                 sys.stdout.buffer.write(data)
                 sys.stdout.buffer.flush()
@@ -118,6 +198,8 @@ class Control:
                 status = child.wait()
             if output_error is not None:
                 raise output_error
+            if frames is not None:
+                frames.finish()
             return 130 if self.stopped.is_set() else status if status >= 0 else 128 - status
         finally:
             os.close(descriptor)
@@ -127,10 +209,37 @@ class Control:
 
 
 def safety_command(root):
-    import test_launcher as host
-    targets = host.selection(root, ['tests/unit/test_*cleanup_safety.py',
-                                    'tests/unit/test_graphical_lease.py'])
-    return ['/usr/bin/python3', '-B', '-m', 'pytest', '-p', 'no:cacheprovider', '-v', '--', *targets]
+    """Run the shared cleanup gate coordinator as the unprivileged caller."""
+    import test_activity
+    descriptors = test_activity.descriptors()
+    inherited = ([] if not descriptors else ['--activity-fd=' + str(descriptors[0])])
+    return ['/usr/bin/python3', '-B', str(root / 'tools/regression_process.py'),
+            '--cleanup-prerequisites', *inherited]
+
+
+def cleanup_main(root=None, *, activity_fd=None):
+    """Give privileged dispatchers the aggregate's parallel cleanup gate."""
+    import regression
+    import test_activity
+    from regression_selection import CLEANUP_SELECTION
+    root = root or Path(__file__).resolve().parents[1]
+    # VM selections own the VM activity lock. Cleanup workers use the separate
+    # host lock, then inherit it through the ordinary aggregate commands. A
+    # host launcher can instead pass its already-owned descriptor explicitly.
+    previous = os.environ.get(test_activity.VARIABLE)
+    if activity_fd is not None:
+        os.environ[test_activity.VARIABLE] = str(activity_fd)
+    output = sys.stdout
+    sys.stdout = PipeFrameOutput(output)
+    try:
+        with test_activity.activity(root, host_only=True if activity_fd is None else None):
+            return regression.retained_main(root, selections=[(CLEANUP_SELECTION, [])])
+    finally:
+        sys.stdout = output
+        if previous is None:
+            os.environ.pop(test_activity.VARIABLE, None)
+        else:
+            os.environ[test_activity.VARIABLE] = previous
 
 
 def host_run(root, category, argv, *, pipe=True):
@@ -218,3 +327,17 @@ def category_run(root, category, argv, *, pipe=True):
             if status:
                 return status
         return 0
+
+
+if __name__ == '__main__':
+    arguments = sys.argv[1:]
+    descriptor = None
+    if len(arguments) == 2 and arguments[1].startswith('--activity-fd='):
+        value = arguments[1].partition('=')[2]
+        if value.isdecimal() and int(value) >= 3:
+            descriptor = int(value)
+            arguments = arguments[:1]
+    if arguments != ['--cleanup-prerequisites']:
+        print('cleanup coordinator: invalid arguments', file=sys.stderr)
+        sys.exit(2)
+    sys.exit(cleanup_main(activity_fd=descriptor))

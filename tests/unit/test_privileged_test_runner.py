@@ -123,8 +123,8 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     installed.write_text(rendered)
 
     # Use the rendered helper's actual shebang in a fresh process. Only process
-    # execution and signal/pipe setup are replaced: selection, safety_command,
-    # and the import of the real test_launcher module all execute unchanged.
+    # execution and signal/pipe setup are replaced; selection and the real
+    # fixed cleanup-coordinator command still execute unchanged.
     probe = checkout.parent / 'dispatcher-probe'
     probe.write_text(rendered.splitlines()[0] + '\n' + textwrap.dedent('''\
         from contextlib import nullcontext
@@ -158,8 +158,8 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
                 pwd.getpwuid(os.getuid()))
         assert status == safety_status
         assert len(calls) == (1 if safety_status else 2)
-        assert 'test_launcher' in sys.modules
-        assert any('test_future_cleanup_safety.py' in arg for arg in calls[0])
+        assert calls[0][2].endswith('/tools/regression_process.py')
+        assert calls[0][3:] == ['--cleanup-prerequisites']
         print('dispatcher checkout imports exercised')
         '''))
     probe.chmod(0o755)

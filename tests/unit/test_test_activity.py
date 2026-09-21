@@ -106,6 +106,50 @@ def test_cleanup_gate_requires_inherited_lock_and_expires_with_activity(tmp_path
     assert child(tmp_path, {}, cleanup=True).stdout.strip() == 'False'
 
 
+def test_parallel_cleanup_command_inherits_current_host_activity(tmp_path):
+    import regression_process
+    root = tmp_path / 'checkout'
+    with test_activity.activity(root, host_only=True):
+        descriptor, = test_activity.descriptors()
+        command = regression_process.safety_command(root)
+    assert command == ['/usr/bin/python3', '-B',
+                       str(root / 'tools/regression_process.py'),
+                       '--cleanup-prerequisites', f'--activity-fd={descriptor}']
+
+
+def test_parallel_cleanup_coordinator_joins_and_restores_activity(tmp_path, monkeypatch, capsys):
+    import regression
+    import regression_process
+    from regression_selection import CLEANUP_SELECTION
+    root = tmp_path / 'checkout'
+    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
+    with test_activity.activity(root, host_only=True):
+        descriptor, = test_activity.descriptors()
+        original_output = sys.stdout
+
+        def retained(selected_root, *, selections):
+            assert selected_root == root
+            assert test_activity.descriptors() == (descriptor,)
+            assert selections == [(CLEANUP_SELECTION, [])]
+            assert isinstance(sys.stdout, regression_process.PipeFrameOutput)
+            sys.stdout.frame(['intermediate cleanup frame',
+                              '\033[97;1mOverall - 42% (42/100) - 5s\033[0m'])
+            print('final cleanup output')
+            return 7
+
+        monkeypatch.setattr(regression, 'retained_main', retained)
+        assert regression_process.cleanup_main(root, activity_fd=descriptor) == 7
+        assert test_activity.descriptors() == (descriptor,)
+        assert test_activity.VARIABLE not in os.environ
+        assert sys.stdout is original_output
+    lines = capsys.readouterr().out.splitlines()
+    import json
+    assert json.loads(lines[0].removeprefix(regression_process.FRAME_PREFIX)) == [
+        'intermediate cleanup frame', '\033[97;1mOverall - 42% (42/100) - 5s\033[0m']
+    assert lines[1] == regression_process.FRAME_PREFIX + '[]'
+    assert lines[2:] == ['final cleanup output']
+
+
 @pytest.mark.parametrize('payload', [b'not-a-digest', b'a' * 65, b'\xff' * 64, b'b' * 64])
 def test_cleanup_gate_refuses_invalid_or_changed_source(tmp_path, monkeypatch, payload):
     monkeypatch.setattr(regression_inputs, 'identity', lambda root: 'a' * 64)

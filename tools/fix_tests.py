@@ -20,7 +20,7 @@ import time
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from regression_session import busy, lock
+from regression_session import FRAME_DIRECTORY, busy, lock
 
 
 DEFAULT_MODEL = 'gpt-5.6-sol'
@@ -66,7 +66,7 @@ def environment():
     result = dict(os.environ)
     for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
                  'ONPC_TEST_ACTIVITY_FD', 'ONPC_REGRESSION_EVENTS',
-                 'ONPC_REGRESSION_INVENTORY'):
+                 'ONPC_REGRESSION_INVENTORY', FRAME_DIRECTORY):
         result.pop(name, None)
     result['PYTHONUNBUFFERED'] = '1'
     return result
@@ -198,7 +198,10 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         command = agent_command(root, model, effort, run)
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' else None
     log = (run / 'last-test.log').open('wb') if kind == 'test' else None
-    child = subprocess.Popen(command, cwd=root, env=environment(),
+    child_env = environment()
+    if kind == 'test':
+        child_env[FRAME_DIRECTORY] = str(run)
+    child = subprocess.Popen(command, cwd=root, env=child_env,
                              stdin=source if source is not None else subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                              start_new_session=True)
@@ -272,6 +275,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
             os.close(descriptor)
         if log is not None:
             log.close()
+            atomic(run / 'frame.json', [])
         os.close(owner)
 
 
@@ -378,7 +382,17 @@ def select(root, *, stop=False, model=DEFAULT_MODEL, effort=DEFAULT_EFFORT):
 
 
 def follow(run, stream=None):
+    from regression import Dashboard
     stream = stream or sys.stdout
+    dashboard = Dashboard([], stream=stream)
+    try:
+        return follow_output(run, stream, dashboard)
+    finally:
+        dashboard.restore_terminal()
+
+
+def follow_output(run, stream, dashboard):
+    last_frame = None
     with lock(run.parent / 'owner') as owner, (run / 'output').open('rb') as output:
         output.seek(max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES))
         while True:
@@ -387,16 +401,26 @@ def follow(run, stream=None):
             active = active and current_run(run.parent) == run
             data = output.read(65536)
             if data:
+                dashboard.restore_terminal()
                 stream.write(data.decode('utf-8', errors='replace'))
                 stream.flush()
                 continue
             if not active:
+                dashboard.restore_terminal()
                 result = run / 'result.json'
                 if not result.exists():
                     stream.write('\nfix-tests: worker ended without a result; invoke again to start fresh.\n')
                     stream.flush()
                     return 1
                 return json.loads(result.read_text())['status']
+            frame = run / 'frame.json'
+            if frame.exists():
+                lines = json.loads(frame.read_text())
+                if not lines:
+                    dashboard.restore_terminal()
+                elif stream.isatty() or lines != last_frame:
+                    dashboard.draw_lines(lines)
+                last_frame = lines
             time.sleep(.1)
 
 

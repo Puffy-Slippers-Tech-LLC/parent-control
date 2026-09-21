@@ -17,6 +17,9 @@ import test_activity
 import test_launcher
 
 
+FRAME_DIRECTORY = 'ONPC_TEST_FRAME_DIRECTORY'
+
+
 class SessionOutput:
     def __init__(self, run, stream):
         self.run, self.stream = run, stream
@@ -120,6 +123,11 @@ def select(root, argv):
 def follow(run, stream=None):
     from regression import Dashboard
     stream = stream or sys.stdout
+    # A supervising fix-tests process retains frames separately from its log.
+    # Only the final observer knows whether (and how large) its terminal is.
+    destination = os.environ.get(FRAME_DIRECTORY)
+    if destination:
+        stream = SessionOutput(Path(destination), stream)
     dashboard = Dashboard([], stream=stream)
     last_frame = None
     try:
@@ -150,6 +158,8 @@ def follow(run, stream=None):
                     time.sleep(0.2)
     finally:
         dashboard.restore_terminal()
+        if destination:
+            stream.frame([])
 
 
 def main(root, argv):

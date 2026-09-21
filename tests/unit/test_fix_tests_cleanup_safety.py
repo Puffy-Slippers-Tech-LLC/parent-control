@@ -132,6 +132,9 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 1
     assert agents[0]['thread'] is None
+    assert agents[0]['frame_directory'] is None
+    assert all(call['frame_directory'] == str(run) for call in calls if call['kind'] == 'test')
+    assert json.loads((run / 'frame.json').read_text()) == []
     assert agents[0]['prompt'].startswith('LATEST FAILURE ONLY\n')
     assert 'PREVIOUS AGENT TRANSCRIPT' not in agents[0]['prompt']
     assert '--ephemeral' in agents[0]['args']

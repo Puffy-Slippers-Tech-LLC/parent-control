@@ -22,6 +22,7 @@ def main():
     mode = (root / 'mode').read_text()
     category = args[1] if kind == 'test' else 'agent'
     record = {'kind': kind, 'category': category, 'pid': os.getpid(), 'args': args}
+    record['frame_directory'] = os.environ.get('ONPC_TEST_FRAME_DIRECTORY')
     if kind == 'agent':
         record['prompt'] = sys.stdin.read()
         record['thread'] = os.environ.get('CODEX_THREAD_ID')

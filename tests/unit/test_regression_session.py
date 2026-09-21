@@ -19,6 +19,28 @@ import regression
 import test_commands
 
 
+def test_supervised_progress_is_forwarded_without_log_frames(tmp_path, monkeypatch):
+    run = tmp_path / 'runner'
+    destination = tmp_path / 'supervisor'
+    run.mkdir()
+    destination.mkdir()
+    (run / 'output').write_text('runner log\n')
+    (run / 'frame.json').write_text(json.dumps(['Overall - 0%']))
+    (run / 'result').write_text('0')
+    monkeypatch.setenv(session.FRAME_DIRECTORY, str(destination))
+    monkeypatch.setattr(session, 'busy', lambda _: True)
+
+    def advance(_):
+        assert json.loads((destination / 'frame.json').read_text()) == ['Overall - 0%']
+        monkeypatch.setattr(session, 'busy', lambda _: False)
+
+    monkeypatch.setattr(session.time, 'sleep', advance)
+    output = io.StringIO()
+    assert session.follow(run, output) == 0
+    assert output.getvalue() == 'runner log\n'
+    assert json.loads((destination / 'frame.json').read_text()) == []
+
+
 @pytest.fixture
 def workers(tmp_path, monkeypatch):
     children = []

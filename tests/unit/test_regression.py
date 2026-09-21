@@ -1005,6 +1005,56 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     assert all(event['state'] == 'Passed' for event in finishes.values())
 
 
+@pytest.mark.parametrize('with_system', [False, True])
+def test_empty_e2e_inventory_refuses_with_reason_without_unused_build(
+        report, tmp_path, monkeypatch, with_system):
+    run = regression.Run(tmp_path, report, Control(),
+                         phases=('system', 'e2e') if with_system else ('e2e',))
+    run.dashboard.stream = io.StringIO()
+    monkeypatch.setattr(run, 'wait_for_resources', lambda *_: None)
+    calls = []
+
+    def execute(command, *, output, **kwargs):
+        calls.append(command[1:])
+        if command[1:] == ['e2e', '--unattended', '--list', '--ready']:
+            output(json.dumps(dict(cases=[], excluded_pending_cases=['E2E-999/pending'])).encode())
+        elif command[1:] == ['system', '--unattended', '--list']:
+            output(b'expected-executions: 1\n')
+        elif command[1] == 'system':
+            for event in (dict(kind='collection', total=1, nodeids=['system-case']),
+                          dict(kind='finished', nodeid='system-case')):
+                output((regression.PREFIX + json.dumps(event) + '\n').encode())
+        else:
+            pytest.fail('empty E2E inventory must not dispatch or build')
+        return 0
+
+    monkeypatch.setattr(run.control, 'run', execute)
+    monkeypatch.setattr(regression, 'authorization',
+                        lambda: pytest.fail('empty E2E-only run must not authorize VM work'))
+    if with_system:
+        system = regression.Category(regression.CATEGORY_NAMES['system'])
+        graphical = regression.Category(regression.CATEGORY_NAMES['e2e'])
+        run.categories.extend([system, graphical])
+        run.artifacts['build-a'] = '/tmp/onpc-test-artifacts-fixture'
+        ready = run.discover_vm(system, graphical)
+        run.vm_tests(system, graphical, ready)
+        assert system.state == 'Passed'
+        assert len(calls) == 3
+    else:
+        run.run_vm_only()
+        assert calls == [['e2e', '--unattended', '--list', '--ready']]
+        assert len(run.categories) == 2
+        assert run.categories[0].state == 'Passed'
+        graphical = run.categories[-1]
+    assert graphical.state == 'Failed'
+    assert graphical.total == graphical.done == graphical.failures == 0
+    assert graphical.wait_reason == 'no ready E2E variants'
+    text = (report.directory / 'report.md').read_text()
+    assert 'Pending variants excluded: 1' in text
+    assert 'no customer scenarios executed' in text
+    assert 'pending_reason' in text
+
+
 @pytest.mark.parametrize('category', ['system', 'e2e'])
 @pytest.mark.parametrize('failure', [None, 'case', 'suite-cleanup', 'incomplete', 'interrupted'])
 @pytest.mark.parametrize('continue_on_errors', [False, True])

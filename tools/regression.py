@@ -867,6 +867,14 @@ class Run:
         ready = self.discover_vm(system, graphical)
         if self.control.stopped.is_set():
             return
+        if system is None and not ready:
+            # Successful collection is not customer coverage. No executable
+            # consumer needs package inputs or privileged VM prerequisites.
+            self.categories.remove(build)
+            discovery.done, discovery.state = 1, 'Passed'
+            discovery.stop_timer()
+            self.vm_tests(system, graphical, ready)
+            return
         authorization()
         discovery.done, discovery.state = 1, 'Passed'
         discovery.stop_timer()
@@ -938,6 +946,12 @@ class Run:
                                                  '--ready'), events=True)
         elif graphical is not None:
             graphical.state = 'Interrupted' if self.control.stopped.is_set() else 'Failed'
+            if graphical.state == 'Failed':
+                graphical.wait_reason = 'no ready E2E variants'
+                self.report.write('\nE2E execution refused: no ready E2E variants; '
+                                  'no customer scenarios executed. See '
+                                  '`tests/e2e/scenarios.json` pending_reason fields '
+                                  'for implementation and qualification blockers.\n')
         self.check_inputs()
 
 

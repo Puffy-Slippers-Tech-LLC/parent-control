@@ -38,6 +38,7 @@ def ui_run(tmp_path, monkeypatch):
                            'tests/unit/test_graphical_lease.py::test_lease']
             self.gate = False
             self.barrier = None
+            self.cleanup_barrier = None
             self.fail = None
             self.cleaned = []
 
@@ -61,6 +62,8 @@ def ui_run(tmp_path, monkeypatch):
                            for node in self.safety)
                 nodes = self.safety if collect else [node for node in self.safety
                                                      if node.partition('::')[0] in command]
+                if not collect and self.cleanup_barrier:
+                    self.cleanup_barrier.wait(timeout=5)
 
             def event(kind, **fields):
                 output((regression.PREFIX + json.dumps(dict(kind=kind, **fields)) + '\n').encode())
@@ -81,7 +84,8 @@ def ui_run(tmp_path, monkeypatch):
 
     def record(digest):
         assert digest == 'unchanged'
-        assert control.cleaned.count('unit') == 2
+        modules = {node.partition('::')[0] for node in control.safety}
+        assert control.cleaned.count('unit') == min(4, len(modules))
         control.gate = True
 
     monkeypatch.setattr(test_activity, 'record_cleanup', record)
@@ -113,6 +117,27 @@ def test_ui_only_uses_four_existing_branches_and_respects_admission(ui_run, slot
     assert f'maximum-active={slots}' in text
     assert 'Scope: selected categories only' in text
     assert control.cleaned.count('ui') == 4
+
+
+def test_cleanup_only_selection_reuses_ui_gate_in_four_branches(ui_run):
+    run, control = ui_run
+    control.safety = [
+        'tests/unit/test_ui_cleanup_safety.py::test_owned',
+        'tests/unit/test_fixture_cleanup_safety.py::test_owned',
+        'tests/unit/test_terminal_cleanup_safety.py::test_owned',
+        'tests/unit/test_graphical_lease.py::test_owned',
+    ]
+    control.cleanup_barrier = threading.Barrier(4)
+    run.selections = [(regression_selection.CLEANUP_SELECTION, [])]
+    run.categories[:] = [regression.Category('Cleanup safety prerequisites', host=True)]
+    run.run()
+    items = [item for item in run.categories if item.name.startswith('Cleanup —')]
+    assert len(items) == 4
+    assert {item.branch for item in items} == {1, 2, 3, 4}
+    assert all(item.state == 'Passed' for item in items)
+    assert control.cleaned == ['unit'] * 4
+    text = (run.report.directory / 'report.md').read_text()
+    assert 'Cleanup scheduling:' in text and 'maximum-active=4' in text
 
 
 def test_ui_selection_preserves_filters_exact_parameters_timeout_and_category_order(ui_run):

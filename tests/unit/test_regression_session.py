@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import time
 from unittest.mock import Mock
 
@@ -16,6 +17,7 @@ import regression_session as session
 import test_activity
 import test_retention
 import regression
+import regression_process
 import test_commands
 
 
@@ -39,6 +41,67 @@ def test_supervised_progress_is_forwarded_without_log_frames(tmp_path, monkeypat
     assert session.follow(run, output) == 0
     assert output.getvalue() == 'runner log\n'
     assert json.loads((destination / 'frame.json').read_text()) == []
+
+
+@pytest.mark.parametrize('chunk_size', [1, 7, 65536])
+def test_cleanup_frames_survive_pipes_without_scrollback(tmp_path, chunk_size):
+    wire = io.StringIO()
+    sender = regression_process.PipeFrameOutput(wire)
+    frames = [
+        ['Cleanup safety prerequisites — collecting', 'Overall - ?% (0/?)'],
+        ['Cleanup — café [Running] (18/1503)', 'Overall - 1% (18/1503)'],
+    ]
+    for frame in frames:
+        sender.frame(frame)
+    sender.write('final cleanup summary\n')
+    sender.write('diagnostic without newline')
+    output = io.TextIOWrapper(io.BytesIO(), encoding='utf-8')
+    stream = session.SessionOutput(tmp_path, output)
+    observed = []
+    publish = stream.frame
+
+    def record(lines):
+        publish(lines)
+        observed.append(json.loads((tmp_path / 'frame.json').read_text()))
+
+    stream.frame = record
+    reader = regression_process.PipeFrameReader(stream)
+    payload = wire.getvalue().encode()
+    for offset in range(0, len(payload), chunk_size):
+        reader(payload[offset:offset + chunk_size])
+    reader.finish()
+    assert observed == [*frames, []]
+    assert output.buffer.getvalue() == b'final cleanup summary\ndiagnostic without newline'
+
+
+@pytest.mark.parametrize('detached', [False, True])
+@pytest.mark.parametrize('relay', [False, True])
+def test_cleanup_child_publishes_session_frame_and_keeps_final_output(
+        tmp_path, monkeypatch, detached, relay):
+    output = io.TextIOWrapper(io.BytesIO(), encoding='utf-8')
+    monkeypatch.setattr(sys, 'stdout', session.SessionOutput(tmp_path, output) if detached else output)
+    script = (
+        'import sys; from regression_process import PipeFrameOutput; '
+        'out = PipeFrameOutput(sys.stdout); '
+        'out.frame(["Cleanup safety prerequisites", "Overall - 1% (18/1503)"]); '
+        'out.write("final cleanup summary\\n"); out.flush()'
+    )
+    if relay:
+        script = (
+            'import os, sys; from regression_process import Control; '
+            'control = Control(); control.pipe = True; '
+            f'sys.exit(control.run([sys.executable, "-B", "-c", {script!r}], '
+            'cwd=os.getcwd(), env=os.environ))'
+        )
+    status = regression_process.Control().run(
+        [sys.executable, '-B', '-c', script], cwd=tmp_path,
+        env=os.environ | {'PYTHONPATH': str(Path(regression_process.__file__).parent)})
+    assert status == 0
+    if detached:
+        assert json.loads((tmp_path / 'frame.json').read_text()) == []
+    else:
+        assert not (tmp_path / 'frame.json').exists()
+    assert output.buffer.getvalue() == b'final cleanup summary\n'
 
 
 @pytest.fixture

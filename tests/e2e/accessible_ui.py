@@ -31,7 +31,7 @@ OPERATIONS = frozenset({
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
     'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused',
-    'kiosk-request-form', 'station-entry-branch',
+    'kiosk-request-form', 'station-entry-branch', 'station-default-entry',
 })
 STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
@@ -140,6 +140,7 @@ GDM_SESSION_LABELS = {
     'Log In': 'sign-in', 'Cancel': 'cancel',
 }
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form'})
+STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
@@ -1684,6 +1685,26 @@ class AccessibleUI:
         require(len(known) == len(set(known)), 'ui:station-branch-ambiguous')
         return {'destination': 'greeter-controls', 'controls': controls}
 
+    def station_default_entry(self, owner):
+        """Read back the one qualified passwordless default-session result."""
+        require(owner == 'station', 'ui:station-default-branch')
+
+        def destination():
+            nodes = list(self.nodes(strict=True))
+            require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                            for node in nodes), 'ui:station-stale-tree')
+            window = self.find_id('kiosk-request-window', nodes=nodes)
+            if window is None:
+                return None
+            require(self.showing(window), 'ui:station-default-window')
+            form = self.find_id('kiosk-request-form', root=window)
+            if form is None:
+                return None
+            require(self.showing(form), 'ui:station-default-form')
+            return {'destination': 'default-request-form'}
+
+        return self.wait(destination, 'station-default-destination')
+
     def observe_absence(self, surface, target, *, name, mode, stable_seconds=None):
         """UI11: registered positive surfaces and complete fresh exclusion reads."""
         if surface == 'overview':
@@ -2287,12 +2308,15 @@ class AccessibleUI:
 
     def run(self, operation, version):
         require(operation in OPERATIONS, 'ui:operation')
-        self.prompt_enabled = operation not in GREETER_OPERATIONS and operation != 'station-entry-branch'
-        self.prompt_session = ('station' if operation in KIOSK_OPERATIONS else
+        self.prompt_enabled = operation not in GREETER_OPERATIONS and operation not in STATION_BRANCH_OPERATIONS
+        self.prompt_session = ('station' if operation in KIOSK_OPERATIONS
+                               or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation == 'station-entry-branch':
             result['branch'] = self.station_entry_branch(self.branch_owner)
+        elif operation == 'station-default-entry':
+            result['entry'] = self.station_default_entry(self.branch_owner)
         elif operation in GREETER_OPERATIONS:
             if operation in ('gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused'):
                 self.wait(lambda: self.password_recipient(OTHER_PARENT), 'gdm-other-recipient')
@@ -2436,7 +2460,7 @@ class AccessibleUI:
         return result
 
 
-def greeter_account(*, station_branch=False):
+def greeter_account(*, station_branch=False, station_required=False):
     """Resolve the sole active local greeter via public logind session metadata.
 
     Modern GDM can use a dynamic account instead of the legacy gdm UID. This
@@ -2445,6 +2469,7 @@ def greeter_account(*, station_branch=False):
     # Installed boots gate GDM on enforcement readiness. Snapshot consumers
     # enter here directly after SSH, without the former setup boot-complete
     # wait. Observe the public greeter within its own finite boot budget.
+    require(not station_required or station_branch, 'ui:station-account-binding')
     deadline = time.monotonic() + (90 if station_branch else 300)
     def call(*args):
         remaining = deadline - time.monotonic()
@@ -2478,7 +2503,7 @@ def greeter_account(*, station_branch=False):
         require(len(found) <= 1, 'ui:greeter-identity')
         remaining = deadline - time.monotonic()
         require(remaining > 0, 'ui:timeout:greeter-identity')
-        if found:
+        if found and not (station_required and found[0][1] != 'station'):
             if station_branch:
                 return pwd.getpwuid(found[0][0]), found[0][1]
             return pwd.getpwuid(found[0])
@@ -2510,7 +2535,7 @@ def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):
 
 
 def observation_environment(account, operation):
-    if operation in KIOSK_OPERATIONS:
+    if operation in KIOSK_OPERATIONS or operation == 'station-default-entry':
         runtime = '/run/user/' + str(account.pw_uid)
         return {'XDG_RUNTIME_DIR': runtime,
                 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + runtime + '/bus'}
@@ -2520,11 +2545,13 @@ def observation_environment(account, operation):
 def main():
     require(len(sys.argv) == 3 and sys.argv[1] in OPERATIONS, 'ui:arguments')
     greeter = sys.argv[1] in GREETER_OPERATIONS
-    kiosk = sys.argv[1] in KIOSK_OPERATIONS
+    kiosk = sys.argv[1] in KIOSK_OPERATIONS or sys.argv[1] == 'station-default-entry'
     require(os.geteuid() == 0, 'ui:fixture-identity')
     branch_owner = None
-    if sys.argv[1] == 'station-entry-branch':
-        account, branch_owner = greeter_account(station_branch=True)
+    if sys.argv[1] in STATION_BRANCH_OPERATIONS:
+        account, branch_owner = greeter_account(
+            station_branch=True,
+            station_required=sys.argv[1] == 'station-default-entry')
         greeter, kiosk = branch_owner == 'greeter', branch_owner == 'station'
     else:
         account = greeter_account() if greeter else pwd.getpwnam(

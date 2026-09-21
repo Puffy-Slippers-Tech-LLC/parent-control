@@ -25,7 +25,9 @@ sub run {
     testapi::send_key('esc');
 
     # Provisioning records the dedicated session as this account's default.
-    # An explicit GDM session choice needs its own UI15 binding if GDM offers it.
+    # G03 observed this exact passwordless branch with no session chooser. The
+    # fresh focus proof is consumed once before Enter; the next checkpoint
+    # independently requires the dedicated station owner and owned form root.
     my $station_list = $journey->seen('station-list');
     my $station = $journey->highlight_choice(
         $station_list, 'station-list', 'station-focused');

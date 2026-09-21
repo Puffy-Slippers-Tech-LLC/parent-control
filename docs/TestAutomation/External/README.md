@@ -34,15 +34,15 @@ not. Repository-owned apps, child extension and fixtures still require IDs.
 
 ## Current task
 
-The next task is **G04** in [Entry and session controls](01-Entry.md). A session
+The next task is **O01** in [Entry and session controls](01-Entry.md). A session
 may therefore start with only: `Execute the next task in
 docs/TestAutomation/External/README.md`.
 
-G03 observed the ordinary prompt/Escape/list sequence and the offered station
-branch through the repaired provider adapter. The station followed the
-passwordless `default-request-form` branch and exposed no unresolved session
-choice, so G04 should bind and document that exact default branch without
-adding a session catalogue.
+G04 bound the observed passwordless `default-request-form` branch without a
+session catalogue. O01 should now use that guarded route to distinguish missing
+application, missing form IDs, an incomplete tree or a working owned-ID
+observation; it does not use a backend readiness probe or an external-selector
+fallback for the repository-owned form.
 
 Treat this pointer as part of every task's close-out. After completing a task,
 mark its row complete, append its short result or artifact pointer, and update
@@ -181,8 +181,8 @@ support or silent fallback. Do not build a translation/version matrix now.
   Markdown with `tools/read-only links`. Test-only changes activate on invocation;
   a necessary product fix gets its own package-activation classification.
 
-The completed G03 slice records the offered passwordless
-`default-request-form` station branch after the ordinary prompt/Escape/list
-sequence, without activating an unresolved choice. **G04** is now the first
-eligible unchecked row in plan order; it binds only that observed default
-branch and its independent readback.
+The completed G04 slice binds only the observed passwordless
+`default-request-form` station branch and its independent readback after one
+fresh station-focus proof. **O01** is now the first eligible unchecked row in
+plan order; it diagnoses the repository-owned application/form exposure through
+that route without promoting provider or customer readiness.

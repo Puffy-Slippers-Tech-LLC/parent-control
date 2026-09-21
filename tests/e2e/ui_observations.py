@@ -92,6 +92,7 @@ OPERATION_LABELS.update({
     'gdm-station-focused': 'Checking the request station is focused',
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
     'station-entry-branch': 'Observing the offered station session branch without input',
+    'station-default-entry': 'Reading back the passwordless default request-station session',
 })
 
 
@@ -190,7 +191,8 @@ class UiObservations:
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.
-        timeout = 390 if operation in accessible_ui.GREETER_OPERATIONS or operation == 'station-entry-branch' else (
+        timeout = 390 if (operation in accessible_ui.GREETER_OPERATIONS
+                          or operation in accessible_ui.STATION_BRANCH_OPERATIONS) else (
             120 if operation in accessible_ui.KIOSK_OPERATIONS else 90)
         if self.system_prompt is None:
             return self.transport.call(argv, input=input, timeout=timeout), []
@@ -252,6 +254,11 @@ class UiObservations:
                     and all(type(control[key]) is bool for key in
                             ('public_id_present', 'sensitive', 'focused')), 'ui:station-branch')
             expected['branch'] = branch
+        if operation == 'station-default-entry':
+            require(type(result) is dict and set(result) == {*expected, 'entry'}
+                    and result['entry'] == {'destination': 'default-request-form'},
+                    'ui:station-default-entry')
+            expected['entry'] = {'destination': 'default-request-form'}
         if operation in accessible_ui.PICKER_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'focused'}
                     and result['focused'] is True, 'ui:response')

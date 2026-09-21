@@ -43,6 +43,16 @@ def test_second_category_waits_for_fresh_healthy_samples_then_short_jobs_fill_sl
     assert admission.allows('component', ['ui'])
 
 
+def test_exclusive_unit_waits_for_all_branches_despite_spare_capacity():
+    state, admission = gate()
+    warm(state, admission, active=('unit',))
+    for active in (['unit', 'unit'], ['unit']):
+        assert admission.allows('unit', active)
+        assert not admission.allows('unit-exclusive', active)
+        assert admission.reason == 'exclusive work waits for all host branches to finish'
+    assert admission.allows('unit-exclusive', [])
+
+
 @pytest.mark.parametrize('field,value', [('cpu_pressure', 10), ('memory_pressure', 1),
                                         ('swapping', True)])
 def test_pressure_closes_gate_and_requires_full_healthy_window(field, value):

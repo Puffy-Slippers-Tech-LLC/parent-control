@@ -171,6 +171,11 @@ The [official noninteractive documentation](https://learn.chatgpt.com/docs/non-i
 defines the ephemeral invocation. Existing CLI authentication, configuration,
 workspace sandbox and command rules remain in effect; agents cannot request
 interactive approvals. Install/authenticate Codex separately before starting.
+Agent output retains Codex's native ANSI colors and emphasis, including when
+reattaching. The launcher explicitly enables color because the detached worker
+captures output through a pipe. This is the unattended `exec` presentation;
+it does not open the interactive Codex input box. Retained output includes ANSI
+styling sequences.
 
 Closing the terminal detaches; rerun `tools/fix-tests` to attach to the current
 output, with a bounded tail of earlier output. `tools/fix-tests --stop` and

@@ -230,7 +230,7 @@ def test_publishing_refills_when_unit_and_component_are_exhausted(companion):
     assert list(started) == ['publish', 'unit', 'component', companion, 'ui-preview']
     assert started[companion] - finished['component'] <= 2
     assert started['ui-preview'] >= finished['publish']
-    assert ('ui-preview', 'unqualified pairing requires an idle runner') in reasons
+    assert ('ui-preview', 'waiting for incompatible active host work to finish') in reasons
 
 
 def test_recorded_observations_admit_request_after_io_and_cpu_recovery():

@@ -83,7 +83,9 @@ def agent_command(root, model, effort, run=None):
             '-c', f'model_reasoning_effort="{effort}"',
             '-c', 'history.persistence="none"', '-c', 'features.memories=false',
             '-c', 'features.multi_agent=false', '-c', 'features.multi_agent_v2=false',
-            '--color', 'never', '--cd', str(root)]
+            # The detached supervisor captures a pipe, so auto would suppress
+            # Codex's native terminal styling even for attached TTY observers.
+            '--color', 'always', '--cd', str(root)]
     if run is not None:
         command += ['--output-schema', str(Path(__file__).with_name('fix_tests_response.schema.json')),
                     '--output-last-message', str(run / 'agent-result.json')]

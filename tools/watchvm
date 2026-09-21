@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -B
-"""User-owned optional E2E spectator; no privilege or VM-control access."""
+"""User-owned VM spectator; no privilege or VM-control access."""
 from pathlib import Path
 import sys
 

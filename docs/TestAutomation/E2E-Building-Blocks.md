@@ -1313,7 +1313,7 @@ choose a customer's expected result or query internal product state.
 
 ## Add a consumer
 
-Open `tools/watch-e2e` as the desktop user before starting a VM task. Its
+Open `tools/watchvm` as the desktop user before starting a VM task. Its
 resizable command pane follows the shared guarded command runner independently
 of graphical frames: installed-system tests (including the pre-E2E test run),
 app-snapshot preparation, SSH work, VM lifecycle stages and cleanup are visible.
@@ -1329,16 +1329,22 @@ complete diagnostics. Password input, binary transfers and private observation
 programs/replies are omitted and labelled. The spectator receives no input route
 or SSH/libvirt connection. Only the authenticated invoking user receives command
 text; opening or closing the viewer cannot cancel or control the task.
-Setup and installed-system runs also attach the existing display collector while
-their VM runs. The frame feed remains observation-only; customer actions use the semantic input contract.
-New task implementations must reuse these command, lease and progress interfaces
-so their VM work remains visible without launching a second terminal or viewer.
+The shared lease attaches the existing display collector at every VM start.
+Maintenance retains it between commands; viewer reconnection never triggers a
+new VM connection. The frame feed remains observation-only; customer actions use
+the semantic input contract. New tasks must obey the
+[VM observation mandate](../../AGENTS.md#tests-artifacts-and-vm): reuse these
+command, lease and progress interfaces, and enter `watch_activity.operation`
+with fixed nonsecret intent before VM work. The footer shows that intent through
+blocking work even without a recorder. Do not create per-consumer capture,
+transcript or intention infrastructure. See the
+[shared viewer contract](../../tests/e2e/README.md#optional-live-viewing).
 Development activation is `none`; `./setup.sh --test-tools-only` installs the GTK 4
 VTE dependency (`gir1.2-vte-3.91`) on existing hosts. Reopen an already running viewer
 after code changes. Refresh installed dispatcher changes through the same setup mode.
 
 The recorder automatically publishes each selected case's numeric ID, title,
-invocation position/total and current phase description to `tools/watch-e2e`.
+invocation position/total and current phase description to `tools/watchvm`.
 The title appends `- (case time/total time)` in whole minutes, or hours and
 minutes from one hour onward. Case time includes preparation; total time runs
 from invocation startup. An independent progress heartbeat keeps the next case

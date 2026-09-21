@@ -89,6 +89,8 @@ class Progress:
             target = self.next_value if self.next_value is not None else self.value
             if target and (self.next_value is not None or self.preparing):
                 target['operation'] = 'Preparing VM: ' + line
+        if self.publish_progress is not None:
+            self.publish_progress()
 
     def case(self, case_id):
         index = next(i for i, case in enumerate(self.cases) if case['case_id'] == case_id)
@@ -106,6 +108,8 @@ class Progress:
             self.worker = None
         print(f"e2e:case=[{index + 1}/{len(self.cases)}] [{case['coverage_id']}]: {case['title']}",
               file=sys.stderr, flush=True)
+        if self.publish_progress is not None:
+            self.publish_progress()
 
     def step(self, description):
         with self.lock:
@@ -115,6 +119,8 @@ class Progress:
             # Never carry the previous step's worker action into a new step.
             self.after = self.worker_sequence()
         print('e2e:step=' + description, file=sys.stderr, flush=True)
+        if self.publish_progress is not None:
+            self.publish_progress()
 
     def follow_worker(self, directory, labels):
         with self.lock:
@@ -129,6 +135,8 @@ class Progress:
             self._time_operation(self.value)
             self.after = self.worker_sequence()
         print('e2e:operation=' + label, file=sys.stderr, flush=True)
+        if self.publish_progress is not None:
+            self.publish_progress()
 
     def worker_value(self):
         if self.worker is None:

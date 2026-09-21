@@ -3,11 +3,14 @@
 import signal
 import subprocess
 import threading
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 
 import e2e_watch as watch
+from tests.support.vm_baseline import rig
+from tests.support.vm_runner import lease_rig
 
 
 def handle():
@@ -89,30 +92,49 @@ def test_optional_failure_keeps_automation_running():
     adapter.lease.stop.assert_not_called()
 
 
+@pytest.mark.parametrize('graphics', ['vnc', 'spice'])
 @pytest.mark.parametrize('failure', [None, 'body', 'close'])
-def test_setup_display_closes_its_observer_without_vm_lifecycle(failure):
-    lease, observer = Mock(), Mock()
-    if failure == 'close':
-        observer.close.side_effect = RuntimeError('cleanup-failed')
-    with patch('graphical_lease.Adapter') as adapter, patch.object(watch, 'start', return_value=observer):
-        def invoke():
-            with watch.running_display(lease):
-                if failure == 'body':
-                    raise RuntimeError('body-failed')
-        if failure:
-            with pytest.raises(RuntimeError):
-                invoke()
-        else:
-            invoke()
-    adapter.assert_called_once_with(lease, running=True)
-    observer.close.assert_called_once()
-    lease.start.assert_not_called()
-    lease.stop.assert_not_called()
+def test_every_lease_observes_start_and_owns_cleanup(lease_rig, graphics, failure):
+    lease, _ = lease_rig
+    observer = Mock()
+    lease.view.graphics_type = graphics
+    with patch.dict(watch.os.environ, {'PKEXEC_UID': '1000'}), \
+            patch.object(watch, 'os', SimpleNamespace(geteuid=lambda: 0, environ=watch.os.environ)), \
+            patch.object(watch, 'DisplayAdapter') as adapter, \
+            patch.object(watch, 'start', return_value=observer):
+        lease.__enter__()
+        lease.prepare()
+        try:
+            lease.start()
+            assert lease.watch is observer
+            adapter.assert_called_once_with(lease.source, lease.view.domain_id,
+                                            lease.guard, lease.state['run'], lease=lease)
+            if failure == 'close':
+                observer.close.side_effect = RuntimeError('collector-cleanup-failed')
+                with pytest.raises(RuntimeError, match='collector-cleanup-failed'):
+                    lease.close_watch()
+                assert lease.watch is observer  # Retain identity for retry.
+                observer.close.side_effect = None
+            elif failure == 'body':
+                with pytest.raises(RuntimeError, match='body-failed'):
+                    try:
+                        raise RuntimeError('body-failed')
+                    finally:
+                        lease.close_watch()
+                assert lease.watch is None
+            lease.stop()
+            assert lease.watch is None
+            observer.close.assert_called()
+        finally:
+            lease.finish()
+            lease.release()
 
 
-def test_failed_setup_display_start_cannot_swallow_collector_cleanup_failure():
-    with patch('graphical_lease.Adapter'), patch.object(watch, 'start',
-            side_effect=RuntimeError('collector-cleanup-failed')):
+def test_failed_shared_start_cannot_swallow_collector_cleanup_failure():
+    lease = Mock(watch=None, state={'run': 'a' * 32})
+    with patch.dict(watch.os.environ, {'PKEXEC_UID': '1000'}), \
+            patch.object(watch.os, 'geteuid', return_value=0), \
+            patch.object(watch, 'DisplayAdapter'), patch.object(watch, 'start',
+                side_effect=RuntimeError('collector-cleanup-failed')):
         with pytest.raises(RuntimeError, match='collector-cleanup-failed'):
-            with watch.running_display(Mock()):
-                pytest.fail('Cannot proceed past unfinished collector cleanup')
+            watch.attach(lease)

@@ -43,6 +43,7 @@ def main():
         result = subprocess.run(selected, cwd=root, check=False,
                                 env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
                                      'LANG': 'C.UTF-8', 'HOME': '/root',
+                                     'PKEXEC_UID': str(int(os.environ['PKEXEC_UID'])),
                                      'DEBIAN_FRONTEND': 'noninteractive',
                                      'PYTHONDONTWRITEBYTECODE': '1'})
         print(f'setup-helper: finished (status={result.returncode})', flush=True)

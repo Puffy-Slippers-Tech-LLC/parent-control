@@ -34,16 +34,25 @@ class Commands:
 
     def run(self, args, *, timeout=120, check=True, input=None, merge_stderr=True,
             on_output=None, terminal=False):
-        require(not terminal or input is None, 'command:terminal-input-unsupported')
-        self.sequence += 1
-        sequence = self.sequence
-        self.last_returncode = None
         # The guest payload also uses this module without host spectator code.
         try:
             import watch_activity
         except ModuleNotFoundError:
             watch_activity = None
         watch = watch_activity.command(args, self.watch_command) if watch_activity else None
+        self.last_returncode = None
+        try:
+            return self._run(args, timeout=timeout, check=check, input=input,
+                             merge_stderr=merge_stderr, on_output=on_output,
+                             terminal=terminal, watch=watch)
+        finally:
+            if watch is not None:
+                watch.finish(self.last_returncode)
+
+    def _run(self, args, *, timeout, check, input, merge_stderr, on_output, terminal, watch):
+        require(not terminal or input is None, 'command:terminal-input-unsupported')
+        self.sequence += 1
+        sequence = self.sequence
         output_failed = False
 
         def forward(data, stream):
@@ -158,8 +167,7 @@ class Commands:
                         path.chmod(0o600)
                 forward(raw[offset:], 'stdout')
                 forward(error_bytes[error_offset:], 'stderr')
-                if watch is not None:
-                    watch.finish(child.returncode)
+                self.last_returncode = child.returncode
                 if self.progress is not None and not progress_failed and len(raw) > offset:
                     self.progress(raw[offset:])
             self.last_returncode = child.returncode

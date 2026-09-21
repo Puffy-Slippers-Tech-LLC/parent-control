@@ -15,6 +15,7 @@ import time
 
 from owned_commands import Commands, require, CommandError as Error
 import vm_config
+from watch_activity import observed
 
 BOOT_SHA256_PROBE = '''import hashlib,pathlib,re
 value=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
@@ -112,10 +113,16 @@ class Transport:
         self.guard = guard
 
     def call(self, argv, *, input=None, timeout=120, check=True, attempts=1, on_output=None):
+        from watch_activity import operation, remote_command
+        selection = remote_command(argv, input is not None)
+        with operation(selection[0], priority=1):
+            return self._call(argv, input=input, timeout=timeout, check=check,
+                              attempts=attempts, on_output=on_output, selection=selection)
+
+    def _call(self, argv, *, input, timeout, check, attempts, on_output, selection):
         self.guard(self.config)
-        from watch_activity import remote_command
         previous_watch = getattr(self.commands, 'watch_command', None)
-        self.commands.watch_command = remote_command(argv, input is not None)
+        self.commands.watch_command = selection
         previous = getattr(self.commands, 'progress', None)
         if on_output is not None:
             self.commands.progress = on_output
@@ -130,9 +137,11 @@ class Transport:
     def ready(self):
         self.probe_ready()
 
+    @observed('Waiting for the VM SSH connection')
     def probe_ready(self, *, boot_id=False, timeout=330):
         return self._probe_ready(boot_id=boot_id, timeout=timeout)
 
+    @observed('Waiting for the VM to finish rebooting')
     def wait_boot_change(self, previous_boot_sha256, *, on_diagnostic=None):
         """Observe a customer-requested reboot; never issue a lifecycle command.
 
@@ -212,6 +221,7 @@ class Transport:
                 event.wait(max(0, deadline - time.monotonic()))
                 event.clear()
 
+    @observed('Rebooting the VM and waiting for its new boot')
     def reboot(self):
         from watch_activity import event
         event('Requesting VM reboot; waiting for a new boot')
@@ -228,6 +238,7 @@ class Transport:
         # while malformed replies, guard errors and ownership loss still fail.
         self.wait_boot_change(before.decode('ascii').strip())
 
+    @observed('Transferring VM files')
     def copy(self, up, source, destination):
         require(source.endswith('/') == destination.endswith('/'), 'transport:copy-type')
         is_dir = source.endswith('/')

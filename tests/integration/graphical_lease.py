@@ -28,6 +28,66 @@ def log(event):
     print('graphical-lease: [' + event + ']', file=sys.stderr, flush=True)
 
 
+def open_display(source, domain_id, revalidate, *, index=0):
+    """Public graphics FD API on a disposable graphics connection.
+
+    A failed FD RPC can close its libvirt connection. Never issue it on
+    the lease's lifecycle connection, which must remain usable for cleanup.
+    The second connection grants no new ownership: compare its exact domain
+    instance and XML against the guarded lease before attaching anything.
+    """
+    from e2e_watch import configuration_digest
+    connection = source.api.open(URI)
+    require(connection is not None, 'graphics:connection')
+    display = None
+    try:
+        require(connection.getURI() == URI, 'graphics:connection')
+        domain = connection.lookupByUUIDString(source.uuid)
+        revalidate()
+        require(domain.UUIDString() == source.uuid and
+                domain.ID() == domain_id and
+                configuration_digest(domain.XMLDesc(0)) == configuration_digest(source.domain.XMLDesc(0)),
+                'graphics:domain-identity')
+        log('display-attach-requested')
+        # Let libvirt create/label the pair for its confined QEMU process.
+        # flags=0 retains authentication. No direct QEMU socket access.
+        require(index in (0, 1), 'graphics:display-index')
+        descriptor = domain.openGraphicsFD(index, 0)
+        try:
+            display = socket.socket(fileno=descriptor)
+        except BaseException:
+            os.close(descriptor)
+            raise
+        revalidate()
+        require(domain.ID() == domain_id and
+                configuration_digest(domain.XMLDesc(0)) == configuration_digest(source.domain.XMLDesc(0)),
+                'graphics:domain-identity')
+    except BaseException:
+        if display is not None:
+            try:
+                display.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            display.close()
+        log('display-attach-failed')
+        raise
+    finally:
+        original = sys.exception()
+        try:
+            connection.close()
+        except BaseException:
+            if display is not None:
+                try:
+                    display.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                display.close()
+            if original is None:
+                raise
+            log('graphics-connection-close-failed')
+    return display
+
+
 class Adapter:
     """Accept one generalhw off/on/off attempt; never restore within it."""
 
@@ -42,7 +102,10 @@ class Adapter:
         self.events = []
         self.display = None
         self.serial = None
-        self.observer = None
+
+    @property
+    def observer(self):
+        return self.lease.watch
 
     def revalidate(self):
         try:
@@ -75,67 +138,10 @@ class Adapter:
             log('display-closed')
 
     def close_observer(self):
-        if self.observer is not None:
-            observer, self.observer = self.observer, None
-            observer.close()
+        self.lease.close_watch()
 
     def open_display(self, *, index=0):
-        """Public graphics FD API on a disposable graphics connection.
-
-        A failed FD RPC can close its libvirt connection. Never issue it on
-        the lease's lifecycle connection, which must remain usable for cleanup.
-        The second connection grants no new ownership: compare its exact domain
-        instance and XML against the guarded lease before attaching anything.
-        """
-        connection = self.lease.source.api.open(URI)
-        require(connection is not None, 'graphics:connection')
-        display = None
-        try:
-            require(connection.getURI() == URI, 'graphics:connection')
-            domain = connection.lookupByUUIDString(self.lease.source.uuid)
-            self.revalidate()
-            require(domain.UUIDString() == self.lease.source.uuid and
-                    domain.ID() == self.lease.view.domain_id and
-                    domain.XMLDesc(0) == self.lease.source.domain.XMLDesc(0),
-                    'graphics:domain-identity')
-            log('display-attach-requested')
-            # Let libvirt create/label the pair for its confined QEMU process.
-            # flags=0 retains authentication. No direct QEMU socket access.
-            require(index in (0, 1), 'graphics:display-index')
-            descriptor = domain.openGraphicsFD(index, 0)
-            try:
-                display = socket.socket(fileno=descriptor)
-            except BaseException:
-                os.close(descriptor)
-                raise
-            self.revalidate()
-            require(domain.ID() == self.lease.view.domain_id and
-                    domain.XMLDesc(0) == self.lease.source.domain.XMLDesc(0),
-                    'graphics:domain-identity')
-        except BaseException:
-            if display is not None:
-                try:
-                    display.shutdown(socket.SHUT_RDWR)
-                except OSError:
-                    pass
-                display.close()
-            log('display-attach-failed')
-            raise
-        finally:
-            original = sys.exception()
-            try:
-                connection.close()
-            except BaseException:
-                if display is not None:
-                    try:
-                        display.shutdown(socket.SHUT_RDWR)
-                    except OSError:
-                        pass
-                    display.close()
-                if original is None:
-                    raise
-                log('graphics-connection-close-failed')
-        return display
+        return open_display(self.lease.source, self.lease.view.domain_id, self.revalidate, index=index)
 
     def request(self, action, run):
         require(run == self.run, 'graphics:wrong-run')
@@ -170,10 +176,7 @@ class Adapter:
             # Mark first: a failed start must never permit a second create.
             self.phase = 'starting'
             self.lease.start()
-            # Preattach before automation sends any input. Opening/closing a
-            # user's viewer never causes another QEMU connection or handshake.
-            import e2e_watch
-            self.observer = e2e_watch.start(self)
+            # Lease.start attaches the shared observer before any input.
             self.phase = 'running'
             self.events.append('poweron')
             log('poweron-complete')

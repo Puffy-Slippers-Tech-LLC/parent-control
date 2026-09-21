@@ -1,7 +1,7 @@
 """Lease-owned display collector. It never owns or launches a viewer window."""
 
+import hashlib
 import json
-from contextlib import contextmanager
 import os
 from pathlib import Path
 import re
@@ -12,9 +12,55 @@ import subprocess
 import sys
 import threading
 import time
+import xml.etree.ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import BASE, require
+
+
+def configuration_digest(xml):
+    """Bind live configuration without mistaking balloon reports for edits.
+
+    currentMemory's numeric value changes during boot. Keep its attributes,
+    configured maximum memory, all devices and ownership metadata bound.
+    """
+    root = ET.fromstring(xml)
+    reports = root.findall('currentMemory')
+    require(len(reports) <= 1, 'session-memory-report')
+    for report in reports:
+        require(len(report) == 0 and re.fullmatch('[0-9]+', report.text or ''),
+                'session-memory-report')
+        report.text = 'runtime'
+    return hashlib.sha256(ET.tostring(root)).hexdigest()
+
+
+def display_endpoint(root):
+    """One private copied-display endpoint for all guarded boot paths."""
+    devices = root.find('devices')
+    require(devices is not None, 'display-devices')
+    displays = devices.findall('graphics')
+    require(len(displays) in (1, 2) and displays[0].get('type') in ('vnc', 'spice'),
+            'display-layout')
+    if len(displays) == 2:
+        observer = displays[1]
+        require(observer.attrib == {'type': 'dbus', 'p2p': 'yes'}
+                and len(observer) == 1 and observer[0].tag == 'gl'
+                and observer[0].attrib == {'enable': 'no'}, 'display-endpoint')
+    else:
+        observer = ET.SubElement(devices, 'graphics', type='dbus', p2p='yes')
+        ET.SubElement(observer, 'gl', enable='no')
+
+
+class DisplayAdapter:
+    """An attested display owner, with no VM input or lifecycle methods."""
+
+    def __init__(self, source, domain_id, revalidate, run, *, lease=None):
+        self.source, self.domain_id, self.revalidate = source, domain_id, revalidate
+        self.run, self.lease = run, lease
+
+    def open_display(self, *, index=1):
+        from graphical_lease import open_display
+        return open_display(self.source, self.domain_id, self.revalidate, index=index)
 
 
 class ProgressPublication:
@@ -111,7 +157,9 @@ class Publication:
                     and directory.resolve() == directory, 'registry-owner')
         self.path = self.directory / (run + '.sock')
         require(registry in ('current.json', 'activity.json'), 'publication-registry')
-        self.current = self.directory / registry
+        # Each command publisher retains its own registration. Parallel child
+        # transports must never steal or remove another controller's feed.
+        self.current = self.directory / (f'activity-{run}.json' if registry == 'activity.json' else registry)
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         try:
             self.server.bind(str(self.path))
@@ -278,6 +326,9 @@ def start(adapter):
         return None
     observer = None
     try:
+        if getattr(adapter.lease, 'watch_detached', False) is True:
+            from vm_watch_session import Session
+            return Session(adapter, int(uid))
         observer = Observer(adapter.open_display(index=1), int(uid), adapter.run,
                             progress=getattr(adapter.lease, 'watch_progress', None))
         if not observer.ready.wait(6) or observer.finished.is_set():
@@ -296,19 +347,11 @@ def start(adapter):
         raise
 
 
-@contextmanager
-def running_display(lease):
-    """Observe an already started setup/system guest without lifecycle input."""
-    observer = None
-    try:
-        try:
-            from graphical_lease import Adapter
-            adapter = Adapter(lease, running=True)
-        except Exception:
-            log('disabled')
-        else:
-            observer = start(adapter)
-        yield
-    finally:
-        if observer is not None:
-            observer.close()
+def attach(lease):
+    """One display attachment per start, shared by every VM consumer."""
+    lease.close_watch()
+    uid = os.environ.get('PKEXEC_UID', '')
+    if os.geteuid() != 0 or not uid.isdecimal() or int(uid) <= 0:
+        return
+    lease.watch = start(DisplayAdapter(lease.source, lease.view.domain_id,
+                                     lease.guard, lease.state['run'], lease=lease))

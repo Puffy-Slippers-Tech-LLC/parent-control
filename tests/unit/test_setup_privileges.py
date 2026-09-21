@@ -60,6 +60,7 @@ def test_root_execution_uses_pinned_checkout_and_sanitized_environment(monkeypat
     assert run.call_args.kwargs['cwd'] == ROOT
     assert 'PYTHONPATH' not in run.call_args.kwargs['env']
     assert run.call_args.kwargs['env']['DEBIAN_FRONTEND'] == 'noninteractive'
+    assert run.call_args.kwargs['env']['PKEXEC_UID'] == '1000'
     assert run.call_args.args[0][-1] == '--system'
 
 

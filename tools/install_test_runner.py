@@ -143,8 +143,8 @@ def repair_checkout_bytecode(root):
 
 
 def install_watch_desktop(root, *, data_root=Path('/usr/local/share'),
-                          application_id='org.onpc.E2EWatch', launcher='watch-e2e',
-                          title='E2E VM — View only'):
+                          application_id='org.onpc.E2EWatch', launcher='watchvm',
+                          title='VM — View only'):
     """Give the development viewer its own GNOME dock/window identity."""
     from gi.repository import GLib
 

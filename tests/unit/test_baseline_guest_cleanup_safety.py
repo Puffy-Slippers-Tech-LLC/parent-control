@@ -32,6 +32,8 @@ def preparation(monkeypatch):
     g.ln_s.side_effect = lambda target, p: links.update({p: target})
     g.rm.side_effect = lambda p: (links if p in links else files).pop(p)
     capture = Mock()
+    capture.state = {'operation': 'a' * 32}
+    capture.source.domain.XMLDesc.return_value = '<domain><devices><graphics type="spice"/></devices></domain>'
     capture.source.domain.ID.return_value = 15
     capture.source.snapshot.return_value = ({}, True)
     @contextmanager
@@ -61,6 +63,55 @@ def test_repeat_stages_only_maintained_code_and_never_the_host_envrc(preparation
         assert not any(b'fixture-password' in data for data in p.files.values())
     assert p.capture.source.domain.create.call_count == 2
     p.capture.source.shutdown.assert_not_called()
+
+
+def test_baseline_boot_uses_shared_endpoint_and_collector(preparation, monkeypatch):
+    import e2e_watch
+    import xml.etree.ElementTree as ET
+    p = preparation
+    observer = Mock()
+    start = Mock(return_value=observer)
+    monkeypatch.setattr(e2e_watch, 'start', start)
+    def boot():
+        configured = ET.fromstring(p.capture.source.connection.defineXML.call_args.args[0])
+        assert configured.findall('devices/graphics')[0].get('type') == 'spice'
+        copied = configured.findall('devices/graphics')[1]
+        assert copied.attrib == {'type': 'dbus', 'p2p': 'yes'}
+        assert copied.find('gl').get('enable') == 'no'
+        start.assert_not_called()
+        p.boot()
+    p.capture.source.domain.create.side_effect = boot
+    guest.prepare(p.capture, Mock(), 'fixture-password')
+    adapter = start.call_args.args[0]
+    assert isinstance(adapter, e2e_watch.DisplayAdapter)
+    assert adapter.source is p.capture.source and adapter.domain_id == 15
+    observer.close.assert_called_once()
+
+
+@pytest.mark.parametrize('changed,accepted', [
+    ('<currentMemory unit="KiB">512</currentMemory>', True),
+    ('<currentMemory unit="MiB">1024</currentMemory>', False),
+    ('<currentMemory unit="KiB">1024</currentMemory><devices><disk/></devices>', False),
+])
+def test_baseline_display_ignores_only_live_memory_report(preparation, monkeypatch, changed, accepted):
+    import e2e_watch
+    domain = preparation.capture.source.domain
+    report = '<currentMemory unit="KiB">1024</currentMemory>'
+    xml = '<domain>' + report + '<devices><graphics type="spice"/></devices></domain>'
+    domain.XMLDesc.return_value = xml
+    observer = Mock()
+    def start(adapter):
+        adapter.revalidate()
+        domain.XMLDesc.return_value = xml.replace(report, changed)
+        if accepted:
+            adapter.revalidate()
+        else:
+            with pytest.raises(host.CaptureError, match='preparation-display-changed'):
+                adapter.revalidate()
+        return observer
+    monkeypatch.setattr(e2e_watch, 'start', start)
+    guest.prepare(preparation.capture, Mock(), 'fixture-password')
+    observer.close.assert_called_once()
 
 
 def test_guest_failure_cannot_reuse_success_from_previous_run(preparation):

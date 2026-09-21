@@ -6,6 +6,8 @@ text commands in. Stdin, archives and private observation replies stay private.
 """
 
 import atexit
+from contextlib import contextmanager
+from functools import wraps
 import json
 import os
 from pathlib import Path
@@ -14,6 +16,7 @@ import shlex
 import socket
 import struct
 import threading
+import time
 import uuid
 
 _instance = None
@@ -87,6 +90,22 @@ class Transcript:
         self.text = ''
         self.sequence = 0
         self.offset = 0
+        self.operations = {}
+        self.intent = ('', 0)
+
+    def begin(self, label, *, priority=1):
+        token = object()
+        with self.lock:
+            self.operations[token] = (priority, time.monotonic_ns(), clean(label))
+        return token
+
+    def end(self, token):
+        with self.lock:
+            self.operations.pop(token, None)
+
+    def announce(self, label):
+        with self.lock:
+            self.intent = (clean(label), time.monotonic_ns())
 
     def append(self, text):
         with self.lock:
@@ -97,8 +116,16 @@ class Transcript:
 
     def packet(self, run):
         with self.lock:
+            label, started = self.intent
+            priority = 0
+            if self.operations:
+                priority, started, label = max(self.operations.values())
             return json.dumps(dict(run=run, sequence=self.sequence,
-                                   text=self.text, offset=self.offset), ensure_ascii=True).encode()
+                                   text=self.text, offset=self.offset,
+                                   operation=' '.join(label.split())[:384],
+                                   operation_started_ns=started,
+                                   operation_priority=priority,
+                                   operation_active=bool(self.operations)), ensure_ascii=False).encode()
 
 
 class Publication:
@@ -156,7 +183,37 @@ def current():
 def event(label):
     transcript = current()
     if transcript is not None:
+        transcript.announce(label)
         transcript.append('\n[VM] ' + label + '\n')
+
+
+@contextmanager
+def operation(label, *, priority=2):
+    """Publish trusted intent synchronously before work; restore enclosing intent.
+
+    Use fixed nonsecret prose. A nested command cannot replace an enclosing
+    operation (for example restoring a snapshot) with a guard's qemu-img probe.
+    Each publisher has its own socket, so child transports and other controllers
+    cannot overwrite its registration or erase its still-running operation.
+    """
+    transcript = current()
+    token = transcript.begin(label, priority=priority) if transcript is not None else None
+    try:
+        yield
+    finally:
+        if transcript is not None:
+            transcript.end(token)
+
+
+def observed(label):
+    """The shared entry guard for fixed VM operations, including non-SSH work."""
+    def decorate(function):
+        @wraps(function)
+        def invoke(*args, **kwargs):
+            with operation(label):
+                return function(*args, **kwargs)
+        return invoke
+    return decorate
 
 
 def remote_command(argv, has_input):
@@ -180,6 +237,7 @@ def remote_command(argv, has_input):
 class Command:
     def __init__(self, transcript, label, visible):
         self.transcript, self.visible = transcript, visible
+        self.token = transcript.begin(label)
         self.pending = {'stdout': b'', 'stderr': b''}
         self.controls = {stream: TerminalControls() for stream in self.pending}
         self.dropping = set()
@@ -212,6 +270,7 @@ class Command:
                 self.controls[stream] = TerminalControls()
                 self.output(b'\n', stream)
         self.transcript.append(f'[exit {status}]\n')
+        self.transcript.end(self.token)
 
 
 def command(args, selection=None):

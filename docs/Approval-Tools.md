@@ -359,6 +359,15 @@ Collection/listing does not run cleanup or claim passing test coverage.
 
 ## The one test VM
 
+All VM consumers inherit the [VM observation mandate](../AGENTS.md#tests-artifacts-and-vm).
+`tools/watchvm` observes the shared lease and guarded command transport during
+E2E, installed tests, qualifications, snapshot preparation and maintenance.
+Publish nonsecret intent through `watch_activity.operation` or `observed` before
+work starts; keep it visible through blocking work and restore enclosing intent
+after nested work. Reuse this infrastructure for new routes. Independent capture,
+SSH transcript or footer implementations are outside the contract. Viewing is
+read-only and may attach or detach at any time without controlling VM activity.
+
 `tools/test-vm` has no domain, URI, disk, XML, snapshot-name or arbitrary-command
 argument. It uses `qemu:///system`, the name in
 [config/test-vm.json](../config/test-vm.json), and the UUID pinned

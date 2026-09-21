@@ -149,6 +149,16 @@ def inspect():
             evidence['resize_did_not_change_guest'] = True
             publish_evidence()
             stage = 6
+        elif stage == 6 and advance_requested(4):
+            source.publish(progress={})
+            feed.invocation_activity = dict(run='c' * 32, sequence=1, offset=0,
+                text='SSH $ diagnostic\nVM observation ready\n',
+                operation_active=True, operation_priority=2,
+                operation='Inspecting the VM greeter', operation_started_ns=time.monotonic_ns())
+            stage = 7
+        elif stage == 7 and advance_requested(5):
+            feed.invocation_activity.update(operation='VM observation complete', operation_active=False)
+            stage = 8
         if stage < 6:
             assert elapsed < 20, 'Fixture viewer did not complete its transitions'
         return True

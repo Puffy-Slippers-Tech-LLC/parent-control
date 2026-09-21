@@ -260,6 +260,10 @@ class UiObservations:
 
     def observe(self, operation):
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
+        with watch_activity.operation(OPERATION_LABELS[operation]):
+            return self._observe(operation)
+
+    def _observe(self, operation):
         # Qualifications lack a scenario recorder, but use the same existing
         # spectator command pane as customer cases. Keep private program/stdin
         # and raw UI replies hidden; expose the fixed operation and its result.

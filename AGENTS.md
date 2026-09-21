@@ -157,9 +157,24 @@
 - Operate the pinned VM only through `tools/test-vm`. Do not bypass ownership,
   select another guest, or create snapshots, overlays or clones. Stop maintenance
   before system/E2E tests; reset is not a customer journey step.
-- Keep every VM experiment observable through `tools/watch-e2e`, including the
-  guest screen and SSH activity. Reuse its existing display collector, guarded
-  command transcript and progress interfaces; preserve private-input filtering.
+- **VM observation mandate:** Every VM operation, experiment, qualification,
+  setup, maintenance and test must use the shared `watchvm` infrastructure,
+  regardless of its caller or whether it is E2E. Start display observation through
+  the shared VM lease; route host/SSH commands through the guarded command
+  transport and publish a nonsecret intention through `watch_activity.operation`
+  (or its `observed` decorator) before performing work. Keep that intention in
+  the viewer footer throughout the operation, including waits and cleanup;
+  nested operations restore the enclosing intention when finished.
+- Reuse the existing display collector, authenticated command transcript and
+  progress interfaces. Do not add per-workflow viewers, SSH tails, capture loops
+  or alternate intention channels. A missing integration must be fixed in this
+  shared infrastructure before adding its consumer. Preserve private-input
+  filtering and the existing VM ownership/identity checks.
+- `tools/watchvm` must remain read-only, live and interruption-free. Users can
+  connect, disconnect and reconnect at any time, including between maintenance
+  commands, without affecting VM operations. Viewer lifetime must never control
+  the VM, its input, command execution or collector lifetime. Qualify new routes
+  for intent-before-action, live screen/SSH visibility and independent viewing.
 
 ## Setup
 

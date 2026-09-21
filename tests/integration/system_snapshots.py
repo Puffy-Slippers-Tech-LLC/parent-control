@@ -39,7 +39,6 @@ def installed_case(installed):
 
 def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
                  *, fresh_install=False):
-    from e2e_watch import running_display
     from vm_transport import Transport
 
     lease, source = suite.lease, suite.source
@@ -71,9 +70,8 @@ def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, 
                           'domain_uuid': source.uuid, 'domain_id': lease.view.domain_id}
                 vm = Transport(config, suite.commands, guard=lambda _: lease.guard())
                 lease.guard()
-                with running_display(lease):
-                    system.installed_run(vm, lease, attempt, selected, ledger,
-                                         already_installed=installed)
+                system.installed_run(vm, lease, attempt, selected, ledger,
+                                     already_installed=installed)
                 verify_result(attempt, manifest, selected_inputs_sha256, ledger)
                 lease.guard()
         finally:

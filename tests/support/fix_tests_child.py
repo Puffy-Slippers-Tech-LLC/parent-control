@@ -20,7 +20,7 @@ def main():
                           for name in ('unit', 'ui', 'system', 'e2e')}))
         return 0
     mode = (root / 'mode').read_text()
-    category = args[1] if kind == 'test' else 'agent'
+    category = args[1] if kind == 'test' else kind
     record = {'kind': kind, 'category': category, 'pid': os.getpid(), 'args': args}
     record['frame_directory'] = os.environ.get('ONPC_TEST_FRAME_DIRECTORY')
     if kind == 'agent':
@@ -35,21 +35,37 @@ def main():
         (root / 'test-cleaned').touch()
         raise SystemExit(130)
 
-    if kind == 'test':
+    if kind in ('test', 'recovery'):
         signal.signal(signal.SIGINT, interrupt)
         if mode == 'attach-once' and not (root / 'attached').exists():
             (root / 'attached').touch()
             print('Attached to run-tests session: previous', flush=True)
             return 0
-        print('Started run-tests session: harmless', flush=True)
-        if mode == 'retention-once':
+        if kind == 'test':
+            print('Started run-tests session: harmless', flush=True)
+        if mode in ('retention-once', 'recovery-wait'):
             if category == 'unit' and not (root / 'recovered').exists():
                 print('retention: previous owner did not finish; preserve evidence for recovery',
                       flush=True)
                 return 1
-            if category == 'integration':
+            if kind == 'recovery':
                 (root / 'recovered').touch()
-        if mode == 'test-wait':
+        if mode == 'retention-repair':
+            if category == 'unit' and not (root / 'recovered').exists():
+                print('retention: previous owner did not finish; preserve evidence for recovery',
+                      flush=True)
+                return 1
+            if kind == 'recovery':
+                if not (root / 'fixed').exists():
+                    handoff = root / 'failure.json'
+                    handoff.write_text(json.dumps({
+                        'prompt': 'LATEST RECOVERY FAILURE ONLY',
+                        'categories': ['unit'],
+                    }))
+                    print(f'Failure handoff: {handoff}', flush=True)
+                    return 1
+                (root / 'recovered').touch()
+        if mode == 'test-wait' or (mode == 'recovery-wait' and kind == 'recovery'):
             (root / 'test-ready').touch()
             deadline = time.monotonic() + 15
             while not (root / 'release').exists() and time.monotonic() < deadline:

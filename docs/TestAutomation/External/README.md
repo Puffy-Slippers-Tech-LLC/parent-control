@@ -34,15 +34,30 @@ not. Repository-owned apps, child extension and fixtures still require IDs.
 
 ## Current task
 
-The next task is **O01** in [Entry and session controls](01-Entry.md). A session
+The next task is **O02** in [Entry and session controls](01-Entry.md). A session
 may therefore start with only: `Execute the next task in
 docs/TestAutomation/External/README.md`.
 
-G04 bound the observed passwordless `default-request-form` branch without a
-session catalogue. O01 should now use that guarded route to distinguish missing
-application, missing form IDs, an incomplete tree or a working owned-ID
-observation; it does not use a backend readiness probe or an external-selector
-fallback for the repository-owned form.
+O01's [diagnostic run](../Evidence/test-all-runs/20260921T165540Z-4f446a7c/report.md)
+passed guarded station entry and owned window/form readback. Its retained stream
+shows a complete public tree with one application, window, form and every
+required control ID; no incomplete reads or query errors occurred. The observer
+spent 24.8 seconds and 113 traversals checking prompts, then repeatedly traversed
+the desktop/application/window for individual controls. Its 90-second work bound
+stopped the `kiosk-duration-custom` lookup at 157 traversals and 6,551 node visits.
+This diagnoses redundant observer work; it does not establish a product defect.
+The full qualification failed and its collection stage did not run. Diagnostic
+evidence survives in the report/log; cleanup passed, the lease completed and the
+pinned VM was confirmed off.
+
+O02 should reuse a fresh complete scoped observation within each read, preserving
+application/surface ownership, duplicate rejection, stale/incomplete-read refusal
+and all form assertions. Add regression coverage for traversal cost as well as
+correctness before G05's installed qualification. Do not raise timeouts, reuse
+stale snapshots across observations, or add selector fallbacks. The diagnostic,
+greeter startup wait and viewer changes are test-only and activate on invocation;
+no product rebuild is needed for those changes. Both the guest screen and
+sanitized SSH observation progress use the existing `tools/watch-e2e` channels.
 
 Treat this pointer as part of every task's close-out. After completing a task,
 mark its row complete, append its short result or artifact pointer, and update
@@ -183,6 +198,6 @@ support or silent fallback. Do not build a translation/version matrix now.
 
 The completed G04 slice binds only the observed passwordless
 `default-request-form` station branch and its independent readback after one
-fresh station-focus proof. **O01** is now the first eligible unchecked row in
-plan order; it diagnoses the repository-owned application/form exposure through
-that route without promoting provider or customer readiness.
+fresh station-focus proof. **O01** is complete as diagnosis only. **O02** is the
+first eligible unchecked row, with the demonstrated traversal defect above.
+G05 and provider/customer readiness remain pending.

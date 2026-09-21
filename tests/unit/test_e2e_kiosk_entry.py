@@ -25,6 +25,35 @@ def station_greeter(*rows, recipient=None, field=None, list_showing=True):
     return ui_for(Node(role='desktop frame', children=[application]))
 
 
+def test_greeter_waits_for_public_owner_before_resolving_account(monkeypatch):
+    import accessible_ui
+    from unittest.mock import Mock
+
+    parent = Node('Jamie (Parent)', 'push button')
+    station = Node('oh-no-parent-control', 'push button')
+    ui = station_greeter(parent, station)
+    ready = ui.api.get_desktop(0)
+    ui.api.get_desktop = Mock(side_effect=[Node(role='desktop frame'), ready])
+    ui.timeout = 1
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: None)
+    assert ui.gdm_semantic_owner() is ready.children[0]
+    parent.action.do_action.assert_not_called()
+    parent.component.grab_focus.assert_not_called()
+
+
+def test_greeter_ambiguous_owner_never_retries_or_acts(monkeypatch):
+    from unittest.mock import Mock
+    import accessible_ui
+
+    ui = ui_for(Node(role='desktop frame', children=[
+        Node('GNOME Shell', 'application'), Node('GNOME Shell', 'application')]))
+    sleep = Mock()
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    with pytest.raises(UiError, match='ui:gdm-provider-owner'):
+        ui.gdm_semantic_owner()
+    sleep.assert_not_called()
+
+
 def test_station_observer_does_not_wait_for_session_services(monkeypatch):
     from types import SimpleNamespace
     import accessible_ui
@@ -243,9 +272,160 @@ def test_station_timeout_reports_only_registered_public_control_ids(capsys):
         Node('Unrelated private label', 'label')]))
     with pytest.raises(UiError, match='ui:timeout:kiosk-request-form'):
         ui.run('kiosk-request-form', '')
-    output = capsys.readouterr().err
+    output = capsys.readouterr().out
     assert 'Unrelated private' not in output
-    assert not any(json.loads(output)['public_ids'].values())
+    diagnostic = json.loads(output.splitlines()[-1])
+    assert diagnostic['status'] == 'failed'
+    assert diagnostic['tree'] == 'complete'
+    assert not any(diagnostic['public_ids'].values())
+
+
+def test_station_deadline_interrupts_a_slow_predicate_and_retains_exact_phase(monkeypatch, capsys):
+    import accessible_ui
+
+    ui, _ = request_form()
+    now = [0.0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    original = ui.find_id
+
+    def slow_lookup(identity, **kwargs):
+        if identity == 'kiosk-child-selector':
+            now[0] = 91.0
+        return original(identity, **kwargs)
+
+    monkeypatch.setattr(ui, 'find_id', slow_lookup)
+    with pytest.raises(UiError, match='timeout:kiosk-request-form'):
+        ui.kiosk_request_form()
+    records = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert records[-1]['phase'] == 'kiosk-child-selector'
+    assert records[-1]['status'] == 'failed'
+    assert records[-1]['tree'] == 'complete'
+    assert records[-1]['public_ids']['kiosk-request-form'] == 1
+    assert records[-1]['public_ids'][accessible_ui.KIOSK_APPLICATION] == 1
+    assert records[-1]['tree_reads'] > 1
+    assert ui.kiosk_diagnostic is None
+
+
+@pytest.mark.parametrize('fault', ['null-child', 'query-error'])
+def test_station_partial_public_read_never_proves_missing_ids(fault, capsys):
+    ui, _ = request_form()
+    root = ui.api.get_desktop(0)
+    if fault == 'null-child':
+        root.children.append(None)
+    else:
+        class QueryError(Exception):
+            pass
+        ui.query_errors = (QueryError,)
+        def broken():
+            raise QueryError('private provider error')
+        root.get_attributes = broken
+    with pytest.raises(UiError, match='timeout:kiosk-request-form'):
+        ui.kiosk_request_form()
+    output = capsys.readouterr().out
+    assert 'private' not in output
+    diagnostic = json.loads(output.splitlines()[-1])
+    assert diagnostic['tree'] == 'incomplete'
+    assert diagnostic['public_ids'] == {}
+    assert diagnostic['incomplete_reads'] + diagnostic['query_errors'] == 1
+
+
+def test_station_diagnostic_survives_owned_transport_timeout(monkeypatch, tmp_path, capsys):
+    import os
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import accessible_ui
+    import owned_commands
+    import vm_transport
+    from ui_observations import UiObservations
+
+    accessible_ui.KioskDiagnostic().emit('public-tree')
+    raw = capsys.readouterr().out.encode()
+    commands = owned_commands.Commands()
+    commands.directory = tmp_path
+    previous = Mock()
+    commands.progress = previous
+    child = SimpleNamespace(pid=123, returncode=130, wait=Mock())
+    child.communicate = Mock(side_effect=owned_commands.subprocess.TimeoutExpired('private argv', 120))
+    def spawn(argv, **kwargs):
+        kwargs['stdout'].write(raw)
+        kwargs['stdout'].flush()
+        kwargs['stderr'].write(b'private provider message\n')
+        kwargs['stderr'].flush()
+        return child
+    monkeypatch.setattr(owned_commands.subprocess, 'Popen', spawn)
+    monkeypatch.setattr(owned_commands.os, 'pidfd_open', lambda _: os.open('/dev/null', os.O_RDONLY))
+    signal = Mock()
+    monkeypatch.setattr(owned_commands.signal, 'pidfd_send_signal', signal)
+    ticks = iter((0.0, 0.0, 121.0))
+    monkeypatch.setattr(owned_commands.time, 'monotonic', lambda: next(ticks))
+    transport = vm_transport.Transport({'directory': str(tmp_path), 'hostname': 'fixture.invalid',
+        'run': 'a' * 32, 'domain_uuid': 'b' * 32}, commands, guard=Mock())
+    with pytest.raises(owned_commands.subprocess.TimeoutExpired):
+        UiObservations(transport).call(['fixed-program'], 'kiosk-request-form')
+    assert capsys.readouterr().err.encode() == raw
+    assert (tmp_path / 'command-0001.txt').read_bytes() == raw
+    assert commands.progress is previous
+    previous.assert_not_called()
+    signal.assert_called_once()
+    child.wait.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['phase', 'private-field', 'private-id', 'bool-count', 'incomplete-counts'])
+def test_station_controller_rejects_untrusted_diagnostics_before_retaining(fault, capsys):
+    import accessible_ui
+    from ui_observations import UiObservations
+
+    accessible_ui.KioskDiagnostic().emit()
+    value = json.loads(capsys.readouterr().out)
+    if fault == 'phase':
+        value['phase'] = 'private text'
+    elif fault == 'private-field':
+        value['private'] = 'private text'
+    elif fault == 'private-id':
+        value['public_ids'] = {'private text': 1}
+    elif fault == 'bool-count':
+        value['tree_reads'] = True
+    else:
+        value['tree'] = 'complete'
+    with pytest.raises(EvidenceError):
+        UiObservations.retain_kiosk_diagnostic(value)
+    assert not capsys.readouterr().err
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-result', 'partial', 'replay', 'late-diagnostic', 'flood'])
+def test_station_stream_requires_one_final_result_separate_from_diagnostics(fault, capsys):
+    from types import SimpleNamespace
+    import accessible_ui
+    from ui_observations import UiObservations
+
+    accessible_ui.KioskDiagnostic().emit('public-tree')
+    diagnostic = capsys.readouterr().out.encode()
+    result = b'{"result": "fixture"}\n'
+    raw = diagnostic + result
+    if fault == 'missing-result':
+        raw = diagnostic
+    elif fault == 'partial':
+        raw = diagnostic + result[:-1]
+    elif fault == 'replay':
+        raw += result
+    elif fault == 'late-diagnostic':
+        raw += diagnostic
+    elif fault == 'flood':
+        raw = diagnostic * 129 + result
+    def call(*_args, on_output, **_kwargs):
+        # Exercise arbitrary transport chunk boundaries, including JSON keys.
+        for start in range(0, len(raw), 17):
+            on_output(raw[start:start + 17])
+        return raw
+    transport = SimpleNamespace(call=call, commands=SimpleNamespace(progress=None))
+    observer = UiObservations(transport)
+    if fault:
+        with pytest.raises(EvidenceError):
+            observer.call(['fixed-program'], 'kiosk-request-form')
+    else:
+        assert observer.call(['fixed-program'], 'kiosk-request-form') == (result.rstrip(), [])
+        assert capsys.readouterr().err.encode() == diagnostic
+    assert transport.commands.progress is None
 
 
 def test_station_observer_refreshes_an_empty_public_tree_after_session_entry():

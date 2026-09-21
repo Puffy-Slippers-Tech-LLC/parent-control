@@ -583,7 +583,7 @@ def test_ui_transport_allows_greeter_boot_wait_inside_worker_deadline(operation,
     commands = SimpleNamespace(progress=None)
     def call(argv, **kwargs):
         assert kwargs['timeout'] == timeout < 420
-        if streamed:
+        if streamed or operation == 'kiosk-request-form':
             kwargs['on_output'](b'{}\n')
         return b'{}'
     transport = SimpleNamespace(commands=commands, call=Mock(side_effect=call))

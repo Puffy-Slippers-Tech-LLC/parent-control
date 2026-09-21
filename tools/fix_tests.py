@@ -216,12 +216,14 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     if kind == 'test':
         options = json.loads(test_args)
         command = [str(root / 'tools/run-tests'), '--stop-on-error', category, *options]
+    elif kind == 'recovery':
+        command = [str(root / 'tools/cleanup-e2e')]
     else:
         command = agent_command(root, model, effort, run)
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' else None
-    log = (run / 'last-test.log').open('wb') if kind == 'test' else None
+    log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
     child_env = environment()
-    if kind == 'test':
+    if kind != 'agent':
         child_env[FRAME_DIRECTORY] = str(run)
     child = subprocess.Popen(command, cwd=root, env=child_env,
                              stdin=source if source is not None else subprocess.DEVNULL,
@@ -233,7 +235,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     try:
         descriptor = os.pidfd_open(child.pid)
         sent = None
-        ready = kind == 'agent'
+        ready = kind != 'test'
         pending = b''
         with selectors.DefaultSelector() as poller:
             poller.register(sys.stdin, selectors.EVENT_READ, 'parent')
@@ -246,7 +248,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
                 if requested and sent is None and ready:
                     sent = time.monotonic()
                     try:
-                        if kind == 'test':
+                        if kind != 'agent':
                             signal.pidfd_send_signal(descriptor, signal.SIGINT)
                         else:
                             os.killpg(child.pid, signal.SIGTERM)
@@ -355,12 +357,13 @@ def worker(root, run, owner, model, effort, requested='[]'):
                 if recovered:
                     raise ValueError('test runner remained stale after automatic recovery; '
                                      'see last-test.log')
-                print('fix-tests: interrupted test ownership found; asking run-tests to recover it.',
+                print('fix-tests: interrupted test ownership found; recovering both retention scopes.',
                       flush=True)
-                recovery_status = run_requested('integration', ['check_test_recovery'],
-                                                'automatic recovery')
+                recovery_status = execute('recovery')
                 if recovery_status:
-                    raise ValueError('run-tests automatic recovery failed; see last-test.log')
+                    if status_line is not None:
+                        print(status_line, flush=True)
+                    return handoff(run)
                 recovered = True
                 continue
             if status_line is not None:

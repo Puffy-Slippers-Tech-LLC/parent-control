@@ -29,7 +29,9 @@ def wait_for(path):
 def checkout(tmp_path, monkeypatch):
     (tmp_path / 'tools').mkdir()
     (tmp_path / 'bin').mkdir()
-    for target, kind in ((tmp_path / 'tools/run-tests', 'test'), (tmp_path / 'bin/codex', 'agent')):
+    for target, kind in ((tmp_path / 'tools/run-tests', 'test'),
+                         (tmp_path / 'tools/cleanup-e2e', 'recovery'),
+                         (tmp_path / 'bin/codex', 'agent')):
         target.write_text('#!/usr/bin/python3\nimport runpy,sys\n'
                           f'sys.argv.insert(1, {kind!r})\n'
                           f'runpy.run_path({str(ROOT / "tests/support/fix_tests_child.py")!r}, run_name="__main__")\n')
@@ -200,12 +202,47 @@ def test_stale_runner_uses_existing_recovery_route_then_retries_category(checkou
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['args'] for call in calls] == [
         ['--stop-on-error', 'unit'],
-        ['--stop-on-error', 'integration', 'check_test_recovery'],
+        [],
         ['--stop-on-error', 'unit'],
         ['--stop-on-error', 'unit'],
     ]
-    assert 'asking run-tests to recover it' in output.getvalue()
+    assert calls[1]['kind'] == 'recovery'
+    assert 'recovering both retention scopes' in output.getvalue()
     assert not [call for call in calls if call['kind'] == 'agent']
+
+
+def test_recovery_failure_handoff_is_repaired_then_recovery_and_category_retry(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('retention-repair')
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [(call['kind'], call['category']) for call in calls] == [
+        ('test', 'unit'),
+        ('recovery', 'recovery'),
+        ('agent', 'agent'),
+        ('test', 'unit'),
+        ('recovery', 'recovery'),
+        ('test', 'unit'),
+        ('test', 'unit'),
+    ]
+    agent = next(call for call in calls if call['kind'] == 'agent')
+    assert agent['prompt'].startswith('LATEST RECOVERY FAILURE ONLY\n')
+    assert output.getvalue().count('recovering both retention scopes') == 2
+
+
+def test_cancellation_during_recovery_waits_for_cleanup(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('recovery-wait')
+    run, _ = fix_tests.select(root, categories=('unit',))
+    wait_for(root / 'test-ready')
+    assert fix_tests.select(root, stop=True) == (run, False)
+    assert fix_tests.follow(run, io.StringIO()) == 130
+    assert (root / 'test-interrupted').exists()
+    assert (root / 'test-cleaned').exists()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test', 'recovery']
 
 
 @pytest.mark.parametrize('categories', [('host',), ('unit', 'ui'), ('unit ui',)])

@@ -424,6 +424,60 @@ def owned_applications(identity):
     return ()
 
 
+KIOSK_DIAGNOSTIC_IDS = (
+    KIOSK_APPLICATION, 'kiosk-request-window', 'kiosk-request-form',
+    'kiosk-child-selector', 'kiosk-approver-selector', 'kiosk-request-submit',
+    'kiosk-request-cancel', 'kiosk-soft-apps-toggle', 'kiosk-screen-limit-notice',
+    'kiosk-mute-button', 'kiosk-custom-duration',
+    *(f'kiosk-duration-{value}' for value in (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')),
+)
+KIOSK_DIAGNOSTIC_PHASES = frozenset({
+    'start', 'dispatch', 'prompt-check', 'public-tree', 'public-ids',
+    'form-tree', 'form-states', 'duration-states', 'message',
+    'selected-child', 'selected-approver', 'projection', 'reset-reader',
+    *KIOSK_DIAGNOSTIC_IDS,
+})
+
+
+class KioskDiagnostic:
+    """Bounded public-read progress, never an identity or acceptance proof.
+
+    Flush first visits before accessibility calls so even a transport timeout
+    retains the last phase. Counts describe only a completed public snapshot;
+    failed snapshots explicitly invalidate them. No UI text or exception text.
+    """
+
+    def __init__(self):
+        self.started = time.monotonic()
+        self.phase = 'start'
+        self.tree = 'unread'
+        self.ids = {}
+        self.tree_reads = self.nodes_read = self.incomplete = self.query_errors = 0
+        self.emitted = set()
+
+    def check(self):
+        # A predicate can perform many individually bounded AT-SPI calls. The
+        # wait-loop deadline alone does not bound that work. Native calls retain
+        # Atspi.set_timeout's existing 2s/5s limits.
+        require(time.monotonic() - self.started < 90, 'ui:timeout:kiosk-request-form')
+
+    def emit(self, phase=None, status='reading'):
+        if phase is not None:
+            require(phase in KIOSK_DIAGNOSTIC_PHASES, 'ui:diagnostic-phase')
+            self.phase = phase
+        key = (self.phase, status)
+        if key in self.emitted or (len(self.emitted) >= 64 and status == 'reading'):
+            return
+        self.emitted.add(key)
+        print(json.dumps({
+            'event': 'kiosk-form-observation', 'phase': self.phase, 'status': status,
+            'elapsed_ms': int((time.monotonic() - self.started) * 1000),
+            'tree': self.tree, 'public_ids': self.ids,
+            'tree_reads': self.tree_reads, 'nodes_read': self.nodes_read,
+            'incomplete_reads': self.incomplete, 'query_errors': self.query_errors,
+        }, sort_keys=True), flush=True)
+
+
 class AccessibleUI:
     """Fresh semantic lookup, bounded waits, unique targets and public actions.
 
@@ -455,13 +509,21 @@ class AccessibleUI:
         self.input_uncertain = False
         self.incomplete_observations = []
         self.gdm_row_diagnostic_emitted = False
+        self.kiosk_diagnostic = None
 
     def nodes(self, root=None, *, strict=False, protected_ids=()):
+        diagnostic = self.kiosk_diagnostic
+        if diagnostic is not None:
+            diagnostic.check()
+            diagnostic.tree_reads += 1
         root = root if root is not None else self.api.get_desktop(0)
         pending = [root]
         visited = 0
         seen = set()
         while pending:
+            if diagnostic is not None:
+                diagnostic.check()
+                diagnostic.nodes_read += 1
             node = pending.pop()
             if node is None:
                 require(not strict, 'ui:incomplete-tree')
@@ -479,13 +541,18 @@ class AccessibleUI:
                 if strict:
                     require(node.get_attributes() is not None, 'ui:incomplete-tree')
                 yield node
+                if diagnostic is not None:
+                    diagnostic.check()
                 # Never traverse password contents. Strict owned observations
                 # include ordinary text descendants without reading text values.
                 role = node.get_role_name()
                 protected = public_automation_id(node) in protected_ids
                 if not protected and role != 'password text' and (strict or role not in ('text', 'entry')):
-                    children = [node.get_child_at_index(i)
-                                for i in reversed(range(node.get_child_count()))]
+                    children = []
+                    for i in reversed(range(node.get_child_count())):
+                        if diagnostic is not None:
+                            diagnostic.check()
+                        children.append(node.get_child_at_index(i))
                     if strict and None in children:
                         error = UiError('ui:incomplete-tree')
                         error.add_note('Null child under public automation-id: '
@@ -737,17 +804,25 @@ class AccessibleUI:
         while True:
             # Deliver pending public AT-SPI events before fresh reads. Cache
             # invalidation alone cannot deliver focus/text/registry changes.
+            if self.kiosk_diagnostic is not None:
+                self.kiosk_diagnostic.emit('dispatch')
+                self.kiosk_diagnostic.check()
             if self.dispatch is not None:
                 for _ in range(32):
                     if not self.dispatch():
                         break
             try:
+                if self.kiosk_diagnostic is not None:
+                    self.kiosk_diagnostic.emit('prompt-check')
                 self.handle_system_prompt()
                 value = predicate()
             except self.query_errors:
                 # UI objects can disappear during search/animation. Retry only
                 # the read, never replay an action whose effect is uncertain.
                 value = None
+                if self.kiosk_diagnostic is not None:
+                    self.kiosk_diagnostic.query_errors += 1
+                    self.kiosk_diagnostic.emit(status='query-error')
             except UiError as error:
                 if str(error) != 'ui:incomplete-tree':
                     raise
@@ -756,6 +831,9 @@ class AccessibleUI:
                 # Only a later complete read may satisfy the predicate; no
                 # action is replayed and the original deadline is retained.
                 incomplete = error
+                if self.kiosk_diagnostic is not None:
+                    self.kiosk_diagnostic.incomplete += 1
+                    self.kiosk_diagnostic.emit(status='incomplete')
                 self.incomplete_observations.append({
                     'checkpoint': code, 'notes': getattr(error, '__notes__', [])})
                 self.incomplete_observations = self.incomplete_observations[-16:]
@@ -1479,16 +1557,21 @@ class AccessibleUI:
         It is not a generic name/role selector: the standalone process is bound
         to the sole active local greeter account before this tree is read.
         """
-        desktop = self.api.get_desktop(0)
-        require(desktop is not None, 'ui:incomplete-tree')
-        nodes = list(self.nodes(desktop, strict=True))
-        owners = [node for node in nodes
-                  if node.get_parent() == desktop
-                  and node.get_role_name() == 'application'
-                  and self.gdm_semantic_name(node).casefold()
-                  in GDM_SEMANTIC_APPLICATION_NAMES]
-        require(len(owners) == 1, 'ui:gdm-provider-owner')
-        return owners[0]
+        def owner():
+            desktop = self.api.get_desktop(0)
+            require(desktop is not None, 'ui:incomplete-tree')
+            nodes = list(self.nodes(desktop, strict=True))
+            owners = [node for node in nodes
+                      if node.get_parent() == desktop
+                      and node.get_role_name() == 'application'
+                      and self.gdm_semantic_name(node).casefold()
+                      in GDM_SEMANTIC_APPLICATION_NAMES]
+            require(len(owners) <= 1, 'ui:gdm-provider-owner')
+            return owners[0] if owners else None
+
+        # The greeter session and bus can precede Shell's public application.
+        # Absence permits another read, never input or a replacement owner.
+        return self.wait(owner, 'gdm-provider-owner')
 
     def gdm_semantic_nodes(self):
         owner = self.gdm_semantic_owner()
@@ -1830,7 +1913,14 @@ class AccessibleUI:
     def kiosk_request_form(self):
         """Read REQUEST03's fixed disabled-child station state."""
         last_reset = None
-        diagnostic = {'form_count': 0}
+        diagnostic = KioskDiagnostic()
+        self.kiosk_diagnostic = diagnostic
+        diagnostic.emit()
+
+        def lookup(identity, **kwargs):
+            diagnostic.emit(identity)
+            diagnostic.check()
+            return self.find_id(identity, **kwargs)
 
         def fresh_reader():
             nonlocal last_reset
@@ -1838,52 +1928,61 @@ class AccessibleUI:
             if self.reset_observer is not None and (last_reset is None or now - last_reset >= 2):
                 # Drop only this reader's stale accessibility objects when the
                 # graphical session changes. Never start or inspect services.
+                diagnostic.emit('reset-reader')
                 self.reset_observer()
                 last_reset = now
 
         def observe():
+            diagnostic.tree = 'unread'
+            diagnostic.ids = {}
+            diagnostic.emit('public-tree')
             try:
                 public_nodes = list(self.nodes(strict=True))
-                diagnostic_ids = (
-                    'kiosk-request-form', 'kiosk-child-selector',
-                    'kiosk-approver-selector', 'kiosk-request-submit',
-                    'kiosk-request-cancel', 'kiosk-soft-apps-toggle',
-                    'kiosk-screen-limit-notice', 'kiosk-mute-button',
-                )
-                diagnostic['public_ids'] = {
-                    identity: sum(
-                        public_automation_id(node) == identity and self.showing(node)
-                        for node in public_nodes
-                    )
-                    for identity in diagnostic_ids
-                }
+                diagnostic.emit('public-ids')
+                counts = dict.fromkeys(KIOSK_DIAGNOSTIC_IDS, 0)
+                for node in public_nodes:
+                    diagnostic.check()
+                    identity = public_automation_id(node)
+                    if identity in counts:
+                        counts[identity] += 1
+                diagnostic.ids = counts
+                diagnostic.tree = 'complete'
             except self.query_errors:
+                diagnostic.tree = 'incomplete'
+                diagnostic.query_errors += 1
+                diagnostic.emit(status='query-error')
                 fresh_reader()
                 return None
+            except UiError:
+                diagnostic.tree = 'incomplete'
+                raise
 
-            application = self.find_id(KIOSK_APPLICATION, nodes=public_nodes, showing=False)
-            form = (self.find_id('kiosk-request-form', root=application, nodes=public_nodes)
+            application = lookup(KIOSK_APPLICATION, nodes=public_nodes, showing=False)
+            form = (lookup('kiosk-request-form', root=application, nodes=public_nodes)
                     if application is not None else None)
-            diagnostic['form_count'] = int(form is not None)
             if form is None:
+                diagnostic.emit(status='missing')
                 fresh_reader()
                 return None
 
             # A matching ID in another window must never fill a missing field
             # in this form. Keep a complete fresh read for absence checks too.
+            diagnostic.emit('form-tree')
             form_nodes = list(self.nodes(form, strict=True))
+            diagnostic.emit('form-states')
             require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
                         for node in form_nodes), 'ui:stale-request-form')
-            child = self.find_id('kiosk-child-selector', nodes=form_nodes)
-            approver = self.find_id('kiosk-approver-selector', nodes=form_nodes)
-            request = self.find_id('kiosk-request-submit', nodes=form_nodes)
-            cancel = self.find_id('kiosk-request-cancel', nodes=form_nodes)
-            allow_soft = self.find_id('kiosk-soft-apps-toggle', nodes=form_nodes)
+            child = lookup('kiosk-child-selector', nodes=form_nodes)
+            approver = lookup('kiosk-approver-selector', nodes=form_nodes)
+            request = lookup('kiosk-request-submit', nodes=form_nodes)
+            cancel = lookup('kiosk-request-cancel', nodes=form_nodes)
+            allow_soft = lookup('kiosk-soft-apps-toggle', nodes=form_nodes)
             if None in (child, approver, request, cancel, allow_soft):
                 return None
 
             def selected_identity(control, label, identities, code):
                 namespace = 'child' if identities == CHILD_IDENTITIES else 'approver'
+                diagnostic.emit('selected-' + namespace)
                 accounts = CHILD_ACCOUNTS if namespace == 'child' else APPROVER_ACCOUNTS
                 selected_nodes = [node for node in self.nodes(control, strict=True)
                                   if public_automation_id(node).startswith(f'kiosk-{namespace}-selected-')
@@ -1912,35 +2011,29 @@ class AccessibleUI:
 
             duration_ids = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')
             durations = [
-                self.find_id(f'kiosk-duration-{identity}', nodes=form_nodes)
+                lookup(f'kiosk-duration-{identity}', nodes=form_nodes)
                 for identity in duration_ids
             ]
             if any(button is None for button in durations):
                 return None
+            diagnostic.emit('duration-states')
             selected = [index for index, button in enumerate(durations)
                         if self.has_state(button, self.api.StateType.PRESSED)]
-            diagnostic['durations'] = {
-                str(identity): {
-                    'role': button.get_role_name(),
-                    'checked': self.has_state(button, self.api.StateType.CHECKED),
-                    'pressed': self.has_state(button, self.api.StateType.PRESSED),
-                    'sensitive': self.has_state(button, self.api.StateType.SENSITIVE),
-                }
-                for identity, button in zip(duration_ids, durations)
-            }
             require(selected == [2], 'ui:kiosk-duration-selection')
             require(not any(self.has_state(button, self.api.StateType.SENSITIVE)
                             for button in durations), 'ui:kiosk-duration-availability')
 
-            notice = self.find_id('kiosk-screen-limit-notice', nodes=form_nodes)
+            notice = lookup('kiosk-screen-limit-notice', nodes=form_nodes)
             if notice is None:
                 return None
+            diagnostic.emit('message')
             message = ' '.join(notice.get_name().split())
             require(message == 'Screen limit is not enabled in Parent App',
                     'ui:kiosk-disabled-message')
-            custom = self.find_id('kiosk-custom-duration', nodes=form_nodes)
-            require(self.find_id('kiosk-mute-button', nodes=public_nodes) is None,
+            custom = lookup('kiosk-custom-duration', nodes=form_nodes)
+            require(lookup('kiosk-mute-button', nodes=public_nodes) is None,
                     'ui:kiosk-mute-present')
+            diagnostic.emit('projection')
             return {
                 'surface': 'kiosk', 'form_count': 1,
                 'child': selected_identity(
@@ -1960,11 +2053,14 @@ class AccessibleUI:
                 'message': 'screen-limit-disabled', 'mute': None,
             }
         try:
-            return self.wait(observe, 'kiosk-request-form')
-        except UiError:
-            print(json.dumps({'event': 'kiosk-form-observation', **diagnostic}, sort_keys=True),
-                  file=sys.stderr, flush=True)
+            result = self.wait(observe, 'kiosk-request-form')
+            diagnostic.emit(status='passed')
+            return result
+        except BaseException:
+            diagnostic.emit(status='failed')
             raise
+        finally:
+            self.kiosk_diagnostic = None
 
     def password_recipient(self, name):
         """Read only public identity, masked role, focus and empty length.

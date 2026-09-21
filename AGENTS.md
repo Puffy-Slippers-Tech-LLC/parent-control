@@ -157,6 +157,9 @@
 - Operate the pinned VM only through `tools/test-vm`. Do not bypass ownership,
   select another guest, or create snapshots, overlays or clones. Stop maintenance
   before system/E2E tests; reset is not a customer journey step.
+- Keep every VM experiment observable through `tools/watch-e2e`, including the
+  guest screen and SSH activity. Reuse its existing display collector, guarded
+  command transcript and progress interfaces; preserve private-input filtering.
 
 ## Setup
 

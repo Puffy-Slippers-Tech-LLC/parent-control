@@ -182,6 +182,11 @@ Completed or dead owners never block a fresh run: file locks determine liveness,
 old cancel markers are isolated by run, and normal `run-tests` startup performs
 its existing retention/VM recovery. An attached predecessor's result is consumed
 before starting the requested category; it never counts as that category passing.
+On stale ownership, `fix-tests` invokes `tools/cleanup-e2e` to reconcile both
+host and VM retention under their respective locks before retrying the category.
+If automatic recovery's cleanup-safety run produces a normal failure handoff,
+`fix-tests` repairs that failure and retries recovery before starting the requested
+category. Recovery still fails closed when no actionable handoff is available.
 
 Logs and small control files are private under `artifacts/fix-tests/`. They are
 not agent conversation history. Existing test evidence remains under the runner's

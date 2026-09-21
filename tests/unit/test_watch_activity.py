@@ -133,6 +133,40 @@ def test_guest_private_probe_does_not_forward_output(monkeypatch, capsys):
     assert capsys.readouterr() == ('', '')
 
 
+@pytest.mark.parametrize('failed', [False, True])
+def test_ui_qualification_without_recorder_uses_existing_command_pane(transcript, failed):
+    from ui_observations import UiObservations
+    result = {'operation': 'gdm-list', 'outcome': 'passed', 'interface': 'AT-SPI', 'focused': True}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    if failed:
+        transport.call.side_effect = RuntimeError('private transport exception')
+    observer = UiObservations(transport)
+    if failed:
+        with pytest.raises(RuntimeError):
+            observer.observe('gdm-list')
+    else:
+        assert observer.observe('gdm-list') == result
+    assert 'SSH UI: Reading the greeter account list' in transcript.text
+    assert 'SSH UI observation ' + ('failed' if failed else 'passed') + ': gdm-list' in transcript.text
+    assert 'private transport exception' not in transcript.text
+
+
+def test_validated_kiosk_diagnostic_uses_existing_transcript_only(transcript, capsys):
+    from accessible_ui import KioskDiagnostic
+    from ui_observations import UiObservations
+    from private_artifacts import EvidenceError
+
+    KioskDiagnostic().emit('public-tree')
+    value = json.loads(capsys.readouterr().out)
+    UiObservations.retain_kiosk_diagnostic(value)
+    assert 'public-tree' in transcript.text
+    before = transcript.text
+    value['private-field'] = 'private UI label'
+    with pytest.raises(EvidenceError):
+        UiObservations.retain_kiosk_diagnostic(value)
+    assert transcript.text == before
+
+
 def test_secrets_split_across_chunks_and_private_stdin_never_reach_viewer(transcript):
     activity.secret('fixture-canary-123456')
     command = activity.command(['ssh'], ('SSH $ test', True))

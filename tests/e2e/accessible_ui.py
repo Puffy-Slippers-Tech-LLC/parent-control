@@ -50,10 +50,12 @@ TERMINAL_OPERATIONS = frozenset({
 OPERATIONS |= TERMINAL_OPERATIONS
 OPERATIONS |= frozenset({
     'parent-command-launch', 'standard-parent-command-launch', 'standard-parent-closed',
+    'child-command-launch',
 })
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
 STANDARD_OPERATIONS |= TERMINAL_OPERATIONS
 STANDARD_OPERATIONS |= frozenset({'standard-parent-command-launch', 'standard-parent-closed'})
+STANDARD_OPERATIONS |= frozenset({'child-command-launch'})
 HELP_BINDINGS = {
     'parent-help': ('oh-no-parent-control-parent', 'help',
                     'Administrator-facing GTK 4/libadwaita parent-control application.'),
@@ -2137,6 +2139,21 @@ class AccessibleUI:
         # Keep the input latch set: even a successful submission cannot be
         # repeated by this adapter instance. The next checkpoint is a new read.
 
+    def launch_child_command(self):
+        """REQUEST02 input: submit the installed child overlay command once.
+
+        A separate form observation must establish the child and usable result.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require_active_launch_session()
+        self.desktop_result(EXISTING_CHILD, 'success')
+        self.handle_system_prompt()
+        self.input_uncertain = True
+        subprocess.run([
+            '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+            '--service-type=exec', '/usr/bin/oh-no-parent-control-child',
+        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+
     def parent_denial_closed(self):
         """Read the public desktop and complete absence after denial dismissal."""
         self.desktop_result(EXISTING_CHILD, 'success')
@@ -3216,12 +3233,67 @@ class AccessibleUI:
         interval; repeat reads only, with no replay of customer input.
         """
         stable_since = None
-        self.require_provider_contract(
-            'gnome-shell', 'app-grid',
-            ('search', 'result::parent', 'web-suggestion::parent'))
+        semantic_shell = not self.provider_contracts['gnome-shell']['application_id']
+        if not semantic_shell:
+            self.require_provider_contract(
+                'gnome-shell', 'app-grid',
+                ('search', 'result::parent', 'web-suggestion::parent'))
         def observed():
             nonlocal stable_since
             try:
+                if semantic_shell:
+                    owner, nodes, snapshot, facts = self.shell_search_snapshot()
+                    self.search_status = 'shell-owner-missing'
+                    if owner is None:
+                        stable_since = None
+                        return False
+                    scoped = self.snapshot_scope(nodes, snapshot, owner)
+                    fields = [node for node in scoped
+                              if facts[node]['role'] in ('text', 'entry')
+                              and facts[node]['showing']
+                              and self.has_state(node, self.api.StateType.SENSITIVE)
+                              and self.has_state(node, self.api.StateType.EDITABLE)]
+                    require(len(fields) <= 1, 'ui:shell-search-ambiguous')
+                    self.search_status = 'shell-field-missing'
+                    if not fields or not self.search_query(product):
+                        stable_since = None
+                        return False
+                    description = 'Search "' + product + '" on the web'
+                    buttons = [node for node in scoped
+                               if facts[node]['role'] in ('button', 'push button')
+                               and facts[node]['showing']]
+                    suggestions = [node for node in buttons
+                                   if self.has_state(node, self.api.StateType.SENSITIVE)
+                                   and (facts[node]['name'] == description or any(
+                                       facts[child]['role'] == 'label'
+                                       and facts[child]['showing']
+                                       and facts[child]['name'] == description
+                                       for child in self.snapshot_scope(nodes, snapshot, node)))]
+                    require(len(suggestions) <= 1, 'ui:shell-suggestion-ambiguous')
+                    self.search_status = 'suggestion-missing'
+                    if not suggestions:
+                        stable_since = None
+                        return False
+                    launchers = [node for node in buttons
+                                 if facts[node]['name'] == product or any(
+                                     facts[child]['role'] == 'label'
+                                     and facts[child]['showing']
+                                     and facts[child]['name'] == product
+                                     for child in self.snapshot_scope(nodes, snapshot, node))]
+                    management = {'parent-window', 'parent-access-denied-window',
+                                  'kiosk-request-window', 'startup-error-window'}
+                    ready = not launchers and not any(
+                        facts[node]['showing'] and facts[node]['identity'] in management
+                        for node in nodes)
+                    self.search_status = ('description-matched' if ready else
+                                          'parent-available')
+                    if not ready:
+                        stable_since = None
+                        return False
+                    now = time.monotonic()
+                    if stable_since is None:
+                        stable_since = now
+                    return now - stable_since >= stable_seconds
                 self.search_status = 'surface-missing'
                 surface, registered = self.provider_surface(
                     'gnome-shell', 'app-grid',
@@ -3265,6 +3337,7 @@ class AccessibleUI:
         return self.wait_search(observed, 'standard-parent-unavailable')
 
     def wait_search(self, predicate, code):
+        self.search_status = 'observation-pending'
         try:
             return self.wait(predicate, code)
         except UiError as error:
@@ -3561,6 +3634,8 @@ class AccessibleUI:
             self.desktop_result(EXISTING_CHILD, 'success')
         elif operation in ('parent-command-launch', 'standard-parent-command-launch'):
             self.launch_parent_command(standard=operation == 'standard-parent-command-launch')
+        elif operation == 'child-command-launch':
+            self.launch_child_command()
         elif operation == 'standard-parent-closed':
             self.wait(self.parent_denial_closed, 'denial-closed')
         elif operation == 'standard-terminal-input':

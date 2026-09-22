@@ -55,6 +55,14 @@ in E2E-004/app-grid, using the full query `Oh No! Parent Control`. Reusing an
 observed retained Parent window does not launch it again. Future app-grid
 exceptions must be explicit in metadata and recipe.
 
+Every ordinary child overlay launch or reopening uses REQUEST02's direct
+`oh-no-parent-control-child` command. It observes the single form and fixed
+child independently. E2E-012 tests repeated graphical panel launch and
+E2E-024/fullscreen tests graphical launch from fullscreen play; these cases
+use REQUEST13 where that route is under test and declare the exception in
+their metadata. The later E2E-012 reopen and the windowed E2E-024 cases use
+REQUEST02. Reusing an already open overlay does not launch it again.
+
 Use the following common recipe notation. It expands to catalogue blocks; it
 does not permit hidden setup or automatic repair after a failed step.
 
@@ -341,7 +349,7 @@ Implementation status: All cases pending.
 
 Bindings: soft-apps = excluded / included; approver = first / second.
 
-1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST02 twice → REQUEST03(fixed child,one form).
+1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST13 twice (explicit panel launch and singleton check) → REQUEST03(fixed child,one form).
 2. REQUEST04(approver,duration) → REQUEST06(soft choice) → REQUEST08 → REQUEST09 → AUTH01(exact prompt).
 3. AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) → TIME01 → APP02(soft effect) → FLOW08(hard/soft). After TIME03(cooldown): REQUEST02 → REQUEST09 → AUTH02(cancel) → REQUEST11(cancel) → REQUEST12(cancel).
 
@@ -492,7 +500,7 @@ Implementation status: All cases pending.
 Bindings: time = daily-dominant / grant-dominant; gameplay = windowed / fullscreen.
 
 1. FLOW13(dominant profile) → C → TIME01 → FLOW08(game) → APP05(mode,level) → APP04.
-2. REQUEST02(qualified panel reveal) → REQUEST04(custom additional duration) → REQUEST08 → FLOW05 → TIME01 → UI12(increase).
+2. Windowed: REQUEST02. Fullscreen: REQUEST13(qualified panel reveal and graphical launch). Then REQUEST04(custom additional duration) → REQUEST08 → FLOW05 → TIME01 → UI12(increase).
 3. DESK10(game) → APP04(compare) → APP03 → TIME04(extended natural expiry).
 
 ### E2E-025

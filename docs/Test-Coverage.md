@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">11320</span>/<span style="color: gray">0</span>/11320 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">11334</span>/<span style="color: gray">0</span>/11334 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">145</span>/<span style="color: gray">0</span>/145 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,7 +15,7 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">29</span>/<span style="color: gray">0</span>/29 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">7</span>/<span style="color: gray">235</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">11890</span>/<span style="color: gray">235</span>/12125** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">11904</span>/<span style="color: gray">235</span>/12139** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -870,9 +870,9 @@ Variant: approver: first; soft apps: excluded
 
 **Steps:**
 
-- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed.
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then explicitly test graphical panel launch: select the child's panel request entry repeatedly and verify one overlay form with this child fixed.
 - Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
-- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -890,9 +890,9 @@ Variant: approver: second; soft apps: excluded
 
 **Steps:**
 
-- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed.
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then explicitly test graphical panel launch: select the child's panel request entry repeatedly and verify one overlay form with this child fixed.
 - Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
-- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -910,9 +910,9 @@ Variant: approver: first; soft apps: included
 
 **Steps:**
 
-- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed.
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then explicitly test graphical panel launch: select the child's panel request entry repeatedly and verify one overlay form with this child fixed.
 - Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
-- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -930,9 +930,9 @@ Variant: approver: second; soft apps: included
 
 **Steps:**
 
-- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed.
+- Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then explicitly test graphical panel launch: select the child's panel request entry repeatedly and verify one overlay form with this child fixed.
 - Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
-- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -2841,7 +2841,7 @@ Variant: gameplay: windowed; time: daily dominant
 **Steps:**
 
 - Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
-- While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time.
+- While time remains, request additional time and approve. Windowed variants launch the overlay through the direct child app command. Fullscreen variants explicitly test graphical launch: reveal the normal Shell panel entry and open the overlay through it. Read the new countdown against the earlier larger balance and elapsed navigation time.
 - Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2861,7 +2861,7 @@ Variant: gameplay: fullscreen; time: daily dominant
 **Steps:**
 
 - Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
-- While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time.
+- While time remains, request additional time and approve. Windowed variants launch the overlay through the direct child app command. Fullscreen variants explicitly test graphical launch: reveal the normal Shell panel entry and open the overlay through it. Read the new countdown against the earlier larger balance and elapsed navigation time.
 - Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2881,7 +2881,7 @@ Variant: gameplay: windowed; time: grant dominant
 **Steps:**
 
 - Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
-- While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time.
+- While time remains, request additional time and approve. Windowed variants launch the overlay through the direct child app command. Fullscreen variants explicitly test graphical launch: reveal the normal Shell panel entry and open the overlay through it. Read the new countdown against the earlier larger balance and elapsed navigation time.
 - Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2901,7 +2901,7 @@ Variant: gameplay: fullscreen; time: grant dominant
 **Steps:**
 
 - Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
-- While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time.
+- While time remains, request additional time and approve. Windowed variants launch the overlay through the direct child app command. Fullscreen variants explicitly test graphical launch: reveal the normal Shell panel entry and open the overlay through it. Read the new countdown against the earlier larger balance and elapsed navigation time.
 - Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.

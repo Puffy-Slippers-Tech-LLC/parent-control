@@ -189,7 +189,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 035c | [Launch and use a native fixture from the app grid](E2E-Tasks/035c-native-grid-usable.md) | 035p, 001t, 009 | APP01/02/03 native app-grid usable route | 20–30 |
 | [ ] | 035 | [Launch and use native fixtures by command](E2E-Tasks/035-native-app.md) | 035p, 001t, 009, 035c | APP01/02/03 native grid/command usable scope | 20–30 |
 | [ ] | 047 | [Record app activity and compose launch/use](E2E-Tasks/047-app-activity.md) | 035, 043 | APP04; FLOW08 native usable-app scope | 20–30 |
-| [ ] | 048 | [Reveal the child's request entry](E2E-Tasks/048-shell-panel.md) | 043, 011 | DESK12, REQUEST02/03 overlay entry/readback | 20–30 |
+| [ ] | 048 | [Qualify direct and panel entry to the child overlay](E2E-Tasks/048-shell-panel.md) | 043, 011 | DESK12; REQUEST02 direct and REQUEST13 panel entry; REQUEST03 readback | 20–30 |
 | [ ] | 048e | [Choose valid overlay values and Cancel](E2E-Tasks/048e-overlay-valid-choices.md) | 048, 014, 047 | REQUEST04/05/06/08 overlay valid choices and REQUEST11/12 Cancel | 20–30 |
 | [ ] | 048a | [Qualify overlay Escape and invalid durations](E2E-Tasks/048a-overlay-choices.md) | 048, 014, 047, 048e | Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04 | 20–30 |
 | [ ] | 049 | [E2E-015: child-overlay-cancel](E2E-Tasks/049-case-44.md) | 180, 048a | Cases 44 | 20–30 |
@@ -391,7 +391,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 270 | [E2E-048: daily-dominant-kiosk](E2E-Tasks/270-case-228.md) | 197k, 052c, 132 | Cases 228; gate in brief | 20–30 |
 | [ ] | 129 | [Play fullscreen to natural lock](E2E-Tasks/129-game-fullscreen.md) | 126 | APP05/FLOW10 fullscreen play | 20–30 |
 | [ ] | 130 | [E2E-023: fullscreen](E2E-Tasks/130-case-127.md) | 102, 079b, 129 | Cases 127 | 40–60 (exception) |
-| [ ] | 129a | [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md) | 129, 048a | DESK12 fullscreen reveal; overlay/game return | 20–30 |
+| [ ] | 129a | [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md) | 129, 048a | DESK12 fullscreen reveal; REQUEST13 panel launch and overlay/game return | 20–30 |
 | [ ] | 134 | [E2E-024: daily-dominant-fullscreen](E2E-Tasks/134-case-129.md) | 048b, 079b, 132, 129a | Cases 129 | 40–60 (exception) |
 | [ ] | 131 | [E2E-024: grant-dominant-fullscreen](E2E-Tasks/131-case-131.md) | 048b, 079b, 129a | Cases 131 | 40–60 (exception) |
 | [ ] | 289 | [E2E-050: overlay-first-retained](E2E-Tasks/289-case-247.md) | 197, 197k, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 247; gate in brief | 20–30 + ≤90 live (exception) |

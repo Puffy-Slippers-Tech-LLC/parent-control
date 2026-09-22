@@ -13,6 +13,18 @@
   `Oh No! Parent Control` and open a launchable result when expected. Declare
   that exception in the case metadata and recipe. Preserve session identity,
   prompt refusal, single-use execution and independent result checks.
+- **Child app launch:** Every case that needs the child overlay without testing
+  how to find or launch it through the graphical UI must reuse REQUEST02
+  (`AccessibleUI.launch_child_command`), directly or through a composite.
+  This block invokes the installed `oh-no-parent-control-child` command as the
+  active child desktop user, without a terminal, app-grid search or panel
+  navigation, then independently observes one usable overlay with the fixed
+  child identity. Use it for setup and reopening; do not duplicate launch code.
+  Returning to an already open overlay does not require relaunching. Only
+  cases explicitly testing graphical discovery or launch may use a UI entry
+  block. Declare that exception in the case metadata and recipe. Preserve
+  session identity, prompt refusal, single-use execution and independent
+  result checks.
 - Except for the external-provider exception below, every automated UI target
   must be resolved by a stable public `automation-id`,
   scoped to its owning application and surface. Shared controls use one ID

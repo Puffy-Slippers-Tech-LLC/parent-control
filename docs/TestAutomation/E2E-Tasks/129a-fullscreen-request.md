@@ -24,7 +24,7 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Qualify the game's supported normal Shell reveal sequence, then reuse REQUEST02 to open one overlay. Bind the route back to the same game via DESK10 and compare its earlier activity. A missing panel route blocks these request consumers without blocking fullscreen expiry.
+Qualify the game's supported normal Shell reveal sequence, then use REQUEST13 to open one overlay through the panel. This is the explicit graphical launch exception for E2E-024/fullscreen. Bind the route back to the same game via DESK10 and compare its earlier activity. A missing panel route blocks these request consumers without blocking fullscreen expiry.
 
 ## Live VM acceptance
 

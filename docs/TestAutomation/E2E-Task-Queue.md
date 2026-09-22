@@ -11,6 +11,10 @@ records its delivered scope at completion time. It does not override a later
 pending block/provider qualification; see the [status vocabulary](README.md#status-vocabulary).
 The completed tasks remain intact; the first new rows restore their missing
 provider bindings under the current mandate.
+The developer's [manual validation of the ready cases](E2E-Execution-Plan.md#current-scope)
+records reported passing results. It does not check the retained regression rows
+or change this queue's first unchecked task; each row closes through its stated
+guarded acceptance and cleanup.
 
 ## Ordered task queue
 

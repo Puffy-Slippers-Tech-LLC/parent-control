@@ -31,18 +31,25 @@ eligible work.
 ## Current scope
 
 Current scenario status and counts come from `tests/e2e/scenarios.json`; block
-status comes from the catalogue. Preserve implementations and regressions for
-ready cases 1, 3, 4, 5, 6, 151 and 193. A checked queue task records its
-delivered scope; it does not override a later `pending` block or scenario status.
-The current shared PARENT01 direct-command bindings passed complete cases 6
-and 151 in [run 20260922T220454Z-80a92d46](Evidence/test-all-runs/20260922T220454Z-80a92d46/report.md),
+status comes from the catalogue. The developer reports manually verifying that
+all seven currently ready cases—1, 3, 4, 5, 6, 151 and 193—pass on 2026-09-22.
+No runner artifact was supplied for that complete set. Preserve their
+implementations and bindings.
+
+Earlier guarded runs separately passed complete cases 6 and 151 (run
+`20260922T220454Z-80a92d46`, now outside runner retention) and
+[case 193](Evidence/test-all-runs/20260922T225544Z-f49bdf46/report.md),
 including product, infrastructure, collection and cleanup outcomes. Case 151
 also qualified the Parent/GNOME Text Editor license-reading and return binding.
-These user-requested regression results leave the queue and **Next task**
-pointer unchanged; other bindings and the provider tasks' remaining acceptance
-remain pending. Reuse this scoped evidence when those tasks reach their turn.
-A capability run or historical `ready` inventory binding does not by itself
-validate a complete case.
+
+This manual validation does not close the current provider migration gate:
+the explicit retained regression rows still require their own qualified routes,
+guarded acceptance and close-out in queue order. Keep the **Next task** pointer
+on 003b. Reuse valid scoped evidence when those tasks reach their turn, and
+rerun a case if an intervening change affects it. A checked queue task records
+its delivered scope; it does not override a later `pending` block or scenario
+status. A capability run or historical `ready` inventory binding does not by
+itself validate a complete case.
 
 Retired E2E IDs 140–150 remain separate system-test obligations and cannot be
 selected as UI cases. Deferred mute task 154 is outside current-release

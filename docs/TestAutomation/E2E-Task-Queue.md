@@ -27,7 +27,7 @@ when appending a current blocker. All unchecked rows need independent briefs.
 | [x] | 003 | Open session controls and switch or sign out | Baseline | DESK02, DESK03, DESK04 | 35–55 |
 | [x] | 011 | Enter and read the request station | Baseline | REQUEST01, REQUEST03 | 35–55 |
 | [x] | 013 | Observe request results and exits | 011 | REQUEST11/12 kiosk Cancel and Escape | 25–45 |
-| [ ] | 010 | [Set one public toggle explicitly](E2E-Tasks/010-toggle.md) | Baseline | UI17 | 25–45 |
+| [x] | 010 | Set one public toggle explicitly | Baseline | UI17 Parent Screen time limit binding; installed qualification and owned cleanup passed | 25–45 |
 | [ ] | 017 | [Observe Parent save results](E2E-Tasks/017-parent-save.md) | 010 | PARENT08 snapshot saved/control states | 25–45 |
 | [ ] | 012 | [Select kiosk accounts and read availability](E2E-Tasks/012-request-choices.md) | 011, 017, 003 | REQUEST04 kiosk child/approver; REQUEST08 unavailable state | 25–45 |
 | [ ] | 018 | [E2E-017: disabled-child](E2E-Tasks/018-case-57.md) | 012, 013 | Cases 57 | 30–50 |

@@ -34,14 +34,14 @@ not. Repository-owned apps, child extension and fixtures still require IDs.
 
 ## Current task
 
-Next task: customer **010 — [Set one public toggle explicitly](../E2E-Tasks/010-toggle.md)**,
-the first eligible capability after task 013's kiosk Cancel/Escape qualification.
+Next task: customer **017 — [Observe Parent save results](../E2E-Tasks/017-parent-save.md)**,
+the first eligible capability after task 010's Parent toggle qualification.
 No unfinished customer scenario is eligible: case 57 still needs 012, cases
 54/55 need 024, and case 2 needs 007 and 077a. A session may start with only:
 `Execute the next task in docs/TestAutomation/External/README.md`.
 
-Run task 010 under its customer brief to qualify the Parent Screen time limit
-toggle for 017 and 012. After the released customer work is complete,
+Run task 017 under its customer brief to qualify Parent's snapshot save/control
+observations for 012. After the released customer work is complete,
 re-evaluate the customer queue before returning to the first eligible external
 row, S01.
 
@@ -187,5 +187,6 @@ G05 qualified the nonsecret passwordless station-entry route and the fixed
 disabled-child kiosk REQUEST03 projection on the prepared Ubuntu 26.04 image.
 It did not qualify GDM secrets, ordinary-account entry, enabled request choices,
 the overlay form or case 57. Task 013 subsequently qualified kiosk Cancel/Escape
-and their GDM returns; customer task 010 is now the first eligible work.
+and their GDM returns. Task 010 qualified the Parent Screen time limit toggle;
+customer task 017 is now the first eligible work.
 S01 remains the first eligible external row after released customer work.

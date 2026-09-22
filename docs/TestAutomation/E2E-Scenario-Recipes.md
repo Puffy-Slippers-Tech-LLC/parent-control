@@ -385,7 +385,9 @@ Bindings: request = approved / denied / cancelled.
 
 ### E2E-017
 
-Implementation status: All cases pending.
+Implementation status: All cases pending. UI17's Parent Screen time limit binding
+has installed slice qualification; Parent save observations and kiosk choices
+remain prerequisites for disabled-child case 57.
 
 **Kiosk selection and unavailable requests.** Cases 53, 54, 55, 56, 57.
 

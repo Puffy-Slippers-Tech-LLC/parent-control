@@ -1166,7 +1166,7 @@ def test_prompt_recognition_does_not_require_complete_provider_id_contracts():
     ui.handle_system_prompt()
 
 
-@pytest.mark.parametrize('entry', ['search', 'terminal', 'license'])
+@pytest.mark.parametrize('entry', ['terminal', 'license'])
 def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input(entry):
     from accessible_ui import PARENT
     ui = ui_for(Node(), qualify_prompts=False)
@@ -1179,6 +1179,57 @@ def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input(entr
     with pytest.raises(UiError, match='unqualified-provider-application'):
         call()
     ui.api.get_desktop.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'duplicate-owner', 'wrong-owner',
+                                 'duplicate-field', 'hidden-field', 'incomplete'])
+def test_shell_search_adapter_scopes_unique_editable_field_to_owner(fault):
+    field = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    field.get_text_iface = lambda: field
+    shell = Node('gnome-shell', 'application', children=[field])
+    root = Node(role='desktop frame', children=[shell])
+    if fault == 'duplicate-owner':
+        second = Node('GNOME Shell', 'application')
+        second.parent = root
+        root.children.append(second)
+    elif fault == 'wrong-owner':
+        shell.name = 'other application'
+    elif fault == 'duplicate-field':
+        second = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+        second.parent = shell
+        shell.children.append(second)
+    elif fault == 'hidden-field':
+        field.states.remove('showing')
+    ui = ui_for(root)
+    if fault == 'incomplete':
+        shell.children.append(None)
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 0, get_text=lambda *_: '')
+    if fault in ('duplicate-owner', 'duplicate-field', 'incomplete'):
+        with pytest.raises(UiError):
+            ui.search_query('')
+    else:
+        assert ui.search_query('') is (fault is None)
+    field.component.grab_focus.assert_not_called()
+
+
+def test_shell_search_launcher_requires_one_owned_exact_result():
+    launcher = Node('Oh No! Parent Control', 'button')
+    unrelated = Node('Oh No! Parent Control', 'button')
+    shell = Node('gnome-shell', 'application', children=[launcher])
+    other = Node('other application', 'application', children=[unrelated])
+    root = Node(role='desktop frame', children=[shell, other])
+    ui = ui_for(root)
+    assert ui.launchable_result(accessible_ui.PRODUCT) is launcher
+    launcher.states.remove('showing')
+    assert ui.launchable_result(accessible_ui.PRODUCT) is None
+    launcher.states.add('showing')
+    duplicate = Node('Oh No! Parent Control', 'button')
+    duplicate.parent = shell
+    shell.children.append(duplicate)
+    with pytest.raises(UiError, match='shell-result-ambiguous'):
+        ui.launchable_result(accessible_ui.PRODUCT)
+    launcher.component.grab_focus.assert_not_called()
+    unrelated.component.grab_focus.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'duplicate-owner', 'wrong-owner', 'duplicate-panel',

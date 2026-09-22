@@ -6,8 +6,13 @@ from unittest.mock import Mock
 import pytest
 
 import account_fixture
+from accessible_ui import CHILD_ACCOUNTS, NEW_CHILD
 import e2e_dynamic_account as guest_fixture
 from private_artifacts import EvidenceError
+
+
+def test_dynamic_child_ui_lookup_uses_the_created_account():
+    assert CHILD_ACCOUNTS[NEW_CHILD] == guest_fixture.USERNAME
 
 
 def test_guest_guard_refuses_before_account_lookup_or_creation(monkeypatch):

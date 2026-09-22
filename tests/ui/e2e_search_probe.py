@@ -1,7 +1,7 @@
-"""Refuse unqualified Shell search before any graphical input.
+"""Refuse the unqualified Shell public-ID search route before input.
 
 Retained search behavior regressions remain in test_accessible_e2e_ui.py.
-Live typing qualification requires provider-owned application and surface IDs.
+The fresh Parent route uses a separately scoped external-provider adapter.
 """
 
 from pathlib import Path

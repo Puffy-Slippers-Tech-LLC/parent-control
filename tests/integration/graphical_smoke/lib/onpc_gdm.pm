@@ -4,6 +4,7 @@ use warnings;
 use onpc_progress ();
 use testapi ();
 use onpc_pointer ();
+use onpc_journey ();
 
 # GDM02's functional credential binding. Prompt qualification is the caller's
 # immediately following GDM03 checkpoint; account focus alone authorizes no secret.
@@ -44,6 +45,33 @@ sub functional_selection {
     die 'gdm:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     my $prompt = select_prompt($journey, 'parent', 'prompt');
     dismiss_observed_prompt($journey, $prompt);
+}
+
+# GDM01/02 ordinary-account qualification. Each list reply is consumed once,
+# and each Escape follows its own fresh nonsecret prompt observation. The
+# second cycle must start from a separately acquired complete list.
+sub navigation_qualification {
+    onpc_progress::operation('Qualifying ordinary greeter account navigation');
+    my ($exchange) = @_;
+    die 'gdm:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(
+        exchange => $exchange, prefix => 'gdm-navigation', review => 0);
+    reattach_functional();
+
+    for my $cycle ('initial', 'repeated') {
+        my $list_stage = "$cycle-list";
+        my $focused_stage = "$cycle-focused";
+        my $list = $journey->seen($list_stage);
+        my $focused = $journey->highlight_choice(
+            $list, $list_stage, $focused_stage);
+        $journey->consume_observation($focused_stage, $focused);
+        testapi::send_key('ret');
+        my $prompt = $journey->seen("$cycle-prompt");
+        $journey->consume_observation("$cycle-prompt", $prompt);
+        testapi::send_key('esc');
+        $journey->seen("$cycle-returned");
+    }
+    $journey->finish();
 }
 
 # GDM02, fixed Parent/prompt binding. No secret recipient is authorized here.

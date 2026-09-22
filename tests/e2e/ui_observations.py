@@ -16,6 +16,7 @@ OPERATION_LABELS = {
     'gdm-list': 'Reading the greeter account list',
     'gdm-focused': 'Checking the intended greeter account is focused',
     'gdm-select-parent': 'Checking the Parent password prompt',
+    'gdm-navigation-returned': 'Checking the greeter list after dismissing the password prompt',
     'gdm-dismissed': 'Checking the password prompt was dismissed',
     'gdm-returned': 'Checking the greeter after returning to graphics',
     'gdm-other-list': 'Reading the wrong-account qualification list',

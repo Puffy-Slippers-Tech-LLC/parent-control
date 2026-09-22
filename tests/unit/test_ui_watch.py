@@ -15,7 +15,7 @@ import pytest
 from e2e_watch_protocol import PREFIX, read_frame, receive_frames
 from tests.support.ui_watch import Observer
 from ui_watch_transport import Feeds, Publication, label, registry
-from ui_watch_capture import Capture
+from ui_watch_capture import DISPLAY, Capture
 
 
 @pytest.mark.parametrize('fails', [False, True])
@@ -210,6 +210,8 @@ def capture(publications, monkeypatch):
         branch='Layout and overflow', test='scaled form', phase='call', captured_ns=1)
     collector.stage = 'live'
     collector.generation = 1
+    collector.display_serial = 1
+    collector.next_display_check = 101
     collector.started = 0
     collector.retries = 0
     collector.retry_at = 0
@@ -261,19 +263,42 @@ def test_capture_reconnect_clears_pixels_and_resumes_same_branch(capture):
     assert resumed[2] == b'\x01' * 16
 
 
-def test_capture_monitor_change_recovers_without_a_pipeline_error(capture):
-    collector, _clock = capture
-    connection = collector.connection = Mock()
+def test_capture_monitor_signal_recovers_with_same_serial_and_new_wrapper(capture):
+    collector, clock = capture
+    collector.call = Mock(return_value=(collector.display_serial, [object()], [object()], {}))
 
     collector.monitors_changed(Mock())
-    collector.close.assert_not_called()
-    collector.monitors_changed(connection)
 
+    collector.call.assert_not_called()
     collector.close.assert_called_once()
     frame = read_frame(collector.publication.frames.memory)
     assert collector.stage == 'retry'
     assert frame[1]['state'] == 'waiting' and frame[2] == b''
     assert frame[1]['detail'] == 'Reconnecting capture'
+    assert collector.retry_at == clock.now + .5
+
+
+def test_capture_poll_recovers_when_monitor_signal_is_lost(capture):
+    collector, clock = capture
+    collector.call = Mock(return_value=(2, [object()], [object()], {}))
+    collector.next_display_check = clock.now
+
+    collector.tick()
+
+    collector.close.assert_called_once()
+    assert collector.stage == 'retry'
+
+
+def test_capture_poll_leaves_current_monitor_stream_running(capture):
+    collector, clock = capture
+    collector.call = Mock(return_value=(1, [object()], [object()], {}))
+    collector.next_display_check = clock.now
+
+    collector.tick()
+
+    collector.close.assert_not_called()
+    assert collector.stage == 'live'
+    assert collector.next_display_check == clock.now + .25
 
 
 def test_capture_repeated_failure_stops_after_three_retries(capture):

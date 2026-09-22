@@ -64,7 +64,10 @@ def test_parent_reports_partial_app_limits_and_remains_usable(
                 and ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE),
         "another setting changes and remains usable after its save",
     )
-    assert ui.absent("feedback-dialog", within="parent-window")
+    wait_for_accessible_state(
+        lambda: ui.absent("feedback-dialog", within="parent-window"),
+        "the unchanged policy warning does not reopen the error report",
+    )
     assert "may be unrestricted" in ui.text("parent-policy-warning")
 
 

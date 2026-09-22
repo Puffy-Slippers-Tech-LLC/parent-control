@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+import tests.e2e.accessible_ui as accessible_ui
 from tests.e2e.fixture_ui import FixtureUI
 from tests.e2e.accessible_ui import AccessibleUI, UiError
 from tests.support.accessible_ui import Node
@@ -78,6 +79,30 @@ def test_move_and_submit_observe_the_result_and_leave_the_other_instance_intact(
     view.submit()
     assert view.move() == {'draft': 'draft', 'submitted': 'draft', 'score': 'Moves: 1; token: 1'}
     assert second_nodes['score'].name == 'Moves: 0; token: 0'
+
+
+def test_closed_retries_a_defunct_transition_before_proving_guarded_absence(monkeypatch):
+    primary, _ = fixture('flatpak')
+    secondary, _ = fixture('flatpak', 'secondary')
+    ui = adapter(Node(children=[primary, secondary]))
+    desktop = ui.api.get_desktop(0)
+    secondary_application = next(
+        node for node in desktop.children
+        if node.identity == 'com.puffyslippers.ONPCFixture.flatpak.secondary')
+    secondary_application.states.add('defunct')
+    ui.timeout = 1
+    clock = [0.0]
+
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+
+    def finish_close(delay):
+        clock[0] += delay
+        desktop.children.remove(secondary_application)
+
+    monkeypatch.setattr(accessible_ui.time, 'sleep', finish_close)
+
+    assert FixtureUI(ui, 'flatpak', 'secondary').closed(
+        surrounding_id='onpc-fixture-flatpak-primary') is True
 
 
 def test_password_projection_refuses_before_reading_text():

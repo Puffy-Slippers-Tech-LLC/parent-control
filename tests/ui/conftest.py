@@ -263,6 +263,7 @@ def automation(hermetic_ui_session, launch_ui, wait_for_accessible_state):
                       owner_pids=launch_ui.owner_pids,
                       application_ids=launch_ui.application_ids,
                       application_owners=launch_ui.application_owners,
+                      application_owner_history=launch_ui.application_owner_history,
                       complete_read_wait=wait_for_accessible_state)
 
 

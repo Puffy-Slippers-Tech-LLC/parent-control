@@ -60,7 +60,8 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
     type_text(ui, "preview-screen-width", "479")
     ui.activate("preview-screen-save")
     wait_for_accessible_state(
-        lambda: ui.text("preview-screen-status").startswith(
+        lambda: (status := ui.find("preview-screen-status")) is not None
+        and status.get_name().startswith(
             "Enter whole pixel dimensions from 480 to 7680"),
         "invalid dimensions are explained",
     )

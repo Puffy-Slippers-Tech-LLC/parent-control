@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">11243</span>/<span style="color: gray">0</span>/11243 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">11320</span>/<span style="color: gray">0</span>/11320 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">145</span>/<span style="color: gray">0</span>/145 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,7 +15,7 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">29</span>/<span style="color: gray">0</span>/29 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">7</span>/<span style="color: gray">235</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">11813</span>/<span style="color: gray">235</span>/12048** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">11890</span>/<span style="color: gray">235</span>/12125** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -301,7 +301,7 @@ Variant: children: existing and new
 
 **Steps:**
 
-- Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
+- Explicitly test app-grid discovery: sign in as a parent, search for the full query Oh No! Parent Control and observe its launchable result. For existing-and-new, open that result, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
 - For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, prepare the declared no-eligible-child account fixture before launching Parent.
 - For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, launch Parent and read the no-eligible-account explanation and (None) child selection.
 
@@ -315,7 +315,7 @@ Variant: children: none
 
 **Steps:**
 
-- Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
+- Explicitly test app-grid discovery: sign in as a parent, search for the full query Oh No! Parent Control and observe its launchable result. For existing-and-new, open that result, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open.
 - For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, prepare the declared no-eligible-child account fixture before launching Parent.
 - For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, launch Parent and read the no-eligible-account explanation and (None) child selection.
 
@@ -329,8 +329,8 @@ Variant: launch: app grid
 
 **Steps:**
 
-- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
-- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
+- Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal.
+- For app-grid, search for Oh No! Parent Control and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent.
 
 ### Scenario 6
 
@@ -342,8 +342,8 @@ Variant: launch: terminal
 
 **Steps:**
 
-- Log in as a standard user and open the selected customer launch surface: app grid or terminal.
-- For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available.
+- Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal.
+- For app-grid, search for Oh No! Parent Control and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent.
 
 ### Scenario 151
 
@@ -355,7 +355,7 @@ Variant: surface: parent
 
 **Steps:**
 
-- Log in as Parent, launch the installed app from the app grid, select an existing child, open About, read its product/version information and open the installed license text.
+- Log in as Parent, invoke PARENT01 to run the installed oh-no-parent-control-parent command directly and observe its management window, select an existing child, open About, read its product/version information and open the installed license text.
 - Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy.
 
 ### Scenario 193

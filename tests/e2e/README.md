@@ -452,8 +452,12 @@ controls, then dismisses the denial and independently observes the desktop.
 Ordinary Parent feature cases, including About, use this same block with the
 management-window expectation. Only explicit app-grid discovery cases use
 search and open, under the [launch mandate](../../docs/Mandates/UI-Automation-Mandate.MD).
-Earlier case 6 verification covered the terminal route; the direct route needs
-its own installed qualification.
+The fresh standard denial and Parent management bindings passed complete cases
+6 and 151 in [run 20260922T220454Z-80a92d46](../../docs/TestAutomation/Evidence/test-all-runs/20260922T220454Z-80a92d46/report.md),
+including collection and cleanup. Case 151 uses the scoped GNOME Text Editor
+adapter to read the public `view` document, verify both GPL headings, close the
+active viewer and return through About to unchanged child/settings. Other entry
+bindings and provider workflows retain their catalogue qualification limits.
 E2E-042/command-help is implemented by `command_help.PLAN` and
 `onpc_command_help::run`: as the administrator it opens a normal Terminal,
 refuses desktop command input, then reads both installed `--help` commands and

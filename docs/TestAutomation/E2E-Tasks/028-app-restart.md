@@ -22,11 +22,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Extend UI18 and SEARCH05 only for normal Parent closure/relaunch. LIFE01 observes the new window without selecting a child or restoring fields. Keep explicit prior-window and destination arguments.
+Compose UI18 and shared PARENT01 for normal Parent closure/relaunch. LIFE01 observes the new window without selecting a child or restoring fields. Keep explicit prior-window and destination arguments.
 
 ## Live VM acceptance
 
-Open Parent on the VM, close it normally, prove it disappeared, relaunch through the app grid and observe the new management window. Read its initial selection before any edit; an already-closed/wrong window must not trigger repair.
+Open Parent on the VM, close it normally, prove it disappeared, relaunch through PARENT01's direct command and observe the new management window. Read its initial selection before any edit; an already-closed/wrong window must not trigger repair.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

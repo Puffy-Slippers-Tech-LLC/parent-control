@@ -1290,12 +1290,18 @@ class AccessibleUI:
         """UI03: only the bounded GPL heading projection; never return raw text."""
         require(projection == 'gpl-heading' and type(maximum) is int
                 and 64 <= maximum <= 1024, 'ui:document-binding')
-        _application_id, _surface_id, registered = self.require_provider_contract(
-            'document-viewer', 'license-document', ('content', 'close'))
-        require(public_automation_id(root) == registered['content']
-                and self.find_provider_control(
-                    'document-viewer', 'license-document', 'content') is root,
-                'ui:document-owner')
+        if self.provider_contracts['document-viewer']['application_id']:
+            _application_id, _surface_id, registered = self.require_provider_contract(
+                'document-viewer', 'license-document', ('content', 'close'))
+            require(public_automation_id(root) == registered['content']
+                    and self.find_provider_control(
+                        'document-viewer', 'license-document', 'content') is root,
+                    'ui:document-owner')
+        else:
+            window, content, _observation = self.license_viewer_snapshot()
+            require(root is content and window is not None
+                    and self.has_state(window, self.api.StateType.ACTIVE),
+                    'ui:document-owner')
         require(root.get_role_name() in ('text', 'document text') and self.showing(root),
                 'ui:document-surface')
         text = root.get_text_iface()
@@ -1307,9 +1313,59 @@ class AccessibleUI:
         require(type(value) is str and len(value) <= maximum, 'ui:document-bound')
         return 'GNU GENERAL PUBLIC LICENSE' in value and 'Version 3, 29 June 2007' in value
 
+    def license_viewer_snapshot(self):
+        """GNOME Text Editor 50 provider exception for ABOUT02/03 only.
+
+        The application/window have no usable public IDs. Resolve the registry
+        application and its sole showing window by scoped public semantics, then
+        use the provider's Builder ID ``view`` for the document. Never identify
+        a document by its title, contents, position or geometry. Other handlers,
+        multiple windows/documents and prompts cannot authorize reading/closing.
+        """
+        desktop = self.api.get_desktop(0)
+        require(desktop is not None, 'ui:incomplete-tree')
+        snapshot, facts = {}, {}
+        nodes = list(self.nodes(desktop, strict=True, snapshot=snapshot, facts=facts))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:incomplete-tree')
+        self.handle_system_prompt(observation=(nodes, snapshot, facts))
+        owners = [node for node in snapshot[desktop]
+                  if facts[node]['role'] == 'application'
+                  and (facts[node]['identity'] == 'org.gnome.TextEditor'
+                       or (not facts[node]['identity'] and facts[node]['name'].casefold()
+                           in ('gnome-text-editor', 'org.gnome.texteditor', 'text editor')))]
+        require(len(owners) <= 1, 'ui:license-provider-ambiguous')
+        observation = (nodes, snapshot, facts)
+        if not owners:
+            return None, None, observation
+        owner = owners[0]
+        owned = self.snapshot_scope(nodes, snapshot, owner)
+        windows = [node for node in owned if facts[node]['role'] in ('frame', 'window')
+                   and facts[node]['showing']]
+        require(len(windows) <= 1, 'ui:license-window-ambiguous')
+        if not windows:
+            return None, None, observation
+        window = windows[0]
+        scoped = self.snapshot_scope(nodes, snapshot, window)
+        documents = [node for node in scoped if facts[node]['identity'] == 'view']
+        require(len(documents) <= 1, 'ui:license-document-ambiguous')
+        content = documents[0] if documents else None
+        require(owner.get_process_id() > 0
+                and window.get_process_id() == owner.get_process_id()
+                and (content is None or content.get_process_id() == owner.get_process_id()),
+                'ui:document-owner')
+        if content is not None and (facts[content]['role'] not in ('text', 'document text')
+                                    or not facts[content]['showing']):
+            content = None
+        return window, content, observation
+
     def license_content(self):
         """Read the ID-scoped registered viewer, without title discovery."""
         def document():
+            if not self.provider_contracts['document-viewer']['application_id']:
+                window, node, _observation = self.license_viewer_snapshot()
+                return (node is not None and self.has_state(window, self.api.StateType.ACTIVE)
+                        and self.read_document(node, 'gpl-heading', maximum=1024))
             surface, registered = self.provider_surface(
                 'document-viewer', 'license-document', ('content', 'close'))
             if surface is None:
@@ -1322,8 +1378,14 @@ class AccessibleUI:
 
     def open_license(self):
         """ABOUT02: one link action followed by actual viewer content."""
-        self.require_provider_contract(
-            'document-viewer', 'license-document', ('content', 'close'))
+        if self.provider_contracts['document-viewer']['application_id']:
+            self.require_provider_contract(
+                'document-viewer', 'license-document', ('content', 'close'))
+        else:
+            # A pre-existing editor must not supply unrelated content or receive
+            # the subsequent Alt-F4. The link is the sole launch input.
+            window, _content, _observation = self.license_viewer_snapshot()
+            require(window is None, 'ui:license-already-open')
         self.activate_id('about-license-value')
         self.license_content()
 
@@ -1332,8 +1394,17 @@ class AccessibleUI:
         require(window in ('license', 'about'), 'ui:window-binding')
         def active():
             if window == 'license':
-                root, _registered = self.provider_surface(
-                    'document-viewer', 'license-document', ('content', 'close'))
+                if not self.provider_contracts['document-viewer']['application_id']:
+                    root, content, _observation = self.license_viewer_snapshot()
+                    if content is None:
+                        return False
+                    # Reacquire and verify the document again at the close input
+                    # boundary; successful launch alone never authorizes input.
+                    if not self.read_document(content, 'gpl-heading', maximum=1024):
+                        return False
+                else:
+                    root, _registered = self.provider_surface(
+                        'document-viewer', 'license-document', ('content', 'close'))
             else:
                 root = self.find_id('about-dialog')
             return root is not None and self.has_state(root, self.api.StateType.ACTIVE)
@@ -1343,12 +1414,21 @@ class AccessibleUI:
         """UI11: complete fresh absence within the positively recognized return UI."""
         require((window, destination) in (('license', 'about'), ('about', 'parent')),
                 'ui:window-binding')
-        if window == 'license':
+        semantic_license = (window == 'license'
+                            and not self.provider_contracts['document-viewer']['application_id'])
+        if window == 'license' and not semantic_license:
             _application_id, surface_id, registered = self.require_provider_contract(
                 'document-viewer', 'license-document', ('content', 'close'))
         def closed():
             if window == 'about':
                 return self.absent_id('about-dialog', within='parent-window')
+            if semantic_license:
+                viewer, _content, (nodes, snapshot, facts) = self.license_viewer_snapshot()
+                identities = {node: facts[node]['identity'] for node in nodes}
+                underlying = self.snapshot_owned_target(
+                    'about-dialog', observation=(nodes, snapshot, identities, facts))
+                return (viewer is None and underlying is not None
+                        and self.has_state(underlying, self.api.StateType.ACTIVE))
             snapshot = {}
             identities = {}
             nodes = list(self.nodes(

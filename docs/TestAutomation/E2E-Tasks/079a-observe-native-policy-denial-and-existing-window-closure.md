@@ -1,7 +1,18 @@
-# 079a — Observe native policy denial and existing-window closure
+# 079a — Observe closure of an already-open native app
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add independently observed closure of an earlier captured native activity after saving a block. Reuse 079d's new-launch results and preserve the unaffected target.
+
+Tasks **079d** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **079** — PARENT16 and FLOW03 public app-policy editing.
 - **047** — APP04; FLOW08 native usable-app scope.
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
+- **079d** — APP02 and FLOW08 native grid/command blocked-launch results.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

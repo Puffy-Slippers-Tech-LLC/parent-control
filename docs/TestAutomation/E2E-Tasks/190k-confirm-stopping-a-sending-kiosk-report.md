@@ -1,7 +1,18 @@
-# 190k — Confirm stopping a sending kiosk report
+# 190k — Stop a sending kiosk report
 
-Estimate: 25–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add Stop sending and close, independently observing GDM. Reuse 190b's retry/warning/stay branch. Preserve the warning that stopping cannot recall an already accepted request and restore connectivity.
+
+Tasks **190b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -21,6 +32,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **150k** — FEED11, FEED09 success and FEED14 kiosk; gate in brief.
 - **152** — FEED09 Parent retry/recovery over qualified LIFE06; gate in brief.
+- **190b** — FEED09 retry and FEED17/18 kiosk stay-open branch; gate in brief.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

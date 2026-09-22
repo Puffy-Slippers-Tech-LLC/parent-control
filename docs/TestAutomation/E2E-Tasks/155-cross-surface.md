@@ -1,7 +1,18 @@
-# 155 — Compare per-child choices across request surfaces
+# 155 — Compare kiosk choices at each child overlay
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add kiosk-to-overlay for both children. Reuse 155a's comparisons; keep direction-specific approvers and no-approval scope.
+
+Tasks **155a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -12,7 +23,7 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 
 ## Scope and prerequisites
 
-Deliver **FLOW12 current choices**. First scheduled consumer: [E2E-018, case 58](../E2E-Scenario-Recipes.md#e2e-018).
+Deliver **FLOW12 current choices**. First scheduled consumer: [E2E-018, case 60](../E2E-Scenario-Recipes.md#e2e-018).
 Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 - **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
+- **155a** — FLOW12 overlay-to-kiosk choices for both children.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

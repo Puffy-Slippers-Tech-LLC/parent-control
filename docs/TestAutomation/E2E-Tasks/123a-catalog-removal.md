@@ -1,7 +1,9 @@
 # 123a — Save a match draft after fixture removal
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 30–50 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: The retained editor, actual removal, catalogue absence, reinstall and restored-rule observations form one continuous qualification.
 
 ## Read only this context
 

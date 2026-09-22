@@ -1,7 +1,18 @@
-# 035a — Qualify native fixtures with spaces and commas
+# 035a — Qualify the comma-containing native fixture
 
-Estimate: 25–45 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the comma-containing fixture and its identical-copy checks. Reuse 035d's special-path transfer/copy/result operations; retain both finite fixtures.
+
+Tasks **035d** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **036** — FILE07/04/05; FIX04 synthetic files.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
+- **035d** — FIX04 space-path asset; FILE05 copy and command-policy result.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

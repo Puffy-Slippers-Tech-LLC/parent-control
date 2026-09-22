@@ -1,7 +1,18 @@
-# 036b — Launch native fixtures from the desktop
+# 036b — Observe policy results for desktop launches
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add desktop-specific blocked results after a public Parent save. Reuse 036g/036h's usable and separate-window bindings; missing DING support remains a blocker.
+
+Tasks **036g**, **036h** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **036** — FILE07/04/05; FIX04 synthetic files.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
 - **035p** — FIX04 native assets; LIFE04 fixture installation.
+- **036h** — APP01/02 desktop separate-window route.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

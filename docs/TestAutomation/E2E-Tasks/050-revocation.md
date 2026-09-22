@@ -1,7 +1,18 @@
-# 050 — Cancel and confirm grant revocation
+# 050 — Confirm grant revocation and read balances
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add Confirm, warning closure and independent saved time readback. Reuse 050a's warning/target and Cancel; child effects remain later consumers.
+
+Tasks **050a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **021** — FLOW05/06/07 kiosk.
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
+- **050a** — PARENT17/18 revocation target, warning and Cancel.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

@@ -1,7 +1,18 @@
-# 036a — Launch native fixtures from the file manager
+# 036a — Observe policy results for Files launches
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add this route's Hard/Soft denial and expected prior-window closure. Reuse 036f's usable/new-window Files route; no substitute launch path.
+
+Tasks **036f** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **036** — FILE07/04/05; FIX04 synthetic files.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
+- **036f** — APP01/02/03 native file-manager usable/new-window route.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

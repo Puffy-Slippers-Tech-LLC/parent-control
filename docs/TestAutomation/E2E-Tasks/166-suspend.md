@@ -1,7 +1,18 @@
-# 166 — Suspend and wake through normal controls
+# 166 — Observe time denial after suspend and wake
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add wake after the real grant deadline and correct-password time-limit denial. Reuse 166a's suspend/wake route; daily suspended usage cannot substitute for elapsed-grant denial.
+
+Tasks **166a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -21,6 +32,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **065** — FLOW13 grant-only/combined; retained entry and explicit revoke preparation.
 - **043a** — GDM02 retained-child lock entry; DESK08/11.
 - **052c** — TIME03.
+- **166a** — LIFE03 normal suspend/wake with active grant.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

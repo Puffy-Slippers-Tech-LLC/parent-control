@@ -1,7 +1,18 @@
-# 043 — Qualify fresh child login and time denial
+# 043 — Observe fresh child time denial and return
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add specific zero-time denial after correct authentication and DESK11 normal return to GDM. Reuse 043b for the fresh-child success route.
+
+Tasks **043b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **004** — UI19/GDM05 distinct single-use authentication challenges.
 - **041** — PARENT09, FLOW02.
+- **043b** — GDM06/07 and FLOW15 fresh-child success.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

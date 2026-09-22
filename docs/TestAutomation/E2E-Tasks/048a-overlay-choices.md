@@ -1,7 +1,18 @@
-# 048a — Choose overlay values and cancel or escape
+# 048a — Qualify overlay Escape and invalid durations
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add Escape, invalid-custom submission with no authentication, and overlay FLOW04 composition. Reuse 048e's valid choices/Cancel and preserve distinct exit observations.
+
+Tasks **048e** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **048** — DESK12, REQUEST02/03 overlay entry/readback.
 - **014** — FLOW04 kiosk.
 - **047** — APP04; FLOW08 native usable-app scope.
+- **048e** — REQUEST04/05/06/08 overlay valid choices and REQUEST11/12 Cancel.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

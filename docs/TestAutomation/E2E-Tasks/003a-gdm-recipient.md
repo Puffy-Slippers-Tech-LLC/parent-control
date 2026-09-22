@@ -1,9 +1,18 @@
-# 003a — Qualify ordinary GDM account and recipient proofs
+# 003a — Prove the intended GDM password recipient
 
-Estimate: 40–60 minutes; an estimate, never a stop timer. Follow the
-[master execution contract](../E2E-Execution-Plan.md#execute-one-task) and its
-[provider rules](../E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
-This brief does not select or skip tasks.
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the intended-recipient and two-proof checks to the qualified account navigation. Reuse 003aa for list entry and Escape; retain every wrong-recipient, stale, nonempty-field and independent-prompt assertion below.
+
+Tasks **003aa** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
@@ -12,6 +21,7 @@ Deliver **GDM01/02 ordinary prompt entry; GDM03/04/08/09 recipient, refusal and 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **011** — REQUEST01, REQUEST03.
+- **003aa** — GDM01/02 ordinary account-list navigation and Escape return.
 
 ## Read only this context
 

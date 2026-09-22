@@ -1,7 +1,18 @@
-# 020 — Qualify kiosk rejection, Cancel and immediate approved exit
+# 020 — Qualify immediate approved kiosk exit
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the immediate approved exit to GDM and compose the full kiosk outcome set. Reuse 020b's rejection/Cancel and 020a's automatic-exit evidence; rerun any affected branch.
+
+Tasks **020b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **019** — REQUEST09, AUTH01 kiosk.
 - **013** — REQUEST11/12 kiosk Cancel and Escape.
 - **020a** — AUTH02 kiosk approval; REQUEST11/12 success and automatic GDM exit.
+- **020b** — AUTH02 kiosk rejection/Cancel with REQUEST11 preserved-form results.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

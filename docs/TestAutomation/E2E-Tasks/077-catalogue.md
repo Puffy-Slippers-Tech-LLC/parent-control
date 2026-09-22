@@ -1,7 +1,18 @@
-# 077 — Search and filter the public app catalogue
+# 077 — Filter the public app catalogue
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add both access and match filter popovers with their option sets. Reuse 077b's search/result observations; keep exact zero-result assertions.
+
+Tasks **077b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -21,6 +32,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **035p** — FIX04 native assets; LIFE04 fixture installation.
 - **009** — UI16.
 - **077a** — PARENT12; UI13 complete public app-row observations.
+- **077b** — PARENT10 exact catalogue search results.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

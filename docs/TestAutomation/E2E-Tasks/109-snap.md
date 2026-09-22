@@ -1,7 +1,18 @@
-# 109 — Qualify Snap fixtures and command launches
+# 109 — Observe Snap command denial and closure
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add publicly configured Hard/Soft command denial and expected closure, preserving usable A. Reuse 109b's activity and new-window route; do not reimplement package installation.
+
+Tasks **109b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **109p** — FIX04 Snap assets; LIFE04 fixed Snap installation profile.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
+- **109b** — APP01/02/03/04 and FLOW08 Snap command usable/new-window route.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

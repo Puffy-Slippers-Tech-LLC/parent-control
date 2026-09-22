@@ -1,7 +1,9 @@
 # 137 — Follow session activation after a real update
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 30–50 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: The real update, logout/login of every affected user and package activation checks must all complete.
 
 ## Read only this context
 

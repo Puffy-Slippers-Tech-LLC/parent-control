@@ -1,9 +1,7 @@
 # 003r — Requalify retained case 3
 
-Estimate: 30–50 minutes; an estimate, never a stop timer. Follow the
-[master execution contract](../E2E-Execution-Plan.md#execute-one-task) and its
-[provider rules](../E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
-This brief does not select or skip tasks.
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -11,7 +9,7 @@ Deliver **Retained regression 3; existing/new-child discovery**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001s** — SEARCH01–06 Parent launchable and standard-account unavailable bindings; terminal search entry.
+- **001sb** — SEARCH05 administrator Parent launch and owned-window result.
 
 ## Read only this context
 

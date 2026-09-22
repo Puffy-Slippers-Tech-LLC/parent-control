@@ -1,7 +1,18 @@
-# 048b — Complete overlay rejection, exits and approval flows
+# 048b — Complete overlay exits and approval compositions
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add immediate approved exit to the same activity, then compose overlay FLOW05/07. Reuse 048f's rejection/Cancel and 048d's automatic return.
+
+Tasks **048f** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -21,6 +32,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **021** — FLOW05/06/07 kiosk.
 - **048c** — Shell Polkit AUTH01 overlay recipient and guarded Cancel/preserved-form result.
 - **048d** — AUTH02 overlay approval; REQUEST11/12 success and automatic child return.
+- **048f** — AUTH02 overlay rejection/Cancel and preserved-form readback.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

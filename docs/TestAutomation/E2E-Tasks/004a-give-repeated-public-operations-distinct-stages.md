@@ -1,7 +1,9 @@
 # 004a — Give repeated public operations distinct stages
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 30–50 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: Repeated worker stages change shared recorder ordering and require the retained live regression set in addition to this slice.
 
 ## Read only this context
 

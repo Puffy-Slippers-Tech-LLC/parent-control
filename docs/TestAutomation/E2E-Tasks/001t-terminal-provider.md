@@ -1,9 +1,18 @@
-# 001t — Qualify the installed terminal adapter
+# 001t — Read terminal management denial
 
-Estimate: 40–60 minutes; an estimate, never a stop timer. Follow the
-[master execution contract](../E2E-Execution-Plan.md#execute-one-task) and its
-[provider rules](../E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
-This brief does not select or skip tasks.
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the standard-account Parent-command denial projection and observed management-denial result. Reuse 001ta's input/output/close operations; authentication remains task 005.
+
+Tasks **001ta** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
@@ -12,6 +21,7 @@ Deliver **FILE01/02/06 terminal command, help/denial projections and normal clos
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **001s** — SEARCH01–06 Parent launchable and standard-account unavailable bindings; terminal search entry.
+- **001ta** — FILE01/02/06 terminal owner, nonsecret submission, help and close.
 
 ## Read only this context
 

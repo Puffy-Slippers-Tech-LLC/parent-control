@@ -1,7 +1,18 @@
-# 079 — Save app access choices and compose one rule edit
+# 079 — Compose one app match/access edit
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Compose FLOW03 match/access editing from the already-qualified leaves, including optional filters and independent row comparison.
+
+Tasks **079c** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -18,6 +29,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#app-grid-search-and-p
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **078** — PARENT13/15 ordinary Save/Cancel/Reset and local invalid drafts.
+- **079c** — PARENT16 Allowed/Hard/Soft save and row readback.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

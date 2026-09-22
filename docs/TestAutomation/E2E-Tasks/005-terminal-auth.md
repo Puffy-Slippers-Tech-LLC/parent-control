@@ -1,7 +1,9 @@
 # 005 — Qualify terminal administrator password input
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 40–60 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: A real installation challenge, sealed secret delivery, command completion and the affected credential/retained regressions remain one qualification.
 
 ## Read only this context
 

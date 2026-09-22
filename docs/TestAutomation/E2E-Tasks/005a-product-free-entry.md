@@ -1,7 +1,9 @@
 # 005a — Start a graphical journey before product installation
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 30–50 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: Product-free setup changes shared preparation and ownership handling; its live entry and affected retained regressions must finish together.
 
 ## Read only this context
 

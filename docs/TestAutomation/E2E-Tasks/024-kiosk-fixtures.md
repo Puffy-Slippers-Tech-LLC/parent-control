@@ -1,7 +1,18 @@
-# 024 — Prepare empty kiosk account profiles
+# 024 — Prepare the no-approver kiosk profile
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add only the no-approver profile and its independent live empty-state result. Reuse 024b's fixture ownership/cleanup mechanics; both profiles remain part of the cumulative FIX03 contract.
+
+Tasks **024b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -12,12 +23,13 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 
 ## Scope and prerequisites
 
-Deliver **FIX03 no-child/no-approver profiles**. First scheduled consumer: [E2E-017, case 54](../E2E-Scenario-Recipes.md#e2e-017).
+Deliver **FIX03 no-child/no-approver profiles**. First scheduled consumer: [E2E-017, case 55](../E2E-Scenario-Recipes.md#e2e-017).
 Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **012** — REQUEST04 kiosk child/approver; REQUEST08 unavailable state.
+- **024b** — FIX03 no-child profile and public station empty state.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

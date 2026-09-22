@@ -1,7 +1,18 @@
-# 187k — Read station cooldown errors and report choices
+# 187k — Review a kiosk cooldown report
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add review-report entry, Privacy and normal report-close destination. Reuse 187b's actual cooldown trigger and decline result; preserve independent attempts for both outcomes.
+
+Tasks **187b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -23,6 +34,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 - **052c** — TIME03.
 - **030** — FEED05; FEED10 dialog persistence.
+- **187b** — REQUEST09 kiosk cooldown and FEED15 decline branch; gate in brief.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

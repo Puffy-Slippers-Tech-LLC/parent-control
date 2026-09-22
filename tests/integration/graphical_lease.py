@@ -89,7 +89,7 @@ def open_display(source, domain_id, revalidate, *, index=0):
 
 
 class Adapter:
-    """Accept one generalhw off/on/off attempt; never restore within it."""
+    """Accept one generalhw off/on/off attempt; restore at its final off callback."""
 
     def __init__(self, lease, *, running=False):
         require(lease.fd is not None and lease.state['phase'] == ('running' if running else 'isolated') and
@@ -109,9 +109,16 @@ class Adapter:
 
     def revalidate(self):
         try:
-            require(self.lease.fd is not None and self.lease.view.run == self.run and
-                    self.lease.state['run'] == self.run, 'graphics:expired-lease')
-            self.lease.guard()
+            require(self.lease.fd is not None and self.lease.state['run'] == self.run,
+                    'graphics:expired-lease')
+            if self.phase == 'stopped' and self.lease.view.run is None:
+                require(self.lease.restored_by_callback and
+                        self.lease.state['phase'] == 'cleanup-requested',
+                        'graphics:expired-lease')
+                self.lease.guard(off=True)
+            else:
+                require(self.lease.view.run == self.run, 'graphics:expired-lease')
+                self.lease.guard()
         except BaseException:
             try:
                 self.close_serial()
@@ -154,7 +161,7 @@ class Adapter:
             return state
         if action == 'off':
             # generalhw begins with an off-state assertion before power-on.
-            # Preserve the prepared pipes until the actual running shutdown.
+            # Preserve the prepared pipes until the running guest is restored.
             if self.phase not in ('initial', 'ready'):
                 self.close_serial()
             self.close_display()
@@ -164,8 +171,11 @@ class Adapter:
                 self.lease.guard(off=True)
                 self.phase = 'ready'
                 self.events.append('initial-off')
+            elif self.phase == 'stopped':
+                self.lease.guard(off=True)
+                self.events.append('poweroff')
             else:
-                self.lease.stop()
+                self.lease.stop_by_restore()
                 self.close_observer()
                 self.phase = 'stopped'
                 self.events.append('poweroff')
@@ -286,8 +296,8 @@ def callback(path, run, action):
             re.fullmatch(r'[0-9a-f]{32}', run) is not None,
             'graphics:invalid-callback')
     with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
-        # Lease shutdown currently has a 180-second ACPI deadline. The worker
-        # supervisor must allow the controller to finish its bounded cleanup.
+        # The controller owns the bounded restore and off-state verification.
+        # Allow its callback to finish before the worker supervisor expires.
         peer.settimeout(240)
         peer.connect(str(path))
         peer.sendall(f'{action} {run}\n'.encode('ascii'))

@@ -180,6 +180,9 @@ class SuiteLease(system.Lease):
         self._restored = True
         self._restored_name = name
 
+    def stop_by_restore(self):
+        self.stop()
+
     @system.observed('Restoring the VM and verifying cleanup')
     def finish(self):
         if not self._fast:

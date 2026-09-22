@@ -89,24 +89,73 @@ def test_unsupported_graphics_refuses_before_lease_mutation(lease_rig):
     assert lease.fd is None
 
 
-def test_backend_off_on_off_sequence_never_restores_within_attempt(prepared):
+def test_backend_off_on_off_sequence_restores_only_at_final_callback(prepared):
     lease, _ = prepared
     adapter = graphical.Adapter(lease)
     initial_restores = lease.source.domain.revertToSnapshot.call_count
+    initial_shutdowns = lease.source.shutdown_calls
     assert adapter.request('off', adapter.run) == 'ok'
     assert adapter.request('status', adapter.run) == 'off'
     assert adapter.request('on', adapter.run) == 'ok'
     assert adapter.request('status', adapter.run) == 'on'
+    assert lease.source.domain.revertToSnapshot.call_count == initial_restores
     assert adapter.request('off', adapter.run) == 'ok'
     assert adapter.request('off', adapter.run) == 'ok'
     assert adapter.request('status', adapter.run) == 'off'
-    assert lease.source.domain.revertToSnapshot.call_count == initial_restores
+    assert lease.source.domain.revertToSnapshot.call_count == initial_restores + 1
+    assert lease.source.shutdown_calls == initial_shutdowns
+    assert lease.restored_by_callback
     assert adapter.events == ['initial-off', 'status-off', 'poweron', 'status-on',
                               'poweroff', 'poweroff', 'status-off']
     lease.source.domain.create.assert_called_once()
     assert lease.state['phase'] != 'complete'  # Outer lease still owns cleanup.
     with pytest.raises(RuntimeError, match='unexpected-poweron'):
         adapter.request('on', adapter.run)
+
+
+def test_final_callback_refuses_changed_snapshot_before_restore(prepared):
+    lease, _ = prepared
+    adapter = start_adapter(lease)
+    snapshot = lease.source.domain.snapshotLookupByName.return_value
+    original = snapshot.getXMLDesc.side_effect
+    snapshot.getXMLDesc.side_effect = lambda *_: '<changed/>'
+    restores = lease.source.domain.revertToSnapshot.call_count
+    try:
+        with pytest.raises(RuntimeError, match='baseline:snapshot-metadata-changed'):
+            adapter.request('off', adapter.run)
+    finally:
+        snapshot.getXMLDesc.side_effect = original
+    assert lease.source.domain.revertToSnapshot.call_count == restores
+    assert not lease.restored_by_callback
+
+
+def test_final_cleanup_audits_without_second_restore(lease_rig):
+    lease, _ = lease_rig
+    lease.view.graphics_type = 'vnc'
+    with lease:
+        lease.prepare()
+        adapter = start_adapter(lease)
+        initial_shutdowns = lease.source.shutdown_calls
+        restores = lease.source.domain.revertToSnapshot.call_count
+        adapter.request('off', adapter.run)
+        assert adapter.request('status', adapter.run) == 'off'
+        assert lease.source.domain.revertToSnapshot.call_count == restores + 1
+    assert lease.state['phase'] == 'complete'
+    assert lease.source.shutdown_calls == initial_shutdowns
+    assert lease.source.domain.revertToSnapshot.call_count == restores + 1
+
+
+def test_final_callback_restores_guest_that_is_already_off(prepared):
+    lease, current = prepared
+    adapter = start_adapter(lease)
+    lease.source.off = True
+    current['id'] = -1
+    shutdowns = lease.source.shutdown_calls
+    restores = lease.source.domain.revertToSnapshot.call_count
+    assert adapter.request('off', adapter.run) == 'ok'
+    assert adapter.request('status', adapter.run) == 'off'
+    assert lease.source.shutdown_calls == shutdowns
+    assert lease.source.domain.revertToSnapshot.call_count == restores + 1
 
 
 @pytest.mark.parametrize('action,run,category', [

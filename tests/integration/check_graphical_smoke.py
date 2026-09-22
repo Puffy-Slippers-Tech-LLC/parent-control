@@ -400,7 +400,7 @@ def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
         module_result(directory)
     # VT6 authentication performs ten mandatory full baseline rechecks (802s
     # measured in attempt 10). Reserve 1200s for those checks plus the existing
-    # 600s smoke allowance, including synchronous shutdown and backend exit.
+    # 600s smoke allowance, including the synchronous off restore and backend exit.
     # This is one finite total budget; no callback or retry renews it.
     timeout = 1800 if vt6_auth else (
         960 if installation is not None and not installation.refusal else 600)

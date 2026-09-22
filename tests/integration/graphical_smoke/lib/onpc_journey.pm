@@ -62,15 +62,15 @@ sub highlight_choice {
 }
 
 sub finish {
-    onpc_progress::operation('Shutting down the test guest');
+    onpc_progress::operation('Restoring the test guest to its off baseline');
     my ($self) = @_;
     # No explicit captures after authentication. Automatic matcher results stay
-    # private and are reconciled by the controller after shutdown.
+    # private and are reconciled by the controller after the off-state restore.
     testapi::console('sut')->disable();
     testapi::power('off');
     die 'journey:shutdown-unverified' unless testapi::check_shutdown(0);
     testapi::record_info('shutdown',
-        'Owned guest poweroff and off-state verification completed.');
+        'Owned guest off-state restoration and verification completed.');
 }
 
 sub service_system_prompt {

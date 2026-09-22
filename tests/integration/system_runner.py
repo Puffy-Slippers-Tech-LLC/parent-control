@@ -428,6 +428,7 @@ class Lease:
         self.ownership_run = None
         self.watch = None
         self.watch_detached = False
+        self.restored_by_callback = False
 
     def save(self, phase):
         if self.capture.vm_ownership is not None:
@@ -587,6 +588,27 @@ class Lease:
         self.guard(off=True)
         self.close_watch()
 
+    @observed('Stopping the VM by restoring its baseline')
+    def stop_by_restore(self):
+        """Complete a graphical worker's off callback without an ACPI wait."""
+        require(self.view.graphics_type == 'vnc', 'cleanup:graphics-required')
+        self.guard()
+        require(self.view.domain_id is not None and
+                self.state['domain_id'] == self.view.domain_id,
+                'cleanup:unowned-domain')
+        self.capture.retire_vm_ownership()
+        self.guard()
+        self.save('cleanup-requested')
+        snap = self.source.domain.snapshotLookupByName(self.capture.state['proof']['name'], 0)
+        require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
+        with self.snapshot_status('Restoring', self.capture.state['proof']['name']):
+            self.source.domain.revertToSnapshot(snap, self.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
+        self.view.run = None
+        self.view.domain_id = None
+        self.guard(off=True)
+        self.close_watch()
+        self.restored_by_callback = True
+
     def close_watch(self):
         if self.watch is not None:
             observer = self.watch
@@ -598,9 +620,13 @@ class Lease:
         if not self.mutated:
             self.save('complete')
             return
-        self.save('cleanup-requested')
-        self.stop()
-        self.restore()
+        if self.restored_by_callback:
+            self.guard(off=True)
+            self.close_watch()
+        else:
+            self.save('cleanup-requested')
+            self.stop()
+            self.restore()
         self.delete_suite_snapshot()
         log('stage:restored-baseline-verification')
         if self.ownership_run is not None:

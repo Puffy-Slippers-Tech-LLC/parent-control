@@ -68,7 +68,7 @@ require shift;
         die 'private-canary' if $mode eq 'step-error' && $_[0] eq 'gdm';
         return {functional_smoke => 1} if $_[0] eq 'ready';
         return {ui_focused => 1} if $_[0] eq 'gdm';
-        return {ui => {operation => 'gdm-select-parent', outcome => 'passed',
+        return {ui => {operation => 'gdm-product-free-select-parent', outcome => 'passed',
                        interface => 'AT-SPI'}} if $_[0] eq 'selected';
         return {};
     };

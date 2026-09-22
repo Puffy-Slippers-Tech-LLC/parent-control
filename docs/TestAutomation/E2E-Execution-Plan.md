@@ -18,7 +18,7 @@ Next task: **003b — [Cancel a real keyring prompt after login](E2E-Tasks/003b-
 Task 003ba qualified separate fresh Parent and standard fixture entries through
 wrong-recipient refusal, two ordered masked-field checks, sealed single-use input,
 independent prompt-free Shell desktop observation, private collection and owned
-cleanup ([report](Evidence/test-all-runs/20260922T204911Z-51662d44/report.md)).
+cleanup (run `20260922T204911Z-51662d44`, subject to runner retention).
 This capability slice supplies no complete-scenario acceptance credit. Task 003b
 next qualifies the real gcr keyring Cancel branch and independent desktop return.
 
@@ -34,7 +34,9 @@ Current scenario status and counts come from `tests/e2e/scenarios.json`; block
 status comes from the catalogue. Preserve implementations and regressions for
 ready cases 1, 3, 4, 5, 6, 151 and 193. A checked queue task records its
 delivered scope; it does not override a later `pending` block or scenario status.
-Under the user's current direction, only case 6 is treated as validated passing;
+The earlier user-accepted pass for case 6 covered its former terminal route.
+Its new shared PARENT01 direct-command route requires fresh qualification.
+Under the user's current direction, only case 6 was treated as validated passing;
 other retained cases are run for acceptance in tasks specifically validating
 those cases. A capability run or historical `ready` inventory binding does not
 by itself validate a complete case.

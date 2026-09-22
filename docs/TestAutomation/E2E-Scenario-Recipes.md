@@ -47,6 +47,14 @@ including its external-provider exception. Names, labels, roles, text and order
 below describe customer inputs/results; they do not define selectors. Provider
 selection belongs to the qualified adapter, repository-owned selection to public IDs.
 
+Every ordinary Parent launch or reopening uses PARENT01's direct
+`oh-no-parent-control-parent` command, including launches inside FLOW01/P/P0
+and case 6's denial check. No terminal is opened. App-grid search is reserved
+for the explicit discovery/launch checks in E2E-003 and the unavailability check
+in E2E-004/app-grid, using the full query `Oh No! Parent Control`. Reusing an
+observed retained Parent window does not launch it again. Future app-grid
+exceptions must be explicit in metadata and recipe.
+
 Use the following common recipe notation. It expands to catalogue blocks; it
 does not permit hidden setup or automatic repair after a failed step.
 
@@ -223,7 +231,7 @@ inventory bindings.
 
 Bindings: children = existing-and-new / none.
 
-1. FLOW01(existing child) → PARENT03(capture defaults) → PARENT04(App Limits); none: V(parent,fresh) → SEARCH06(Parent), no launch yet.
+1. Explicit app-grid discovery exception: V(parent,fresh) → SEARCH05(Parent, whole query) → PARENT02(existing child) → PARENT03(capture defaults) → PARENT04(App Limits); none: V(parent,fresh) → SEARCH06(Parent), no launch yet.
 2. Existing: PARENT04(Screen Limits) → PARENT03 → FIX01 (supporting account checkpoint) → UI13(new choice); none: FIX02 (supporting account checkpoint).
 3. Existing: PARENT02(new) → PARENT03 → PARENT04(App Limits) → PARENT04(Screen Limits) → PARENT03 → UI12 → PARENT02(original) → PARENT03 → UI12. None: UI05(Enter) → PARENT19.
 
@@ -234,10 +242,11 @@ behavioral verification and ready inventory bindings.
 
 **Standard user cannot manage policy.** Cases 5, 6.
 
-Bindings: launch = app-grid / terminal.
+Bindings: launch = app-grid / terminal (the stable `terminal` ID now means
+direct command invocation, without opening Terminal).
 
-1. V(standard,fresh) → SEARCH01 or FILE01, selected by launch.
-2. Grid: UI21 → SEARCH03 → SEARCH04(unavailable), no Enter. Terminal: FILE02(parent command) → FILE06(specific GUI management denial) → UI11(management). Read **Administrator access required** and its administrator-sign-in explanation, then dismiss the denial and close the terminal. Generic startup errors and command echo cannot establish access denial.
+1. V(standard,fresh); app-grid alone then uses SEARCH01.
+2. Grid: UI21 → SEARCH03 → SEARCH04(unavailable), no Enter. Case 6: PARENT01(denied) → UI11(management). Read **Administrator access required** and its administrator-sign-in explanation, then dismiss the denial and independently observe the desktop with no denial or management controls. Generic startup errors or successful command submission cannot establish access denial.
 
 ### E2E-005
 
@@ -1086,7 +1095,7 @@ One action is issued once; uncertain input is never replayed.
 | --- | --- |
 | 214 no-reply | FEED09(success) → TIME03(5 seconds) → UI03(thanks without reply follow-up) → FEED14 → FEED01 → FEED03(cleared). |
 | 215 background | Start offline, FEED09(retry) → UI18(ordinary feedback only) → LIFE06(reconnect). Keep Parent open and UI11(feedback/thanks); reopen feedback after the bounded success interval and FEED03(cleared). If sending remains active, read FEED09 until acceptance; no inference from elapsed time alone. |
-| 216 app-exit | Offline FEED09(retry) → UI18(feedback) → UI18(Parent) → LIFE06(reconnect) → SEARCH05(Parent) → FEED01 → FEED03(reset, no resumed outbox). Do not claim an earlier request could not have reached the service. |
+| 216 app-exit | Offline FEED09(retry) → UI18(feedback) → UI18(Parent) → LIFE06(reconnect) → PARENT01 → FEED01 → FEED03(reset, no resumed outbox). Do not claim an earlier request could not have reached the service. |
 | 217 retry-expired | Offline FEED09(retry) → TIME03(up to the actual 15-minute retry window, with observation checkpoints) → FEED09(expired) → FEED03(preserved draft and duplicate-risk explanation). Reconnect and close; do not submit again. Budget 1800 seconds includes preparation and cleanup. |
 | 218 overlay-stop / 219 kiosk-stop | Offline FEED09(retry) → FEED17 → UI03(stop warning) → FEED18(stay) → FEED17 → FEED18(stop) → UI11(report) → DESK01 or GDM01. Reconnect through Parent afterward. A stop cannot recall a request already accepted. |
 | 220 overlay-success / 221 kiosk-success | FEED09(acceptance) → TIME03(5 seconds) → UI01(thanks still showing) → FEED14 → UI11(report) → DESK01 or GDM01. Original request flow exits only after manual dismissal. |

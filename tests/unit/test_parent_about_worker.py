@@ -61,10 +61,10 @@ package main;
 require onpc_parent_about;
 my $exchange = sub {
     die 'checkpoint failed' if $fault eq 'checkpoint' && $_[0] eq 'license-closed';
-    die 'recipient refused' if $fault eq $_[0] && $_[0] =~ /recipient/;
     die 'picker failed' if $fault eq 'click' && $_[0] eq 'child-picker-opened';
     die 'selection failed' if $fault eq 'screen' && $_[0] eq 'parent-selected';
     push @events, ['stage', $_[0]];
+    die 'observation refused' if $fault eq $_[0];
     return {ui_focused => 1} if $_[0] =~ /(?:greeter|list|picker-opened)$/;
     return {observed => $_[0]};
 };
@@ -72,6 +72,9 @@ my $ok = eval {
     if ($entry eq 'legacy') {
         my $journey = onpc_journey->new(exchange => $exchange, prefix => 'unit', review => $review);
         onpc_parent::login($journey, 1);
+    } elsif ($entry eq 'denial') {
+        require onpc_parent_terminal;
+        onpc_parent_terminal::run($exchange);
     } elsif ($entry) {
         my $journey = onpc_journey->new(exchange => $exchange, prefix => 'unit', review => $review);
         my $proof = $fault eq 'missing' ? {} : $journey->seen('license');
@@ -151,6 +154,70 @@ def test_functional_journey_uses_semantic_results_without_explicit_capture():
     assert not any(event[0] == 'assert' and event[1].startswith('onpc-parent-')
                    for event in result['events'])
     assert result['events'][-1] == ['power', 'off']
+
+
+@pytest.mark.parametrize('entry', ['', 'denial'])
+def test_parent_cases_share_direct_command_and_independent_expected_result(entry):
+    from parent_about import PLAN as ABOUT_PLAN
+    from parent_terminal import PLAN as DENIAL_PLAN
+    result = json.loads(run_perl(PROBE, '0', '', entry).stdout)
+    assert result['ok'], result
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    assert stages == list((DENIAL_PLAN if entry else ABOUT_PLAN).screen_tags)
+    index = stages.index('parent-command')
+    assert stages[index - 1] == 'desktop'
+    assert stages[index + 1] == ('management-denied' if entry else 'parent-window')
+    assert not any(event[0] == 'text' or event == ['key', 'ctrl-alt-t']
+                   or event == ['key', 'super-a'] for event in result['events'])
+
+
+@pytest.mark.parametrize('entry', ['', 'denial'])
+@pytest.mark.parametrize('fault', ['parent-command', 'result'])
+def test_direct_launch_uncertainty_or_missing_result_stops_case(entry, fault):
+    stage = ('management-denied' if entry else 'parent-window') if fault == 'result' else fault
+    result = json.loads(run_perl(PROBE, '0', stage, entry).stdout)
+    assert not result['ok']
+    assert ['power', 'off'] not in result['events']
+    assert result['events'].count(['stage', 'parent-command']) == 1
+    assert not any(event[0] == 'text' or event == ['key', 'ctrl-alt-t']
+                   or event == ['key', 'super-a'] for event in result['events'])
+
+
+@pytest.mark.parametrize('expected', ['management', 'denied'])
+@pytest.mark.parametrize('fault', ['', 'stale', 'binding', 'uncertain'])
+def test_shared_launch_consumes_independent_desktop_once(expected, fault):
+    result = json.loads(run_perl(r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+my ($expected, $fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+package main;
+require onpc_parent;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'unit', review => 0, exchange => sub {
+    push @events, $_[0];
+    die 'uncertain submission' if $fault eq 'uncertain' && $_[0] eq 'parent-command';
+    return {};
+});
+my $desktop = $journey->seen('desktop');
+$journey->seen('unrelated') if $fault eq 'stale';
+@events = ();
+my $ok = eval { onpc_parent::launch($journey, $desktop,
+    $fault eq 'binding' ? 'whole-query' : $expected); 1; };
+my $replay = eval { onpc_parent::launch($journey, $desktop, $expected); 1; };
+print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
+''', expected, fault).stdout)
+    assert result['ok'] == (not fault)
+    # A rejected binding has consumed no input/proof; a corrected first call
+    # remains possible. Submitted, uncertain and stale calls cannot replay.
+    assert bool(result['replay']) == (fault == 'binding')
+    target = 'parent-window' if expected == 'management' else 'management-denied'
+    assert result['events'] == ([] if fault == 'stale' else ['parent-command']
+                                if fault == 'uncertain' else ['parent-command', target])
 
 
 @pytest.mark.parametrize('fault', ['', 'missing', 'stale', 'replay', 'checkpoint'])

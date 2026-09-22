@@ -107,6 +107,7 @@ configuration and triggers finish so later APT/dpkg lines cannot follow it.
 
 ```text
 /usr/bin/oh-no-parent-control                         kiosk/overlay launcher
+/usr/bin/oh-no-parent-control-child                   child overlay launcher
 /usr/bin/oh-no-parent-control-parent                  parent launcher
 /usr/libexec/oh-no-parent-control-broker              broker launcher
 /usr/libexec/oh-no-parent-control-query-usage         child/approver-scoped usage read helper
@@ -142,6 +143,12 @@ Debian metadata. Development previews load their fixtures only when requested;
 the child preview supplies a separate entry point in its disposable directory.
 Removing developer files requires no new system integration or saved-data
 migration; existing path classifications continue to select update activation.
+
+`oh-no-parent-control-child` selects the shared launcher's child-overlay mode,
+equivalent to `oh-no-parent-control --child-overlay`. It is available from a
+terminal or the desktop Run dialog. Additional arguments pass through the same
+parser. The command becomes available on package installation/update; it requires
+no service restart or saved-data migration.
 
 ## Related design
 

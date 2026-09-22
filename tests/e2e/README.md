@@ -443,11 +443,17 @@ enforcement claimed.
 Its stale private grant/policy and
 other-user-state witnesses are outside customer scope; existing authorization
 and isolation regressions retain those obligations. This declaration correction
-earns no executed coverage. The terminal variant is implemented by
-`parent_terminal.PLAN` and `onpc_parent_terminal::run`: it launches the installed
-Parent executable once, observes the specific administrator-access denial and
-absence of management controls, then dismisses the denial and closes Terminal.
-Case 6 implementation and verification are confirmed complete by the developer.
+earns no executed coverage. Case 6 keeps its stable `terminal` variant ID and
+`parent_terminal.PLAN` / `onpc_parent_terminal::run` binding, but opens no
+terminal. It reuses PARENT01 (`onpc_parent::launch`) to invoke the installed
+`oh-no-parent-control-parent` command directly as the standard desktop user,
+observes the specific administrator-access denial and absence of management
+controls, then dismisses the denial and independently observes the desktop.
+Ordinary Parent feature cases, including About, use this same block with the
+management-window expectation. Only explicit app-grid discovery cases use
+search and open, under the [launch mandate](../../docs/Mandates/UI-Automation-Mandate.MD).
+Earlier case 6 verification covered the terminal route; the direct route needs
+its own installed qualification.
 E2E-042/command-help is implemented by `command_help.PLAN` and
 `onpc_command_help::run`: as the administrator it opens a normal Terminal,
 refuses desktop command input, then reads both installed `--help` commands and

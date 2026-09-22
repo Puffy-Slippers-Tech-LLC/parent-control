@@ -1,11 +1,13 @@
-# 001t — Read terminal management denial
+# 001t — Read direct-command management denial
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Session boundary
 
-Add the standard-account Parent-command denial projection and observed management-denial result. Reuse 001ta's input/output/close operations; authentication remains task 005.
+Qualify PARENT01's shared direct-command launch with the standard-account
+management-denial result and desktop return. No terminal is opened;
+authentication remains task 005.
 
 Tasks **001ta** supply the extracted operations through their maintained
 callables and qualified scope. The delivery below is cumulative with those
@@ -16,7 +18,7 @@ predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
-Deliver **FILE01/02/06 terminal command, help/denial projections and normal close/return**.
+Deliver **PARENT01 direct command, public management denial and desktop return**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
@@ -25,18 +27,26 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Read only this context
 
-Read FILE01/02/06, INFO02, terminal methods in [accessible_ui.py](../../../tests/e2e/accessible_ui.py) and [parent_terminal.py](../../../tests/e2e/parent_terminal.py).
+Read PARENT01, the direct launch and denial methods in [accessible_ui.py](../../../tests/e2e/accessible_ui.py) and [parent_terminal.py](../../../tests/e2e/parent_terminal.py).
 Read the affected safety tests and named source callables, not predecessor
 briefs or unrelated providers. Current route qualification comes from the
 catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Bind the actual installed terminal owner and window, focused nonsecret input, bounded public output and close/return. Reuse the qualified Terminal search entry. Keep command echo distinct from a command result and preserve one submission/no replay after uncertain input. Authentication remains task 005.
+Reuse `onpc_parent::launch`, its fixed executable and active-user session guard.
+Preserve one submission/no replay after uncertain execution and independently
+observe the specific owned denial, management absence and desktop return.
+Terminal/help qualification remains in 001ta; do not restore terminal input
+as a Parent launch path. Authentication remains task 005.
 
 ## Live VM acceptance
 
-In the live terminal, execute the declared installed-help command and independently read its required output. From the standard account, launch the Parent command and observe the actual owned management-denial message, then close/return normally. Include independently supplied valid terminal entry and wrong-window/unfocused-recipient/echo-only refusal. Pass focused safety tests, evidence and cleanup.
+From the standard desktop, invoke the shared direct Parent-command block and
+observe the actual owned management-denial message, then close/return normally.
+Include independent valid desktop entry and wrong-user, inactive/remote session,
+missing denial and uncertain-submission refusal. Pass focused safety tests,
+evidence and cleanup; submission success alone is never a denial result.
 
 Implement and register this planned fixed qualification before invoking it:
 

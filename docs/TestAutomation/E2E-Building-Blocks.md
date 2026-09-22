@@ -39,15 +39,18 @@ Use the most reliable and efficient supported mechanism for actions that only
 prepare the environment and do not exercise or observe a product feature.
 Keep these operations in reusable building blocks. A system shortcut or an
 existing scoped harness operation is appropriate; app-grid navigation is not
-required merely to open a supporting tool. For example, FILE01 opens Terminal
-with Ctrl+Alt+T before case 6 types the installed Parent command into it.
+required merely to open a supporting tool. Ordinary Parent entry, including
+case 6's access-denial check, uses PARENT01 to invoke the installed
+`oh-no-parent-control-parent` command directly as the active desktop user.
+No terminal or search is involved. FILE01 remains available for cases that
+actually need Terminal, such as command-help reading.
 Session logout may likewise use a supported direct mechanism when it only
 prepares the next scenario entry.
 
 When a user uses, observes or experiences a product feature, perform the real
 graphical interaction and independently observe its public result. In case 6,
-typing the Parent command, reading its denial and checking that management is
-unavailable remain customer actions and observations. If a recipe tests a
+reading the command's denial and checking that management is unavailable remain
+customer observations. If a recipe tests a
 particular launcher, logout, retained session, enforcement or login transition,
 that route and its visible results are part of acceptance and must be preserved.
 Classify by the action's role in the scenario, not by which application owns it.
@@ -237,9 +240,9 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | SEARCH01 | C | Open the app grid/Overview with Super-A and observe an enabled, editable, empty search field. | `AccessibleUI.shell_search_field` resolves the sole showing, sensitive, editable field inside one complete, uniquely owned Shell snapshot on the fresh Parent route. The standard-account and prompt-dismissal branches remain pending. | pending; fresh Parent branch ready |
 | SEARCH03 | C | Enter an app-name query into an already open, empty, focused search field without launching: type the first character, read it, type the remainder once, read the exact full query. | The fresh Parent whole-query branch reads back the exact query after one input. The standard-account split-query branch remains pending. | pending; fresh Parent whole-query branch ready |
 | SEARCH04 | C | Observe the declared search result after scoped provider resolution: a launchable app, or the exact query-specific web suggestion with stable absence of the app launcher and management window. Repository-owned windows retain their IDs. | `AccessibleUI.launchable_result` resolves the unique showing, sensitive Parent result within Shell ownership. The web-suggestion and stable-absence branches remain pending. | pending; Parent launchable branch ready |
-| SEARCH06 | C | Open Overview, resolve the empty search field by a qualified provider adapter, semantically focus it and independently observe focus before typing the registered app name once. Read back the complete query, then resolve and focus its launchable result. Independently observe result focus and stop before Enter. | The fresh Parent whole-query route passed in [case 3](Evidence/test-all-runs/20260922T212944Z-ad23b979/report.md); other entries and queries remain pending. | pending; fresh Parent whole-query branch ready |
+| SEARCH06 | C | Open Overview, resolve the empty search field by a qualified provider adapter, semantically focus it and independently observe focus before typing the registered app name once. Read back the complete query, then resolve and focus its launchable result. Independently observe result focus and stop before Enter. | The fresh Parent whole-query route passed in case 3 (run `20260922T212944Z-ad23b979`, subject to runner retention); other entries and queries remain pending. | pending; fresh Parent whole-query branch ready |
 | SEARCH05 | C | Launch a named app from the app grid and observe its expected opening window. The search route is an explicit argument. | Fresh Parent whole-query route passed with independent owned-window observation in case 3; other routes remain pending. | pending; fresh Parent branch ready |
-| PARENT01 | C | Launch Parent from an administrator desktop and observe its management window. No child is selected implicitly. | Fresh Parent whole-query route and owned management-window observation passed in case 3; other routes remain pending. | pending; fresh Parent branch ready |
+| PARENT01 | C | Invoke `oh-no-parent-control-parent` directly as the active desktop user and independently observe the declared management window or access denial. Mandatory for ordinary Parent setup/reopening; no child is selected implicitly. App-grid discovery tests explicitly use SEARCH05/06. | `onpc_parent::launch` consumes the desktop proof, submits the fixed command through `AccessibleUI.launch_parent_command`, then observes `parent-window` or `management-denied`. No terminal/search input; live qualification pending. | pending |
 | PARENT02 | C | Select a child from Parent's dropdown, verify the intended selected identity and wait for that child's controls. | `onpc_parent::select_child` accepts an explicit opened-list reply and registered child/stage binding, uses UI14, consumes fresh highlight evidence, sends Enter and observes `AccessibleUI.selected_child`. Child/existing/new/returned bindings only. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | PARENT03 | C | Read the current selected child's identity, screen-limit switch, allowance and remaining-time section as a sanitized observation. Do not change selection; disabled allowance controls remain readable. | `AccessibleUI.settings(child)` reads the explicit child, switch and duration-label projection and reveals the remaining-time section. Scenario expectations remain in `parent_discovery.PLAN`, not the adapter. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | PARENT04 | C | Select Screen Limits or App Limits and require that page's named usable controls. | `AccessibleUI.parent_page(child, page)` checks the displayed child, selects one named page, then observes its controls. Reacquire the window after transition and reuse that local root for search/filter reads. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
@@ -291,9 +294,9 @@ these blocks, not copies of them.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| FILE01 | C | Open the normal desktop terminal as environment preparation and observe its usable input surface. | `onpc_terminal::open` / `AccessibleUI.standard_terminal_input` passed the E2E-004 standard-account Ptyxis shortcut route, including independent second entry and closure; see [qualified scope](#external-provider-qualification). Other terminal bindings remain unqualified. | ready for E2E-004/terminal; other bindings pending |
-| FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | `onpc_terminal::focus` / `submit_parent` passed fresh focused input and one fixed Parent-command submission in E2E-004/terminal. Other commands and authentication remain unqualified. | ready for E2E-004/terminal; other bindings pending |
-| FILE06 | C | Observe the declared terminal result: real administrator challenge, command completion/notice, or launch-denial output. Read only its bounded approved output projection. Generic prompts, command echo and arbitrary failures are insufficient. | `onpc_terminal::observe_denial` / `AccessibleUI.management_denied` passed the owned specific GUI management denial and management-control exclusion in E2E-004/terminal. Terminal text, help, completion and authentication projections remain unqualified. | ready for E2E-004/terminal GUI denial; other bindings pending |
+| FILE01 | C | Open the normal desktop terminal as environment preparation and observe its usable input surface. | `onpc_terminal::open` / `AccessibleUI.standard_terminal_input` retain the historically qualified standard-account Ptyxis shortcut, independent entry and closure slice. Case 6 no longer consumes it; current help/other bindings require their own qualification. | historical standard-account slice qualified; current consumers pending |
+| FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | Terminal/help consumers use `onpc_terminal::focus` and their fixed command blocks. The former `submit_parent` route now refuses: Parent command launches must reuse PARENT01. | pending for current terminal consumers |
+| FILE06 | C | Observe the declared terminal result: real administrator challenge, command completion/notice, or launch-denial output. Read only its bounded approved output projection. Generic prompts, command echo and arbitrary failures are insufficient. | The historically qualified `AccessibleUI.management_denied` public GUI denial and management exclusion are now consumed by PARENT01. Terminal text, help, completion and authentication projections require their own qualification. | historical GUI-denial projection qualified; current terminal consumers pending |
 | FILE07 | C | Navigate an open file manager/chooser to one declared customer directory. Use its normal Location shortcut, enter the directory and observe the destination. | UI05(Location shortcut) → UI16(location field) → UI05(Enter) → UI01 → UI03(destination). Directory identity comes from prepared synthetic fixtures or the selected save location. | pending |
 | FILE03 | C | Choose files, save a named file, or cancel in an already open chooser. Mode and selected files are explicit. Observe selection/closure; the caller observes its later result separately. | Open: FILE07(directory) → UI14(first file) → UI05 for declared additional modifier/navigation selection → UI13(exact selected set) → UI04(Open) → UI11(chooser). Save: FILE07 → UI16(filename) → UI04(Save) → UI11. Cancel: UI04(Cancel) → UI11. No unmodified second selection that silently drops earlier files. | pending |
 | FILE04 | C | Open the file manager, navigate to a customer directory and observe its declared named entries. | SEARCH05(file manager) → FILE07(directory) → UI13(entries). | pending |
@@ -377,7 +380,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | --- | --- | --- | --- | --- |
 | FLOW00 | C | Run case 1's complete graphical/serial qualification within the unchanged harness envelope. Its step boundaries and terminal assertions are fixed below. | `controller_qualification.PLAN` and `Smoke._step` bind the graphical stages to `gdm_product_free_account()` / `gdm_product_free_navigation()` observations; `onpc_flow00::run` consumes the exact product-free prompt proof before Escape. The existing authenticated serial command, session/boot identity, single logout, return reconciliation, capture assertions, collection and owned cleanup passed in an earlier retained case 1 run. | ready; retained case 1 implementation |
 | FLOW15 | C | Reach an explicit user's desktop from the declared source surface. `entry=fresh` requires no retained session; `retained` requires an earlier observed desktop; `same` requires the current user already matches. Return the observed desktop or expected time-limit denial. | Fresh entry needs GDM07 and DESK01 provider-route qualification; other routes remain pending. | pending |
-| FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. | Product-owned controls retain their contracts, but this composite is blocked on FLOW15 and PARENT01's Shell launch path. | pending |
+| FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. New launches always use PARENT01's direct command. | `onpc_parent::open_for_child` composes fresh FLOW15 → PARENT01(management) → PARENT02. Direct-command live qualification and other entry bindings remain pending. | pending |
 | FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | PARENT04(Screen Limits) → UI17(Screen time limit=true) if required → PARENT06 → PARENT08 → UI17(final boolean) → PARENT08 → PARENT03 → PARENT09. Disabling clears a grant; this is not a harmless navigation step. | pending |
 | FLOW03 | C | Configure one app's matching and access choices through Parent and read the saved row. | PARENT10 → PARENT11 if declared → PARENT13 → UI16(match draft) → PARENT15(save) → PARENT16 → PARENT12. | pending |
 | FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. | pending |
@@ -911,7 +914,7 @@ can be expressed using the catalogue; the migration must preserve these seams:
 | [controller_qualification.py](../../tests/e2e/controller_qualification.py), `onpc_gdm::functional_selection`, `onpc_serial::run_functional` | FLOW00, expanded by the [case-1 stage contract](#case-1-stage-contract): GDM02/09, HAR05/06/07/08, then HAR10/09 in the existing envelope. | No graphical secret; real serial authentication/command/logout; exactly one logout before fresh graphical return. Preserve all harness/backend safeguards and the existing wire stages. |
 | [parent_discovery.py](../../tests/e2e/parent_discovery.py), [onpc_parent_discovery.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_discovery.pm) | GDM07, SEARCH06, PARENT02/03/04/19, FIX01 in case 3 or FIX02 in case 4 and explicit UI12 comparisons. | Every picker resolves choices by ID, highlights before Enter and verifies selection afterward. Existing child starts limits-off/zero; each child's returned values compare with its own observation. FIX01 stays after visible initial settings; FIX02 stays after launchable search but before launching Parent. |
 | [parent_access.py](../../tests/e2e/parent_access.py), [onpc_parent_access.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_access.pm) | GDM07(standard), SEARCH01 → UI21 → SEARCH03 → SEARCH04(unavailable). | Standard-specific wrong-recipient refusal and two fresh checks; semantic focus then independent focus observation; first character then readback, remainder then full readback; exact query-specific web suggestion and complete stable absence; no Enter on it. |
-| [parent_about.py](../../tests/e2e/parent_about.py), [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) | FLOW01(GDM07, whole-query SEARCH06), ABOUT01/02/04/03 and explicit settings observation. | Functional GDM retains wrong-recipient refusal and two fresh intended-recipient checks. Read actual installed version/license/footer, close the real viewer, and return to the same child/switch/allowance. Open step-2 before the acknowledgement that permits closing the license. |
+| [parent_about.py](../../tests/e2e/parent_about.py), [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) | FLOW01(GDM07, direct-command PARENT01), ABOUT01/02/04/03 and explicit settings observation. | Functional GDM retains wrong-recipient refusal and two fresh intended-recipient checks. Read actual installed version/license/footer, close the real viewer, and return to the same child/switch/allowance. Open step-2 before the acknowledgement that permits closing the license. |
 
 Concrete shared changes are needed before the proposed interfaces are ready:
 
@@ -978,6 +981,21 @@ FLOW01, ABOUT01, ABOUT02 and ABOUT03. Shared launch stops at `parent-window`
 before picker input; selection consumes its own fresh opened-list and highlighted
 replies. Setup reattachment stays outside the customer entry block.
 
+PARENT01 is [`onpc_parent::launch`](../../tests/integration/graphical_smoke/lib/onpc_parent.pm).
+It consumes one fresh desktop proof, then the fixed `parent-command` checkpoint
+invokes `/usr/bin/oh-no-parent-control-parent` through the desktop user's
+systemd service manager, inheriting its graphical environment. The adapter runs
+unprivileged on the selected fixture bus, verifies one active local graphical
+session for its UID and refuses system prompts before submitting once. No
+terminal, shell command string, product method or private state is used. An
+uncertain submission stops the journey without retry or fallback. Submission
+success is not acceptance: a separate checkpoint observes the owned management
+window or the specific access denial. Case 6 reuses the same block with
+`expected=denied`, then dismisses the denial and independently observes the
+desktop with management absent. The legacy `terminal` variant ID stays stable;
+terminal opening, focus and closure are no longer part of this case.
+Both direct-command bindings require installed qualification before readiness.
+
 GDM07 preserves Parent sign-in's assertions: use UI14's ID-addressed account
 navigation, verify focus before Enter, positively observe the wrong
 account's empty masked prompt and refuse it as the intended recipient, then
@@ -1020,7 +1038,8 @@ The `parent-window` checkpoint separates successful launch from subsequent
 picker input. Per-attempt evidence and outcomes remain in the runner artifacts.
 
 The [worker](../../tests/integration/graphical_smoke/lib/onpc_parent_discovery.pm)
-composes the scoped FLOW01 from [onpc_parent.pm](../../tests/integration/graphical_smoke/lib/onpc_parent.pm),
+composes FLOW15 and the explicit SEARCH05 discovery exception from
+[onpc_parent.pm](../../tests/integration/graphical_smoke/lib/onpc_parent.pm),
 then explicit page and child-selection checkpoints. Each selection consumes
 its own fresh opened-list and highlighted-choice replies before Enter; each
 closed-picker result independently verifies the intended child. Functional
@@ -1150,7 +1169,7 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 
 | Provider / surface | Current gap and route-specific return condition | Affected consumers |
 | --- | --- | --- |
-| GNOME Shell desktop, panel, app grid, sessions, notifications, lock | Shell `50.1-0ubuntu1.2` exposed no nonempty public IDs. On the pinned Ubuntu 26.04, English-GDM, baseline-keyboard image, `AccessibleUI.standard_shell_desktop(no_prompt=True)` qualified unique Activities control and complete prompt-free observations for the fresh Parent and standard fixture buses through `check_e2e_fresh_desktop`. `AccessibleUI.shell_search_snapshot` then qualified the fresh Parent Super-A, unique editable field, exact whole-query readback, result focus and launched Parent window in [case 3](Evidence/test-all-runs/20260922T212944Z-ad23b979/report.md). Other Shell input, keyring Cancel, lock, retained session, panel, menu, standard-account search and web-result routes remain unqualified. | Fresh DESK01 no-prompt Parent/standard binding and fresh Parent whole-query SEARCH01/03/04/05/06 branch ready; other DESK01–12, SEARCH01–06, PANEL01–03, LIFE02/03/06 and session flows pending |
+| GNOME Shell desktop, panel, app grid, sessions, notifications, lock | Shell `50.1-0ubuntu1.2` exposed no nonempty public IDs. On the pinned Ubuntu 26.04, English-GDM, baseline-keyboard image, `AccessibleUI.standard_shell_desktop(no_prompt=True)` qualified unique Activities control and complete prompt-free observations for the fresh Parent and standard fixture buses through `check_e2e_fresh_desktop`. `AccessibleUI.shell_search_snapshot` then qualified the fresh Parent Super-A, unique editable field, exact whole-query readback, result focus and launched Parent window in case 3 (run `20260922T212944Z-ad23b979`, subject to runner retention). Other Shell input, keyring Cancel, lock, retained session, panel, menu, standard-account search and web-result routes remain unqualified. | Fresh DESK01 no-prompt Parent/standard binding and fresh Parent whole-query SEARCH01/03/04/05/06 branch ready; other DESK01–12, SEARCH01–06, PANEL01–03, LIFE02/03/06 and session flows pending |
 | GDM greeter | On the prepared Ubuntu 26.04 / GNOME Shell `50.1-0ubuntu1.2` / English-GDM / baseline-keyboard tuple, `check_e2e_gdm_recipient` qualified unique Parent/other-parent/station list ownership, focus, empty masked recipient, wrong-recipient refusal and Escape return. `check_e2e_gdm_product_free` separately qualified Parent list/prompt/Escape cycles without the station. `check_e2e_fresh_desktop` then qualified separate fresh Parent and standard fixture wrong-recipient refusals, two same-challenge intended checks, sealed single-use input and independent no-prompt desktop results with private collection and owned cleanup. Retained locks, session choices, keyring-prompt entry and other GDM surfaces remain unqualified. | Prepared installed/product-free GDM01–04/08/09 and fresh Parent/standard GDM05 bindings ready; remaining GDM05–07 routes pending |
 | Graphical VT6 getty/login | Retained routes refuse before image, secret or input access. Qualify a dedicated recipient/input adapter; serial proof cannot authorize graphical secret input. | Retained VT6 qualification modes |
 | MATE Polkit agent | No provider registry binding exists for the kiosk agent. Qualify the real MATE challenge owner, displayed request and selected administrator, sole empty masked focused field, cancel/rejection/approval results and secret guards. | AUTH01/02, station approval and request flows |
@@ -1421,7 +1440,7 @@ subtrees restart that interval. Resolve the external result and description
 through the qualified Shell adapter, then verify their semantic association and
 text; the repository-owned management window remains ID-addressed. Never press
 Enter on the web suggestion.
-This observes launcher unavailability; terminal denial and time enforcement
+This observes launcher unavailability; direct-command denial and time enforcement
 belong to their own scenarios.
 
 Current prompt middleware has host-only recognition/refusal for MATE Polkit,

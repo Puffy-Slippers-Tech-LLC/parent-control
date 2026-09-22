@@ -88,15 +88,28 @@ sub search_whole_query {
     return $journey->seen($result_stage);
 }
 
-# SEARCH05/PARENT01, only the registered Parent/whole-query/new-window binding.
-sub open_management {
-    onpc_progress::operation('Opening Parent');
-    my ($journey, $desktop, $route) = @_;
-    die 'parent:launch-binding' unless @_ == 3 && $route eq 'whole-query';
+# SEARCH05: explicit discovery-test exception; never ordinary Parent setup.
+sub open_from_app_grid {
+    onpc_progress::operation('Finding and launching Parent from the app grid');
+    my ($journey, $desktop) = @_;
+    die 'parent:launch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
     my $result = search_whole_query($journey, $desktop, 'Oh No! Parent Control', 'app-grid');
     $journey->consume_observation('app-grid', $result);
     testapi::send_key('ret');
     return $journey->seen('parent-window');
+}
+
+# PARENT01: fixed public command, then independent owned-window observation.
+sub launch {
+    onpc_progress::operation('Opening Parent');
+    my ($journey, $desktop, $expected) = @_;
+    die 'parent:launch-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && ($expected eq 'management' || $expected eq 'denied');
+    $journey->consume_observation('desktop', $desktop);
+    # The controller executes the installed command once as this desktop user.
+    # A transport failure is uncertain input; no terminal/search fallback.
+    $journey->seen('parent-command');
+    return $journey->seen($expected eq 'management' ? 'parent-window' : 'management-denied');
 }
 
 # FLOW15's bounded GDM/fresh/Parent/success route. Other routes remain unsupported.
@@ -115,7 +128,7 @@ sub open_for_child {
     die 'parent:flow-binding' unless @_ == 5 && $source eq 'gdm' && $entry eq 'fresh'
         && $window eq 'new' && ($child eq 'existing' || $child eq 'child');
     my $desktop = enter_desktop($journey, $source, 'parent', $entry, 'success');
-    open_management($journey, $desktop, 'whole-query');
+    launch($journey, $desktop, 'management');
     return select_child($journey, $child, $journey->seen('child-picker-opened'),
         'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
 }

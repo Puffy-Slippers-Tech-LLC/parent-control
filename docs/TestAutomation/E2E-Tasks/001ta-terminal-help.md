@@ -14,7 +14,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Read only this context
 
-Read FILE01/02/06, INFO02, terminal methods in [accessible_ui.py](../../../tests/e2e/accessible_ui.py) and [parent_terminal.py](../../../tests/e2e/parent_terminal.py).
+Read FILE01/02/06, INFO02, terminal methods in [accessible_ui.py](../../../tests/e2e/accessible_ui.py) and [command_help.py](../../../tests/e2e/command_help.py).
 Read the affected safety tests and named source callables, not predecessor
 briefs or unrelated providers. Current route qualification comes from the
 catalogue; a checked historical task does not override it.
@@ -22,7 +22,7 @@ catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Bind the actual terminal owner/window, focused nonsecret input and bounded public output. Reuse Terminal search entry and implement ordinary close/return, distinguishing command echo from results.
+Bind the actual terminal owner/window, focused nonsecret input and bounded public output. Reuse FILE01's direct shortcut and implement ordinary close/return, distinguishing command echo from results. Parent app launches belong to PARENT01; case 6 does not consume Terminal.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,

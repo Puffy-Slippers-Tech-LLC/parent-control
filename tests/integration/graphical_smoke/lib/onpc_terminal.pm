@@ -38,15 +38,10 @@ sub observe_denial {
     return $journey->seen('management-denied');
 }
 
-# FILE02: fixed nonsecret command only. Return immediately after Enter; no
-# Ctrl-A, password handling, completion inference or uncertain-input retry.
+# Retired Parent-specific terminal path. PARENT01 owns all command launches;
+# terminal command/help blocks remain separate for actual terminal consumers.
 sub submit_parent {
-    onpc_progress::operation('Submitting the Parent command');
-    my ($journey, $focused) = @_;
-    die 'terminal:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey';
-    $journey->consume_observation('terminal-focused', $focused);
-    testapi::type_string('/usr/bin/oh-no-parent-control-parent');
-    testapi::send_key('ret');
+    die 'terminal:parent-launch-requires-shared-block';
 }
 
 1;

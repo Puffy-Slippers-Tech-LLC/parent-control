@@ -73,6 +73,7 @@ SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 # Source uploads and isolated binary builds share this product/build allowlist.
 # Development docs, tests, previews and operator tools are not package inputs.
 PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
+	debian/oh-no-parent-control-child.1 \
 	$(addprefix debian/,changelog control copyright rules preinst postinst prerm postrm package_activation.py check_package.py oh-no-parent-control.1 oh-no-parent-control-parent.1 oh-no-parent-control.manpages oh-no-parent-control.lintian-overrides source/format source/options) \
 	$(addprefix tools/,bump_version.py render_polkit_policy.py package_notice oh-no-parent-control-login-check execution_policy_ready.py execution_policy_probe execution_probe_gate.c execution_probe_witness.c execution_probe_protocol.h session_limit_check.py pam_oh_no_parent_control.c provision.py) \
 	$(addprefix broker/,oh-no-parent-control-broker oh-no-parent-control-migrate-state oh-no-parent-control-uninstall oh-no-parent-control-query-usage) \
@@ -326,6 +327,7 @@ _install-development-extension:
 _install-product-files:
 	install -d "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(LIBEXECDIR)" "$(DESTDIR)$(PAM_MODULE_DIR)"
 	install -m 0755 kiosk/oh-no-parent-control "$(DESTDIR)$(PREFIX)/bin/"
+	install -m 0755 kiosk/oh-no-parent-control "$(DESTDIR)$(PREFIX)/bin/oh-no-parent-control-child"
 	install -m 0755 parent/oh-no-parent-control-parent "$(DESTDIR)$(PREFIX)/bin/"
 	install -m 0755 broker/oh-no-parent-control-broker "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-migrate-state "$(DESTDIR)$(LIBEXECDIR)/"

@@ -133,7 +133,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Sign in as a parent and find Oh No! Parent Control in the app grid. For existing-and-new, open Parent, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open."},
+          {"id": "step-1", "operation": "ui", "description": "Explicitly test app-grid discovery: sign in as a parent, search for the full query Oh No! Parent Control and observe its launchable result. For existing-and-new, open that result, select the existing child, read limits-off and zero-minute settings, and visit App Limits. For none, leave the launch result ready to open."},
           {"id": "step-2", "operation": "ui", "description": "For existing-and-new, keep Parent open as another local standard account is added to the computer and look for that child without reopening Parent. For none, prepare the declared no-eligible-child account fixture before launching Parent."},
           {"id": "step-3", "operation": "ui", "description": "For existing-and-new, select the new child, visit both pages and return to each child to compare its settings with earlier displayed values. For none, launch Parent and read the no-eligible-account explanation and (None) child selection."}
         ],
@@ -185,8 +185,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Log in as a standard user and open the selected customer launch surface: app grid or terminal."},
-          {"id": "step-2", "operation": "ui", "description": "For app-grid, search for the full product name and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For terminal, run the installed Parent command and read its management-access denial; no management controls become available."}
+          {"id": "step-1", "operation": "ui", "description": "Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal."},
+          {"id": "step-2", "operation": "ui", "description": "For app-grid, search for Oh No! Parent Control and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -198,7 +198,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-2", "description": "Parent management is unavailable through the selected normal launch route: the app-grid search exposes no Parent launcher, or terminal execution visibly denies management."}
+          {"id": "visible-result", "step_id": "step-2", "description": "Parent management is unavailable through the selected normal launch route: the app-grid search exposes no Parent launcher, or direct command execution visibly denies management."}
         ],
         "backend": [],
         "other_user": []
@@ -1563,7 +1563,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, launch the installed app from the app grid, select an existing child, open About, read its product/version information and open the installed license text."},
+          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, invoke PARENT01 to run the installed oh-no-parent-control-parent command directly and observe its management window, select an existing child, open About, read its product/version information and open the installed license text."},
           {"id": "step-2", "operation": "ui", "description": "Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy."}
         ],
         "end": [

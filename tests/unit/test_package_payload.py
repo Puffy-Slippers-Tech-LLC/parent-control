@@ -6,9 +6,11 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shutil
 import subprocess
 import sys
+from types import ModuleType
 
 import pytest
 
@@ -49,6 +51,39 @@ def test_payload_excludes_development_files_and_keeps_runtime_assets(production_
         "usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt",
     ):
         assert path in paths
+
+
+@pytest.mark.parametrize("command, arguments, expected", [
+    ("oh-no-parent-control", [], []),
+    ("oh-no-parent-control", ["--child-overlay"], ["--child-overlay"]),
+    ("oh-no-parent-control-child", [], ["--child-overlay"]),
+    ("oh-no-parent-control-child", ["--help"], ["--child-overlay", "--help"]),
+    ("oh-no-parent-control-child", ["--error-report-stdin"],
+     ["--child-overlay", "--error-report-stdin"]),
+])
+def test_packaged_request_launchers_select_mode_and_preserve_arguments(
+        production_payload, monkeypatch, command, arguments, expected):
+    launcher = production_payload / "usr/bin" / command
+    assert launcher.stat().st_mode & 0o7777 == 0o755
+    calls = []
+    entrypoint = ModuleType("oh_no_parent_control_kiosk.main")
+
+    def main():
+        calls.append(sys.argv[1:])
+        return 17
+
+    entrypoint.main = main
+    diagnostics = ModuleType("common.oh_no_parent_control_ui.diagnostic_events")
+    diagnostics.configure_console = lambda: None
+    diagnostics.run_cli = lambda callback: callback()
+    monkeypatch.setitem(sys.modules, entrypoint.__name__, entrypoint)
+    monkeypatch.setitem(sys.modules, diagnostics.__name__, diagnostics)
+    monkeypatch.setattr(sys, "argv", [str(launcher), *arguments])
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    with pytest.raises(SystemExit) as result:
+        runpy.run_path(str(launcher), run_name="__main__")
+    assert result.value.code == 17
+    assert calls == [expected]
 
 
 def test_packaged_extension_has_all_local_imports(production_payload):

@@ -1,14 +1,21 @@
 .TH OH-NO-PARENT-CONTROL 1 "September 2026" "Oh No! Parent Control" "User Commands"
 .SH NAME
-oh-no-parent-control \- run the parent-control request station
+oh-no-parent-control, oh-no-parent-control-child \- run the parent-control request interface
 .SH SYNOPSIS
 .B oh-no-parent-control
+.RI [ options ]
+.br
+.B oh-no-parent-control-child
 .RI [ options ]
 .SH DESCRIPTION
 .B oh-no-parent-control
 starts the full-screen request station used by the dedicated kiosk session.
 It normally obtains managed-user information and submits access requests
 through the privileged Oh No! Parent Control broker.
+.PP
+.B oh-no-parent-control-child
+starts the same interface in child-overlay mode, equivalent to
+.BR "oh-no-parent-control --child-overlay" .
 .SH OPTIONS
 .TP
 .B \-\-child-overlay

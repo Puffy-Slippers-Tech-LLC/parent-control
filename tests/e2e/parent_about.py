@@ -3,15 +3,10 @@
 from installed_journey import (
     InstalledJourney, JourneyPlan, matched_screens as reconcile_screens, record_installed_journey,
 )
+from journey_blocks import fresh_desktop
 
 SCREEN_TAGS = {
-    'installed-greeter': 'ui:gdm-other-list',
-    'other-parent-focused': 'ui:gdm-other-focused',
-    'wrong-recipient-refused': 'ui:gdm-wrong-recipient-refused',
-    'parent-list': 'ui:gdm-list', 'parent-focused': 'ui:gdm-focused',
-    'recipient-qualified': 'ui:gdm-parent-recipient',
-    'recipient-rechecked': 'ui:gdm-parent-recipient-rechecked',
-    'desktop': 'ui:desktop',
+    **fresh_desktop('parent'),
     'parent-command': 'ui:parent-command-launch',
     'parent-window': 'ui:parent-window',
     'child-picker-opened': 'ui:child-picker-opened',

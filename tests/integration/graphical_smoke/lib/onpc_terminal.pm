@@ -41,6 +41,7 @@ sub observe_denial {
 # Retired Parent-specific terminal path. PARENT01 owns all command launches;
 # terminal command/help blocks remain separate for actual terminal consumers.
 sub submit_parent {
+    onpc_progress::operation('Refusing the retired Parent terminal launch');
     die 'terminal:parent-launch-requires-shared-block';
 }
 

@@ -8,7 +8,8 @@ from unittest.mock import Mock
 import pytest
 
 from tests.support.paths import ROOT
-import controller_qualification as qualification
+import controller_qualification as case
+import serial_harness as qualification
 from evidence import EvidenceContract, CLEANUP_FIELDS, INPUT_FIELDS
 import inventory
 from private_artifacts import PrivateCollector, EvidenceError
@@ -120,7 +121,7 @@ def test_case_1_uses_only_the_qualified_product_free_gdm_binding():
 
 
 def test_actual_callback_evidence_passes_exact_contract(harness):
-    qualification.execute(harness.recorder, harness.context)
+    case.execute(harness.recorder, harness.context)
     finish(harness)
     result = harness.contract.validate(harness.recorder.records, harness.collector)
     assert result['case_ids'] == ['E2E-001/gdm-observation']
@@ -165,7 +166,7 @@ def test_failed_stage_checkpoint_prevents_next_worker_action(harness):
         return save(name, payload)
     harness.collector.save_report = save_report
     with pytest.raises(OSError):
-        qualification.execute(harness.recorder, harness.context)
+        case.execute(harness.recorder, harness.context)
     record = harness.recorder.records[0]
     assert record['outcomes']['collection'] == 'failed'
     assert 'serial-password' in {a['artifact_id'] for a in record['artifacts']}
@@ -193,7 +194,7 @@ def test_incomplete_or_changed_attempt_cannot_create_passing_evidence(harness, b
     else:
         harness.context.credentials.provision.side_effect = RuntimeError('private-canary')
     with pytest.raises((Exception, KeyboardInterrupt)):
-        qualification.execute(harness.recorder, harness.context)
+        case.execute(harness.recorder, harness.context)
     finish(harness)
     with pytest.raises(EvidenceError):
         harness.contract.validate(harness.recorder.records, harness.collector)

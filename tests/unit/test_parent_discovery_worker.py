@@ -177,3 +177,44 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
             'new-child-visible', 'new-child-choice-highlighted', 'ret']
     else:
         assert not any(key in result['events'] for key in ('home', 'down', 'ret'))
+
+
+@pytest.mark.parametrize('expected,before,after', [
+    ('management', 'app-grid', 'parent-window'),
+    ('empty', 'fixture-requested', 'empty'),
+])
+@pytest.mark.parametrize('fault', ['', 'stale', 'wrong-proof', 'uncertain', 'result'])
+def test_search_result_commit_is_reusable_and_never_replays(expected, before, after, fault):
+    result = json.loads(run_perl(r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+our ($expected, $before, $after, $fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key {
+    push @main::events, $_[0];
+    die 'uncertain' if $main::fault eq 'uncertain';
+}
+package main;
+require onpc_parent;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, $_[0];
+    die 'missing result' if $fault eq 'result' && $_[0] eq $after;
+    return {};
+});
+my $proof = $journey->seen($fault eq 'wrong-proof' ? 'parent-window' : $before);
+$journey->seen('unrelated') if $fault eq 'stale';
+@events = ();
+my $ok = eval { onpc_parent::launch_search_result($journey, $proof, $expected); 1; };
+my $replay = eval { onpc_parent::launch_search_result($journey, $proof, $expected); 1; };
+print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
+''', expected, before, after, fault).stdout)
+    assert bool(result['ok']) == (not fault)
+    assert not result['replay']
+    assert result['events'] == ([] if fault in ('stale', 'wrong-proof')
+                                else ['ret'] if fault == 'uncertain'
+                                else ['ret', after])

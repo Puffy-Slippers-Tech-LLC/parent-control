@@ -241,7 +241,8 @@ def test_every_inventory_case_exposes_title_and_exact_step_descriptions():
                 assert json.loads(packet)['step'] == step['description']
     case = next(case for case in selected if case['coverage_id'] == 3)
     assert case['phases']['steps'][0]['description'].startswith(
-        'Sign in as a parent and find Oh No! Parent Control in the app grid.')
+        'Explicitly test app-grid discovery: sign in as a parent, search for the full query '
+        'Oh No! Parent Control and observe its launchable result.')
 
 
 def test_recorder_publishes_description_before_step_body_and_checkpoint(session):

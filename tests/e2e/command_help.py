@@ -1,11 +1,9 @@
 """Installed E2E-042 command documentation through guarded SSH stdout."""
 
 from installed_journey import JourneyPlan, record_installed_journey
-from parent_about import SCREEN_TAGS
+from journey_blocks import fresh_desktop
 
-ENTRY = {stage: SCREEN_TAGS[stage] for stage in (
-    'installed-greeter', 'other-parent-focused', 'wrong-recipient-refused',
-    'parent-list', 'parent-focused', 'recipient-qualified', 'recipient-rechecked', 'desktop')}
+ENTRY = fresh_desktop('parent')
 BINDINGS = ('parent-help', 'station-help', 'parent-manual', 'station-manual')
 SCREENS = {
     **ENTRY,

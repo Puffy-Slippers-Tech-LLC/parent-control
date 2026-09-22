@@ -94,9 +94,24 @@ sub open_from_app_grid {
     my ($journey, $desktop) = @_;
     die 'parent:launch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
     my $result = search_whole_query($journey, $desktop, 'Oh No! Parent Control', 'app-grid');
-    $journey->consume_observation('app-grid', $result);
+    return launch_search_result($journey, $result, 'management');
+}
+
+# SEARCH05's commit step also accepts the fresh result proof returned after
+# FIX02. The fixture checkpoint rechecks result focus before its durable reply.
+sub launch_search_result {
+    onpc_progress::operation('Launching the focused Parent search result');
+    my ($journey, $result, $expected) = @_;
+    my %stages = (
+        management => ['app-grid', 'parent-window'],
+        empty => ['fixture-requested', 'empty'],
+    );
+    die 'parent:launch-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($expected) && exists($stages{$expected});
+    my ($before, $after) = @{$stages{$expected}};
+    $journey->consume_observation($before, $result);
     testapi::send_key('ret');
-    return $journey->seen('parent-window');
+    return $journey->seen($after);
 }
 
 # PARENT01: fixed public command, then independent owned-window observation.

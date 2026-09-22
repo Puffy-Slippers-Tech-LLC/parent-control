@@ -51,6 +51,7 @@ sub functional_selection {
 # and each Escape follows its own fresh nonsecret prompt observation. The
 # second cycle must start from a separately acquired complete list.
 sub navigation_qualification_with_prefix {
+    onpc_progress::operation('Checking the declared greeter navigation sequence');
     my ($exchange, $prefix) = @_;
     die 'gdm:arguments' unless @_ == 2 && ref($exchange) eq 'CODE'
         && ($prefix eq 'gdm-navigation' || $prefix eq 'gdm-product-free');

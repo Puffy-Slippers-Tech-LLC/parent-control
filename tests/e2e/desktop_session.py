@@ -1,11 +1,9 @@
 """DESK02/03/04 qualification: session menu, Switch User, and confirmed Log Out."""
 
 from installed_journey import InstalledJourney, JourneyPlan
-from parent_about import SCREEN_TAGS
+from journey_blocks import fresh_desktop
 
-ENTRY = {stage: SCREEN_TAGS[stage] for stage in (
-    'installed-greeter', 'other-parent-focused', 'wrong-recipient-refused',
-    'parent-list', 'parent-focused', 'recipient-qualified', 'recipient-rechecked', 'desktop')}
+ENTRY = fresh_desktop('parent')
 ENTRY_PHASES = {
     'ready': 'setup', 'setup-detached': 'setup',
     **{stage: 'start' if stage == 'installed-greeter' else 'step-1' for stage in ENTRY},

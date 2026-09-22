@@ -291,12 +291,20 @@ def category_run(root, category, argv, *, pipe=True):
         directory = test_retention.allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-', dir='/tmp')
         commands[0] += ['--output', directory]
         print('run-tests: output=' + directory, flush=True)
+    elif category == 'artifacts' and argv[:2] == ['build', '--output']:
+        directory = test_commands.allocate_artifact_output(argv[2])
+        print('run-tests: output=' + directory, flush=True)
     if category == 'child-gjs':
         directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-gjs-coverage-', dir='/tmp')
         for command in commands:
             command[1:1] = ['--coverage-prefix=' + str(root / 'child'),
                            '--coverage-output=' + directory]
     with Control().installed(pipe=pipe) as control:
+        preparation = test_commands.qualification_artifact_command(root, category, argv)
+        if preparation is not None:
+            status = control.run(preparation, cwd=root, env=env)
+            if status:
+                return status
         if category == 'e2e' and '--list' not in argv and not any(
                 value.startswith('--artifacts=') for value in commands[0]):
             directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-', dir='/tmp')

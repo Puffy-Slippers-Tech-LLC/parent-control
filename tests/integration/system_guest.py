@@ -133,12 +133,9 @@ def install():
 
 
 def install_package():
+    from guest_install_recipe import install as install_recipe
     enable_diagnostics()
-    os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
-    run(['apt-get', 'update'], timeout=600)
-    guard()
-    run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', 'install', '--no-install-recommends',
-         '-y', str(PAYLOAD / 'package.deb')], timeout=1800)
+    install_recipe(run, guard, PAYLOAD / 'package.deb')
     print('onpc-system: stage=package-install outcome=passed', flush=True)
 
 
@@ -393,6 +390,17 @@ def verify_setup():
     print('onpc-system: stage=feature-setup outcome=passed', flush=True)
 
 
+def verify_snapshot():
+    """Verify installation before publishing a reusable snapshot."""
+    guard()
+    wait_for_boot()
+    require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
+            'install ok installed', 'package-status')
+    require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) ==
+            run(['dpkg-deb', '-f', str(PAYLOAD / 'package.deb'), 'Version']), 'package-version')
+    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+
+
 def verify_installed():
     """Check the restored app against this attempt's package, without installing."""
     guard()
@@ -465,6 +473,7 @@ def main(argv=None):
              'install-previous': install_previous, 'upgrade': upgrade,
              'install-setup': install_setup, 'verify-setup': verify_setup,
              'install-suite': install_suite, 'verify-installed': verify_installed,
+             'verify-snapshot': verify_snapshot,
              'prepare-toggle-session': prepare_toggle_session}[argv[0]]()
         return 0
     except Exception as error:

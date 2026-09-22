@@ -202,7 +202,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     'execution:installed-snapshot-suite-required')
             if installed_consumer:
                 from installed_setup import stage
-                stage(directory, staged, bootstrap_inputs)
+                stage(directory, staged, bootstrap_inputs, bundle=suite.input_bundle(root))
             else:
                 input_directory.mkdir(mode=0o700)
                 with (input_directory / 'selected-inputs.json').open('xb') as stream:

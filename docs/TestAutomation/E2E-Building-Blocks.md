@@ -520,9 +520,29 @@ belong only to the system-test tasks listed under inventory reconciliation.
 Every E2E invocation, including a single-case selection, holds one exclusive VM
 lease. Suite preparation runs once, before the first case, reusing an existing
 `onpc-v[version]` snapshot (the app release without package revisions, for example
-`onpc-v1.1`). When absent, preparation restores `onpc-baseline`, installs the
-package, reboots, shuts down and captures the version snapshot. This installation
+`onpc-v1.1`). Reuse requires matching package bytes, baseline identity and the
+installation recipe recorded in snapshot metadata. Missing, legacy or changed
+snapshots automatically restore `onpc-baseline`, install the package, reboot,
+verify installation, shut down and capture the version snapshot. This installation
 belongs to suite preparation.
+
+Freshness metadata is published only after snapshot creation returns successfully,
+using libvirt's [metadata redefinition API](https://libvirt.org/html/libvirt-libvirt-domain-snapshot.html#virDomainSnapshotCreateXML).
+An interrupted creation leaves an unmarked snapshot, which preparation refreshes.
+
+The installed-state fingerprint deliberately excludes test code, guest helper
+logging, scenario selections, fixture delivery payloads, documentation and run
+outputs. These are refreshed as a separately verified test payload before each
+attempt; they do not reinstall the app. The current recipe installs only the app;
+future persistent fixture installation must belong to that recipe and its identity.
+The [guest input resolver](../../tests/integration/guest_inputs.py) follows local
+Python imports recursively from declared entry points, including imports inside
+functions, and rejects missing or ambiguous dependencies before staging. Dynamic
+entry points and non-Python resources still require explicit consumer declarations.
+E2E freezes its helper bundle once per invocation; system tests freeze their
+selected closure before acquiring the VM. Later checkout edits affect the next
+bundle. Existing transfer digests and offline retirement of old guest payloads
+prevent changed or removed helpers from leaking across restored attempts.
 
 Each case then starts from the snapshot required by its purpose:
 
@@ -557,7 +577,7 @@ provisional until the final suite audit and release; failures stop subsequent
 cases. This changes runner transitions, not any customer action or assertion.
 See [suite lease](../../tests/e2e/suite_lease.py) and the shared
 [app snapshot module](../../tests/e2e/app_snapshot.py). `run-tests` calls it with
-`overwrite=False` to reuse an existing version snapshot and uses the shared [cleanup module](../../tools/test_recovery.py)
+`overwrite=False` to reuse a current version snapshot and uses the shared [cleanup module](../../tools/test_recovery.py)
 before starting the E2E run.
 
 The same preparation is available independently:
@@ -568,10 +588,13 @@ The same preparation is available independently:
   current Debian version and retains its `onpc-[version]` snapshot. It leaves the
   VM powered off in that installed state after auditing the outer baseline.
   Missing `--overwrite` or a missing value means `true`. When a matching snapshot
-  exists, `true` replaces it and `false` logs that it is retained and returns
-  success without cleanup, building, restoration or installation. When none
-  exists, either value prepares it. Other version snapshots are left alone.
-  Preparation performs the shared cleanup before building when work is needed.
+  exists, `true` forces replacement. `false` builds verified artifacts and compares
+  their installed-state identity under the shared lease; it retains a match and
+  automatically replaces a stale or legacy snapshot. A name-only probe is never
+  freshness evidence. When none exists, either value prepares it. Other version
+  snapshots are left alone. Preparation performs shared cleanup before building.
+  These are development-only changes (activation `none`); no product migration,
+  host installation or permission refresh is required.
 
 The [live verification contract](E2E-Execution-Plan.md#live-verification-contract)
 defines when a task prepares or reuses this snapshot. A retained snapshot is a

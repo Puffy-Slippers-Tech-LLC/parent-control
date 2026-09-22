@@ -280,6 +280,15 @@ baseline's guest preparation. Execution dispatch must use that capture.
 
 ## Run E2E scenarios
 
+Task 010's fixed `tools/run-tests integration check_e2e_toggle` qualification
+automatically builds `/tmp/onpc-parent-setup-input` when absent, including after
+retention removes old inputs. It uses the same unprivileged builder before
+privileged dispatch and stops on build failure. Existing inputs are preserved
+and their frozen manifest is verified by the consumer. For explicit preparation,
+use `tools/run-tests artifacts build --output '/tmp/onpc-parent-setup-input'`;
+named outputs must be new direct `/tmp/onpc-*` directories. These test-tool
+changes activate on invocation and require no product update.
+
 Build the product version you want the installed tests to exercise:
 
 ```sh
@@ -306,8 +315,13 @@ tools/run-tests e2e --scenario 'E2E-003/none' --artifacts '/tmp/onpc-test-artifa
 tools/run-tests e2e --scenario 'E2E-004/app-grid' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
 ```
 
-Suite preparation reuses the powered-off `onpc-v[version]` snapshot when present,
-or installs and reboots once to create it when absent. Each installed-app case restores that
+Suite preparation reuses the powered-off `onpc-v[version]` snapshot only when its
+recorded package digest, baseline identity and installation recipe match. Missing,
+legacy or changed snapshots are installed, rebooted, verified and captured once.
+Test code, helper logging and transferred fixtures do not trigger snapshot refresh;
+their independently verified payload is refreshed before each attempt. Local
+Python helper dependencies are discovered automatically from declared entry points
+and frozen for the invocation. Each installed-app case restores that
 snapshot without installing; package-lifecycle cases and product-free harness
 checks use baseline according to the enforced
 [case snapshot contract](../../docs/TestAutomation/E2E-Building-Blocks.md#parent-login-and-time-scenarios).

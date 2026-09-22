@@ -229,5 +229,11 @@ class ParentToggleQualification(KioskEntryQualification):
                 context.directory, context.verified, transport).provision(context.lease.guard)
             transport.call(smoke.runner.guest_command(
                 context.lease.state['run'], 'prepare-toggle-session'), timeout=120)
-            context.lease.source.shutdown(context.lease.guard, requested=False)
+            # The shared stop retires the backing-byte lease before QEMU closes
+            # its block graph and detaches observation for the completed boot.
+            # The graphical worker must enter a new isolated, powered-off phase.
+            context.lease.stop()
             context.lease.guard(off=True)
+            context.lease.view.domain_id = None
+            context.lease.state['domain_id'] = None
+            context.lease.save('isolated')

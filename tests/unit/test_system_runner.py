@@ -292,8 +292,6 @@ def test_remote_fixture_is_declared_for_selected_and_full_authorization_runs():
     for selected in (case, None):
         selection = runner.resolve_selection('authorization', selected, inventories=inventories)
         assert 'remote-ldap-nss-fixtures' in selection.prerequisites
-    assert ('tests/integration/system_remote_accounts.py', 'system_remote_accounts.py') in (
-        runner.AREA_SELECTED_HELPERS['authorization'])
 
 
 @pytest.mark.parametrize('case', (
@@ -328,6 +326,7 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
         'system_guest.py', 'owned_commands.py', 'guest/redact.py', 'pytest.ini',
         'test_install_smoke.py', 'system_progress.py',
         'guest_test_dependencies.py',
+        'guest_install_recipe.py',
     }
 
 
@@ -359,8 +358,9 @@ def test_full_selection_stages_shared_helpers_once(tmp_path):
 
 
 def test_conflicting_helper_targets_are_refused_before_any_staging(tmp_path, monkeypatch):
-    monkeypatch.setitem(runner.AREA_SELECTED_HELPERS, 'enforcement', (
-        ('tests/integration/system_enforcement.py', 'system_caller.py'),
+    monkeypatch.setattr(runner, 'COMMON_SELECTED_INPUTS', (
+        *runner.COMMON_SELECTED_INPUTS,
+        ('tests/integration/system_enforcement.py', 'system_guest.py'),
     ))
     selection = runner.resolve_selection(inventories=INVENTORIES)
     with pytest.raises(runner.Error, match='selection:duplicate-input-target'):

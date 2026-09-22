@@ -6,19 +6,21 @@ import shutil
 
 import system_runner as system
 from private_artifacts import require
+from guest_inputs import Bundle
 
 
-def stage(directory, assets, selection):
+def inputs(root):
+    return Bundle(root, [(relative, Path(relative).name) for relative in (
+        'tests/integration/system_guest.py', 'tests/integration/e2e_dynamic_account.py')])
+
+
+def stage(directory, assets, selection, *, bundle=None):
     """Bind the existing installed payload and fixed helper bytes before bootstrap."""
     destination = directory / 'input'
     require(not destination.exists(), 'setup:input-exists')
     shutil.copytree(assets, destination)
-    files = {}
-    for relative in ('tests/integration/system_guest.py', 'tests/integration/owned_commands.py',
-                     'tests/integration/e2e_dynamic_account.py'):
-        target = Path(relative).name
-        shutil.copyfile(system.ROOT / relative, destination / target)
-        files[target] = {'source': relative, 'sha256': system.baseline.digest(destination / target)}
+    bundle = bundle if bundle is not None else inputs(system.ROOT)
+    files = bundle.stage(destination)
     identity = {'schema_version': 1, 'scope': 'e2e-installed-setup',
                 'selection': selection, 'files': files}
     (destination / 'selected-inputs.json').write_bytes(system.baseline.encode(identity))
@@ -60,11 +62,12 @@ class InstalledSetup:
     def run(self, guard, *, verify=True):
         self.provision(guard)
         run = self.verified.lease.state['run']
-        self.transport.call(system.guest_command(run, 'install-setup' if verify else 'install-suite'),
-                            timeout=1200)
-        guard()
-        self.transport.reboot()
-        guard()
+        # Execute the frozen recipe whose digest identifies the snapshot.
+        recipe = {}
+        path = self.directory / 'input/guest_install_recipe.py'
+        exec(compile(path.read_bytes(), str(path), 'exec'), recipe)
+        recipe['prepare'](self.transport,
+            system.guest_command(run, 'install-setup' if verify else 'install-suite'), guard)
         if verify:
             self.transport.call(system.guest_command(run, 'verify-setup'), timeout=660)
         self.verified.recheck()

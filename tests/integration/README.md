@@ -34,7 +34,7 @@ The runner exclusively leases the VM, validates the finalized baseline and
 recorded disk/domain identities, restores only outside a complete attempt,
 detaches writable host shares/transfer channels before boot, and leaves the VM
 off with its prior persistent domain configuration restored after cleanup.
-It reuses the E2E version snapshot, creating it only when missing, and creates no
+It reuses a current E2E version snapshot, refreshing missing or stale inputs, and creates no
 new VM, disk copy or overlay. A real reboot within an
 attempt preserves guest state and must produce a new boot identity.
 
@@ -113,7 +113,11 @@ Installation/reboot package checks start from `onpc-baseline`. Authorization,
 enforcement and session checks restore the retained `onpc-v<release>` app snapshot
 before each area, using the same shared preparation as
 `tools/prepare-appsnapshot --overwrite false` and E2E. A missing version snapshot
-is installed, rebooted and captured once; an existing snapshot is kept unchanged.
+is installed, rebooted and captured once. Existing snapshots are reused only when
+their recorded package digest, baseline identity and installation recipe match;
+otherwise shared preparation refreshes them automatically. Test-only edits do
+not invalidate the installed snapshot. Guest Python dependencies are discovered
+from imports and transferred in a fresh, verified payload for each attempt.
 Each restored area refreshes its guarded helpers and verifies installed package
 readiness before its tests, without reinstalling. Completed app snapshots remain
 available after tests; final cleanup still audits and restores the outer baseline.

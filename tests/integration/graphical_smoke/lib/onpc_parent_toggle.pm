@@ -5,6 +5,7 @@ use onpc_progress ();
 use testapi ();
 use onpc_gdm ();
 use onpc_journey ();
+use onpc_parent ();
 
 sub _next_observation {
     my ($journey, $prior_stage, $prior, $stage) = @_;
@@ -21,11 +22,14 @@ sub run {
         exchange => $exchange, prefix => 'parent-toggle', review => 0);
     onpc_gdm::reattach_functional();
     my $observed = $journey->seen('parent-window');
-    for my $stage ('parent-selected', 'wrong-control-refused', 'limit-enabled',
+    $journey->consume_observation('parent-window', $observed);
+    $observed = onpc_parent::select_child(
+        $journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    for my $stage ('wrong-control-refused', 'limit-enabled',
                    'limit-disabled', 'limit-current', 'hidden-control-refused',
                    'disabled-settings') {
-        my $prior = $stage eq 'parent-selected' ? 'parent-window'
-            : $stage eq 'wrong-control-refused' ? 'parent-selected'
+        my $prior = $stage eq 'wrong-control-refused' ? 'parent-selected'
             : $stage eq 'limit-enabled' ? 'wrong-control-refused'
             : $stage eq 'limit-disabled' ? 'limit-enabled'
             : $stage eq 'limit-current' ? 'limit-disabled'

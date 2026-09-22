@@ -9,6 +9,39 @@ import pytest
 import system_guest as guest
 
 
+@pytest.mark.parametrize('fault', [None, 'guard', 'boot', 'status', 'version', 'files'])
+def test_snapshot_publication_requires_verified_installation(monkeypatch, fault):
+    guard = Mock(side_effect=guest.GuestError('guard') if fault == 'guard' else None)
+    boot = Mock(side_effect=guest.GuestError('boot') if fault == 'boot' else None)
+    calls = []
+    def run(command):
+        calls.append(command)
+        if command[0] == 'dpkg-deb':
+            return '1.1'
+        if command[0] == 'dpkg':
+            return 'changed packaged file' if fault == 'files' else ''
+        if '-f=${Status}' in command:
+            return 'unpacked' if fault == 'status' else 'install ok installed'
+        assert '-f=${Version}' in command
+        return 'old version' if fault == 'version' else '1.1'
+    monkeypatch.setattr(guest, 'guard', guard)
+    monkeypatch.setattr(guest, 'wait_for_boot', boot)
+    monkeypatch.setattr(guest, 'run', run)
+    if fault:
+        with pytest.raises(guest.GuestError):
+            guest.verify_snapshot()
+    else:
+        guest.verify_snapshot()
+    guard.assert_called_once()
+    if fault == 'guard':
+        boot.assert_not_called()
+    else:
+        boot.assert_called_once()
+    if fault in ('guard', 'boot'):
+        assert calls == []
+    assert all(command[0] != 'apt-get' for command in calls)
+
+
 @pytest.mark.parametrize('fault', [None, 'hostname', 'record'])
 def test_hostname_comes_from_verified_preparation_record(tmp_path, monkeypatch, fault):
     baseline = tmp_path / 'prepared.json'

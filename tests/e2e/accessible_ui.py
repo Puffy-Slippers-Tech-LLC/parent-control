@@ -1226,7 +1226,13 @@ class AccessibleUI:
         """UI17: set the one qualified Parent switch to an explicit state."""
         require(identity == 'parent-screen-limit-toggle' and type(desired) is bool,
                 'ui:toggle-binding')
-        target = self.id_target(identity, root=root, showing=False)
+        # A complete lookup may legitimately omit a hidden GTK stack page.
+        # Retry incomplete reads, but never wait for a missing input target to
+        # appear or substitute another control.
+        target, = self.wait(lambda: (self.snapshot_owned_target(
+            identity, root=root, showing=False, check_prompt=True),),
+            'toggle-target', prompt_in_predicate=True)
+        require(target is not None, 'ui:unusable-target')
         states = target.get_state_set()
         require(states.contains(self.api.StateType.VISIBLE)
                 and not states.contains(self.api.StateType.DEFUNCT),
@@ -1237,12 +1243,13 @@ class AccessibleUI:
             self._invoke_target(target)
 
         def desired_state():
-            current = self.find_id(identity, showing=False)
+            current = self.snapshot_owned_target(
+                identity, root=root, showing=False, check_prompt=True)
             if current is None:
                 return None
             return current if self.has_state(current, self.api.StateType.CHECKED) == desired else None
 
-        current = self.wait(desired_state, 'toggle-state')
+        current = self.wait(desired_state, 'toggle-state', prompt_in_predicate=True)
         require(self.has_state(current, self.api.StateType.CHECKED) == desired,
                 'ui:toggle-state')
         return {'state': desired, 'activated': activated}
@@ -1260,9 +1267,22 @@ class AccessibleUI:
             raise UiError('ui:toggle-wrong-accepted')
         if operation == 'parent-toggle-hidden-refused':
             self.activate_id('parent-page-app-limits')
-            target = self.id_target('parent-screen-limit-toggle', root=root, showing=False)
-            self.wait(lambda: not self.has_state(target, self.api.StateType.VISIBLE),
-                      'toggle-hidden')
+
+            def hidden():
+                snapshot, identities, facts = {}, {}, {}
+                nodes = list(self.nodes(strict=True, snapshot=snapshot,
+                                        identities=identities, facts=facts))
+                observation = (nodes, snapshot, identities, facts)
+                current_root = self.snapshot_owned_target(
+                    'parent-window', check_prompt=True, observation=observation)
+                if current_root is None:
+                    return False
+                target = self.snapshot_owned_target(
+                    'parent-screen-limit-toggle', root=current_root, showing=False,
+                    observation=observation)
+                return target is None or not self.has_state(target, self.api.StateType.VISIBLE)
+
+            self.wait(hidden, 'toggle-hidden', prompt_in_predicate=True)
             try:
                 self.set_toggle('parent-screen-limit-toggle', True, root=root)
             except UiError as error:

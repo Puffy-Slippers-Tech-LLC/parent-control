@@ -1,6 +1,7 @@
 """Suite transitions with real ownership locks and mocked libvirt only."""
 
 import fcntl
+import hashlib
 import os
 import xml.etree.ElementTree as ET
 from contextlib import nullcontext
@@ -10,6 +11,7 @@ import pytest
 
 import graphical_lease
 import suite_lease
+import app_snapshot
 import system_runner as system
 from e2e_watch_viewer import progress_text
 from tools.e2e_progress import Progress
@@ -204,6 +206,7 @@ def test_suite_closes_connection_even_after_audit_or_host_failure(monkeypatch, f
 def snapshots(suite):
     lease, current = suite
     domain = lease.source.domain
+    lease.source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE = 1
     baseline = domain.snapshotLookupByName.return_value
     # The baseline fixture may use its supported historical snapshot name.
     lease.capture.directory_identity = lease.capture.private_directory()
@@ -231,10 +234,14 @@ def snapshots(suite):
         restore(snap, flags)
     def create(xml, flags):
         assert lease.source.off and current['xml'] == lease.original_xml
-        assert flags == 0
         root = ET.fromstring(xml)
         assert root.find('memory').get('snapshot') == 'no'
         name = root.findtext('name')
+        if flags == lease.source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE:
+            assert name in names
+            names[name].getXMLDesc.return_value = xml
+            return names[name]
+        assert flags == 0
         assert name not in names
         events.append(('create', name))
         return add(name, xml)
@@ -256,6 +263,8 @@ def prepared_suite(snapshots, tmp_path, monkeypatch):
     owner.guestfs = Mock()
     owner.commands = Mock()
     owner.commands.run.return_value = b'1.1+test~26.04\n'
+    owner._input_bundle = installed_setup.inputs(system.ROOT)
+    (tmp_path / 'package.deb').write_bytes(b'fixture package')
     monkeypatch.setattr(installed_setup, 'stage', Mock())
     monkeypatch.setattr(system, 'bootstrap', Mock(return_value='ssh-ed25519 fixture'))
     monkeypatch.setattr(system, 'address', Mock(return_value='fixture-host'))
@@ -267,12 +276,21 @@ def prepared_suite(snapshots, tmp_path, monkeypatch):
     return owner, tmp_path, setup, snapshots
 
 
+def current_xml(owner, directory):
+    state = {'baseline_sha256': hashlib.sha256(
+        system.baseline.encode(owner.lease.capture.read_state())).hexdigest()}
+    root = ET.Element('domainsnapshot')
+    ET.SubElement(root, 'description').text = app_snapshot.input_identity(
+        Mock(state=state), directory, owner._input_bundle)
+    return ET.tostring(root, encoding='unicode')
+
+
 @pytest.mark.parametrize('stale', [False, True])
 def test_installed_suite_installs_once_and_restores_next_case_without_extra_audits(prepared_suite, stale):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     name = 'onpc-v1.1'
     if stale:
-        add(name, '<stale/>')
+        add(name, current_xml(owner, directory))
     installed = {'preconditions': ['installed-digest-verified-product']}
     clean = {'preconditions': ['accepted-product-free-baseline']}
     cases = [installed, installed, clean, installed]
@@ -373,7 +391,7 @@ def test_every_snapshot_mutation_reserves_footer_before_libvirt(prepared_suite, 
         return snap
     domain.snapshotCreateXML.side_effect = watch_create
     name = 'onpc-v1.1'
-    watch_delete(name, add(name, '<stale/>'))
+    watch_delete(name, add(name, current_xml(owner, directory)))
     installed = {'preconditions': ['installed-digest-verified-product']}
     clean = {'preconditions': ['accepted-product-free-baseline']}
     cases = (installed, installed, clean)
@@ -399,7 +417,7 @@ def test_every_snapshot_mutation_reserves_footer_before_libvirt(prepared_suite, 
 def test_overwrite_false_existing_snapshot_is_a_logged_noop(prepared_suite, capsys):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     name = 'onpc-v1.1'
-    existing = add(name, '<existing/>')
+    existing = add(name, current_xml(owner, directory))
     with lease:
         assert owner.prepare_installed(directory, directory, {}, root=directory,
                                        overwrite=False) is False
@@ -411,7 +429,110 @@ def test_overwrite_false_existing_snapshot_is_a_logged_noop(prepared_suite, caps
     assert names[name] is existing and baseline_name in names
     assert not (directory / 'suite-setup').exists()
     setup.run.assert_not_called()
-    assert 'Keeping existing snapshot ' + name in capsys.readouterr().err
+    assert 'Reusing current snapshot ' + name in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('change', ['legacy', 'package', 'recipe', 'baseline', 'incomplete'])
+def test_changed_installed_inputs_refresh_same_version_once(prepared_suite, change):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    name = 'onpc-v1.1'
+    xml = current_xml(owner, directory)
+    if change in ('legacy', 'incomplete'):
+        xml = '<domainsnapshot/>'
+    elif change == 'baseline':
+        xml = xml.replace('baseline_sha256', 'previous_baseline_sha256')
+    add(name, xml)
+    if change == 'package':
+        (directory / 'package.deb').write_bytes(b'different build, same version')
+    elif change == 'recipe':
+        owner._input_bundle.files['guest_install_recipe.py'] += b'\n# changed preparation\n'
+    with lease:
+        assert owner.prepare_installed(directory, directory, {}, root=directory,
+                                       overwrite=False) is True
+        assert app_snapshot.matches(names[name].getXMLDesc(0),
+            app_snapshot.input_identity(lease, directory, owner._input_bundle))
+    lease.audit()
+    setup.run.assert_called_once()
+    assert [e for e in events if e[0] in ('delete', 'create')] == [
+        ('delete', name), ('create', name)]
+    assert baseline_name in names
+
+
+@pytest.mark.parametrize('change', ['helper', 'logging', 'fixture', 'documentation', 'results'])
+def test_test_only_changes_reuse_snapshot_without_installation(prepared_suite, change):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    name = 'onpc-v1.1'
+    existing = add(name, current_xml(owner, directory))
+    if change in ('helper', 'logging'):
+        owner._input_bundle.files['e2e_dynamic_account.py'] += b'\n# test change\n'
+    else:
+        (directory / (change + '.txt')).write_text('changed')
+    with lease:
+        for _ in range(2):
+            assert owner.prepare_installed(directory, directory, {}, root=directory,
+                                           overwrite=False) is False
+    lease.audit()
+    assert names[name] is existing
+    assert events == []
+    setup.run.assert_not_called()
+
+
+def test_failed_installation_verification_cannot_publish_snapshot(prepared_suite, monkeypatch):
+    import vm_transport
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    vm_transport.Transport.return_value.call.side_effect = RuntimeError('verification failed')
+    with pytest.raises(RuntimeError, match='verification failed'), lease:
+        owner.prepare_installed(directory, directory, {}, root=directory, overwrite=False)
+    lease.audit()
+    assert 'onpc-v1.1' not in names
+    assert not [event for event in events if event[0] == 'create']
+
+
+def test_new_invocation_reuses_completed_snapshot_metadata(prepared_suite):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    with lease:
+        owner.prepare_installed(directory, directory, {}, root=directory, overwrite=False)
+    lease.audit()
+    before = list(events)
+    second = suite_lease.Suite(Mock())
+    second.commands = owner.commands
+    second._input_bundle = owner._input_bundle
+    second.lease = suite_lease.SuiteLease(lease.source, lease.commands, lease.inspect,
+        directory=lease.directory, anchor=lease.capture.anchor,
+        graphics_type='vnc', ledger=system.RunLedger())
+    try:
+        with second.lease:
+            assert second.prepare_installed(directory, directory, {}, root=directory,
+                                             overwrite=False) is False
+        second.lease.audit()
+    finally:
+        if second.lease.fd is not None:
+            system.Lease.release(second.lease)
+    assert events == before
+    setup.run.assert_called_once()
+
+
+@pytest.mark.parametrize('failure', ['create', 'publish'])
+def test_interruption_never_marks_unfinished_snapshot_reusable(prepared_suite, failure):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    original = lease.source.domain.snapshotCreateXML.side_effect
+    calls = []
+    def interrupted(xml, flags):
+        calls.append(flags)
+        if flags == 0:
+            assert ET.fromstring(xml).findtext('description') is None
+            result = original(xml, flags)
+            if failure == 'create':
+                raise RuntimeError('snapshot interrupted')
+            return result
+        raise RuntimeError('snapshot interrupted')
+    lease.source.domain.snapshotCreateXML.side_effect = interrupted
+    with pytest.raises(RuntimeError, match='snapshot interrupted'), lease:
+        owner.prepare_installed(directory, directory, {}, root=directory, overwrite=False)
+    lease.audit()
+    assert calls == ([0] if failure == 'create' else [0, 1])
+    assert not app_snapshot.matches(names['onpc-v1.1'].getXMLDesc(0),
+        app_snapshot.input_identity(lease, directory, owner._input_bundle))
 
 
 @pytest.mark.parametrize('overwrite', [False, True])

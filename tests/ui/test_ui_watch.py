@@ -103,7 +103,7 @@ def test_live_capture_detach_reattach_preserves_public_actions(
 @pytest.mark.parametrize('dpi_scale', (1.25, 1, 1.25))
 def test_live_capture_survives_display_scale_changes(
         hermetic_ui_session, launch_ui, automation, wait_for_accessible_state,
-        request, dpi_scale, tmp_path):
+        temporary_display_scale, dpi_scale, tmp_path):
     """Real scale changes and fixture restoration must not kill the spectator."""
     ui, wait = automation, wait_for_accessible_state
     launch_request(launch_ui, tmp_path, overlay=False, wait_for_application=False)
@@ -111,26 +111,37 @@ def test_live_capture_survives_display_scale_changes(
     feeds = Feeds()
     observed = {}
 
-    def live_after(timestamp):
+    def live_after(timestamp, generation=0):
         for run, frame in feeds.poll().items():
             meta = frame[1]
             if meta.get('worker') == os.getpid():
                 assert meta['state'] != 'unavailable', meta.get('detail')
-                if meta['state'] == 'live' and meta.get('captured_ns', 0) > timestamp:
+                if (meta['state'] == 'live' and meta.get('captured_ns', 0) > timestamp
+                        and meta.get('capture_generation', 0) > generation):
                     observed['run'] = run
+                    observed['generation'] = meta['capture_generation']
                     return True
         return False
 
     try:
         wait(lambda: live_after(0), 'initial video sample arrives')
         run = observed['run']
-        # Apply the same public compositor configuration as Layout and overflow,
-        # after capture is live. Its teardown restores the original scale.
-        request.getfixturevalue('request_display_scale')
-        changed = time.monotonic_ns()
-        ui.activate('kiosk-duration-300')
-        wait(lambda: live_after(changed), 'new video sample arrives after scaling')
-        assert observed['run'] == run, 'recovery preserves the branch identity'
-        assert ui.state('kiosk-duration-300', ui.api.StateType.PRESSED)
+        # Use the same public configuration as Layout and overflow. Observe
+        # the replacement stream, not a late sample from the outgoing stream,
+        # and verify restoration here instead of leaking an outage to the next case.
+        for _ in range(3):
+            generation = observed['generation']
+            with temporary_display_scale(dpi_scale):
+                changed = time.monotonic_ns()
+                ui.activate('kiosk-duration-300')
+                wait(lambda: live_after(changed, generation),
+                     'replacement capture delivers video after scaling')
+                assert observed['run'] == run, 'recovery preserves the branch identity'
+                assert ui.state('kiosk-duration-300', ui.api.StateType.PRESSED)
+                generation = observed['generation']
+                restored = time.monotonic_ns()
+            wait(lambda: live_after(restored, generation),
+                 'replacement capture delivers video after scale restoration')
+            assert observed['run'] == run, 'restoration preserves the branch identity'
     finally:
         feeds.close()

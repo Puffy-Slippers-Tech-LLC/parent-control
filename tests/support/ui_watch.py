@@ -95,13 +95,23 @@ class Observer:
                 self.child.wait(timeout=8)
             except subprocess.TimeoutExpired:
                 stop_child(self.child)
+            self.record_exit('collector', self.child)
             self.child = None
-        for service in reversed(self.services):
+        for index, service in reversed(tuple(enumerate(self.services))):
             stop_child(service)
+            self.record_exit(f'private service {index}', service)
         self.services.clear()
         if self.log is not None:
             self.log.close()
             self.log = None
+
+    def record_exit(self, role, child):
+        if self.log is not None:
+            try:
+                self.log.write(f'UI watch {role} exited: status={child.returncode}\n'.encode())
+                self.log.flush()
+            except OSError:
+                pass  # Optional diagnostics must never prevent owned cleanup.
 
 
 def start(session, *, branch='UI tests'):

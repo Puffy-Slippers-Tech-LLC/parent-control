@@ -136,10 +136,86 @@ def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monk
     assert 'model_reasoning_effort="high"' in command
     assert 'features.memories=false' in command and 'history.persistence="none"' in command
     assert 'workspace-write' in command
+    assert '--json' in command
+    assert command[command.index('--color') + 1] == 'never'
     assert not {'resume', 'fork', '--last', '--ignore-rules', '--dangerously-bypass-approvals-and-sandbox'} & set(command)
     assert command[-1] == '-'
     assert 'previous-context' not in fix_tests.environment().values()
     assert fix_tests.repair_prompt('LATEST FAILURE').startswith('LATEST FAILURE\n')
+
+
+def test_agent_transcript_formats_markdown_and_code_across_byte_boundaries():
+    from fix_tests_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream)
+    event = {'type': 'item.completed', 'item': {
+        'id': 'message', 'type': 'agent_message',
+        'text': '**Repair café**\n\n```python\ndef fixed():\n    return True\n```'}}
+    encoded = json.dumps(event, ensure_ascii=False).encode()
+    for byte in encoded:
+        renderer.feed(bytes([byte]))
+    assert stream.getvalue() == ''
+    renderer.finish()  # EOF also renders a final event without a newline.
+    rendered = Text.from_ansi(stream.getvalue())
+    assert 'Repair café' in rendered.plain
+    assert '**' not in rendered.plain and '```' not in rendered.plain
+    assert 'def fixed():' in rendered.plain and 'return True' in rendered.plain
+    code_start = rendered.plain.index('def fixed')
+    assert any(span.start >= code_start and span.style.color for span in rendered.spans)
+    assert '\ufffd' not in rendered.plain
+
+
+def test_agent_transcript_preserves_activity_failures_and_unknown_events():
+    from fix_tests_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream)
+
+    def emit(kind, item):
+        renderer.feed((json.dumps({'type': kind, 'item': item}) + '\n').encode())
+
+    command = {'id': 'cmd', 'type': 'command_execution', 'command': 'cat example.py'}
+    emit('item.started', command)
+    emit('item.updated', command)
+    emit('item.completed', {**command, 'aggregated_output': 'failure details', 'exit_code': 2})
+    emit('item.completed', {'type': 'file_change', 'status': 'completed', 'changes': [
+        {'kind': 'update', 'path': 'example.py', 'diff': '-old\n+new'}]})
+    emit('item.updated', {'type': 'todo_list', 'items': [
+        {'text': 'Keep assertion', 'completed': True}]})
+    emit('item.completed', {'type': 'mcp_tool_call', 'server': 'local', 'tool': 'read',
+                            'result': {'content': [{'type': 'text', 'text': 'tool result'}]}})
+    emit('item.completed', {'type': 'web_search', 'query': 'public docs'})
+    emit('item.completed', {'type': 'agent_message', 'text': json.dumps({
+        'status': 'blocked', 'summary': '**Missing prerequisite**'})})
+    renderer.feed(b'{"type":"turn.failed","error":{"message":"agent failed"}}\n')
+    renderer.feed(b'{"type":"future.event","detail":"keep unknown evidence"}\n')
+    renderer.feed(b'{"type":"item.completed","item":null}\n')
+    renderer.feed(b'plain diagnostic\npartial diagnostic')
+    renderer.finish()
+    text = Text.from_ansi(stream.getvalue()).plain
+    assert text.count('cat example.py') == 1
+    for expected in ('failure details', 'Exit 2', 'example.py', '-old', '+new',
+                     'Keep assertion', 'tool result', 'public docs', 'Repair blocked',
+                     'Missing prerequisite', 'agent failed', 'keep unknown evidence',
+                     'null', 'plain diagnostic', 'partial diagnostic'):
+        assert expected in text
+    assert '\033[?1049' not in stream.getvalue()
+
+
+def test_follow_keeps_unicode_across_reads_and_reattaches_at_complete_lines(tmp_path, monkeypatch):
+    run = tmp_path / 'run'
+    run.mkdir()
+    original = 'x' * 65535 + 'é\n\033[32mretained café\033[0m\n'
+    (run / 'output').write_text(original)
+    fix_tests.atomic(run / 'result.json', {'status': 0})
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    assert output.getvalue() == original
+    monkeypatch.setattr(fix_tests, 'TAIL_BYTES', len('é\n\033[32mretained café\033[0m\n'.encode()) - 1)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    assert output.getvalue() == '\033[32mretained café\033[0m\n'
 
 
 @pytest.mark.parametrize('tty', [False, True])

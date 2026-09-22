@@ -147,7 +147,26 @@ def test_phase_joins_preserve_counts_times_and_vertical_spacers():
     assert '\n│\n└─ Join cleanup prerequisites — passed — 0.5m wall time' in frame
     assert '\n│\n└─ Join host branches — waiting for host work — 1.5m wall time' in frame
     assert frame.index('Join cleanup prerequisites') < frame.index('[Running] Unit')
-    assert 'Overall - 60% (3/5)' in frame
+    assert 'Overall - 33% (1/3)' in frame
+
+
+@pytest.mark.parametrize('name', ['UI inventory', 'Ready E2E scenarios', 'Private D-Bus components'])
+@pytest.mark.parametrize('total,done,state,failures', [
+    (None, 0, 'Pending', 0),
+    (1503, 1400, 'Running', 0),
+    (1503, 1503, 'Passed', 0),
+    (1503, 1400, 'Failed', 2),
+])
+def test_overall_excludes_cleanup_counts_but_preserves_failure_status(name, total, done, state, failures):
+    cleanup = regression.Category('Cleanup safety prerequisites', total, done, state,
+                                  failures=failures, phase='cleanup')
+    suite = regression.Category(name, 205, 87, 'Running')
+    dashboard = regression.Dashboard([cleanup, suite], io.StringIO())
+    frame = dashboard.render(dashboard.started)
+    overall = frame[-1]
+    assert dashboard.ANSI.sub('', overall) == 'Overall - 42% (87/205) - 0.0m'
+    assert overall.startswith('\033[31m' if failures else '\033[97;1m')
+    assert 'Cleanup safety prerequisites' in dashboard.ANSI.sub('', '\n'.join(frame))
 
 
 @pytest.mark.parametrize('ready_after,cancel_after', [(4, None), (100, None), (4, 1)])

@@ -37,7 +37,8 @@ class SelectedRun(Run):
                         'Package verification' if kind == 'artifacts' else 'Test fixture verification')
             events = self.events(kind, args)
             item = Category(name, None if events or kind == CLEANUP_SELECTION else 1,
-                            host=kind not in ('system', 'e2e', 'integration'))
+                            host=kind not in ('system', 'e2e', 'integration'),
+                            phase='cleanup' if kind == CLEANUP_SELECTION else 'host')
             if kind == 'e2e' and events:
                 item.nodeids = e2e_case_ids(root, args)
                 item.total = len(item.nodeids)
@@ -90,7 +91,7 @@ class SelectedRun(Run):
         # Unit selections keep their exact scope and existing prerequisite
         # policy. Only UI adds the mandatory host-integrated cleanup gate.
         if kind == 'ui':
-            safety = Category('Cleanup safety prerequisites')
+            safety = Category('Cleanup safety prerequisites', phase='cleanup')
             self.categories.insert(self.categories.index(jobs[0].item), safety)
             status = self.run_cleanup(safety)
             if status:

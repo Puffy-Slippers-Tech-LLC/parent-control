@@ -18,6 +18,9 @@ problem. A fresh chat does not require rerunning unaffected tests.
 Every test execution through `tools/run-tests` uses the same live dashboard and
 final summary: category results, actual host branches and joins, durations and
 overall wall time. Only selected categories appear; unused branches are omitted.
+The `Overall` counts and percentage exclude cleanup safety prerequisites in both
+`tools/run-tests` and `tools/fix-tests`. Cleanup retains its own progress rows,
+and its failures still fail the run; overall wall time includes cleanup.
 For example, `tools/run-tests unit -k 'grant' static shell` runs the selected unit
 tests followed by shell checks in one report. Each category keeps its own
 arguments, and all selections are validated before execution. Arbitrary category
@@ -171,11 +174,16 @@ The [official noninteractive documentation](https://learn.chatgpt.com/docs/non-i
 defines the ephemeral invocation. Existing CLI authentication, configuration,
 workspace sandbox and command rules remain in effect; agents cannot request
 interactive approvals. Install/authenticate Codex separately before starting.
-Agent output retains Codex's native ANSI colors and emphasis, including when
-reattaching. The launcher explicitly enables color because the detached worker
-captures output through a pipe. This is the unattended `exec` presentation;
-it does not open the interactive Codex input box. Retained output includes ANSI
-styling sequences.
+Agent output uses `exec --json` events rendered with the setup-provided Rich
+library: Markdown messages, syntax-highlighted code blocks and commands, command
+results, plans, tool activity and file-change summaries. Diffs are highlighted
+when supplied by the event; file-change events containing only paths show those
+paths without inventing a diff. The detached supervisor renders an append-only,
+100-column transcript with ANSI styling retained on reattachment. CLI diagnostics
+remain separate from event parsing, and unknown events remain visible. There is
+no interactive input box or approval prompt; the result file still controls
+repair verification. Development activation is `none`; new launcher processes
+use the checkout code without product installation or a service restart.
 
 Closing the terminal detaches; rerun `tools/fix-tests` to attach to the current
 output, with a bounded tail of earlier output. `tools/fix-tests --stop` and
@@ -746,6 +754,12 @@ Publication is bounded to ten updates per second, with no reader backpressure.
 Display changes may interrupt PipeWire capture. The collector clears the old
 image and reconnects its capture session, preserving the worker tab and grid
 cell. Recovery is limited to three retries within a 15-second outage window.
+Teardown sends an [out-of-band flush](https://gstreamer.freedesktop.org/documentation/gstreamer/gstevent.html#gst_event_new_flush_start)
+to unblock streaming before stopping the pipeline during concurrent PipeWire
+buffer removal. Reconnection clears published pixels before teardown. The scale
+regression requires a frame from a replacement capture generation after both
+applying and restoring the scale, retaining the worker identity throughout;
+a later timestamp from the outgoing stream is not recovery evidence.
 Capture failure is reported in the viewer when publication is available, with
 diagnostics at the printed `/var/tmp/onpc-ui-watch-*/capture.log`. Earlier setup
 failures are reported by the runner. Optional observation never retries a test

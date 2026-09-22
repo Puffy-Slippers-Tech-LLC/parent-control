@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -151,7 +152,19 @@ def hermetic_ui_session(ui_monitor_size, request):
 
 
 @pytest.fixture
-def request_display_scale(hermetic_ui_session, dpi_scale):
+def temporary_display_scale(hermetic_ui_session):
+    """Allow a test to observe both applying and restoring the real scale."""
+    return lambda scale: _display_scale(hermetic_ui_session, scale)
+
+
+@pytest.fixture
+def request_display_scale(temporary_display_scale, dpi_scale):
+    with temporary_display_scale(dpi_scale):
+        yield
+
+
+@contextmanager
+def _display_scale(hermetic_ui_session, dpi_scale):
     """Set actual Wayland scaling on the fixture's private compositor only.
 
     GDK_SCALE is an X11 override and cannot exercise Wayland HiDPI. Use

@@ -6,6 +6,7 @@ The enclosing builder hashes every delivered byte and normalizes timestamps.
 """
 
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -19,10 +20,28 @@ TYPELIBS = (
 )
 
 
-def build_runtime(destination):
+def tree_sources(source):
+    """Match copytree's followed links and ignored caches, including empty dirs."""
+    def failed(error):
+        raise error
+    for folder, directories, files in os.walk(source, followlinks=True, onerror=failed):
+        folder = Path(folder)
+        if folder.resolve() in {parent.resolve() for parent in folder.parents
+                                if parent == source or source in parent.parents}:
+            raise RuntimeError('GUI fixture runtime has a directory link cycle')
+        directories[:] = [name for name in directories
+                          if name != '__pycache__' and not name.endswith('.pyc')]
+        yield folder
+        for name in files:
+            if name != '__pycache__' and not name.endswith('.pyc'):
+                yield folder / name
+
+
+def build_runtime(destination, *, inputs=None):
     """Fill a new runtime /usr tree; return its architecture and ELF loader."""
     destination = Path(destination)
-    destination.mkdir(parents=True, exist_ok=True)
+    if inputs is None:
+        destination.mkdir(parents=True, exist_ok=True)
     triplet = sysconfig.get_config_var('MULTIARCH')
     if not triplet or re.fullmatch(r'[a-z0-9_-]+', triplet) is None:
         raise RuntimeError('GUI fixture requires a supported Debian multiarch runtime')
@@ -32,6 +51,9 @@ def build_runtime(destination):
 
     def copy_file(source, relative):
         target = destination / relative
+        if inputs is not None:
+            inputs[str(relative)] = source
+            return target
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
         target.chmod(source.stat().st_mode & 0o777)
@@ -41,7 +63,11 @@ def build_runtime(destination):
         if not source.is_dir():
             raise RuntimeError('GUI fixture runtime prerequisite missing: ' + str(source))
         target = destination / relative
-        shutil.copytree(source, target, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        if inputs is None:
+            shutil.copytree(source, target, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        else:
+            for path in tree_sources(source):
+                inputs[str(relative / path.relative_to(source))] = path
         roots.extend(path for path in source.rglob('*.so') if path.is_file())
 
     copy_file(interpreter, Path('bin/python3'))
@@ -82,8 +108,16 @@ def build_runtime(destination):
     copy_tree(Path('/usr/share/X11/xkb'), Path('share/X11/xkb'))
     copy_tree(Path('/usr/lib/locale/C.utf8'), Path('lib/locale/C.utf8'))
     config = destination / 'etc/fonts/fonts.conf'
-    config.parent.mkdir(parents=True)
-    config.write_text('<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n'
-        '<fontconfig><dir prefix="relative">../../share/fonts</dir>'
-        '<cachedir prefix="xdg">fontconfig</cachedir></fontconfig>\n', encoding='utf-8')
+    if inputs is None:
+        config.parent.mkdir(parents=True)
+        config.write_text('<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n'
+            '<fontconfig><dir prefix="relative">../../share/fonts</dir>'
+            '<cachedir prefix="xdg">fontconfig</cachedir></fontconfig>\n', encoding='utf-8')
     return triplet, loader.relative_to('/usr') if loader.is_relative_to('/usr') else loader.relative_to('/')
+
+
+def runtime_sources():
+    """Enumerate the exact copied bytes without producing a payload."""
+    inputs = {}
+    build_runtime(Path('/unused'), inputs=inputs)
+    return inputs

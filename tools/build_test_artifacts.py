@@ -20,6 +20,7 @@ import tempfile
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from tools import package_inputs
 
 
@@ -155,35 +156,51 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
     }
 
 
-def build(output: Path) -> Path:
+def build(output: Path, *, reuse: dict[str, Path] | None = None) -> Path:
     output = _require_empty_output(output)
+    reuse = reuse or {}
     source_paths = package_inputs.paths(REPOSITORY)
     source_digest = package_inputs.digest(REPOSITORY, source_paths)
     metadata = _metadata(source_paths, source_digest)
     _log("build", "started", revision=metadata["source"]["revision"][:12])
     with tempfile.TemporaryDirectory(prefix="onpc-package-build-") as temporary_name:
         temporary = Path(temporary_name)
-        source_copy = temporary / "source"
-        source_copy.mkdir()
-        _copy_source(source_paths, source_copy)
-        if (package_inputs.paths(REPOSITORY) != source_paths
-                or package_inputs.digest(REPOSITORY, source_paths) != source_digest
-                or package_inputs.digest(source_copy, source_paths) != source_digest):
-            raise ArtifactError('package source inputs changed while copying')
-        environment = os.environ | {"SOURCE_DATE_EPOCH": str(metadata["build_inputs"]["source_date_epoch"]),
+        # Stable, private build settings; caller desktop/terminal/home settings
+        # cannot affect either artifacts or their reuse identity.
+        home = temporary / 'home'
+        home.mkdir()
+        environment = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8",
+                       "HOME": str(home), "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1",
+                       "SOURCE_DATE_EPOCH": str(metadata["build_inputs"]["source_date_epoch"]),
                                     "DEB_BUILD_OPTIONS": metadata["build_inputs"]["deb_build_options"]}
-        command = metadata["build_inputs"]["package_command"]
-        _run(command, cwd=source_copy, environment=environment)
-        packages = sorted(temporary.glob("oh-no-parent-control_*.deb"))
+        package_output = output / "package"
+        if 'package' in reuse:
+            shutil.copytree(reuse['package'], package_output)
+            packages = sorted(package_output.glob('oh-no-parent-control_*.deb'))
+        else:
+            source_copy = temporary / "source"
+            source_copy.mkdir()
+            _copy_source(source_paths, source_copy)
+            if (package_inputs.paths(REPOSITORY) != source_paths
+                    or package_inputs.digest(REPOSITORY, source_paths) != source_digest
+                    or package_inputs.digest(source_copy, source_paths) != source_digest):
+                raise ArtifactError('package source inputs changed while copying')
+            _run(metadata["build_inputs"]["package_command"], cwd=source_copy, environment=environment)
+            packages = sorted(temporary.glob("oh-no-parent-control_*.deb"))
+            package_output.mkdir()
         if len(packages) != 1:
             raise ArtifactError("package build did not produce exactly one binary package")
-        package_output = output / "package"
-        package_output.mkdir()
-        package = packages[0]
-        destination = package_output / package.name
-        shutil.copyfile(package, destination)
+        destination = package_output / packages[0].name
+        if packages[0] != destination:
+            shutil.copyfile(packages[0], destination)
         fixture_output = output / "fixtures"
-        _run([sys.executable, str(FIXTURE_BUILDER), "--output", str(fixture_output)], cwd=REPOSITORY, environment=environment)
+        if 'fixtures' in reuse:
+            shutil.copytree(reuse['fixtures'], fixture_output)
+        else:
+            # Fixture contents are independent of the product commit timestamp.
+            fixture_environment = environment | {'SOURCE_DATE_EPOCH': '0'}
+            _run([sys.executable, '-I', '-S', '-B', str(FIXTURE_BUILDER), "--output", str(fixture_output)],
+                 cwd=REPOSITORY, environment=fixture_environment)
         manifest = {"schema_version": SCHEMA_VERSION, **metadata, "artifacts": {
             "package": {"path": f"package/{destination.name}", "sha256": _sha256(destination)},
             "fixtures": {"path": "fixtures", "digest_manifest": "fixtures/SHA256SUMS.json", "sha256": _fixture_digest(fixture_output)},
@@ -262,4 +279,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if not sys.flags.isolated or not sys.flags.no_site:
+        os.execv(sys.executable, [sys.executable, '-I', '-S', '-B', __file__, *sys.argv[1:]])
+    os.umask(0o022)
     raise SystemExit(main())

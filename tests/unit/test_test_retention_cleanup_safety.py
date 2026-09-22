@@ -106,7 +106,7 @@ def test_recovery_safety_uses_shared_parallel_cleanup_coordinator():
     import regression_process
     root = Path(__file__).resolve().parents[2]
     command = regression_process.safety_command(root)
-    assert command == ['/usr/bin/python3', '-B', str(root / 'tools/regression_process.py'),
+    assert command == ['/usr/bin/python3', '-IB', str(root / 'tools/regression_process.py'),
                        '--cleanup-prerequisites']
 
 

@@ -2,6 +2,8 @@
 import json
 from pathlib import Path
 import runpy
+import os
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -132,6 +134,34 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     select.__globals__['VM_UUID'] = UUID
     command = select(root, ['vm', 'send-key', '28'])
     assert command[3:] == ['--expected-uuid', UUID, 'send-key', '28']
+
+
+@pytest.mark.parametrize('status', [0, 1, 130])
+@pytest.mark.parametrize('argv', [['vm', 'start'], ['vm', 'stop'],
+                                 ['integration', 'check_test_recovery']])
+def test_foreground_dispatch_uses_qualified_gate_before_vm_work(tmp_path, monkeypatch, argv, status):
+    root = Path(__file__).resolve().parents[2]
+    dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
+    dispatcher['run'].__globals__['selection'] = lambda *args: ['selected-operation']
+    monkeypatch.setattr(dispatcher['runpy'], 'run_path', lambda _: {
+        'safety_command': lambda root: ['shared-qualified-gate']})
+    monkeypatch.setattr(dispatcher['os'], 'getgrouplist', lambda *args: [])
+    caller = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name='fixture',
+                             pw_dir=str(tmp_path))
+    calls = []
+    def execute(command, **kwargs):
+        calls.append(command)
+        if command == ['shared-qualified-gate']:
+            assert kwargs['user'] == caller.pw_uid
+            assert kwargs['group'] == caller.pw_gid
+            return SimpleNamespace(returncode=status)
+        assert calls == [['shared-qualified-gate'], ['selected-operation']]
+        assert kwargs['env']['PKEXEC_UID'] == str(caller.pw_uid)
+        assert 'user' not in kwargs
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(dispatcher['subprocess'], 'run', execute)
+    assert dispatcher['run'](root, argv, caller) == status
+    assert len(calls) == (1 if status else 2)
 
 
 def test_reset_leaves_vm_off_and_never_creates_snapshot_or_vm(lease_rig):

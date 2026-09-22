@@ -285,21 +285,50 @@ baseline's guest preparation. Execution dispatch must use that capture.
 ### Reusable startup preparation
 
 Automatic preparation and `tools/run-tests artifacts prepare` use
-[the startup cache](../../tools/e2e_startup_cache.py). The artifact key includes
-package source bytes and modes, source revision/build metadata, fixture inputs,
-builder code and bytecode, and the tool/runtime identity. Every hit hashes the complete stored
+[the startup cache](../../tools/e2e_startup_cache.py), with separate package and
+fixture keys owned by [build inputs](../../tools/artifact_inputs.py).
+Product bytes/modes and package revision/build metadata invalidate the package;
+the explicit fixture sources and copied Python/GTK runtime invalidate fixtures.
+Both include their builder modules and only those modules' bytecode, interpreter
+and standard-library bytes, relevant tools and installed Debian dependency
+closures (including virtual providers). Package builds also include Essential
+packages. A pending package transaction refuses preparation.
+Cleanup code, retention code, scenario/test edits, fixture prose, unrelated
+`tools/` bytecode, desktop settings, boot identity, installed test helpers and
+unrelated installed packages do not invalidate artifacts. Build processes use
+fixed locale/PATH and a private home; the coordinator and fixture builder disable
+Python site initialization. Actual build code, required dependencies and copied
+runtime resources still invalidate the affected component.
+
+A package-only change reuses fixtures; a fixture-only change reuses the package.
+Every hit hashes the complete stored
 payload, including manifests and volatile Flatpak containers, checks its metadata,
 copies it into the current run's private allocation and verifies that copy.
 Inputs are captured again before publishing the result; concurrent changes refuse
-the preparation. Explicit `artifacts build` and reproducibility builds remain fresh.
+the preparation. A missing or altered retained bundle rebuilds both components.
+The log identifies each reused/rebuilt component, changed input groups and lookup
+time. Explicit `artifacts build` and reproducibility builds remain fresh.
 
-The maintained cleanup coordinator reuses only a complete successful qualification
-whose tracked and nonignored untracked checkout inputs, bytecode in source
-directories (including Git-ignored caches), and runtime identity still match.
+Standalone prerequisite routes, including foreground VM maintenance and direct host
+launchers, use the shared cleanup coordinator. It reuses only a complete
+successful qualification whose tracked and nonignored untracked executable
+inputs, bytecode in source directories (including Git-ignored caches), and
+runtime identity still match. Prose Markdown beneath `docs/`, the root
+`README.md`/`AGENTS.md`, and `tests/README.md`/`tests/e2e/README.md` are excluded;
+code, configurations, inventories and test
+fixtures remain inputs regardless of their filename. Documentation edits therefore
+do not create another full qualification and its temporary fixtures/reports.
 It hashes bytes on each lookup; preserving a file's timestamp and size
 does not preserve its identity. Runtime identity includes importable Python/native
 module contents and search paths, managed package records, selected tool binaries,
-the sanitized environment and the host boot identity. A failed or interrupted
+the sanitized environment and the host boot identity. Overlapping import roots
+hash each dependency only once per capture. The qualification coordinator uses
+isolated Python and a fixed headless environment, so terminal, locale and desktop
+settings cannot alternate the receipt between callers. Maintained test workers
+disable user-site imports. An inherited activity's passing gate is reused directly;
+a new activity always validates its lock and recaptures qualification inputs.
+The coordinator logs lookup time and which input group caused a miss.
+A failed or interrupted
 qualification is not cached. Checkout changes during a passing qualification,
 including files replaced or removed during fingerprinting, prevent publication
 of a reusable result without invalidating that existing run. If input capture
@@ -316,11 +345,13 @@ a cache miss. Preparation refuses without an active retention session.
 Cache receipts are coordination evidence within the trusted development checkout,
 not privileged authorization. Each attempt still checks current VM ownership,
 leases, snapshot identity, credentials, scenario selection and staged artifacts.
-Changing source inputs, dependencies or the boot identity requires qualification
+Changing executable inputs, dependencies or the boot identity requires qualification
 again. No VM state, cleanup action or customer acceptance result is cached.
-Only unchanged warm runs avoid both expensive preparation stages; cold or
-invalidated runs still build and qualify their inputs. Cache lookup, artifact
+Cold runs still build and qualify their inputs; subsequent edits rebuild only
+affected artifact components and independently requalify cleanup. Cache lookup, artifact
 copying/verification and the live VM preparation remain in the startup time.
+Refresh the installed dispatcher with `./setup.sh --test-tools-only` to activate
+shared qualification for foreground VM commands. No product update is required.
 
 ## Run E2E scenarios
 

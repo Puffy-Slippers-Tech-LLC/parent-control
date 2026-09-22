@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest import mock
+import pytest
 
 
 from tests.support.paths import ROOT
@@ -67,7 +68,7 @@ class TestBuildTestArtifacts(unittest.TestCase):
                     self.assertNotEqual(cwd, ROOT)
                     self.assertTrue((cwd / "README.md").is_file())
                     (cwd.parent / "oh-no-parent-control_1_amd64.deb").write_bytes(b"package")
-                elif command[1] == str(artifacts.FIXTURE_BUILDER):
+                elif str(artifacts.FIXTURE_BUILDER) in command:
                     fixture_output = Path(command[-1])
                     fixture_output.mkdir()
                     (fixture_output / "SHA256SUMS.json").write_text(
@@ -124,3 +125,35 @@ def test_development_only_commit_preserves_package_metadata(tmp_path, monkeypatc
     git('add', 'docs/internal.md')
     git('commit', '-qm', 'Documentation')
     assert artifacts._metadata([Path('product')], 'digest') == before
+
+
+@pytest.mark.parametrize('reused', ['package', 'fixtures'])
+def test_partial_build_runs_only_the_changed_component(tmp_path, monkeypatch, reused):
+    prior = tmp_path / 'prior'
+    prior.mkdir()
+    write_artifact(prior)
+    metadata = artifacts.verify(prior)
+    metadata = {key: metadata[key] for key in ('source', 'build_inputs', 'tools')}
+    calls = []
+    def run(command, *, cwd=None, environment=None):
+        calls.append(command)
+        assert environment['LANG'] == 'C.UTF-8'
+        assert Path(environment['HOME']).is_dir()
+        assert not {'DISPLAY', 'TERM', 'PYTHONPATH'} & environment.keys()
+        if command == ['dpkg-buildpackage']:
+            (cwd.parent / 'oh-no-parent-control_1_amd64.deb').write_bytes(b'package')
+        else:
+            assert command[1:4] == ['-I', '-S', '-B']
+            assert environment['SOURCE_DATE_EPOCH'] == '0'
+            target = Path(command[-1])
+            target.mkdir()
+            (target / 'SHA256SUMS.json').write_bytes((prior / 'fixtures/SHA256SUMS.json').read_bytes())
+    monkeypatch.setattr(artifacts.package_inputs, 'paths', lambda _: [Path('README.md')])
+    monkeypatch.setattr(artifacts.package_inputs, 'digest', lambda *_: 'digest')
+    monkeypatch.setattr(artifacts, '_metadata', lambda *_: metadata)
+    monkeypatch.setattr(artifacts, '_run', run)
+    output = tmp_path / 'output'
+    artifacts.build(output, reuse={reused: prior / reused})
+    assert len(calls) == 1
+    assert (calls[0] == ['dpkg-buildpackage']) == (reused == 'fixtures')
+    assert artifacts.verify(output)['artifacts'] == artifacts.verify(prior)['artifacts']

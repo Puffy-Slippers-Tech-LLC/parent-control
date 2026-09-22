@@ -63,6 +63,79 @@ DOCUMENT_CONTRACTS['document-viewer'] = {
 }
 
 
+@pytest.mark.parametrize('standard', [False, True])
+@pytest.mark.parametrize('fault', [None, 'session', 'desktop', 'prompt', 'submission'])
+def test_direct_parent_command_requires_safe_entry_and_never_replays(monkeypatch, standard, fault):
+    ui = ui_for(Node())
+    session = Mock(side_effect=UiError('session') if fault == 'session' else None)
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', session)
+    ui.desktop_result = Mock(side_effect=UiError('desktop') if fault == 'desktop' else None)
+    ui.handle_system_prompt = Mock(side_effect=UiError('prompt') if fault == 'prompt' else None)
+    submit = Mock(side_effect=TimeoutError() if fault == 'submission' else None)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    if fault:
+        with pytest.raises((UiError, TimeoutError)):
+            ui.launch_parent_command(standard=standard)
+    else:
+        ui.launch_parent_command(standard=standard)
+    if fault not in ('session', 'desktop', 'prompt'):
+        submit.assert_called_once_with([
+            '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+            '--service-type=exec', '/usr/bin/oh-no-parent-control-parent',
+        ], stdin=accessible_ui.subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.launch_parent_command(standard=standard)
+        assert submit.call_count == 1
+    else:
+        submit.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'root', 'wrong-euid', 'foreign-user', 'remote',
+                                   'inactive', 'wrong-seat', 'tty', 'duplicate', 'missing'])
+def test_direct_parent_launch_requires_one_active_local_graphical_user(monkeypatch, fault):
+    monkeypatch.setattr(accessible_ui.os, 'getuid', lambda: 0 if fault == 'root' else 1001)
+    monkeypatch.setattr(accessible_ui.os, 'geteuid', lambda: 0 if fault in ('root', 'wrong-euid') else 1001)
+    props = {'User': '1001', 'Active': 'yes', 'Remote': 'no', 'Class': 'user',
+             'Type': 'wayland', 'Seat': 'seat0'}
+    for kind, key, value in [('foreign-user', 'User', '1002'), ('remote', 'Remote', 'yes'),
+                             ('inactive', 'Active', 'no'), ('wrong-seat', 'Seat', 'seat1'),
+                             ('tty', 'Type', 'tty')]:
+        if fault == kind:
+            props[key] = value
+    def call(argv, **kwargs):
+        if argv[1] == 'list-sessions':
+            value = '' if fault == 'missing' else '1 1001 fixture seat0\n'
+            if fault == 'duplicate':
+                value += '2 1001 fixture seat0\n'
+        else:
+            value = '\n'.join(key + '=' + value for key, value in props.items())
+        return SimpleNamespace(stdout=value)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', call)
+    if fault:
+        with pytest.raises(UiError):
+            accessible_ui.require_active_launch_session()
+    else:
+        accessible_ui.require_active_launch_session()
+
+
+@pytest.mark.parametrize('fault', [None, 'denial', 'management', 'stale', 'incomplete'])
+def test_direct_denial_close_requires_complete_absence_and_public_desktop(fault):
+    root = Node(children=[Node(identity='parent-access-denied-window')]
+                if fault == 'denial' else [Node(identity='parent-window')]
+                if fault == 'management' else [Node(states=('defunct',))]
+                if fault == 'stale' else [])
+    ui = ui_for(root)
+    ui.desktop_result = Mock()
+    if fault == 'incomplete':
+        root.get_child_count = Mock(side_effect=LookupError())
+    if fault in ('stale', 'incomplete'):
+        with pytest.raises((UiError, LookupError)):
+            ui.parent_denial_closed()
+    else:
+        assert ui.parent_denial_closed() == (fault is None)
+    ui.desktop_result.assert_called_once_with(accessible_ui.EXISTING_CHILD, 'success')
+
+
 def parent_toggle_ui(*, states=('showing', 'visible', 'sensitive')):
     toggle = Node('Screen time limit', 'switch', states=states,
                   identity='parent-screen-limit-toggle')

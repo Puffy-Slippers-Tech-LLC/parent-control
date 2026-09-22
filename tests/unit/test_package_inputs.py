@@ -71,6 +71,11 @@ def test_real_source_and_binary_archives_exclude_internal_files(tmp_path):
             './usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt',
         ):
             assert contents.getmember(required).isfile()
+        # dh_installman converts the .so manual alias into a relative symlink.
+        child_manual = contents.getmember(
+            './usr/share/man/man1/oh-no-parent-control-child.1.gz')
+        assert child_manual.issym()
+        assert child_manual.linkname == 'oh-no-parent-control.1.gz'
 
 
 def test_product_only_source_can_check_and_stage_the_complete_payload(tmp_path):

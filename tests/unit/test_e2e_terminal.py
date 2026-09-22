@@ -221,10 +221,8 @@ def test_open_shortcut_requires_desktop_and_observed_readiness_without_replay(fa
 
 
 @pytest.mark.parametrize('fault', ['', 'wrong', 'uncertain'])
-def test_submit_fixed_command_once_after_fresh_focus_without_wait_or_replay(fault):
+def test_retired_parent_terminal_submission_refuses_before_input(fault):
     result = json.loads(run_perl(SUBMIT_PROBE, fault).stdout)
-    assert result['ok'] == (fault == '')
+    assert not result['ok']
     assert not result['replay']
-    assert result['events'] == ([] if fault == 'wrong' else
-        [['type', '/usr/bin/oh-no-parent-control-parent']] +
-        ([['key', 'ret']] if not fault else []))
+    assert result['events'] == []

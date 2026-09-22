@@ -5,22 +5,27 @@ Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **Retained regression 6; full terminal management denial**.
+Deliver **Retained regression 6; shared PARENT01 direct-command management denial**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001t** — FILE01/02/06 terminal command, help/denial projections and normal close/return.
+- **001t** — Public denial projection. Case 6 now uses PARENT01 direct execution;
+  its historical `terminal` selector does not require opening a terminal.
 
 ## Read only this context
 
-Read E2E-004's terminal branch and [parent_terminal.py](../../../tests/e2e/parent_terminal.py).
+Read E2E-004's case 6 branch, PARENT01 and [parent_terminal.py](../../../tests/e2e/parent_terminal.py).
 Read the affected safety tests and named source callables, not predecessor
 briefs or unrelated providers. Current route qualification comes from the
 catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Bind the complete retained customer recipe to the qualified terminal, public denial and return operations. Preserve the ready executable registration and all assertions.
+Reuse `onpc_parent::launch` with the denial expectation, exactly as ordinary
+Parent cases reuse it with the management-window expectation. Invoke the fixed
+command directly as the active desktop user; no terminal or app search.
+Preserve the ready executable registration, specific public denial, management
+absence and independently observed desktop return.
 
 ## Live VM acceptance
 

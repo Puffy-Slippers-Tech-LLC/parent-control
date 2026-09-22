@@ -48,8 +48,12 @@ TERMINAL_OPERATIONS = frozenset({
     'standard-terminal-closed', 'standard-management-denied', 'standard-denial-closed',
 })
 OPERATIONS |= TERMINAL_OPERATIONS
+OPERATIONS |= frozenset({
+    'parent-command-launch', 'standard-parent-command-launch', 'standard-parent-closed',
+})
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
 STANDARD_OPERATIONS |= TERMINAL_OPERATIONS
+STANDARD_OPERATIONS |= frozenset({'standard-parent-command-launch', 'standard-parent-closed'})
 HELP_BINDINGS = {
     'parent-help': ('oh-no-parent-control-parent', 'help',
                     'Administrator-facing GTK 4/libadwaita parent-control application.'),
@@ -1838,7 +1842,7 @@ class AccessibleUI:
         return field
 
     def standard_terminal_snapshot(self):
-        """Ptyxis external-provider route for E2E-004 on the fixture user bus.
+        """Ptyxis external-provider route for terminal operations on the fixture user bus.
 
         Resolve its sole public terminal and active owning window without using
         window titles, terminal contents, coordinates or tree position. Other
@@ -2033,6 +2037,39 @@ class AccessibleUI:
                      and not self.help_shell_prompt(value))
         self.help_product_absent()
         return bool(found)
+
+    def launch_parent_command(self, *, standard=False):
+        """PARENT01: submit one fixed public executable as the desktop user.
+
+        The user service manager supplies the graphical session environment.
+        No shell, terminal, product API, policy write or success inference is
+        involved. The journey observes the expected product window separately.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require_active_launch_session()
+        self.desktop_result(EXISTING_CHILD if standard else PARENT, 'success')
+        self.handle_system_prompt()
+        self.input_uncertain = True
+        subprocess.run([
+            '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+            '--service-type=exec', '/usr/bin/oh-no-parent-control-parent',
+        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+        # Keep the input latch set: even a successful submission cannot be
+        # repeated by this adapter instance. The next checkpoint is a new read.
+
+    def parent_denial_closed(self):
+        """Read the public desktop and complete absence after denial dismissal."""
+        self.desktop_result(EXISTING_CHILD, 'success')
+        root = self.api.get_desktop(0)
+        require(root is not None, 'ui:missing-surface')
+        nodes = list(self.nodes(root, strict=True))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:stale-surface')
+        forbidden = {'parent-access-denied-window', 'parent-window',
+                     'parent-screen-limits-page', 'parent-app-limits-page',
+                     'parent-screen-limit-toggle'}
+        return not any(self.showing(node) and public_automation_id(node) in forbidden
+                       for node in nodes)
 
     def management_denied(self):
         """FILE06: the specific visible refusal, never generic error or echo."""
@@ -3442,6 +3479,10 @@ class AccessibleUI:
             self.wait(lambda: self.help_content(operation.removeprefix('help-content-')), 'help-content')
         elif operation == 'standard-system-prompt':
             self.desktop_result(EXISTING_CHILD, 'success')
+        elif operation in ('parent-command-launch', 'standard-parent-command-launch'):
+            self.launch_parent_command(standard=operation == 'standard-parent-command-launch')
+        elif operation == 'standard-parent-closed':
+            self.wait(self.parent_denial_closed, 'denial-closed')
         elif operation == 'standard-terminal-input':
             self.wait(self.standard_terminal_input, 'terminal-input', prompt_in_predicate=True)
         elif operation == 'standard-terminal-focused':
@@ -3583,6 +3624,36 @@ def greeter_account(*, station_branch=False, station_required=False):
         # SSH can become ready before GDM after an installed snapshot boots.
         # Retry only absence, never an ambiguous identity or a failed read.
         time.sleep(min(.2, remaining))
+
+
+def require_active_launch_session():
+    """Bind direct execution to one active local graphical session of this UID."""
+    uid = os.getuid()
+    require(uid >= 1000 and os.geteuid() == uid, 'ui:launch-identity')
+
+    def call(*args):
+        return subprocess.run(['/usr/bin/loginctl', *args], capture_output=True,
+                              text=True, check=True, timeout=10).stdout
+
+    rows = call('list-sessions', '--no-legend', '--no-pager').splitlines()
+    require(len(rows) <= 32, 'ui:session-bound')
+    active = []
+    for row in rows:
+        fields = row.split()
+        require(len(fields) >= 2, 'ui:session-row')
+        if fields[1] != str(uid):
+            continue
+        session = fields[0]
+        require(re.fullmatch(r'[a-zA-Z0-9]+', session), 'ui:session-id')
+        props = dict(line.split('=', 1) for line in call(
+            'show-session', session, '--no-pager', '-p', 'User', '-p', 'Active',
+            '-p', 'Remote', '-p', 'Class', '-p', 'Type', '-p', 'Seat').splitlines())
+        if props.get('User') == str(uid) and props.get('Active') == 'yes':
+            if props.get('Class') in ('user', 'user-early') and props.get('Type') in ('wayland', 'x11'):
+                require(props.get('Remote') == 'no' and props.get('Seat') == 'seat0',
+                        'ui:launch-session')
+                active.append(session)
+    require(len(active) == 1, 'ui:launch-session')
 
 
 def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):

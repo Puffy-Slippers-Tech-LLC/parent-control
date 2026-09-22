@@ -166,7 +166,7 @@ specifically about those cases. Shared GDM, secret, routing, recorder or cleanup
 changes in capability tasks still require affected host safety checks and the
 task-local live qualification, without running cases **1, 3, 4, 5, 151** merely
 as regressions. Do not claim complete-case validation from a capability slice.
-Terminal changes retain case **6** when directly affected; case **193** remains
+Shared Parent launch changes retain case **6** when directly affected; case **193** remains
 for its own validation task.
 
 The initial provider migration has explicit regression rows **001r, 003r, 004r,

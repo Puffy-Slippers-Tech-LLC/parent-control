@@ -14,7 +14,11 @@ sub run {
         exchange => $exchange, prefix => 'parent-discovery', review => 0,
     );
     onpc_gdm::reattach_functional();
-    onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing');
+    # This case explicitly checks finding and launching Parent by its app name.
+    my $desktop = onpc_parent::enter_desktop($journey, 'gdm', 'parent', 'fresh', 'success');
+    onpc_parent::open_from_app_grid($journey, $desktop);
+    onpc_parent::select_child($journey, 'existing', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
     $journey->seen('existing-apps');
     $journey->seen('fixture-requested');
     onpc_parent::select_child($journey, 'new', $journey->seen('new-child-visible'),

@@ -1,5 +1,18 @@
 # UI automation mandate
 
+- **Parent app launch:** Every case that needs Parent functionality without
+  testing app-grid discovery must reuse PARENT01
+  ([`onpc_parent::launch`](../../tests/integration/graphical_smoke/lib/onpc_parent.pm)),
+  directly or through FLOW01. It invokes the installed
+  `oh-no-parent-control-parent` command directly as the current desktop user,
+  without a terminal or app-grid search, then independently observes the
+  expected management window or access denial. Use this block for setup and
+  reopening; do not duplicate launch code. Returning to an already open window
+  does not require relaunching. Only cases explicitly testing app-grid discovery,
+  launch or unavailability may use the search blocks with the full query
+  `Oh No! Parent Control` and open a launchable result when expected. Declare
+  that exception in the case metadata and recipe. Preserve session identity,
+  prompt refusal, single-use execution and independent result checks.
 - Except for the external-provider exception below, every automated UI target
   must be resolved by a stable public `automation-id`,
   scoped to its owning application and surface. Shared controls use one ID

@@ -32,7 +32,7 @@ For each new release candidate, prepare the application changes, add the new
 make test-all
 ```
 
-Use `make test-all-verify` to add full backing-file verification. These commands
+`make test-all-verify` is a compatibility alias; all VM verification is metadata-only. These commands
 include uncommitted changes in a private source snapshot, require no signing
 credentials, and never push or upload. Each invocation builds fresh source and
 binary artifacts. Commit the application changes and run `make publish` when

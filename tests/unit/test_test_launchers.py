@@ -431,17 +431,17 @@ def test_empty_argv_dispatches_the_all_aggregate(monkeypatch):
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
     assert commands._main([]) == 7
-    execute.assert_called_once_with(ROOT, verify_backing_bytes=False)
+    execute.assert_called_once_with(ROOT)
 
 
-@pytest.mark.parametrize('category,verify', [('all', False), ('all-verify', True)])
-def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category, verify):
+@pytest.mark.parametrize('category', ['all', 'all-verify'])
+def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category):
     import regression
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
     assert commands._main([category]) == 7
-    execute.assert_called_once_with(ROOT, verify_backing_bytes=verify)
+    execute.assert_called_once_with(ROOT)
     execute.reset_mock()
     assert commands._main([category, '--skip-backing-verification']) == 2
     execute.assert_not_called()
@@ -474,7 +474,7 @@ def test_host_aggregate_dispatch_and_invalid_arguments(monkeypatch):
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
     assert commands._main(['host']) == 7
-    execute.assert_called_once_with(ROOT, phases=('host',), verify_backing_bytes=False)
+    execute.assert_called_once_with(ROOT, phases=('host',))
     execute.reset_mock()
     for args in (['--skip-backing-verification'], ['--component=ui'], ['--unattended']):
         assert commands._main(['host', *args]) == 2
@@ -514,7 +514,7 @@ def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, deta
         assert commands.selections(ROOT, [*argv, *flag]) == [(kind, []) for kind in phases]
         assert commands._main([*argv, *flag], detached=detached) == 7
         options = {'continue_on_errors': True} if flag else {}
-        execute.assert_called_with(ROOT, phases=phases, verify_backing_bytes='host' not in phases,
+        execute.assert_called_with(ROOT, phases=phases,
                                    **options)
 
 

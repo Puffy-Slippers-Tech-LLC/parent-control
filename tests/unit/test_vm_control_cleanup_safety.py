@@ -24,8 +24,10 @@ def start(lease):
     lease.release()
 
 
-def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lease_rig):
+def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lease_rig, monkeypatch):
     lease, current = lease_rig
+    monkeypatch.setattr(runner.baseline, 'digest', Mock(side_effect=AssertionError('image hash')))
+    lease.commands.check = Mock(side_effect=AssertionError('image scan'))
     original = current['xml']
     start(lease)
     assert lease.state['phase'] == 'running'
@@ -36,6 +38,7 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
         try:
             control.operate(resumed, action, keys)
             assert resumed.state['run'] == run
+            assert resumed.capture.verification_totals['bytes_read'] == 0
         finally:
             resumed.release()
     assert lease.source.domain.revertToSnapshot.call_count == 1
@@ -49,6 +52,7 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
     assert lease.source.domain.revertToSnapshot.call_count == 2
     assert current['xml'] == original
     assert resumed.state['phase'] == 'complete'
+    assert resumed.capture.verification_totals['bytes_read'] == 0
     assert lease.source.off
 
 

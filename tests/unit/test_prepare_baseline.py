@@ -51,7 +51,7 @@ def test_capture_creates_named_internal_snapshot_without_copy(rig):
     assert state(rig)["proof"]["storage"] == "internal"
     assert host.digest(rig.anchor) == before
     assert {path.name for path in rig.directory.iterdir()} == {".lock", "phase.json"}
-    assert set(rig.commands.checked) == {rig.top}
+    assert not rig.commands.checked
     assert not hasattr(host.Commands, "convert")
     assert "machine_id" not in json.dumps(state(rig))
     assert "password" not in json.dumps(state(rig))
@@ -301,24 +301,24 @@ def test_replacement_interruption_after_archive_reuses_retained_record(rig):
     assert attempt.read_text() == '{"phase": "complete"}'
 
 
-def test_verification_counts_actual_backing_reads_and_failures(rig, capsys):
+def test_verification_counts_metadata_checks_and_failures(rig, capsys):
     rig.capture().run()
     capture = rig.capture()
     capture.run()
     size = rig.anchor.stat().st_size
     assert capture.verification_totals['calls'] == 1
-    assert capture.verification_totals['bytes_read'] == size
-    rig.anchor.write_bytes(b'x' * size)
-    with pytest.raises(host.CaptureError, match='backing-digest-changed'):
+    assert capture.verification_totals['bytes_read'] == 0
+    rig.commands.snapshots[0]['id'] = 'replaced'
+    with pytest.raises(host.CaptureError, match='snapshot:changed'):
         capture.verify_snapshot()
     assert capture.verification_totals['calls'] == 2
-    assert capture.verification_totals['bytes_read'] == 2 * size
+    assert capture.verification_totals['bytes_read'] == 0
     assert capture.verification_totals['failures'] == 1
     events = [json.loads(line.removeprefix('baseline:verification '))
               for line in capsys.readouterr().err.splitlines()
               if line.startswith('baseline:verification ')]
     assert events[-1]['outcome'] == 'failed'
-    assert events[-1]['bytes_read'] == size
+    assert events[-1]['bytes_read'] == 0
     assert events[-1]['duration_seconds'] >= 0
     assert set(events[-1]) == {'call', 'bytes_read', 'duration_seconds', 'outcome', 'mode', 'boundary'}
 
@@ -494,7 +494,7 @@ def test_every_durable_phase_is_restartable(rig, monkeypatch, phase):
     assert len(rig.source.creations) == 1
 
 
-@pytest.mark.parametrize("kind", ["domain", "top-inode", "anchor-inode", "backing-digest", "active",
+@pytest.mark.parametrize("kind", ["domain", "top-inode", "anchor-inode", "backing-link", "active",
                                   "description", "disk-record", "directory"])
 def test_interrupted_snapshot_refuses_changed_identity_without_replacement(rig, kind):
     interrupt_snapshot(rig)
@@ -504,8 +504,8 @@ def test_interrupted_snapshot_refuses_changed_identity_without_replacement(rig, 
         path = rig.top if kind == "top-inode" else rig.anchor
         path.rename(path.with_suffix(".old"))
         path.write_bytes(b"replacement")
-    elif kind == "backing-digest":
-        rig.anchor.write_bytes(b"changed")
+    elif kind == "backing-link":
+        os.link(rig.anchor, rig.anchor.with_suffix(".alias"))
     elif kind == "active":
         rig.source.off = False
     elif kind == "description":
@@ -520,7 +520,7 @@ def test_interrupted_snapshot_refuses_changed_identity_without_replacement(rig, 
     assert state(rig)["phase"] == "snapshot-requested"
 
 
-@pytest.mark.parametrize("kind", ["missing-metadata", "missing-disk", "replaced-disk", "backing-digest", "metadata"])
+@pytest.mark.parametrize("kind", ["missing-metadata", "missing-disk", "replaced-disk", "backing-link", "metadata"])
 def test_finalized_snapshot_reuse_detects_missing_or_changed_baseline(rig, kind):
     rig.capture().run()
     if kind == "missing-metadata":
@@ -529,8 +529,8 @@ def test_finalized_snapshot_reuse_detects_missing_or_changed_baseline(rig, kind)
         rig.commands.snapshots = []
     elif kind == "replaced-disk":
         rig.commands.snapshots[0]["id"] = "new"
-    elif kind == "backing-digest":
-        rig.anchor.write_bytes(b"changed")
+    elif kind == "backing-link":
+        os.link(rig.anchor, rig.anchor.with_suffix(".alias"))
     else:
         rig.source.baseline_xml = rig.source.baseline_xml.replace("<creationTime>100", "<creationTime>200")
     with pytest.raises(host.CaptureError):
@@ -802,13 +802,14 @@ def test_shutdown_uses_bounded_libvirt_event_loop(rig, timeout, monkeypatch):
     domain.destroy.assert_not_called()
 
 
-def test_command_adapter_only_inspects_and_checks_explicit_qcow2():
+def test_command_adapter_only_inspects_explicit_qcow2():
     commands = host.Commands()
     commands.run = Mock(return_value=b'{"format":"qcow2"}')
     commands.info(Path("/tmp/source"), active=True)
     assert "-U" in commands.run.call_args.args[0]
-    commands.check(Path("/tmp/output"))
-    assert "-r" not in commands.run.call_args.args[0]
+    assert commands.run.call_args.args[0] == [
+        "qemu-img", "info", "--output=json", "-f", "qcow2", "-U", "/tmp/source"]
+    assert not hasattr(commands, "check")
 
 
 def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, capsys):
@@ -903,20 +904,25 @@ def test_resource_arguments_are_not_operator_overrides():
         host.main(["--anchor", "/tmp/another"])
 
 
-def test_disk_integrity_failure_prevents_snapshot_creation(rig):
-    rig.commands.check = Mock(side_effect=host.CaptureError("command:failed"))
-    with pytest.raises(host.CaptureError, match="command:failed"):
-        rig.capture().run()
-    assert state(rig)["phase"] == "source-off"
-    assert not rig.source.creations
+def test_preparation_and_reuse_never_hash_or_structurally_scan_images(rig, monkeypatch):
+    monkeypatch.setattr(host, 'digest', Mock(side_effect=AssertionError('image hash')))
+    rig.commands.check = Mock(side_effect=AssertionError('structural scan'))
+    rig.capture().run()
+    assert state(rig)['source_digests'] is None
+    rig.capture().run()
+    # The accepted policy trusts content even if it has changed in place.
+    rig.anchor.write_bytes(b'changed bytes')
+    rig.capture().run()
+    assert len(rig.source.creations) == 1
 
 
 def test_source_change_during_inspection_prevents_snapshot_creation(rig):
     def change(_disk, _sha):
-        rig.top.write_bytes(b"changed while inspecting")
+        rig.top.rename(rig.top.with_suffix(".saved"))
+        rig.top.write_bytes(b"replaced while inspecting")
         return rig.inspect.return_value
     rig.inspect.side_effect = change
-    with pytest.raises(host.CaptureError, match="source-digest-changed"):
+    with pytest.raises(host.CaptureError, match="source-changed"):
         rig.capture().run()
     assert not rig.source.creations
 
@@ -978,3 +984,23 @@ def test_offline_inspection_detects_service_in_local_unit_search_directory():
         if pattern.startswith("/usr/local/lib/systemd") else [])
     with pytest.raises(host.CaptureError, match="guest:residue:service-session"):
         host.inspect_guest(fixture.module, Path("/tmp/top.qcow2"), SCRIPT_DIGEST)
+
+@pytest.mark.parametrize('phase', ['finalized', 'snapshot-requested'])
+def test_legacy_digest_records_are_reused_without_rewriting_identity(rig, monkeypatch, phase):
+    if phase == 'snapshot-requested':
+        interrupt_snapshot(rig)
+    else:
+        rig.capture().run()
+    document = state(rig)
+    document['source_digests'] = ['a' * 64, 'b' * 64]
+    path = rig.directory / 'phase.json'
+    path.write_bytes(host.encode(document))
+    before = path.read_bytes()
+    monkeypatch.setattr(host, 'digest', Mock(side_effect=AssertionError('legacy image hash')))
+    rig.commands.check = Mock(side_effect=AssertionError('legacy structural scan'))
+    rig.capture().run()
+    assert state(rig)['source_digests'] == document['source_digests']
+    assert state(rig)['operation'] == document['operation']
+    assert len(rig.source.creations) == 1
+    if phase == 'finalized':
+        assert path.read_bytes() == before

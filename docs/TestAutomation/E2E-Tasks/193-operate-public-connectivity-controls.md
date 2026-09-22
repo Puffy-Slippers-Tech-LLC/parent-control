@@ -15,10 +15,10 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **LIFE06**. First scheduled consumer: [E2E-033, case 157](../E2E-Scenario-Recipes.md#e2e-033).
 Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **003** — DESK02, DESK03, DESK04.
-- **010** — UI17.
+- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **010** — UI17 Parent Screen time limit binding; installed qualification and owned cleanup passed.
 - **044a** — DESK10 same-desktop window switching.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
@@ -27,12 +27,15 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Compose the desktop's ordinary network controls and independent displayed connectivity observations. Preserve the guarded UI/ownership channel while offline, then reconnect. No feedback submission is needed.
 
+Bind the declared connection and its actual Shell controls. Require independently displayed disconnected and connected states; do not infer them from the input's success. Wrong-control/owner and uncertain-input tests apply to both changes.
+
 ## Live VM acceptance
 
 On the VM, disconnect through normal settings, read offline state, return to the existing Parent window and observe it usable, then reconnect and read connected state. If this route severs required observation with no supported recovery, record that exact prerequisite gap.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_operate_public_connectivity_controls
@@ -47,12 +50,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **193** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

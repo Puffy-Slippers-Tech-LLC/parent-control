@@ -15,23 +15,27 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **REQUEST09, AUTH01 kiosk**. First scheduled consumer: [E2E-016, case 50](../E2E-Scenario-Recipes.md#e2e-016).
 Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **012a** — REQUEST04 duration; REQUEST05/06/08 and REQUEST09 invalid-input branch, kiosk.
 - **004** — UI19/GDM05 distinct single-use authentication challenges.
+- **019a** — MATE provider owner, real request context and guarded Cancel/form return.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Qualify AUTH01 over the actual system agent first: selected parent, child, duration, app choice and sole empty masked focused field. Its qualification reaches the prompt through an explicit UI01/UI02/UI04 Request input. Only then compose valid REQUEST09 from those leaves and AUTH01. Add owned kiosk-agent routing without treating agent metadata as an approval result.
+Extend the MATE entry/Cancel binding from task 019a into full AUTH01 proof of the selected administrator, child, duration, app choice and sole empty masked focused field. Reuse the challenge ledger and secret boundary without submitting a password. Reject wrong provider, administrator or request, multiple fields, nonempty/unfocused fields and stale/replaced challenges. Only then compose valid REQUEST09 from the owned Request action and AUTH01.
 
 ## Live VM acceptance
 
 On the VM, prepare a valid kiosk request, submit once and inspect the real challenge. Refuse wrong parent/request and nonempty/stale field proofs; an otherwise ready form rejects an invalid custom duration with validation and no prompt when Request is selected, while unavailable forms keep Request disabled. Finish through the normal agent Cancel control.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Independently enter a real MATE challenge twice through separate deliberate requests and Cancel once each. Both must return to the usable form with choices preserved and no error. Agent metadata alone is never request context or an approval result.
+
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_auth_prompt
@@ -46,12 +50,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **019** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

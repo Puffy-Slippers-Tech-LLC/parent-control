@@ -1,38 +1,50 @@
-# 296 — Qualify Lunar tray, game and login observations
+# 296 — Qualify Lunar launch, tray and Quit
 
-Planning only; estimate 40–60 minutes. Follow the
-[master](../E2E-Execution-Plan.md#execute-one-task). Required capabilities:
-**295** (prepared profile), **007** (customer reboot), **079a** (native public
-launch/denial), **052c** (bounded real waits). First consumer:
+Estimate: 40–60 minutes; not a stop timer. Follow the
+[master](../E2E-Execution-Plan.md#execute-one-task).
+
+## Scope and prerequisites
+
+Deliver **APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindings**. First complete consumer:
 [E2E-052/case 253](../E2E-Scenario-Recipes.md#e2e-052).
 
-## Scope
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-Deliver APP06 and the Lunar/Minecraft bindings of APP01/02/03, UI18 and UI22's
-login-interval observer under the [profile and observation contract](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate).
-Resolve real external providers through the repository's approved exception;
-do not invent IDs or reuse unqualified generic title/coordinate selectors.
-Distinguish tray close from genuine Quit. Bind a Minecraft local-world action
-with an independently observable result, not merely a launcher menu.
+- **295** — FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available..
+- **079a** — APP02 and FLOW08 native grid/command policy results.
+- **052c** — TIME03.
 
-Reuse the shared recorder/observer across child login: arm before submission,
-preserve secret sealing, and observe public tray/Lunar/game surfaces through the
-full 90-second interval. Missing samples or unresolved surface ownership refuse;
-final absence cannot mask a transient successful launch. No hidden process,
-fapolicyd-rule or service checks may supply customer results.
+## Implementation
 
-## Qualification and close-out
+Qualify the prepared original AppImage's command launch, Lunar window, close to
+tray, tray restore and genuine Quit under the
+[profile contract](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate).
+Implement a bounded APP06 public snapshot of the tray/Lunar surfaces and the
+recognized surrounding desktop. Apply the external-provider exception only in
+explicit adapters, preserving owner, ambiguity and input/result checks. Keep
+Minecraft gameplay and continuous login observation in their following tasks.
 
-On the guarded live VM, qualify allowed autostart, tray restore, original-AppImage
-command launch, playable Minecraft, ordinary exit/Quit and complete absence with
-the recognized surrounding desktop. Exercise wrong-owner, ambiguous, incomplete
-and unavailable-provider refusal without input replay. Use independently valid
-entry states and the existing worker/observation path. Split this task before
-implementation if separate providers require substantial independent work.
+## Live VM acceptance
 
-Run affected safety/adapter tests before VM integration. Login/recorder changes
-also require the master's retained live regressions. Implement a bounded slice
-qualification route before invoking it; a diagnostic slice cannot pass case 253.
-After qualification/cleanup, follow the
-[close-out contract](../E2E-Execution-Plan.md#completion-and-document-cleanup),
-record actual callable/qualified scope, and leave the complete scenario pending.
+In fresh guarded attempts, qualify allowed original-AppImage launch, close to
+tray, restore, Quit and independent absence with a complete surrounding desktop.
+Qualify the same command's specific policy denial using the prepared rule path.
+Exercise independently supplied valid entry, wrong owner, ambiguity, incomplete
+observations and uncertain-input refusal without replay. No process/rule probe
+may supply a customer result.
+
+Implement and register this fixed qualification in the existing envelope:
+
+```sh
+tools/run-tests integration check_e2e_lunar_provider
+```
+
+Pass affected safety/adapter checks before the VM run. Use shared watchvm intent,
+observation and transport throughout; require collection and owned cleanup.
+
+## Close out
+
+Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
+Record exact qualified callables and scope, check **296** after cleanup, advance
+the single pointer and delete this brief. APP06's game and login bindings remain
+pending; this task does not pass case 253.

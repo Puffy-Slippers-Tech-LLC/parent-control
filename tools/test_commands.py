@@ -45,7 +45,7 @@ CATEGORIES = {
     'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)'),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
-    'all-verify': CategorySpec('all established regression suites with full backing-file verification; --continue-on-errors disables stop on first error', leaf=False),
+    'all-verify': CategorySpec('compatibility alias for all; metadata-only VM verification; --continue-on-errors disables stop on first error', leaf=False),
     'host': CategorySpec('all host tests, publishing and two reproducibility builds in four branches; no VM; combines with system and e2e', leaf=False),
     'host-builds': CategorySpec('compatibility alias for host; optional --serial-builds for scheduling comparison', leaf=False),
 }
@@ -144,7 +144,7 @@ Complete categories (combine in any order; execute host, then system, then e2e)
 Aggregate aliases (no suite selectors)
   all          complete established regression; default with no arguments;
                metadata-only VM backing verification
-  all-verify   same work as all, with full VM backing-file byte scans
+  all-verify   compatibility alias for all; metadata-only VM verification
   host-builds  compatibility alias for host
   --continue-on-errors   continue independent tests after failures
   --serial-builds        host-builds only: publish/builds after the host join
@@ -152,8 +152,8 @@ Aggregate aliases (no suite selectors)
   Host includes cleanup-safety prerequisites, unit, component, ui,
   fixture-runtime, source/traceability, static, child-node, child-gjs,
   backend, publish, package builds A/B and their comparison.
-  Combinations containing host use all's VM verification policy. VM-only
-  runs verify backing bytes. Focused system/e2e options remain available.
+  All VM operations use metadata-only verification; image contents are never
+  scanned. Focused system/e2e options remain available.
   The granular inventory supplies both host's suites and fix-tests round 1.
   Bare artifacts runs two builds and their reproducibility comparison.
   artifacts build --output '/tmp/onpc-NAME' builds into a new named directory
@@ -198,7 +198,7 @@ def phase_arguments(argv):
     if len(argv) != len(set(argv)):
         raise ValueError('categories and flags must not be repeated')
     phases = tuple(kind for kind in PHASES if kind in argv)
-    options = {'phases': phases, 'verify_backing_bytes': 'host' not in phases}
+    options = {'phases': phases}
     if '--continue-on-errors' in argv:
         options['continue_on_errors'] = True
     return options
@@ -445,7 +445,7 @@ def _main(argv=None, *, detached=False):
             options = {'continue_on_errors': True} if '--continue-on-errors' in args else {}
             if category == 'host-builds':
                 return regression_main(root, phases=('host',), serial_builds='--serial-builds' in args, **options)
-            return regression_main(root, verify_backing_bytes=category == 'all-verify', **options)
+            return regression_main(root, **options)
         if detached:
             from regression_process import host_run, category_run
             options = args[1:] if args[:1] == ['--unattended'] else args

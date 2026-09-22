@@ -97,8 +97,8 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
         for extra in ('--list', '--ready', '--scenario=E2E-001', '--scenario='):
             with pytest.raises(ValueError, match='qualification-cannot-select-scenarios'):
                 runner['preflight']([*options, extra])
-        with pytest.raises(ValueError, match='qualification-requires-backing-verification'):
-            dispatcher['selection'](ROOT, ['e2e', *options, '--skip-backing-verification'])
+        command = dispatcher['selection'](ROOT, ['e2e', *options, '--skip-backing-verification'])
+        assert runner['preflight'](command[3:]) == plan
     with pytest.raises(ValueError, match='missing-artifact-directory'):
         runner['preflight'](options)
 
@@ -128,7 +128,7 @@ def test_dispatcher_preserves_execution_verification_policy(skip, checkout):
             options.append('--skip-backing-verification')
         command = dispatcher['selection'](checkout, ['e2e', *options])
         plan = runner['preflight'](command[3:], root=checkout)
-        assert plan['verify_backing_bytes'] is not skip
+        assert 'verify_backing_bytes' not in plan
         assert ('--skip-backing-verification' in command) == skip
 
 
@@ -264,7 +264,7 @@ def test_public_ready_listing_and_installed_dispatcher_share_selection(cli_check
         plan = runner['preflight'](command[3:])
         assert plan['cases'] == listing['cases']
         assert plan['excluded_pending_cases'] == listing['excluded_pending_cases']
-        assert plan['verify_backing_bytes'] is True
+        assert 'verify_backing_bytes' not in plan
 
 
 def test_default_execution_selects_every_ready_e2e_case():

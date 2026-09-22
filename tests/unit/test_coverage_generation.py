@@ -183,6 +183,21 @@ def test_failed_or_ambiguous_collection_is_not_reported_as_zero(monkeypatch):
         coverage.capture(ROOT, ['unused'])
 
 
+def test_real_ui_collection_summary_counts_selected_cases_only(monkeypatch):
+    def captured(root, command):
+        category = command[1]
+        if category == 'system':
+            return '  available-selectors:\n      package/example\n'
+        if category == 'ui':
+            return 'tests/ui/example.py::test_public_result\n\n145/147 tests collected (2 deselected) in 0.16s\n'
+        return '1 test collected in 0.01s\n'
+
+    monkeypatch.setattr(coverage, 'capture', captured)
+    counts = {title: count for title, count, _ in coverage.collect_counts(ROOT)}
+    assert counts['UI'] == 145
+    assert counts['Unit, property and contract'] == 1
+
+
 def test_inventory_prose_is_literal_markdown(document):
     document['scenarios'][0]['title'] = 'Title | <tag> [link] *literal*\nsecond line'
     rendered = coverage.render(document, [])

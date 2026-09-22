@@ -51,6 +51,13 @@
   and the executable inventory in `tests/e2e/scenarios.json`. Customer acceptance
   operates the installed product through public interfaces and observes customer
   results; backend probes and internal fault injection remain engineering tests.
+- For “Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md”,
+  implement exactly its first unchecked active queue row. Table order is final;
+  task IDs are labels, and prerequisites name earlier tasks' delivered scopes.
+  Finish that row's acceptance and close-out before advancing the sole pointer.
+  Do not select alternative work, complete a later scenario inside a capability
+  task, or skip a blocker. Keep each complete E2E case in its own task. Maintain
+  the queue consistency checks when splitting or repairing the plan.
 - Tests must catch regressions. On a behavior mismatch, preserve the evidence and
   report expected versus actual behavior. Obtain developer confirmation before
   accepting the change or altering expectations unless that exact behavior change
@@ -98,7 +105,7 @@
   Prefer invoking the ID-resolved control's public accessibility action directly,
   including when a scroll viewport clips or covers an otherwise available control.
   Do not add focus, scrolling or repeated tree traversals before such an action.
-  Avoid control looping such as find_all_ids whenever direction id invocation is possible.
+  Avoid control looping such as find_all_ids whenever direct ID invocation is possible.
   Prefer a provider's direct ID lookup where available; otherwise reuse one fresh,
   complete scoped snapshot for prompt, ownership and target checks at each input
   boundary. Never reuse a snapshot across input or session transitions. Preserve

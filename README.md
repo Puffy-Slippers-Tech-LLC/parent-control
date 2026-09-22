@@ -182,9 +182,9 @@ tools/run-tests e2e --artifacts "$ARTIFACT_DIR" --scenario E2E-001
 
 Keep the checkout unchanged during artifact builds and test attempts. Stop VM maintenance before starting tests. Use `tools/test-vm status` to inspect the pinned VM.
 
-`make test-all` runs all established tests for fast development feedback, skipping roughly five minutes of VM backing-file verification.
+`make test-all` runs all established tests with metadata-only VM snapshot verification.
 
-`make test-all-verify` runs all established tests with full VM backing-file verification before publishing.
+`make test-all-verify` is a compatibility alias for `make test-all`. All VM operations use metadata checks; none scans whole VM images.
 
 Both commands show a colored progress dashboard and continuously save detailed reports under
 `docs/TestAutomation/Evidence/test-all-runs/`. Ctrl+C cancels the active test

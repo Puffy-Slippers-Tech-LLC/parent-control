@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">10948</span>/<span style="color: gray">0</span>/10948 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">11009</span>/<span style="color: gray">0</span>/11009 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">145</span>/<span style="color: gray">0</span>/145 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">24</span>/<span style="color: gray">0</span>/24 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| Integration qualification | <span style="color: green">25</span>/<span style="color: gray">0</span>/25 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">7</span>/<span style="color: gray">235</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">11515</span>/<span style="color: gray">235</span>/11750** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">11575</span>/<span style="color: gray">235</span>/11810** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -30,7 +30,7 @@ Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.
 
 Inspect: `tools/run-tests e2e --list --id 1`. Run: `tools/run-tests e2e --id 1 --artifacts /tmp/onpc-test-artifacts-REPLACE` (use an existing verified package-artifact directory). Pending cases refuse execution. Ready means runnable, not passed.
 
-Titles and steps below come directly from the runtime inventory. Pending declarations may still contain legacy internal checks; customer scope follows [E2E building blocks](TestAutomation/E2E-Building-Blocks.md). Runner smoke and fault qualification are listed explicitly and do not establish customer coverage.
+Titles and steps below come directly from the runtime inventory. Customer scope follows [E2E building blocks](TestAutomation/E2E-Building-Blocks.md). Runner smoke does not establish customer coverage; retired internal fault obligations remain in their separate system-test owners, outside this UI inventory.
 
 | ID | Scenario | Variant | Status |
 | ---: | --- | --- | --- |
@@ -4202,7 +4202,7 @@ Variant: choice: without logs; surface: parent
 - Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
 - Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
 
-Pending: Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.
+Pending: Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.
 
 </div>
 
@@ -4242,7 +4242,7 @@ Variant: choice: without logs; surface: child overlay
 - Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
 - Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
 
-Pending: Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.
+Pending: Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.
 
 </div>
 
@@ -4282,7 +4282,7 @@ Variant: choice: without logs; surface: kiosk
 - Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft.
 - Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success.
 
-Pending: Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.
+Pending: Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.
 
 </div>
 
@@ -5084,6 +5084,6 @@ Variant: route: appimagelauncher login autostart
 - On the same child desktop request 15 minutes with soft apps explicitly included, obtain real approval, and launch the same original AppImage through AppImageLauncher. Use Lunar to launch Minecraft, enter the same prepared world and perform the declared game action. Exit Minecraft and Quit Lunar normally; closing a window to the tray is not quitting.
 - Request another 15 minutes with soft apps explicitly excluded and obtain real approval. Repeat the read-only grant checks bracketing the reboot and blocked observations: log in as the child first, observe the full 90-second autostart interval and one original-AppImage command denial before visiting Parent. Lunar and Minecraft remain unavailable while the grant stays positive and the unrelated allowed app is usable. Do not repair policy after boot or treat a hidden launcher, missing network, broken game or expired desktop time as successful blocking.
 
-Pending: Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified (tasks 295-297).
+Pending: Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified (tasks 295, 296, 296a, 296b and 297).
 
 </div>

@@ -213,13 +213,14 @@ The process lifecycle is qualified using isolated test/agent doubles in
 ### Aggregate execution and reconnection
 
 Run `make test-all` (`tools/run-tests all`, also the default with no arguments)
-for development without backing-file byte scans, or `make test-all-verify`
-(`tools/run-tests all-verify`) for the full verification at system attempt and
-E2E suite boundaries. Both retain ownership locks, snapshot/chain checks, guest
-inspection and cleanup;
-reports explicitly record the verification policy. Combinations including `host`
-use `all`'s policy; VM-only combinations and direct system/E2E runs still
-verify backing bytes unless `--skip-backing-verification` is explicitly selected.
+for all established regressions. `make test-all-verify` / `tools/run-tests all-verify`
+are compatibility aliases for the same work. Every VM entry point uses
+metadata-only snapshot verification, including standalone preparation,
+maintenance, qualification and recovery. No path hashes VM images or runs
+structural image scans. Ownership locks, snapshot/chain checks, targeted guest
+inspection, package/artifact verification and cleanup remain active.
+`--skip-backing-verification` remains an accepted compatibility no-op.
+Reports record `metadata-only` and zero image-content verification bytes.
 Both aggregate targets automatically discover all ready E2E variants, including
 the installed Parent About/license scenario. For E2E-only runs, use
 `tools/run-tests e2e --ready --artifacts '<fresh-artifact-directory>'`; for just
@@ -362,7 +363,7 @@ checks keep their lifecycle together on `onpc-baseline`; each post-install area
 restores the same retained version snapshot used by E2E, preparing it only when
 missing. Explicit upgrade attempts keep the upgraded state throughout their
 selected checks. Multi-case E2E runs retain one exclusive VM lease and
-connection across fresh-baseline cases. Full baseline/chain verification and
+connection across fresh-baseline cases. Baseline/chain metadata verification and
 offline guest inspection run before the first case and after the last case or
 failure. At case completion, the runner force-reverts the recorded guest directly
 to the accepted off snapshot, without an ACPI shutdown wait; the next case

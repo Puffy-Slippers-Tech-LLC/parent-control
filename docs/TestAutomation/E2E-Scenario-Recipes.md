@@ -147,7 +147,7 @@ interacting matrix is complete; this is a finite coverage model, not a claim
 that arbitrary inputs, elapsed durations and user histories can be enumerated.
 Setup is shared code, not prior execution. Group implementation work, but run
 each numeric variant as an independent attempt. Long calendar and retry-expiry
-cases have their own queue gates and budgets.
+cases retain their declared acceptance prerequisites and budgets in the same fixed queue.
 
 ### Explicit time preparation
 
@@ -928,7 +928,9 @@ block.** Case 253, route `appimagelauncher-login-autostart`; one independent
 
 Use Jamie/Jordan fixture roles, never the reporting household's account names.
 FIX05 requires the [manually prepared real-app profile](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
-after normal restore. Bind exact original AppImage path, integrated launcher,
+after normal restore. Tasks 296, 296a and 296b separately qualify Lunar/tray,
+Minecraft activity and continuous login observations before case composition.
+Bind exact original AppImage path, integrated launcher,
 same-directory `Lunar Client-*.AppImage` pattern, tray/autostart settings, local
 world and one observable in-world action before implementation. The ordinary
 terminal command invokes that original AppImage with AppImageLauncher integration
@@ -1102,7 +1104,11 @@ in for observing failed collection, Retry, or explicit Send without logs.
 Calendar cases run on an independently prepared computer in its declared
 timezone during a real eligible window. TIME05 only reads the clock. Scheduling
 waits happen before the case starts; no artificial clock or saved-usage change
-is allowed. Every case has a 3600-second execution bound.
+is allowed. Every case has a 3600-second execution bound. Calendar work is the fixed final
+part of the queue; it does not select whichever case happens to fit today's date.
+Plan separate natural windows in queue order. On the single pinned VM, independent
+cases cannot share an overlapping transition or reuse an earlier case's state;
+seasonal coverage can therefore require later real transition dates.
 
 | Cases | Window and expected public comparison |
 | --- | --- |

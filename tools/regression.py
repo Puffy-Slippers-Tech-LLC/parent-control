@@ -550,18 +550,17 @@ class Execution:
 
 
 class Run:
-    def __init__(self, root, report, control, *, verify_backing_bytes=True, host_only=False,
+    def __init__(self, root, report, control, *, host_only=False,
                  host_builds=False, serial_builds=False, continue_on_errors=False, scope=None,
                  phases=None):
         self.root, self.report, self.control = root, report, control
         self.continue_on_errors = continue_on_errors
-        self.verify_backing_bytes = verify_backing_bytes
         self.phases = phases if phases is not None else (
             ('host',) if host_only or host_builds else ('host', 'system', 'e2e'))
         self.serial_builds = serial_builds
         self.includes_vm = any(kind in self.phases for kind in ('system', 'e2e'))
         self.verification_mode = ('not applicable; host-only run' if not self.includes_vm else
-                                  'full' if verify_backing_bytes else 'metadata-only; backing bytes not verified')
+                                  'metadata-only; image contents are not scanned')
         self.report.write('\nScope: ' + (scope or ('complete regression' if
                           self.phases == ('host', 'system', 'e2e') else ' + '.join(self.phases))) + '\n')
         if scope is None:
@@ -583,8 +582,6 @@ class Run:
     def command(self, category, *args):
         if category == 'ui':
             return [str(self.root / 'tools/run-ui-tests'), '--unattended', *args]
-        if category in ('system', 'e2e') and '--list' not in args and not self.verify_backing_bytes:
-            args = (*args, '--skip-backing-verification')
         return [str(self.root / 'tools/run-tests'), category, '--unattended', *args]
 
     def execute(self, item, command, *, collect=False, events=False, units=None):
@@ -988,7 +985,7 @@ def recover_initial_checks(root, state):
     return True
 
 
-def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
+def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
          continue_on_errors=False, selections=None, phases=None, stop_on_error=False):
     import test_retention
     import test_activity
@@ -1000,14 +997,14 @@ def main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=F
                 recover=lambda state: recover_initial_checks(root, state)):
             if storage_control.stopped.is_set():
                 return 130
-            status = retained_main(root, verify_backing_bytes=verify_backing_bytes,
+            status = retained_main(root,
                                    host_only=host_only, host_builds=host_builds,
                                    serial_builds=serial_builds, continue_on_errors=continue_on_errors,
                                    selections=selections, phases=phases, stop_on_error=stop_on_error)
         return 130 if storage_control.stopped.is_set() else status
 
 
-def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host_builds=False, serial_builds=False,
+def retained_main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
                   continue_on_errors=False, selections=None, phases=None, stop_on_error=False):
     root = root or Path(__file__).resolve().parents[1]
     report = None
@@ -1018,7 +1015,7 @@ def retained_main(root=None, *, verify_backing_bytes=True, host_only=False, host
         try:
             report = Report(root)
             if selections is None:
-                run = Run(root, report, control, verify_backing_bytes=verify_backing_bytes, host_only=host_only,
+                run = Run(root, report, control, host_only=host_only,
                           host_builds=host_builds, serial_builds=serial_builds,
                           continue_on_errors=continue_on_errors, phases=phases)
             else:

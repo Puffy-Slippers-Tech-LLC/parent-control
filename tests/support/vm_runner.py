@@ -102,7 +102,7 @@ def write_junit_results(directory, selection, fault=None):
 
 
 @pytest.fixture
-def lease_rig(rig, request):
+def lease_rig(rig):
     rig.capture().run()
     source = rig.source
     original = baseline_xml(rig.top)
@@ -133,5 +133,4 @@ def lease_rig(rig, request):
         define(original)
     source.domain.revertToSnapshot.side_effect = restore
     source.domain.destroyFlags.side_effect = restore
-    return runner.Lease(source, rig.commands, rig.inspect, directory=rig.directory, anchor=rig.anchor,
-                         verify_backing_bytes=getattr(request, 'param', True)), current
+    return runner.Lease(source, rig.commands, rig.inspect, directory=rig.directory, anchor=rig.anchor), current

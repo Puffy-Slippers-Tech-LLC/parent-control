@@ -1,6 +1,6 @@
 """Fresh baseline cases under one invocation's uninterrupted VM ownership.
 
-Expensive baseline audits bracket the suite. Between cases libvirt discards the
+Baseline metadata audits bracket the suite. Between cases libvirt discards the
 recorded guest directly into the next case's off snapshot. A suite-owned installed
 snapshot avoids repeated installation; no case's product state reaches another.
 Case results remain candidates until the final audit and actual lock release succeed.
@@ -98,7 +98,7 @@ class SuiteLease(system.Lease):
             return super().guard(off=off)
         # Keep live ownership/instance, isolation, path and snapshot identity
         # checks. Re-running qemu-img on the entire chain belongs to the audits.
-        self.capture.backing_verification.check_owner()
+        self.capture.vm_ownership.check_owner()
         layout, is_off = self.view.snapshot()
         system.require(layout == self.capture.state['source']['layout'], 'guard:source-changed')
         system.require(not off or is_off, 'guard:source-running')
@@ -117,7 +117,7 @@ class SuiteLease(system.Lease):
         self.guard()
         if self.capture.verification_failure is not None:
             raise self.capture.verification_failure
-        protected = self.capture.backing_verification
+        protected = self.capture.vm_ownership
         if not protected.closed:
             protected.check()
         # This is the acquisition identity, not a new byte audit. Invocation
@@ -151,7 +151,7 @@ class SuiteLease(system.Lease):
             return
         system.require(not self._reset_attempted, 'suite:restore-already-attempted')
         self._reset_attempted = True
-        self.capture.retire_backing_verification()
+        self.capture.retire_vm_ownership()
         self.guard()
         if not self.view.snapshot()[1]:
             system.require(self.view.domain_id is not None, 'cleanup:unowned-domain')
@@ -200,7 +200,7 @@ class SuiteLease(system.Lease):
 
     @system.observed('Verifying VM cleanup and retained snapshots')
     def audit(self, *, validate=None, retain_installed=False):
-        """No acceptance or next invocation can bypass this final full audit."""
+        """No acceptance or next invocation can bypass this final metadata audit."""
         if not self._held:
             return
         try:
@@ -216,16 +216,15 @@ class SuiteLease(system.Lease):
             self.guard(off=True)
             system.log('stage:restored-baseline-verification')
             system.require(self.capture.read_state() == self.capture.state, 'baseline:changed')
-            system.require(self.capture.verify_snapshot(force_bytes=True, boundary='restoration') ==
+            system.require(self.capture.verify_snapshot(boundary='restoration') ==
                            self.capture.state['proof'], 'cleanup:baseline-changed')
             system.require(self.inspect(Path(self.capture.state['source']['layout']['disk']),
                                         self.capture.state['script_digest']) == self.capture.state['guest'],
                            'cleanup:guest-changed')
             self.guard(off=True)
             if validate is not None:
-                # Source/asset preservation is checked after the slow audit,
-                # while ownership is still held. Its baseline checkpoint can
-                # use the proof just audited rather than scanning twice.
+                # Source/asset preservation is checked after the metadata audit,
+                # while ownership is still held.
                 self._fast = True
                 validate()
             if retain_installed:
@@ -248,8 +247,8 @@ class SuiteLease(system.Lease):
 
 class Suite:
     """Lazily acquire after preflight; close even when preparation fails."""
-    def __init__(self, opener, *, verify_backing_bytes=True):
-        self.opener, self.verify_backing_bytes = opener, verify_backing_bytes
+    def __init__(self, opener):
+        self.opener = opener
         self.commands = Commands()
         self.source = self.guestfs = self.lease = None
         self.host_before = None
@@ -298,7 +297,7 @@ class Suite:
             self.source, self.guestfs = self.opener()
             self.lease = SuiteLease(self.source, self.commands,
                 lambda disk, digest: system.baseline.inspect_guest(self.guestfs, disk, digest),
-                ledger=ledger, graphics_type='vnc', verify_backing_bytes=self.verify_backing_bytes)
+                ledger=ledger, graphics_type='vnc')
         self.lease.ledger = ledger
         return self.source, self.guestfs, self.lease
 

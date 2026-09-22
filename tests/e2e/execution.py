@@ -216,8 +216,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 source, guestfs = open_source()
                 lease = system.Lease(source, commands,
                     lambda disk, digest: system.baseline.inspect_guest(guestfs, disk, digest),
-                    ledger=ledger, graphics_type='vnc',
-                    verify_backing_bytes=plan.get('verify_backing_bytes', True))
+                    ledger=ledger, graphics_type='vnc')
             else:
                 source, guestfs, lease = suite.acquire(ledger)
         with lease:
@@ -362,7 +361,7 @@ def main(plan):
     from e2e_watch import ProgressPublication
     publication = ProgressPublication(progress)
     from suite_lease import Suite
-    suite = Suite(open_source, verify_backing_bytes=plan.get('verify_backing_bytes', True))
+    suite = Suite(open_source)
     previous_progress = system.watch_progress
     system.watch_progress = progress
     try:

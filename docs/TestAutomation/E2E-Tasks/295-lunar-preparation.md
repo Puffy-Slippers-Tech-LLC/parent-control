@@ -1,8 +1,14 @@
 # 295 — Validate the manually prepared Lunar VM profile
 
-Planning only; estimate 25–45 minutes excluding manual preparation. Follow the
-[master](../E2E-Execution-Plan.md#execute-one-task). Required capabilities:
-**006** (package operation), **036** (declared file assets). First consumer:
+Estimate: 25–45 minutes of restored-profile validation, excluding manual asset
+preparation. Follow the [master](../E2E-Execution-Plan.md#execute-one-task).
+
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+
+- **006** — LIFE04 install only.
+- **036** — FILE07/04/05; FIX04 synthetic files.
+
+First consumer:
 [E2E-052/case 253](../E2E-Scenario-Recipes.md#e2e-052).
 
 ## Scope
@@ -27,9 +33,13 @@ Use the guarded VM/watchvm path to verify an independently prepared valid profil
 after normal restore and refusal of missing, drifted or wrong-account inputs.
 Supporting setup checks are engineering evidence, not a blocked-launch pass.
 Run affected host safety/unit checks first; keep public app/secret observations
-for task 296. Implement a bounded qualification route before invoking it.
+for tasks 296, 296a and 296b. Implement and register the fixed qualification in
+the existing guarded envelope before invocation:
+
+```sh
+tools/run-tests integration check_e2e_lunar_profile
+```
 
 Follow [close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup) only
 after real qualification and cleanup. Record the actual callable/scope in FIX05,
-keep case 253 pending, and select the next eligible queue task. No VM work has
-been performed by this planning task.
+keep case 253 pending, and advance to the following unchecked queue row. This brief does not claim that manual preparation or VM qualification has occurred.

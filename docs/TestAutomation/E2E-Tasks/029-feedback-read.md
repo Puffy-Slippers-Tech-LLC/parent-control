@@ -15,7 +15,8 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **FEED01, FEED03**. First scheduled consumer: [E2E-036, case 161](../E2E-Scenario-Recipes.md#e2e-036).
 Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments) and only the selected consumer's recipe.
 
-Use the existing qualified source interfaces and guarded attempt envelope; no new capability prerequisite.
+Required tasks: none (Baseline). Use the existing qualified source interfaces
+and guarded attempt envelope; unqualified provider bindings remain unavailable.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -27,8 +28,9 @@ Register feedback editor, body/reply, attachments, validation and collection sna
 
 In installed Parent, open feedback and observe editor readiness, initial draft, exact attachment set and control states. Repeat FEED03 from an independently opened dialog; private drafts and arbitrary text projections remain unavailable.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_feedback_read
@@ -43,12 +45,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **029** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

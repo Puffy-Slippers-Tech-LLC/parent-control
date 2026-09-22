@@ -25,6 +25,27 @@ def test_headless_feed_import_needs_no_checkout_or_desktop_environment():
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize('argument', ['-h', '--help'])
+def test_help_exits_before_inspecting_or_launching_the_desktop(monkeypatch, capsys, argument):
+    import e2e_watch_viewer as viewer
+    monkeypatch.setattr(viewer.os, 'getuid', Mock(
+        side_effect=AssertionError('Help must not inspect the desktop user')))
+    monkeypatch.setattr(viewer.Path, 'read_text', Mock(
+        side_effect=AssertionError('Help must not inspect the security profile')))
+    monkeypatch.setattr(viewer.subprocess, 'run', Mock(
+        side_effect=AssertionError('Help must not delegate a viewer launch')))
+    monkeypatch.setattr(viewer, 'application', Mock(
+        side_effect=AssertionError('Help must not construct the viewer')))
+
+    with pytest.raises(SystemExit) as stopped:
+        viewer.main([argument])
+
+    assert stopped.value.code == 0
+    output = capsys.readouterr()
+    assert 'Watch VM activity.' in output.out
+    assert output.err == ''
+
+
 def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
     from e2e_watch_viewer import desktop_launch_command
     monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')

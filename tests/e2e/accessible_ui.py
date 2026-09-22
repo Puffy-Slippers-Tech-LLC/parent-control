@@ -1359,6 +1359,12 @@ class AccessibleUI:
                 'parent-window', check_prompt=True, observation=observation)
             if root is None:
                 return False
+            require(not any(
+                identities[node] in ('feedback-dialog',
+                                     'error-report-unavailable-dialog')
+                and self.showing(node)
+                for node in nodes
+            ), 'ui:parent-save-error-report')
             root_nodes = self.snapshot_scope(nodes, snapshot, root)
             picker = self.snapshot_matches(
                 'parent-child-selector', root_nodes, showing=True, show=self.showing)
@@ -1373,8 +1379,13 @@ class AccessibleUI:
                         if re.fullmatch(r'parent-child-selected-[0-9]+', identities[node])
                         and self.showing(node)]
             require(len(selected) == 1, 'ui:selected-child')
-            require(identities[selected[0]] == expected_selected
-                    and selected[0].get_name() == child, 'ui:wrong-child')
+            require(identities[selected[0]] == expected_selected, 'ui:wrong-child')
+            # The UID belongs to the selected-content box. Verify its label
+            # inside this same complete snapshot, as UI03 does for selection.
+            selected_nodes = self.snapshot_scope(nodes, snapshot, selected[0])
+            labels = [node.get_name() for node in selected_nodes
+                      if node.get_role_name() == 'label' and self.showing(node)]
+            require(labels == [child], 'ui:wrong-child')
             value = {
                 'child': CHILD_IDENTITIES[child], 'result': 'saved',
                 'limit_enabled': self.has_state(toggle, self.api.StateType.CHECKED),

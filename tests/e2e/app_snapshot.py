@@ -85,6 +85,8 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
         'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
         'run': lease.state['run']}, suite.commands, guard=lambda _: lease.guard())
     transport.probe_ready()
+    # Install without rebooting: this disk-only snapshot's next boot activates
+    # the package. Verify its installed bytes before the clean shutdown.
     InstalledSetup(setup, verified, transport).run(lease.guard, verify=False)
     transport.call(system.guest_command(lease.state['run'], 'verify-snapshot'), timeout=660)
     lease.guard()

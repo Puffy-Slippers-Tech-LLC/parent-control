@@ -12,12 +12,12 @@ completion; the [queue](E2E-Task-Queue.md) is its canonical checklist.
 
 ## Next task
 
-Next task: **017 — [Observe Parent save results](E2E-Tasks/017-parent-save.md)**.
-Task 010 qualified the Parent Screen time limit toggle and owned cleanup.
+Next task: **012 — [Select kiosk accounts and read availability](E2E-Tasks/012-request-choices.md)**.
+Task 017 qualified Parent saved/control snapshots and owned cleanup.
 No unfinished customer scenario is eligible yet: case 57 still needs 012,
-cases 54/55 need 024, and case 2 needs 007 and 077a. Task 017 is the first
-eligible capability in queue order; qualify its snapshot save/control observations
-before 012's kiosk choices.
+cases 54/55 need 024, and case 2 needs 007 and 077a. Task 012 is the first
+eligible capability in queue order; qualify its kiosk child/approver choices
+and unavailable state.
 
 Maintain this single pointer after completion, a split or a newly identified
 blocker. Verify its queue row and named prerequisites before starting; a stale

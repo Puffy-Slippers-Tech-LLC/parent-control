@@ -271,7 +271,7 @@ def prepared_suite(snapshots, tmp_path, monkeypatch):
     monkeypatch.setattr(provenance, 'VerifiedInputs', Mock())
     monkeypatch.setattr(vm_transport, 'Transport', Mock())
     setup = Mock()
-    setup.run.side_effect = lambda *args, **kwargs: events.append(('install-reboot', kwargs['verify']))
+    setup.run.side_effect = lambda *args, **kwargs: events.append(('install', kwargs['verify']))
     monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock(return_value=setup))
     return owner, tmp_path, setup, snapshots
 

@@ -60,15 +60,19 @@ class InstalledSetup:
         self.verified.recheck()
 
     def run(self, guard, *, verify=True):
+        """Install and verify after reboot, or stage a powered-off suite snapshot."""
         self.provision(guard)
         run = self.verified.lease.state['run']
         # Execute the frozen recipe whose digest identifies the snapshot.
         recipe = {}
         path = self.directory / 'input/guest_install_recipe.py'
         exec(compile(path.read_bytes(), str(path), 'exec'), recipe)
+        # Suite snapshots shut down after package verification. Their next boot
+        # supplies the required restart; live feature setup needs it here.
         recipe['prepare'](self.transport,
-            system.guest_command(run, 'install-setup' if verify else 'install-suite'), guard)
+            system.guest_command(run, 'install-setup' if verify else 'install-suite'), guard,
+            reboot=verify)
         if verify:
             self.transport.call(system.guest_command(run, 'verify-setup'), timeout=660)
         self.verified.recheck()
-        return {'package_verified': verify, 'setup_reboot_verified': True}
+        return {'package_verified': verify, 'setup_reboot_verified': verify}

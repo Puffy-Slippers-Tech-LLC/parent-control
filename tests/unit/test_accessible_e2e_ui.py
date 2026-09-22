@@ -80,7 +80,8 @@ def parent_save_ui(*, enabled=True, controls_enabled=True, child_uid=1001):
         *(['sensitive'] if enabled and controls_enabled else []),
     ]
     selected = Node(
-        'Riley (Child)', 'label', identity=f'parent-child-selected-{child_uid}')
+        '', 'panel', identity=f'parent-child-selected-{child_uid}',
+        children=[Node('Riley (Child)', 'label')])
     picker = Node(
         'Selected child', 'button', states=control_states,
         identity='parent-child-selector', children=[selected])
@@ -200,6 +201,54 @@ def test_parent_save_snapshot_refuses_the_wrong_child_without_input():
         ui.parent_save_snapshot(accessible_ui.EXISTING_CHILD, True)
     assert ui.parent_save_operation('parent-save-wrong-child-refused') == {
         'refusal': 'wrong-child'}
+    toggle.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-label', 'missing-label', 'duplicate-label',
+                                  'label-outside-selection', 'wrong-uid'])
+def test_parent_save_verifies_uid_and_nested_label_in_one_snapshot(fault):
+    ui, _root, picker, toggle, _allowance = parent_save_ui()
+    selected = picker.children[0]
+    label = selected.children[0]
+    if fault == 'wrong-label':
+        label.name = accessible_ui.EXISTING_CHILD
+    elif fault == 'missing-label':
+        selected.children.clear()
+    elif fault == 'duplicate-label':
+        duplicate = Node(accessible_ui.CHILD, 'label')
+        duplicate.parent = selected
+        selected.children.append(duplicate)
+    elif fault == 'label-outside-selection':
+        selected.children.clear()
+        label.parent = picker
+        picker.children.append(label)
+    elif fault == 'wrong-uid':
+        selected.identity = 'parent-child-selected-1002'
+    ui.nodes = Mock(wraps=ui.nodes)
+    if fault:
+        with pytest.raises(UiError, match='ui:wrong-child'):
+            ui.parent_save_snapshot(accessible_ui.CHILD, True)
+    else:
+        assert ui.parent_save_snapshot(accessible_ui.CHILD, True)['result'] == 'saved'
+    assert ui.nodes.call_count == 1
+    toggle.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('identity', [
+    'feedback-dialog', 'error-report-unavailable-dialog',
+])
+def test_parent_save_snapshot_refuses_a_visible_error_report_from_the_same_snapshot(identity):
+    ui, root, _picker, toggle, _allowance = parent_save_ui()
+    report = Node('Error report', 'dialog', identity=identity)
+    application = root.parent
+    application.children.append(report)
+    report.parent = application
+    ui.nodes = Mock(wraps=ui.nodes)
+
+    with pytest.raises(UiError, match='ui:parent-save-error-report'):
+        ui.parent_save_snapshot(accessible_ui.CHILD, True)
+
+    assert ui.nodes.call_count == 1
     toggle.action.do_action.assert_not_called()
 
 

@@ -309,13 +309,16 @@ def application(feed=None):
 
     class Viewer(Gtk.Application):
         def __init__(self):
-            super().__init__(application_id=APPLICATION_ID, flags=Gio.ApplicationFlags.NON_UNIQUE)
+            # watchvm observes the single pinned VM. Session-bus registration
+            # serializes concurrent launches and forwards activation to its viewer.
+            super().__init__(application_id=APPLICATION_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
             self.feed = feed if feed is not None else Feed()
             self.window = None
             self.metadata = {}
 
         def do_activate(self):
             if self.window is not None:
+                self.window.present()
                 return
             self.window = Gtk.ApplicationWindow(application=self, title=TITLE)
             set_automation_id(self.window, 'e2e-watch-window')
@@ -393,7 +396,7 @@ def application(feed=None):
             self.activity_end = 0
             box.append(self.status)
             self.window.set_child(box)
-            self.window.present()  # Only the user's initial launch presents it.
+            self.window.present()  # User launches present it; feed updates never do.
             self.timer = GLib.timeout_add(33, self.tick)
 
         def tick(self):

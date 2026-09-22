@@ -10,12 +10,22 @@
   model and effort; do not save the prompt in the repository.
 - Do not send progress messages while a command is running. Report it after it
   completes or fails.
+- Keep progress updates and final responses concise and focused on meaningful
+  results and the next intended action. Omit routine prerequisites, procedural
+  narration and test counts unless they affect a decision or explain a problem.
+  Perform required checks without narrating each step. Preserve important
+  updates: blockers, unexpected findings, behavior mismatches, material risks,
+  validation limits and decisions requiring user input. Describe the next goal
+  accurately without implying that its prerequisites are already complete.
+  Example: "All scoped tests now pass. Next I'll run the live qualification."
 
 ## Authority and unattended work
 
 - Start product work at [System design](docs/System-Design.md). It owns component,
   trust, state and lifecycle boundaries. The specification owns expected customer
-  behavior.
+  behavior. Use the design's overview/module map to locate the affected boundary;
+  read the applicable sections, following related modules when that boundary is
+  crossed. A link to a contract does not require loading its entire document.
 - Apply the repository-wide [approval contract](docs/Approval-Tools.md) to all
   reads, edits, builds, tests, diagnostics, setup, VM work and publishing. Run
   authorized work unattended through its existing grants and validated tools.
@@ -122,6 +132,15 @@
 
 ## Reads, edits and evidence
 
+- Reuse unchanged instructions and source already available in the current
+  context, including injected AGENTS.md. In a fresh session or after compaction,
+  retrieve missing applicable requirements; do not treat a remembered summary as
+  their replacement. Read linked documents by task-relevant heading/row and code
+  by complete relevant function plus necessary callers, callees and shared state.
+  Expand for ambiguity, stale references, shared changes or failures. Token
+  savings never justify missing a contract, weakening checks or guessing at
+  truncated output. For repeated E2E work, use the execution plan's
+  [reading routes](docs/TestAutomation/E2E-Execution-Plan.md#load-only-the-selected-context).
 - Quote every path, pattern and URL. Inspect operands before execution. Run
   direct reads in the intended working directory; do not wrap them in shells,
   substitutions, assignments or redirections.

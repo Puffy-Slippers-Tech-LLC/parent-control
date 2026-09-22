@@ -50,12 +50,12 @@ sub functional_selection {
 # GDM01/02 ordinary-account qualification. Each list reply is consumed once,
 # and each Escape follows its own fresh nonsecret prompt observation. The
 # second cycle must start from a separately acquired complete list.
-sub navigation_qualification {
-    onpc_progress::operation('Qualifying ordinary greeter account navigation');
-    my ($exchange) = @_;
-    die 'gdm:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+sub navigation_qualification_with_prefix {
+    my ($exchange, $prefix) = @_;
+    die 'gdm:arguments' unless @_ == 2 && ref($exchange) eq 'CODE'
+        && ($prefix eq 'gdm-navigation' || $prefix eq 'gdm-product-free');
     my $journey = onpc_journey->new(
-        exchange => $exchange, prefix => 'gdm-navigation', review => 0);
+        exchange => $exchange, prefix => $prefix, review => 0);
     reattach_functional();
 
     for my $cycle ('initial', 'repeated') {
@@ -72,6 +72,20 @@ sub navigation_qualification {
         $journey->seen("$cycle-returned");
     }
     $journey->finish();
+}
+
+sub navigation_qualification {
+    onpc_progress::operation('Qualifying ordinary greeter account navigation');
+    my ($exchange) = @_;
+    die 'gdm:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    navigation_qualification_with_prefix($exchange, 'gdm-navigation');
+}
+
+sub product_free_qualification {
+    onpc_progress::operation('Qualifying product-free greeter account navigation');
+    my ($exchange) = @_;
+    die 'gdm:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    navigation_qualification_with_prefix($exchange, 'gdm-product-free');
 }
 
 # GDM01/02/03/04/08/09 qualification. The worker never receives or submits a

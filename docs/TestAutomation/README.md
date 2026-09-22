@@ -20,7 +20,8 @@ concurrent developer edits.
 | [`tests/e2e/scenarios.json`](../../tests/e2e/scenarios.json) | Persistent scenario IDs, customer steps, runtime status and executable binding | A pass merely because a declaration exists |
 | [E2E building blocks](E2E-Building-Blocks.md) | Atomic/composite operation contracts, callables, scoped qualification and provider gaps | Scenario readiness or task order |
 | [Scenario recipes](E2E-Scenario-Recipes.md) | Exact scenario composition, finite inputs and expected public results | Current runner status or scheduling |
-| [Execution plan](E2E-Execution-Plan.md) | Sole entry point, fixed task sequence, implementation workflow, live verification and close-out | Product behavior or reusable block semantics |
+| [Execution plan](E2E-Execution-Plan.md) | Sole entry point, fixed task sequence, implementation workflow and scoped reading routes | Product behavior or reusable block semantics |
+| [Execution contracts](E2E-Execution-Contracts.md) | Detailed sizing, provider qualification, live verification and close-out rules delegated by the execution plan | A second task queue, alternate selection or optional acceptance |
 | [Task queue](E2E-Task-Queue.md) | Single ordered checklist, including provider prerequisites and retained regressions, and delivered task scope | Current block or scenario readiness |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |
@@ -61,10 +62,13 @@ required.
 
 ## Working route
 
-For queue work, read the [execution plan](E2E-Execution-Plan.md), its **Next
-task**, the selected brief, and only the referenced catalogue/recipe rows and
-source callables. Do not load the full queue or every brief into an ordinary
-implementation session.
+For queue work, read the [entry plan](E2E-Execution-Plan.md), its **Next task**
+brief, then follow its [reading routes](E2E-Execution-Plan.md#load-only-the-selected-context).
+Read the shared live contract and applicable acceptance branch before
+implementation, and completion at close-out. Retrieve only applicable
+catalogue/recipe rows, contract sections and source callables; do not load the
+whole execution-contract reference, queue or every brief into an ordinary
+implementation session. Scoped reading changes no acceptance requirement.
 
 For design or review work, start with the owning document above. Identity
 requirements, external-provider gaps and their return conditions are maintained

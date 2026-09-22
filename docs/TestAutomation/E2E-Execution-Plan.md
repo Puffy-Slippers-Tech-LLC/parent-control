@@ -18,9 +18,15 @@ Next task: **003ba — [Qualify fresh login without a keyring prompt](E2E-Tasks/
 Task 001r requalified retained case 1 through the explicit product-free Parent
 list, focus, prompt and Escape-return binding, including its authenticated serial
 command, logout-before-return, capture reconciliation, collection and owned
-cleanup ([report](Evidence/test-all-runs/20260922T163412Z-50b5e6a0/report.md)).
+cleanup.
 Task 003ba next qualifies sealed password delivery for fresh Parent and standard
 fixture entries and independently observes each usable no-prompt desktop.
+Its fixed host route and safety checks are implemented. Live snapshot preparation
+was interrupted during host artifact building before VM access when the VM became
+occupied by an external session. Remaining: prepare the existing app snapshot,
+run the separate Parent and standard live qualification attempts, required shared
+regressions, private collection and owned cleanup, then close out the row.
+Resume when the user confirms the VM is free for this work.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

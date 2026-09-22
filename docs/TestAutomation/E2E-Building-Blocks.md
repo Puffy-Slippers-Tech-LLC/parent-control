@@ -1451,6 +1451,7 @@ as customer behavior.
 
 | Need | Implementation | Contract |
 | --- | --- | --- |
+| Public UI read boundary | [accessible_ui.py](../../tests/e2e/accessible_ui.py): `run`, `wait`, `observation`, `nodes` | All registered operations and standalone waits use the same element-independent observation scope. Composed lookups reuse a complete tree and its scoped projections until input, a pending predicate, a failed read or an accessibility-client reset invalidates it. Separate operations always start fresh. Protected text scopes stay distinct; tolerant/incomplete reads never seed complete observations. |
 | Installed app prerequisite | [suite_lease.py](../../tests/e2e/suite_lease.py), [installed_setup.py](../../tests/e2e/installed_setup.py) | Bind package/helper bytes, install and reboot once per suite, then capture the powered-off version snapshot. Feature cases restore it without reinstalling or package validation. Failure is terminal. |
 | Controller rendezvous | [installed_journey.py](../../tests/e2e/installed_journey.py): `JourneyPlan`, `InstalledJourney` | Ordered requests, durable observation callback, fresh ownership guard, then atomic reply. Boot identity supplies harness continuity only. |
 | Recorder composition | [installed_journey.py](../../tests/e2e/installed_journey.py): `record_installed_journey` | Provision fixture credentials, enter declared phases, checkpoint observations and reconcile screenshots. Strict customer execution; existing recorder owns evidence and final acceptance. |
@@ -1461,6 +1462,18 @@ as customer behavior.
 
 The scenario recipes own expected results. Shared runtime services do not
 choose a customer's expected result or query internal product state.
+
+New UI helpers inherit read reuse through the common adapter; do not add caches
+for individual controls or providers. Use the captured IDs and tree edges for
+multiple lookups in one observation. A standalone composed reader can use
+`with ui.observation():`; nested helpers share that scope automatically.
+Registered operations already open it in `run`, and `wait` reacquires after a
+pending predicate while preserving its deadline. Public input must use the
+existing action API or set `input_uncertain` before dispatch; that shared latch
+invalidates every cached scope, including on failed input. An accessibility
+client reset must call `invalidate_observation()` before reconnecting. Never
+carry observations across external input or session changes. Independent
+checkpoints, stable-absence intervals and result assertions remain required.
 
 ## Add a consumer
 

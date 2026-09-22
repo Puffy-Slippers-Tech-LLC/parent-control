@@ -34,6 +34,8 @@ OPERATION_LABELS = {
     'gdm-standard-recipient': 'Qualifying the empty masked standard-account password field',
     'gdm-standard-recipient-rechecked': 'Freshly rechecking the standard-account password recipient',
     'desktop': 'Waiting for the Parent desktop',
+    'fresh-parent-desktop': 'Checking the fresh Parent desktop without a prompt',
+    'fresh-standard-desktop': 'Checking the fresh standard desktop without a prompt',
     'parent-search-ready': 'Reading the empty Parent app search field',
     'parent-search-focused': 'Checking the Parent app search field is focused',
     'parent-search-entered': 'Checking the complete Parent app search query',

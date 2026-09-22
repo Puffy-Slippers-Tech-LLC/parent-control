@@ -46,8 +46,24 @@ coverage, before invoking it:
 tools/run-tests integration check_e2e_fresh_desktop
 ```
 
-The selector is planned, not currently qualified. Host checks alone cannot
+The selector is implemented, not currently live-qualified. Host checks alone cannot
 complete this slice, and it supplies no complete-scenario acceptance credit.
+
+Host implementation now registers `check_e2e_fresh_desktop` through the shared
+guarded worker. Its two fixed calls create separate fresh Parent and standard
+attempts from the prepared application snapshot. The declared no-prompt profile
+uses the baseline's four canonical accounts and sealed password, with active
+keyrings left to GNOME after baseline preparation preserved older keyrings in
+backups. Each role's public observer binds to its owned session bus and requires
+a complete Shell desktop and complete prompt-free reads for two seconds. A
+keyring, other authentication modal, unknown modal, incomplete tree or ambiguous
+Shell owner refuses without prompt input.
+
+Blocker: the VM is occupied by an external session and the user requested no VM
+work until confirmation. Snapshot preparation was interrupted during host
+artifact building before VM access. Resume when the user confirms the VM is
+free; finish snapshot preparation, both live attempts, the required shared live
+regressions, sanitized collection and owned cleanup before closing this row.
 
 ## Close out
 

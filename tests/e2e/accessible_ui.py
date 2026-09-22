@@ -5,6 +5,7 @@ public UI objects; it never imports product code or reads product storage/buses.
 Only fixed operation names and sanitized results cross the controller boundary.
 """
 
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -30,6 +31,7 @@ OPERATIONS = frozenset({
     'discovery-child-picker-opened', 'discovery-child-choice-highlighted', 'discovery-selected',
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
+    'fresh-parent-desktop', 'fresh-standard-desktop',
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
@@ -38,7 +40,7 @@ OPERATIONS = frozenset({
     'kiosk-request-escape-ready', 'station-entry-branch', 'station-default-entry',
 })
 STANDARD_OPERATIONS = frozenset({
-    'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
+    'standard-desktop', 'fresh-standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
 })
 TERMINAL_OPERATIONS = frozenset({
     'standard-terminal-input',
@@ -555,13 +557,107 @@ class AccessibleUI:
         self.owner_pids = owner_pids
         self.application_owners = application_owners
         self.application_owner_history = application_owner_history
+        self._observation_cache = None
         self.input_uncertain = False
         self.incomplete_observations = []
         self.gdm_row_diagnostic_emitted = False
         self.kiosk_diagnostic = None
 
+    @property
+    def input_uncertain(self):
+        return self._input_uncertain
+
+    @input_uncertain.setter
+    def input_uncertain(self, value):
+        # Every public input sets this latch before dispatch. No read captured
+        # before an action may authorize its result, even inside a predicate.
+        if value:
+            self.invalidate_observation()
+        self._input_uncertain = value
+
+    def invalidate_observation(self):
+        """End the current read boundary before input, retry or client reset."""
+        if self._observation_cache is not None:
+            self._observation_cache.clear()
+
+    @contextmanager
+    def observation(self):
+        """Share complete reads across composed helpers until input or retry.
+
+        The operation entry point and standalone waits open this scope. Nested
+        helpers reuse it without knowing the element/provider being observed.
+        Input, a pending predicate, or an accessibility-client reset invalidates
+        it. Leaving the outermost scope discards all observations.
+        """
+        previous = self._observation_cache
+        if previous is None:
+            self._observation_cache = []
+        try:
+            yield
+        except BaseException:
+            self.invalidate_observation()
+            raise
+        finally:
+            if previous is None:
+                self._observation_cache = None
+
     def nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
               snapshot=None, facts=None, identities=None):
+        """Reuse complete reads only within an explicit observation boundary."""
+        if self._observation_cache is None:
+            yield from self._read_nodes(
+                root, strict=strict, protected_ids=protected_ids, protect_text=protect_text,
+                snapshot=snapshot, facts=facts, identities=identities)
+            return
+        root = root if root is not None else self.api.get_desktop(0)
+        protection = (frozenset(protected_ids), protect_text)
+        for policy, read_nodes, edges, read_facts, read_ids in reversed(self._observation_cache):
+            if policy == protection and root in edges:
+                selected = self.snapshot_scope(read_nodes, edges, root)
+                if not strict:
+                    # Preserve the legacy reader's text-child exclusion when
+                    # projecting a complete strict read; never broaden a scope.
+                    allowed, pending = set(), [root]
+                    while pending:
+                        node = pending.pop()
+                        if node in allowed:
+                            continue
+                        allowed.add(node)
+                        if read_facts[node]['role'] not in ('text', 'entry'):
+                            pending.extend(edges[node])
+                    selected = [node for node in selected if node in allowed]
+                break
+        else:
+            if not strict:
+                # A tolerant read can silently omit unavailable subtrees and
+                # therefore can never seed a later complete observation.
+                yield from self._read_nodes(
+                    root, strict=False, protected_ids=protected_ids, protect_text=protect_text,
+                    snapshot=snapshot, facts=facts, identities=identities)
+                return
+            edges, read_facts, read_ids = {}, {}, {}
+            try:
+                selected = list(self._read_nodes(
+                    root, strict=True, protected_ids=protected_ids, protect_text=protect_text,
+                    snapshot=edges, facts=read_facts, identities=read_ids))
+            except BaseException:
+                self.invalidate_observation()
+                raise
+            # Publish only after traversal completes. Partial reads, including
+            # query errors and missing children, never enter the reusable set.
+            self._observation_cache.append((protection, selected, edges, read_facts, read_ids))
+        if snapshot is not None:
+            snapshot.update({node: ([] if not strict and read_facts[node]['role'] in
+                                   ('text', 'entry') else list(edges[node]))
+                             for node in selected})
+        if facts is not None:
+            facts.update({node: dict(read_facts[node]) for node in selected})
+        if identities is not None:
+            identities.update({node: read_ids[node] for node in selected})
+        yield from selected
+
+    def _read_nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
+                    snapshot=None, facts=None, identities=None):
         diagnostic = self.kiosk_diagnostic
         if diagnostic is not None:
             diagnostic.check()
@@ -755,23 +851,24 @@ class AccessibleUI:
                           if key in registered and registered[key])
         snapshot = {}
         facts = {}
+        identities = {}
         nodes = list(self.nodes(
-            strict=True, protected_ids=protected, snapshot=snapshot,
+            strict=True, protected_ids=protected, snapshot=snapshot, identities=identities,
             **({'facts': facts} if check_prompt else {})))
         if check_prompt:
             self.handle_system_prompt(observation=(nodes, snapshot, facts))
         application = self.snapshot_matches(
-            application_id, nodes, showing=showing, show=self.showing)
+            application_id, nodes, showing=showing, show=self.showing, identities=identities)
         if application is None:
             return None
         application_nodes = self.snapshot_scope(nodes, snapshot, application)
         surface_root = self.snapshot_matches(
-            surface_id, application_nodes, showing=showing, show=self.showing)
+            surface_id, application_nodes, showing=showing, show=self.showing, identities=identities)
         if surface_root is None:
             return surface_root
         surface_nodes = self.snapshot_scope(nodes, snapshot, surface_root)
         return self.snapshot_matches(
-            registered[control], surface_nodes, showing=showing, show=self.showing)
+            registered[control], surface_nodes, showing=showing, show=self.showing, identities=identities)
 
     def find_id(self, identity, *, root=None, nodes=None, showing=True):
         """Resolve exactly one public automation ID without selector fallbacks."""
@@ -779,11 +876,12 @@ class AccessibleUI:
         if owned_applications(identity) or identity.startswith('child-'):
             found = self.snapshot_owned_target(identity, root=root, showing=showing)
             return found if nodes is None or found is None or found in nodes else None
-        candidates = self.nodes(root) if nodes is None else nodes
+        identities = {} if nodes is None else None
+        candidates = self.nodes(root, identities=identities) if nodes is None else nodes
         found = None
         for node in candidates:
             try:
-                if public_automation_id(node) != identity:
+                if (identities[node] if identities is not None else public_automation_id(node)) != identity:
                     continue
                 require(found is None, 'ui:ambiguous-automation-id')
                 found = node
@@ -796,11 +894,12 @@ class AccessibleUI:
     def find_all_ids(self, identity, *, root=None, nodes=None):
         require(not owned_applications(identity) and not identity.startswith('child-'),
                 'ui:owned-id-requires-direct-lookup')
-        candidates = self.nodes(root) if nodes is None else nodes
+        identities = {} if nodes is None else None
+        candidates = self.nodes(root, identities=identities) if nodes is None else nodes
         found = []
         for node in candidates:
             try:
-                if public_automation_id(node) != identity:
+                if (identities[node] if identities is not None else public_automation_id(node)) != identity:
                     continue
                 found.append(node)
             except self.query_errors:
@@ -961,15 +1060,17 @@ class AccessibleUI:
         protected = tuple(registered[key] for key in ('password', 'secret')
                           if key in registered and registered[key])
         snapshot = {}
+        identities = {}
         desktop = list(self.nodes(
-            strict=True, protected_ids=protected, snapshot=snapshot))
+            strict=True, protected_ids=protected, snapshot=snapshot, identities=identities))
         application = self.snapshot_matches(
-            application_id, desktop, showing=showing, show=self.showing)
+            application_id, desktop, showing=showing, show=self.showing, identities=identities)
         if application is None:
             return None, registered
         application_nodes = self.snapshot_scope(desktop, snapshot, application)
         return self.snapshot_matches(
-            surface_id, application_nodes, showing=showing, show=self.showing), registered
+            surface_id, application_nodes, showing=showing, show=self.showing,
+            identities=identities), registered
 
     def showing(self, node):
         states = node.get_state_set()
@@ -995,16 +1096,19 @@ class AccessibleUI:
             if self.kiosk_diagnostic is not None:
                 self.kiosk_diagnostic.emit('dispatch')
                 self.kiosk_diagnostic.check()
-            if self.dispatch is not None:
+            # Composed read helpers can share an already complete snapshot.
+            # Dispatch before a new read boundary, never midway through one.
+            if self.dispatch is not None and not self._observation_cache:
                 for _ in range(32):
                     if not self.dispatch():
                         break
             try:
                 if self.kiosk_diagnostic is not None:
                     self.kiosk_diagnostic.emit('prompt-check')
-                if not prompt_in_predicate:
-                    self.handle_system_prompt()
-                value = predicate()
+                with self.observation():
+                    if not prompt_in_predicate:
+                        self.handle_system_prompt()
+                    value = predicate()
             except self.query_errors:
                 # UI objects can disappear during search/animation. Retry only
                 # the read, never replay an action whose effect is uncertain.
@@ -1013,10 +1117,12 @@ class AccessibleUI:
                     self.kiosk_diagnostic.query_errors += 1
                     self.kiosk_diagnostic.emit(status='query-error')
             except UiError as error:
-                if str(error) != 'ui:incomplete-tree':
+                if str(error) not in ('ui:incomplete-tree', 'ui:system-prompt-observation-failed'):
                     raise
                 # Discard the entire observation. A child can disappear between
                 # ChildCount and GetChildAtIndex during a public UI transition.
+                # Prompt scans can encounter the same disappearing objects;
+                # a failed scan never authorizes the predicate or any input.
                 # Only a later complete read may satisfy the predicate; no
                 # action is replayed and the original deadline is retained.
                 incomplete = error
@@ -1029,7 +1135,10 @@ class AccessibleUI:
                 value = None
             if value:
                 return value
+            self.invalidate_observation()
             if time.monotonic() >= deadline:
+                if incomplete is not None and str(incomplete) == 'ui:system-prompt-observation-failed':
+                    raise incomplete
                 raise UiError('ui:timeout:' + code) from incomplete
             time.sleep(.2)
 
@@ -1787,11 +1896,12 @@ class AccessibleUI:
             return self.focus_terminal()
         require(not self.input_uncertain, 'ui:uncertain-input')
         field = self.wait(self.standard_terminal_input, 'terminal-input', prompt_in_predicate=True)
-        if not self.has_state(field, self.api.StateType.FOCUSED):
-            component = field.get_component_iface()
-            require(component is not None, 'ui:terminal-focus-unavailable')
-            self.input_uncertain = True
-            require(component.grab_focus(), 'ui:terminal-focus-refused')
+        if self.has_state(field, self.api.StateType.FOCUSED):
+            return
+        component = field.get_component_iface()
+        require(component is not None, 'ui:terminal-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:terminal-focus-refused')
         self.wait(lambda: self.standard_terminal_input(focused=True), 'terminal-focus',
                   prompt_in_predicate=True)
         self.input_uncertain = False
@@ -1829,11 +1939,12 @@ class AccessibleUI:
         # its window-local geometry into framebuffer pointer input.
         require(not self.input_uncertain, 'ui:uncertain-input')
         field = self.fresh_owned_target(self.wait(self.terminal_input, 'terminal-input'))
-        if not self.has_state(field, self.api.StateType.FOCUSED):
-            component = field.get_component_iface()
-            require(component is not None, 'ui:terminal-focus-unavailable')
-            self.input_uncertain = True
-            require(component.grab_focus(), 'ui:terminal-focus-refused')
+        if self.has_state(field, self.api.StateType.FOCUSED):
+            return
+        component = field.get_component_iface()
+        require(component is not None, 'ui:terminal-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:terminal-focus-refused')
         # Never retry the action, even if the resulting observation times out.
         self.wait(lambda: self.terminal_input(focused=True), 'terminal-focus')
         self.input_uncertain = False
@@ -1942,8 +2053,7 @@ class AccessibleUI:
         """GDM06 success on the caller's qualified public desktop connection."""
         require(account in (PARENT, EXISTING_CHILD) and expected == 'success',
                 'ui:desktop-binding')
-        if (account == EXISTING_CHILD
-                and not self.provider_contracts['gnome-shell']['application_id']):
+        if not self.provider_contracts['gnome-shell']['application_id']:
             return self.standard_shell_desktop()
         surface, registered = self.provider_surface(
             'gnome-shell', 'desktop', ('desktop',))
@@ -1952,8 +2062,8 @@ class AccessibleUI:
         require(target is not None, 'ui:desktop')
         return target
 
-    def standard_shell_desktop(self):
-        """Shell 50 English desktop observation on the bound standard-user bus.
+    def standard_shell_desktop(self, *, no_prompt=False):
+        """Shell 50 English desktop observation on the bound fixture user's bus.
 
         This external-provider adapter recognizes Shell's public Activities toggle;
         it authorizes no Shell input, menu, search, lock or retained-session route.
@@ -1962,9 +2072,14 @@ class AccessibleUI:
             root = self.api.get_desktop(0)
             require(root is not None, 'ui:incomplete-tree')
             snapshot = {}
-            nodes = list(self.nodes(root, strict=True, protect_text=True, snapshot=snapshot))
+            facts = {}
+            nodes = list(self.nodes(root, strict=True, protect_text=True,
+                                    snapshot=snapshot, facts=facts))
             require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
                             for node in nodes), 'ui:stale-surface')
+            if no_prompt:
+                require(self.system_prompt_kind(observation=(nodes, snapshot, facts)) is None,
+                        'ui:fresh-desktop-prompt')
             owners = [node for node in nodes if node.get_parent() == root
                       and node.get_role_name() == 'application'
                       and node.get_name().casefold() in GDM_SEMANTIC_APPLICATION_NAMES]
@@ -1977,7 +2092,25 @@ class AccessibleUI:
                       and self.has_state(node, self.api.StateType.SENSITIVE)]
             require(len(panels) <= 1, 'ui:shell-desktop-ambiguous')
             return panels[0] if panels else None
-        return self.wait(observe, 'shell-desktop')
+        if not no_prompt:
+            return self.wait(observe, 'shell-desktop')
+        # A complete positive desktop and repeated complete prompt-free reads
+        # make the declared fresh-keyring profile observable, including late
+        # dialogs. No prompt input is delivered by this qualification.
+        stable_since = None
+        def stable():
+            nonlocal stable_since
+            try:
+                desktop = observe()
+            except Exception:
+                stable_since = None
+                raise
+            if desktop is None:
+                stable_since = None
+                return None
+            stable_since = stable_since or time.monotonic()
+            return desktop if time.monotonic() - stable_since >= 2 else None
+        return self.wait(stable, 'fresh-shell-desktop', prompt_in_predicate=True)
 
     def session_menu_toggle(self):
         """DESK02 entry target, observed only through Shell's panel IDs."""
@@ -2066,7 +2199,11 @@ class AccessibleUI:
         return ' '.join(node.get_name().split())
 
     def gdm_semantic_owner(self):
-        """Resolve the one Shell application on the active greeter bus.
+        """Resolve the one Shell application on the active greeter bus."""
+        return self.gdm_semantic_nodes(protect_text=True)[0]
+
+    def gdm_semantic_nodes(self, *, protect_text=False):
+        """Resolve owner and its complete scope from the same public snapshot.
 
         This is the deliberately narrow provider-specific exception for G01.
         It is not a generic name/role selector: the standalone process is bound
@@ -2075,24 +2212,22 @@ class AccessibleUI:
         def owner():
             desktop = self.api.get_desktop(0)
             require(desktop is not None, 'ui:incomplete-tree')
-            # Owner discovery never needs text descendants. Protect every
-            # candidate text field before the prompt-specific role check.
-            nodes = list(self.nodes(desktop, strict=True, protect_text=True))
+            snapshot = {}
+            nodes = list(self.nodes(desktop, strict=True, protect_text=protect_text,
+                                    snapshot=snapshot))
             owners = [node for node in nodes
                       if node.get_parent() == desktop
                       and node.get_role_name() == 'application'
                       and self.gdm_semantic_name(node).casefold()
                       in GDM_SEMANTIC_APPLICATION_NAMES]
             require(len(owners) <= 1, 'ui:gdm-provider-owner')
-            return owners[0] if owners else None
+            if not owners:
+                return None
+            return owners[0], self.snapshot_scope(nodes, snapshot, owners[0])
 
         # The greeter session and bus can precede Shell's public application.
         # Absence permits another read, never input or a replacement owner.
-        return self.wait(owner, 'gdm-provider-owner')
-
-    def gdm_semantic_nodes(self, *, protect_text=False):
-        owner = self.gdm_semantic_owner()
-        nodes = list(self.nodes(owner, strict=True, protect_text=protect_text))
+        owner, nodes = self.wait(owner, 'gdm-provider-owner')
         require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
                                   for node in nodes), 'ui:gdm-stale-tree')
         return owner, nodes
@@ -2236,9 +2371,9 @@ class AccessibleUI:
             return self.greeter_navigation(name)
         require(not self.input_uncertain, 'ui:uncertain-input')
         target = self.gdm_nonsecret_account(name)
-        current = self.gdm_nonsecret_account(name)
-        require(current == target, 'ui:gdm-stale-focus')
-        component = current.get_component_iface()
+        if self.has_state(target, self.api.StateType.FOCUSED):
+            return True
+        component = target.get_component_iface()
         require(component is not None, 'ui:gdm-focus-unavailable')
         self.input_uncertain = True
         require(component.grab_focus(), 'ui:gdm-focus-refused')
@@ -2256,9 +2391,9 @@ class AccessibleUI:
         """Focus case 1's fresh Parent row without accepting another binding."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         target = self.gdm_product_free_account()
-        current = self.gdm_product_free_account()
-        require(current == target, 'ui:gdm-stale-focus')
-        component = current.get_component_iface()
+        if self.has_state(target, self.api.StateType.FOCUSED):
+            return True
+        component = target.get_component_iface()
         require(component is not None, 'ui:gdm-focus-unavailable')
         self.input_uncertain = True
         require(component.grab_focus(), 'ui:gdm-focus-refused')
@@ -2533,6 +2668,7 @@ class AccessibleUI:
                 # Drop only this reader's stale accessibility objects when the
                 # graphical session changes. Never start or inspect services.
                 diagnostic.emit('reset-reader')
+                self.invalidate_observation()
                 self.reset_observer()
                 last_reset = now
 
@@ -3088,10 +3224,6 @@ class AccessibleUI:
             for surface in application_nodes:
                 if surface is application or not facts[surface]['showing']:
                     continue
-                descendants = self.snapshot_scope(nodes, snapshot, surface)
-                password = any(facts[node]['role'] == 'password text'
-                               for node in descendants)
-                prompt_title = self._prompt_title(facts[surface]['name'])
                 id_kind = self._provider_kind_from_ids(
                     application, surface, identities)
                 modal = (facts[surface]['role'] in ('alert', 'dialog')
@@ -3099,6 +3231,13 @@ class AccessibleUI:
                          or id_kind is not None)
                 if not modal:
                     continue
+                # Descendant lookup is needed only for candidate dialogs.
+                # Doing it for every label/control makes this shared check
+                # quadratic in large Shell and application trees.
+                descendants = self.snapshot_scope(nodes, snapshot, surface)
+                password = any(facts[node]['role'] == 'password text'
+                               for node in descendants)
+                prompt_title = self._prompt_title(facts[surface]['name'])
                 kind = id_kind or application_kind
                 # Shell's logout confirmation is also modal. Known provider
                 # applications need authentication meaning; an unregistered
@@ -3137,6 +3276,11 @@ class AccessibleUI:
             self.handling_prompt = False
 
     def run(self, operation, version):
+        """One registered operation, with generic read reuse between inputs."""
+        with self.observation():
+            return self._run(operation, version)
+
+    def _run(self, operation, version):
         require(operation in OPERATIONS, 'ui:operation')
         self.prompt_enabled = operation not in GREETER_OPERATIONS and operation not in STATION_BRANCH_OPERATIONS
         self.prompt_session = ('station' if operation in KIOSK_SESSION_OPERATIONS
@@ -3197,6 +3341,8 @@ class AccessibleUI:
                     result['focused'] = navigation(name)
             else:
                 self.greeter_list()
+        elif operation in ('fresh-parent-desktop', 'fresh-standard-desktop'):
+            self.standard_shell_desktop(no_prompt=True)
         elif operation in ('desktop', 'standard-desktop'):
             self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
         elif operation == 'help-system-prompt':

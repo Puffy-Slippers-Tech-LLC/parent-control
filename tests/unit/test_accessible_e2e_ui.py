@@ -1166,13 +1166,12 @@ def test_prompt_recognition_does_not_require_complete_provider_id_contracts():
     ui.handle_system_prompt()
 
 
-@pytest.mark.parametrize('entry', ['desktop', 'search', 'terminal', 'license'])
+@pytest.mark.parametrize('entry', ['search', 'terminal', 'license'])
 def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input(entry):
     from accessible_ui import PARENT
     ui = ui_for(Node(), qualify_prompts=False)
     ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
     call = {
-        'desktop': lambda: ui.desktop_result(PARENT, 'success'),
         'search': lambda: ui.search_query(''),
         'terminal': lambda: ui.terminal_input(),
         'license': lambda: ui.open_license(),
@@ -1210,6 +1209,34 @@ def test_standard_desktop_requires_unique_live_shell_panel(fault):
             ui.desktop_result(accessible_ui.EXISTING_CHILD, 'success')
     else:
         assert ui.desktop_result(accessible_ui.EXISTING_CHILD, 'success') is panel
+    panel.action.do_action.assert_not_called()
+
+
+def test_fresh_parent_desktop_uses_bound_shell_and_refuses_a_keyring_modal():
+    panel = Node('Activities', 'toggle button')
+    shell = Node('gnome-shell', 'application', children=[panel])
+    prompt_ui, controls = semantic_prompt('keyring')
+    prompt = prompt_ui.api.get_desktop(0).children[0]
+    root = Node(role='desktop frame', children=[shell, prompt])
+    ui = ui_for(root, qualify_prompts=False)
+    assert ui.desktop_result(accessible_ui.PARENT, 'success') is panel
+    with pytest.raises(UiError, match='fresh-desktop-prompt'):
+        ui.run('fresh-parent-desktop', '')
+    for control in controls:
+        control.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['fresh-parent-desktop', 'fresh-standard-desktop'])
+def test_fresh_desktop_requires_sustained_positive_shell_without_a_prompt(monkeypatch, operation):
+    from itertools import count
+    panel = Node('Activities', 'toggle button')
+    shell = Node('gnome-shell', 'application', children=[panel])
+    ui = ui_for(Node(role='desktop frame', children=[shell]), qualify_prompts=False)
+    ui.timeout = 10
+    clock = count(0, 0.25)
+    monkeypatch.setattr(accessible_ui, 'time', SimpleNamespace(
+        monotonic=lambda: next(clock), sleep=lambda _: None))
+    assert ui.run(operation, '')['outcome'] == 'passed'
     panel.action.do_action.assert_not_called()
 
 

@@ -284,6 +284,7 @@ def qualification_artifact_command(root, category, args):
     if category != 'integration' or args not in (
             ['check_e2e_gdm_navigation'], ['check_e2e_gdm_navigation.py'],
             ['check_e2e_gdm_recipient'], ['check_e2e_gdm_recipient.py'],
+            ['check_e2e_fresh_desktop'], ['check_e2e_fresh_desktop.py'],
             ['check_e2e_gdm_product_free'], ['check_e2e_gdm_product_free.py'],
             ['check_e2e_toggle'], ['check_e2e_toggle.py'],
             ['check_e2e_parent_save'], ['check_e2e_parent_save.py']):

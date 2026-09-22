@@ -1076,7 +1076,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
     if report is not None and (status == 1 or (run is not None and any(
             item.failures or item.state == 'Failed' for item in run.categories))):
         print('\nCopy this prompt into a new Codex session:\n')
-        prompt = (f'In {root.resolve()}, investigate and fix the failures in '
+        prompt = ('Investigate and fix the failures in '
               f'{(report.directory / "report.md").resolve()}. '
               'Read the adjacent progress.json for category results and follow '
               'any detailed evidence paths in the report. Fix the root causes, '

@@ -89,7 +89,7 @@ NEW_CHILD = 'Morgan (Child)'
 CHILD_IDENTITIES = {CHILD: 'fixture-child', EXISTING_CHILD: 'existing-fixture-child',
                     NEW_CHILD: 'new-fixture-child'}
 CHILD_ACCOUNTS = {CHILD: 'onpc-child-riley', EXISTING_CHILD: 'onpc-child-jordan',
-                  NEW_CHILD: 'onpc-child-morgan'}
+                  NEW_CHILD: 'onpc-e2e-new-child'}
 PICKER_OPERATIONS = {
     'child-picker-opened': CHILD, 'new-child-picker-opened': NEW_CHILD,
     'existing-child-picker-opened': EXISTING_CHILD, 'discovery-child-picker-opened': EXISTING_CHILD,
@@ -1780,8 +1780,26 @@ class AccessibleUI:
         print('ui:parent-page=filters-ready', file=sys.stderr, flush=True)
 
     def launchable_result(self, product):
-        """SEARCH04's ID-scoped registered launchable branch, without input."""
+        """SEARCH04's owned Shell launcher branch, without input."""
         require(product == PRODUCT, 'ui:search-binding')
+        if not self.provider_contracts['gnome-shell']['application_id']:
+            owner, nodes, snapshot, facts = self.shell_search_snapshot()
+            if owner is None:
+                return None
+            scoped = self.snapshot_scope(nodes, snapshot, owner)
+            candidates = []
+            for node in scoped:
+                if (facts[node]['role'] not in ('button', 'push button')
+                        or not facts[node]['showing']
+                        or not self.has_state(node, self.api.StateType.SENSITIVE)):
+                    continue
+                labels = [facts[child]['name'] for child in self.snapshot_scope(
+                    nodes, snapshot, node) if facts[child]['role'] == 'label'
+                    and facts[child]['showing']]
+                if (facts[node]['name'] == product or labels == [product]):
+                    candidates.append(node)
+            require(len(candidates) <= 1, 'ui:shell-result-ambiguous')
+            return candidates[0] if candidates else None
         surface, registered = self.provider_surface(
             'gnome-shell', 'app-grid', ('result::parent',))
         if surface is None:
@@ -2947,6 +2965,19 @@ class AccessibleUI:
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
         require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal'), 'ui:search-binding')
+        if not self.provider_contracts['gnome-shell']['application_id']:
+            field = self.shell_search_field()
+            if field is None:
+                return False
+            text = field.get_text_iface()
+            require(text is not None, 'ui:search-text-unavailable')
+            count = self.api.Text.get_character_count(text)
+            require(0 <= count <= 80, 'ui:search-text-bound')
+            matches = (count == len(expected)
+                       and self.api.Text.get_text(text, 0, count) == expected)
+            self.search_status = ('query-matched' if matches else
+                                  'query-mismatch-length=' + str(count))
+            return matches
         surface, registered = self.provider_surface(
             'gnome-shell', 'app-grid', ('search',))
         self.search_status = 'surface-missing'
@@ -2963,28 +2994,69 @@ class AccessibleUI:
             return False
         return self.read_label(field, 'search-query', expected=expected, maximum=80)
 
+    def shell_search_snapshot(self):
+        """Shell 50 Overview adapter; semantics stay inside this provider scope.
+
+        Shell exposes no usable public IDs on the pinned image. A complete fresh
+        tree binds the one direct desktop application owner before inspecting its
+        search controls. Names never select an application outside that owner.
+        """
+        root = self.api.get_desktop(0)
+        require(root is not None, 'ui:incomplete-tree')
+        snapshot, facts = {}, {}
+        nodes = list(self.nodes(root, strict=True, protect_text=True,
+                                snapshot=snapshot, facts=facts))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:incomplete-tree')
+        self.handle_system_prompt(observation=(nodes, snapshot, facts))
+        owners = [node for node in snapshot[root]
+                  if facts[node]['role'] == 'application'
+                  and facts[node]['name'].casefold() in GDM_SEMANTIC_APPLICATION_NAMES]
+        require(len(owners) <= 1, 'ui:shell-provider-owner')
+        return (owners[0] if owners else None), nodes, snapshot, facts
+
+    def shell_search_field(self):
+        owner, nodes, snapshot, facts = self.shell_search_snapshot()
+        self.search_status = 'shell-owner-missing'
+        if owner is None:
+            return None
+        fields = [node for node in self.snapshot_scope(nodes, snapshot, owner)
+                  if facts[node]['role'] in ('text', 'entry')
+                  and facts[node]['showing']
+                  and self.has_state(node, self.api.StateType.SENSITIVE)
+                  and self.has_state(node, self.api.StateType.EDITABLE)]
+        require(len(fields) <= 1, 'ui:shell-search-ambiguous')
+        self.search_status = 'shell-field-missing' if not fields else 'shell-field-identified'
+        return fields[0] if fields else None
+
     def search_ready(self, surface, *, focused=False):
         """SEARCH01/UI21: read the empty field, optionally its independent focus."""
         require(surface == 'overview' and type(focused) is bool, 'ui:search-binding')
         def ready():
             if not self.search_query(''):
                 return False
-            surface, registered = self.provider_surface(
-                'gnome-shell', 'app-grid', ('search',))
-            field = (self.find_id(registered['search'], root=surface)
-                     if surface is not None else None)
+            if not self.provider_contracts['gnome-shell']['application_id']:
+                field = self.shell_search_field()
+            else:
+                surface, registered = self.provider_surface(
+                    'gnome-shell', 'app-grid', ('search',))
+                field = (self.find_id(registered['search'], root=surface)
+                         if surface is not None else None)
             return field if field is not None and (not focused or self.has_state(
                 field, self.api.StateType.FOCUSED)) else False
         return self.wait_search(ready, 'standard-search-focus' if focused else 'standard-search-ready')
 
     def focus_search_field(self):
-        """Focus the ID-addressed provider search field without pointer geometry."""
+        """Focus the scoped provider search field without pointer geometry."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        field = self.wait(
-            lambda: self.snapshot_provider_target(
-                'gnome-shell', 'app-grid', 'search', check_prompt=True),
-            'search-field', prompt_in_predicate=True,
-        )
+        if not self.provider_contracts['gnome-shell']['application_id']:
+            field = self.wait(self.shell_search_field, 'search-field', prompt_in_predicate=True)
+        else:
+            field = self.wait(
+                lambda: self.snapshot_provider_target(
+                    'gnome-shell', 'app-grid', 'search', check_prompt=True),
+                'search-field', prompt_in_predicate=True,
+            )
         require(field is not None and self.has_state(field, self.api.StateType.SENSITIVE),
                 'ui:search-field')
         component = field.get_component_iface()
@@ -2992,7 +3064,9 @@ class AccessibleUI:
         self.input_uncertain = True
         require(component.grab_focus(), 'ui:search-focus-refused')
         def focused():
-            current = self.find_provider_control('gnome-shell', 'app-grid', 'search')
+            current = (self.shell_search_field()
+                       if not self.provider_contracts['gnome-shell']['application_id'] else
+                       self.find_provider_control('gnome-shell', 'app-grid', 'search'))
             return current is not None and self.has_state(
                 current, self.api.StateType.FOCUSED)
         self.wait(focused, 'standard-search-focus')
@@ -3003,7 +3077,10 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         self.wait(lambda: self.search_query(PRODUCT), 'parent-search-query')
         target = self.wait(lambda: self.launchable_result(PRODUCT), 'parent-search-result')
-        target = self.fresh_owned_target(target)
+        target = (self.launchable_result(PRODUCT)
+                  if not self.provider_contracts['gnome-shell']['application_id'] else
+                  self.fresh_owned_target(target))
+        require(target is not None, 'ui:search-result-stale')
         component = target.get_component_iface()
         require(component is not None, 'ui:search-focus-unavailable')
         self.input_uncertain = True

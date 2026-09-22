@@ -1,7 +1,18 @@
-# 038 — Add, inspect, preview and remove attachments
+# 038 — Qualify attachment rejection boundaries
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add count, per-file and diagnostics-excluded 8 MiB aggregate rejection boundaries. Reuse 038a/038b for item operations; the complete filename/mixed-selection/original-file-change matrix stays in case 154.
+
+Tasks **038a**, **038b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **037** — FILE03 installed feedback open/cancel; actual provider binding.
 - **010** — UI17 Parent Screen time limit binding; installed qualification and owned cleanup passed.
 - **031** — FEED09 validation/control snapshots.
+- **038b** — FEED12 offered preview and unchanged attachment-list return.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

@@ -1,7 +1,9 @@
 # 007 — Observe a deliberate customer reboot
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 40–60 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: Customer reboot continuity changes shared recorder/routing behavior and needs real installation, reboot, login and affected retained regressions.
 
 ## Read only this context
 

@@ -1,7 +1,18 @@
-# 040 — Choose ordinary daily allowances
+# 040 — Commit custom daily allowances
 
-Estimate: 25–45 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add custom values 1, 2 and 3 through pause, Enter and focus-leave commits. Reuse 040b for preset selection; keep all distinct commit-route and saved-value checks.
+
+Tasks **040b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **009** — UI16.
 - **017** — PARENT08 snapshot saved/control states; installed qualification and owned cleanup passed.
+- **040b** — PARENT05 preset 0/15 selection and saved readback.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

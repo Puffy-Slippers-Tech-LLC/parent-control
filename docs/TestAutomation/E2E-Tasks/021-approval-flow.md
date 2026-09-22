@@ -1,7 +1,18 @@
-# 021 — Compose approval, kiosk time and rejection
+# 021 — Compose kiosk rejection and cancellation
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Compose FLOW07 rejection/Cancel with preserved form and a later deliberately new challenge. Reuse 021a for successful approval/time composition.
+
+Tasks **021a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -12,13 +23,14 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 
 ## Scope and prerequisites
 
-Deliver **FLOW05/06/07 kiosk**. First scheduled consumer: [E2E-016, case 50](../E2E-Scenario-Recipes.md#e2e-016).
+Deliver **FLOW05/06/07 kiosk**. First scheduled consumer: [E2E-016, case 51](../E2E-Scenario-Recipes.md#e2e-016).
 Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **020** — AUTH02 and REQUEST11/12 kiosk approval/rejection/cancel and both approved exits.
 - **014** — FLOW04 kiosk.
+- **021a** — FLOW05/06 kiosk approved branch.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

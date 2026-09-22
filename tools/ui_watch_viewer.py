@@ -1,5 +1,6 @@
 """Optional GTK spectator for concurrent host UI workers."""
 
+from contextlib import redirect_stderr, redirect_stdout
 import os
 from pathlib import Path
 import subprocess
@@ -164,7 +165,7 @@ def run_viewer():
     print(f'UI viewer diagnostics: {log_path}', flush=True)
     # GTK writes directly to fd 2; redirecting Python's sys.stderr is insufficient.
     # Restore the caller's streams even when application construction fails.
-    with log_path.open('xb') as log:
+    with log_path.open('x', encoding='utf-8') as log:
         sys.stdout.flush()
         sys.stderr.flush()
         stdout = os.dup(1)
@@ -173,11 +174,12 @@ def run_viewer():
             try:
                 os.dup2(log.fileno(), 1)
                 os.dup2(log.fileno(), 2)
-                try:
-                    return application().run(['watch-ui'])
-                finally:
-                    sys.stdout.flush()
-                    sys.stderr.flush()
+                with redirect_stdout(log), redirect_stderr(log):
+                    try:
+                        return application().run(['watch-ui'])
+                    finally:
+                        sys.stdout.flush()
+                        sys.stderr.flush()
             finally:
                 os.dup2(stderr, 2)
                 os.close(stderr)

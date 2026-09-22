@@ -1,7 +1,20 @@
-# 296b — Qualify continuous Lunar login observations
+# 296b — Prove the denied Lunar login interval
 
-Estimate: 40–60 minutes of focused implementation and validation; not a stop
-timer. Follow the [master execution contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 40–60 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: The complete denied login interval, same-route denial control and shared recorder/secret regressions remain required.
+
+## Session boundary
+
+Add the complete denied login interval and same-route explicit denial control. Reuse 296f's observer lifecycle; transient usable surfaces must fail and case 253 stays pending.
+
+Tasks **296f** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
@@ -15,6 +28,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **004** — UI19/GDM05 distinct single-use authentication challenges.
 - **052c** — TIME03.
 - **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
+- **296f** — APP06/UI22 allowed continuous login interval.
 
 ## Implementation
 

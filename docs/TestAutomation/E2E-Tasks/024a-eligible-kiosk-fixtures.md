@@ -1,7 +1,18 @@
-# 024a — Prepare multiple and ineligible-approver profiles
+# 024a — Prepare the ineligible-approver kiosk profile
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the ineligible-approver profile and explicit exclusion, reusing 024c's multiple eligible identities and prompt bindings.
+
+Tasks **024c** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -12,12 +23,13 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 
 ## Scope and prerequisites
 
-Deliver **FIX03 multiple/ineligible-approver profiles**. First scheduled consumer: [E2E-017, case 53](../E2E-Scenario-Recipes.md#e2e-017).
+Deliver **FIX03 multiple/ineligible-approver profiles**. First scheduled consumer: [E2E-017, case 56](../E2E-Scenario-Recipes.md#e2e-017).
 Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **020** — AUTH02 and REQUEST11/12 kiosk approval/rejection/cancel and both approved exits.
+- **024c** — FIX03 multiple-child/multiple-approver profile.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

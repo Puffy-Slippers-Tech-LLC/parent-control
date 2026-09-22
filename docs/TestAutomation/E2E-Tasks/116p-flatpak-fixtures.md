@@ -1,7 +1,7 @@
 # 116p — Install the declared Flatpak fixtures
 
-Estimate: 30–50 minutes of focused implementation and validation; not a stop
-timer. Follow the [master execution contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 

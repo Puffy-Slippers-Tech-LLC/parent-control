@@ -1,7 +1,7 @@
 # 184c — Change a spare approver's role through Users
 
-Estimate: 25–40 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Read only this context
 

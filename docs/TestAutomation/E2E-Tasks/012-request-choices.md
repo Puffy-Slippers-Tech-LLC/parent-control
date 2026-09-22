@@ -1,7 +1,18 @@
-# 012 — Select kiosk accounts and read availability
+# 012 — Read kiosk disabled-child availability
 
-Estimate: 25–45 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add REQUEST08 disabled-child explanation and unavailable Request, reusing 012b's eligible selectors. Preserve the separate enabled and disabled preparations and no-prompt checks.
+
+Tasks **012b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **011** — REQUEST01, REQUEST03.
 - **017** — PARENT08 snapshot saved/control states; installed qualification and owned cleanup passed.
 - **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **012b** — REQUEST04 kiosk eligible account choices and selected-value readback.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

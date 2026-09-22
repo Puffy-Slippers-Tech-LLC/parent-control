@@ -15,12 +15,13 @@ instructions and never select a different task.
 
 ## Next task
 
-Next task: **003a — [Qualify ordinary GDM account and recipient proofs](E2E-Tasks/003a-gdm-recipient.md)**.
+Next task: **003aa — [Select an ordinary GDM account and return](E2E-Tasks/003aa-gdm-navigation.md)**.
 
 Task 017 completed Parent saved/control snapshots. Task 012 still needs the
 current Shell Switch User route: the historical check on task 003 does not
-qualify DESK02–04 under the current mandate. The next rows qualify ordinary GDM,
-desktop/keyring handling and session controls, then restore the retained
+qualify DESK02–04 under the current mandate. The next rows separate ordinary GDM navigation from recipient proofs,
+fresh desktop entry from keyring Cancel, and menu entry from session actions,
+then restore the retained
 search, terminal and viewer consumers and their regressions before task 012.
 
 This pointer must name the first unchecked active queue row. After completion,
@@ -50,9 +51,10 @@ E2E-022's reboot persistence and E2E-041/case 189's version patterns do not
 establish this coverage. Keep their existing scope and IDs unchanged.
 
 This is metadata/planning only: case 253 remains `pending`, with no executable
-binding. Tasks **295, 296, 296a, 296b and 297** separately cover restored-fixture
-validation, Lunar/tray controls, Minecraft play, continuous login observations
-and the complete scenario. Manual installation/configuration of Lunar,
+binding. Tasks **295, 296c, 296d, 296, 296e, 296a, 296f, 296b and 297** separately
+cover restored-fixture validation, Lunar launch/Quit, tray controls, command
+denial, Minecraft entry/exit, local play, allowed and denied continuous login
+observations, and the complete scenario. Manual installation/configuration of Lunar,
 AppImageLauncher and Minecraft on the guarded VM is an allowed future
 prerequisite, not permission for installation on this development host or an
 in-journey setup fallback. The [fixture contract](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
@@ -152,11 +154,43 @@ plan may inspect the full scheduling metadata to validate the fixed order.
 
 ## Task size and order
 
-Plan focused implementation plus targeted validation for **15–60 minutes**.
-These are estimates, never stop timers. Continue authorized work when necessary.
-Split independent work likely to require about two hours before starting; each
-new slice needs its own prerequisites and live acceptance. Keep continuous
-customer journeys intact, including their declared run bounds.
+Aim for **one session of 15–30 minutes per ordinary task**, including scoped
+reading, implementation, targeted checks, required live qualification, cleanup
+and document close-out. A useful 30-minute budget is 3 minutes for context,
+10 for implementation, 12 for validation and 5 for cleanup/close-out. These are
+planning estimates, not measured runtimes or stop timers; continue authorized
+work to a clean boundary when necessary.
+
+Each ordinary capability adds one operation, provider surface, route or result
+branch. Split independent work whose upper estimate exceeds 30 minutes **before
+implementation**, giving every new row explicit prerequisites, a bounded live
+qualification and its own brief. Extract usable operations before composing
+them. Do not create host-only preparation rows, partial scenario registrations,
+or a separate implementation/verification queue to make the estimate fit.
+
+A split keeps the original ID for the remaining operation/composition. Its brief's
+**Session boundary** names that new work; its delivered scope is cumulative with
+the extracted prerequisites. Reuse their maintained callables and valid scoped
+evidence, never predecessor briefs or saved VM state. The original acceptance
+results remain required, including fresh qualification of every new composition
+and reruns of affected branches. Completed rows retain their original scope and
+estimates.
+
+Routine estimates assume prerequisite capabilities, installed test tools and
+declared assets are available. They include ordinary attempt preparation;
+unresolved authorization, asset preparation and calendar eligibility remain
+explicit gates. Recheck the estimate when those facts or the implementation
+change. Do not silently relabel a larger task as 30 minutes or drop validation.
+
+**Session exceptions** are marked in the queue's Minutes column and explained in
+the corresponding brief. Complete finite E2E cases, uninterrupted customer
+histories, real retry/calendar waits, package lifecycle qualification, system
+fault/recovery cycles and mandatory shared-infrastructure regressions can exceed
+30 minutes. Preserve their full recipes and run bounds in one task; extract
+reusable capabilities first, then schedule the remaining indivisible acceptance
+honestly. A long run does not authorize a split across restored attempts, an
+early pass or a shortened wait. If interrupted, keep the same task current with
+its remaining work and valid existing artifact pointer.
 
 Every dependency must precede its consumer, including public setup, exits and
 observations needed for qualification. Separate asset transfer/installation from
@@ -334,7 +368,8 @@ After the guard is released and cleanup succeeds:
    Recheck changed dependency rows and newly enabled scenarios. After a queue
    split/reorder, also verify unique IDs, one brief for each unfinished row,
    matching brief/queue prerequisites, dependency order, immediate scenario
-   placement, the first-unchecked pointer and unchanged case assignment.
+   placement, the first-unchecked pointer, ordinary estimates of at most 30
+   minutes or an explained session exception, and unchanged case assignment.
    Preserve every declared inventory case exactly once as implementation scope;
    retained regression rows separately revisit the seven existing bindings.
    Splitting former paired rows changes task granularity, never case IDs, finite
@@ -350,7 +385,8 @@ tools/run-tests unit 'tests/unit/test_e2e_plan.py' 'tests/unit/test_e2e_inventor
 ```
 
 It checks the pointer, task/brief dependencies, one case per scenario task,
-case assignment and capability-before-consumer order. It does not qualify UI
+case assignment, session sizing/exception metadata and capability-before-consumer
+order. It does not qualify UI
 adapters or establish a live pass.
 
 If only coverage/status close-out remains, finish it without

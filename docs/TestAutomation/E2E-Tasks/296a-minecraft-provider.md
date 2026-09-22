@@ -1,7 +1,18 @@
-# 296a — Qualify Minecraft launch, local play and exit
+# 296a — Play the prepared Minecraft local world
 
-Estimate: 40–60 minutes of focused implementation and validation; not a stop
-timer. Follow the [master execution contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the fixed local-world selection, normal play action and independent visible effect. Reuse 296e's game entry/exit; unavailable world/assets remain a blocker.
+
+Tasks **296e** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
@@ -10,6 +21,7 @@ Deliver **APP01/02/03 and UI18 Minecraft local-world binding**.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **296** — APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindings.
+- **296e** — APP01/02/UI18 Lunar-to-Minecraft entry and return.
 
 ## Implementation
 

@@ -1,7 +1,20 @@
-# 135 — Follow process activation after a real update
+# 135 — Follow a real process-activation update
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 30–50 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: Real update activation and the affected mechanical package checks remain required alongside the narrowed process branch.
+
+## Session boundary
+
+Add the process-activation profile, notice and normal affected-app close/reopen sequence. Reuse 135a's fixed update/result infrastructure while retaining distinct live evidence for both profiles.
+
+Tasks **135a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -22,6 +35,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **007** — LIFE02.
 - **079** — PARENT16 and FLOW03 public app-policy editing.
 - **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
+- **135a** — LIFE04 update and LIFE05 no-action notice.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

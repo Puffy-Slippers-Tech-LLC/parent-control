@@ -1,7 +1,18 @@
-# 043a — Qualify retained unlock and return from the lock screen
+# 043a — Observe retained-child time denial and return
 
-Estimate: 35–55 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add configured-zero retained time denial and the lock-screen Switch User return. Reuse 043c's successful unlock; keep the full public Parent/child setup and explicit-denial assertion.
+
+Tasks **043c** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **043** — GDM06/07, DESK01 and FLOW15 child fresh entry/denial; DESK11 rejected-GDM return.
 - **042** — DESK05, DESK06, DESK07.
+- **043c** — GDM02 retained lock entry and DESK08 successful unlock.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

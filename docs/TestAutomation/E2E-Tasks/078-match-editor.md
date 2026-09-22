@@ -1,7 +1,18 @@
-# 078 — Edit, save, cancel or reset one match rule
+# 078 — Validate and reset one match rule
 
-Estimate: 25–45 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add local invalid drafts and immediate Reset-to-default save. Reuse 078a's editor/Save/Cancel; broker-rejected reports remain task 186.
+
+Tasks **078a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **077** — PARENT10, PARENT11.
 - **017** — PARENT08 snapshot saved/control states; installed qualification and owned cleanup passed.
+- **078a** — PARENT13/15 match editor, valid Save and Cancel.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

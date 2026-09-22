@@ -1,7 +1,20 @@
-# 016 — Start and finish bounded public-state traces
+# 016 — Trace one public state transition
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 40–60 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+Session exception: The shared transition observer needs its live ordered-sample qualification and the affected retained regression set.
+
+## Session boundary
+
+Add the caller-owned text transition between readiness and collection, including terminal validation/control samples. Reuse 016b's trace lifecycle; preserve durable ordering and failure latch.
+
+Tasks **016b** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +32,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **004a** — JourneyPlan repeated invocation IDs and assertion placement.
 - **031** — FEED09 validation/control snapshots.
+- **016b** — UI25/26 observer readiness, token lifetime and stable-state collection.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

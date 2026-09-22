@@ -1,7 +1,7 @@
 # 295 — Validate the manually prepared Lunar VM profile
 
-Estimate: 25–45 minutes of restored-profile validation, excluding manual asset
-preparation. Follow the [master](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 

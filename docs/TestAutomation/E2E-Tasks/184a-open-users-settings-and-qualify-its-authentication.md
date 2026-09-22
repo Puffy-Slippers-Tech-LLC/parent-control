@@ -1,7 +1,18 @@
-# 184a — Open Users settings and qualify its authentication
+# 184a — Authenticate Users Unlock and observe controls
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the distinct Users Unlock AUTH04 challenge, two fresh proofs, sealed single-use input and unlocked-controls result. Reuse 184d's page/list readback; request-approval proofs do not authorize Settings.
+
+Tasks **184d** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **004** — UI19/GDM05 distinct single-use authentication challenges.
 - **048d** — AUTH02 overlay approval; REQUEST11/12 success and automatic child return.
 - **001s** — SEARCH01–06 Parent launchable and standard-account unavailable bindings; terminal search entry.
+- **184d** — ACCOUNT01 Settings Users page and account-list observation.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

@@ -1,9 +1,7 @@
 # 195a — Qualify the installed text-document handler
 
-Estimate: 40–60 minutes; an estimate, never a stop timer. Follow the
-[master execution contract](../E2E-Execution-Plan.md#execute-one-task) and its
-[provider rules](../E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
-This brief does not select or skip tasks.
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 

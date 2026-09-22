@@ -1,9 +1,18 @@
-# 001s — Qualify Shell search and application launch
+# 001s — Prove Parent is unavailable to a standard account
 
-Estimate: 40–60 minutes; an estimate, never a stop timer. Follow the
-[master execution contract](../E2E-Execution-Plan.md#execute-one-task) and its
-[provider rules](../E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
-This brief does not select or skip tasks.
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add standard-account launcher unavailability, exact web-description readback and complete stable absence. Reuse 001sa/001sb for query handling and administrator launch; never activate the web suggestion.
+
+Tasks **001sa**, **001sb** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
@@ -14,6 +23,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **003b** — GDM05 successful fresh fixture entry; DESK01; real gcr prompt Cancel and independent desktop readback.
 - **003c** — DESK02/03 current Shell provider route and independently observed GDM return.
 - **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **001sb** — SEARCH05 administrator Parent launch and owned-window result.
 
 ## Read only this context
 

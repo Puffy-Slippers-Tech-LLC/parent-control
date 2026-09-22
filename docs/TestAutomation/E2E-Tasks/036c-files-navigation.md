@@ -1,9 +1,18 @@
-# 036c — Qualify synthetic files and Nautilus navigation
+# 036c — Select exact synthetic entries in Files
 
-Estimate: 40–60 minutes; an estimate, never a stop timer. Follow the
-[master execution contract](../E2E-Execution-Plan.md#execute-one-task) and its
-[provider rules](../E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
-This brief does not select or skip tasks.
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add exact dynamic entry selection/readback under FILE04 and wrong-file/ambiguity checks. Reuse 036e for staged files and Location navigation.
+
+Tasks **036e** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
@@ -13,6 +22,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **009** — UI16.
 - **001s** — SEARCH01–06 Parent launchable and standard-account unavailable bindings; terminal search entry.
+- **036e** — FIX04 synthetic files; FILE07 Nautilus directory entry.
 
 ## Read only this context
 

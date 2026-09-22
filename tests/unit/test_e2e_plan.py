@@ -164,3 +164,22 @@ def test_delivered_block_names_resolve_to_unique_catalogue_contracts(rows):
     for row in rows:
         declared = set(re.findall(r'\b[A-Z]+\d{2}\b', row['scope']))
         assert declared <= set(ids), row['id']
+
+
+def test_active_task_estimates_fit_one_session_or_explain_the_exception(rows):
+    for row in rows:
+        if row['done'] or row['deferred']:
+            continue
+        path = re.search(r'\]\((E2E-Tasks/[^)]+\.md)\)', row['title'])[1]
+        brief = (DOCS / path).read_text()
+        reasons = re.findall(r'^Session exception: (.+)$', brief, re.M)
+        if row['minutes'].endswith(' (exception)'):
+            assert len(reasons) == 1 and len(reasons[0].split()) >= 8, row['id']
+            assert brief.count('Estimate: ') == 1, row['id']
+            continue
+        bounds = re.fullmatch(r'(\d+)–(\d+)', row['minutes'])
+        assert bounds, row['id']
+        lower, upper = map(int, bounds.groups())
+        assert 0 < lower <= upper <= 30, row['id']
+        assert not reasons, row['id']
+        assert f"Estimate: {row['minutes']} minutes." in brief, row['id']

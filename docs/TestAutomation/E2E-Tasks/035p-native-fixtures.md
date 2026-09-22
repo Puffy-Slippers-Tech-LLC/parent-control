@@ -1,7 +1,7 @@
 # 035p — Install the declared native app fixtures
 
-Estimate: 25–45 minutes for focused implementation and targeted live validation;
-not a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Read only this context
 

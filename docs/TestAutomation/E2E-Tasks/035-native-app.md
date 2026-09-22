@@ -1,7 +1,18 @@
-# 035 — Launch and use the native app fixtures
+# 035 — Launch and use native fixtures by command
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the native command usable route through the qualified terminal. Reuse 035c for grid launch and shared app observations.
+
+Tasks **035c** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **035p** — FIX04 native assets; LIFE04 fixture installation.
 - **001t** — FILE01/02/06 terminal command, help/denial projections and normal close/return.
 - **009** — UI16.
+- **035c** — APP01/02/03 native app-grid usable route.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

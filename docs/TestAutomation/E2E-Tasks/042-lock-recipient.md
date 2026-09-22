@@ -1,7 +1,18 @@
-# 042 — Observe and qualify an intended lock challenge
+# 042 — Prove the intended lock-screen recipient
 
-Estimate: 40–60 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add DESK07 intended-recipient proofs on the qualified lock challenge. GDM proofs never authorize lock input; retain nonempty, unfocused, stale and wrong-user refusals.
+
+Tasks **042a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -18,6 +29,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **042a** — DESK05/06 explicit Lock, curtain and challenge reveal.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

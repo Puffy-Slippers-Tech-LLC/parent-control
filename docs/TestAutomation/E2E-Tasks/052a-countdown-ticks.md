@@ -1,7 +1,18 @@
-# 052a — Measure displayed countdown ticks
+# 052a — Measure final-second countdown ticks
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add final-second formatting/ticks with their declared sample order and tolerances. Reuse 052d's minute-sampling machinery; no clock changes or backend usage reads.
+
+Tasks **052d** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **052** — TIME01 child-desktop presence and limits-off absence.
 - **051** — FLOW13 daily-only, fresh/same Parent entry with observed G=0.
 - **052c** — TIME03.
+- **052d** — TIME02 minute-precision sampling.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

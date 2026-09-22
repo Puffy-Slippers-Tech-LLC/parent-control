@@ -1,9 +1,18 @@
-# 003c — Qualify Shell session controls and Switch User
+# 003c — Switch User through qualified Shell controls
 
-Estimate: 35–55 minutes; an estimate, never a stop timer. Follow the
-[master execution contract](../E2E-Execution-Plan.md#execute-one-task) and its
-[provider rules](../E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
-This brief does not select or skip tasks.
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Bind Switch User and independently observed GDM return using 003ca. Preserve the fixed Switch User qualification and existing SWITCH_PLAN guards.
+
+Tasks **003ca** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
@@ -12,6 +21,7 @@ Deliver **DESK02/03 current Shell provider route and independently observed GDM 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **003b** — GDM05 successful fresh fixture entry; DESK01; real gcr prompt Cancel and independent desktop readback.
+- **003ca** — DESK02 Shell Quick Settings and session-menu entry/readback.
 
 ## Read only this context
 

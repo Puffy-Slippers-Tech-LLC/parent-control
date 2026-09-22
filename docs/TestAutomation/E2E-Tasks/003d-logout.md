@@ -1,9 +1,18 @@
-# 003d — Qualify confirmed Shell logout
+# 003d — Confirm Shell logout and observe GDM
 
-Estimate: 35–55 minutes; an estimate, never a stop timer. Follow the
-[master execution contract](../E2E-Execution-Plan.md#execute-one-task) and its
-[provider rules](../E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
-This brief does not select or skip tasks.
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add confirmed logout and the GDM result. Reuse 003da's confirmation entry; retain the existing combined Switch User/logout qualification.
+
+Tasks **003da** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
@@ -13,6 +22,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **003b** — GDM05 successful fresh fixture entry; DESK01; real gcr prompt Cancel and independent desktop readback.
 - **003c** — DESK02/03 current Shell provider route and independently observed GDM return.
+- **003da** — DESK04 logout-confirmation entry and Cancel branch.
 
 ## Read only this context
 

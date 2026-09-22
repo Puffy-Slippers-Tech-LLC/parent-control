@@ -1,7 +1,18 @@
-# 185o — Read overlay About and links
+# 185o — Complete overlay support and legal links
 
-Estimate: 25–45 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Qualify remaining offered support/legal destinations and compose overlay information actions. Reuse 185oa/185ob for license and browser routes; no mail submission.
+
+Tasks **185oa**, **185ob** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -21,6 +32,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **044a** — DESK10 same-desktop window switching.
 - **185p** — INFO01 Parent.
 - **185l** — ABOUT02/03 actual license handler identity/content and close/return.
+- **185ob** — INFO01 overlay website/privacy browser destinations.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

@@ -1,7 +1,18 @@
-# 065 — Compose grant-only and combined time profiles
+# 065 — Compose the combined grant-dominant profile
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add combined/grant-dominant G>D>0 with its own fresh live preparation. Reuse 065a's grant-only and explicit-revoke branches.
+
+Tasks **065a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **051** — FLOW13 daily-only, fresh/same Parent entry with observed G=0.
 - **050** — PARENT17, PARENT18.
+- **065a** — FLOW13 grant-only profile and explicit revoke preparation.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

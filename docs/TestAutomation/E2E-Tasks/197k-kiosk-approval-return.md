@@ -1,7 +1,18 @@
-# 197k — Compose kiosk approval and child entry
+# 197k — Compose kiosk approval and retained child entry
 
-Estimate: 25–45 minutes for focused implementation and targeted live validation;
-not a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add new/open-form retained-child destinations. Reuse 197a's fresh-child branches; preserve all four explicit invocations in the cumulative FLOW20 contract.
+
+Tasks **197a** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -20,6 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **021** — FLOW05/06/07 kiosk.
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 - **052** — TIME01 child-desktop presence and limits-off absence.
+- **197a** — FLOW20 kiosk new/open form with fresh-child destination.
 
 Use maintained callables and a fresh attempt, never prior task/VM state.
 

@@ -1,7 +1,18 @@
-# 012a — Choose kiosk duration and app-access values
+# 012a — Reject invalid kiosk durations
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add the invalid-custom REQUEST09 branch: validation with otherwise enabled Request, preserved form and no authentication. Reuse 012c's valid controls and estimate reader.
+
+Tasks **012c** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **012** — REQUEST04 kiosk child/approver; REQUEST08 unavailable state.
 - **009** — UI16.
+- **012c** — REQUEST04/05/06/08 kiosk valid durations, estimates and app choice.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

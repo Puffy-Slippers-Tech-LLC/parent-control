@@ -1,7 +1,18 @@
-# 184 — Add a disposable child through Users settings
+# 184 — Create the registered spare child
 
-Estimate: 30–50 minutes for a focused implementation/validation cycle; not
-a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
+Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
+Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+
+## Session boundary
+
+Add creation-password recipient proofs and single-use delivery, commit one registered spare child and independently read its resulting row. Reuse 184e's wizard/Cancel; preserve sealed capture and cleanup.
+
+Tasks **184e** supply the extracted operations through their maintained
+callables and qualified scope. The delivery below is cumulative with those
+prerequisites. Implement only the remaining slice above. Keep the original
+acceptance results: reuse valid independent-branch evidence, and run every new
+composition and any earlier branch affected by the change. No saved VM state or
+predecessor brief is an input to this session.
 
 ## Read only this context
 
@@ -19,6 +30,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **184a** — AUTH04 Users Unlock; ACCOUNT01.
 - **009** — UI16.
+- **184e** — ACCOUNT02 add-child nonsecret fields and Cancel.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

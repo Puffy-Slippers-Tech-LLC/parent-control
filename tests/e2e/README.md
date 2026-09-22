@@ -453,7 +453,7 @@ Ordinary Parent feature cases, including About, use this same block with the
 management-window expectation. Only explicit app-grid discovery cases use
 search and open, under the [launch mandate](../../docs/Mandates/UI-Automation-Mandate.MD).
 The fresh standard denial and Parent management bindings passed complete cases
-6 and 151 in [run 20260922T220454Z-80a92d46](../../docs/TestAutomation/Evidence/test-all-runs/20260922T220454Z-80a92d46/report.md),
+6 and 151 in run `20260922T220454Z-80a92d46` (outside runner retention),
 including collection and cleanup. Case 151 uses the scoped GNOME Text Editor
 adapter to read the public `view` document, verify both GPL headings, close the
 active viewer and return through About to unchanged child/settings. Other entry

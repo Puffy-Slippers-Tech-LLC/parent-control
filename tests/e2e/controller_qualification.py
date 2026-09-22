@@ -13,16 +13,16 @@ from asset_transfer import AssetTransfer
 from private_artifacts import require
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'integration'))
 from check_graphical_smoke import (Smoke, FUNCTIONAL_SERIAL_STAGES as SERIAL_STAGES,
-                                   module_result, harness_observation)
+                                   FUNCTIONAL_GDM_OPERATIONS, module_result,
+                                   harness_observation)
 from graphical_serial import provision_getty
 sys.path.pop(0)
 from installed_journey import JourneyPlan, matched_screens as reconcile_screens
 
 
-PLAN = JourneyPlan(prefix='smokeui', worker_mode='functional_smoke', phases={}, screen_tags={
-    'gdm': 'ui:gdm-list', 'focused': 'ui:gdm-focused', 'selected': 'ui:gdm-select-parent',
-    'dismissed': 'ui:gdm-dismissed', 'gdm-return': 'ui:gdm-returned',
-})
+PLAN = JourneyPlan(prefix='smokeui', worker_mode='functional_smoke', phases={},
+                   screen_tags={stage: 'ui:' + operation
+                                for stage, operation in FUNCTIONAL_GDM_OPERATIONS.items()})
 
 
 def encoded(value):

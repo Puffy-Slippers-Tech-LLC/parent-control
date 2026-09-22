@@ -52,6 +52,13 @@ AUTH_STAGES = (*STAGES, 'authenticated')
 SERIAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated', 'serial-command', 'serial-logout',
                  'gdm-return')
 FUNCTIONAL_SERIAL_STAGES = ('ready', 'gdm', 'focused', *SERIAL_STAGES[2:])
+FUNCTIONAL_GDM_OPERATIONS = {
+    'gdm': 'gdm-product-free-list',
+    'focused': 'gdm-product-free-focused',
+    'selected': 'gdm-product-free-select-parent',
+    'dismissed': 'gdm-product-free-returned',
+    'gdm-return': 'gdm-product-free-returned',
+}
 INSTALL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated',
                   *InstallationBoundary.STAGES, 'reboot-ready', 'reboot-password',
                   'reboot-observed', 'gdm-return')
@@ -312,7 +319,7 @@ class Smoke:
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
             reply = harness_observation(self.vm, 'greeter')
             if self.functional:
-                reply['ui'] = self.ui.observe('gdm-returned')
+                reply['ui'] = self.ui.observe(FUNCTIONAL_GDM_OPERATIONS[stage])
             if self._reboot_boot is not None:
                 boot = self.vm.read('boot')['boot_sha256']
                 require(boot == self.steps[-1]['boot_sha256'], 'smoke:boot-changed-again')
@@ -341,11 +348,13 @@ class Smoke:
             reply = self.vm.read('parent-session')
         elif self.functional and stage in ('gdm', 'focused', 'selected', 'dismissed'):
             require(request['screenshot'] is None, 'smoke:functional-capture-refused')
-            operation = {'gdm': 'gdm-list', 'focused': 'gdm-focused', 'selected': 'gdm-select-parent',
-                         'dismissed': 'gdm-dismissed'}[stage]
+            operation = FUNCTIONAL_GDM_OPERATIONS[stage]
             reply = {'ui': self.ui.observe(operation)}
-            if 'navigation' in reply['ui']:
-                reply['ui_keys'] = reply['ui']['navigation']
+            if stage == 'gdm':
+                require(reply['ui'].get('focused') is True
+                        and 'navigation' not in reply['ui'],
+                        'smoke:functional-focus-unverified')
+                reply['ui_focused'] = True
         else:
             reply = screenshot(self.directory, request['screenshot'])
             if stage != 'gdm':

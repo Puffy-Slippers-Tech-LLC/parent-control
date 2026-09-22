@@ -42,7 +42,7 @@ Users settings. Case 179 adds that actual customer account-creation route.
 Case 1 is explicitly not a customer journey. Retired IDs 140–150 are not UI
 cases; their engineering checks remain in system-test tasks 169–179.
 
-Every recipe inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate),
+Every recipe inherits the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD),
 including its external-provider exception. Names, labels, roles, text and order
 below describe customer inputs/results; they do not define selectors. Provider
 selection belongs to the qualified adapter, repository-owned selection to public IDs.

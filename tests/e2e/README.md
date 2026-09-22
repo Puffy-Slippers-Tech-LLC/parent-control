@@ -12,7 +12,7 @@ public actions with fresh independent results. Fail wrong targets/results and un
 required information. Keep backend probes out of customer acceptance.
 
 The [documentation map](../../docs/TestAutomation/README.md) owns status terms;
-the [UI mandate](../../AGENTS.md#ui-automation-mandate) owns selector policy,
+the [UI mandate](../../docs/Mandates/UI-Automation-Mandate.MD) owns selector policy,
 including the external-provider exception. Retained ready bindings do not prove
 current provider qualification. Legacy pixel routes described below are migration
 references, not executable exemptions. `ui:` stages retain public observations
@@ -140,7 +140,7 @@ Each controller/transport publishes independently through the same authenticated
 transcript protocol. The viewer merges their bounded output, so subprocesses and
 concurrent readers cannot overwrite another publisher's registration. Private
 programs, stdin, credentials and binary/private replies keep the existing filters.
-The [repository mandate](../../AGENTS.md#tests-artifacts-and-vm) applies to every
+The [VM mandate](../../docs/Mandates/VM-Mandate.MD) applies to every
 future consumer, including experiments written during development.
 
 The title is `[current/total] [ID]: Title`, using the selected invocation's case

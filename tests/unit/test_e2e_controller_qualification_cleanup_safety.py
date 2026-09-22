@@ -109,6 +109,16 @@ def test_semantic_reconciliation_requires_fresh_results_and_logout_order(tmp_pat
         assert all('ui' in item and 'sha256' not in item for item in result)
 
 
+def test_case_1_uses_only_the_qualified_product_free_gdm_binding():
+    assert list(qualification.PLAN.screen_tags.values()) == [
+        'ui:gdm-product-free-list',
+        'ui:gdm-product-free-focused',
+        'ui:gdm-product-free-select-parent',
+        'ui:gdm-product-free-returned',
+        'ui:gdm-product-free-returned',
+    ]
+
+
 def test_actual_callback_evidence_passes_exact_contract(harness):
     qualification.execute(harness.recorder, harness.context)
     finish(harness)

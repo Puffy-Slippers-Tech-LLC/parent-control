@@ -1243,13 +1243,18 @@ def test_prompt_recognition_does_not_require_complete_provider_id_contracts():
 def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input(entry):
     from accessible_ui import PARENT
     ui = ui_for(Node(), qualify_prompts=False)
+    if entry == 'license':
+        # A declared ID binding may not silently fall back to the semantic
+        # adapter when its remaining contract is incomplete.
+        ui.provider_contracts['document-viewer']['application_id'] = 'partial-viewer'
     ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
     call = {
         'search': lambda: ui.search_query(''),
         'terminal': lambda: ui.terminal_input(),
         'license': lambda: ui.open_license(),
     }[entry]
-    with pytest.raises(UiError, match='unqualified-provider-application'):
+    expected = 'surface' if entry == 'license' else 'application'
+    with pytest.raises(UiError, match='^ui:unqualified-provider-' + expected + '$'):
         call()
     ui.api.get_desktop.assert_not_called()
 
@@ -1738,6 +1743,85 @@ def test_document_projection_rejects_unregistered_or_unsafe_reads(fault):
     if fault != 'oversized':
         node.get_text_iface.assert_not_called()
         ui.api.Text.get_text.assert_not_called()
+
+
+def semantic_license_ui():
+    link = Node(identity='about-license-value', role='link')
+    about = Node(identity='about-dialog', children=[link],
+                 states=('showing', 'visible', 'sensitive', 'active'))
+    product = Node(identity=PARENT_APPLICATION,
+                   children=[Node(identity='parent-window', children=[about])])
+    content = Node(identity='view', role='text')
+    content.get_text_iface = Mock(return_value=content)
+    window = Node(children=[content], states=('showing', 'visible', 'sensitive', 'active'))
+    owner = Node('gnome-text-editor', 'application', children=[window])
+    desktop = Node(children=[product, owner])
+    ui = ui_for(desktop)
+    text = 'GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n' + 'x' * 2000
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(text),
+        get_text=Mock(side_effect=lambda _node, start, end: text[start:end]))
+    return ui, desktop, owner, window, content, about, link
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-owner', 'wrong-id', 'duplicate-owner',
+    'duplicate-window', 'duplicate-document', 'hidden', 'masked', 'inactive',
+    'foreign-process', 'incomplete', 'wrong-document', 'oversized', 'prompt'])
+def test_semantic_license_requires_unique_owned_public_document_and_bounded_content(fault):
+    ui, desktop, owner, window, content, about, link = semantic_license_ui()
+    if fault == 'wrong-owner': owner.name = 'unrelated-editor'
+    if fault == 'wrong-id': content.identity = 'unrelated-document'
+    if fault == 'duplicate-owner': desktop.children.append(Node('gnome-text-editor', 'application'))
+    if fault == 'duplicate-window': owner.children.append(Node())
+    if fault == 'duplicate-document': window.children.append(Node(identity='view', role='text'))
+    if fault == 'hidden': content.states.remove('showing')
+    if fault == 'masked': content.role = 'password text'
+    if fault == 'inactive': window.states.remove('active')
+    if fault == 'foreign-process': content.get_process_id = lambda: 999
+    if fault == 'incomplete': owner.children.append(None)
+    if fault == 'wrong-document': ui.api.Text.get_text = Mock(return_value='another document')
+    if fault == 'oversized': ui.api.Text.get_text = Mock(return_value='x' * 1025)
+    if fault == 'prompt': ui.handle_system_prompt = Mock(side_effect=UiError('ui:system-prompt'))
+    if fault:
+        with pytest.raises(UiError): ui.license_content()
+        with pytest.raises(UiError): ui.window_ready_to_close('license')
+    else:
+        assert ui.license_content()
+        ui.window_ready_to_close('license')
+        assert all(call.args == (content, 0, 1024)
+                   for call in ui.api.Text.get_text.call_args_list)
+    if fault not in (None, 'wrong-document', 'oversized'):
+        ui.api.Text.get_text.assert_not_called()
+    link.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'already-open', 'uncertain', 'missing-result'])
+def test_semantic_license_link_launches_once_and_observes_result(fault):
+    ui, desktop, owner, window, content, about, link = semantic_license_ui()
+    if fault != 'already-open': desktop.children.remove(owner)
+    def launch(_index):
+        if fault == 'uncertain': raise RuntimeError('uncertain action')
+        if fault != 'missing-result': desktop.children.append(owner)
+        return True
+    link.action.do_action.side_effect = launch
+    if fault:
+        with pytest.raises((UiError, RuntimeError)): ui.open_license()
+    else:
+        ui.open_license()
+        assert ui.api.Text.get_text.called
+    assert link.action.do_action.call_count == (0 if fault == 'already-open' else 1)
+
+
+@pytest.mark.parametrize('fault', [None, 'still-open', 'missing-about', 'inactive-about', 'incomplete'])
+def test_semantic_license_close_requires_fresh_absence_and_active_owned_about(fault):
+    ui, desktop, owner, window, content, about, link = semantic_license_ui()
+    if fault != 'still-open': owner.children.clear()
+    if fault == 'missing-about': about.identity = ''
+    if fault == 'inactive-about': about.states.remove('active')
+    if fault == 'incomplete': owner.children.append(None)
+    if fault:
+        with pytest.raises(UiError): ui.window_closed('license', 'about')
+    else:
+        ui.window_closed('license', 'about')
 
 
 @pytest.mark.parametrize('projection,label', [

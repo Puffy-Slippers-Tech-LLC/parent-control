@@ -34,12 +34,15 @@ Current scenario status and counts come from `tests/e2e/scenarios.json`; block
 status comes from the catalogue. Preserve implementations and regressions for
 ready cases 1, 3, 4, 5, 6, 151 and 193. A checked queue task records its
 delivered scope; it does not override a later `pending` block or scenario status.
-The earlier user-accepted pass for case 6 covered its former terminal route.
-Its new shared PARENT01 direct-command route requires fresh qualification.
-Under the user's current direction, only case 6 was treated as validated passing;
-other retained cases are run for acceptance in tasks specifically validating
-those cases. A capability run or historical `ready` inventory binding does not
-by itself validate a complete case.
+The current shared PARENT01 direct-command bindings passed complete cases 6
+and 151 in [run 20260922T220454Z-80a92d46](Evidence/test-all-runs/20260922T220454Z-80a92d46/report.md),
+including product, infrastructure, collection and cleanup outcomes. Case 151
+also qualified the Parent/GNOME Text Editor license-reading and return binding.
+These user-requested regression results leave the queue and **Next task**
+pointer unchanged; other bindings and the provider tasks' remaining acceptance
+remain pending. Reuse this scoped evidence when those tasks reach their turn.
+A capability run or historical `ready` inventory binding does not by itself
+validate a complete case.
 
 Retired E2E IDs 140–150 remain separate system-test obligations and cannot be
 selected as UI cases. Deferred mute task 154 is outside current-release

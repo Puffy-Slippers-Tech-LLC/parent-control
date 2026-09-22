@@ -5,7 +5,6 @@
 - Packaging: Removed some non-product files (internal tools, docs) from package.
 - Screen-time changes failed when fapolicyd 1.3.6 couldn’t represent certain filenames; the fix skips unnecessary exceptions for already-blocked files and validates rules before changing  settings, with clearer errors for unsupported cases.
 - Broker: Lunar client still auto launches and can launch in-memory AppImage of Minecraft even when it's soft blocked
-- Child App: Added "oh-no-parent-control-child" command as an alias for "oh-no-parent-control --child-overlay"
 
 
 ### New Features
@@ -13,6 +12,7 @@
 - Logging: Changed time from local to UTC
 - Feedback dialog: Log collection is now asynchronous, Send feedback button is disabled until logs are collected. Added system-info to logs. No PII logged, as promised
 - Parent App: Made "How it's calculated" clearer to understand
+- Child App: Added "oh-no-parent-control-child" command as an alias for "oh-no-parent-control --child-overlay". Easier for future expansion to other distros and desktop environments
 
 ## v1.1 — 2026-09-11
 ### Bug Fixes

@@ -112,7 +112,7 @@ def test_parallel_cleanup_command_inherits_current_host_activity(tmp_path):
     with test_activity.activity(root, host_only=True):
         descriptor, = test_activity.descriptors()
         command = regression_process.safety_command(root)
-    assert command == ['/usr/bin/python3', '-B',
+    assert command == ['/usr/bin/python3', '-IB',
                        str(root / 'tools/regression_process.py'),
                        '--cleanup-prerequisites', f'--activity-fd={descriptor}']
 
@@ -150,6 +150,50 @@ def test_parallel_cleanup_coordinator_joins_and_restores_activity(tmp_path, monk
         'intermediate cleanup frame', '\033[97;1mOverall - 42% (42/100) - 5s\033[0m']
     assert lines[1] == regression_process.FRAME_PREFIX + '[]'
     assert lines[2:] == ['final cleanup output']
+
+
+def test_cleanup_coordinator_reuses_only_current_owned_activity(tmp_path, monkeypatch):
+    import e2e_startup_cache
+    import regression_process
+    qualify = []
+    def qualified(root, run):
+        qualify.append(root)
+        test_activity.record_cleanup('a' * 64)
+        return 0
+    monkeypatch.setattr(e2e_startup_cache, 'qualified_cleanup', qualified)
+    root = tmp_path / 'checkout'
+    for _ in range(2):
+        with test_activity.activity(root, host_only=True):
+            descriptor, = test_activity.descriptors()
+            assert regression_process.cleanup_main(root, activity_fd=descriptor) == 0
+            assert regression_process.cleanup_main(root, activity_fd=descriptor) == 0
+    assert qualify == [root, root]
+
+
+@pytest.mark.parametrize('caller_environment', [
+    {'LANG': 'C.UTF-8', 'HOME': '/root'},
+    {'LANG': 'en_US.UTF-8', 'TERM': 'xterm', 'DISPLAY': ':99',
+     'PYTHONPATH': '/unrelated', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD': '1'},
+])
+def test_cleanup_environment_is_identical_across_dispatch_routes(
+        tmp_path, monkeypatch, caller_environment):
+    import e2e_startup_cache
+    import regression_process
+    from test_launcher import cleanup_environment, test_environment
+    for key in list(os.environ):
+        monkeypatch.delenv(key)
+    for key, value in caller_environment.items():
+        monkeypatch.setenv(key, value)
+    def qualify(root, run):
+        assert dict(os.environ) == cleanup_environment()
+        worker = test_environment(root)
+        assert worker['PYTHONNOUSERSITE'] == '1'
+        assert worker['LANG'] == 'C.UTF-8'
+        assert not {'TERM', 'DISPLAY', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD'} & worker.keys()
+        return 0
+    monkeypatch.setattr(e2e_startup_cache, 'qualified_cleanup', qualify)
+    assert regression_process.cleanup_main(tmp_path / 'checkout') == 0
+    assert dict(os.environ) == caller_environment
 
 
 @pytest.mark.parametrize('payload', [b'not-a-digest', b'a' * 65, b'\xff' * 64])

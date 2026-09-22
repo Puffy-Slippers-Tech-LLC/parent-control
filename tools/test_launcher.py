@@ -4,6 +4,7 @@
 import argparse
 import os
 from pathlib import Path
+import pwd
 import re
 import subprocess
 import sys
@@ -121,6 +122,7 @@ def environment(root):
                'PYTEST_DISABLE_PLUGIN_AUTOLOAD')
     result = {key: os.environ[key] for key in allowed if key in os.environ}
     result.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', PYTHONDONTWRITEBYTECODE='1',
+                  PYTHONNOUSERSITE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
     result.update(test_activity.environment())
     import test_retention
@@ -143,6 +145,19 @@ def test_environment(root):
     return result
 
 
+def cleanup_environment():
+    """One headless qualification environment for every prerequisite caller.
+
+    Cleanup regressions use private fixtures, not the caller's desktop. Keep
+    terminal/session settings out of both their execution and reuse identity.
+    The coordinator enters through isolated Python and passes locks explicitly.
+    """
+    caller = pwd.getpwuid(os.getuid())
+    return dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C.UTF-8',
+                HOME=caller.pw_dir, USER=caller.pw_name, LOGNAME=caller.pw_name,
+                PYTHONDONTWRITEBYTECODE='1', PYTHONUNBUFFERED='1')
+
+
 def confined_file(root, relative):
     path = root / relative
     if not path.is_file() or not path.resolve().is_relative_to(root):
@@ -156,11 +171,9 @@ def confined_file(root, relative):
 
 
 def prerequisites(root):
-    targets = selection(root, ['tests/unit/test_*cleanup_safety.py',
-                               'tests/unit/test_graphical_lease.py'])
+    from regression_process import safety_command
     print('run-tests: isolated cleanup prerequisites starting', file=sys.stderr, flush=True)
-    status = subprocess.run(['/usr/bin/python3', '-B', '-m', 'pytest',
-                             '-p', 'no:cacheprovider', '-q', '--', *targets],
+    status = subprocess.run(safety_command(root),
                             cwd=root, env=test_environment(root), check=False,
                             pass_fds=test_activity.descriptors()).returncode
     if status:

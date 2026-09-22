@@ -1274,6 +1274,26 @@ def test_standard_terminal_closure_requires_fresh_complete_absence():
         ui.standard_terminal_absent()
 
 
+def test_standard_terminal_wait_retries_stale_snapshot_without_accepting_it(monkeypatch):
+    ui, _root, _owner, _window, field = standard_terminal_ui()
+    ui.timeout = 1
+    field.states.add('defunct')
+    snapshot = ui.standard_terminal_snapshot
+    calls = 0
+
+    def observe():
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            field.states.remove('defunct')
+        return snapshot()
+
+    monkeypatch.setattr(ui, 'standard_terminal_snapshot', observe)
+    assert ui.wait(ui.standard_terminal_input, 'terminal-input', prompt_in_predicate=True) is field
+    assert calls == 2
+    assert ui.incomplete_observations == [{'checkpoint': 'terminal-input', 'notes': []}]
+
+
 @pytest.mark.parametrize('identity', ['org.gnome.Ptyxis', 'com.raggesilver.Ptyxis',
                                      'unrelated-application'])
 def test_standard_terminal_prefers_application_id_over_name(identity):

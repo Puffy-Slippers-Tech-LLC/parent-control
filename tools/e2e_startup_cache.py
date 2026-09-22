@@ -16,10 +16,12 @@ import stat
 import subprocess
 import sys
 import sysconfig
+import time
 
 import test_retention
 
-SCHEMA = 2
+SCHEMA = 3
+PROSE_FILES = frozenset(('README.md', 'AGENTS.md', 'tests/README.md', 'tests/e2e/README.md'))
 
 
 def digest(value):
@@ -91,6 +93,13 @@ def source_identity(root):
         listed = {Path(os.fsdecode(p)) for p in result.stdout.split(b'\0') if p}
         if any(p.is_absolute() or '..' in p.parts for p in listed):
             raise ValueError('startup cache: invalid source inventory')
+        # Prose is not an executable cleanup input. Retain all code, fixtures,
+        # configuration and inventories (including any code beneath docs/).
+        # In particular, do not infer dependencies from imports: cleanup tests
+        # also read scripts/data and start subprocesses.
+        listed = {p for p in listed if not (
+            p.suffix.lower() == '.md' and (p.parts[0] == 'docs' or
+                                          p.as_posix() in PROSE_FILES))}
         # -B suppresses writes, not reads. Git excludes __pycache__ and legacy
         # .pyc files, but Python/pytest may load those bytes instead of source.
         # Include sibling caches even for deleted indexed modules, and parent
@@ -115,6 +124,7 @@ def runtime_identity(root):
     if site.ENABLE_USER_SITE:
         roots.add(Path(site.getusersitepackages()))
     values = {}
+    visited = set()
     for directory in sorted(roots):
         if directory.is_file():
             values[str(directory)] = file_digest(directory.resolve())
@@ -123,7 +133,13 @@ def runtime_identity(root):
                 if path.is_file() and (
                         path.suffix in ('.py', '.pyc', '.so', '.pth', '.zip')
                         or path.name in ('METADATA', 'entry_points.txt')):
-                    values[str(path)] = [str(path.resolve()), file_digest(path.resolve())]
+                    resolved = path.resolve()
+                    # Search roots can overlap, and multiple imports can point
+                    # at one dependency. Hash those bytes once per capture.
+                    if resolved not in visited:
+                        values[str(resolved)] = file_digest(resolved)
+                        visited.add(resolved)
+                    values['import:' + str(path)] = str(resolved)
     for path in (Path('/var/lib/dpkg/status'), Path('/proc/sys/kernel/random/boot_id'),
                  Path('/etc/os-release'), Path(sys.executable).resolve()):
         values[str(path)] = file_digest(path.resolve())
@@ -174,6 +190,7 @@ def receipt(root, name):
 
 def qualified_cleanup(root, run):
     """Publish only a complete successful pass with unchanged captured inputs."""
+    started = time.monotonic()
     def inputs():
         return {'source': source_identity(root), 'runtime': runtime_identity(root)}
     with receipt(root, 'cleanup') as (record, save):
@@ -187,10 +204,16 @@ def qualified_cleanup(root, run):
             return run()
         before = digest([SCHEMA, captured])
         if record and record.get('identity') == before and record.get('passed') is True:
-            print('run-tests: cleanup qualification reused; content identity=' + before, flush=True)
+            print(f'run-tests: cleanup qualification reused in {time.monotonic() - started:.3f}s; '
+                  'content identity=' + before, flush=True)
             import test_activity
             test_activity.record_cleanup(before)
             return 0
+        previous = record.get('inputs') if record else None
+        previous = previous if isinstance(previous, dict) else {}
+        changed = ','.join(key for key in captured if previous.get(key) != captured[key])
+        print('run-tests: cleanup qualification required; changed=' + (changed or 'unqualified') +
+              f'; lookup={time.monotonic() - started:.3f}s', flush=True)
         save({'passed': False})
         status = run()
         if status == 0:
@@ -201,7 +224,7 @@ def qualified_cleanup(root, run):
                       'input capture unavailable', flush=True)
                 return status
             if after == captured:
-                save({'identity': before, 'passed': True})
+                save({'identity': before, 'inputs': captured, 'passed': True})
                 print('run-tests: cleanup qualification recorded; content identity=' + before, flush=True)
             else:
                 changed = ','.join(key for key in captured if after[key] != captured[key])
@@ -211,14 +234,8 @@ def qualified_cleanup(root, run):
 
 
 def artifact_identity(builder):
-    root = builder.REPOSITORY
-    paths = builder.package_inputs.paths(root)
-    metadata = builder._metadata(paths, builder.package_inputs.digest(root, paths))
-    fixtures = tree_digest(root / 'tests/fixtures')
-    helper_paths = {Path('tools') / p for p in (
-        'build_test_artifacts.py', 'package_inputs.py', 'e2e_startup_cache.py', 'test_retention.py')}
-    helpers = files_digest(root, helper_paths | bytecode_paths(root, helper_paths))
-    return digest([SCHEMA, metadata, fixtures, helpers, runtime_identity(root)]), metadata
+    from artifact_inputs import capture
+    return capture(builder)
 
 
 def prepare_artifacts(builder, output):
@@ -230,10 +247,17 @@ def prepare_artifacts(builder, output):
     # owns no payload generations outside the established retention journal.
     test_retention.retain(output)
     with receipt(builder.REPOSITORY, 'artifacts') as (record, save):
-        before, metadata = artifact_identity(builder)
-        hit = False
-        if record and record.get('identity') == before:
+        started = time.monotonic()
+        captured, metadata = artifact_identity(builder)
+        before = digest(captured)
+        reuse = {}
+        previous = record.get('inputs', {}) if record else {}
+        previous = previous if isinstance(previous, dict) else {}
+        reason = 'no-receipt'
+        if record and previous:
             try:
+                if record.get('identity') != digest(previous):
+                    raise ValueError('startup cache: invalid input receipt')
                 source = Path(record['path'])
                 if (source.parent != Path('/tmp') or not source.name.startswith('onpc-test-')
                         or source.resolve() != source or source == output):
@@ -242,22 +266,43 @@ def prepare_artifacts(builder, output):
                 if tree_digest(source) != record['payload']:
                     raise ValueError('startup cache: payload changed')
                 manifest = builder.verify(source)
-                if any(manifest.get(k) != v for k, v in metadata.items()):
+                if manifest != record.get('manifest'):
                     raise ValueError('startup cache: metadata changed')
-                hit = True
+                for part in ('package', 'fixtures'):
+                    if previous.get(part) == captured[part]:
+                        reuse[part] = source / part
+                # Package provenance must match even if a malformed receipt
+                # happens to claim that the selected source key is unchanged.
+                if any(manifest.get(k) != metadata.get(k) for k in ('source', 'build_inputs')):
+                    reuse.pop('package', None)
+                reason = 'inputs'
             except (OSError, ValueError, KeyError, TypeError, builder.ArtifactError):
-                pass
+                reuse = {}
+                reason = 'payload-unavailable-or-changed'
+        for part in ('package', 'fixtures'):
+            old = previous.get(part, {})
+            old = old if isinstance(old, dict) else {}
+            changed = ','.join(key for key in captured[part] if old.get(key) != captured[part][key])
+            print(f'run-tests: artifact {part} ' + ('reused' if part in reuse else 'build required') +
+                  '; changed=' + (changed or (reason if part not in reuse else 'none')) +
+                  f'; lookup={time.monotonic() - started:.3f}s', flush=True)
         save({'identity': None})
-        if hit:
+        if len(reuse) == 2 and all(manifest.get(k) == v for k, v in metadata.items()):
             shutil.copytree(source, output, dirs_exist_ok=True)
             if tree_digest(output) != record['payload']:
                 raise ValueError('startup cache: payload changed during copy')
             print('run-tests: verified artifact bundle reused; content identity=' + before, flush=True)
         else:
-            builder.build(output)
+            builder.build(output, reuse=reuse)
+            for part, path in reuse.items():
+                if tree_digest(output / part) != tree_digest(path):
+                    raise ValueError('startup cache: payload changed during copy')
+            if reuse and tree_digest(source) != record['payload']:
+                raise ValueError('startup cache: payload changed during copy')
         manifest = builder.verify(output)
         after, _ = artifact_identity(builder)
-        if after != before or any(manifest.get(k) != v for k, v in metadata.items()):
+        if after != captured or any(manifest.get(k) != v for k, v in metadata.items()):
             raise ValueError('startup cache: build inputs changed; retry preparation')
-        save({'identity': before, 'path': str(output), 'payload': tree_digest(output)})
+        save({'identity': before, 'inputs': captured, 'manifest': manifest,
+              'path': str(output), 'payload': tree_digest(output)})
     return output / builder.MANIFEST_NAME

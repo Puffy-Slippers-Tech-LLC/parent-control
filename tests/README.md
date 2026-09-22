@@ -287,8 +287,9 @@ launches and host work overlapping builds retain their I/O admission limits and
 recovery window. Reviewed cleanup modules run in balanced buckets
 with their fixtures kept together. **Join cleanup prerequisites** requires every
 bucket to pass and exit before downstream execution. UI, component and
-fixture-runtime workers validate the shared passing gate; standalone, publishing,
-artifact and VM launchers retain their own safety gates.
+fixture-runtime workers validate the shared passing gate. Standalone prerequisite
+calls and foreground/unattended VM dispatch share content-qualified cleanup
+reuse; every live ownership, recovery and VM lease check still runs.
 
 Host work and independent publishing/build jobs share the branches; comparison
 joins both successful builders and their validated distinct outputs. Publishing

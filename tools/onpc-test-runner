@@ -241,14 +241,13 @@ def run(root, argv, caller):
         return subprocess.run(command, cwd=root, env=environment, check=False).returncode
     if argv[0] == 'appsnapshot' and '--probe' in argv:
         return subprocess.run(command, cwd=root, env=environment, check=False).returncode
-    safety = sorted((root / 'tests/unit').glob('test_*cleanup_safety.py'))
-    if not safety:
-        raise ValueError('test-runner:missing-cleanup-prerequisites')
-    safety.append(root / 'tests/unit/test_graphical_lease.py')
-    safety = [str(confined_file(root, p.relative_to(root))) for p in safety]
+    # Direct VM maintenance and foreground integrations use the same qualified
+    # gate as unattended suites. Live lease/ownership checks stay in the target.
+    sys.path.insert(0, str(root / 'tools'))
+    module = runpy.run_path(str(confined_file(root, 'tools/regression_process.py')))
     print('test-runner: cleanup prerequisites starting (unprivileged)', flush=True)
     result = subprocess.run(
-        ['/usr/bin/python3', '-B', '-m', 'pytest', '-p', 'no:cacheprovider', *safety, '-q'],
+        module['safety_command'](root),
         cwd=root, env=environment, user=caller.pw_uid, group=caller.pw_gid,
         extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid), check=False)
     if result.returncode:

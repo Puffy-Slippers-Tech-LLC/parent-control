@@ -1721,8 +1721,10 @@ class AccessibleUI:
         require(root is not None, 'ui:incomplete-tree')
         snapshot, facts = {}, {}
         nodes = list(self.nodes(root, strict=True, snapshot=snapshot, facts=facts))
+        # Window replacement can leave a defunct node in an otherwise complete
+        # traversal; discard this read so the bounded wait can reacquire it.
         require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
-                                  for node in nodes), 'ui:stale-surface')
+                                  for node in nodes), 'ui:incomplete-tree')
         self.handle_system_prompt(observation=(nodes, snapshot, facts))
         # The registry enumerates application roots even when the provider's
         # reverse Parent property does not point back to that desktop. Use the

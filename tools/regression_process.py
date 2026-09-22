@@ -213,7 +213,7 @@ def safety_command(root):
     import test_activity
     descriptors = test_activity.descriptors()
     inherited = ([] if not descriptors else ['--activity-fd=' + str(descriptors[0])])
-    return ['/usr/bin/python3', '-B', str(root / 'tools/regression_process.py'),
+    return ['/usr/bin/python3', '-IB', str(root / 'tools/regression_process.py'),
             '--cleanup-prerequisites', *inherited]
 
 
@@ -221,27 +221,31 @@ def cleanup_main(root=None, *, activity_fd=None):
     """Give privileged dispatchers the aggregate's parallel cleanup gate."""
     import regression
     import test_activity
+    from test_launcher import cleanup_environment
     from regression_selection import CLEANUP_SELECTION
     root = root or Path(__file__).resolve().parents[1]
     # VM selections own the VM activity lock. Cleanup workers use the separate
     # host lock, then inherit it through the ordinary aggregate commands. A
     # host launcher can instead pass its already-owned descriptor explicitly.
-    previous = os.environ.get(test_activity.VARIABLE)
+    previous = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(cleanup_environment())
     if activity_fd is not None:
         os.environ[test_activity.VARIABLE] = str(activity_fd)
     output = sys.stdout
     sys.stdout = PipeFrameOutput(output)
     try:
         with test_activity.activity(root, host_only=True if activity_fd is None else None):
+            if test_activity.cleanup_verified(root):
+                print('run-tests: cleanup qualification reused from owned activity', flush=True)
+                return 0
             from e2e_startup_cache import qualified_cleanup
             return qualified_cleanup(root, lambda: regression.retained_main(
                 root, selections=[(CLEANUP_SELECTION, [])]))
     finally:
         sys.stdout = output
-        if previous is None:
-            os.environ.pop(test_activity.VARIABLE, None)
-        else:
-            os.environ[test_activity.VARIABLE] = previous
+        os.environ.clear()
+        os.environ.update(previous)
 
 
 def host_run(root, category, argv, *, pipe=True):
@@ -340,6 +344,9 @@ def category_run(root, category, argv, *, pipe=True):
 
 
 if __name__ == '__main__':
+    # The cleanup entry uses -I so caller PYTHONPATH/user-site packages cannot
+    # change its imports or cause alternate cache identities between routes.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     arguments = sys.argv[1:]
     descriptor = None
     if len(arguments) == 2 and arguments[1].startswith('--activity-fd='):

@@ -160,10 +160,14 @@ Never use manual snapshots, resets or prior task state as a journey step.
 
 Run affected cleanup/ownership safety regressions in isolation before host
 integration. Use `tools/run-unit-tests` and relevant
-`tools/run-ui-tests --timeout <duration>` selections. Changes to shared GDM,
-secret handling, routing, recorder phases/reconciliation or cleanup also require
-live regressions **1, 3, 4, 5, 151**. Otherwise run the new consumer and directly
-affected ready cases. Terminal changes also retain cases **6 and 193**.
+`tools/run-ui-tests --timeout <duration>` selections. Under the user's current
+direction, complete retained cases other than case 6 are validated in tasks
+specifically about those cases. Shared GDM, secret, routing, recorder or cleanup
+changes in capability tasks still require affected host safety checks and the
+task-local live qualification, without running cases **1, 3, 4, 5, 151** merely
+as regressions. Do not claim complete-case validation from a capability slice.
+Terminal changes retain case **6** when directly affected; case **193** remains
+for its own validation task.
 
 The initial provider migration has explicit regression rows **001r, 003r, 004r,
 005r, 002r, 235r and 151r** in this same sequence. Earlier capability rows can

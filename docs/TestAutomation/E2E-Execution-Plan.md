@@ -13,20 +13,14 @@ and retained regressions. Briefs never select a different task.
 
 ## Next task
 
-Next task: **003ba — [Qualify fresh login without a keyring prompt](E2E-Tasks/003ba-fresh-desktop.md)**.
+Next task: **003b — [Cancel a real keyring prompt after login](E2E-Tasks/003b-desktop-keyring.md)**.
 
-Task 001r requalified retained case 1 through the explicit product-free Parent
-list, focus, prompt and Escape-return binding, including its authenticated serial
-command, logout-before-return, capture reconciliation, collection and owned
-cleanup.
-Task 003ba next qualifies sealed password delivery for fresh Parent and standard
-fixture entries and independently observes each usable no-prompt desktop.
-Its fixed host route and safety checks are implemented. Live snapshot preparation
-was interrupted during host artifact building before VM access when the VM became
-occupied by an external session. Remaining: prepare the existing app snapshot,
-run the separate Parent and standard live qualification attempts, required shared
-regressions, private collection and owned cleanup, then close out the row.
-Resume when the user confirms the VM is free for this work.
+Task 003ba qualified separate fresh Parent and standard fixture entries through
+wrong-recipient refusal, two ordered masked-field checks, sealed single-use input,
+independent prompt-free Shell desktop observation, private collection and owned
+cleanup ([report](Evidence/test-all-runs/20260922T204911Z-51662d44/report.md)).
+This capability slice supplies no complete-scenario acceptance credit. Task 003b
+next qualifies the real gcr keyring Cancel branch and independent desktop return.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -40,6 +34,10 @@ Current scenario status and counts come from `tests/e2e/scenarios.json`; block
 status comes from the catalogue. Preserve implementations and regressions for
 ready cases 1, 3, 4, 5, 6, 151 and 193. A checked queue task records its
 delivered scope; it does not override a later `pending` block or scenario status.
+Under the user's current direction, only case 6 is treated as validated passing;
+other retained cases are run for acceptance in tasks specifically validating
+those cases. A capability run or historical `ready` inventory binding does not
+by itself validate a complete case.
 
 Retired E2E IDs 140–150 remain separate system-test obligations and cannot be
 selected as UI cases. Deferred mute task 154 is outside current-release

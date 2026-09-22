@@ -291,9 +291,9 @@ these blocks, not copies of them.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| FILE01 | C | Open the normal desktop terminal as environment preparation and observe its usable input surface. | The registered terminal application, surface and input/output provider route is not qualified; missing IDs alone do not block an explicit adapter. | pending |
-| FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | Behavioral guards remain; the input recipient needs FILE01's provider-route qualification. | pending |
-| FILE06 | C | Observe the declared terminal result: real administrator challenge, command completion/notice, or launch-denial output. Read only its bounded approved output projection. Generic prompts, command echo and arbitrary failures are insufficient. | No terminal output route is qualified. Its provider adapter must establish the scoped surface before bounded role/text verification; missing IDs alone do not block qualification. | pending |
+| FILE01 | C | Open the normal desktop terminal as environment preparation and observe its usable input surface. | `onpc_terminal::open` / `AccessibleUI.standard_terminal_input` passed the E2E-004 standard-account Ptyxis shortcut route, including independent second entry and closure; see [qualified scope](#external-provider-qualification). Other terminal bindings remain unqualified. | ready for E2E-004/terminal; other bindings pending |
+| FILE02 | C | Submit one declared nonsecret command to an already open terminal. Return after Enter; do not wait for completion or type authentication here. | `onpc_terminal::focus` / `submit_parent` passed fresh focused input and one fixed Parent-command submission in E2E-004/terminal. Other commands and authentication remain unqualified. | ready for E2E-004/terminal; other bindings pending |
+| FILE06 | C | Observe the declared terminal result: real administrator challenge, command completion/notice, or launch-denial output. Read only its bounded approved output projection. Generic prompts, command echo and arbitrary failures are insufficient. | `onpc_terminal::observe_denial` / `AccessibleUI.management_denied` passed the owned specific GUI management denial and management-control exclusion in E2E-004/terminal. Terminal text, help, completion and authentication projections remain unqualified. | ready for E2E-004/terminal GUI denial; other bindings pending |
 | FILE07 | C | Navigate an open file manager/chooser to one declared customer directory. Use its normal Location shortcut, enter the directory and observe the destination. | UI05(Location shortcut) → UI16(location field) → UI05(Enter) → UI01 → UI03(destination). Directory identity comes from prepared synthetic fixtures or the selected save location. | pending |
 | FILE03 | C | Choose files, save a named file, or cancel in an already open chooser. Mode and selected files are explicit. Observe selection/closure; the caller observes its later result separately. | Open: FILE07(directory) → UI14(first file) → UI05 for declared additional modifier/navigation selection → UI13(exact selected set) → UI04(Open) → UI11(chooser). Save: FILE07 → UI16(filename) → UI04(Save) → UI11. Cancel: UI04(Cancel) → UI11. No unmodified second selection that silently drops earlier files. | pending |
 | FILE04 | C | Open the file manager, navigate to a customer directory and observe its declared named entries. | SEARCH05(file manager) → FILE07(directory) → UI13(entries). | pending |
@@ -1127,9 +1127,10 @@ qualification tasks, not external-provider blockers.
 
 ### External-provider qualification
 
-The narrow nonsecret GDM station route is installed-qualified below. Shell,
-prompt, terminal, viewer and all other GDM routes remain unqualified. Host
-doubles prove refusal and adapter mechanics, not installed qualification.
+Only the narrow installed routes recorded below are qualified. The terminal
+consumer's standard sign-in and desktop observations do not qualify other GDM
+or Shell actions. Prompt input, viewer and other terminal routes remain
+unqualified. Host doubles prove refusal and adapter mechanics, not installed qualification.
 Legacy generic image, pointer and positional entry points remain retired; the
 approved exception requires an explicit, qualified provider adapter rather than
 restoring those generic routes.
@@ -1158,13 +1159,26 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 | GTK native file chooser | Qualify each caller-owned dialog route, exact selected-file readback and wrong-dialog refusal. | FILE03, FEED06, FEED08 native routes |
 | GNOME portal / Nautilus chooser | Partial Builder IDs do not identify the full dialog and dynamic file selection. Qualify the actual portal route and selected-file readback. | FILE03, FEED06, FEED08 portal routes |
 | Default document/license viewer | Select the supported handler; qualify document identity/content, active readiness, close and return. | ABOUT02/03, FILE08, FEED08 |
-| Terminal | The provider route is unqualified. Reuse any available IDs, then qualify focused command input, bounded output and terminal closure. | FILE01/02/06, INFO02, LIFE04 |
+| Terminal | The standard-account Ptyxis binding passed complete `E2E-004/terminal`: desktop wrong-surface refusal, Ctrl+Alt+T entry, focused input, closure, independent second entry, one Parent command, owned GUI management denial, dismissal/return and final closure ([report](Evidence/test-all-runs/20260922T174640Z-7191544c/report.md)). `standard_terminal_snapshot` prefers the public application ID and resolves direct registry child ownership from one complete snapshot; window/terminal roles and states are confined to this provider adapter. It rejects ambiguous, foreign and incomplete surfaces without titles, coordinates or terminal text. Generic text/help, administrator input, other providers and multiwindow/tab routes remain unqualified. | E2E-004/terminal FILE01/02 and GUI-denial FILE06 ready; INFO02, LIFE04 and other FILE bindings pending |
 | GNOME Settings Users / Date & Time | Partial Builder IDs are insufficient. Qualify actual pages/wizards with protected-account and recipient guards. | ACCOUNT01/02, TIME05 |
 | DING desktop icons | No provider registry route exists. Qualify the declared desktop icon, focus/selection, activation and independent launched-window result inside a DING-specific adapter. | APP01/02 desktop launch route |
 | Nautilus Files | Qualify synthetic fixture selection and the exact open/copy/rename actions required by the consumer. | FILE04/05/07/08 and retained work |
 | File Roller archive viewer | Qualify archive/entry identity, open, content and close. | FILE08, FEED08 |
 | Registered document editor | Qualify document identity, normal edit/save, saved-state readback and wrong-document refusal. | FILE08/09 and retained work |
 | Lunar Client, AppImageLauncher, Shell tray and Minecraft | No bindings are qualified. Require the prepared real-AppImage profile, allowed autostart control, complete login-interval tray/window observations, specific same-route denial, game launch/local-world action and genuine Quit. [Preparation and observation gate](#lunar-client-preparation-and-observation-gate); refuse incomplete ownership/absence observations. | E2E-052/case 253; APP01/02/03/06, UI18/22 and FIX05 |
+
+The terminal report records product, infrastructure, collection and cleanup
+passes on the pinned Ubuntu 26.04 environment and installed `onpc-v1.1` snapshot.
+Its package SHA-256 matches the preceding attempt. The originally requested
+`/tmp/onpc-test-artifacts-u08vz3h3` was missing at dispatch; qualification used
+the verified `/tmp/onpc-test-artifacts-iav0avtk` produced by snapshot preparation.
+The observed application ID was `org.gnome.Ptyxis`; the alternative ID/name
+bindings have host coverage only. This run did not separately record the Ptyxis
+package version, provider locale or keyboard layout, so its evidence is limited
+to that pinned environment, not a broader provider tuple. Standard sign-in,
+desktop readiness and prompt checking passed as prerequisites; this supplies no
+keyring cancellation, Polkit, app-grid, help/manual or retained-session proof.
+No other provider task or scenario is closed by this result.
 
 Provider implementation and qualification are scheduled only by the
 [E2E execution plan](E2E-Execution-Plan.md). Its queue places the following

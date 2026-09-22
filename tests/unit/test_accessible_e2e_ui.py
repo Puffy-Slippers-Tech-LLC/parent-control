@@ -1266,10 +1266,61 @@ def test_standard_terminal_closure_requires_fresh_complete_absence():
     ui, _root, _owner, window, field = standard_terminal_ui()
     assert not ui.standard_terminal_absent()
     window.children.remove(field)
+    assert not ui.standard_terminal_absent()
+    window.states.remove('showing')
     assert ui.standard_terminal_absent()
     window.children.append(None)
     with pytest.raises(UiError, match='incomplete-tree'):
         ui.standard_terminal_absent()
+
+
+@pytest.mark.parametrize('identity', ['org.gnome.Ptyxis', 'com.raggesilver.Ptyxis',
+                                     'unrelated-application'])
+def test_standard_terminal_prefers_application_id_over_name(identity):
+    ui, _root, owner, _window, field = standard_terminal_ui()
+    owner.identity = identity
+    if identity == 'unrelated-application':
+        with pytest.raises(UiError, match='terminal-provider-owner'):
+            ui.standard_terminal_input(focused=True)
+    else:
+        owner.name = 'translated application name'
+        assert ui.standard_terminal_input(focused=True) is field
+
+
+def test_standard_terminal_uses_registry_child_edge_without_reverse_parent():
+    ui, _root, owner, _window, field = standard_terminal_ui()
+    owner.identity = 'org.gnome.Ptyxis'
+    owner.get_parent = Mock(return_value=None)
+    assert ui.standard_terminal_input(focused=True) is field
+    owner.get_parent.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['nested-application', 'foreign-terminal', 'second-window'])
+def test_standard_terminal_rejects_wrong_snapshot_ownership(fault):
+    ui, root, owner, window, field = standard_terminal_ui()
+    owner.identity = 'org.gnome.Ptyxis'
+    if fault == 'nested-application':
+        root.children[:] = [Node('unrelated', 'application', children=[owner])]
+        # A misleading reverse link cannot override the observed child edges.
+        owner.parent = root
+    elif fault == 'foreign-terminal':
+        window.children.remove(field)
+        root.children.append(Node('unrelated', 'application', children=[field]))
+    else:
+        owner.children.append(Node(role='frame'))
+    with pytest.raises(UiError, match='terminal-(provider-owner|window-ambiguous)'):
+        ui.standard_terminal_input(focused=True)
+    field.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['standard_terminal_input', 'standard_terminal_absent',
+                                      'standard_denial_closed'])
+def test_standard_terminal_id_routes_keep_prompt_guard(operation):
+    ui, _root, _owner, _window, _field = standard_terminal_ui()
+    ui.provider_contracts['terminal']['application_id'] = 'test-terminal-application'
+    ui.handle_system_prompt = Mock(side_effect=UiError('ui:system-prompt-refused'))
+    with pytest.raises(UiError, match='system-prompt-refused'):
+        getattr(ui, operation)()
 
 
 @pytest.mark.parametrize('identity', ['parent-access-denied-window', 'parent-window',

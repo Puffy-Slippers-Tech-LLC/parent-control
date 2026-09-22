@@ -1724,27 +1724,54 @@ class AccessibleUI:
         require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
                                   for node in nodes), 'ui:stale-surface')
         self.handle_system_prompt(observation=(nodes, snapshot, facts))
-        owners = [node for node in nodes if node.get_parent() == root
+        # The registry enumerates application roots even when the provider's
+        # reverse Parent property does not point back to that desktop. Use the
+        # same complete snapshot's direct child edges for ownership throughout.
+        owners = [node for node in nodes if node in snapshot[root]
                   and facts[node]['role'] == 'application'
-                  and facts[node]['name'].casefold() == 'ptyxis']
+                  and (facts[node]['identity'] in ('org.gnome.Ptyxis', 'com.raggesilver.Ptyxis')
+                       or (not facts[node]['identity']
+                           and facts[node]['name'].casefold() == 'ptyxis'))]
         require(len(owners) <= 1, 'ui:terminal-provider-owner')
         terminals = [node for node in nodes if facts[node]['role'] == 'terminal'
                      and facts[node]['showing']]
         require(len(terminals) <= 1, 'ui:terminal-ambiguous')
-        if not terminals:
+        if terminals and not owners:
+            # Fixed provider vocabulary only; never emit arbitrary application
+            # names, window titles, shell contents or user paths.
+            known = ('ptyxis', 'org.gnome.Ptyxis', 'com.raggesilver.Ptyxis',
+                     'org.gnome.Ptyxis.Devel', 'com.raggesilver.Ptyxis.Devel',
+                     'gnome-terminal', 'org.gnome.Terminal')
+            applications = [facts[node] for node in nodes
+                            if facts[node]['role'] == 'application']
+            print(json.dumps({'terminal_provider': {
+                'application_names': [value for value in known
+                                      if any(item['name'].casefold() == value.casefold()
+                                             for item in applications)],
+                'application_ids': [value for value in known
+                                    if any(item['identity'] == value for item in applications)],
+                'unidentified_applications': sum(not item['identity'] for item in applications),
+                'applications': len(applications),
+            }}, sort_keys=True), file=sys.stderr, flush=True)
+        if not owners and not terminals:
             return None, None, (nodes, snapshot, facts)
         require(len(owners) == 1, 'ui:terminal-provider-owner')
-        field = terminals[0]
         owned = self.snapshot_scope(nodes, snapshot, owners[0])
-        require(field in owned, 'ui:terminal-provider-owner')
         windows = [node for node in owned if facts[node]['role'] in ('frame', 'window')
-                   and facts[node]['showing']
-                   and field in self.snapshot_scope(nodes, snapshot, node)]
+                   and facts[node]['showing']]
+        require(len(windows) <= 1, 'ui:terminal-window-ambiguous')
+        if not terminals:
+            return windows[0] if windows else None, None, (nodes, snapshot, facts)
+        field = terminals[0]
+        require(field in owned, 'ui:terminal-provider-owner')
         require(len(windows) == 1, 'ui:terminal-window-ambiguous')
+        require(field in self.snapshot_scope(nodes, snapshot, windows[0]),
+                'ui:terminal-provider-owner')
         return windows[0], field, (nodes, snapshot, facts)
 
     def standard_terminal_input(self, *, focused=False):
         if self.provider_contracts['terminal']['application_id']:
+            self.handle_system_prompt()
             return self.terminal_input(focused=focused)
         window, field, _observation = self.standard_terminal_snapshot()
         if (field is None or not self.has_state(window, self.api.StateType.ACTIVE)
@@ -1769,12 +1796,14 @@ class AccessibleUI:
 
     def standard_terminal_absent(self):
         if self.provider_contracts['terminal']['application_id']:
+            self.handle_system_prompt()
             return self.terminal_absent()
-        _window, field, _observation = self.standard_terminal_snapshot()
-        return field is None
+        window, field, _observation = self.standard_terminal_snapshot()
+        return window is None and field is None
 
     def standard_denial_closed(self):
         if self.provider_contracts['terminal']['application_id']:
+            self.handle_system_prompt()
             surrounding = self.terminal_return_surface()
             if not self.absent_id('parent-access-denied-window', within=surrounding):
                 return False

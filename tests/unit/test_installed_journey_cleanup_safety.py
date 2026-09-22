@@ -15,6 +15,7 @@ import parent_about
 import parent_access
 import parent_terminal
 import command_help
+import command_documentation
 import desktop_session
 import kiosk_entry
 import request_exit
@@ -135,6 +136,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             result['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
         return result
     monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(observe=observe_ui)))
+    monkeypatch.setattr(command_documentation, 'observe',
+                        lambda _transport, binding: {'operation': binding,
+                                                       'outcome': 'passed',
+                                                       'interface': 'SSH stdout'})
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),

@@ -1407,6 +1407,27 @@ def standard_terminal_ui():
     return ui_for(root), root, owner, window, field
 
 
+def test_help_terminal_uses_qualified_semantic_owner_without_provider_ids():
+    ui, root, owner, window, field = standard_terminal_ui()
+    ui.desktop_result = Mock(return_value=True)
+    with pytest.raises(UiError, match='help-wrong-surface'):
+        ui.run('help-terminal-wrong-surface', '')
+    field.get_text_iface = lambda: field
+    value = 'usage: oh-no-parent-control-parent --help\nonpc-parent-jamie@fixture:~$ '
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value),
+                                  get_text=lambda *_: value)
+    assert ui.help_terminal_text() == value
+    ui.help_product_absent()
+    product = Node(identity='parent-window')
+    product.parent = root
+    root.children.append(product)
+    with pytest.raises(UiError, match='help-product-window'):
+        ui.help_product_absent()
+    root.children.remove(product)
+    owner.children.remove(window)
+    assert ui.run('help-terminal-wrong-surface', '')['outcome'] == 'passed'
+
+
 @pytest.mark.parametrize('fault', [None, 'wrong-owner', 'duplicate-owner', 'duplicate-terminal',
                                  'inactive', 'unfocused', 'disabled', 'hidden', 'stale',
                                  'incomplete'])

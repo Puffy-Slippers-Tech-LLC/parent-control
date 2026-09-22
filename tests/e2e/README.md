@@ -459,10 +459,11 @@ adapter to read the public `view` document, verify both GPL headings, close the
 active viewer and return through About to unchanged child/settings. Other entry
 bindings and provider workflows retain their catalogue qualification limits.
 E2E-042/command-help is implemented by `command_help.PLAN` and
-`onpc_command_help::run`: as the administrator it opens a normal Terminal,
-refuses desktop command input, then reads both installed `--help` commands and
-both manuals, exits each manual with `q`, and closes Terminal with no product
-window. Case 193 passed its complete installed journey, collection and cleanup.
+`onpc_command_help::run`: as the administrator it reads bounded stdout from
+both installed `--help` commands and both manuals through the guarded VM SSH
+transport. It checks the public desktop after each read and requires no product
+window. This stream route passed complete case 193, including collection and
+cleanup, in [run 20260922T225544Z-f49bdf46](../../docs/TestAutomation/Evidence/test-all-runs/20260922T225544Z-f49bdf46/report.md).
 Omitting both `--ready` and `--scenario` requests the whole inventory and still
 refuses while any variant is pending. A ready-suite pass is partial coverage.
 

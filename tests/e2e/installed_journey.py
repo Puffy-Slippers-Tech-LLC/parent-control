@@ -11,6 +11,7 @@ import sys
 import time
 
 from check_graphical_smoke import module_result, screenshot
+import command_documentation
 from observation_transport import ReadOnlyObservations
 from private_artifacts import require
 from parent_needles import semantic_tag
@@ -73,6 +74,15 @@ def matched_screens(directory, plan, observations=()):
             require(len(matches) == 1 and matches[0].get('ui', {}).get('operation') == tag[3:]
                     and matches[0]['ui'].get('outcome') == 'passed', plan.prefix + ':ui-evidence')
             screens.append({'stage': stage, 'detail_index': index, 'ui': matches[0]['ui']})
+            last_match = None
+            continue
+        if tag.startswith('command:'):
+            matches = [item for item in observations if item['stage'] == stage]
+            require(len(matches) == 1 and matches[0].get('command', {}).get('operation') == tag[8:]
+                    and matches[0]['command'].get('outcome') == 'passed',
+                    plan.prefix + ':command-evidence')
+            screens.append({'stage': stage, 'detail_index': index,
+                            'command': matches[0]['command']})
             last_match = None
             continue
         require(last_match is not None and semantic_tag(last_match[1]['needle']) == tag,
@@ -215,6 +225,8 @@ class InstalledJourney:
                 if self.ui is None:
                     self.ui = UiObservations(self.transport, progress=self.watch_progress)
                 observed['ui'] = self.ui.observe(tag[3:])
+            elif tag.startswith('command:'):
+                observed['command'] = command_documentation.observe(self.transport, tag[8:])
             reply = {'observed': stage}
             if tag == 'ui:station-entry-branch':
                 reply['station_destination'] = observed['ui']['branch']['destination']

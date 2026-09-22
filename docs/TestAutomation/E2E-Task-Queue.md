@@ -84,7 +84,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 001ta | [Submit one nonsecret terminal command and read help](E2E-Tasks/001ta-terminal-help.md) | 001s | FILE01/02/06 terminal owner, nonsecret submission, help and close | 20–30 |
 | [ ] | 001t | [Read direct-command management denial](E2E-Tasks/001t-terminal-provider.md) | 001s, 001ta | PARENT01 direct command, public management denial and desktop return | 20–30 |
 | [ ] | 002r | [Requalify retained case 6](E2E-Tasks/002r-case-6-regression.md) | 001t | Retained regression 6; shared PARENT01 direct-command management denial | 20–30 |
-| [ ] | 235r | [Requalify retained case 193](E2E-Tasks/235r-case-193-regression.md) | 001t | Retained regression 193; both installed commands/manuals and terminal return | 20–30 |
+| [ ] | 235r | [Requalify retained case 193](E2E-Tasks/235r-case-193-regression.md) | 001t | Retained regression 193; both installed commands/manuals from guarded SSH stdout and clear desktop return | 20–30 |
 | [ ] | 185l | [Qualify the installed license viewer](E2E-Tasks/185l-license-provider.md) | 001s | ABOUT02/03 actual license handler identity/content and close/return | 20–30 |
 | [ ] | 151r | [Requalify retained case 151](E2E-Tasks/151r-case-151-regression.md) | 185l | Retained regression 151; complete About/license recipe and migration regression close-out | 20–30 |
 | [ ] | 012b | [Select eligible kiosk children and approvers](E2E-Tasks/012b-kiosk-eligible-choices.md) | 011, 017, 003d | REQUEST04 kiosk eligible account choices and selected-value readback | 20–30 |

@@ -1,4 +1,4 @@
-"""Complete installed E2E-042 command-help recipe and INFO02 qualification."""
+"""Installed E2E-042 command documentation through guarded SSH stdout."""
 
 from installed_journey import JourneyPlan, record_installed_journey
 from parent_about import SCREEN_TAGS
@@ -9,28 +9,22 @@ ENTRY = {stage: SCREEN_TAGS[stage] for stage in (
 BINDINGS = ('parent-help', 'station-help', 'parent-manual', 'station-manual')
 SCREENS = {
     **ENTRY,
-    'system-prompt': 'ui:help-system-prompt',
-    'terminal-wrong-surface': 'ui:help-terminal-wrong-surface',
-    'terminal-opened': 'ui:help-terminal-input',
-    'terminal-opened-focused': 'ui:help-terminal-focused',
 }
 for binding in BINDINGS:
     SCREENS.update({
-        binding + '-entry': 'ui:help-terminal-focused',
-        binding + '-content': 'ui:help-content-' + binding,
-        binding + '-returned': 'ui:help-shell-ready',
-        binding + '-closed': 'ui:help-terminal-closed',
+        binding + '-content': 'command:' + binding,
+        binding + '-desktop': 'ui:help-desktop-clear',
     })
-SCREENS['complete'] = 'ui:help-terminal-closed'
+SCREENS['complete'] = 'ui:help-desktop-clear'
 PLAN = JourneyPlan(
     prefix='command-help', worker_mode='command_help', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'start' if stage == 'installed-greeter' else 'step-1' for stage in ENTRY},
             **{stage: 'step-1' for stage in SCREENS if stage not in ENTRY},
             **{binding + '-' + stage: 'step-2' for binding in BINDINGS
-               for stage in ('entry', 'content', 'returned', 'closed')},
+               for stage in ('content', 'desktop')},
             'complete': 'step-3'},
-    advance_after={'terminal-opened-focused': 'step-2', 'station-manual-closed': 'step-3'},
+    advance_after={'desktop': 'step-2', 'station-manual-desktop': 'step-3'},
 )
 
 

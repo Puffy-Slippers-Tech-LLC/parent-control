@@ -64,9 +64,10 @@ HELP_BINDINGS = {
     'parent-manual': ('oh-no-parent-control-parent', 'manual',
                       'configure controls for managed users'),
     'station-manual': ('oh-no-parent-control', 'manual',
-                       'run the parent-control request station'),
+                       'run the parent-control request interface'),
 }
 HELP_OPERATIONS = frozenset({
+    'help-desktop-clear',
     'help-system-prompt', 'help-terminal-input', 'help-terminal-focused',
     'help-terminal-wrong-surface', 'help-terminal-closed', 'help-shell-ready',
     *('help-content-' + key for key in HELP_BINDINGS),
@@ -2055,7 +2056,7 @@ class AccessibleUI:
 
     def help_terminal_text(self):
         """INFO02's bounded local projection; never export terminal contents."""
-        field = self.terminal_input(focused=True)
+        field = self.standard_terminal_input(focused=True)
         if field is None:
             return None
         text = field.get_text_iface()
@@ -2072,15 +2073,34 @@ class AccessibleUI:
         return bool(value and re.search(r'(?:^|\n)onpc-parent-jamie@[^\s:]+:[^\n]*\$\s*', value))
 
     def help_product_absent(self):
-        surrounding = self.terminal_return_surface()
-        self.management_absent(within=surrounding)
-        for node in self.nodes(strict=True):
-            require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-surface')
-            if self.showing(node):
-                require(public_automation_id(node) not in (
-                    'kiosk-request-window', 'kiosk-request-form', 'feedback-dialog',
-                    'parent-access-denied-window', 'startup-error-window'),
-                    'ui:help-product-window')
+        window, field, (nodes, _snapshot, facts) = self.standard_terminal_snapshot()
+        require(window is not None and field is not None
+                and self.has_state(window, self.api.StateType.ACTIVE)
+                and self.has_state(field, self.api.StateType.FOCUSED)
+                and self.has_state(field, self.api.StateType.SENSITIVE),
+                'ui:terminal-return-unqualified')
+        forbidden = {
+            'parent-window', 'parent-screen-limits-page', 'parent-app-limits-page',
+            'parent-screen-limit-toggle', 'kiosk-request-window',
+            'kiosk-request-form', 'feedback-dialog', 'parent-access-denied-window',
+            'startup-error-window',
+        }
+        require(not any(facts[node]['showing'] and facts[node]['identity'] in forbidden
+                        for node in nodes), 'ui:help-product-window')
+
+    def help_desktop_clear(self):
+        """Check the parent desktop after each stream read, with no product window."""
+        self.standard_shell_desktop(no_prompt=True)
+        root = self.api.get_desktop(0)
+        require(root is not None, 'ui:missing-surface')
+        nodes = list(self.nodes(root, strict=True))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:stale-surface')
+        forbidden = {'parent-window', 'parent-access-denied-window',
+                     'kiosk-request-window', 'kiosk-request-form',
+                     'feedback-dialog', 'startup-error-window'}
+        require(not any(self.showing(node) and public_automation_id(node) in forbidden
+                        for node in nodes), 'ui:help-product-window')
 
     def terminal_return_surface(self):
         surface, registered = self.provider_surface(
@@ -2107,7 +2127,9 @@ class AccessibleUI:
         value = self.help_terminal_text()
         if value is None:
             return False
-        normalized = ' '.join(value.split())
+        # man may insert a Unicode line-break hyphen inside a word at the
+        # terminal's current width; keep the required purpose check intact.
+        normalized = ' '.join(re.sub(r'[\u00ad\u2010]\s+', '', value).split())
         if kind == 'help':
             found = (re.search(r'(?:^|\n)usage: ' + re.escape(command) + r'\s', value)
                      and identity in normalized and '--help' in value
@@ -3614,17 +3636,19 @@ class AccessibleUI:
             self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
         elif operation == 'help-system-prompt':
             self.desktop_result(PARENT, 'success')
+        elif operation == 'help-desktop-clear':
+            self.help_desktop_clear()
         elif operation == 'help-terminal-input':
-            self.wait(self.terminal_input, 'terminal-input')
+            self.wait(self.standard_terminal_input, 'terminal-input', prompt_in_predicate=True)
         elif operation == 'help-terminal-focused':
-            self.focus_terminal()
+            self.standard_focus_terminal()
             self.wait(lambda: self.help_shell_prompt(self.help_terminal_text()), 'help-shell-ready')
         elif operation == 'help-terminal-wrong-surface':
             self.desktop_result(PARENT, 'success')
-            require(self.help_terminal_text() is None, 'ui:help-wrong-surface')
+            require(self.standard_terminal_absent(), 'ui:help-wrong-surface')
         elif operation == 'help-terminal-closed':
             self.desktop_result(PARENT, 'success')
-            self.wait(self.terminal_absent, 'terminal-closed')
+            self.wait(self.standard_terminal_absent, 'terminal-closed', prompt_in_predicate=True)
         elif operation == 'help-shell-ready':
             self.wait(lambda: self.help_shell_prompt(self.help_terminal_text()), 'help-shell-ready')
             self.help_product_absent()

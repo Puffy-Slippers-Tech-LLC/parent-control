@@ -92,6 +92,7 @@ OPERATION_LABELS = {
     'standard-denial-closed': 'Checking denial dismissal returns to Terminal',
 }
 OPERATION_LABELS.update({
+    'help-desktop-clear': 'Checking the desktop after command documentation',
     'help-system-prompt': 'Checking for a login-keyring prompt',
     'help-terminal-input': 'Finding the active terminal input surface',
     'help-terminal-focused': 'Checking focused shell input before reading command help',

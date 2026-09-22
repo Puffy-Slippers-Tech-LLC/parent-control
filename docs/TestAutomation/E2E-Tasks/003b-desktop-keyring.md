@@ -7,7 +7,7 @@ Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 Add real gcr Cancel and resume the interrupted observation without replay. Use 003ba for positive no-prompt login; the real-prompt profile and prompt-replacement refusals below remain required.
 
-Tasks **003ba** supply the extracted operations through their maintained
+Task **003ba** supplies the extracted operations through its maintained
 callables and qualified scope. The delivery below is cumulative with those
 prerequisites. Implement only the remaining slice above. Keep the original
 acceptance results: reuse valid independent-branch evidence, and run every new
@@ -26,13 +26,14 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 ## Read only this context
 
 Read the [search/sign-in contract](../E2E-Building-Blocks.md#search-and-standard-sign-in-contracts), [credential boundary](../../../tests/e2e/README.md#credential-staging-and-password-capture-boundary), desktop/prompt callables in [accessible_ui.py](../../../tests/e2e/accessible_ui.py), and the entry stages of [desktop_session.py](../../../tests/e2e/desktop_session.py).
+The fresh no-prompt entry plans are in [fresh_desktop.py](../../../tests/e2e/fresh_desktop.py), with fixed worker input in [onpc_fresh_desktop.pm](../../../tests/integration/graphical_smoke/lib/onpc_fresh_desktop.pm) and separate-attempt qualification in [check_e2e_fresh_desktop.py](../../../tests/integration/check_e2e_fresh_desktop.py).
 Read the affected safety tests and named source callables, not predecessor
 briefs or unrelated providers. Current route qualification comes from the
 catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Bind the intended Parent and standard fixture desktops through scoped Shell semantics. Use two fresh qualified GDM proofs and the existing sealed single-use transport for one deliberate login. Add only the gcr provider's normal Cancel action and observed disappearance. Declare reproducible prepared entry states for a real keyring prompt and for positive no-prompt entry before running; absent-prompt mocks cannot qualify Cancel. This is preparation for the retained search and session consumers, with no keyring password access. Keep GDM submission, desktop observation and gcr cancellation as separately tested leaves within this slice.
+Reuse the qualified Parent and standard fresh no-prompt bindings without replaying their secret input. Add only the gcr provider's normal Cancel action and observed disappearance. Declare a reproducible prepared entry state for a real keyring prompt before running; absent-prompt mocks cannot qualify Cancel. This is preparation for the retained search and session consumers, with no keyring password access. Keep GDM submission, desktop observation and gcr cancellation as separately tested leaves within this slice.
 
 ## Live VM acceptance
 

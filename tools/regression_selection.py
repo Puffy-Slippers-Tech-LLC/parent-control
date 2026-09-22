@@ -32,7 +32,9 @@ class SelectedRun(Run):
         for kind, args in self.selections:
             name = ('Cleanup safety prerequisites' if kind == CLEANUP_SELECTION else
                     CATEGORY_NAMES.get(kind, CATEGORIES[kind].description))
-            if kind in ('fixtures', 'artifacts') and args and args[0] != 'build':
+            if kind == 'artifacts' and args == ['prepare']:
+                name = 'Package input preparation'
+            if kind in ('fixtures', 'artifacts') and args and args[0] not in ('build', 'prepare'):
                 name = ('Package reproducibility' if args[0] == 'compare' else
                         'Package verification' if kind == 'artifacts' else 'Test fixture verification')
             events = self.events(kind, args)

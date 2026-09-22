@@ -233,7 +233,9 @@ def cleanup_main(root=None, *, activity_fd=None):
     sys.stdout = PipeFrameOutput(output)
     try:
         with test_activity.activity(root, host_only=True if activity_fd is None else None):
-            return regression.retained_main(root, selections=[(CLEANUP_SELECTION, [])])
+            from e2e_startup_cache import qualified_cleanup
+            return qualified_cleanup(root, lambda: regression.retained_main(
+                root, selections=[(CLEANUP_SELECTION, [])]))
     finally:
         sys.stdout = output
         if previous is None:
@@ -287,7 +289,7 @@ def category_run(root, category, argv, *, pipe=True):
         command.insert(command.index('--'), '--cov-report=xml:' + directory + '/coverage.xml')
         env['COVERAGE_FILE'] = directory + '/.coverage'
         print('run-tests: output=' + directory, flush=True)
-    if category in ('fixtures', 'artifacts') and (not argv or argv == ['build']):
+    if category in ('fixtures', 'artifacts') and (not argv or argv in (['build'], ['prepare'])):
         directory = test_retention.allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-', dir='/tmp')
         commands[0] += ['--output', directory]
         print('run-tests: output=' + directory, flush=True)
@@ -310,7 +312,7 @@ def category_run(root, category, argv, *, pipe=True):
             directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-', dir='/tmp')
             print('run-tests: output=' + directory, flush=True)
             status = control.run(test_commands.python_file(
-                root, 'tools/build_test_artifacts.py', '--output', directory), cwd=root, env=env)
+                root, 'tools/build_test_artifacts.py', '--reuse', '--output', directory), cwd=root, env=env)
             if status:
                 return status
             commands, safety = test_commands.plan(root, category, [*argv, '--artifacts=' + directory])

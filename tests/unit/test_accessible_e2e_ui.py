@@ -422,16 +422,23 @@ def semantic_gdm_ui(*, rows=(), recipient=None, field=None, applications=()):
     return ui, shell
 
 
-def semantic_gdm_rows(*, focused=None, other=False):
+def semantic_gdm_rows(*, focused=None, other=False, standard=False):
     parent = Node('Jamie (Parent)', 'push button')
     station = Node('Oh No! Parent Control', 'push button')
     if focused == 'parent': parent.states.add('focused')
     if focused == 'station': station.states.add('focused')
-    if not other:
+    if not other and not standard:
         return parent, station
+    rows = [parent]
     other_parent = Node('Casey (Parent)', 'push button')
     if focused == 'other-parent': other_parent.states.add('focused')
-    return parent, other_parent, station
+    if other:
+        rows.append(other_parent)
+    standard_user = Node('Jordan (Child)', 'push button')
+    if focused == 'standard': standard_user.states.add('focused')
+    if standard:
+        rows.append(standard_user)
+    return (*rows, station)
 
 
 def keyring_ui(*, fault=None, root_children=()):
@@ -741,6 +748,7 @@ def test_gdm_product_free_prompt_and_return_never_read_or_submit_a_secret():
 
 @pytest.mark.parametrize('operation', [
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
+    'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
 ])
 @pytest.mark.parametrize('fault', [
     None, 'wrong-recipient', 'duplicate-recipient', 'missing-field', 'duplicate-field',
@@ -748,8 +756,10 @@ def test_gdm_product_free_prompt_and_return_never_read_or_submit_a_secret():
 ])
 def test_semantic_gdm_recipient_requires_one_bound_identity_and_empty_masked_focus(
         operation, fault):
+    expected = (accessible_ui.EXISTING_CHILD
+                if operation.startswith('gdm-standard-') else accessible_ui.PARENT)
     recipient = Node(
-        'Casey (Parent)' if fault == 'wrong-recipient' else 'Jamie (Parent)', 'label')
+        'Casey (Parent)' if fault == 'wrong-recipient' else expected, 'label')
     field = Node('Password', 'text' if fault == 'unmasked' else 'password text',
                  states=('showing', 'visible', 'sensitive', 'focused'))
     if fault in ('unfocused', 'hidden', 'disabled'):
@@ -764,7 +774,7 @@ def test_semantic_gdm_recipient_requires_one_bound_identity_and_empty_masked_foc
         rows=rows, recipient=recipient,
         field=None if fault == 'missing-field' else field)
     if fault == 'duplicate-recipient':
-        duplicate = Node('Jamie (Parent)', 'label')
+        duplicate = Node(expected, 'label')
         duplicate.parent = shell
         shell.children.append(duplicate)
     if fault == 'duplicate-field':
@@ -784,7 +794,9 @@ def test_semantic_gdm_recipient_requires_one_bound_identity_and_empty_masked_foc
     field.get_child_count.assert_not_called()
 
 
-def test_semantic_wrong_prompt_proves_other_parent_and_refuses_parent():
+@pytest.mark.parametrize('operation', [
+    'gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused'])
+def test_semantic_wrong_prompt_proves_other_parent_and_refuses_intended_account(operation):
     recipient = Node('Casey (Parent)', 'label')
     field = Node('Password', 'password text',
                  states=('showing', 'visible', 'sensitive', 'focused'))
@@ -795,20 +807,30 @@ def test_semantic_wrong_prompt_proves_other_parent_and_refuses_parent():
         get_character_count=Mock(return_value=0),
         get_text=Mock(side_effect=AssertionError('password text read')),
     )
-    assert ui.run('gdm-wrong-recipient-refused', '')['outcome'] == 'passed'
+    assert ui.run(operation, '')['outcome'] == 'passed'
     ui.api.Text.get_text.assert_not_called()
     field.get_child_count.assert_not_called()
 
 
-def test_unqualified_standard_gdm_route_blocks_before_tree_discovery_or_input():
-    row = Node('Jamie (Parent)', 'push button')
-    ui = ui_for(Node(children=[row]))
-    ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
-    with pytest.raises(UiError, match='unqualified-provider-application'):
+def test_semantic_standard_gdm_route_focuses_only_the_declared_account():
+    parent, standard, station = semantic_gdm_rows(standard=True)
+    ui, _shell = semantic_gdm_ui(rows=[station, parent, standard])
+    assert ui.run('gdm-standard-list', '')['focused'] is True
+    assert ui.run('gdm-standard-focused', '')['outcome'] == 'passed'
+    standard.component.grab_focus.assert_called_once_with()
+    parent.component.grab_focus.assert_not_called()
+    station.component.grab_focus.assert_not_called()
+    for row in (parent, standard, station):
+        row.action.do_action.assert_not_called()
+
+
+def test_semantic_standard_gdm_route_rejects_duplicate_account_without_input():
+    parent, standard, station = semantic_gdm_rows(standard=True)
+    ui, _shell = semantic_gdm_ui(rows=[
+        parent, standard, Node('Jordan (Child)', 'push button'), station])
+    with pytest.raises(UiError, match='gdm-account-cardinality'):
         ui.run('gdm-standard-list', '')
-    ui.api.get_desktop.assert_not_called()
-    row.component.grab_focus.assert_not_called()
-    row.action.do_action.assert_not_called()
+    standard.component.grab_focus.assert_not_called()
 
 
 def test_partial_gdm_provider_mapping_blocks_before_tree_discovery():
@@ -1158,6 +1180,107 @@ def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input(entr
     with pytest.raises(UiError, match='unqualified-provider-application'):
         call()
     ui.api.get_desktop.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'duplicate-owner', 'wrong-owner', 'duplicate-panel',
+                                 'hidden', 'stale', 'incomplete'])
+def test_standard_desktop_requires_unique_live_shell_panel(fault):
+    panel = Node('Activities', 'toggle button')
+    shell = Node('gnome-shell', 'application', children=[panel])
+    root = Node(role='desktop frame', children=[shell])
+    if fault == 'duplicate-owner':
+        other = Node('gnome-shell', 'application')
+        other.parent = root
+        root.children.append(other)
+    if fault == 'wrong-owner':
+        shell.name = 'unrelated'
+    if fault == 'duplicate-panel':
+        other = Node('Activities', 'toggle button')
+        other.parent = shell
+        shell.children.append(other)
+    if fault == 'hidden':
+        panel.states.remove('showing')
+    if fault == 'stale':
+        panel.states.add('defunct')
+    ui = ui_for(root)
+    if fault == 'incomplete':
+        shell.children.append(None)
+    if fault:
+        with pytest.raises(UiError):
+            ui.desktop_result(accessible_ui.EXISTING_CHILD, 'success')
+    else:
+        assert ui.desktop_result(accessible_ui.EXISTING_CHILD, 'success') is panel
+    panel.action.do_action.assert_not_called()
+
+
+def standard_terminal_ui():
+    field = Node(role='terminal', states=('showing', 'visible', 'sensitive', 'focused'))
+    window = Node('private title is not a selector', 'frame', children=[field],
+                  states=('showing', 'visible', 'active'))
+    owner = Node('ptyxis', 'application', children=[window])
+    root = Node(role='desktop frame', children=[owner])
+    return ui_for(root), root, owner, window, field
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-owner', 'duplicate-owner', 'duplicate-terminal',
+                                 'inactive', 'unfocused', 'disabled', 'hidden', 'stale',
+                                 'incomplete'])
+def test_standard_terminal_requires_unique_active_owned_focused_input(fault):
+    ui, root, owner, window, field = standard_terminal_ui()
+    if fault == 'wrong-owner':
+        owner.name = 'unrelated'
+    if fault == 'duplicate-owner':
+        other = Node('ptyxis', 'application')
+        other.parent = root
+        root.children.append(other)
+    if fault == 'duplicate-terminal':
+        other = Node(role='terminal')
+        other.parent = window
+        window.children.append(other)
+    if fault == 'inactive': window.states.remove('active')
+    if fault == 'unfocused': field.states.remove('focused')
+    if fault == 'disabled': field.states.remove('sensitive')
+    if fault == 'hidden': field.states.remove('showing')
+    if fault == 'stale': field.states.add('defunct')
+    if fault == 'incomplete': owner.children.append(None)
+    if fault in ('wrong-owner', 'duplicate-owner', 'duplicate-terminal', 'stale', 'incomplete'):
+        with pytest.raises(UiError):
+            ui.standard_terminal_input(focused=True)
+    else:
+        assert ui.standard_terminal_input(focused=True) is (None if fault else field)
+    field.component.grab_focus.assert_not_called()
+
+
+def test_standard_terminal_focus_observes_result_and_never_replays_uncertain_input():
+    ui, _root, _owner, _window, field = standard_terminal_ui()
+    field.states.remove('focused')
+    field.component.grab_focus.side_effect = lambda: True
+    with pytest.raises(UiError, match='terminal-focus'):
+        ui.standard_focus_terminal()
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.standard_focus_terminal()
+    field.component.grab_focus.assert_called_once_with()
+
+
+def test_standard_terminal_closure_requires_fresh_complete_absence():
+    ui, _root, _owner, window, field = standard_terminal_ui()
+    assert not ui.standard_terminal_absent()
+    window.children.remove(field)
+    assert ui.standard_terminal_absent()
+    window.children.append(None)
+    with pytest.raises(UiError, match='incomplete-tree'):
+        ui.standard_terminal_absent()
+
+
+@pytest.mark.parametrize('identity', ['parent-access-denied-window', 'parent-window',
+                                   'parent-screen-limit-toggle'])
+def test_standard_denial_return_rejects_remaining_denial_or_management(identity):
+    ui, root, _owner, _window, _field = standard_terminal_ui()
+    assert ui.standard_denial_closed()
+    leftover = Node(identity=identity)
+    leftover.parent = root
+    root.children.append(leftover)
+    assert not ui.standard_denial_closed()
 
 
 def test_dead_unrelated_subtree_does_not_hide_live_control():

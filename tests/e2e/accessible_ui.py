@@ -158,6 +158,7 @@ GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list
                                 'gdm-station-list', 'gdm-product-free-list'})
 GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-other-list', 'gdm-other-focused',
+    'gdm-standard-list', 'gdm-standard-focused',
     'gdm-product-free-list', 'gdm-product-free-focused',
     'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-station-wrong-entry-refused',
@@ -1709,6 +1710,88 @@ class AccessibleUI:
             return None
         return field
 
+    def standard_terminal_snapshot(self):
+        """Ptyxis external-provider route for E2E-004 on the fixture user bus.
+
+        Resolve its sole public terminal and active owning window without using
+        window titles, terminal contents, coordinates or tree position. Other
+        terminal providers and multiple windows/tabs refuse, including absence.
+        """
+        root = self.api.get_desktop(0)
+        require(root is not None, 'ui:incomplete-tree')
+        snapshot, facts = {}, {}
+        nodes = list(self.nodes(root, strict=True, snapshot=snapshot, facts=facts))
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:stale-surface')
+        self.handle_system_prompt(observation=(nodes, snapshot, facts))
+        owners = [node for node in nodes if node.get_parent() == root
+                  and facts[node]['role'] == 'application'
+                  and facts[node]['name'].casefold() == 'ptyxis']
+        require(len(owners) <= 1, 'ui:terminal-provider-owner')
+        terminals = [node for node in nodes if facts[node]['role'] == 'terminal'
+                     and facts[node]['showing']]
+        require(len(terminals) <= 1, 'ui:terminal-ambiguous')
+        if not terminals:
+            return None, None, (nodes, snapshot, facts)
+        require(len(owners) == 1, 'ui:terminal-provider-owner')
+        field = terminals[0]
+        owned = self.snapshot_scope(nodes, snapshot, owners[0])
+        require(field in owned, 'ui:terminal-provider-owner')
+        windows = [node for node in owned if facts[node]['role'] in ('frame', 'window')
+                   and facts[node]['showing']
+                   and field in self.snapshot_scope(nodes, snapshot, node)]
+        require(len(windows) == 1, 'ui:terminal-window-ambiguous')
+        return windows[0], field, (nodes, snapshot, facts)
+
+    def standard_terminal_input(self, *, focused=False):
+        if self.provider_contracts['terminal']['application_id']:
+            return self.terminal_input(focused=focused)
+        window, field, _observation = self.standard_terminal_snapshot()
+        if (field is None or not self.has_state(window, self.api.StateType.ACTIVE)
+                or not self.has_state(field, self.api.StateType.SENSITIVE)
+                or (focused and not self.has_state(field, self.api.StateType.FOCUSED))):
+            return None
+        return field
+
+    def standard_focus_terminal(self):
+        if self.provider_contracts['terminal']['application_id']:
+            return self.focus_terminal()
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        field = self.wait(self.standard_terminal_input, 'terminal-input', prompt_in_predicate=True)
+        if not self.has_state(field, self.api.StateType.FOCUSED):
+            component = field.get_component_iface()
+            require(component is not None, 'ui:terminal-focus-unavailable')
+            self.input_uncertain = True
+            require(component.grab_focus(), 'ui:terminal-focus-refused')
+        self.wait(lambda: self.standard_terminal_input(focused=True), 'terminal-focus',
+                  prompt_in_predicate=True)
+        self.input_uncertain = False
+
+    def standard_terminal_absent(self):
+        if self.provider_contracts['terminal']['application_id']:
+            return self.terminal_absent()
+        _window, field, _observation = self.standard_terminal_snapshot()
+        return field is None
+
+    def standard_denial_closed(self):
+        if self.provider_contracts['terminal']['application_id']:
+            surrounding = self.terminal_return_surface()
+            if not self.absent_id('parent-access-denied-window', within=surrounding):
+                return False
+            self.management_absent(within=surrounding)
+            return True
+        window, field, (nodes, _snapshot, facts) = self.standard_terminal_snapshot()
+        if (field is None or not self.has_state(window, self.api.StateType.ACTIVE)
+                or not self.has_state(field, self.api.StateType.FOCUSED)):
+            return False
+        # Public owned IDs still determine product absence. The positive
+        # surrounding surface is the freshly qualified provider terminal.
+        forbidden = {'parent-access-denied-window', 'parent-window',
+                     'parent-screen-limits-page', 'parent-app-limits-page',
+                     'parent-screen-limit-toggle'}
+        return not any(facts[node]['showing'] and facts[node]['identity'] in forbidden
+                       for node in nodes)
+
     def focus_terminal(self):
         # Application SCREEN extents are not reliable global coordinates on
         # Wayland. Focus the qualified public component without translating
@@ -1828,12 +1911,42 @@ class AccessibleUI:
         """GDM06 success on the caller's qualified public desktop connection."""
         require(account in (PARENT, EXISTING_CHILD) and expected == 'success',
                 'ui:desktop-binding')
+        if (account == EXISTING_CHILD
+                and not self.provider_contracts['gnome-shell']['application_id']):
+            return self.standard_shell_desktop()
         surface, registered = self.provider_surface(
             'gnome-shell', 'desktop', ('desktop',))
         target = (self.find_id(registered['desktop'], root=surface)
                   if surface is not None else None)
         require(target is not None, 'ui:desktop')
         return target
+
+    def standard_shell_desktop(self):
+        """Shell 50 English desktop observation on the bound standard-user bus.
+
+        This external-provider adapter recognizes Shell's public Activities toggle;
+        it authorizes no Shell input, menu, search, lock or retained-session route.
+        """
+        def observe():
+            root = self.api.get_desktop(0)
+            require(root is not None, 'ui:incomplete-tree')
+            snapshot = {}
+            nodes = list(self.nodes(root, strict=True, protect_text=True, snapshot=snapshot))
+            require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                            for node in nodes), 'ui:stale-surface')
+            owners = [node for node in nodes if node.get_parent() == root
+                      and node.get_role_name() == 'application'
+                      and node.get_name().casefold() in GDM_SEMANTIC_APPLICATION_NAMES]
+            require(len(owners) <= 1, 'ui:shell-provider-owner')
+            if not owners:
+                return None
+            panels = [node for node in self.snapshot_scope(nodes, snapshot, owners[0])
+                      if node.get_role_name() == 'toggle button' and node.get_name() == 'Activities'
+                      and self.showing(node)
+                      and self.has_state(node, self.api.StateType.SENSITIVE)]
+            require(len(panels) <= 1, 'ui:shell-desktop-ambiguous')
+            return panels[0] if panels else None
+        return self.wait(observe, 'shell-desktop')
 
     def session_menu_toggle(self):
         """DESK02 entry target, observed only through Shell's panel IDs."""
@@ -1912,6 +2025,7 @@ class AccessibleUI:
             return False
         registered = surface[1]
         required = ('account-list', 'account-choice::parent',
+                    'account-choice::other-parent', 'account-choice::other-child',
                     'account-choice::station', 'selected-recipient', 'password')
         return all(type(registered.get(control)) is str and registered[control]
                    for control in required)
@@ -2023,6 +2137,7 @@ class AccessibleUI:
             'matches': {
                 'ordinary': matches((PARENT,)),
                 'other-ordinary': matches((OTHER_PARENT,)),
+                'standard': matches((EXISTING_CHILD,)),
                 'station': matches((KIOSK, KIOSK_USERNAME)),
             },
         }
@@ -2031,10 +2146,10 @@ class AccessibleUI:
         """Return declared fixture rows from one complete account-list snapshot."""
         require(type(expected) is tuple and expected
                 and len(set(expected)) == len(expected)
-                and set(expected) <= {PARENT, OTHER_PARENT, KIOSK}
+                and set(expected) <= {PARENT, OTHER_PARENT, EXISTING_CHILD, KIOSK}
                 and type(excluded) is tuple
                 and len(set(excluded)) == len(excluded)
-                and set(excluded) <= {PARENT, OTHER_PARENT, KIOSK}
+                and set(excluded) <= {PARENT, OTHER_PARENT, EXISTING_CHILD, KIOSK}
                 and not set(expected) & set(excluded),
                 'ui:gdm-account-binding')
         owner, nodes = self.gdm_semantic_nodes()
@@ -2045,6 +2160,7 @@ class AccessibleUI:
         bindings = {
             PARENT: (PARENT,),
             OTHER_PARENT: (OTHER_PARENT,),
+            EXISTING_CHILD: (EXISTING_CHILD,),
             KIOSK: (KIOSK, KIOSK_USERNAME),
         }
         identities = (*expected, *excluded)
@@ -2068,7 +2184,8 @@ class AccessibleUI:
         return owner, result
 
     def gdm_nonsecret_account(self, name):
-        require(name in (PARENT, OTHER_PARENT, KIOSK), 'ui:gdm-nonsecret-binding')
+        require(name in (PARENT, OTHER_PARENT, EXISTING_CHILD, KIOSK),
+                'ui:gdm-nonsecret-binding')
         if self.gdm_nonsecret_has_id_route():
             return self.greeter_list(name)
         expected = tuple(dict.fromkeys((PARENT, KIOSK, name)))
@@ -2147,7 +2264,8 @@ class AccessibleUI:
         require(not account_rows, 'ui:gdm-list-prompt-overlap')
         recipients = [node for node in showing
                       if node.get_role_name() == 'label'
-                      and self.gdm_semantic_name(node) in (PARENT, OTHER_PARENT)]
+                      and self.gdm_semantic_name(node)
+                      in (PARENT, OTHER_PARENT, EXISTING_CHILD)]
         fields = [node for node in showing
                   if node.get_role_name() == 'password text']
         require(len(recipients) == 1, 'ui:gdm-recipient')
@@ -2635,7 +2753,8 @@ class AccessibleUI:
         """
         require(name in GREETER_IDENTITIES, 'ui:gdm-account-binding')
         if not self.gdm_nonsecret_has_id_route():
-            require(name in (PARENT, OTHER_PARENT), 'ui:gdm-nonsecret-binding')
+            require(name in (PARENT, OTHER_PARENT, EXISTING_CHILD),
+                    'ui:gdm-nonsecret-binding')
             recipient, field = self.gdm_semantic_prompt()
             if recipient != name:
                 return False
@@ -3070,23 +3189,20 @@ class AccessibleUI:
         elif operation == 'standard-system-prompt':
             self.desktop_result(EXISTING_CHILD, 'success')
         elif operation == 'standard-terminal-input':
-            self.wait(self.terminal_input, 'terminal-input')
+            self.wait(self.standard_terminal_input, 'terminal-input', prompt_in_predicate=True)
         elif operation == 'standard-terminal-focused':
-            self.focus_terminal()
+            self.standard_focus_terminal()
         elif operation == 'standard-terminal-wrong-surface':
             # Positive desktop evidence makes a missing terminal meaningful.
             self.desktop_result(EXISTING_CHILD, 'success')
-            require(self.terminal_input(focused=True) is None, 'ui:terminal-wrong-surface')
+            require(self.standard_terminal_input(focused=True) is None, 'ui:terminal-wrong-surface')
         elif operation == 'standard-terminal-closed':
             self.desktop_result(EXISTING_CHILD, 'success')
-            self.wait(self.terminal_absent, 'terminal-closed')
+            self.wait(self.standard_terminal_absent, 'terminal-closed', prompt_in_predicate=True)
         elif operation == 'standard-management-denied':
             self.management_denied()
         elif operation == 'standard-denial-closed':
-            surrounding = self.terminal_return_surface()
-            self.wait(lambda: self.absent_id('parent-access-denied-window', within=surrounding),
-                      'denial-closed')
-            self.management_absent(within=surrounding)
+            self.wait(self.standard_denial_closed, 'denial-closed', prompt_in_predicate=True)
         elif operation == 'standard-app-grid':
             self.search_ready('overview')
         elif operation == 'standard-search-focused':

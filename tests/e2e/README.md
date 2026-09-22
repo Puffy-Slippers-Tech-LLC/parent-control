@@ -222,9 +222,10 @@ are mutually exclusive. Refresh installed dispatchers with
 
 `tools/run-tests e2e` runs every runnable E2E case and reports pending exclusions.
 It does not dispatch other test categories. Execution without `--artifacts`
-builds the required package artifacts automatically; an explicit artifact
-directory reuses the existing verified inputs. The guarded dispatcher's mandatory
-cleanup-safety prerequisites still apply. Explicit pending IDs refuse rather
+prepares the required package artifacts automatically, reusing matching verified
+inputs or building on a miss; an explicit artifact directory uses the supplied
+verified inputs. The guarded dispatcher's mandatory cleanup-safety qualification
+still applies, with content-qualified reuse as described below. Explicit pending IDs refuse rather
 than silently narrowing the requested list.
 
 From the checkout, these commands only read declarations and print JSON. They
@@ -280,6 +281,46 @@ expected evidence and the SHA-256 of the exact inventory bytes read. This digest
 identifies the declaration only. `provenance.VerifiedInputs` separately identifies
 current source, requirement mappings, staged packages/assets and the verified
 baseline's guest preparation. Execution dispatch must use that capture.
+
+### Reusable startup preparation
+
+Automatic preparation and `tools/run-tests artifacts prepare` use
+[the startup cache](../../tools/e2e_startup_cache.py). The artifact key includes
+package source bytes and modes, source revision/build metadata, fixture inputs,
+builder code and bytecode, and the tool/runtime identity. Every hit hashes the complete stored
+payload, including manifests and volatile Flatpak containers, checks its metadata,
+copies it into the current run's private allocation and verifies that copy.
+Inputs are captured again before publishing the result; concurrent changes refuse
+the preparation. Explicit `artifacts build` and reproducibility builds remain fresh.
+
+The maintained cleanup coordinator reuses only a complete successful qualification
+whose tracked and nonignored untracked checkout inputs, bytecode in source
+directories (including Git-ignored caches), and runtime identity still match.
+It hashes bytes on each lookup; preserving a file's timestamp and size
+does not preserve its identity. Runtime identity includes importable Python/native
+module contents and search paths, managed package records, selected tool binaries,
+the sanitized environment and the host boot identity. A failed or interrupted
+qualification is not cached. Checkout changes during a passing qualification,
+including files replaced or removed during fingerprinting, prevent publication
+of a reusable result without invalidating that existing run. If input capture
+is unavailable before the gate, the coordinator runs a fresh qualification.
+Explicit regression-suite selections still execute their requested tests.
+
+Storage is bounded: one artifact receipt and one safety receipt per checkout/user
+are atomically replaced in a private `/tmp/onpc-startup-cache-*` directory. The
+cache stores no payload copies of its own. Every prepared bundle, including a
+failed preparation, is registered with the existing three-run retention policy
+per scope. Old bundles rotate normally; a receipt pointing at removed storage is
+a cache miss. Preparation refuses without an active retention session.
+
+Cache receipts are coordination evidence within the trusted development checkout,
+not privileged authorization. Each attempt still checks current VM ownership,
+leases, snapshot identity, credentials, scenario selection and staged artifacts.
+Changing source inputs, dependencies or the boot identity requires qualification
+again. No VM state, cleanup action or customer acceptance result is cached.
+Only unchanged warm runs avoid both expensive preparation stages; cold or
+invalidated runs still build and qualify their inputs. Cache lookup, artifact
+copying/verification and the live VM preparation remain in the startup time.
 
 ## Run E2E scenarios
 

@@ -118,10 +118,12 @@ def test_parallel_cleanup_command_inherits_current_host_activity(tmp_path):
 
 
 def test_parallel_cleanup_coordinator_joins_and_restores_activity(tmp_path, monkeypatch, capsys):
+    import e2e_startup_cache
     import regression
     import regression_process
     from regression_selection import CLEANUP_SELECTION
     root = tmp_path / 'checkout'
+    monkeypatch.setattr(e2e_startup_cache, 'qualified_cleanup', lambda root, run: run())
     monkeypatch.delenv(test_activity.VARIABLE, raising=False)
     with test_activity.activity(root, host_only=True):
         descriptor, = test_activity.descriptors()

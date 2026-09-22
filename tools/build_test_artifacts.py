@@ -235,10 +235,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, help="an empty output directory outside the checkout")
     parser.add_argument("--verify", action="store_true", help="verify an existing artifact manifest")
+    parser.add_argument("--reuse", action="store_true", help="prepare verified matching inputs, building on a cache miss")
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"), help="compare two built artifact directories")
     arguments = parser.parse_args()
     try:
-        if arguments.compare:
+        if arguments.reuse:
+            if arguments.output is None or arguments.verify or arguments.compare:
+                raise ArtifactError('--reuse requires only --output')
+            # Import by the same tools path used by the maintained launchers.
+            from e2e_startup_cache import prepare_artifacts
+            prepare_artifacts(sys.modules[__name__], arguments.output.resolve(strict=True))
+        elif arguments.compare:
             compare(arguments.compare[0].resolve(strict=True), arguments.compare[1].resolve(strict=True))
         elif arguments.verify:
             if arguments.output is None:

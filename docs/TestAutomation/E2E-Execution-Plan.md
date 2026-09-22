@@ -15,7 +15,7 @@ instructions and never select a different task.
 
 ## Next task
 
-Next task: **003aa — [Select an ordinary GDM account and return](E2E-Tasks/003aa-gdm-navigation.md)**.
+Next task: **003a — [Prove the intended GDM password recipient](E2E-Tasks/003a-gdm-recipient.md)**.
 
 Task 017 completed Parent saved/control snapshots. Task 012 still needs the
 current Shell Switch User route: the historical check on task 003 does not

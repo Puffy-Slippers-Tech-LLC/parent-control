@@ -40,8 +40,12 @@ def installed_case(installed):
 def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
                  *, fresh_install=False):
     from vm_transport import Transport
+    from guest_inputs import Bundle
 
     lease, source = suite.lease, suite.source
+    # Snapshot setup uses the same recipe/helpers frozen before VM acquisition,
+    # even if the checkout changes during preceding package lifecycle tests.
+    suite._input_bundle = Bundle.from_staged(system.ROOT, directory / 'input')
     planned = attempts(selection, fresh_install=fresh_install)
     results = directory / 'guest-results'
     results.mkdir(mode=0o700)

@@ -156,6 +156,8 @@ Aggregate aliases (no suite selectors)
   runs verify backing bytes. Focused system/e2e options remain available.
   The granular inventory supplies both host's suites and fix-tests round 1.
   Bare artifacts runs two builds and their reproducibility comparison.
+  artifacts build --output '/tmp/onpc-NAME' builds into a new named directory
+  for fixed integration consumers; existing paths are never overwritten.
   Pending E2E variants remain excluded.
 
 UI-only validation (same UI buckets and resource limits as host)
@@ -253,6 +255,41 @@ def artifact_path(value):
 
 def python_file(root, path, *options):
     return ['/usr/bin/python3', '-B', host.confined_file(root, path), *options]
+
+
+def artifact_output(value):
+    """Accept only a new direct project directory in /tmp; never replace inputs."""
+    path = Path(value)
+    if (str(path) != value or path.parent != Path('/tmp') or
+            not re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', path.name) or
+            os.path.lexists(path)):
+        raise ValueError('artifact output must be a new /tmp/onpc-* directory')
+    return str(path)
+
+
+def allocate_artifact_output(value):
+    import test_retention
+
+    def create():
+        path = Path(artifact_output(value))
+        path.mkdir(mode=0o700)
+        return str(path)
+
+    return test_retention.allocate(create)
+
+
+def qualification_artifact_command(root, category, args):
+    """Prepare UI17's fixed inputs in this run, including after retention expiry."""
+    if category != 'integration' or args not in (
+            ['check_e2e_toggle'], ['check_e2e_toggle.py']):
+        return None
+    output = '/tmp/onpc-parent-setup-input'
+    if os.path.lexists(output):
+        artifact_path(output)
+        return None  # The privileged consumer verifies the frozen manifest.
+    directory = allocate_artifact_output(output)
+    print('run-tests: output=' + directory, flush=True)
+    return python_file(root, 'tools/build_test_artifacts.py', '--output', directory)
 
 
 def make_command(root, target, assignments=()):
@@ -363,6 +400,8 @@ def plan(root, category, argv):
         command = python_file(root, path)
         if action == 'build' and len(argv) <= 1:
             return [command], False
+        if category == 'artifacts' and len(argv) == 3 and argv[:2] == ['build', '--output']:
+            return [[*command, '--output', artifact_output(argv[2])]], False
         if action == 'verify' and len(argv) == 2:
             return [[*command, '--verify', '--output', artifact_path(argv[1])]], False
         if category == 'artifacts' and action == 'compare' and len(argv) == 3:
@@ -450,6 +489,9 @@ def _main(argv=None, *, detached=False):
             directory = tempfile.mkdtemp(prefix=f'onpc-test-{category}-', dir='/tmp')
             commands[0] += ['--output', directory]
             print('run-tests: output=' + directory, flush=True)
+        elif category == 'artifacts' and args[:2] == ['build', '--output']:
+            directory = allocate_artifact_output(args[2])
+            print('run-tests: output=' + directory, flush=True)
         if category == 'coverage':
             directory = tempfile.mkdtemp(prefix='onpc-coverage-', dir='/tmp')
             command = commands[0]
@@ -463,6 +505,9 @@ def _main(argv=None, *, detached=False):
                                 '--coverage-output=' + directory]
             print('run-tests: output=' + directory, flush=True)
         os.chdir(root)
+        preparation = qualification_artifact_command(root, category, args)
+        if preparation is not None:
+            commands.insert(0, preparation)
         for command in commands[:-1]:
             status = subprocess.run(command, env=env, check=False).returncode
             if status:

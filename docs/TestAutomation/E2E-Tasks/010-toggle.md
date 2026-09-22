@@ -34,12 +34,28 @@ Otherwise implement/reuse the planned fixed qualification:
 tools/run-tests integration check_e2e_toggle
 ```
 
+The launcher builds the fixed input directory when absent through the normal
+unprivileged builder; existing inputs undergo the consumer's manifest checks.
+
 This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
 before invocation. Require every stated result, independent valid entry, wrong-entry
 refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
 establish complete scenario coverage.
 
 ## Close out
+
+Current blocker: `check_e2e_toggle` stops before VM entry with
+`assets:source-missing`; its required `/tmp/onpc-parent-setup-input` directory is
+absent. Resume when the verified package/fixture inputs are available through a
+maintained preparation route. Automatic recovery and cleanup prerequisites
+passed. Preserve the [failed qualification report](../Evidence/test-all-runs/20260921T235217Z-65cfab28/report.md).
+
+The concurrent action-helper and snapshot lookup changes are reconciled. Toggle
+result polling now shares its prompt/ownership/target snapshot and reacquires
+after input. Revalidation passed 502 focused unit tests plus source checks and
+both Parent display scales (89.23 seconds combined; the historical runtime gap
+remains unresolved). Installed qualification and all closure updates remain
+outstanding; do not advance the execution pointer before acceptance passes.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).

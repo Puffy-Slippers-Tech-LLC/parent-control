@@ -28,6 +28,7 @@ class SuiteLease(system.Lease):
         self._failed = False
         self.installed_name = None
         self.installed_xml = None
+        self.installed_inputs = None
         self.restore_installed = False
         self._restored_name = None
 
@@ -54,6 +55,24 @@ class SuiteLease(system.Lease):
         with self.snapshot_status('Taking', self.installed_name):
             snap = self.source.domain.snapshotCreateXML(ET.tostring(root, encoding='unicode'), 0)
         self.installed_xml = snap.getXMLDesc(0)
+        if self.installed_inputs is not None:
+            # Publish freshness only after libvirt acknowledges snapshot creation.
+            # Interrupted creation leaves an unmarked snapshot that cannot be reused.
+            self.guard(off=True)
+            root = ET.fromstring(self.installed_xml)
+            system.require(root.findtext('name') == self.installed_name,
+                           'suite:snapshot-name-changed')
+            description = root.find('description')
+            if description is None:
+                description = ET.SubElement(root, 'description')
+            description.text = self.installed_inputs
+            with self.snapshot_status('Recording inputs for', self.installed_name):
+                snap = self.source.domain.snapshotCreateXML(
+                    ET.tostring(root, encoding='unicode'),
+                    self.source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE)
+            self.installed_xml = snap.getXMLDesc(0)
+            system.require(ET.fromstring(self.installed_xml).findtext('description') ==
+                           self.installed_inputs, 'suite:snapshot-inputs-not-recorded')
         self.source.connection.defineXML(self.test_xml)
         self.view.run = self.state['run']
         self.save('isolated')
@@ -238,6 +257,13 @@ class Suite:
         self.backend_checked = self.credentials_checked = False
         self.prepared = False
         self.next_case = None
+        self._input_bundle = None
+
+    def input_bundle(self, root):
+        if self._input_bundle is None:
+            from installed_setup import inputs
+            self._input_bundle = inputs(root)
+        return self._input_bundle
 
     def prepare_installed(self, directory, assets, selection, *, root, overwrite=True):
         from app_snapshot import prepare

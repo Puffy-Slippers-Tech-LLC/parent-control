@@ -7,6 +7,8 @@ PLAN = JourneyPlan(
     prefix='parent-toggle', worker_mode='parent_toggle',
     screen_tags={
         'parent-window': 'ui:parent-window',
+        'child-picker-opened': 'ui:child-picker-opened',
+        'child-choice-highlighted': 'ui:child-choice-highlighted',
         'parent-selected': 'ui:parent-selected',
         'wrong-control-refused': 'ui:parent-toggle-wrong-refused',
         'limit-enabled': 'ui:parent-toggle-enabled',
@@ -17,7 +19,8 @@ PLAN = JourneyPlan(
     },
     phases={
         'ready': 'setup', 'setup-detached': 'setup',
-        'parent-window': 'start', 'parent-selected': 'step-1',
+        'parent-window': 'start', 'child-picker-opened': 'step-1',
+        'child-choice-highlighted': 'step-1', 'parent-selected': 'step-1',
         'wrong-control-refused': 'step-1', 'limit-enabled': 'step-1',
         'limit-disabled': 'step-2', 'limit-current': 'step-2',
         'hidden-control-refused': 'step-2', 'disabled-settings': 'step-2',

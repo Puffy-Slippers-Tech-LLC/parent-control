@@ -13,6 +13,98 @@ import test_launcher as host
 import test_commands as commands
 
 
+def test_named_artifact_build_uses_existing_builder_without_creating_output(monkeypatch):
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    output = '/tmp/onpc-parent-setup-input'
+    planned, safety = commands.plan(ROOT, 'artifacts', ['build', '--output', output])
+    assert planned == [commands.python_file(
+        ROOT, 'tools/build_test_artifacts.py', '--output', output)]
+    assert not safety
+
+
+@pytest.mark.parametrize('output', [
+    '/etc/onpc-input', '/tmp/unrelated', '/tmp/onpc-input/nested',
+    '/tmp/../tmp/onpc-input', 'onpc-input', '/tmp//onpc-input',
+])
+def test_named_artifact_build_refuses_unconfined_outputs(output):
+    with pytest.raises(ValueError, match='artifact output'):
+        commands.plan(ROOT, 'artifacts', ['build', '--output', output])
+
+
+def test_named_artifact_build_refuses_existing_and_dangling_paths(monkeypatch):
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
+    with pytest.raises(ValueError, match='artifact output'):
+        commands.plan(ROOT, 'artifacts', ['build', '--output', '/tmp/onpc-existing'])
+
+
+def test_named_artifact_allocation_is_exclusive_private_and_retained(tmp_path, monkeypatch):
+    import test_retention
+
+    output = tmp_path / 'new-output'
+    monkeypatch.setattr(commands, 'artifact_output', lambda _: str(output))
+    with test_retention.Store(tmp_path / 'retention').session():
+        assert commands.allocate_artifact_output('/tmp/onpc-input') == str(output)
+        assert output.stat().st_mode & 0o777 == 0o700
+        (output / 'preserve').write_text('existing input')
+        with pytest.raises(FileExistsError):
+            commands.allocate_artifact_output('/tmp/onpc-input')
+        assert (output / 'preserve').read_text() == 'existing input'
+    assert str(output) in (tmp_path / 'retention/current.json').read_text()
+
+
+def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, monkeypatch):
+    import regression_process
+
+    output = '/tmp/onpc-parent-setup-input'
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    allocate = Mock(return_value=output)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    assert regression_process.category_run(
+        ROOT, 'artifacts', ['build', '--output', output], pipe=False) == 0
+    allocate.assert_called_once_with(output)
+    assert execute.call_args.args[0] == commands.python_file(
+        ROOT, 'tools/build_test_artifacts.py', '--output', output)
+
+
+@pytest.mark.parametrize('selector', ['check_e2e_toggle', 'check_e2e_toggle.py'])
+def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(monkeypatch, selector):
+    import regression_process
+
+    output = '/tmp/onpc-parent-setup-input'
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    allocate = Mock(return_value=output)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    execute = Mock(return_value=7)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    assert regression_process.category_run(
+        ROOT, 'integration', [selector], pipe=False) == 7
+    allocate.assert_called_once_with(output)
+    # A failed prerequisite never enters the privileged runner or the VM.
+    assert execute.call_count == 1
+    assert execute.call_args.args[0] == commands.python_file(
+        ROOT, 'tools/build_test_artifacts.py', '--output', output)
+
+
+def test_toggle_qualification_reuses_existing_inputs_without_overwriting(monkeypatch):
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
+    validate = Mock()
+    monkeypatch.setattr(commands, 'artifact_path', validate)
+    allocate = Mock(side_effect=AssertionError('existing inputs replaced'))
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    assert commands.qualification_artifact_command(
+        ROOT, 'integration', ['check_e2e_toggle']) is None
+    validate.assert_called_once_with('/tmp/onpc-parent-setup-input')
+
+
+def test_unrelated_integration_does_not_build_toggle_assets(monkeypatch):
+    monkeypatch.setattr(commands, 'allocate_artifact_output',
+                        Mock(side_effect=AssertionError('unrelated build')))
+    assert commands.qualification_artifact_command(
+        ROOT, 'integration', ['check_graphical_smoke']) is None
+
+
 def test_retention_permission_failure_identifies_allocation_without_starting_tests(
         tmp_path, monkeypatch, capsys):
     import regression

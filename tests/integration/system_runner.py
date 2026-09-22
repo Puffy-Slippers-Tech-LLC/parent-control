@@ -57,22 +57,6 @@ COMMON_SELECTED_INPUTS = (
     ('tests/system/pytest.ini', 'pytest.ini'),
     ('tools/regression_events.py', 'system_progress.py'),
 )
-AREA_SELECTED_HELPERS = {
-    'package': (),
-    'authorization': (('tests/integration/system_caller.py', 'system_caller.py'),
-                      ('tests/integration/system_assertions.py', 'system_assertions.py'),
-                      ('tests/integration/system_accounts.py', 'system_accounts.py'),
-                      ('tests/integration/system_remote_accounts.py', 'system_remote_accounts.py')),
-    'enforcement': (('tests/integration/system_caller.py', 'system_caller.py'),
-                    ('tests/integration/system_assertions.py', 'system_assertions.py'),
-                    ('tests/integration/system_session_expiry.py', 'system_session_expiry.py'),
-                    ('tests/integration/system_probe_sandbox.py', 'system_probe_sandbox.py'),
-                    ('tests/integration/system_enforcement.py', 'system_enforcement.py')),
-    'session': (('tests/integration/system_caller.py', 'system_caller.py'),
-                ('tests/integration/system_assertions.py', 'system_assertions.py'),
-                ('tests/integration/system_session_expiry.py', 'system_session_expiry.py'),
-                ('tests/integration/system_graphical_expiry.py', 'system_graphical_expiry.py')),
-}
 PHASE_DEPENDENCIES = {
     'installed': (),
     'rebooted': ('installed',),
@@ -895,20 +879,14 @@ def stage_selected_inputs(selection, destination):
         if area not in selected_areas:
             continue
         inputs.append((str(AREA_SOURCES[area].relative_to(ROOT)), AREA_SOURCES[area].name))
-        inputs.extend(AREA_SELECTED_HELPERS[area])
     # Areas share transport/assertion helpers. Coalesce identical declarations
     # in stable order, but still refuse two different sources for one target.
     inputs = list(dict.fromkeys(inputs))
     require(len({target for _, target in inputs}) == len(inputs),
             'selection:duplicate-input-target')
 
-    files = {}
-    for relative, target in inputs:
-        source = ROOT / relative
-        staged = destination / target
-        staged.parent.mkdir(exist_ok=True)
-        shutil.copyfile(source, staged)
-        files[target] = {'source': relative, 'sha256': baseline.digest(staged)}
+    from guest_inputs import Bundle
+    files = Bundle(ROOT, inputs).stage(destination)
     identity = {
         'schema_version': 1,
         'selection': {

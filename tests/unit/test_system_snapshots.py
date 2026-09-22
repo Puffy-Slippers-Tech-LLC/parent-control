@@ -62,9 +62,12 @@ def test_snapshot_verification_failure_never_installs_or_runs_tests(tmp_path):
 @pytest.mark.parametrize('failure', [None, 'prepare', 'test', 'evidence'])
 def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monkeypatch, failure):
     import vm_transport
+    import guest_inputs
     selection = system.resolve_selection(inventories=INVENTORIES)
     (tmp_path / 'input').mkdir()
     (tmp_path / 'input/frozen').write_bytes(b'input')
+    frozen = Mock()
+    monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock(return_value=frozen))
     suite = Mock()
     suite.verified = None
     suite.lease = Mock(state={'run': RUN})
@@ -109,3 +112,4 @@ def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monk
     lease.prepare.assert_called_once()
     assert lease.__enter__.call_count == lease.__exit__.call_count
     lease.source.domain.snapshotLookupByName.assert_not_called()  # Only shared E2E code owns snapshots.
+    assert suite._input_bundle is frozen

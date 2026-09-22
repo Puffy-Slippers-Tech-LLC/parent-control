@@ -295,7 +295,7 @@ def test_installed_preparation_uses_customer_prerequisites_without_a_case_id_swi
     harness.case['preconditions'] = ['installed-digest-verified-product'] if installed else []
     execution.system.bootstrap.side_effect = RuntimeError('stop after inspecting bootstrap inputs')
     suite = SimpleNamespace(commands=execution.Commands(), backend_checked=False,
-                            credentials_checked=False, prepare_case=Mock())
+                            credentials_checked=False, prepare_case=Mock(), input_bundle=Mock())
     def acquire(ledger):
         source, guestfs = execution.open_source()
         lease = execution.system.Lease(source, suite.commands, Mock(), ledger=ledger,
@@ -310,6 +310,10 @@ def test_installed_preparation_uses_customer_prerequisites_without_a_case_id_swi
     suite.prepare_case.assert_called_once()
     if expected:
         assert stage.call_args.args[2]['case'] == harness.case
+        suite.input_bundle.assert_called_once_with(harness.root)
+        assert stage.call_args.kwargs['bundle'] is suite.input_bundle.return_value
+    else:
+        suite.input_bundle.assert_not_called()
     harness.leases[0].finish.assert_called_once()
     harness.leases[0].release.assert_called_once()
 

@@ -89,6 +89,8 @@ def test_owned_lookup_reads_each_subtree_once_and_reacquires_after_transition():
 
 def test_explicit_toggle_activates_once_and_reads_a_fresh_result():
     ui, root, toggle = parent_toggle_ui()
+    ui.nodes = Mock(wraps=ui.nodes)
+    toggle.get_accessible_id = Mock(wraps=toggle.get_accessible_id)
     replacement = Node('Screen time limit', 'switch',
                        states=('showing', 'visible', 'sensitive', 'checked'),
                        identity='parent-screen-limit-toggle')
@@ -102,6 +104,10 @@ def test_explicit_toggle_activates_once_and_reads_a_fresh_result():
     assert ui.set_toggle('parent-screen-limit-toggle', True, root=root) == {
         'state': True, 'activated': True}
     toggle.action.do_action.assert_called_once_with(0)
+    # One complete observation before input, one fresh observation afterward;
+    # prompt/ownership/target checks share each observation's captured IDs.
+    assert ui.nodes.call_count == 2
+    toggle.get_accessible_id.assert_called_once_with()
 
 
 def test_explicit_toggle_already_current_reads_disabled_setting_without_input():
@@ -111,13 +117,36 @@ def test_explicit_toggle_already_current_reads_disabled_setting_without_input():
     toggle.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['hidden', 'wrong-control'])
+@pytest.mark.parametrize('fault', ['hidden', 'missing', 'wrong-control'])
 def test_explicit_toggle_refuses_unqualified_or_hidden_input(fault):
     states = ('sensitive',) if fault == 'hidden' else ('showing', 'visible', 'sensitive')
     ui, root, toggle = parent_toggle_ui(states=states)
+    if fault == 'missing':
+        root.children.clear()
     identity = 'parent-legend-toggle' if fault == 'wrong-control' else toggle.identity
     with pytest.raises(UiError, match='ui:(?:toggle-binding|unusable-target)'):
         ui.set_toggle(identity, True, root=root)
+    toggle.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('retained', [True, False])
+def test_hidden_toggle_qualification_handles_retained_or_omitted_stack_pages(retained):
+    ui, root, toggle = parent_toggle_ui()
+    ui.parent = Mock(return_value=root)
+
+    def page(identity):
+        if identity == 'parent-page-app-limits':
+            toggle.states.discard('visible')
+            if not retained:
+                root.children.clear()
+        else:
+            assert identity == 'parent-page-screen-limits'
+            toggle.states.add('visible')
+            root.children[:] = [toggle]
+
+    ui.activate_id = Mock(side_effect=page)
+    assert ui.parent_toggle_operation('parent-toggle-hidden-refused') == {
+        'refusal': 'hidden-control', 'state': False}
     toggle.action.do_action.assert_not_called()
 
 

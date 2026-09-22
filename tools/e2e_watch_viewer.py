@@ -461,11 +461,11 @@ def desktop_launch_command():
                       '--desktop-session']
 
 
-def main():
+def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description='Watch VM activity. Close this window whenever you want.')
     parser.add_argument('--desktop-session', action='store_true', help=argparse.SUPPRESS)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     require(os.getuid() != 0, 'launch-as-your-desktop-user')
     # Mutter derives Snap identity from this kernel label, not environment
     # variables or GTK's application ID. Do not modify the security profile.

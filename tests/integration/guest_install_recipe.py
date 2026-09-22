@@ -14,8 +14,9 @@ def install(run, guard, package):
          '-y', str(package)], timeout=1800)
 
 
-def prepare(transport, command, guard):
+def prepare(transport, command, guard, *, reboot=True):
     transport.call(command, timeout=1200)
     guard()
-    transport.reboot()
-    guard()
+    if reboot:
+        transport.reboot()
+        guard()

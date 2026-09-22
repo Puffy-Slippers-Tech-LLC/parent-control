@@ -386,8 +386,9 @@ Bindings: request = approved / denied / cancelled.
 ### E2E-017
 
 Implementation status: All cases pending. UI17's Parent Screen time limit binding
-has installed slice qualification; Parent save observations and kiosk choices
-remain prerequisites for disabled-child case 57.
+and PARENT08's saved/control snapshots have installed slice qualification,
+including wrong-child refusal and owned cleanup. Kiosk choices remain a
+prerequisite for disabled-child case 57; transient saving is not qualified.
 
 **Kiosk selection and unavailable requests.** Cases 53, 54, 55, 56, 57.
 

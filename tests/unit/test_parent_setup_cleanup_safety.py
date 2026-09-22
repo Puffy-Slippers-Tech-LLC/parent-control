@@ -40,12 +40,17 @@ def test_setup_verifies_package_after_owned_reboot(setup):
         adapter.run(guard)
 
 
-def test_suite_setup_installs_and_reboots_without_product_validation(setup):
+def test_suite_setup_installs_without_reboot_before_snapshot_shutdown(setup):
     adapter, vm, _ = setup
-    assert adapter.run(Mock(), verify=False) == {
-        'package_verified': False, 'setup_reboot_verified': True}
-    assert [call[0] for call in vm.mock_calls] == ['copy', 'call', 'reboot']
+    guard = Mock()
+    assert adapter.run(guard, verify=False) == {
+        'package_verified': False, 'setup_reboot_verified': False}
+    assert [call[0] for call in vm.mock_calls] == ['copy', 'call']
     assert vm.call.call_args.args[0][-1] == 'install-suite'
+    vm.reboot.assert_not_called()
+    assert guard.call_count == 3
+    with pytest.raises(EvidenceError, match='already-attempted'):
+        adapter.run(guard, verify=False)
 
 
 def test_staged_helpers_survive_checkout_changes_before_capture(setup):
@@ -126,6 +131,15 @@ def test_guest_suite_install_does_not_check_existing_product_state(monkeypatch):
     system_guest.install_suite()
     install.assert_called_once_with()
     before.assert_not_called()
+
+
+def test_guest_dispatch_accepts_the_fixed_snapshot_verification(monkeypatch):
+    verify = Mock()
+    monkeypatch.setattr(system_guest, 'verify_snapshot', verify)
+
+    assert system_guest.main(['verify-snapshot']) == 0
+
+    verify.assert_called_once_with()
 
 
 @pytest.mark.parametrize('changed', ['package.deb', 'e2e_dynamic_account.py',

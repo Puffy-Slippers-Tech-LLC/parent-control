@@ -468,7 +468,8 @@ def main(argv=None):
             require(argv in (['guard'], ['before-install'], ['install'],
                              ['install-previous'], ['upgrade'], ['install-setup'],
                              ['verify-setup'], ['install-suite'], ['verify-installed'],
-                             ['prepare-toggle-session']), 'invalid-command')
+                             ['verify-snapshot'], ['prepare-toggle-session']),
+                    'invalid-command')
             {'guard': guard, 'before-install': before_install, 'install': install,
              'install-previous': install_previous, 'upgrade': upgrade,
              'install-setup': install_setup, 'verify-setup': verify_setup,

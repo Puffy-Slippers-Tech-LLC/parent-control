@@ -230,6 +230,13 @@ def test_recovery_failure_handoff_is_repaired_then_recovery_and_category_retry(c
     agent = next(call for call in calls if call['kind'] == 'agent')
     assert agent['prompt'].startswith('LATEST RECOVERY FAILURE ONLY\n')
     assert output.getvalue().count('recovering both retention scopes') == 2
+    from rich.text import Text
+    transcript = Text.from_ansi(output.getvalue()).plain
+    assert 'Formatted repair' in transcript and '**Formatted repair**' not in transcript
+    assert 'def repaired():' in transcript and '```' not in transcript
+    assert 'agent stderr diagnostic' in transcript
+    assert '\033[' in (run / 'output').read_text()
+    assert '--json' in agent['args']
 
 
 def test_cancellation_during_recovery_waits_for_cleanup(checkout):

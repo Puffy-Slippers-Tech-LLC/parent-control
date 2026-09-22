@@ -36,6 +36,7 @@ class Capture:
         self.retries = 0
         self.retry_at = 0
         self.stage = 'stream'
+        self.generation = 0
         try:
             runtime = Path(os.environ['XDG_RUNTIME_DIR'])
             if (runtime.parent.parent != Path('/tmp')
@@ -84,6 +85,8 @@ class Capture:
             CAST, CAST + '.Stream', 'PipeWireStreamAdded', stream, None,
             self.Gio.DBusSignalFlags.NONE, self.stream_added)
         self.call(CAST, self.cast, CAST + '.Session', 'Start')
+        self.generation += 1
+        print(f'UI capture stream started: generation={self.generation}', flush=True)
 
     def stream_added(self, _connection, _sender, _path, _interface, _signal, parameters):
         try:
@@ -122,12 +125,12 @@ class Capture:
             self.fail(error)
             return
         print(f'UI capture reconnecting: {type(error).__name__}: {error}', flush=True)
-        self.close()
         self.retries += 1
         self.retry_at = now + .5
         self.stage = 'retry'
         self.publication.frames.publish(state='waiting', width=0, height=0, captured_ns=0,
                                         detail='Reconnecting capture')
+        self.close()
 
     def fail(self, error):
         print(f'UI capture unavailable: {type(error).__name__}: {error}', flush=True)
@@ -156,7 +159,9 @@ class Capture:
                     self.publication.frames.publish(
                         buffer.extract_dup(0, count), state='live', width=info.width,
                         height=info.height, stride=info.stride[0], format=0x20020888,
-                        captured_ns=time.monotonic_ns())
+                        captured_ns=time.monotonic_ns(), capture_generation=self.generation)
+                    if self.stage != 'live':
+                        print(f'UI capture live: generation={self.generation}', flush=True)
                     self.stage = 'live'
             if self.stage != 'live' and time.monotonic() - self.started > 15:
                 raise RuntimeError('No monitor frames arrived within 15 seconds')
@@ -165,7 +170,14 @@ class Capture:
 
     def close(self):
         if self.pipeline is not None:
+            # Buffer removal can flush downstream concurrently with shutdown.
+            # Unblock streaming before NULL starts taking element state locks;
+            # otherwise pipewiresrc teardown can deadlock the collector loop.
+            print('UI capture teardown: flushing pipeline', flush=True)
+            self.pipeline.send_event(self.Gst.Event.new_flush_start())
+            print('UI capture teardown: stopping pipeline', flush=True)
             self.pipeline.set_state(self.Gst.State.NULL)
+            print('UI capture teardown: pipeline stopped', flush=True)
             self.pipeline = self.sink = None
         if self.connection is not None:
             if self.subscription is not None:

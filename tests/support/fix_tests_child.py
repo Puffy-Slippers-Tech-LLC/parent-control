@@ -96,6 +96,10 @@ def main():
     reply.write_text(json.dumps([] if mode == 'agent-invalid' else
                                {'status': 'blocked' if mode == 'agent-blocked' else 'fixed',
                                 'summary': 'fixture result'}))
+    print(json.dumps({'type': 'item.completed', 'item': {
+        'id': 'message', 'type': 'agent_message',
+        'text': '**Formatted repair**\n\n```python\ndef repaired():\n    return True\n```'}}), flush=True)
+    print('agent stderr diagnostic', file=sys.stderr, flush=True)
     print('PREVIOUS AGENT TRANSCRIPT MUST NOT BECOME INPUT', flush=True)
     return 0
 

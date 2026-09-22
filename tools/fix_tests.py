@@ -6,6 +6,7 @@ even SIGKILL of the worker cancels the current operation before releasing it.
 """
 
 import argparse
+import codecs
 import fcntl
 import json
 import os
@@ -83,9 +84,7 @@ def agent_command(root, model, effort, run=None):
             '-c', f'model_reasoning_effort="{effort}"',
             '-c', 'history.persistence="none"', '-c', 'features.memories=false',
             '-c', 'features.multi_agent=false', '-c', 'features.multi_agent_v2=false',
-            # The detached supervisor captures a pipe, so auto would suppress
-            # Codex's native terminal styling even for attached TTY observers.
-            '--color', 'always', '--cd', str(root)]
+            '--json', '--color', 'never', '--cd', str(root)]
     if run is not None:
         command += ['--output-schema', str(Path(__file__).with_name('fix_tests_response.schema.json')),
                     '--output-last-message', str(run / 'agent-result.json')]
@@ -222,6 +221,10 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         command = [str(root / 'tools/cleanup-e2e')]
     else:
         command = agent_command(root, model, effort, run)
+    renderer = None
+    if kind == 'agent':
+        from fix_tests_render import AgentRenderer
+        renderer = AgentRenderer(sys.stdout)
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
     child_env = environment()
@@ -229,7 +232,8 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         child_env[FRAME_DIRECTORY] = str(run)
     child = subprocess.Popen(command, cwd=root, env=child_env,
                              stdin=source if source is not None else subprocess.DEVNULL,
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE if renderer else subprocess.STDOUT,
                              start_new_session=True)
     if source is not None:
         source.close()
@@ -242,9 +246,11 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         with selectors.DefaultSelector() as poller:
             poller.register(sys.stdin, selectors.EVENT_READ, 'parent')
             poller.register(child.stdout, selectors.EVENT_READ, 'output')
+            if child.stderr is not None:
+                poller.register(child.stderr, selectors.EVENT_READ, 'diagnostic')
             poller.register(descriptor, selectors.EVENT_READ, 'exit')
             exited = False
-            output_open = True
+            output_open = 2 if renderer else 1
             while not exited or output_open:
                 requested = requested or (run / 'cancel').exists()
                 if requested and sent is None and ready:
@@ -273,13 +279,18 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
                         data = os.read(key.fd, 65536)
                         if not data:
                             poller.unregister(key.fileobj)
-                            output_open = False
+                            output_open -= 1
+                            if renderer and key.data == 'output':
+                                renderer.finish()
                             continue
                         if log is not None:
                             log.write(data)
                             log.flush()
-                        sys.stdout.buffer.write(data)
-                        sys.stdout.buffer.flush()
+                        if renderer and key.data == 'output':
+                            renderer.feed(data)
+                        else:
+                            sys.stdout.buffer.write(data)
+                        sys.stdout.flush()
                         if not ready:
                             pending = (pending + data)[-8192:]
                             ready = b' run-tests session:' in pending
@@ -297,6 +308,8 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
                 child.send_signal(signal.SIGINT)
             child.communicate()
         child.stdout.close()
+        if child.stderr is not None:
+            child.stderr.close()
         if descriptor is not None:
             os.close(descriptor)
         if log is not None:
@@ -388,6 +401,10 @@ def worker(root, run, owner, model, effort, requested='[]'):
 
     status = 1
     try:
+        try:
+            from fix_tests_render import AgentRenderer  # Check before expensive tests.
+        except ImportError as error:
+            raise ValueError('agent rendering requires the setup-provided python3-rich package') from error
         agent_command(root, model, effort)  # Fail before running expensive tests.
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
@@ -453,8 +470,12 @@ def follow(run, stream=None):
 
 def follow_output(run, stream, dashboard):
     last_frame = None
+    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     with lock(run.parent / 'owner') as owner, (run / 'output').open('rb') as output:
-        output.seek(max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES))
+        offset = max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES)
+        output.seek(offset)
+        if offset:
+            output.readline()  # Reattach at a full line, not midway through UTF-8/ANSI.
         while True:
             active = busy(owner)
             # A new invocation may already own a newer run after this one ends.
@@ -462,11 +483,12 @@ def follow_output(run, stream, dashboard):
             data = output.read(65536)
             if data:
                 dashboard.restore_terminal()
-                stream.write(data.decode('utf-8', errors='replace'))
+                stream.write(decoder.decode(data))
                 stream.flush()
                 continue
             if not active:
                 dashboard.restore_terminal()
+                stream.write(decoder.decode(b'', final=True))
                 result = run / 'result.json'
                 if not result.exists():
                     stream.write('\nfix-tests: worker ended without a result; invoke again to start fresh.\n')

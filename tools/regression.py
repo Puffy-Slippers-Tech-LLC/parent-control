@@ -187,13 +187,14 @@ class Dashboard:
                     lines.extend(self.branches(phase_items, now, item.phase))
             else:
                 lines.append(('│  ' if hosts else '') + self.category(item, now))
-        done = sum(item.done for item in self.categories)
-        known = all(item.total is not None for item in self.categories)
-        total = sum(item.total or 0 for item in self.categories)
+        counted = [item for item in self.categories if item.phase != 'cleanup']
+        done = sum(item.done for item in counted)
+        known = all(item.total is not None for item in counted)
+        total = sum(item.total or 0 for item in counted)
         percent = str(int(100 * done / max(total, 1))) if known else '?'
         color = '31' if any(c.state in ('Failed', 'Interrupted', 'Blocked') for c in self.categories) else (
             '32' if all(c.state == 'Passed' for c in self.categories) else '97;1')
-        failures = sum(item.failures for item in self.categories)
+        failures = sum(item.failures for item in counted)
         lines.append('')
         if color == '32':
             lines.append(f'\033[32mOverall - {percent}% ({done}/{total})'
@@ -773,7 +774,7 @@ class Run:
                                                'Package reproducibility')]
         system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
         graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
-        safety = Category('Cleanup safety prerequisites')
+        safety = Category('Cleanup safety prerequisites', phase='cleanup')
         self.categories.extend([safety, *suite_items, *fixed_items[:-1]])
         self.categories.extend([fixed_items[-1], *builds])
         self.categories.extend(item for item in (system, graphical) if item is not None)

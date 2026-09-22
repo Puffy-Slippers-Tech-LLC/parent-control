@@ -170,6 +170,7 @@ def capture(publications, monkeypatch):
         b'\0' * 16, state='live', width=2, height=2, stride=8, format=0x20020888,
         branch='Layout and overflow', test='scaled form', phase='call', captured_ns=1)
     collector.stage = 'live'
+    collector.generation = 1
     collector.started = 0
     collector.retries = 0
     collector.retry_at = 0
@@ -186,6 +187,14 @@ def capture(publications, monkeypatch):
 def test_capture_reconnect_clears_pixels_and_resumes_same_branch(capture):
     collector, clock = capture
     source = collector.publication
+
+    def check_outage_during_teardown():
+        frame = read_frame(source.frames.memory)
+        assert frame[1]['state'] == 'waiting' and frame[2] == b''
+        assert frame[1]['captured_ns'] == 0
+        assert collector.stage == 'retry'
+
+    collector.close.side_effect = check_outage_during_teardown
     collector.recover(RuntimeError('all buffers have been removed'))
     collector.close.assert_called_once()
     frame = read_frame(source.frames.memory)
@@ -209,6 +218,7 @@ def test_capture_reconnect_clears_pixels_and_resumes_same_branch(capture):
     resumed = read_frame(source.frames.memory)
     assert resumed[1]['run'] == frame[1]['run']
     assert resumed[1]['state'] == 'live' and resumed[1]['captured_ns'] > 1
+    assert resumed[1]['capture_generation'] == collector.generation
     assert resumed[2] == b'\x01' * 16
 
 

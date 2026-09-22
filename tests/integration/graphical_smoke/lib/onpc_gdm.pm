@@ -152,10 +152,23 @@ sub select_prompt {
 sub dismiss_observed_prompt {
     onpc_progress::operation('Dismissing the observed password prompt');
     my ($journey, $prompt) = @_;
-    die 'gdm:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    return _dismiss_observed_prompt($journey, $prompt, 'gdm-select-parent', scalar @_);
+}
+
+sub dismiss_product_free_prompt {
+    onpc_progress::operation('Dismissing the product-free password prompt');
+    my ($journey, $prompt) = @_;
+    return _dismiss_observed_prompt(
+        $journey, $prompt, 'gdm-product-free-select-parent', scalar @_);
+}
+
+sub _dismiss_observed_prompt {
+    my ($journey, $prompt, $operation, $count) = @_;
+    die 'gdm:arguments' unless $count == 2 && @_ == 4
+        && ref($journey) eq 'onpc_journey';
     die 'gdm:prompt-observation' unless ref($prompt) eq 'HASH'
         && ref($prompt->{ui}) eq 'HASH'
-        && ($prompt->{ui}->{operation} // '') eq 'gdm-select-parent'
+        && ($prompt->{ui}->{operation} // '') eq $operation
         && ($prompt->{ui}->{outcome} // '') eq 'passed'
         && ($prompt->{ui}->{interface} // '') eq 'AT-SPI';
     die 'gdm:console' unless testapi::current_console() eq 'sut';

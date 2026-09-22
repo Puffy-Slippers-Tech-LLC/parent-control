@@ -56,7 +56,8 @@ def test_functional_selection_is_fresh_durable_and_never_replayed(tmp_path, faul
                              authenticate=True, functional=True, progress=Mock())
     controller.steps = [{'stage': 'ready'}, {'stage': 'gdm'}, {'stage': 'focused'}]
     controller.vm = Mock()
-    result = {'operation': 'gdm-select-parent', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': 'gdm-product-free-select-parent', 'outcome': 'passed',
+              'interface': 'AT-SPI'}
     controller.ui = Mock(observe=Mock(return_value=result))
     (tmp_path / 'selected.request.json').write_text(json.dumps({'stage': 'selected', 'screenshot': None}))
     if fault == 'ui': controller.ui.observe.side_effect = RuntimeError('missing prompt')
@@ -72,7 +73,25 @@ def test_functional_selection_is_fresh_durable_and_never_replayed(tmp_path, faul
         controller.step()
         assert json.loads((tmp_path / 'selected.reply.json').read_text()) == {'ui': result}
         controller.progress.assert_called_with('selected', {'stage': 'selected', 'ui': result})
-    controller.ui.observe.assert_called_once_with('gdm-select-parent')
+    controller.ui.observe.assert_called_once_with('gdm-product-free-select-parent')
+
+
+def test_functional_list_publishes_direct_focus_without_positional_navigation(tmp_path):
+    controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key', serial=True,
+                             authenticate=True, functional=True, progress=Mock())
+    controller.steps = [{'stage': 'ready'}]
+    controller.vm = Mock()
+    result = {'operation': 'gdm-product-free-list', 'outcome': 'passed',
+              'interface': 'AT-SPI', 'focused': True}
+    controller.ui = Mock(observe=Mock(return_value=result))
+    (tmp_path / 'gdm.request.json').write_text(json.dumps(
+        {'stage': 'gdm', 'screenshot': None}))
+
+    controller.step()
+
+    assert json.loads((tmp_path / 'gdm.reply.json').read_text()) == {
+        'ui': result, 'ui_focused': True}
+    controller.ui.observe.assert_called_once_with('gdm-product-free-list')
 
 
 @pytest.mark.parametrize('capture', [None, 'smoke-1.png'])
@@ -94,6 +113,23 @@ def test_return_requires_independent_greeter_before_ack_and_keeps_capture_sealed
         controller.vm.read.assert_called_once_with('greeter')
         assert events[-1] == ('gdm-return', {'stage': 'gdm-return', 'unexpected_user_session': False})
         assert (tmp_path / 'gdm-return.reply.json').exists()
+
+
+def test_functional_return_uses_the_product_free_list_binding(tmp_path):
+    controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key', serial=True,
+                             authenticate=True, functional=True, progress=Mock())
+    controller.steps = [{'stage': stage} for stage in smoke.FUNCTIONAL_SERIAL_STAGES[:-1]]
+    controller.vm = Mock(read=Mock(return_value={'unexpected_user_session': False}))
+    result = {'operation': 'gdm-product-free-returned', 'outcome': 'passed',
+              'interface': 'AT-SPI'}
+    controller.ui = Mock(observe=Mock(return_value=result))
+    (tmp_path / 'gdm-return.request.json').write_text(json.dumps(
+        {'stage': 'gdm-return', 'screenshot': None}))
+
+    controller.step()
+
+    controller.ui.observe.assert_called_once_with('gdm-product-free-returned')
+    assert json.loads((tmp_path / 'gdm-return.reply.json').read_text())['ui'] == result
 
 
 def test_generalhw_uses_documented_32_bit_vnc_depth(tmp_path):

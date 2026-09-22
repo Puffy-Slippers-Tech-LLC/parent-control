@@ -13,13 +13,14 @@ and retained regressions. Briefs never select a different task.
 
 ## Next task
 
-Next task: **001r — [Requalify retained case 1](E2E-Tasks/001r-case-1-regression.md)**.
+Next task: **003ba — [Qualify fresh login without a keyring prompt](E2E-Tasks/003ba-fresh-desktop.md)**.
 
-Task 003ab qualified the explicit product-free Parent list, focus, prompt and
-Escape-return binding on the declared baseline without weakening the installed
-station cardinality checks. Task 001r retains its implementation and host checks;
-rerun the complete graphical/serial case through that qualified binding and
-require collection, capture reconciliation and owned cleanup before close-out.
+Task 001r requalified retained case 1 through the explicit product-free Parent
+list, focus, prompt and Escape-return binding, including its authenticated serial
+command, logout-before-return, capture reconciliation, collection and owned
+cleanup ([report](Evidence/test-all-runs/20260922T163412Z-50b5e6a0/report.md)).
+Task 003ba next qualifies sealed password delivery for fresh Parent and standard
+fixture entries and independently observes each usable no-prompt desktop.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -56,7 +57,7 @@ obligations under their maintained owners.
 4. Implement that slice, its meaningful supporting checks and stated acceptance.
    Implement leaves before composites, including within a small task. Bind
    entry, finite inputs, expected public results, precision and deadlines first.
-   Apply the [UI automation mandate](../../AGENTS.md#ui-automation-mandate) and
+   Apply the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) and
    [functional validation](E2E-Building-Blocks.md#functional-validation) to every
    required surface, including setup, login and retained paths. Fix missing owned
    IDs first; qualify external-provider adapters where usable IDs are unavailable.

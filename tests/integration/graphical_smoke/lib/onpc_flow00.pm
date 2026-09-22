@@ -31,7 +31,7 @@ sub run {
         && ref($exchange) eq 'CODE';
     onpc_harness::select_console('initial', 'sut');
     my $prompt = onpc_gdm::select_prompt($journey, 'parent', 'prompt');
-    onpc_gdm::dismiss_observed_prompt($journey, $prompt);
+    onpc_gdm::dismiss_product_free_prompt($journey, $prompt);
     serial(sub {
         my ($stage, $shot) = @_;
         return $stage eq 'gdm-return' ? $journey->seen($stage) : $exchange->($stage, $shot);

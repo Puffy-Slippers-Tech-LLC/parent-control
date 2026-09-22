@@ -174,7 +174,9 @@ my $exchange = sub {
     return {serial_login_process_verified => ($mode ne 'process'),
             active_graphical_greeter => 1, unexpected_user_session => 0,
             ui_focused => 1,
-            ui => {operation => 'gdm-select-parent', outcome => 'passed', interface => 'AT-SPI'},
+            ui => {operation => $mode eq 'flow00' ? 'gdm-product-free-select-parent'
+                                                  : 'gdm-select-parent',
+                   outcome => 'passed', interface => 'AT-SPI'},
             customer_reboot_authorized => ($mode ne 'install-unauthorized'),
             active_local_serial_session => ($mode ne 'install-session'),
             sudo_reboot_process_verified => ($mode ne 'install-recipient'),

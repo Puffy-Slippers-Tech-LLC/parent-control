@@ -363,7 +363,7 @@ Collection/listing does not run cleanup or claim passing test coverage.
 
 ## The one test VM
 
-All VM consumers inherit the [VM observation mandate](../AGENTS.md#tests-artifacts-and-vm).
+All VM consumers inherit the [VM observation mandate](Mandates/VM-Mandate.MD#vm-observation-mandate).
 `tools/watchvm` observes the shared lease and guarded command transport during
 E2E, installed tests, qualifications, snapshot preparation and maintenance.
 Publish nonsecret intent through `watch_activity.operation` or `observed` before

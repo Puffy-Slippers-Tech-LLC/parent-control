@@ -75,7 +75,7 @@ requirements, external-provider gaps and their return conditions are maintained
 in [functional validation](E2E-Building-Blocks.md#functional-validation); keep
 them separate from customer scenario completion.
 
-All live UI work inherits the [UI automation mandate](../../AGENTS.md#ui-automation-mandate),
+All live UI work inherits the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD),
 including its external-provider exception. The catalogue records implementation
 gaps and route qualification; it does not redefine that mandate.
 

@@ -5,7 +5,7 @@
 - Treat this computer as the development host. The product is not installed and
   must not be installed unless the task explicitly requires an installed-system
   workflow. Development previews and the maintained test viewers are allowed.
-- When asked for "handoff time", stop at the earliest clean boundary and return
+- When asked for "handoff time", stop at the earliest clean boundary without interrupting important ongoing work and return
   a concise continuation prompt. Include only the remaining work and recommend a
   model and effort; do not save the prompt in the repository.
 - Do not send progress messages while a command is running. Report it after it
@@ -27,10 +27,10 @@
   read the applicable sections, following related modules when that boundary is
   crossed. A link to a contract does not require loading its entire document.
 - Apply the repository-wide [approval contract](docs/Approval-Tools.md) to all
-  reads, edits, builds, tests, diagnostics, setup, VM work and publishing. Run
+  reads, edits, builds, tests, diagnostics, setup and publishing. Run
   authorized work unattended through its existing grants and validated tools.
 - Reuse session and category-wide authorization. Do not request Codex or Polkit
-  prompts, add duplicate rules, broaden shell/interpreter/Git/Make/libvirt grants,
+  prompts, add duplicate rules, broaden shell/interpreter/Git/Make grants,
   or use authentication fallbacks after denial. A missing prerequisite or grant
   is a blocker to report, not a control to bypass.
 - Executable project `tools/` launchers are preapproved only within the requested
@@ -44,13 +44,8 @@
 - Fix root causes reproducibly on clean computers with supported, maintained
   public APIs. Preserve the shared child-form/kiosk contract and log useful
   diagnostics without PII; role labels such as `[Child user]` are acceptable.
-- Never edit or deploy the portal checkout from a client task. Request portal API
-  changes in a client `docs/` handoff that states the reason, old and proposed
-  contracts, examples, compatibility, release dependencies and acceptance checks.
-  Client-specific report presentation and metadata remain in this repository.
-- Classify new integrations under [package update activation](docs/Publishing.md#package-update-activation).
-  Ship required [data migrations](docs/SystemDesign/Data-Migration.md) before
-  incompatible readers or writers.
+- Read [Do-Not-Touch-Portal-Mandate](docs/Mandates/Do-Not-Touch-Portal-Mandate.md) only when touching
+  feedback API-related application code.
 - Choose the implementation model by the current slice: Sol for settled work;
   Astra for unresolved security, concurrency, ownership, difficult diagnosis or
   broad correctness review. Prefer quality, then weekly allowance.
@@ -74,61 +69,14 @@
   is already authorized. Never weaken, skip or delete a check to match the app.
   Proven mechanical defects in tests, fixtures or harnesses may be fixed while
   preserving the intended assertion. See [failure handling](tests/README.md#handling-test-failures).
-- Preserve completed unit, component and system coverage, including mechanical
-  install, upgrade, migration and removal checks. Add infrastructure only for a
-  named blocked consumer. Prioritize the customer queue and measure completed
-  scenarios against its frozen remaining scope. Deferred policy-acknowledgement
-  design is not a dependency for that queue.
 
 ## UI automation mandate
 
-- Except for the external-provider exception below, every automated UI target
-  must be resolved by a stable public `automation-id`,
-  scoped to its owning application and surface. Shared controls use one ID
-  contract across surfaces, suites and helpers. Reject missing, duplicate,
-  ambiguous and wrong-owner IDs.
-- IDs must not derive from translated labels, names, roles, titles, rendering,
-  tree/list position or geometry. Do not use coordinates, extents, image matching,
-  layout, display scale, scroll position, window titles, frame roles, color or
-  theme to identify a target, route input, establish readiness or decide
-  acceptance. This includes setup, login, retained sessions and legacy paths.
-- Add a missing ID to repository-owned application or fixture code and expose it
-  through the public accessibility interface before implementing its consumer.
-  Documentation-only work records the requirement without claiming implementation
-  or qualification.
-- **Approved external-provider exception:** For dependencies outside this
-  repository's application and fixture code that lack usable public IDs,
-  provider-specific adapters are authorized without renewed approval, including
-  discovery, readiness and reacquisition. Prefer available IDs, then scoped
-  public accessibility semantics and ordinary keyboard navigation with observed
-  focus/results. Use geometry or image matching only when accessibility actions
-  and keyboard navigation cannot work reliably; document why. Keep any otherwise
-  prohibited selector/input technique inside the explicit adapter, never label
-  it a provider-owned ID. Document scope, limitations, affected consumers and
-  qualification checks; qualify each supported route on the installed test
-  system before claiming readiness. Preserve ownership, ambiguity rejection and
-  the input/result guards below; refuse when these cannot be established. This
-  exception never applies to repository-owned UI and overrides blanket external
-  ID requirements in subordinate documents.
-- After ID lookup (or qualified external-provider resolution), names, roles,
-  text and states may verify meaning and results.
-  Prefer invoking the ID-resolved control's public accessibility action directly,
-  including when a scroll viewport clips or covers an otherwise available control.
-  Do not add focus, scrolling or repeated tree traversals before such an action.
-  Avoid control looping such as find_all_ids whenever direct ID invocation is possible.
-  Prefer a provider's direct ID lookup where available; otherwise reuse one fresh,
-  complete scoped snapshot for prompt, ownership and target checks at each input
-  boundary. Never reuse a snapshot across input or session transitions. Preserve
-  ambiguity, completeness, sensitivity, ownership and uncertain-input checks.
-  Use ordinary keyboard input when appropriate. If a direct public action is
-  unavailable, semantically reveal, scroll, focus or navigate, then reacquire by
-  ID or the qualified external-provider adapter. Truly hidden or disabled controls
-  still refuse; viewport clipping alone is not hidden application state. Cosmetic
-  differences cannot gate acceptance.
-- A successful input is not a successful result. Independently observe the
-  required public state. Preserve ownership, secret-recipient, single-use input
-  and uncertain-input guards; never replay an action whose effect is uncertain.
-  Previously qualified automation has no exemption from this mandate.
+Read the [UI automation mandate](docs/Mandates/UI-Automation-Mandate.MD) only when doing UI automation work.
+
+## VM mandate
+
+Read the [VM mandate](docs/Mandates/VM-Mandate.MD) only when doing VM operations or tests.
 
 ## Reads, edits and evidence
 
@@ -157,7 +105,7 @@
   incident narratives. Create a new evidence document only when explicitly asked
   or when an active acceptance/recovery need has no existing artifact.
 
-## Tests, artifacts and VM
+## Tests and artifacts
 
 - Discover suites and their exact routes with `tools/run-tests --list` and
   `tools/run-tests --help`. Choose coverage from the change and its regression
@@ -188,41 +136,16 @@
 - Use only the documented artifact readers/exporters. Export graphical PNGs with
   `onpc-export-screenshot` and clean only explicit caller-owned `/tmp/onpc-*.png`
   files through `tools/cleanup-screenshots`.
-- Operate the pinned VM only through `tools/test-vm`. Do not bypass ownership,
-  select another guest, or create snapshots, overlays or clones. Stop maintenance
-  before system/E2E tests; reset is not a customer journey step.
-- **VM observation mandate:** Every VM operation, experiment, qualification,
-  setup, maintenance and test must use the shared `watchvm` infrastructure,
-  regardless of its caller or whether it is E2E. Start display observation through
-  the shared VM lease; route host/SSH commands through the guarded command
-  transport and publish a nonsecret intention through `watch_activity.operation`
-  (or its `observed` decorator) before performing work. Keep that intention in
-  the viewer footer throughout the operation, including waits and cleanup;
-  nested operations restore the enclosing intention when finished.
-- Reuse the existing display collector, authenticated command transcript and
-  progress interfaces. Do not add per-workflow viewers, SSH tails, capture loops
-  or alternate intention channels. A missing integration must be fixed in this
-  shared infrastructure before adding its consumer. Preserve private-input
-  filtering and the existing VM ownership/identity checks.
-- `tools/watchvm` must remain read-only, live and interruption-free. Users can
-  connect, disconnect and reconnect at any time, including between maintenance
-  commands, without affecting VM operations. Viewer lifetime must never control
-  the VM, its input, command execution or collector lifetime. Qualify new routes
-  for intent-before-action, live screen/SSH visibility and independent viewing.
 
 ## Setup
 
-- `./setup.sh` is the sole public development/VM-host setup entry point. Modes
+- `./setup.sh` is the sole public development setup entry point. Modes
   must be retryable, preserve unrelated configuration and fail on missing
   prerequisites. Tests and builds report missing prerequisites; they do not
   install them.
 - Refresh helpers with `./setup.sh --test-tools-only` and rules alone with
   `./setup.sh --codex-rules-only`; restart Codex after rule changes. First install
   uses `./setup.sh --bootstrap-tools`. Do not refresh rules to fix bad quoting.
-- Baseline preparation is an explicit destructive operation through
-  `tools/prepare-baseline`; ordinary setup and E2E never prepare or replace it.
-  Baseline preparation and E2E require the literal `TEST_ACCOUNT_PASSWORD` in the
-  host's private `.envrc`; E2E never changes passwords.
 - Routine privileged setup uses the installed, pinned, default-deny `onpc-setup`
   helper. Do not use direct sudo, generic privileged interpreters, installer
   shortcuts or weakened ownership/policy checks.

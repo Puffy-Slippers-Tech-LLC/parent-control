@@ -16,7 +16,7 @@ system-test obligations and cannot be selected by the E2E runner. Current scenar
 
 ## How to implement one block
 
-Apply the [UI automation mandate](../../AGENTS.md#ui-automation-mandate) throughout
+Apply the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) throughout
 this catalogue. Rows marked **Migration required** describe existing mechanisms
 to replace before reuse while preserving their behavioral and safety assertions.
 A `ready` label applies only to the exact compliant scope named in that row;
@@ -375,7 +375,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |
-| FLOW00 | C | Run case 1's complete graphical/serial qualification within the unchanged harness envelope. Its step boundaries and terminal assertions are fixed below. | Preserve the serial, evidence and cleanup envelope; GDM02/09 and HAR07/08 need external-provider route qualification. | pending |
+| FLOW00 | C | Run case 1's complete graphical/serial qualification within the unchanged harness envelope. Its step boundaries and terminal assertions are fixed below. | `controller_qualification.PLAN` and `Smoke._step` bind the graphical stages to `gdm_product_free_account()` / `gdm_product_free_navigation()` observations; `onpc_flow00::run` consumes the exact product-free prompt proof before Escape. The existing authenticated serial command, session/boot identity, single logout, return reconciliation, capture assertions, collection and owned cleanup passed in retained case 1 ([report](Evidence/test-all-runs/20260922T163412Z-50b5e6a0/report.md)). | ready; retained case 1 qualified |
 | FLOW15 | C | Reach an explicit user's desktop from the declared source surface. `entry=fresh` requires no retained session; `retained` requires an earlier observed desktop; `same` requires the current user already matches. Return the observed desktop or expected time-limit denial. | Fresh entry needs GDM07 and DESK01 provider-route qualification; other routes remain pending. | pending |
 | FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. | Product-owned controls retain their contracts, but this composite is blocked on FLOW15 and PARENT01's Shell launch path. | pending |
 | FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | PARENT04(Screen Limits) → UI17(Screen time limit=true) if required → PARENT06 → PARENT08 → UI17(final boolean) → PARENT08 → PARENT03 → PARENT09. Disabling clears a grant; this is not a harmless navigation step. | pending |
@@ -872,15 +872,15 @@ Block IDs map to the existing wire stages and runner.
 | Ordered stage | Block boundary and evidence | Recorder phase / next input |
 | --- | --- | --- |
 | `ready` | Existing asset receipt/guard plus HAR03(greeter/boot); bind `functional_smoke`. | `start`; durably open `step-1` before reply. HAR01 selects `sut`. |
-| `gdm` | GDM01 + UI13: fresh `ui:gdm-list`, bounded current account order. | `step-1`; only this reply's navigation may drive UI14. |
-| `focused` | UI14's independent focus observation: `ui:gdm-focused`. | `step-1`; only now send one Enter via UI05. |
-| `selected` | GDM08: `ui:gdm-select-parent`, correct label/focused password role and hidden list. | `step-1`; no graphical password, then GDM09 sends one Escape. |
-| `dismissed` | GDM09's GDM01 result: `ui:gdm-dismissed`. | `step-1`; durably open `step-2` before reply permits serial entry. |
+| `gdm` | GDM01 + UI13: fresh `ui:gdm-product-free-list`, exact Parent-only account set and fresh semantic focus. | `step-1`; `ui_focused` permits UI14 without positional navigation. |
+| `focused` | UI14's independent focus observation: `ui:gdm-product-free-focused`. | `step-1`; only now send one Enter via UI05. |
+| `selected` | GDM08: `ui:gdm-product-free-select-parent`, correct label/focused password role and hidden list. | `step-1`; no graphical password, then GDM09 sends one Escape. |
+| `dismissed` | GDM09's GDM01 result: `ui:gdm-product-free-returned`. | `step-1`; durably open `step-2` before reply permits serial entry. |
 | `serial-password` | HAR05: actual login prompt, selected fixture echo and bounded password prompt; HAR03 verifies login process/TTY and disabled echo. | `step-2`; store proof before one UI19 secret input and one newline submission. |
 | `serial-authenticated` | HAR05: fresh HAR03 confirms the real fixed serial session. HAR02 still waits for the shell prompt before a command. | `step-2`; never infer shell readiness from session activation alone. |
 | `serial-command` | HAR06: actual complete output of the existing split-marker command, then HAR03 session proof. | `step-2`; store command evidence before permitting logout. |
 | `serial-logout` | HAR07: `exit`, fresh login prompt and independent session-free greeter. | `step-2`; durably open `step-3` before reply permits return to graphics. Emit exactly one successful logout marker. |
-| `gdm-return` | HAR08: select `sut`, independent session-free greeter and fresh `ui:gdm-returned`. | `step-3`; record `other-user-result` with its evidence before reply. |
+| `gdm-return` | HAR08: select `sut`, independent session-free greeter and fresh `ui:gdm-product-free-returned`. | `step-3`; record `other-user-result` with its evidence before reply. |
 | Worker finish and reconciliation | Existing `journey->finish`, normal owned worker shutdown, HAR10 and HAR09. | Still `step-3`: assert `visible-result` and `backend-result` using original evidence rules, then enter `end`. |
 
 Setup retains fixture credentials, stock serial getty and FIX04. Every acknowledged
@@ -1082,7 +1082,7 @@ Shared harness, access and About regressions preserve compatibility.
 
 ## Functional validation
 
-Apply the canonical [UI automation mandate](../../AGENTS.md#ui-automation-mandate).
+Apply the canonical [UI automation mandate](../Mandates/UI-Automation-Mandate.MD).
 Register each surface/control's shared ID contract before adding its consumer.
 Missing repository-owned IDs require code changes exposing them through public
 accessibility. External surfaces may use the approved provider exception.
@@ -1150,7 +1150,7 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 | Provider / surface | Current gap and route-specific return condition | Affected consumers |
 | --- | --- | --- |
 | GNOME Shell desktop, panel, app grid, sessions, notifications, lock | The inspected Shell 50.1 tree exposed no nonempty public IDs. Qualify each required state and its input/absence checks; a desktop observation does not qualify lock, menus or dialogs. | DESK01–12, SEARCH01–06, PANEL01–03, LIFE02/03/06 and session flows |
-| GDM greeter | On the prepared Ubuntu 26.04 / GNOME Shell `50.1-0ubuntu1.2` / English-GDM / baseline-keyboard tuple, the installed binding is qualified for unique Parent/other-parent/station list ownership, fresh semantic focus, prepared ordinary prompt entry, exact empty masked Parent/other-parent recipients, wrong-recipient refusal and Escape/list return. `check_e2e_gdm_recipient` supplies its GDM01/02/03/04/08/09 proof and owned cleanup ([report](Evidence/test-all-runs/20260922T151443Z-8ab26262/report.md)); `check_e2e_kiosk_entry` separately qualifies one passwordless station Enter and owned-form readback. On the same provider tuple, `AccessibleUI.gdm_product_free_account()` / `gdm_product_free_navigation()` and `onpc_gdm::product_free_qualification` require Parent and exclude station, with two independent list/focus/prompt/Escape-return cycles through `check_e2e_gdm_product_free` ([report](Evidence/test-all-runs/20260922T160459Z-cb16b20f/report.md)). Password submission, standard-child entry, retained locks, session choices and other GDM surfaces remain unqualified. | REQUEST01 and the prepared installed/product-free GDM01–04/08/09 bindings are ready; GDM05–07 and other GDM routes remain pending |
+| GDM greeter | On the prepared Ubuntu 26.04 / GNOME Shell `50.1-0ubuntu1.2` / English-GDM / baseline-keyboard tuple, the installed binding is qualified for unique Parent/other-parent/station list ownership, fresh semantic focus, prepared ordinary prompt entry, exact empty masked Parent/other-parent recipients, wrong-recipient refusal and Escape/list return. `check_e2e_gdm_recipient` supplies its GDM01/02/03/04/08/09 proof and owned cleanup ([report](Evidence/test-all-runs/20260922T151443Z-8ab26262/report.md)); `check_e2e_kiosk_entry` separately qualifies one passwordless station Enter and owned-form readback. On the same provider tuple, `AccessibleUI.gdm_product_free_account()` / `gdm_product_free_navigation()` and `onpc_gdm::product_free_qualification` require Parent and exclude station, with two independent list/focus/prompt/Escape-return cycles qualified by task 003ab through `check_e2e_gdm_product_free`. Retained case 1 consumes those exact operations before and after its serial route and passed complete reconciliation and cleanup ([report](Evidence/test-all-runs/20260922T163412Z-50b5e6a0/report.md)). Password submission, standard-child entry, retained locks, session choices and other GDM surfaces remain unqualified. | REQUEST01, FLOW00 and the prepared installed/product-free GDM01–04/08/09 bindings are ready; GDM05–07 and other GDM routes remain pending |
 | Graphical VT6 getty/login | Retained routes refuse before image, secret or input access. Qualify a dedicated recipient/input adapter; serial proof cannot authorize graphical secret input. | Retained VT6 qualification modes |
 | MATE Polkit agent | No provider registry binding exists for the kiosk agent. Qualify the real MATE challenge owner, displayed request and selected administrator, sole empty masked focused field, cancel/rejection/approval results and secret guards. | AUTH01/02, station approval and request flows |
 | Shell Polkit agent | Prompt handling currently refuses this unsupported surface. Implement and qualify real challenges, selected-recipient checks and approval/cancel results. | AUTH01–04, approval and Users unlock |
@@ -1201,10 +1201,12 @@ prerequisite in the same queue before using any additional surface.
 Case 1's product-free GDM route uses the explicit
 `gdm_product_free_account()` / `gdm_product_free_navigation()` fixture binding.
 The fixed `check_e2e_gdm_product_free` qualification passed two independent
-Parent list/focus/prompt/Escape-return cycles with collection and owned cleanup
-([report](Evidence/test-all-runs/20260922T160459Z-cb16b20f/report.md)). The
-installed `gdm_nonsecret_account()` binding retains its station cardinality
-checks; product-free qualification supplies no complete case-1 acceptance.
+Parent list/focus/prompt/Escape-return cycles with collection and owned cleanup.
+The installed `gdm_nonsecret_account()` binding retains its station cardinality
+checks. Retained case 1 now binds every graphical stage to the product-free
+operations and passed its complete graphical/serial route, reconciliation,
+collection and cleanup
+([report](Evidence/test-all-runs/20260922T163412Z-50b5e6a0/report.md)).
 
 ### Reachability and result checks
 
@@ -1468,7 +1470,7 @@ The shared lease attaches the existing display collector at every VM start.
 Maintenance retains it between commands; viewer reconnection never triggers a
 new VM connection. The frame feed remains observation-only; customer actions use
 the semantic input contract. New tasks must obey the
-[VM observation mandate](../../AGENTS.md#tests-artifacts-and-vm): reuse these
+[VM observation mandate](../Mandates/VM-Mandate.MD#vm-observation-mandate): reuse these
 command, lease and progress interfaces, and enter `watch_activity.operation`
 with fixed nonsecret intent before VM work. The footer shows that intent through
 blocking work even without a recorder. Do not create per-consumer capture,

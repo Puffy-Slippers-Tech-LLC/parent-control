@@ -203,6 +203,16 @@ class GdmNavigationQualification(KioskEntryQualification):
         return GdmNavigationJourney(context, progress)
 
 
+class GdmRecipientQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from gdm_recipient import GdmRecipientJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return GdmRecipientJourney(context, progress)
+
+
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

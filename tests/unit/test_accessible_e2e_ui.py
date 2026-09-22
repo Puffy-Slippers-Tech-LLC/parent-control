@@ -422,12 +422,16 @@ def semantic_gdm_ui(*, rows=(), recipient=None, field=None, applications=()):
     return ui, shell
 
 
-def semantic_gdm_rows(*, focused=None):
+def semantic_gdm_rows(*, focused=None, other=False):
     parent = Node('Jamie (Parent)', 'push button')
     station = Node('Oh No! Parent Control', 'push button')
     if focused == 'parent': parent.states.add('focused')
     if focused == 'station': station.states.add('focused')
-    return parent, station
+    if not other:
+        return parent, station
+    other_parent = Node('Casey (Parent)', 'push button')
+    if focused == 'other-parent': other_parent.states.add('focused')
+    return parent, other_parent, station
 
 
 def keyring_ui(*, fault=None, root_children=()):
@@ -492,6 +496,25 @@ def test_gdm_nonsecret_adapter_focuses_unique_ordinary_and_station_rows():
     assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
     parent.action.do_action.assert_not_called()
     station.action.do_action.assert_not_called()
+
+
+def test_gdm_nonsecret_adapter_focuses_the_prepared_wrong_account_by_identity():
+    parent, other_parent, station = semantic_gdm_rows(other=True)
+    ui, _shell = semantic_gdm_ui(rows=[station, parent, other_parent])
+    assert ui.run('gdm-other-list', '')['focused'] is True
+    assert ui.run('gdm-other-focused', '')['outcome'] == 'passed'
+    other_parent.component.grab_focus.assert_called_once_with()
+    parent.component.grab_focus.assert_not_called()
+    station.component.grab_focus.assert_not_called()
+
+
+def test_gdm_nonsecret_adapter_rejects_a_duplicate_prepared_wrong_account():
+    parent, other_parent, station = semantic_gdm_rows(other=True)
+    ui, _shell = semantic_gdm_ui(rows=[
+        parent, other_parent, Node('Casey (Parent)', 'push button'), station])
+    with pytest.raises(UiError, match='gdm-account-cardinality'):
+        ui.run('gdm-other-list', '')
+    other_parent.component.grab_focus.assert_not_called()
 
 
 def test_gdm_nonsecret_adapter_resolves_and_deduplicates_provider_label_descendants():
@@ -648,12 +671,73 @@ def test_gdm_nonsecret_prompt_and_returned_list_never_read_or_submit_a_secret():
     parent.component.grab_focus.assert_not_called()
 
 
-def test_unqualified_gdm_id_only_route_blocks_before_tree_discovery_or_input():
+@pytest.mark.parametrize('operation', [
+    'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
+])
+@pytest.mark.parametrize('fault', [
+    None, 'wrong-recipient', 'duplicate-recipient', 'missing-field', 'duplicate-field',
+    'unfocused', 'hidden', 'disabled', 'nonempty', 'unmasked', 'list-visible',
+])
+def test_semantic_gdm_recipient_requires_one_bound_identity_and_empty_masked_focus(
+        operation, fault):
+    recipient = Node(
+        'Casey (Parent)' if fault == 'wrong-recipient' else 'Jamie (Parent)', 'label')
+    field = Node('Password', 'text' if fault == 'unmasked' else 'password text',
+                 states=('showing', 'visible', 'sensitive', 'focused'))
+    if fault in ('unfocused', 'hidden', 'disabled'):
+        field.states.remove({
+            'unfocused': 'focused', 'hidden': 'showing', 'disabled': 'sensitive'}[fault])
+    field.get_text_iface = lambda: field
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    rows = []
+    if fault == 'list-visible':
+        rows = list(semantic_gdm_rows())
+    ui, shell = semantic_gdm_ui(
+        rows=rows, recipient=recipient,
+        field=None if fault == 'missing-field' else field)
+    if fault == 'duplicate-recipient':
+        duplicate = Node('Jamie (Parent)', 'label')
+        duplicate.parent = shell
+        shell.children.append(duplicate)
+    if fault == 'duplicate-field':
+        duplicate = Node('Other password', 'password text')
+        duplicate.parent = shell
+        shell.children.append(duplicate)
+    ui.api.Text = SimpleNamespace(
+        get_character_count=Mock(return_value=1 if fault == 'nonempty' else 0),
+        get_text=Mock(side_effect=AssertionError('password text read')),
+    )
+    if fault is None:
+        assert ui.run(operation, '')['outcome'] == 'passed'
+    else:
+        with pytest.raises(UiError):
+            ui.run(operation, '')
+    ui.api.Text.get_text.assert_not_called()
+    field.get_child_count.assert_not_called()
+
+
+def test_semantic_wrong_prompt_proves_other_parent_and_refuses_parent():
+    recipient = Node('Casey (Parent)', 'label')
+    field = Node('Password', 'password text',
+                 states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_text_iface = lambda: field
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    ui, _shell = semantic_gdm_ui(recipient=recipient, field=field)
+    ui.api.Text = SimpleNamespace(
+        get_character_count=Mock(return_value=0),
+        get_text=Mock(side_effect=AssertionError('password text read')),
+    )
+    assert ui.run('gdm-wrong-recipient-refused', '')['outcome'] == 'passed'
+    ui.api.Text.get_text.assert_not_called()
+    field.get_child_count.assert_not_called()
+
+
+def test_unqualified_standard_gdm_route_blocks_before_tree_discovery_or_input():
     row = Node('Jamie (Parent)', 'push button')
     ui = ui_for(Node(children=[row]))
     ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
     with pytest.raises(UiError, match='unqualified-provider-application'):
-        ui.run('gdm-other-list', '')
+        ui.run('gdm-standard-list', '')
     ui.api.get_desktop.assert_not_called()
     row.component.grab_focus.assert_not_called()
     row.action.do_action.assert_not_called()

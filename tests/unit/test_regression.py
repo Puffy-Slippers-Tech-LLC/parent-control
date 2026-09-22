@@ -202,7 +202,7 @@ def test_aggregate_cleanup_reuse_does_not_replace_build_or_vm_prerequisites(tmp_
     expected = [['selected']] if category == 'fixture-runtime' else [['safety'], ['selected']]
     expected_plans = [(tmp_path, category, ['verify'])]
     if category == 'e2e':
-        expected.insert(0, ['/usr/bin/python3', '-B', str(builder), '--output', str(artifacts)])
+        expected.insert(0, ['/usr/bin/python3', '-B', str(builder), '--reuse', '--output', str(artifacts)])
         expected_plans.append((tmp_path, category, ['verify', '--artifacts=' + str(artifacts)]))
     assert calls == expected
     assert plans == expected_plans
@@ -927,7 +927,7 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
                           *(dict(kind='finished', nodeid=node) for node in nodes)]
                 output(''.join(regression_events.PREFIX + json.dumps(event) + '\n'
                                for event in events).encode())
-            elif category == 'artifacts' and 'build' in command:
+            elif category == 'artifacts' and ('build' in command or 'prepare' in command):
                 self.builds += 1
                 output(f'run-tests: output=/tmp/onpc-test-artifacts-refill{self.builds}\n'.encode())
             return 0
@@ -1193,7 +1193,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                 for node in nodes:
                     event('finished', nodeid=node)
                 return int(failed)
-            elif category == 'artifacts' and 'build' in command:
+            elif category == 'artifacts' and ('build' in command or 'prepare' in command):
                 self.builds += 1
                 output(f'run-tests: output=/tmp/onpc-test-artifacts-fake{self.builds}\n'.encode())
             elif category == 'publish':
@@ -1235,6 +1235,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
     if not includes_host:
         executed = [call for call in control.calls if '--list' not in call]
         assert [call[1] for call in executed] == ['artifacts', *phases]
+        assert 'prepare' in executed[0]
         assert all(item.state == 'Passed' for item in run.categories)
         assert control.builds == 1
         assert all(run.artifacts['build-a'] in call for call in executed[1:])

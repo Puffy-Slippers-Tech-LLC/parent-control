@@ -39,7 +39,7 @@ CATEGORIES = {
     'check': CategorySpec('the current make check aggregate', leaf=False),
     'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
     'fixtures': CategorySpec('build, verify PATH; generated build output', leaf=False),
-    'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; focused build, verify PATH, compare FIRST SECOND'),
+    'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
     'integration': CategorySpec('installed dispatcher for check_* basenames; no script arguments', leaf=False),
     'system': CategorySpec('sequential installed VM tests; bare category builds inputs; focused --artifacts, --previous-artifacts, --area, --test, --list'),
     'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)'),
@@ -138,7 +138,7 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   tools/run-tests host system e2e    (same as all)
 
   Combined categories share one report and reuse host's package artifacts.
-  Without host, VM categories build one required package automatically.
+  Without host, VM categories prepare verified package inputs (reuse or build).
   After host and e2e, only system remains.
 
 Aggregate aliases (no suite selectors)
@@ -156,6 +156,7 @@ Aggregate aliases (no suite selectors)
   scanned. Focused system/e2e options remain available.
   The granular inventory supplies both host's suites and fix-tests round 1.
   Bare artifacts runs two builds and their reproducibility comparison.
+  artifacts prepare reuses matching verified inputs or builds on a miss.
   artifacts build --output '/tmp/onpc-NAME' builds into a new named directory
   for fixed integration consumers; existing paths are never overwritten.
   Pending E2E variants remain excluded.
@@ -404,6 +405,8 @@ def plan(root, category, argv):
         command = python_file(root, path)
         if action == 'build' and len(argv) <= 1:
             return [command], False
+        if category == 'artifacts' and argv == ['prepare']:
+            return [[*command, '--reuse']], False
         if category == 'artifacts' and len(argv) == 3 and argv[:2] == ['build', '--output']:
             return [[*command, '--output', artifact_output(argv[2])]], False
         if action == 'verify' and len(argv) == 2:
@@ -462,7 +465,7 @@ def _main(argv=None, *, detached=False):
                 directory = tempfile.mkdtemp(prefix='onpc-test-artifacts-', dir='/tmp')
                 print('run-tests: output=' + directory, flush=True)
                 status = subprocess.run(
-                    python_file(root, 'tools/build_test_artifacts.py', '--output', directory),
+                    python_file(root, 'tools/build_test_artifacts.py', '--reuse', '--output', directory),
                     cwd=root, env=host.environment(root), check=False).returncode
                 if status:
                     return status if status > 0 else 128 - status
@@ -489,7 +492,7 @@ def _main(argv=None, *, detached=False):
         env = host.environment(root)
         if category in ('fixture-runtime', 'coverage'):
             env = host.test_environment(root)
-        if category in ('fixtures', 'artifacts') and (not args or args == ['build']):
+        if category in ('fixtures', 'artifacts') and (not args or args in (['build'], ['prepare'])):
             directory = tempfile.mkdtemp(prefix=f'onpc-test-{category}-', dir='/tmp')
             commands[0] += ['--output', directory]
             print('run-tests: output=' + directory, flush=True)

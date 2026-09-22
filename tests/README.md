@@ -358,6 +358,13 @@ automatic aggregate cancellation waits for the controller to finish evidence
 collection, restoration and its final audit. Explicit user cancellation remains
 available through the normal owned-process channel.
 
+Automatic package preparation and the maintained cleanup coordinator can reuse
+content-qualified startup work across invocations. See
+[reusable startup preparation](e2e/README.md#reusable-startup-preparation) for the
+input keys, invalidation and bounded storage contract. A cached qualification
+does not bypass live ownership or VM checks. Explicit regression and fresh-build
+selections remain fresh.
+
 Installed-system runs retain one exclusive VM lease. Package installation/reboot
 checks keep their lifecycle together on `onpc-baseline`; each post-install area
 restores the same retained version snapshot used by E2E, preparing it only when

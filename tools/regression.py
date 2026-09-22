@@ -847,9 +847,9 @@ class Run:
         self.vm_tests(system, graphical, ready)
 
     def run_vm_only(self):
-        """Build one required input; keep all selected VM work sequential."""
+        """Prepare verified inputs; keep all selected VM work sequential."""
         discovery = self.categories[0]
-        build = Category('Package input build', 1)
+        build = Category('Package input preparation', 1)
         system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
         graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
         self.categories.extend([build, *(item for item in (system, graphical) if item is not None)])
@@ -868,7 +868,7 @@ class Run:
         authorization()
         discovery.done, discovery.state = 1, 'Passed'
         discovery.stop_timer()
-        self.host_jobs([Job('artifacts', build, self.command('artifacts', 'build'), key='build-a')])
+        self.host_jobs([Job('artifacts', build, self.command('artifacts', 'prepare'), key='build-a')])
         if self.control.stopped.is_set() or build.state != 'Passed':
             return
         self.vm_tests(system, graphical, ready)

@@ -256,6 +256,7 @@ the checkout activity lock.
 | Current aggregates | `tools/run-tests check` / `component-all` | Fixed Makefile/target; no Make options, extra targets or variable injection |
 | App fixtures | `tools/run-tests fixtures build` / `verify /tmp/onpc-...` | Fixed builder; builds generate an empty private output directory |
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
+| Reusable package/fixture preparation | `tools/run-tests artifacts prepare` | Content-qualified reuse or a fresh build; new private output registered in bounded run retention. No VM or installed product changes. |
 | Named qualification inputs | `tools/run-tests artifacts build --output '/tmp/onpc-parent-setup-input'` | Same unprivileged builder and retention; a new direct `/tmp/onpc-*` directory only, exclusive creation, no overwrite. `integration check_e2e_toggle` prepares this input automatically when absent. |
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
@@ -354,10 +355,14 @@ Host-integrated categories run all `test_*cleanup_safety.py` and
 aggregate's UI, component and fixture-runtime workers may reuse its passing
 gate only through the inherited checkout activity lock. Checkout edits do not
 expire this passing gate. Fresh invocations clear the temporary record;
-standalone commands still run prerequisites, and invalid records refuse. Publishing, artifact and VM
-gates do not use this host optimization. The
-privileged dispatcher runs these as the caller, then starts the selected
-controller as root. A failed prerequisite prevents the operation. Tests that
+standalone commands still require prerequisites, and invalid records refuse.
+The maintained cleanup coordinator can separately reuse a content-qualified
+passing result across invocations; see
+[startup preparation](../tests/e2e/README.md#reusable-startup-preparation).
+Publishing, artifact and VM gates do not use the inherited host gate. The
+privileged dispatcher obtains its qualification as the caller, then starts the
+selected controller as root. Live VM authorization and ownership checks always
+run. A failed prerequisite prevents the operation. Tests that
 introduce another cleanup implementation must add its corresponding regression.
 Collection/listing does not run cleanup or claim passing test coverage.
 

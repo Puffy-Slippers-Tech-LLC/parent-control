@@ -22,6 +22,13 @@ def test_named_artifact_build_uses_existing_builder_without_creating_output(monk
     assert not safety
 
 
+def test_preparation_can_reuse_but_explicit_build_remains_fresh():
+    fresh, _ = commands.plan(ROOT, 'artifacts', ['build'])
+    reusable, _ = commands.plan(ROOT, 'artifacts', ['prepare'])
+    assert '--reuse' not in fresh[0]
+    assert reusable == [[*fresh[0], '--reuse']]
+
+
 @pytest.mark.parametrize('output', [
     '/etc/onpc-input', '/tmp/unrelated', '/tmp/onpc-input/nested',
     '/tmp/../tmp/onpc-input', 'onpc-input', '/tmp//onpc-input',

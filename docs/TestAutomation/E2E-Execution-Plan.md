@@ -15,14 +15,14 @@ instructions and never select a different task.
 
 ## Next task
 
-Next task: **003a — [Prove the intended GDM password recipient](E2E-Tasks/003a-gdm-recipient.md)**.
+Next task: **001r — [Requalify retained case 1](E2E-Tasks/001r-case-1-regression.md)**.
 
 Task 017 completed Parent saved/control snapshots. Task 012 still needs the
 current Shell Switch User route: the historical check on task 003 does not
-qualify DESK02–04 under the current mandate. The next rows separate ordinary GDM navigation from recipient proofs,
-fresh desktop entry from keyring Cancel, and menu entry from session actions,
-then restore the retained
-search, terminal and viewer consumers and their regressions before task 012.
+qualify DESK02–04 under the current mandate. Tasks 003aa and 003a qualified
+ordinary GDM navigation and the prepared Parent recipient proofs. The next row
+requalifies retained case 1 before fresh desktop entry, keyring Cancel and the
+remaining provider consumers.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

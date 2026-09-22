@@ -153,7 +153,8 @@ GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
 GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list',
                                 'gdm-station-list'})
 GDM_NONSECRET_OPERATIONS = frozenset({
-    'gdm-list', 'gdm-focused', 'gdm-station-wrong-entry-refused',
+    'gdm-list', 'gdm-focused', 'gdm-other-list', 'gdm-other-focused',
+    'gdm-station-wrong-entry-refused',
     'gdm-station-list', 'gdm-station-focused', 'gdm-station-returned',
 })
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
@@ -552,8 +553,8 @@ class AccessibleUI:
         self.gdm_row_diagnostic_emitted = False
         self.kiosk_diagnostic = None
 
-    def nodes(self, root=None, *, strict=False, protected_ids=(), snapshot=None,
-              facts=None, identities=None):
+    def nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
+              snapshot=None, facts=None, identities=None):
         diagnostic = self.kiosk_diagnostic
         if diagnostic is not None:
             diagnostic.check()
@@ -605,6 +606,7 @@ class AccessibleUI:
                 # include ordinary text descendants without reading text values.
                 protected = identity in protected_ids
                 if (not protected and role != 'password text'
+                        and not (protect_text and role in ('text', 'entry'))
                         and (strict or role not in ('text', 'entry'))):
                     children = []
                     for i in reversed(range(node.get_child_count())):
@@ -1922,7 +1924,9 @@ class AccessibleUI:
         def owner():
             desktop = self.api.get_desktop(0)
             require(desktop is not None, 'ui:incomplete-tree')
-            nodes = list(self.nodes(desktop, strict=True))
+            # Owner discovery never needs text descendants. Protect every
+            # candidate text field before the prompt-specific role check.
+            nodes = list(self.nodes(desktop, strict=True, protect_text=True))
             owners = [node for node in nodes
                       if node.get_parent() == desktop
                       and node.get_role_name() == 'application'
@@ -1935,9 +1939,9 @@ class AccessibleUI:
         # Absence permits another read, never input or a replacement owner.
         return self.wait(owner, 'gdm-provider-owner')
 
-    def gdm_semantic_nodes(self):
+    def gdm_semantic_nodes(self, *, protect_text=False):
         owner = self.gdm_semantic_owner()
-        nodes = list(self.nodes(owner, strict=True))
+        nodes = list(self.nodes(owner, strict=True, protect_text=protect_text))
         require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
                                   for node in nodes), 'ui:gdm-stale-tree')
         return owner, nodes
@@ -2012,39 +2016,47 @@ class AccessibleUI:
             },
             'matches': {
                 'ordinary': matches((PARENT,)),
+                'other-ordinary': matches((OTHER_PARENT,)),
                 'station': matches((KIOSK, KIOSK_USERNAME)),
             },
         }
 
-    def gdm_semantic_rows(self):
-        """Return the unique ordinary and station rows in a complete list."""
+    def gdm_semantic_rows(self, required=()):
+        """Return unique prepared fixture rows from one complete account list."""
+        require(type(required) is tuple
+                and set(required) <= {PARENT, OTHER_PARENT, KIOSK},
+                'ui:gdm-account-binding')
         owner, nodes = self.gdm_semantic_nodes()
         showing = [node for node in nodes if self.showing(node)]
         require(not any(node.get_role_name() == 'password text' for node in showing),
                 'ui:gdm-list-prompt-overlap')
 
-        ordinary = self.gdm_semantic_account_rows(owner, showing, (PARENT,))
-        station = self.gdm_semantic_account_rows(
-            owner, showing, (KIOSK, KIOSK_USERNAME))
-        if ((len(ordinary) != 1 or len(station) != 1
-                or (ordinary and station and ordinary[0] == station[0]))
-                and not self.gdm_row_diagnostic_emitted):
+        bindings = {
+            PARENT: (PARENT,),
+            OTHER_PARENT: (OTHER_PARENT,),
+            KIOSK: (KIOSK, KIOSK_USERNAME),
+        }
+        identities = tuple(dict.fromkeys((PARENT, KIOSK, *required)))
+        rows = {name: self.gdm_semantic_account_rows(
+            owner, showing, bindings[name]) for name in identities}
+        complete = (all(len(matches) == 1 for matches in rows.values())
+                    and len({matches[0] for matches in rows.values()}) == len(rows))
+        if not complete and not self.gdm_row_diagnostic_emitted:
             print(json.dumps(self.gdm_semantic_row_diagnostic(owner), sort_keys=True),
                   file=sys.stderr, flush=True)
             self.gdm_row_diagnostic_emitted = True
-        require(len(ordinary) == 1 and len(station) == 1,
-                'ui:gdm-account-cardinality')
-        require(ordinary[0] != station[0], 'ui:gdm-account-cardinality')
-        for row in (*ordinary, *station):
+        require(complete, 'ui:gdm-account-cardinality')
+        result = {name: matches[0] for name, matches in rows.items()}
+        for row in result.values():
             require(self.has_state(row, self.api.StateType.SENSITIVE),
                     'ui:gdm-account-unavailable')
-        return owner, {PARENT: ordinary[0], KIOSK: station[0]}
+        return owner, result
 
     def gdm_nonsecret_account(self, name):
-        require(name in (PARENT, KIOSK), 'ui:gdm-nonsecret-binding')
+        require(name in (PARENT, OTHER_PARENT, KIOSK), 'ui:gdm-nonsecret-binding')
         if self.gdm_nonsecret_has_id_route():
             return self.greeter_list(name)
-        _owner, rows = self.gdm_semantic_rows()
+        _owner, rows = self.gdm_semantic_rows((name,))
         return rows[name]
 
     def gdm_nonsecret_navigation(self, name):
@@ -2083,19 +2095,16 @@ class AccessibleUI:
         require(not any(public_automation_id(node) in forbidden and self.showing(node)
                         for node in nodes), 'ui:kiosk-exit-incomplete')
 
-    def gdm_nonsecret_prompt(self):
-        """Observe Parent's prompt without reading or authorizing its secret."""
-        if self.gdm_nonsecret_has_id_route():
-            self.greeter_prompt()
-            return
-        owner, nodes = self.gdm_semantic_nodes()
+    def gdm_semantic_prompt(self):
+        """Resolve one prepared prompt without traversing its protected field."""
+        owner, nodes = self.gdm_semantic_nodes(protect_text=True)
         showing = [node for node in nodes if self.showing(node)]
         account_rows = self.gdm_semantic_account_rows(
-            owner, showing, (PARENT, KIOSK, KIOSK_USERNAME))
+            owner, showing, tuple(GREETER_IDENTITIES))
         require(not account_rows, 'ui:gdm-list-prompt-overlap')
         recipients = [node for node in showing
                       if node.get_role_name() == 'label'
-                      and self.gdm_semantic_name(node) == PARENT]
+                      and self.gdm_semantic_name(node) in (PARENT, OTHER_PARENT)]
         fields = [node for node in showing
                   if node.get_role_name() == 'password text']
         require(len(recipients) == 1, 'ui:gdm-recipient')
@@ -2103,6 +2112,11 @@ class AccessibleUI:
                 and self.has_state(fields[0], self.api.StateType.SENSITIVE)
                 and self.has_state(fields[0], self.api.StateType.FOCUSED),
                 'ui:gdm-password-focus')
+        return self.gdm_semantic_name(recipients[0]), fields[0]
+
+    def gdm_nonsecret_prompt(self):
+        """Observe Parent's prompt without reading or authorizing its secret."""
+        self.greeter_prompt()
 
     def station_entry_branch(self, owner):
         """Read the offered branch without selecting or dismissing any control."""
@@ -2283,15 +2297,20 @@ class AccessibleUI:
         self.input_uncertain = False
         return True
 
-    def greeter_prompt(self):
+    def greeter_prompt(self, name=PARENT):
         # This observation submits no secret and cannot authorize one.
+        require(name in (PARENT, OTHER_PARENT), 'ui:gdm-account-binding')
+        if not self.gdm_nonsecret_has_id_route():
+            recipient, _field = self.gdm_semantic_prompt()
+            require(recipient == name, 'ui:gdm-recipient')
+            return
         surface, registered = self.provider_surface(
             'gdm', 'greeter', GDM_PROVIDER_CONTROLS)
         require(surface is not None, 'ui:gdm-surface')
         recipient = self.find_id(registered['selected-recipient'], root=surface)
-        require(recipient is not None and ' '.join(recipient.get_name().split()) == PARENT,
+        require(recipient is not None and ' '.join(recipient.get_name().split()) == name,
                 'ui:gdm-recipient')
-        self.observe_absence('greeter', 'account', name=PARENT, mode='snapshot')
+        self.observe_absence('greeter', 'account', name=name, mode='snapshot')
         field = self.find_id(registered['password'], root=surface)
         require(field is not None and field.get_role_name() == 'password text'
                 and self.has_state(field, self.api.StateType.SENSITIVE)
@@ -2572,6 +2591,14 @@ class AccessibleUI:
         authorize typing. The caller also requires a separate fresh recheck.
         """
         require(name in GREETER_IDENTITIES, 'ui:gdm-account-binding')
+        if not self.gdm_nonsecret_has_id_route():
+            require(name in (PARENT, OTHER_PARENT), 'ui:gdm-nonsecret-binding')
+            recipient, field = self.gdm_semantic_prompt()
+            if recipient != name:
+                return False
+            interface = field.get_text_iface()
+            return (interface is not None
+                    and self.api.Text.get_character_count(interface) == 0)
         surface, registered = self.provider_surface(
             'gdm', 'greeter', GDM_PROVIDER_CONTROLS)
         if surface is None:

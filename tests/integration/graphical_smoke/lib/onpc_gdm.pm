@@ -74,6 +74,52 @@ sub navigation_qualification {
     $journey->finish();
 }
 
+# GDM01/02/03/04/08/09 qualification. The worker never receives or submits a
+# credential. Every prompt proof is consumed before Escape, and the two empty
+# intended-recipient checks are separate controller observations of one prompt.
+sub recipient_qualification {
+    onpc_progress::operation('Qualifying the greeter password recipient');
+    my ($exchange) = @_;
+    die 'gdm:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(
+        exchange => $exchange, prefix => 'gdm-recipient', review => 0);
+    reattach_functional();
+
+    my $wrong = $journey->seen('wrong-list');
+    my $wrong_focused = $journey->highlight_choice(
+        $wrong, 'wrong-list', 'wrong-focused');
+    $journey->consume_observation('wrong-focused', $wrong_focused);
+    testapi::send_key('ret');
+    my $refusal = $journey->seen('wrong-recipient-refused');
+    die 'gdm:wrong-recipient-proof' unless ref($refusal) eq 'HASH'
+        && keys(%$refusal) == 1
+        && ($refusal->{observed} // '') eq 'wrong-recipient-refused';
+    $journey->consume_observation('wrong-recipient-refused', $refusal);
+    testapi::send_key('esc');
+
+    $journey->seen('wrong-returned');
+    my $intended = $journey->seen('intended-list');
+    my $intended_focused = $journey->highlight_choice(
+        $intended, 'intended-list', 'intended-focused');
+    $journey->consume_observation('intended-focused', $intended_focused);
+    testapi::send_key('ret');
+
+    my $proof;
+    for my $stage ('recipient-qualified', 'recipient-rechecked') {
+        $proof = $journey->seen($stage);
+        die 'gdm:recipient-proof' unless ref($proof) eq 'HASH'
+            && keys(%$proof) == 1 && ($proof->{observed} // '') eq $stage;
+    }
+    $journey->consume_observation('recipient-rechecked', $proof);
+    my $prompt = $journey->seen('intended-prompt');
+    die 'gdm:prompt-proof' unless ref($prompt) eq 'HASH'
+        && keys(%$prompt) == 1 && ($prompt->{observed} // '') eq 'intended-prompt';
+    $journey->consume_observation('intended-prompt', $prompt);
+    testapi::send_key('esc');
+    $journey->seen('intended-returned');
+    $journey->finish();
+}
+
 # GDM02, fixed Parent/prompt binding. No secret recipient is authorized here.
 sub select_prompt {
     onpc_progress::operation('Opening the intended account prompt');

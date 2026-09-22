@@ -638,50 +638,60 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          install_refusal=False, vt6_prompt=False, vt6_auth=False, parent_setup=False,
          parent_input=False, parent_standard_input=False, parent_about=False,
          parent_access=False, desktop_session_logout=False, desktop_session_switch=False,
-         gdm_navigation=False, kiosk_entry=False, request_exit=False, parent_toggle=False):
+         gdm_navigation=False, gdm_recipient=False, kiosk_entry=False, request_exit=False,
+         parent_toggle=False):
     require(type(parent_toggle) is bool and (not parent_toggle or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, desktop_session_switch, gdm_navigation,
+                desktop_session_logout, desktop_session_switch, gdm_navigation, gdm_recipient,
                 kiosk_entry, request_exit)))),
             'smoke:parent-toggle-prerequisites')
     require(type(kiosk_entry) is bool and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, desktop_session_switch, gdm_navigation,
+                desktop_session_logout, desktop_session_switch, gdm_navigation, gdm_recipient,
                 request_exit, parent_toggle)))),
             'smoke:kiosk-entry-prerequisites')
     require(type(request_exit) is bool and (not request_exit or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, desktop_session_switch, gdm_navigation,
+                desktop_session_logout, desktop_session_switch, gdm_navigation, gdm_recipient,
                 kiosk_entry, parent_toggle)))),
             'smoke:request-exit-prerequisites')
     require(type(desktop_session_logout) is bool and (not desktop_session_logout or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_switch, gdm_navigation, kiosk_entry, request_exit,
+                desktop_session_switch, gdm_navigation, gdm_recipient, kiosk_entry, request_exit,
                 parent_toggle)))), 'smoke:desktop-session-logout-prerequisites')
     require(type(desktop_session_switch) is bool and (not desktop_session_switch or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
-                desktop_session_logout, gdm_navigation, kiosk_entry, request_exit,
+                desktop_session_logout, gdm_navigation, gdm_recipient, kiosk_entry, request_exit,
                 parent_toggle)))), 'smoke:desktop-session-switch-prerequisites')
     require(type(gdm_navigation) is bool and (not gdm_navigation or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
                 parent_input, parent_standard_input, parent_about, parent_access,
                 desktop_session_logout, desktop_session_switch, kiosk_entry,
-                request_exit, parent_toggle)))), 'smoke:gdm-navigation-prerequisites')
+                request_exit, parent_toggle, gdm_recipient)))),
+            'smoke:gdm-navigation-prerequisites')
+    require(type(gdm_recipient) is bool and (not gdm_recipient or (
+            assets is not None and provision_credentials and not any((
+                serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
+                parent_input, parent_standard_input, parent_about, parent_access,
+                desktop_session_logout, desktop_session_switch, gdm_navigation,
+                kiosk_entry, request_exit, parent_toggle)))),
+            'smoke:gdm-recipient-prerequisites')
     require(type(parent_access) is bool and (not parent_access or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_setup, parent_input, parent_standard_input,
                 parent_about, desktop_session_logout, desktop_session_switch, gdm_navigation,
+                gdm_recipient,
                 kiosk_entry,
                 request_exit, parent_toggle)))),
             'smoke:parent-access-prerequisites')
@@ -689,7 +699,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_setup, parent_input,
                 parent_standard_input, desktop_session_logout, desktop_session_switch,
-                gdm_navigation, kiosk_entry, request_exit, parent_toggle)))),
+                gdm_navigation, gdm_recipient, kiosk_entry, request_exit, parent_toggle)))),
             'smoke:parent-about-prerequisites')
     require(type(parent_input) is bool and (not parent_input or parent_setup),
             'smoke:parent-input-prerequisites')
@@ -700,7 +710,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(parent_setup) is bool and (not parent_setup or (assets is not None
             and provision_credentials and not any((serial, install, install_refusal,
                 vt6_prompt, vt6_auth, parent_about, parent_access,
-                desktop_session_logout, desktop_session_switch, gdm_navigation, kiosk_entry,
+                desktop_session_logout, desktop_session_switch, gdm_navigation, gdm_recipient,
+                kiosk_entry,
                 request_exit, parent_toggle)))),
             'smoke:parent-setup-prerequisites')
     require(type(vt6_auth) is bool and (not vt6_auth or (provision_credentials
@@ -759,6 +770,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-desktop-switch-qualification'
         if gdm_navigation:
             result['scope'] = 'installed-gdm-navigation-qualification'
+        if gdm_recipient:
+            result['scope'] = 'installed-gdm-recipient-qualification'
         if kiosk_entry:
             result['scope'] = 'installed-kiosk-entry-qualification'
         if request_exit:
@@ -783,7 +796,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     staged.chmod(0o700)
                     result['source_preflight'] = preflight_source(staged)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
-                        or desktop_session_switch or gdm_navigation or kiosk_entry
+                        or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or request_exit or parent_toggle):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                 else:
@@ -823,6 +836,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if gdm_navigation:
                     from parent_setup_qualification import GdmNavigationQualification
                     qualification_class = GdmNavigationQualification
+                if gdm_recipient:
+                    from parent_setup_qualification import GdmRecipientQualification
+                    qualification_class = GdmRecipientQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

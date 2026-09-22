@@ -82,6 +82,12 @@ sub run {
         onpc_gdm::navigation_qualification(\&exchange);
         return;
     }
+    if ($ready->{gdm_recipient}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_gdm::recipient_qualification(\&exchange);
+        return;
+    }
     if ($ready->{kiosk_entry}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

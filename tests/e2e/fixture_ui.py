@@ -6,7 +6,7 @@ Installed consumers must launch the declared package/route themselves.
 
 import re
 
-from tests.e2e.accessible_ui import public_automation_id, require
+from tests.e2e.accessible_ui import require
 
 
 class FixtureUI:
@@ -69,10 +69,6 @@ class FixtureUI:
 
     def closed(self, *, surrounding_id):
         # Absence needs a positive, independently identified destination.
-        def absent():
-            nodes = list(self.ui.nodes(strict=True))
-            require(all(not self.ui.has_state(node, self.ui.api.StateType.DEFUNCT)
-                        for node in nodes), 'ui:stale-fixture')
-            return (self.ui.find_id(surrounding_id, nodes=nodes) is not None
-                    and not any(public_automation_id(node) == self.scope for node in nodes))
-        return self.ui.wait(absent, 'fixture-closed')
+        return self.ui.wait(
+            lambda: self.ui.absent_id(self.scope, within=surrounding_id),
+            'fixture-closed')

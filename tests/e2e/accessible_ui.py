@@ -18,7 +18,8 @@ import warnings
 
 
 OPERATIONS = frozenset({
-    'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
+    'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-navigation-returned',
+    'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'parent-window', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'license', 'license-closed', 'about-returned', 'parent-returned',
     'discovery-ready', 'new-child-picker-opened', 'new-child-choice-highlighted',
@@ -141,7 +142,8 @@ GDM_PROVIDER_CONTROLS = (
     'selected-recipient', 'password', 'submit', 'cancel', 'session-chooser',
     'session-choice::<provider-session-id>',
 )
-GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-dismissed', 'gdm-returned',
+GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
+    'gdm-navigation-returned', 'gdm-dismissed', 'gdm-returned',
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
@@ -2935,7 +2937,9 @@ class AccessibleUI:
             elif operation in ('gdm-standard-recipient', 'gdm-standard-recipient-rechecked'):
                 self.wait(lambda: self.password_recipient(EXISTING_CHILD), 'gdm-standard-recipient')
             elif operation == 'gdm-select-parent':
-                self.greeter_prompt()
+                self.gdm_nonsecret_prompt()
+            elif operation == 'gdm-navigation-returned':
+                self.gdm_nonsecret_account(PARENT)
             elif operation == 'gdm-station-wrong-entry-refused':
                 self.gdm_nonsecret_prompt()
             elif operation == 'gdm-station-returned':

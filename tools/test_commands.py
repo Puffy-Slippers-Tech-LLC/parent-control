@@ -281,6 +281,7 @@ def allocate_artifact_output(value):
 def qualification_artifact_command(root, category, args):
     """Prepare fixed Parent inputs in this run, including after retention expiry."""
     if category != 'integration' or args not in (
+            ['check_e2e_gdm_navigation'], ['check_e2e_gdm_navigation.py'],
             ['check_e2e_toggle'], ['check_e2e_toggle.py'],
             ['check_e2e_parent_save'], ['check_e2e_parent_save.py']):
         return None

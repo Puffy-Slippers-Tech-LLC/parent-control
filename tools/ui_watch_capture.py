@@ -37,6 +37,8 @@ class Capture:
         self.retry_at = 0
         self.stage = 'stream'
         self.generation = 0
+        self.display_serial = None
+        self.next_display_check = 0
         try:
             runtime = Path(os.environ['XDG_RUNTIME_DIR'])
             if (runtime.parent.parent != Path('/tmp')
@@ -72,10 +74,12 @@ class Capture:
         self.monitor_subscription = self.connection.signal_subscribe(
             DISPLAY, DISPLAY, 'MonitorsChanged', '/org/gnome/Mutter/DisplayConfig', None,
             self.Gio.DBusSignalFlags.NONE, self.monitors_changed)
-        _, monitors, logical, _ = self.call(DISPLAY, '/org/gnome/Mutter/DisplayConfig',
-                                           DISPLAY, 'GetCurrentState')
+        serial, monitors, logical, _ = self.call(
+            DISPLAY, '/org/gnome/Mutter/DisplayConfig', DISPLAY, 'GetCurrentState')
         if len(monitors) != 1 or len(logical) != 1:
             raise ValueError('Expected the existing single test monitor')
+        self.display_serial = serial
+        self.next_display_check = time.monotonic() + .25
         self.cast, = self.call(CAST, '/org/gnome/Mutter/ScreenCast', CAST,
                               'CreateSession', '(a{sv})', ({},))
         stream, = self.call(CAST, self.cast, CAST + '.Session', 'RecordMonitor',
@@ -107,12 +111,27 @@ class Capture:
         except Exception as error:
             self.recover(error)
 
-    def monitors_changed(self, connection, *_args):
+    def monitors_changed(self, _connection, *_args):
         # Mutter can replace the monitor's PipeWire buffers without posting a
-        # GStreamer error. Reconnect from the public display-change signal so a
-        # silently stalled pipeline cannot remain published as live.
-        if connection is self.connection and self.stage not in ('retry', 'failed'):
+        # GStreamer error. The callback's PyGObject connection wrapper need not
+        # be identical to self.connection, and the display-state serial need
+        # not change when the same scale is reapplied. This subscription belongs
+        # to the active connection and close() removes it, so recover directly.
+        if self.stage not in ('retry', 'failed'):
             self.recover(RuntimeError('Monitor configuration changed'))
+
+    def display_changed(self, now):
+        if self.stage in ('retry', 'failed') or now < self.next_display_check:
+            return False
+        self.next_display_check = now + .25
+        serial, monitors, logical, _ = self.call(
+            DISPLAY, '/org/gnome/Mutter/DisplayConfig', DISPLAY, 'GetCurrentState')
+        if len(monitors) != 1 or len(logical) != 1:
+            raise ValueError('Expected the existing single test monitor')
+        if serial == self.display_serial:
+            return False
+        self.recover(RuntimeError('Monitor configuration changed'))
+        return True
 
     def recover(self, error):
         # A display-scale change can remove every PipeWire buffer. Recreate
@@ -147,6 +166,8 @@ class Capture:
                     return
                 self.stage = 'stream'
                 self.begin()
+            if self.display_changed(time.monotonic()):
+                return
             if self.pipeline is not None:
                 error = self.pipeline.get_bus().pop_filtered(self.Gst.MessageType.ERROR)
                 if error is not None:

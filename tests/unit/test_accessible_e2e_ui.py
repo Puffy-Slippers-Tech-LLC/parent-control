@@ -606,7 +606,10 @@ def test_gdm_nonsecret_adapter_refuses_stale_focus_without_replay():
     assert ui.input_uncertain is True
 
 
-@pytest.mark.parametrize('operation', ['gdm-list', 'gdm-station-wrong-entry-refused'])
+@pytest.mark.parametrize('operation', [
+    'gdm-list', 'gdm-select-parent', 'gdm-navigation-returned',
+    'gdm-station-wrong-entry-refused',
+])
 def test_gdm_nonsecret_adapter_rejects_list_and_prompt_overlap(operation):
     parent, station = semantic_gdm_rows()
     recipient = Node('Jamie (Parent)', 'label')
@@ -630,7 +633,7 @@ def test_gdm_nonsecret_prompt_and_returned_list_never_read_or_submit_a_secret():
     field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
     field.get_text_iface = Mock(side_effect=AssertionError('password read'))
     ui, shell = semantic_gdm_ui(recipient=recipient, field=field)
-    assert ui.run('gdm-station-wrong-entry-refused', '')['outcome'] == 'passed'
+    assert ui.run('gdm-select-parent', '')['outcome'] == 'passed'
     field.get_child_count.assert_not_called()
     field.get_text_iface.assert_not_called()
     field.action.do_action.assert_not_called()
@@ -641,7 +644,8 @@ def test_gdm_nonsecret_prompt_and_returned_list_never_read_or_submit_a_secret():
     shell.children = [parent, station]
     parent.parent = shell
     station.parent = shell
-    assert ui.run('gdm-station-list', '')['focused'] is True
+    assert ui.run('gdm-navigation-returned', '')['outcome'] == 'passed'
+    parent.component.grab_focus.assert_not_called()
 
 
 def test_unqualified_gdm_id_only_route_blocks_before_tree_discovery_or_input():

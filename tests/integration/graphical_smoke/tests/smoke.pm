@@ -76,6 +76,12 @@ sub run {
         onpc_desktop_session::run(\&exchange, 'switch-user');
         return;
     }
+    if ($ready->{gdm_navigation}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_gdm::navigation_qualification(\&exchange);
+        return;
+    }
     if ($ready->{kiosk_entry}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

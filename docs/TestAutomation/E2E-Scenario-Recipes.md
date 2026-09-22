@@ -682,21 +682,20 @@ remain pending.
 
 Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 
-1. Parent P0 → PARENT03(capture); overlay/station FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help V(parent) → FILE01.
+1. Parent P0 → PARENT03(capture); overlay/station FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help V(parent) → qualified desktop.
 2. Parent/overlay INFO01(Help) → ABOUT01; overlay additionally ABOUT02 → UI18(license viewer). Then INFO01(website,privacy,support,legal as offered). Kiosk ABOUT01 → UI03 → UI11(external actions). Command INFO02(each fixed command/manual). Parent's complete license-reading path remains owned by case 151.
-3. UI18(About, only where opened) → PARENT03 or REQUEST03 → UI12. INFO01 has already closed each external destination; do not close it twice. INFO02 ends at the terminal.
+3. UI18(About, only where opened) → PARENT03 or REQUEST03 → UI12. INFO01 has already closed each external destination; do not close it twice. INFO02 leaves the parent desktop clear.
 
 Command-help binds INFO02 to `/usr/bin/oh-no-parent-control-parent --help`,
 `/usr/bin/oh-no-parent-control --help`, `man oh-no-parent-control-parent` and
-`man oh-no-parent-control`, in that order. Each starts at focused normal shell
-input in a fresh Terminal window. Read each help's usage, identifying description
-and help option; read each manual's command identity, purpose, NAME, SYNOPSIS and
-DESCRIPTION. Use `q` to leave each manual. Check the returned shell prompt and
-absence of management/request windows before closing Terminal normally. The
-first entry uses FILE01; later entries independently open Terminal. Refuse the
-desktop as command input before opening any terminal. Public observations have
-the adapter's 45-second deadline and retain only semantic results, never raw
-terminal text. The complete consumer is `command_help::execute` and
+`man oh-no-parent-control`, in that order. Run each fixed command through the
+guarded VM SSH transport as the parent fixture account and capture its bounded
+stdout stream, without a terminal window or GUI text projection. Read each
+help's usage, identifying description and help option; read each manual's
+command identity, purpose, NAME, SYNOPSIS and DESCRIPTION. Independently check
+the desktop and absence of management/request windows after each command.
+Each command has a 45-second deadline; durable observations retain only semantic
+results, never raw command text. The complete consumer is `command_help::execute` and
 `onpc_command_help::run`.
 
 ### E2E-043

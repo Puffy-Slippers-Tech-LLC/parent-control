@@ -5,11 +5,11 @@ Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **Retained regression 193; both installed commands/manuals and terminal return**.
+Deliver **Retained regression 193; both installed commands/manuals and clear desktop return**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001t** — FILE01/02/06 terminal command, help/denial projections and normal close/return.
+- **001t** — Historical PARENT01 direct-command denial and desktop return. The current INFO02 stream route does not use its terminal capability.
 
 ## Read only this context
 
@@ -20,7 +20,7 @@ catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Keep both registered help/manual results and normal terminal return. Use bounded meaningful public content; product absence and command echo guards remain.
+Keep both registered help/manual results from guarded SSH stdout and the clear desktop return. Use bounded meaningful public content; product absence remains required.
 
 ## Live VM acceptance
 

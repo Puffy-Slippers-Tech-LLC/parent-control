@@ -2151,8 +2151,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, open the normal desktop terminal."},
-          {"id": "step-2", "operation": "ui", "description": "For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help runs both help commands and reads both manuals."},
+          {"id": "step-1", "operation": "ui", "description": "For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop."},
+          {"id": "step-2", "operation": "ui", "description": "For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account."},
           {"id": "step-3", "operation": "ui", "description": "Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window."}
         ],
         "end": [

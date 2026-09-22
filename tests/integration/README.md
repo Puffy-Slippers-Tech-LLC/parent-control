@@ -442,10 +442,12 @@ of historical evidence or logs.
 
 The runner has controller plumbing in `graphical_lease.py`: public generalhw
 lifecycle command variables, a private Unix callback service, and revocable
-graphics descriptors from a `Lease(..., graphics_type='vnc')`. `Lease.stop()`
-stops the recorded instance without restoring within a backend attempt; the
-outer lease still performs baseline cleanup. All callback processing stays in
-the controller thread and revalidates lease ownership.
+graphics descriptors from a `Lease(..., graphics_type='vnc')`. The final owned
+power-off callback force-restores the accepted off baseline after the worker's
+last product assertion, without waiting for ACPI shutdown. The outer lease
+still audits the baseline and restores the original domain configuration.
+All callback processing stays in the controller thread and revalidates lease
+ownership.
 
 Graphics FD RPCs use a short-lived, separate libvirt connection. Its URI, UUID,
 domain instance and exact XML must match the guarded lease before attachment,

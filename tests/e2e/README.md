@@ -1238,7 +1238,8 @@ fixed lifecycle events, backend exit status, fatal-artifact presence and shutdow
 verification. These checks supplement the outer restoration/evidence gate.
 
 At the end of a complete smoke, `console('sut')->disable()` closes VNC through
-the public console API before `power('off')` delegates shutdown to the lease.
+the public console API before `power('off')` delegates the guarded off-baseline
+restore to the lease.
 Require `check_shutdown(0)` to succeed; `assert_shutdown` also captures a screen.
 Leaving VNC active after display revocation allows its background stall handler
 to attempt reconnection to a stopped guest. Graphics ownership must still refuse
@@ -1249,7 +1250,7 @@ that request. Disabling the console ends observation; it does not change VM stat
 including synchronous `Lease.stop` and backend exit. Other selections retain
 600/960 seconds. `run_distribution` accepts only finite positive numeric budgets
 at most 1800; no callback renews the deadline. After `serve_once` returns, it
-checks expiration before another observer dispatch. Owned shutdown completes
+checks expiration before another observer dispatch. Owned off-state restoration completes
 even if it crosses the deadline; expiration still fails and closes both resources.
 All lifecycle, module, lease and final preservation checks remain required.
 
@@ -1391,7 +1392,7 @@ stream. `VIR_DOMAIN_CONSOLE_SAFE` requires exclusive attachment; no force flag
 or direct host PTY access exists. The controller pumps bounded buffers through
 two private, inode-checked FIFOs; the maintained public `virtio-terminal`
 console uses these through `add_console`. The generalhw SOL grabber remains
-disabled. Initial off-state assertions preserve prepared pipes; actual shutdown,
+disabled. Initial off-state assertions preserve prepared pipes; final restoration,
 ownership loss and callback cleanup close the serial resources. No extra
 process or host listener is introduced. Offline preparation enables only the
 stock password-authenticated getty in this attempt, then outer restoration

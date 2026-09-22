@@ -2965,7 +2965,7 @@ class AccessibleUI:
                 self.wait(lambda: self.password_recipient(EXISTING_CHILD), 'gdm-standard-recipient')
             elif operation == 'gdm-select-parent':
                 self.gdm_nonsecret_prompt()
-            elif operation == 'gdm-navigation-returned':
+            elif operation in ('gdm-navigation-returned', 'gdm-dismissed', 'gdm-returned'):
                 self.gdm_nonsecret_account(PARENT)
             elif operation == 'gdm-station-wrong-entry-refused':
                 self.gdm_nonsecret_prompt()

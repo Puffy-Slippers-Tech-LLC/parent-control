@@ -1198,6 +1198,15 @@ Case 1 retains its real authenticated serial
 journey and public GDM return. A future named consumer needs an explicit scoped
 prerequisite in the same queue before using any additional surface.
 
+Case 1's product-free GDM binding remains unqualified: the installed semantic
+adapter requires the product station alongside Parent, but that station is
+absent on its declared baseline. `gdm-dismissed` and `gdm-returned` now reuse
+`gdm_nonsecret_account(PARENT)`; host checks pass, while the
+[complete attempt](Evidence/test-all-runs/20260922T153110Z-ef1d0c40/report.md)
+refused the initial list with `ui:gdm-account-cardinality` and completed owned
+cleanup. Task 003ab must qualify an explicit product-free fixture binding before
+001r resumes. Installed station cardinality checks remain required.
+
 ### Reachability and result checks
 
 The following ID route applies to repository-owned UI and ID-capable providers.

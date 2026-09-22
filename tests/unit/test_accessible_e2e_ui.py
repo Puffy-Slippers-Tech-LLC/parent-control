@@ -631,6 +631,7 @@ def test_gdm_nonsecret_adapter_refuses_stale_focus_without_replay():
 
 @pytest.mark.parametrize('operation', [
     'gdm-list', 'gdm-select-parent', 'gdm-navigation-returned',
+    'gdm-dismissed', 'gdm-returned',
     'gdm-station-wrong-entry-refused',
 ])
 def test_gdm_nonsecret_adapter_rejects_list_and_prompt_overlap(operation):
@@ -649,7 +650,10 @@ def test_gdm_nonsecret_adapter_rejects_list_and_prompt_overlap(operation):
     ui.api.Text.get_text.assert_not_called()
 
 
-def test_gdm_nonsecret_prompt_and_returned_list_never_read_or_submit_a_secret():
+@pytest.mark.parametrize('operation', [
+    'gdm-navigation-returned', 'gdm-dismissed', 'gdm-returned',
+])
+def test_gdm_nonsecret_prompt_and_returned_list_never_read_or_submit_a_secret(operation):
     recipient = Node('Jamie (Parent)', 'label')
     field = Node('Password', 'password text',
                  states=('showing', 'visible', 'sensitive', 'focused'))
@@ -667,7 +671,7 @@ def test_gdm_nonsecret_prompt_and_returned_list_never_read_or_submit_a_secret():
     shell.children = [parent, station]
     parent.parent = shell
     station.parent = shell
-    assert ui.run('gdm-navigation-returned', '')['outcome'] == 'passed'
+    assert ui.run(operation, '')['outcome'] == 'passed'
     parent.component.grab_focus.assert_not_called()
 
 

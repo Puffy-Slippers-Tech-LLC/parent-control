@@ -15,14 +15,16 @@ instructions and never select a different task.
 
 ## Next task
 
-Next task: **001r — [Requalify retained case 1](E2E-Tasks/001r-case-1-regression.md)**.
+Next task: **003ab — [Qualify product-free GDM navigation](E2E-Tasks/003ab-product-free-gdm.md)**.
 
-Task 017 completed Parent saved/control snapshots. Task 012 still needs the
-current Shell Switch User route: the historical check on task 003 does not
-qualify DESK02–04 under the current mandate. Tasks 003aa and 003a qualified
-ordinary GDM navigation and the prepared Parent recipient proofs. The next row
-requalifies retained case 1 before fresh desktop entry, keyring Cancel and the
-remaining provider consumers.
+Task 001r's product-free attempt found that the installed GDM adapter requires
+the product's station account, which is absent on the declared baseline.
+Task 003ab is the explicit missing prerequisite immediately before 001r;
+qualify the product-free Parent list/prompt/return binding without weakening
+installed station checks. Task 001r retains its implementation and host checks
+but remains unchecked until the complete case, collection and cleanup pass.
+The existing [failed attempt](Evidence/test-all-runs/20260922T153110Z-ef1d0c40/report.md)
+preserves the account-cardinality refusal and passing owned cleanup.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

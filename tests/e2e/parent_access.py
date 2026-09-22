@@ -1,20 +1,14 @@
 """E2E-004/app-grid's standard-user actions and visible expectations."""
 
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
+from journey_blocks import fresh_desktop
 
 
 PLAN = JourneyPlan(
     prefix="parent-access", worker_mode="parent_access",
     review_mode="parent_access_review",
     screen_tags={
-        "installed-greeter": "ui:gdm-other-list",
-        "other-parent-focused": "ui:gdm-other-focused",
-        "wrong-recipient-refused": "ui:gdm-standard-wrong-recipient-refused",
-        "standard-list": "ui:gdm-standard-list",
-        "standard-focused": "ui:gdm-standard-focused",
-        "standard-recipient-qualified": "ui:gdm-standard-recipient",
-        "standard-recipient-rechecked": "ui:gdm-standard-recipient-rechecked",
-        "desktop": "ui:standard-desktop",
+        **fresh_desktop('other-child'),
         "system-prompt": "ui:standard-system-prompt",
         "app-grid": "ui:standard-app-grid",
         "search-focused": "ui:standard-search-focused",

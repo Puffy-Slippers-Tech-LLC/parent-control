@@ -79,8 +79,8 @@ my $ok = eval {
         my $journey = onpc_journey->new(exchange => $exchange, prefix => 'unit', review => $review);
         my $proof = $fault eq 'missing' ? {} : $journey->seen('license');
         $journey->seen('about') if $fault eq 'stale';
-        onpc_parent_about::return_to_parent($journey, $proof, 'semantic-reveal');
-        onpc_parent_about::return_to_parent($journey, $proof, 'semantic-reveal') if $fault eq 'replay';
+        onpc_about::return_to_parent($journey, $proof, 'semantic-reveal');
+        onpc_about::return_to_parent($journey, $proof, 'semantic-reveal') if $fault eq 'replay';
     } else {
         onpc_parent_about::run($exchange, $review);
     }
@@ -241,6 +241,48 @@ def test_close_observation_precedes_semantic_footer_reveal_and_return_close():
         ['stage', 'about-returned'],
         ['key', 'alt-f4'], ['stage', 'parent-returned'],
     ]
+
+
+@pytest.mark.parametrize('window,before,after', [
+    ('license', 'license', 'license-closed'),
+    ('about', 'about-returned', 'parent-returned'),
+    ('management-denied', 'management-denied', 'denial-closed'),
+])
+@pytest.mark.parametrize('fault', ['', 'stale', 'missing', 'uncertain', 'result', 'binding'])
+def test_shared_window_close_requires_fresh_proof_and_cannot_replay(window, before, after, fault):
+    result = json.loads(run_perl(r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+our ($window, $before, $after, $fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key {
+    push @main::events, $_[0];
+    die 'uncertain' if $main::fault eq 'uncertain';
+}
+package main;
+require onpc_window;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, $_[0];
+    die 'missing result' if $fault eq 'result' && $_[0] eq $after;
+    return {};
+});
+my $proof = $fault eq 'missing' ? {} : $journey->seen($before);
+$journey->seen('unrelated') if $fault eq 'stale';
+@events = ();
+my $ok = eval { onpc_window::close($journey, $fault eq 'binding' ? 'unknown' : $window, $proof); 1; };
+my $replay = eval { onpc_window::close($journey, $fault eq 'binding' ? 'unknown' : $window, $proof); 1; };
+print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
+''', window, before, after, fault).stdout)
+    assert bool(result['ok']) == (not fault)
+    assert not result['replay']
+    assert result['events'] == ([] if fault in ('stale', 'missing', 'binding')
+                                else ['alt-f4'] if fault == 'uncertain'
+                                else ['alt-f4', after])
 
 
 @pytest.mark.parametrize('fault', ['', 'native'])

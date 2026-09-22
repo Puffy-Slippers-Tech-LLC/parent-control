@@ -2,7 +2,6 @@ package onpc_parent_discovery;
 use strict;
 use warnings;
 use onpc_progress ();
-use testapi ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_gdm ();
@@ -42,9 +41,7 @@ sub run_none {
     # Pause before launching Parent so the fixed fixture state is complete and
     # durably recorded before the customer-visible result can be produced.
     my $prepared = $journey->seen('fixture-requested');
-    $journey->consume_observation('fixture-requested', $prepared);
-    testapi::send_key('ret');
-    $journey->seen('empty');
+    onpc_parent::launch_search_result($journey, $prepared, 'empty');
     $journey->finish();
 }
 

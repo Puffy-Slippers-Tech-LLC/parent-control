@@ -2,24 +2,15 @@
 
 from account_fixture import DynamicAccountFixture, EmptyAccountFixture
 from installed_journey import JourneyPlan, record_installed_journey
+from journey_blocks import fresh_desktop, parent_search
 from ui_observations import SettingsObservation
 
 
 PLAN = JourneyPlan(
     prefix="parent-discovery", worker_mode="parent_discovery",
     screen_tags={
-        "installed-greeter": "ui:gdm-other-list",
-        "other-parent-focused": "ui:gdm-other-focused",
-        "wrong-recipient-refused": "ui:gdm-wrong-recipient-refused",
-        "parent-list": "ui:gdm-list",
-        "parent-focused": "ui:gdm-focused",
-        "recipient-qualified": "ui:gdm-parent-recipient",
-        "recipient-rechecked": "ui:gdm-parent-recipient-rechecked",
-        "desktop": "ui:desktop",
-        "search-ready": "ui:parent-search-ready",
-        "search-focused": "ui:parent-search-focused",
-        "search-entered": "ui:parent-search-entered",
-        "app-grid": "ui:app-grid",
+        **fresh_desktop('parent'),
+        **parent_search(),
         "parent-window": "ui:parent-window",
         "child-picker-opened": "ui:discovery-child-picker-opened",
         "child-choice-highlighted": "ui:discovery-child-choice-highlighted",
@@ -64,18 +55,8 @@ PLAN = JourneyPlan(
 EMPTY_PLAN = JourneyPlan(
     prefix="parent-empty", worker_mode="parent_discovery_none",
     screen_tags={
-        "installed-greeter": "ui:gdm-other-list",
-        "other-parent-focused": "ui:gdm-other-focused",
-        "wrong-recipient-refused": "ui:gdm-wrong-recipient-refused",
-        "parent-list": "ui:gdm-list",
-        "parent-focused": "ui:gdm-focused",
-        "recipient-qualified": "ui:gdm-parent-recipient",
-        "recipient-rechecked": "ui:gdm-parent-recipient-rechecked",
-        "desktop": "ui:desktop",
-        "search-ready": "ui:parent-search-ready",
-        "search-focused": "ui:parent-search-focused",
-        "search-entered": "ui:parent-search-entered",
-        "app-grid": "ui:app-grid",
+        **fresh_desktop('parent'),
+        **parent_search(),
         "fixture-requested": "ui:app-grid",
         "empty": "ui:parent-empty",
     },

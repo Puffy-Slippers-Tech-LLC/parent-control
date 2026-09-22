@@ -26,14 +26,13 @@ Bind the retained case to the qualified public GDM observations and existing aut
 ## Live VM acceptance
 
 The return operations now call the qualified semantic account observation.
-The 633 focused accessible-UI, GDM/serial worker and controller reconciliation
-checks passed. The [complete attempt](../Evidence/test-all-runs/20260922T153110Z-ef1d0c40/report.md)
-failed at its first `gdm-list`: `ui:gdm-account-cardinality`, because the
-installed binding requires the station absent on the product-free baseline.
-Owned cleanup passed; no scenario acceptance or coverage refresh is claimed.
-Private diagnostic: `/tmp/onpc-graphical-smoke-x__r1r2n/private/command-0034-stderr.txt`.
-Blocker: product-free GDM binding is unqualified; resume when: task 003ab passes.
-Then rerun the complete case below, preserving every serial and capture check.
+Task 003ab's fixed `check_e2e_gdm_product_free` route qualified two independent
+Parent list/focus/prompt/Escape-return cycles on the declared product-free
+baseline, with collection and owned cleanup
+([report](../Evidence/test-all-runs/20260922T160459Z-cb16b20f/report.md)). The
+installed adapter retains its separate station cardinality requirement. Rerun
+the complete case below through `AccessibleUI.gdm_product_free_account()` and
+`gdm_product_free_navigation()`, preserving every serial and capture check.
 
 Run the exact complete case, including all serial and graphical results, independent observations, capture reconciliation, collection and cleanup. A slice or source review cannot satisfy it. Refresh coverage immediately after the successful case.
 

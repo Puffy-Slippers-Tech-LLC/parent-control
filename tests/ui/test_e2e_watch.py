@@ -41,6 +41,20 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
     wait(lambda: audit_owned_controls(ui, 'e2e-watch-window'),
          'complete spectator ID inventory')
 
+    if not live:
+        # A second process must forward activation and exit, retaining the
+        # original window/feed. Exercise this twice to catch retained ownership.
+        for index in range(2):
+            attached, attached_log = launch_ui('e2e_watch_window_probe',
+                wait_for_application=False, environment_overrides={
+                    'ONPC_WATCH_EVIDENCE': str(tmp_path / f'attach-{index}.json'),
+                    'ONPC_WATCH_CONTROL': str(control), 'ONPC_WATCH_LIVE': '0'})
+            wait(lambda: attached.poll() is not None,
+                 'repeat viewer launch attaches and exits')
+            assert attached.returncode == 0, attached_log.read_text()
+            assert process.poll() is None
+            assert ui.showing('e2e-watch-window')
+
     if live:
         key = 'closed_during_live_attempt' if cycle else 'stopped_window_still_open'
         wait(lambda: evidence(output).get(key), 'live spectator reaches its close point')
@@ -103,6 +117,10 @@ def test_window_survives_stop_reconnect_and_resize(
     image = Image.open(output.with_suffix('.png')).convert('RGB')
     assert image.size == (4, 3)
     assert image.getpixel((0, 0)) == (255, 0, 0)
+    # Closing the primary releases registration; the next launch owns a fresh
+    # viewer and can complete the same feed transitions and attachment checks.
+    (tmp_path / 'watch-control').unlink()
+    run_probe(launch_ui, tmp_path, automation, wait_for_accessible_state)
 
 
 def active_attempt():

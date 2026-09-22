@@ -98,6 +98,8 @@ class ParentSetupQualification(smoke.Qualification):
 class ParentJourneyQualification(smoke.Qualification):
     """Shared installed setup and private image acquisition for Parent plans."""
 
+    observation_only = False
+
     def attach_installed_snapshot(self, lease):
         """Reuse a prepared app snapshot; default qualifications stay on baseline."""
         return
@@ -111,7 +113,9 @@ class ParentJourneyQualification(smoke.Qualification):
         try:
             lease.prepare()
             self.attach_installed_snapshot(lease)
-            host_key = smoke.runner.bootstrap(self.commands, lease, self.directory, guestfs)
+            host_key = smoke.runner.bootstrap(
+                self.commands, lease, self.directory, guestfs,
+                observation_only=self.observation_only)
             lease.guard(off=True)
             lease.save('isolated')
             self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets)
@@ -211,6 +215,18 @@ class GdmRecipientQualification(KioskEntryQualification):
         version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
         context.installed_snapshot = snapshot_name(version)
         return GdmRecipientJourney(context, progress)
+
+
+class GdmProductFreeQualification(ParentJourneyQualification):
+    """Qualify Parent navigation without restoring or installing the product."""
+
+    observation_only = True
+
+    @staticmethod
+    def journey(context, progress):
+        from gdm_product_free import GdmProductFreeJourney
+        context.product_free = True
+        return GdmProductFreeJourney(context, progress)
 
 
 class RequestExitQualification(KioskEntryQualification):

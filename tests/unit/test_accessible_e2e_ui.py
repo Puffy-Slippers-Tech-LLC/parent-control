@@ -498,6 +498,29 @@ def test_gdm_nonsecret_adapter_focuses_unique_ordinary_and_station_rows():
     station.action.do_action.assert_not_called()
 
 
+def test_gdm_product_free_adapter_focuses_declared_parent_without_station():
+    parent, _station = semantic_gdm_rows()
+    ui, _shell = semantic_gdm_ui(rows=[parent])
+    assert ui.run('gdm-product-free-list', '')['focused'] is True
+    assert ui.run('gdm-product-free-focused', '')['outcome'] == 'passed'
+    parent.component.grab_focus.assert_called_once_with()
+    parent.action.do_action.assert_not_called()
+
+
+def test_gdm_product_free_and_installed_bindings_reject_the_opposite_fixture_shape():
+    parent, station = semantic_gdm_rows()
+    product_free, _shell = semantic_gdm_ui(rows=[parent, station])
+    with pytest.raises(UiError, match='gdm-account-cardinality'):
+        product_free.run('gdm-product-free-list', '')
+    parent.component.grab_focus.assert_not_called()
+
+    parent, _station = semantic_gdm_rows()
+    installed, _shell = semantic_gdm_ui(rows=[parent])
+    with pytest.raises(UiError, match='gdm-account-cardinality'):
+        installed.run('gdm-list', '')
+    parent.component.grab_focus.assert_not_called()
+
+
 def test_gdm_nonsecret_adapter_focuses_the_prepared_wrong_account_by_identity():
     parent, other_parent, station = semantic_gdm_rows(other=True)
     ui, _shell = semantic_gdm_ui(rows=[station, parent, other_parent])
@@ -629,9 +652,29 @@ def test_gdm_nonsecret_adapter_refuses_stale_focus_without_replay():
     assert ui.input_uncertain is True
 
 
+def test_gdm_product_free_adapter_refuses_stale_focus_without_replay():
+    parent, _station = semantic_gdm_rows()
+    ui, shell = semantic_gdm_ui(rows=[parent])
+
+    def replace_after_focus():
+        replacement = Node('Jamie (Parent)', 'push button',
+                           states=('showing', 'visible', 'sensitive', 'focused'))
+        shell.children[0] = replacement
+        replacement.parent = shell
+        return True
+
+    parent.component.grab_focus.side_effect = replace_after_focus
+    with pytest.raises(UiError, match='gdm-stale-focus'):
+        ui.run('gdm-product-free-list', '')
+    parent.component.grab_focus.assert_called_once_with()
+    assert ui.input_uncertain is True
+
+
 @pytest.mark.parametrize('operation', [
     'gdm-list', 'gdm-select-parent', 'gdm-navigation-returned',
     'gdm-dismissed', 'gdm-returned',
+    'gdm-product-free-list', 'gdm-product-free-select-parent',
+    'gdm-product-free-returned',
     'gdm-station-wrong-entry-refused',
 ])
 def test_gdm_nonsecret_adapter_rejects_list_and_prompt_overlap(operation):
@@ -672,6 +715,27 @@ def test_gdm_nonsecret_prompt_and_returned_list_never_read_or_submit_a_secret(op
     parent.parent = shell
     station.parent = shell
     assert ui.run(operation, '')['outcome'] == 'passed'
+    parent.component.grab_focus.assert_not_called()
+
+
+def test_gdm_product_free_prompt_and_return_never_read_or_submit_a_secret():
+    recipient = Node('Jamie (Parent)', 'label')
+    field = Node('Password', 'password text',
+                 states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    field.get_text_iface = Mock(side_effect=AssertionError('password read'))
+    ui, shell = semantic_gdm_ui(recipient=recipient, field=field)
+    assert ui.run('gdm-product-free-select-parent', '')['outcome'] == 'passed'
+    field.get_child_count.assert_not_called()
+    field.get_text_iface.assert_not_called()
+    field.action.do_action.assert_not_called()
+    ui.api.Text.get_character_count.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+
+    parent, _station = semantic_gdm_rows()
+    shell.children = [parent]
+    parent.parent = shell
+    assert ui.run('gdm-product-free-returned', '')['outcome'] == 'passed'
     parent.component.grab_focus.assert_not_called()
 
 

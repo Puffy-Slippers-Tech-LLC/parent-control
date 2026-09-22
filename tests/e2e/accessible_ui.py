@@ -19,6 +19,8 @@ import warnings
 
 OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-navigation-returned',
+    'gdm-product-free-list', 'gdm-product-free-focused',
+    'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'parent-window', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'license', 'license-closed', 'about-returned', 'parent-returned',
@@ -144,6 +146,8 @@ GDM_PROVIDER_CONTROLS = (
 )
 GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
     'gdm-navigation-returned', 'gdm-dismissed', 'gdm-returned',
+    'gdm-product-free-list', 'gdm-product-free-focused',
+    'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
@@ -151,9 +155,11 @@ GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
     'gdm-station-wrong-entry-refused', 'gdm-station-list', 'gdm-station-focused',
     'gdm-station-returned'})
 GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list',
-                                'gdm-station-list'})
+                                'gdm-station-list', 'gdm-product-free-list'})
 GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-other-list', 'gdm-other-focused',
+    'gdm-product-free-list', 'gdm-product-free-focused',
+    'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-station-wrong-entry-refused',
     'gdm-station-list', 'gdm-station-focused', 'gdm-station-returned',
 })
@@ -2021,10 +2027,15 @@ class AccessibleUI:
             },
         }
 
-    def gdm_semantic_rows(self, required=()):
-        """Return unique prepared fixture rows from one complete account list."""
-        require(type(required) is tuple
-                and set(required) <= {PARENT, OTHER_PARENT, KIOSK},
+    def gdm_semantic_rows(self, expected, *, excluded=()):
+        """Return declared fixture rows from one complete account-list snapshot."""
+        require(type(expected) is tuple and expected
+                and len(set(expected)) == len(expected)
+                and set(expected) <= {PARENT, OTHER_PARENT, KIOSK}
+                and type(excluded) is tuple
+                and len(set(excluded)) == len(excluded)
+                and set(excluded) <= {PARENT, OTHER_PARENT, KIOSK}
+                and not set(expected) & set(excluded),
                 'ui:gdm-account-binding')
         owner, nodes = self.gdm_semantic_nodes()
         showing = [node for node in nodes if self.showing(node)]
@@ -2036,17 +2047,21 @@ class AccessibleUI:
             OTHER_PARENT: (OTHER_PARENT,),
             KIOSK: (KIOSK, KIOSK_USERNAME),
         }
-        identities = tuple(dict.fromkeys((PARENT, KIOSK, *required)))
+        identities = (*expected, *excluded)
         rows = {name: self.gdm_semantic_account_rows(
             owner, showing, bindings[name]) for name in identities}
-        complete = (all(len(matches) == 1 for matches in rows.values())
-                    and len({matches[0] for matches in rows.values()}) == len(rows))
+        expected_rows = {name: rows[name] for name in expected}
+        complete = (all(len(matches) == 1 for matches in expected_rows.values())
+                    and len({matches[0] for matches in expected_rows.values()})
+                    == len(expected_rows))
+        if excluded:
+            complete = complete and all(not rows[name] for name in excluded)
         if not complete and not self.gdm_row_diagnostic_emitted:
             print(json.dumps(self.gdm_semantic_row_diagnostic(owner), sort_keys=True),
                   file=sys.stderr, flush=True)
             self.gdm_row_diagnostic_emitted = True
         require(complete, 'ui:gdm-account-cardinality')
-        result = {name: matches[0] for name, matches in rows.items()}
+        result = {name: matches[0] for name, matches in expected_rows.items()}
         for row in result.values():
             require(self.has_state(row, self.api.StateType.SENSITIVE),
                     'ui:gdm-account-unavailable')
@@ -2056,8 +2071,16 @@ class AccessibleUI:
         require(name in (PARENT, OTHER_PARENT, KIOSK), 'ui:gdm-nonsecret-binding')
         if self.gdm_nonsecret_has_id_route():
             return self.greeter_list(name)
-        _owner, rows = self.gdm_semantic_rows((name,))
+        expected = tuple(dict.fromkeys((PARENT, KIOSK, name)))
+        _owner, rows = self.gdm_semantic_rows(expected)
         return rows[name]
+
+    def gdm_product_free_account(self):
+        """Resolve case 1's declared Parent row while proving station absence."""
+        require(not self.gdm_nonsecret_has_id_route(),
+                'ui:gdm-product-free-binding')
+        _owner, rows = self.gdm_semantic_rows((PARENT,), excluded=(KIOSK,))
+        return rows[PARENT]
 
     def gdm_nonsecret_navigation(self, name):
         """Focus one fresh G01 row without deriving input from list position."""
@@ -2081,9 +2104,29 @@ class AccessibleUI:
         self.input_uncertain = False
         return True
 
+    def gdm_product_free_navigation(self):
+        """Focus case 1's fresh Parent row without accepting another binding."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        target = self.gdm_product_free_account()
+        current = self.gdm_product_free_account()
+        require(current == target, 'ui:gdm-stale-focus')
+        component = current.get_component_iface()
+        require(component is not None, 'ui:gdm-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:gdm-focus-refused')
+
+        def focused():
+            refreshed = self.gdm_product_free_account()
+            require(refreshed == target, 'ui:gdm-stale-focus')
+            return self.has_state(refreshed, self.api.StateType.FOCUSED)
+
+        self.wait(focused, 'gdm-account-focus')
+        self.input_uncertain = False
+        return True
+
     def kiosk_gdm_returned(self):
         """Observe the exited station's usable greeter and absent owned UI."""
-        self.gdm_semantic_rows()
+        self.gdm_semantic_rows((PARENT, KIOSK))
         nodes = list(self.nodes(strict=True))
         require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
                                   for node in nodes), 'ui:gdm-stale-tree')
@@ -2965,6 +3008,10 @@ class AccessibleUI:
                 self.wait(lambda: self.password_recipient(EXISTING_CHILD), 'gdm-standard-recipient')
             elif operation == 'gdm-select-parent':
                 self.gdm_nonsecret_prompt()
+            elif operation == 'gdm-product-free-select-parent':
+                self.gdm_nonsecret_prompt()
+            elif operation == 'gdm-product-free-returned':
+                self.gdm_product_free_account()
             elif operation in ('gdm-navigation-returned', 'gdm-dismissed', 'gdm-returned'):
                 self.gdm_nonsecret_account(PARENT)
             elif operation == 'gdm-station-wrong-entry-refused':
@@ -2972,15 +3019,18 @@ class AccessibleUI:
             elif operation == 'gdm-station-returned':
                 self.kiosk_gdm_returned()
             elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused',
-                              'gdm-station-focused'):
+                              'gdm-station-focused', 'gdm-product-free-focused'):
                 name = OTHER_PARENT if operation == 'gdm-other-focused' else PARENT
                 if operation == 'gdm-standard-focused':
                     name = EXISTING_CHILD
                 if operation == 'gdm-station-focused':
                     name = KIOSK
-                account = (self.gdm_nonsecret_account if operation in GDM_NONSECRET_OPERATIONS
-                           else self.greeter_list)
-                self.wait(lambda: self.has_state(account(name), self.api.StateType.FOCUSED),
+                account = (self.gdm_product_free_account
+                           if operation == 'gdm-product-free-focused'
+                           else (lambda: self.gdm_nonsecret_account(name))
+                           if operation in GDM_NONSECRET_OPERATIONS
+                           else (lambda: self.greeter_list(name)))
+                self.wait(lambda: self.has_state(account(), self.api.StateType.FOCUSED),
                           'gdm-account-focus')
             elif operation in GREETER_NAVIGATION:
                 name = OTHER_PARENT if operation == 'gdm-other-list' else PARENT
@@ -2988,10 +3038,13 @@ class AccessibleUI:
                     name = EXISTING_CHILD
                 if operation == 'gdm-station-list':
                     name = KIOSK
-                navigation = (self.gdm_nonsecret_navigation
-                              if operation in GDM_NONSECRET_OPERATIONS
-                              else self.greeter_navigation)
-                result['focused'] = navigation(name)
+                if operation == 'gdm-product-free-list':
+                    result['focused'] = self.gdm_product_free_navigation()
+                else:
+                    navigation = (self.gdm_nonsecret_navigation
+                                  if operation in GDM_NONSECRET_OPERATIONS
+                                  else self.greeter_navigation)
+                    result['focused'] = navigation(name)
             else:
                 self.greeter_list()
         elif operation in ('desktop', 'standard-desktop'):

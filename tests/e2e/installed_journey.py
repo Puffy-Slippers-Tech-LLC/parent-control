@@ -173,7 +173,10 @@ class InstalledJourney:
                 reply[plan.review_mode] = True
         elif stage == 'setup-detached':
             install_current = getattr(context, 'install_current_package', False)
-            require(install_current is True or getattr(context, 'installed_snapshot', None),
+            product_free = getattr(context, 'product_free', False)
+            require(type(product_free) is bool and
+                    (install_current is True or product_free
+                     or getattr(context, 'installed_snapshot', None)),
                     plan.prefix + ':installed-snapshot-required')
             if self.watch_progress is not None:
                 self.watch_progress.operation('Preparing the application connection')
@@ -187,13 +190,16 @@ class InstalledJourney:
             # The snapshot's installed app persists, but its helper payload
             # belongs to the snapshot-creation run. Bootstrap has already bound
             # the guard marker to this attempt's package and selected inputs.
-            from installed_setup import InstalledSetup
-            setup = InstalledSetup(context.directory, context.verified, transport)
-            if install_current:
-                observed['setup'] = setup.run(guard, verify=False)
+            if product_free:
+                observed['setup'] = {'product_free_baseline': True}
             else:
-                setup.provision(guard)
-                observed['setup'] = {'installed_snapshot': context.installed_snapshot}
+                from installed_setup import InstalledSetup
+                setup = InstalledSetup(context.directory, context.verified, transport)
+                if install_current:
+                    observed['setup'] = setup.run(guard, verify=False)
+                else:
+                    setup.provision(guard)
+                    observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
             reply = {'setup_complete': True}

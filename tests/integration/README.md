@@ -412,7 +412,7 @@ Results record package SHA-256, stable fixture digest,
 digest is distinct from package/fixture identity and changes with either the
 resolved execution closure or any staged test/helper byte. The baseline digest
 hashes finalized provenance, not the writable active QCOW2. Cleanup independently
-checks immutable backing hashes, snapshot metadata, product-free offline
+checks disk identities, snapshot metadata, product-free offline
 inspection and host product/PAM fingerprints, including after failure.
 
 The aggregate result also records monotonic accumulated seconds for preparation,

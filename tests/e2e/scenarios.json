@@ -34,7 +34,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -46,7 +46,7 @@
           {"id": "backend-result", "step_id": "step-3", "description": "Harmless command evidence identifies this boot; baseline and host inputs are preserved."}
         ],
         "other_user": [
-          {"id": "other-user-result", "step_id": "step-3", "description": "The fixture serial session has ended and no non-observer user session remains; final cleanup also verifies host/source preservation."}
+          {"id": "other-user-result", "step_id": "step-3", "description": "The fixture serial session has ended and no non-observer user session remains; final cleanup preserves unrelated host/source files without rejecting concurrent checkout edits."}
         ]
       },
       "expected_evidence": ["action-trace", "backend", "cleanup", "continuity", "input-provenance", "other-user", "outcomes", "screen"],
@@ -89,7 +89,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -141,7 +141,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -192,7 +192,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -245,7 +245,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -304,7 +304,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -361,7 +361,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -418,7 +418,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -470,7 +470,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -522,7 +522,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -574,7 +574,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -627,7 +627,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -684,7 +684,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -741,7 +741,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -799,7 +799,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -858,7 +858,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -911,7 +911,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -966,7 +966,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1023,7 +1023,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1125,7 +1125,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1177,7 +1177,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1232,7 +1232,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1298,7 +1298,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1350,7 +1350,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1407,7 +1407,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1464,7 +1464,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1518,7 +1518,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1570,7 +1570,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1620,7 +1620,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1673,7 +1673,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1726,7 +1726,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1777,7 +1777,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1829,7 +1829,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1881,7 +1881,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1933,7 +1933,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -1990,7 +1990,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2048,7 +2048,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2103,7 +2103,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2159,7 +2159,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2213,7 +2213,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2265,7 +2265,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2327,7 +2327,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2380,7 +2380,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2405,11 +2405,11 @@
       },
       "variants": [
         {"coverage_id": 208, "id": "parent-retry", "owner": "continuous-journeys", "parameters": {"surface": "parent", "choice": "retry"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.", "executable": null},
-        {"coverage_id": 209, "id": "parent-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "parent", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.", "executable": null},
+        {"coverage_id": 209, "id": "parent-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "parent", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.", "executable": null},
         {"coverage_id": 210, "id": "child-overlay-retry", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay", "choice": "retry"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.", "executable": null},
-        {"coverage_id": 211, "id": "child-overlay-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.", "executable": null},
+        {"coverage_id": 211, "id": "child-overlay-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.", "executable": null},
         {"coverage_id": 212, "id": "kiosk-retry", "owner": "continuous-journeys", "parameters": {"surface": "kiosk", "choice": "retry"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.", "executable": null},
-        {"coverage_id": 213, "id": "kiosk-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "kiosk", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery; explicit reviewed sending authorization and dedicated real service profile are also required.", "executable": null}
+        {"coverage_id": 213, "id": "kiosk-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "kiosk", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.", "executable": null}
       ]
     },
     {
@@ -2439,7 +2439,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2498,7 +2498,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2570,7 +2570,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2654,7 +2654,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2720,7 +2720,7 @@
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
         ],
         "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and retain host/source preservation checks. Final suite cleanup restores onpc-baseline and deletes onpc-[version]."}
+          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
         ]
       },
       "interventions": [],
@@ -2802,7 +2802,7 @@
         "rationale": "One continuous real-application regression: allowed autostart control, ungranted denial, active time-only boot denial, explicit soft approval and replacement exclusion. Generic native routes, wildcard version updates and lifecycle persistence remain owned by E2E-019, E2E-041 and E2E-022; they do not qualify this launcher integration."
       },
       "variants": [
-        {"coverage_id": 253, "id": "appimagelauncher-login-autostart", "owner": "application-access", "parameters": {"route": "appimagelauncher-login-autostart"}, "status": "pending", "pending_reason": "Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified (tasks 295-297).", "executable": null}
+        {"coverage_id": 253, "id": "appimagelauncher-login-autostart", "owner": "application-access", "parameters": {"route": "appimagelauncher-login-autostart"}, "status": "pending", "pending_reason": "Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified (tasks 295, 296, 296a, 296b and 297).", "executable": null}
       ]
     }
   ]

@@ -15,7 +15,7 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **FILE09**. First scheduled consumer: [E2E-031, case 154](../E2E-Scenario-Recipes.md#e2e-031).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **195** — FILE08.
 
@@ -25,12 +25,15 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Bind UI16 to the ordinary editor's open synthetic document, then normal Save and public saved/clean-state readback. The existing writable file is an input; do not add Save As or direct filesystem writes.
 
+Use the actual registered editor adapter; qualify document identity, edit, Save and public clean/saved readback separately. Reject wrong-document and uncertain-save input; missing public saved-state evidence blocks completion even when an external ID is available.
+
 ## Live VM acceptance
 
 On the VM, open the declared document through FILE08, enter longer synthetic text, Save and read exact text plus saved state. Reopen through normal UI and confirm the content. Missing public saved-state information leaves this binding pending.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_edit_and_save_an_open_synthetic_document
@@ -45,12 +48,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **196** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

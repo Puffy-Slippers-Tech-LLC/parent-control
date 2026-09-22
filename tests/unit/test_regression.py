@@ -1123,11 +1123,10 @@ def test_vm_aggregate_uses_one_suite_and_retains_progress_and_final_failure(
 
 @pytest.mark.parametrize('fail_unit,fail_publish,fail_safety', [
     (False, False, False), (True, False, False), (False, True, False), (False, False, True)])
-@pytest.mark.parametrize('verify_backing_bytes', [True, False])
 @pytest.mark.parametrize('scope', ['all', 'all-future-category', 'host', 'host-builds', 'host-builds-serial',
                                   'host system', 'host e2e', 'system', 'e2e', 'system e2e'])
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
-        report, tmp_path, monkeypatch, fail_unit, fail_publish, fail_safety, verify_backing_bytes, scope):
+        report, tmp_path, monkeypatch, fail_unit, fail_publish, fail_safety, scope):
     host_builds = scope.startswith('host-builds')
     phases = (('host', 'system', 'e2e') if scope in ('all', 'all-future-category') else
               ('host',) if host_builds else tuple(scope.split()))
@@ -1207,7 +1206,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                     event('finished', nodeid=node)
             return 0
     control = Commands()
-    run = regression.Run(tmp_path, report, control, verify_backing_bytes=verify_backing_bytes,
+    run = regression.Run(tmp_path, report, control,
                          phases=phases,
                          serial_builds=scope == 'host-builds-serial', continue_on_errors=True)
     if fail_safety and includes_host:
@@ -1282,9 +1281,8 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
     first_vm = next(index for index, kind in enumerate(executed) if kind in ('system', 'e2e'))
     assert executed[first_vm:] == [kind for kind in phases if kind != 'host']
     for call in control.calls:
-        expected_skip = (not verify_backing_bytes and call[1] in ('system', 'e2e')
-                         and '--list' not in call)
-        assert ('--skip-backing-verification' in call) == expected_skip
+        assert '--skip-backing-verification' not in call
+
     assert ('VM backing verification: ' + run.verification_mode) in (report.directory / 'report.md').read_text()
     if fail_unit:
         assert 'test assertion failed' in (report.directory / 'report.md').read_text()

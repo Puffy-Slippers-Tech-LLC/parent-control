@@ -48,7 +48,9 @@ def collect_counts(root):
         print(f'Collecting {category}...', file=sys.stderr, flush=True)
         output = capture(root, [str(root / 'tools/run-tests'), category, *options,
                                 '--collect-only', '-q'])
-        count = single_count(output, r'^(\d+) tests? collected\b', category)
+        # Pytest reports selected/total when the launcher deselects live UI
+        # cases. Count the selected suite, preserving its existing exclusions.
+        count = single_count(output, r'^(\d+)(?:/\d+)? tests? collected\b', category)
         rows.append((title, count, description))
 
     print('Collecting installed system...', file=sys.stderr, flush=True)
@@ -141,9 +143,10 @@ def render(document, counts, *, root=ROOT):
         'Pending cases refuse execution. Ready means runnable, not passed.',
         '',
         'Titles and steps below come directly from the runtime inventory. '
-        'Pending declarations may still contain legacy internal checks; customer scope follows '
-        '[E2E building blocks](TestAutomation/E2E-Building-Blocks.md). Runner smoke and fault qualification '
-        'are listed explicitly and do not establish customer coverage.',
+        'Customer scope follows '
+        '[E2E building blocks](TestAutomation/E2E-Building-Blocks.md). Runner smoke '
+        'does not establish customer coverage; retired internal fault obligations '
+        'remain in their separate system-test owners, outside this UI inventory.',
         '', '| ID | Scenario | Variant | Status |', '| ---: | --- | --- | --- |',
     ]
     for number, family, variant in cases:

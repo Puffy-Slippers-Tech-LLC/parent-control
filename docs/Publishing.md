@@ -94,7 +94,8 @@ Setup/account provisioning is separate from routine publishing.
 
 ## Local publishing tests
 
-`make test-all` and `make test-all-verify` invoke the
+`make test-all` and its compatibility alias `make test-all-verify` use metadata-only
+VM checks with no whole-image scans. They invoke the
 same [`tools/publishing_checks.py`](../tools/publishing_checks.py) utility through
 `tools/run-tests publish`. It takes no selectors and performs no signing,
 pushes, uploads or Launchpad requests. It needs no publisher credentials.

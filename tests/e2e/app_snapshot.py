@@ -50,7 +50,7 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
     if name in lease.source.domain.snapshotListNames(0) and not overwrite:
         # The lease is validated but not prepared yet; guard()'s snapshot XML
         # is initialized by prepare(). Revalidate acquisition ownership here.
-        lease.capture.backing_verification.check_owner()
+        lease.capture.vm_ownership.check_owner()
         lease.capture.revalidate()
         xml = lease.source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
         if matches(xml, expected):
@@ -91,7 +91,7 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
     transport.call(system.guest_command(lease.state['run'], 'verify-snapshot'), timeout=660)
     lease.guard()
     verified.recheck()
-    lease.capture.retire_backing_verification()
+    lease.capture.retire_vm_ownership()
     lease.source.shutdown(lease.guard, requested=False)
     lease.guard(off=True)
     lease.close_watch()

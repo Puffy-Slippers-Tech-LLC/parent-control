@@ -23,12 +23,12 @@ def attempts(selection, *, fresh_install=False):
     return result
 
 
-def create_suite(source, guestfs, commands, *, verify_backing_bytes):
+def create_suite(source, guestfs, commands):
     # Reuse the same preparation/retention code as prepare-appsnapshot and E2E;
     # launching the public tool here would compete for our already-held lease.
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from suite_lease import Suite
-    suite = Suite(lambda: (source, guestfs), verify_backing_bytes=verify_backing_bytes)
+    suite = Suite(lambda: (source, guestfs))
     suite.commands = commands
     return suite
 

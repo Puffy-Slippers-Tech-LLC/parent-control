@@ -15,11 +15,11 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **REQUEST04 kiosk child/approver; REQUEST08 unavailable state**. First scheduled consumer: [E2E-017, case 57](../E2E-Scenario-Recipes.md#e2e-017).
 Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **011** — REQUEST01, REQUEST03.
-- **017** — PARENT08 snapshot saved/control states.
-- **003** — DESK02, DESK03, DESK04.
+- **017** — PARENT08 snapshot saved/control states; installed qualification and owned cleanup passed.
+- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -31,8 +31,9 @@ Bind UI15 to the offered child/approver selectors, then compose REQUEST04 with i
 
 In one fresh live attempt, disable the target in Parent, observe saved state, Switch User and enter the station. Read its disabled-child explanation, unavailable Request and absence of an authentication prompt. In another attempt, enable the target publicly and observe saved state before station entry; inspect offered lists, select the intended eligible child/approver and independently read the selection. Do not activate disabled controls. Empty-account fixture profiles are qualified by their own consumer.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_request_choices
@@ -47,12 +48,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **012** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

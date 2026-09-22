@@ -15,9 +15,9 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **DESK05, DESK06, DESK07**. First scheduled consumer: [E2E-014, case 40](../E2E-Scenario-Recipes.md#e2e-014).
 Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-session-entry) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **003** — DESK02, DESK03, DESK04.
+- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -25,12 +25,15 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Implement normal explicit Lock, curtain/challenge observation and a separate public lock-recipient proof. Bind intended identity and empty focused masked field; GDM proofs never authorize lock input.
 
+Resolve this actual Shell lock surface separately from GDM and the desktop menu. Observe that ordinary desktop input is blocked while locked. Reject ambiguous or wrong-owner challenges and qualify the guarded reveal/input/readback on the pinned VM.
+
 ## Live VM acceptance
 
 On the VM, lock an observed usable fixture desktop, reveal its challenge through one declared normal key, and qualify the correct recipient. Refuse wrong-user/nonempty/stale proofs; this explicit Lock earns no natural-expiry credit.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_lock_recipient
@@ -45,12 +48,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **042** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

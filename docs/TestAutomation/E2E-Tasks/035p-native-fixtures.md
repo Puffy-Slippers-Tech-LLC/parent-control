@@ -15,7 +15,7 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **FIX04 native assets; LIFE04 fixture installation**. First scheduled consumer: [E2E-041, case 184](../E2E-Scenario-Recipes.md#e2e-041).
 Read only the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope) and that consumer's selected recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **006** — LIFE04 install only.
 - **077a** — PARENT12; UI13 complete public app-row observations.
@@ -30,8 +30,9 @@ Bind the finite A/H/S/N native fixture manifest to maintained public apps and ve
 
 In a fresh guarded installed VM attempt, stage the declared assets, install missing fixtures through the real terminal/authentication route and read successful completion. Open Parent's App Limits and independently observe each declared launcher and its default access/match fields through PARENT12/UI13. Reopening the catalogue must show the same fixture set. Do not count a manifest entry as an installed launcher or seed app policy. Missing supported assets or public catalogue identities block this consumer.
 
-Run affected safety/adapter checks, then the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_native_fixtures
@@ -45,12 +46,10 @@ Host checks and a diagnostic slice do not establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **035p** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

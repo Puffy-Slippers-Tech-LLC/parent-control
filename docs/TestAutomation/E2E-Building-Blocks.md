@@ -115,8 +115,8 @@ The [execution plan](E2E-Execution-Plan.md#task-size-and-order) and
 order, live verification and close-out. A slice implements only its dependency
 set and required bindings. Preserve established assertions and adapters needed
 by other consumers. If a prerequisite is unavailable, leave the row `pending`
-with its concrete blocker and return condition; continue only with independent
-work. A diagnostic or host-only slice cannot establish installed scenario
+with its concrete blocker and return condition. The selected queue row stays
+current; do not choose independent tasks around it. A diagnostic or host-only slice cannot establish installed scenario
 readiness.
 
 ## Ordered building-block catalogue
@@ -133,10 +133,10 @@ row's ownership, ambiguity, focus, input and independent-result guards.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| UI01 | A | Find one control by public `automation-id` within its ID-addressed surface. Resolve offscreen controls before reveal; check showing/enabled state separately before input. Reject ambiguity; return a fresh local target. | Registered adapter operations use their scoped ID mappings. Retained generic `target`/`find` and `labelled_button` entry points refuse before traversal. | ready |
+| UI01 | A | Find one control by public `automation-id` within its ID-addressed surface. Resolve clipped controls without requiring viewport visibility; check application-visible/enabled state before input. Reject ambiguity; return a fresh local target. | Registered adapter operations use their scoped ID mappings. Retained generic `target`/`find` and `labelled_button` entry points refuse before traversal. | ready |
 | UI02 | A | Read one declared public boolean state from a control first resolved by `automation-id`, such as selected, checked, focused, enabled or showing. Disabled settings remain readable. New surface/state bindings need their consumer's qualification. | `AccessibleUI.has_state`, `showing`; ID-addressed selector scope only. | ready |
 | UI03 | A | Resolve one registered public `automation-id`, then read its bounded nonsecret text projection from a showing label, field or document. Inputs: surface/ID, maximum characters, expected projection and deadline. Text, names and roles verify meaning after lookup and never identify the node. Return a bounded semantic value or match result, never arbitrary document text. Reject masked fields before accessing Text. | Registered `read_label`/`read_document` paths resolve their roots by ID; bounded descendant meaning checks reject ambiguous text projections. Generic name/role selectors refuse. Other projections remain pending. [Parent discovery contracts](#parent-discovery-block-contracts), [About contracts](#about-block-contracts) and [search contracts](#search-and-standard-sign-in-contracts). | ready |
-| UI04 | A | Resolve one fresh control by public `automation-id`, require showing and enabled state, and invoke its sole public action once. Return input completion, not the claimed customer result. | `AccessibleUI.activate`; callers supply the registered ID. | ready |
+| UI04 | A | Resolve one fresh control by public `automation-id` and invoke its qualified public action once. Require application-visible, enabled and nondefunct state; viewport clipping alone does not refuse input. No preliminary focus, reveal or repeated traversal. Return input completion, not the claimed customer result. | `AccessibleUI.activate_id` / `activate_provider` resolve ownership, prompts and target in one fresh scoped snapshot; `_invoke_target` invokes the action without another traversal. | ready |
 | UI05 | A | Send one declared normal key/chord to an already qualified, focused recipient, such as Enter, Escape, Tab, Home, Down or Super-A. Repository-owned recipients use `automation-id`; an external recipient uses its qualified provider adapter. Reacquire and verify the recipient immediately before input. | Existing workers' `testapi::send_key` require a fresh scoped recipient proof before reuse; secret entry is excluded. | ready |
 | UI06 | A | Type one nonsecret string once at a declared bounded pace into the intended, focused input surface. Repository-owned inputs use `automation-id`; an external input uses its qualified provider adapter. | Existing workers' `testapi::type_string` require a fresh scoped recipient proof; `onpc_parent::enter_search_query` retains its bounded pace after migration. | ready |
 | UI07 | A | **Retired.** Geometry-based resolution has no executable route. Use UI01 and semantic input; no execution exemption. | Retained `AccessibleUI.pointer_target`, `pointer_glyph` and `stable_pointer` entry points refuse before traversal or geometry access. | retired; safely refused |
@@ -147,7 +147,7 @@ row's ownership, ambiguity, focus, input and independent-result guards.
 | UI13 | A | Observe a bounded public collection of children first resolved by stable public IDs: canonical identities/order, matching window count, or displayed row set. Inputs declare the ID-addressed root, projection, maximum and expected cardinality (including zero). Order may be verified as a result but never used as identity or to calculate input. Require complete fresh traversal for exclusion/count claims; reject duplicate IDs and unknown requested targets. | Existing `choice_order`, greeter and child-picker collection paths require migration wherever names, roles or positions discover children. Harness and [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI19 | A | Type one fixture secret once through the unchanged secret-safe API for one challenge whose surface, recipient and empty masked field were freshly resolved by owned public IDs or a qualified external-provider adapter. Accept a registered secret reference and explicit recipient proof, never plaintext in stage data. Do not submit or infer authentication success. Capture remains sealed and uncertainty/failure forbids replay. | Serial retains its separate proof binding. Graphical secret paths require a qualified provider recipient/field proof before one sealed secret API call. Multiple authentications and other surfaces remain pending. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI20 | A | **Migration required.** Perform the declared double-click gesture through a supported ID-addressed public route; no coordinates or substitution with a different gesture. An unavailable route blocks the consumer. Record it as one intended gesture; no retry or click repair. | Existing normal pointer API; new consumer is E2E-014. A disabled/hidden target cannot authorize a gesture. This is not two separately retried click blocks. | pending |
-| UI23 | A | Request one public reveal operation for a registered existing offscreen target, only when it is not already showing. Resolve a nondefunct object by ID without an initial visibility requirement; return input completion only. | `AccessibleUI.reveal_id` resolves the target and its owning surface by ID, invokes the registered semantic focus action and independently reacquires the showing target. Generic `scroll_target`/`reveal` refuse. Qualified for Parent remaining-time/filter controls and About license/footer. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
+| UI23 | A | Request one public reveal operation for required content observation, or when a direct public action is unavailable. A clipped but directly actionable control does not need reveal. Resolve a nondefunct object by ID without an initial visibility requirement; return input completion only. | `AccessibleUI.reveal_id` resolves the target and its owning surface by ID, invokes the registered semantic focus action and independently reacquires the showing target. Generic `scroll_target`/`reveal` refuse. Qualified for Parent remaining-time/filter controls and About license/footer. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | UI24 | A | Resolve the editor by public ID, read the public formatting attributes of one explicit bounded synthetic text range and compare the expected format. Return semantic attributes only. | New FEED04 consumer using the ID-addressed editor's public accessibility Text attributes. A pressed toolbar button alone does not prove text formatting; unavailable attributes block that assertion. No DOM or saved-draft read. | pending |
 | UI25 | A | Start one bounded read-only public-state trace for registered `automation-id` selectors; return its explicit observation token after readiness. No customer input. | New leaf extracted from UI22; E2E-035/039/046 consumers. | pending |
 | UI26 | A | Finish that trace at its supplied ID-addressed public terminal predicate/deadline and return ordered semantic samples. No input, replay or private reads. | New leaf extracted from UI22; accepts only the caller's explicit token. | pending |
@@ -155,7 +155,7 @@ row's ownership, ambiguity, focus, input and independent-result guards.
 | UI28 | A | **Migration required.** Open the ID-addressed target's context menu through public semantic action or qualified keyboard input. A specifically tested secondary-click gesture requires a supported ID-addressed route or blocks its consumer. No coordinates or implicit menu selection. | Existing normal pointer interface; PANEL01 consumer. | pending |
 | SEC01 | A | **Provider blocked.** Fresh scoped semantic recipient proofs remain mandatory. Preserve wrong-recipient, focus, empty-field and capture protections; images and elapsed time cannot supply proof. | Legacy `onpc_parent::login` and `onpc_password::enter_password` refuse before image/backend/secret access. Customer recipes use GDM07; its explicit provider route still needs installed qualification. | pending; provider-blocked |
 | SEC02 | A | **Provider blocked.** Account selection requires qualified provider-specific selection and independent password-recipient qualification. | Legacy Parent/GDM selectors and generic `onpc_pointer::click` refuse before image/backend/input access. No generic fixed-coordinate fallback or new needle; any necessary geometry stays inside the explicit qualified provider adapter. | pending; provider-blocked |
-| UI09 | C | Reveal an existing control/content resolved by public `automation-id`, then independently reacquire that ID and require showing state. | `AccessibleUI.reveal_id` performs the optional UI23 input and fresh `id_target` lookup (UI01/UI02). Generic `reveal`, `scroll_target` and `target` refuse. Parent content/filter and About license/footer scope; other IDs need their consumers. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
+| UI09 | C | Reveal required content, or a target without a direct public action, by public `automation-id`; reacquire the same ID and observe the result. Never prepend this composite to an available direct action. | `AccessibleUI.reveal_id` performs the optional UI23 input and fresh `id_target` lookup (UI01/UI02). Generic `reveal`, `scroll_target` and `target` refuse. Parent content/filter and About license/footer scope; other IDs need their consumers. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | UI14 | C | Highlight one choice through semantic focus with a fresh focus observation. Repository-owned choices use `automation-id`; external choices use their qualified provider adapter. Verify identity and focus/selection before committing; never calculate key counts from list order. | `onpc_journey::highlight_choice` accepts only the adapter's fresh semantic-focus evidence; its retained generic positional-navigation branch refuses. `AccessibleUI.gdm_nonsecret_navigation` is installed-qualified for the station row only; other GDM and product-owned bindings require their own qualification. [Parent discovery contracts](#parent-discovery-block-contracts). | pending; GDM station binding ready |
 | UI15 | C | Select one ID-addressed value from an ID-addressed dropdown, menu or visible choice group. The registered control kind and commit route are explicit; independently verify the resulting selected value. | Existing child-picker paths require public IDs for the picker, each choice and selected-value projection; labels remain result data only. Other dropdowns/groups remain pending. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI21 | C | Focus one showing, enabled nonsecret field through public semantic focus or qualified keyboard navigation; independently require the same field to be focused. Repository-owned fields use `automation-id`; external fields use their qualified provider adapter. | Shell search and terminal paths require scoped provider resolution, semantic focus and fresh focus readback. Missing IDs alone do not block an exception adapter; an unqualified or ambiguous route refuses before input. Rich-text binding remains pending. [Search contracts](#search-and-standard-sign-in-contracts). | pending; provider-blocked |
@@ -703,16 +703,17 @@ network dependence or unavailable assets blocks this profile until resolved in
 preparation. Pin a profile that runs the declared local activity without downloads
 or authentication during the measured launch checks; requalify after drift.
 
-Task 296 must qualify the external-provider bindings for tray restore, genuine
-Quit (not close-to-tray), Lunar's game launch and Minecraft's local-world action,
-alongside APP01/02/03, APP06 and UI18. Prefer provider IDs, then scoped public
+Task 296 qualifies original-AppImage launch, Lunar/tray restore and genuine Quit.
+Task 296a separately qualifies Lunar's Minecraft launch, local-world action and
+ordinary exit. Task 296b then qualifies APP06/UI22 across login using both completed
+provider bindings. Their APP01/02/03 and UI18 scopes stay explicit. Prefer provider IDs, then scoped public
 accessibility/keyboard routes under the repository exception. Any necessary
 image/geometry technique stays inside an explicit provider adapter with its
 documented limitations and live qualification; it is never a repository-owned
 selector or provider-assigned ID. Ownership, complete absence observations,
 ambiguity refusal and independent results remain mandatory.
 
-Reuse UI22's observer lifecycle and the existing reboot/session recorder: arm
+Task 296b reuses UI22's qualified observer lifecycle and the existing reboot/session recorder: arm
 the public observation before child login submission, preserve secret filtering,
 and observe the login transition through **90 seconds after desktop readiness**.
 Qualify observer reattachment before any possible Lunar surface; a blind login
@@ -1165,26 +1166,61 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 | Registered document editor | Qualify document identity, normal edit/save, saved-state readback and wrong-document refusal. | FILE08/09 and retained work |
 | Lunar Client, AppImageLauncher, Shell tray and Minecraft | No bindings are qualified. Require the prepared real-AppImage profile, allowed autostart control, complete login-interval tray/window observations, specific same-route denial, game launch/local-world action and genuine Quit. [Preparation and observation gate](#lunar-client-preparation-and-observation-gate); refuse incomplete ownership/absence observations. | E2E-052/case 253; APP01/02/03/06, UI18/22 and FIX05 |
 
+Provider implementation and qualification are scheduled only by the
+[E2E execution plan](E2E-Execution-Plan.md). Its queue places the following
+capabilities before their consumers; these are task identifiers, not readiness
+claims or an alternate execution order:
+
+| Provider work | Queue owners |
+| --- | --- |
+| Ordinary GDM proofs, desktop/keyring and session actions | 003a–003d; retained case 1 in 001r |
+| Shell search, terminal and license viewer | 001s, 001t, 185l; retained regressions 003r/004r/005r/002r/235r/151r |
+| Kiosk MATE prompt and request results | 019a, 019, 020a, 020 |
+| Overlay Shell prompt and request results | 048c, 048d, 048b |
+| Nautilus navigation, copy and rename | 036c, 036d, 036 |
+| Installed feedback Open/Cancel, with its actual native/portal provider binding | 037; attachment composition 038 |
+| Installed feedback Save/Cancel, with its actual native/portal provider binding | 037a; export composition 045 |
+| Text documents, archives and saved edits | 195a, 195, 196 |
+| Browser/mail/legal destinations | 185w, 185v, 185s, 185p and overlay 185o |
+| Package authentication/install, reboot, lock/unlock, window switch, network and suspend | 005/006, 007, 042/043a, 044a, 193, 166 |
+| DING desktop fixture launch | 036b |
+| Settings Users and Date & Time | 184a/184/184b/184c; Shell calendar 191a, Settings/time composition 191 |
+| Snap, Flatpak and game fixture installation before launch | 109p → 109/109a; 116p → 116/116a; 126p → 126a |
+| Reviewed external feedback submissions | 150a profile/authorization → 150 and its surface/result consumers |
+| Lunar, Minecraft and login observation | 295 → 296 → 296a → 296b → case 253 in 297 |
+
+There is no active customer requirement for generic Shell notification handling,
+a PDF reader for the ZIP/text diagnostic export, or graphical VT6 login.
+Those surfaces remain unqualified; they supply no acceptance credit and have no
+speculative implementation tasks. Chooser tasks qualify the actual Gtk.FileDialog
+caller; they do not force an unused backend or introduce a compatibility matrix.
+Case 1 retains its real authenticated serial
+journey and public GDM return. A future named consumer needs an explicit scoped
+prerequisite in the same queue before using any additional surface.
+
 ### Reachability and result checks
 
 The following ID route applies to repository-owned UI and ID-capable providers.
 External adapter routes follow the same reachability and result guards using
 their qualified resolution method.
 
-Resolve offscreen targets by ID without requiring initial showing state. Use
-supported semantic reveal, scrolling, focus or keyboard navigation, then reacquire
-the same ID and verify reachability. Keyboard traversal must observe the focused
-ID after each bounded step; never derive key counts from tree/list positions.
-Covered or misaligned controls follow the same contract. No supported route to
-required interaction or information is a failure; activating hidden controls
-cannot conceal it. Diagnostic screenshots are not acceptance evidence. Any external-provider image
-selector must stay inside the qualified exception adapter.
+Resolve each target by its owned public ID or qualified external-provider adapter.
+Prefer a provider's direct ID lookup. Otherwise use one fresh complete scoped
+snapshot for prompt, ownership and target checks at that input boundary. Invoke
+an available public accessibility action directly; do not focus, scroll, reveal
+or traverse the tree again first. A clipped or covered control can still be
+actionable. Truly hidden, disabled or defunct application state refuses input.
 
-Require an unambiguous, showing, enabled target before activation;
-then wait for the expected resulting state. Do not call product methods, set
-widget values directly, read saved policy or treat an action API's success as
-the functional result. A displayed setting may be read while disabled (for
-example, daily allowance when limits are off); only input requires enablement.
+When no direct action exists, use the declared semantic reveal/focus/keyboard
+route, then reacquire the same ID or qualified provider target. Observe focus for
+keyboard input; do not derive key counts from tree/list position. Content that
+must be read may need reveal. No snapshot survives input or a session transition.
+A following result observation is fresh and independent of input completion.
+
+Do not call product methods, set widget values directly, read saved policy or
+treat an action API's success as the customer result. Disabled settings remain
+readable. Screenshots have no cosmetic pass/fail authority; an external image
+selector must stay inside its explicitly qualified provider adapter.
 
 Examples:
 
@@ -1294,7 +1330,7 @@ marker, and case 1 additionally requires logout before graphical return.
 
 The kiosk qualification's `station-branch` checkpoint calls
 `AccessibleUI.station_entry_branch` after the freshly focused station row is
-submitted once. This is G03's read-only diagnosis, not UI15 session selection or
+submitted once. This is a read-only branch diagnosis, not UI15 session selection or
 REQUEST01/03 qualification. Active local seat/session metadata binds the observer
 to the sole greeter or dedicated station account; another account or ambiguous
 owner refuses. Metadata alone cannot establish the destination.
@@ -1312,19 +1348,19 @@ On the station bus, the observer requires the owned `kiosk-request-window` and
 destination observation does not run prompt handling or validate the form's
 selectors, values and unavailable controls; those remain the separate
 `kiosk-request-form` checkpoint and its prompt-refusal contract. No input is
-authorized by the branch observation. The G03 run reached the station and
-recorded `default-request-form` with no
-unresolved greeter controls; see the [task result](External/01-Entry.md).
+authorized by the branch observation. Installed diagnosis reached the station
+and recorded `default-request-form` with no unresolved greeter controls.
 
-G04 binds the installed tuple's observed passwordless default only; it does not
+The default-entry binding uses the installed tuple's observed passwordless
+default only; it does not
 add UI15 or a session catalogue. The worker consumes the fresh focused station
 row proof once before Enter. Its separate `station-default-entry` checkpoint
 then waits for the active dedicated station account and independently reads back
 one showing, nondefunct owned request window/form destination. A greeter owner,
 another or ambiguous active session, duplicate/hidden/stale owned destination,
 or any result other than `default-request-form` refuses. This host binding does
-not by itself qualify the installed route or complete request form. G05's
-`check_e2e_kiosk_entry` run qualified that exact nonsecret station input/result
+not by itself qualify the installed route or complete request form. The
+`check_e2e_kiosk_entry` run `20260921T184544Z-62e716ef` qualified that exact nonsecret station input/result
 and the fixed disabled-child kiosk projection: one form, disabled approver,
 duration, soft-app and Request controls, enabled Cancel, 30-minute selection,
 screen-limit-disabled notice, and absent mute/custom value. It completed in two
@@ -1511,7 +1547,8 @@ Viewing cannot authorize input or change scenario acceptance.
 6. Test changed shared boundaries with the actual Perl helper and Python
    recorder. Then finish edits, build fresh artifacts and run the exact variant
    through the [public E2E command](../../tests/e2e/README.md#run-e2e-scenarios).
-   Hold source/documents unchanged through terminal collection and cleanup.
+   Preserve staged inputs, evidence and owned cleanup. Concurrent checkout edits
+   follow the documentation map and do not invalidate the attempt.
    Reuse resulting runner artifacts; report only the
    references and continuation state it needs.
 
@@ -1533,7 +1570,7 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | GDM scrolls its account list | Use ID-addressed reveal/navigation, reacquire the intended account and verify its own empty focused password field before secret input. Never use outlines, positions or image absence as proof. |
 | Parent search shows only an online suggestion for a standard user | The [launcher contract](../SystemDesign/Broker.md#accounts-and-roles) intentionally restricts app-grid discovery to administrators. Match the exact query, web-only suggestion and empty application-result area. Do not press Enter on the suggestion or invent a denial dialog. Executable denial belongs to the separate terminal variant. |
 | Keyboard assumptions select the wrong child or menu item | Use UI14's ID-addressed navigation, verify the intended highlighted row, then press Enter. Verify the selected child independently. Launch Parent with Super-A, the product query, a functional search-result checkpoint and Enter. |
-| About footer starts below the viewport | Use public accessibility scrolling to bring the required content into view. Assert its text and showing state; do not require a fixed scroll distance, dialog size or pixel match. |
+| About footer starts below the viewport | Resolve the footer by ID. Invoke an available direct action without preliminary scrolling; reveal only when needed to read required content. No fixed scroll distance, dialog size or pixel match. |
 | An acknowledged action has no durable evidence, or belongs to the wrong step | Store the observation and any required next-phase start before publishing the reply; guard ownership again after storage. An acknowledgement may immediately permit input. Storage or guard failure latches terminal failure. |
 | A stale observation appears to prove returning to the same child | Reconcile one fresh semantic result per ordered stage. Compare the returned child, switch state and allowance with the initial displayed settings. Missing, reused or reordered evidence refuses. Worker exit zero alone cannot pass. |
 | Choosing package inputs | Build artifacts when the installed product needs to include current changes. Runs use the supplied artifacts and allow concurrent checkout edits; private staged artifacts remain integrity-checked. |

@@ -1,4 +1,4 @@
-# 185p — Read Parent information links
+# 185p — Read Parent Help and legal notices and complete information links
 
 Estimate: 25–45 minutes for a focused implementation/validation cycle; not
 a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
@@ -15,22 +15,27 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **INFO01 Parent**. First scheduled consumer: [E2E-042, case 190](../E2E-Scenario-Recipes.md#e2e-042).
 Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **044a** — DESK10 same-desktop window switching.
+- **185w** — INFO01 Parent website browser identity and close/return.
+- **185v** — INFO01 Parent privacy page identity and close/return.
+- **185s** — INFO01 Parent support mail recipient/subject and close without sending.
+- **185l** — ABOUT02/03 actual license handler identity/content and close/return.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Bind each offered Help/About external destination and its bounded public identity. Return by normal close without submitting mail or changing policy.
+Reuse the separately qualified website, privacy, support and license handlers from tasks 185w, 185v, 185s and 185l. Qualify the owned Help/About entry and the remaining Legal notices destination through its actual document handler, then compose INFO01 Parent from those completed leaves. Keep exact public destination identity/content, normal close/return and Parent state comparison.
 
 ## Live VM acceptance
 
-In installed Parent, capture selected child/settings, follow the offered Help, website, privacy, support and legal links, read each actual destination and return. Compare the same Parent settings. An offered but inaccessible required destination fails.
+In installed Parent, capture selected child/settings, open Help/About and follow Legal notices. Read the actual notice document, close normally and compare the same Parent state. Independently supplied valid entry and wrong-document/handler/ambiguous-window refusals must pass. Retain each other destination's valid qualified result; the complete case 190 follows all offered links. No mail is submitted, and an inaccessible required destination leaves this task incomplete.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_read_parent_information_links
@@ -45,12 +50,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **185p** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

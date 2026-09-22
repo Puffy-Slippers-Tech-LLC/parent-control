@@ -44,7 +44,7 @@ class SelectedRun(Run):
                 item.total = len(item.nodeids)
             self.categories.append(item)
         if includes_vm:
-            self.verification_mode = ('selected command options; backing bytes verified by default')
+            self.verification_mode = ('metadata-only; image contents are not scanned')
 
     @staticmethod
     def events(kind, args):

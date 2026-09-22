@@ -409,13 +409,11 @@ class Lease:
     """Serializes prepare-baseline/system runners; durable state refuses interrupted ownership."""
 
     def __init__(self, source, commands, inspect, *, directory=baseline.BASELINES,
-                 anchor=baseline.ANCHOR, ledger=None, graphics_type='spice', finalize=None,
-                 verify_backing_bytes=True):
+                 anchor=baseline.ANCHOR, ledger=None, graphics_type='spice', finalize=None):
         self.source, self.commands, self.inspect = source, commands, inspect
         self.view = SourceView(source)
         self.view.graphics_type = graphics_type
-        self.capture = baseline.Capture(self.view, commands, inspect, directory=directory, anchor=anchor,
-                                        verify_backing_bytes=verify_backing_bytes)
+        self.capture = baseline.Capture(self.view, commands, inspect, directory=directory, anchor=anchor)
         self.directory = directory
         self.journal = directory / 'system-run.json'
         self.fd = None
@@ -427,13 +425,13 @@ class Lease:
         # Trusted read/report callback, after the sole cleanup attempt and while
         # the lease is held. It must never restore or release this lease itself.
         self.finalize = finalize
-        self.backing_run = None
+        self.ownership_run = None
         self.watch = None
         self.watch_detached = False
 
     def save(self, phase):
-        if self.capture.backing_verification is not None:
-            self.capture.backing_verification.check_owner()
+        if self.capture.vm_ownership is not None:
+            self.capture.vm_ownership.check_owner()
         self.state['phase'] = phase
         require(self.capture.private_directory() == self.capture.directory_identity, 'guard:directory-changed')
         fd, path = tempfile.mkstemp(prefix='.system-run-', dir=self.directory)
@@ -465,11 +463,11 @@ class Lease:
                     'baseline:preparation-outdated')
             log('stage:baseline-verification')
             run = uuid.uuid4().hex
-            self.backing_run = run
-            # Proof validation can dominate preparation. Include it on refusal
-            # and interruption too, before any VM mutation is permitted.
+            self.ownership_run = run
+            # Record metadata checks on refusal and interruption too, before
+            # any VM mutation is permitted.
             with self.ledger.measure('preparation') if self.ledger else nullcontext():
-                self.capture.begin_backing_verification(self)
+                self.capture.begin_vm_ownership(self)
                 require(self.capture.verify_snapshot(boundary='acquisition') ==
                         self.capture.state['proof'], 'baseline:changed')
             if self.journal.exists():
@@ -498,8 +496,8 @@ class Lease:
             raise
 
     def guard(self, *, off=False):
-        if self.capture.backing_verification is not None:
-            self.capture.backing_verification.check_owner()
+        if self.capture.vm_ownership is not None:
+            self.capture.vm_ownership.check_owner()
         self.capture.revalidate(off=off)
         require(self.source.baseline() == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
 
@@ -549,20 +547,17 @@ class Lease:
     @observed('Starting the VM')
     def start(self):
         self.guard(off=True)
-        # QEMU can open backing storage writable while constructing its normal
-        # auto-read-only block graph. Never carry an immutable-byte proof across
-        # that transition. The next existing verification gate must perform a
-        # full hash under the new lease. Do not add disk reads to this callback:
-        # the controller must attach the serial stream promptly after create.
-        self.capture.retire_backing_verification()
+        # Retire the current ownership interval before the disk transition.
+        # Metadata checks resume after the domain instance has been recorded.
+        self.capture.retire_vm_ownership()
         self.save('start-requested')
         self.source.domain.create()
         self.view.domain_id = self.source.domain.ID()
         require(self.view.domain_id >= 0, 'start:identity-unavailable')
         self.state['domain_id'] = self.view.domain_id
         self.guard()
-        if self.backing_run is not None:
-            self.capture.begin_backing_verification(self)
+        if self.ownership_run is not None:
+            self.capture.begin_vm_ownership(self)
         self.save('running')
         from e2e_watch import attach
         attach(self)
@@ -572,12 +567,12 @@ class Lease:
         """Stop the recorded instance without restoring between backend callbacks."""
         self.guard()
         try:
-            self.capture.retire_backing_verification()
+            self.capture.retire_vm_ownership()
         except BaseException:
-            # Byte-proof failure remains latched for final acceptance. Still
+            # Metadata failure remains latched for final acceptance. Still
             # stop/restore our recorded guest if ownership is intact; a lost
             # VM lock instead makes the next guard refuse before any mutation.
-            log('cleanup:backing-proof-failed')
+            log('cleanup:metadata-check-failed')
         self.guard()
         if not self.view.snapshot()[1]:
             # Only the domain instance started and identity-recorded by this run.
@@ -608,9 +603,9 @@ class Lease:
         self.restore()
         self.delete_suite_snapshot()
         log('stage:restored-baseline-verification')
-        if self.backing_run is not None:
-            self.capture.begin_backing_verification(self)
-        require(self.capture.verify_snapshot(force_bytes=True, boundary='restoration') ==
+        if self.ownership_run is not None:
+            self.capture.begin_vm_ownership(self)
+        require(self.capture.verify_snapshot(boundary='restoration') ==
                 self.capture.state['proof'], 'cleanup:baseline-changed')
         require(self.inspect(Path(self.capture.state['source']['layout']['disk']),
                              self.capture.state['script_digest']) == self.capture.state['guest'], 'cleanup:guest-changed')
@@ -642,9 +637,9 @@ class Lease:
                 self.close_watch()
         except BaseException as error:
             pending = error
-        if self.capture.backing_verification is not None:
+        if self.capture.vm_ownership is not None:
             try:
-                self.capture.backing_verification.close()
+                self.capture.vm_ownership.close()
             except BaseException as error:
                 pending = error
         # A refused concurrent lease may share this command adapter. It must
@@ -739,7 +734,7 @@ class Lease:
             self.view.domain_id = None if off else state['domain_id']
             self.snapshot_xml = self.source.baseline()
             self.guard()
-            require(self.capture.verify_snapshot(force_bytes=True, boundary='recovery') ==
+            require(self.capture.verify_snapshot(boundary='recovery') ==
                     self.capture.state['proof'], 'recovery:baseline-changed')
             if off and not isolated:
                 # No domain mutation is authorized by the off-state branch.
@@ -1421,7 +1416,7 @@ def main(argv=None):
     parser.add_argument('--test')
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--skip-backing-verification', action='store_true',
-                        help='skip backing-file byte scans for development; retain VM safety checks')
+                        help='compatibility option; VM verification is always metadata-only')
     parser.add_argument('--qualification-failure', action='store_true',
                         help='inject the fixed harness fault after the allowlisted case succeeds')
     parser.add_argument('--check-tools', action='store_true')
@@ -1496,8 +1491,7 @@ def main(argv=None):
         threading.Thread(target=events, daemon=True, name='libvirt-events').start()
         source = baseline.LibvirtSource(api)
         from system_snapshots import create_suite, run_attempts
-        suite = create_suite(source, guestfs, commands,
-                             verify_backing_bytes=not args.skip_backing_verification)
+        suite = create_suite(source, guestfs, commands)
         _, _, lease = suite.acquire(ledger)
         # SIGTERM follows the same finally/lease cleanup as an interactive interruption.
         def interrupted(*_):

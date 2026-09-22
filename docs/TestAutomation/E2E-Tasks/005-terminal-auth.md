@@ -15,7 +15,7 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **AUTH03; FILE06 package challenge/completion**. First scheduled consumer: [E2E-002, case 2](../E2E-Scenario-Recipes.md#e2e-002).
 Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form), [related block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **005a** — Product-free graphical start and verified package staging.
 
@@ -25,12 +25,15 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Bind one declared installation command and selected administrator to the real non-echoing terminal challenge. Extend FILE06 to observe that challenge, then implement AUTH03's independent recipient qualification. Reuse applicable safety machinery; a generic Password string is insufficient. Qualification submits the command with FILE02, qualifies the challenge twice, types UI19 once and submits with UI05; LIFE04 is composed only afterward.
 
+Bind the actual qualified terminal owner/window to the declared package command and administrator. Generic password text, echoed input or backend identity alone cannot authorize a secret. Keep wrong-recipient, stale/reused-proof, non-echoing-input, capture and uncertain-delivery regressions; read real command completion independently.
+
 ## Live VM acceptance
 
 On the VM, reach a real package-command challenge, refuse wrong-account/wrong-recipient evidence, obtain two fresh intended proofs and type the fixture secret once. Captures and outputs remain secret-safe; completion is independently read.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_terminal_auth
@@ -45,12 +48,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **005** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

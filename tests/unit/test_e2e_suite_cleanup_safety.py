@@ -161,7 +161,9 @@ def test_final_audit_refuses_mutation_and_releases_lock(suite, fault):
     lease, _ = suite
     run_case(lease)
     if fault == 'backing':
-        lease.capture.anchor.write_bytes(b'changed backing bytes')
+        path = lease.capture.anchor
+        path.rename(path.with_suffix('.saved'))
+        path.write_bytes(b'replaced backing')
     elif fault == 'guest':
         lease.inspect.return_value = {'changed': True}
     else:
@@ -169,6 +171,25 @@ def test_final_audit_refuses_mutation_and_releases_lock(suite, fault):
     with pytest.raises(RuntimeError):
         lease.audit()
     assert lease.fd is None
+
+
+def test_suite_accepts_content_changes_without_scanning_images(suite, monkeypatch):
+    lease, _ = suite
+    original = system.baseline.digest
+
+    def digest(path, **kwargs):
+        assert str(path) not in (str(lease.capture.anchor), lease.source.layout['disk'])
+        return original(path, **kwargs)
+
+    monkeypatch.setattr(system.baseline, 'digest', digest)
+    lease.commands.check = Mock(side_effect=AssertionError('image scan'))
+    run_case(lease)
+    lease.capture.anchor.write_bytes(b'content is trusted')
+    run_case(lease)
+    lease.audit()
+    assert lease.fd is None
+    assert lease.capture.verification_totals['bytes_read'] == 0
+    assert lease.capture.verification_totals['policy'] == 'metadata-only'
 
 
 def test_source_validation_runs_after_audit_before_release_and_failure_is_terminal(suite):

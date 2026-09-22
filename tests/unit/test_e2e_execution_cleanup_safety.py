@@ -111,9 +111,8 @@ def harness(evidence_attempt, tmp_path, monkeypatch, local_preparation_source, r
     monkeypatch.setattr(execution.system, 'bootstrap', Mock(return_value='private-canary-key'))
     events, leases = [], []
     real_lease = execution.system.Lease
-    def lease_factory(source, commands, inspect, *, ledger, graphics_type, verify_backing_bytes):
-        lease = real_lease(source, commands, inspect, ledger=ledger, graphics_type=graphics_type,
-                           verify_backing_bytes=verify_backing_bytes)
+    def lease_factory(source, commands, inspect, *, ledger, graphics_type):
+        lease = real_lease(source, commands, inspect, ledger=ledger, graphics_type=graphics_type)
         lease.state = {'phase': 'isolated', 'domain_id': None, 'run': 'a' * 32,
                        'domain_uuid': 'fixed-domain'}
         lease.prepare = Mock()
@@ -203,8 +202,8 @@ def test_public_ready_plan_executes_real_callback_and_finalizes_after_lease_exit
     harness.source.close.assert_called_once()
     assert all(c._fd is None for c in harness.collectors)
     assert 'private-canary' not in json.dumps(documents(harness))
-    assert harness.leases[0].capture.verify_backing_bytes is verify_backing_bytes
-    policy = 'full' if verify_backing_bytes else 'metadata-only'
+    assert not hasattr(harness.leases[0].capture, 'verify_backing_bytes')
+    policy = 'metadata-only'
     assert result['baseline_verification']['policy'] == policy
 
 
@@ -299,7 +298,7 @@ def test_installed_preparation_uses_customer_prerequisites_without_a_case_id_swi
     def acquire(ledger):
         source, guestfs = execution.open_source()
         lease = execution.system.Lease(source, suite.commands, Mock(), ledger=ledger,
-                                       graphics_type='vnc', verify_backing_bytes=True)
+                                       graphics_type='vnc')
         return source, guestfs, lease
     suite.acquire = acquire
     result = run(harness, suite=suite)
@@ -506,13 +505,13 @@ def public(harness, monkeypatch):
         'geteuid': lambda: 0, 'getegid': lambda: 0, 'umask': Mock()})))
     # Substitute suite VM operations using this fixture's existing fake lease.
     # The real suite lifecycle is exercised with real locks in suite tests.
-    def suite_factory(opener, *, verify_backing_bytes):
+    def suite_factory(opener):
         suite = Mock(lease=None, backend_checked=False, credentials_checked=False,
                      commands=execution.Commands())
         def acquire(ledger):
             source, guestfs = opener()
             suite.lease = execution.system.Lease(source, suite.commands, Mock(),
-                ledger=ledger, graphics_type='vnc', verify_backing_bytes=verify_backing_bytes)
+                ledger=ledger, graphics_type='vnc')
             return source, guestfs, suite.lease
         suite.acquire.side_effect = acquire
         suite.prepare_case.side_effect = lambda *args, **kwargs: suite.lease.prepare()

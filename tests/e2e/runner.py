@@ -42,7 +42,8 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     selectors.add_argument('--id', help='comma-separated numeric case IDs in docs/Test-Coverage.md')
     selectors.add_argument('--ready', action='store_true', help='run all ready variants; report pending exclusions')
     parser.add_argument('--artifacts', type=Path)
-    parser.add_argument('--skip-backing-verification', action='store_true')
+    parser.add_argument('--skip-backing-verification', action='store_true',
+                        help='compatibility option; VM verification is always metadata-only')
     qualification = parser.add_mutually_exclusive_group()
     qualification.add_argument('--qualify-transfer', action='store_true')
     qualification.add_argument('--qualify-install', action='store_true')
@@ -51,8 +52,6 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     if not args.list:
         password_config.read_password(root)
     if args.qualify_transfer or args.qualify_install or args.qualify_install_refusal:
-        if args.skip_backing_verification:
-            raise ValueError('e2e:qualification-requires-backing-verification')
         if args.list or args.scenario is not None or args.id is not None or args.ready:
             raise ValueError('e2e:qualification-cannot-select-scenarios')
         validate_artifact_path(args.artifacts)
@@ -72,7 +71,6 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
                                     require_runnable=not args.list, root=root)
     plan['inventory_sha256'] = digest
     plan['mode'] = 'list-only' if args.list else 'execution-preflight'
-    plan['verify_backing_bytes'] = not args.skip_backing_verification
     if args.list:
         return plan
     if args.artifacts is None and allow_missing_artifacts:

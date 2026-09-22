@@ -12,8 +12,11 @@ request-form/toggle callables. No other task brief or full queue is needed.
 
 ## Scope and prerequisites
 
-Required implemented capability: **048a** — overlay/kiosk request choices,
-normal exits and UI17. Use its maintained callables plus the restored feature's
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+
+- **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
+
+ Use its maintained callables plus the restored feature's
 contract. Preserve the saved-field obligations under
 [engineering reconciliation](../E2E-Building-Blocks.md#inventory-reconciliation).
 No old task document or VM state is required.

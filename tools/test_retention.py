@@ -484,7 +484,7 @@ def clear_tree(fd, device):
 
 
 def mount_id(fd):
-    # Match the explicitly opened descriptor, as backing_verification does.
+    # Match the explicitly opened descriptor, as vm_ownership does.
     # st_dev alone cannot distinguish a bind mount on the same filesystem.
     values = [line.split()[1] for line in Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines()
               if line.startswith('mnt_id:')]

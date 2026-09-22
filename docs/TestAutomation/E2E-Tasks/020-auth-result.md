@@ -1,4 +1,4 @@
-# 020 — Approve, reject or cancel a fresh request challenge
+# 020 — Qualify kiosk rejection, Cancel and immediate approved exit
 
 Estimate: 40–60 minutes for a focused implementation/validation cycle; not
 a stop timer. Follow the [master session contract](../E2E-Execution-Plan.md#execute-one-task).
@@ -15,23 +15,25 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **AUTH02 and REQUEST11/12 kiosk approval/rejection/cancel and both approved exits**. First scheduled consumer: [E2E-016, case 50](../E2E-Scenario-Recipes.md#e2e-016).
 Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **019** — REQUEST09, AUTH01 kiosk.
 - **013** — REQUEST11/12 kiosk Cancel and Escape.
+- **020a** — AUTH02 kiosk approval; REQUEST11/12 success and automatic GDM exit.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Compose two fresh AUTH01 checks, UI19 and submit for correct/wrong credentials; cancellation uses its declared public control. Observe explicit acceptance/rejection/dismissal and extend REQUEST11 accordingly. Later attempts require new challenges.
+Reuse task 020a's qualified MATE submission and automatic approved exit. Add the explicit wrong-password/rejection observation, normal Cancel and independent preserved-form readback. Qualify the offered immediate exit after a correct approval in its own attempt. Compose the complete AUTH02 and REQUEST11/12 result set only after these leaves pass; do not require this composite before its adapters.
 
 ## Live VM acceptance
 
-In separate live kiosk attempts, approve, enter a wrong password and cancel a fresh challenge. Read each form result and preserved choices. For successful approval, qualify both automatic exit and the offered immediate exit in separate attempts; each must return to GDM. Read the brief success before exit. A timeout is not rejection; credentials remain private.
+In separate fresh live attempts, submit one declared wrong fixture password and observe explicit rejection, then Cancel normally and verify unchanged choices; separately Cancel a fresh challenge without password submission. Approve with correct credentials in another attempt, read success and take the offered immediate exit to independently observed GDM. Retain the valid automatic-exit qualification from 020a; rerun it when changed code affects that route. Timeout is not rejection, and authentication disappearance is not approval. Require sealed capture reconciliation and cleanup for every outcome.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_auth_result
@@ -46,12 +48,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **020** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

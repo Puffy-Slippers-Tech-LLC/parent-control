@@ -17,7 +17,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-cu
 
 **Gate:** Explicit authorization must cover this synthetic Parent error-report submission.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief.
 - **186** — PARENT15 failed-save; FEED15 Parent and report-close binding.
@@ -32,8 +32,9 @@ Bind the automatically opened Parent report to one reviewed synthetic Send and i
 
 On the VM, reject the declared wildcard, review the resulting report and Privacy, submit once with explicit authorization and read service acceptance. Dismiss thanks and require Parent with its last confirmed policy. Do not claim a station exit.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_parent_error_send
@@ -48,12 +49,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **150p** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

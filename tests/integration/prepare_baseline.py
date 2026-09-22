@@ -83,19 +83,13 @@ def identity(path, *, private=False, mode=None):
     return {"path": str(path), "device": info.st_dev, "inode": info.st_ino}
 
 
-def digest(path, *, count_bytes=None):
+def digest(path):
+    """Hash a selected artifact or source file, never a VM image."""
     before = identity(path)
     with open(path, "rb") as stream:
         info = os.fstat(stream.fileno())
         require((info.st_dev, info.st_ino) == (before["device"], before["inode"]), "guard:file-changed")
-        if count_bytes is None:
-            result = hashlib.file_digest(stream, "sha256").hexdigest()
-        else:
-            content = hashlib.sha256()
-            for block in iter(lambda: stream.read(1024 * 1024), b""):
-                count_bytes(len(block))
-                content.update(block)
-            result = content.hexdigest()
+        result = hashlib.file_digest(stream, "sha256").hexdigest()
         after = os.fstat(stream.fileno())
     require((info.st_size, info.st_mtime_ns, info.st_ctime_ns) ==
             (after.st_size, after.st_mtime_ns, after.st_ctime_ns), "guard:file-changed")
@@ -171,9 +165,6 @@ class Commands:
         if active:
             arguments.append("-U")  # Public read-only information option.
         return parse_json(self.run([*arguments, str(path)]))
-
-    def check(self, path):
-        self.run(["qemu-img", "check", "-f", "qcow2", str(path)], timeout=7200)
 
 
 def domain_layout(xml, expected_uuid):
@@ -423,9 +414,7 @@ def baseline_lock_path(directory):
 
 class Capture:
     def __init__(self, source, commands, inspect, *, anchor=ANCHOR, directory=BASELINES,
-                 script_digest=None, verify_backing_bytes=True, prepare_guest=None):
-        require(type(verify_backing_bytes) is bool, 'guard:invalid-verification-policy')
-        self.verify_backing_bytes = verify_backing_bytes
+                 script_digest=None, prepare_guest=None):
         self.source, self.commands, self.inspect = source, commands, inspect
         self.prepare_guest = prepare_guest
         self.anchor, self.directory = anchor, directory
@@ -434,39 +423,33 @@ class Capture:
         self.directory_identity = None
         self.verification_totals = {"calls": 0, "failures": 0, "bytes_read": 0,
                                     "duration_seconds": 0.0,
-                                    "policy": "full" if verify_backing_bytes else "metadata-only"}
-        self.backing_verification = None
+                                    "policy": "metadata-only"}
+        self.vm_ownership = None
         self.verification_failure = None
 
     @property
     def lock_path(self):
         return baseline_lock_path(self.directory)
 
-    def begin_backing_verification(self, owner):
-        from backing_verification import BackingVerification
+    def begin_vm_ownership(self, owner):
+        from vm_ownership import VMOwnership
         if self.verification_failure is not None:
             raise self.verification_failure
-        previous = self.backing_verification
+        previous = self.vm_ownership
         if previous is not None:
-            require(previous.closed, 'guard:backing-proof-reused')
+            require(previous.closed, 'guard:ownership-guard-reused')
             if previous.failure is not None:
                 raise previous.failure
             previous.check_owner()
-        self.backing_verification = BackingVerification(self, owner)
-        self.backing_verification.acquire()
-        mode = ('leased' if self.backing_verification.enabled else
-                'full-' + self.backing_verification.fallback)
-        log('backing-verification:' + mode)
+        self.vm_ownership = VMOwnership(self, owner)
+        self.vm_ownership.check()
+        log('snapshot-verification:metadata-only')
 
-    def retire_backing_verification(self):
-        """End a healthy interval before a supported VM disk transition.
-
-        Keep ownership attestation, but no byte proof crosses this boundary.
-        A broken proof is a permanent refusal, never grounds for reacquisition.
-        """
-        if self.backing_verification is not None:
+    def retire_vm_ownership(self):
+        """End this ownership interval, retaining any failure for finalization."""
+        if self.vm_ownership is not None:
             try:
-                self.backing_verification.close()
+                self.vm_ownership.close()
             except BaseException as error:
                 if self.verification_failure is None:
                     self.verification_failure = error
@@ -500,15 +483,12 @@ class Capture:
         require(len({(item["device"], item["inode"]) for item in chain}) == len(chain), "guard:chain-alias")
         return {"layout": layout, "chain": chain}, off
 
-    def revalidate(self, *, off=False, hashes=False):
+    def revalidate(self, *, off=False):
         current, is_off = self.inventory()
         require(current == self.state["source"], "guard:source-changed")
         require(not off or is_off, "guard:source-running")
         if self.directory_identity is not None:
             require(self.private_directory() == self.directory_identity, "guard:directory-changed")
-        if hashes:
-            require([digest(item["path"]) for item in current["chain"]] == self.state["source_digests"],
-                    "guard:source-digest-changed")
 
     def private_directory(self):
         canonical(self.directory)
@@ -703,28 +683,19 @@ class Capture:
             self.commands.lock_fd = None
             os.close(fd)
 
-    @observed('Verifying the VM baseline snapshot')
-    def verify_snapshot(self, *, force_bytes=False, boundary='checkpoint'):
+    @observed('Checking snapshot metadata')
+    def verify_snapshot(self, *, boundary='checkpoint'):
         started = time.monotonic()
         require(boundary in ('checkpoint', 'acquisition', 'restoration', 'recovery'),
                 'guard:verification-boundary')
-        protected = self.backing_verification
-        mode = ('leased-proof' if protected and not protected.closed
-                and protected.enabled and protected.verified
-                and not force_bytes else 'full')
-        if not self.verify_backing_bytes:
-            mode = 'metadata-only'
         event = {"call": self.verification_totals["calls"] + 1,
-                 "bytes_read": 0, "outcome": "failed", "mode": mode, "boundary": boundary}
+                 "bytes_read": 0, "outcome": "failed", "mode": "metadata-only", "boundary": boundary}
         self.verification_totals["calls"] += 1
-
-        def count_bytes(size):
-            event["bytes_read"] += size
 
         try:
             if self.verification_failure is not None:
                 raise self.verification_failure
-            proof = self._verify_snapshot(count_bytes, force_bytes=force_bytes)
+            proof = self._verify_snapshot()
             event["outcome"] = "passed"
             return proof
         except BaseException as error:
@@ -742,7 +713,7 @@ class Capture:
             print("baseline:verification " + json.dumps(event, sort_keys=True),
                   file=sys.stderr, flush=True)
 
-    def _verify_snapshot(self, count_bytes, *, force_bytes=False):
+    def _verify_snapshot(self):
         self.revalidate()
         proof = snapshot_proof(self.source.baseline(), self.state["source"]["layout"], self.description())
         record = self.disk_snapshot()
@@ -753,24 +724,13 @@ class Capture:
         # These fields identify the saved disk state and remain stable while
         # normal writes/testing change the current contents of the QCOW2.
         proof["disk"] = {key: record.get(key) for key in ("id", "name", "date-sec", "date-nsec", "vm-state-size")}
-        digests = self.state["source_digests"]
-        require(isinstance(digests, list) and len(digests) == len(self.state["source"]["chain"]),
-                "state:source-digests")
-        protected = self.backing_verification
+        # Legacy source_digests remain in existing journals for identity
+        # compatibility. They are never recomputed or compared to image bytes.
+        protected = self.vm_ownership
         if protected is not None:
             protected.check_owner()
             if protected.failure is not None:
                 raise protected.failure
-        # Fast development runs retain snapshot, chain, ownership and lease
-        # checks, but never claim or cache an immutable-byte proof. force_bytes
-        # forces a fresh read only within the full-verification policy.
-        if self.verify_backing_bytes and (protected is None or protected.closed or
-                not protected.verify(self, count_bytes, force_bytes=force_bytes)):
-            require([digest(item["path"], count_bytes=count_bytes)
-                     for item in self.state["source"]["chain"][1:]] == digests[1:],
-                    "guard:backing-digest-changed")
-        # Keep the metadata/chain reconciliation around both full reads and
-        # leased proofs. Normal writes to the top image remain permitted.
         self.revalidate()
         if protected is not None:
             if protected.closed:
@@ -803,26 +763,23 @@ class Capture:
             self.refuse_existing_snapshot()
             require(self.state["script_digest"] == self.script_digest, "guest:script-digest")
             if self.state["phase"] == "snapshot-requested":
-                self.revalidate(off=True, hashes=True)
+                self.revalidate(off=True)
             if self.prepare_guest is not None and self.state['phase'] == 'source-off':
                 log('stage:guest-preparation')
                 self.prepare_guest(self)
                 self.revalidate(off=True)
-            log("stage:source-digests")
-            self.state["source_digests"] = [digest(item["path"]) for item in self.state["source"]["chain"]]
+            # Keep schema 2 readable by existing journals without image hashes.
+            self.state["source_digests"] = None
             log("stage:offline-inspection")
             observed = self.inspect(top, self.script_digest)
             if self.state["guest"] is not None:
                 require(observed == self.state["guest"], "guest:changed")
             self.state["guest"] = observed
-            log("stage:disk-verification")
-            self.commands.check(top)
-            self.revalidate(off=True, hashes=True)
+            self.revalidate(off=True)
             self.save("snapshot-requested")
-            self.revalidate(off=True, hashes=True)
+            self.revalidate(off=True)
             self.source.create_baseline(self.state["source"]["layout"], self.description())
         self.revalidate(off=True)
-        self.commands.check(top)
         self.state["proof"] = self.verify_snapshot()
         self.save("finalized")
         log("outcome:baseline-snapshot-created")

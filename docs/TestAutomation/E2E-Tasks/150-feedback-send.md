@@ -15,26 +15,30 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **FEED11, FEED09 sending/success and FEED14 Parent feedback**. First scheduled consumer: [E2E-032, case 156](../E2E-Scenario-Recipes.md#e2e-032).
 Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments) and only the selected consumer's recipe.
 
-**Gate:** Explicit authorization must cover the reviewed synthetic content, dedicated recipient and this qualification's actual submissions. Reuse existing authorization; otherwise prepare reviewable inputs and leave sending pending.
+Authorization is supplied by task 150a's exact reviewed profile. A changed or
+expired authorization remains a blocker; do not request renewed permission for
+an unchanged covered submission.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **038** — FEED06, FEED07, FEED12, FEED13.
-- **031a** — FEED09 collection trace.
-- **052c** — TIME03.
+- **150a** — Concrete synthetic reports, recipient and authorization scope for FEED11 consumers.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Prepare the concrete synthetic report, attachments and dedicated recipient for review before any Send. Reuse existing authorization only if it covers these contents and the planned qualification/scenario submissions. Compose reviewed FEED03/Privacy evidence, one Send, FEED09 sending/success and FEED14 dismissal. Qualify these FEED09 projections only here.
+Reuse the concrete reviewed profile and submission authorization from task 150a.
+Compose FEED03/Privacy observations, one Send, FEED09 sending/success and FEED14
+dismissal. Qualify these result projections through the supported real service
+and dedicated recipient. Do not expand content, recipient or submission counts.
 
 ## Live VM acceptance
 
 With authorized service configuration, submit once on the VM, observe the actual app response, dismiss confirmation and reopen feedback to observe clearing. No provider receipt probe or automatic repeat send. Planning is not sending authorization.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_feedback_send
@@ -49,12 +53,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **150** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

@@ -5,9 +5,10 @@
 Follow [functional validation](../../docs/TestAutomation/E2E-Building-Blocks.md#functional-validation)
 for all new and migrated customer cases. Cosmetic defects (including alignment,
 size, color, font, resolution and scale changes) pass while the customer can
-complete the action and obtain its expected result. Public accessibility
-names/roles/states, normal GUI actions and resulting behavior replace appearance
-matching. Fail blocked interactions, wrong targets/results and unavailable
+complete the action and obtain its expected result. Resolve repository-owned
+targets by scoped public automation IDs and external targets through qualified
+provider adapters; names/roles/states verify meaning afterward. Use direct
+public actions with fresh independent results. Fail wrong targets/results and unavailable
 required information. Keep backend probes out of customer acceptance.
 
 The [documentation map](../../docs/TestAutomation/README.md) owns status terms;
@@ -339,9 +340,11 @@ The controller allows 390 seconds for that observation, within the worker's
 420-second checkpoint deadline; no input is replayed or product probe substituted.
 The current ready set contains the E2E-001 harness smoke,
 E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid, E2E-004/terminal,
-E2E-030/parent and E2E-042/command-help:
-**seven runnable variants, six customer variants**. Another 245 variants are
-pending. Readiness does not certify a passing run.
+E2E-030/parent and E2E-042/command-help.
+Current totals come from [generated coverage](../../docs/Test-Coverage.md) and
+`scenarios.json`; do not maintain a second count here. Retained bindings do not
+qualify their provider routes or certify a current installed pass. Implement
+work in the [execution plan's fixed task order](../../docs/TestAutomation/E2E-Execution-Plan.md).
 
 E2E-004/app-grid composes the shared installed setup, standard-user login,
 app-grid search and ordered screen evidence. The
@@ -354,18 +357,15 @@ desktop's owned session bus. Missing/stale UI cannot prove absence; cosmetics
 do not gate acceptance. The shared functional GDM gate independently verifies
 wrong-recipient refusal and the intended standard account's empty masked field
 and focus twice through ordered standard-specific checkpoints before secret
-input. One click uses the search field's current public screen extents, followed
-by independent focus observation; geometry has no appearance pass/fail authority.
-The shared desktop wait handler cancels an identified focused login-keyring
-prompt using one normal click derived from Cancel's current public extents.
-It proves that exact dialog disappeared before continuing the same observation
-or independently qualifying a queued replacement. No action or text is replayed;
-unknown prompts cannot authorize input, and no keyring password is read or
-submitted. GDM credential checkpoints remain excluded from automatic dismissal.
-Normal type-to-search independently verifies the first character before
-entering the rest of the query; no uncertain input is repaired or replayed.
-Legacy credential needles and their regressions remain intact. Do not press Enter
-on the unrelated suggestion. No time policy is changed or enforcement claimed.
+input. Search input and keyring handling must use their separately qualified
+provider adapters: tasks 001s and 003b respectively. Prefer direct public actions
+and observed focus/results; geometry is permitted only within an explicitly
+qualified external adapter when the mandate's conditions are met. The current
+shared prompt middleware refuses prompts; it does not automatically Cancel an
+unqualified keyring dialog. Unknown prompts, uncertain input and replay refuse.
+Legacy needles and their refusal regressions confer no input authorization.
+Do not press Enter on an unrelated suggestion. No time policy is changed or
+enforcement claimed.
 Its stale private grant/policy and
 other-user-state witnesses are outside customer scope; existing authorization
 and isolation regressions retain those obligations. This declaration correction
@@ -385,9 +385,9 @@ refuses while any variant is pending. A ready-suite pass is partial coverage.
 `make test-all` and `make test-all-verify` both discover every ready E2E variant
 through the same selector, after required host/package and installed-system
 prerequisites. No Makefile entry is needed for a newly ready scenario. Both stop
-the VM sequence on a failed installed-system/E2E attempt. `test-all` skips
-backing-file byte scans; `test-all-verify` and direct E2E commands verify them.
-All modes retain ownership, provenance, evidence and cleanup checks. These
+the VM sequence on a failed installed-system/E2E attempt. All VM entry points use
+metadata-only verification. `test-all-verify` is a compatibility alias.
+Ownership, provenance, evidence and cleanup checks remain active. These
 aggregates also run the other established suites; use the commands above for
 E2E-only execution.
 
@@ -405,8 +405,8 @@ The inventory has 241 cases: 240 customer cases and one harness case. Retired
 E2E IDs 140–150 remain engineering system-test obligations outside this UI
 inventory. Displaced backend assertions remain under the [engineering
 reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation).
-Existing inventory-test fixture updates are tracked by
-[task 192](../../docs/TestAutomation/E2E-Execution-Plan.md#metadata-compatibility-follow-up).
+Completed inventory-test compatibility work is recorded as task 192 in the
+[canonical queue](../../docs/TestAutomation/E2E-Task-Queue.md#ordered-task-queue).
 
 Run the canonical smoke with
 `tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` using fresh
@@ -420,13 +420,12 @@ identity; all nine must agree. No session identity is fabricated.
 E2E-001 retains its stable `step-1`/`step-2`/`step-3` IDs for graphical
 readiness, serial interaction and final graphical evidence. Each observation
 gets a durable recorder checkpoint even when several belong to one step.
-After worker shutdown, the final step validates the completed public module's
-ordered needle matches and requires the return match after the recorded serial
-logout. It reads only those private PNGs to retain dimensions and SHA-256;
-raw captures, terminal output and arbitrary module fields are never exported.
-Identical initial/return pixels are allowed: serial does not change GDM.
-Post-password explicit capture remains sealed; this uses the automatic private
-match result and does not introduce a new screenshot route.
+After worker shutdown, the final step reconciles the ordered public UI
+checkpoints, real command result and logout before the fresh graphical return.
+Worker markers alone cannot pass, and an initial account-list observation cannot
+prove the final return. Pixel matches supply no readiness or acceptance result.
+Raw captures, terminal output and arbitrary module fields stay private;
+post-password capture remains sealed.
 
 The sole canonical smoke is harness coverage, with no product requirement IDs
 or customer acceptance claim. Host/source/baseline preservation and held-lease
@@ -632,71 +631,48 @@ boundaries; they are not a filesystem monitor.
 
 ### Backing-file verification within an attempt
 
-`make test-all` selects development mode: backing-byte scans are skipped, while
-ownership, read leases, snapshot metadata, staged assets and cleanup checks stay
-active. It records `metadata-only` in verification evidence and never creates a
-verified-byte proof. `make test-all-verify` and default direct system/E2E runs
-retain the full verification behavior described below.
+All VM operations check metadata only: baseline creation, app-snapshot
+preparation/reuse, installed-system and E2E tests, graphical qualifications,
+maintenance and interrupted-run recovery. Whole-image hashes and
+`qemu-img check` structural scans are not used. `qemu-img info` reads format,
+chain and internal-snapshot metadata. There is no full-scan mode or fallback.
+`make test-all-verify` / `tools/run-tests all-verify` are compatibility aliases
+for `all`; `--skip-backing-verification` is accepted as a compatibility no-op.
 
-The normal installed/graphical `Lease` now uses
-[BackingVerification](../integration/backing_verification.py) for `chain[1:]`.
-The writable top image remains outside this byte proof: guest writes are expected,
-while its retained internal-snapshot metadata is checked at every existing gate.
-No validation calls, staged-asset checks, durable-state reads, authorization
-boundaries or checks around acceptance-report writes have been removed.
+[VMOwnership](../integration/vm_ownership.py) checks the exact held controller-lock
+descriptor, process, run, baseline state and disk path/device/inode identities.
+It does not open backing files or acquire kernel read leases. Snapshot XML,
+internal snapshot records, isolation, durable-state reconciliation, staged assets,
+authorization and checks around acceptance-report writes remain active.
+Observed metadata or ownership failures stay failed even if identities are
+subsequently restored. Recovery and reopened maintenance reacquire and check
+their own controller lock and recorded VM identity.
 
-Before the first full SHA-256 read, the controller opens each backing file through
-pinned parents without following symlinks and acquires a Linux read lease.
-Only ext4 and tmpfs are admitted; other filesystems, unavailable leases and a
-SIGURG handler already in use retain full byte verification at every gate.
-These are kernel file leases, separate from the advisory VM controller lock.
-[F_GETLEASE](https://man7.org/linux/man-pages/man2/F_GETLEASE.2const.html)
-reports a breaking read lease as unlocked before a conflicting open or truncate
-can write. Existing writable descriptors and mappings prevent acquisition.
-The controller checks that kernel state at every gate and never renews a lease.
-It selects normally ignored SIGURG notifications without installing a signal
-handler; correctness depends on the synchronous kernel query, not signal timing
-or the lease-break timeout.
+Existing schema-2 baseline journals remain unchanged on reuse, including their
+legacy `source_digests` values. These values are never checked against disk bytes.
+New baseline records retain the field as `null`, so neither a new schema nor
+baseline recreation is required. Keeping existing journal bytes stable preserves
+their digest references in attempt journals and retained app-snapshot metadata.
+Package/recipe identities in app-snapshot descriptions still distinguish builds
+with the same version. Targeted guest inspection and package/artifact hashing
+remain; they do not hash the VM image or certify its storage integrity.
 
-The first hash is reusable only while every file lease remains valid, the same
-controller owns the exact VM-lock descriptor, the attempt and baseline state
-match, and pinned file/path identities still agree. Size and timestamps supplement
-the kernel proof; they never substitute for it. Replacements, symlinks, hardlinks,
-metadata changes and lost ownership refuse. A failed check stays failed even if
-bytes are subsequently restored. A healthy proof is retired before VM startup
-or shutdown: QEMU's normal auto-read-only block graph can transiently request a
-writable backing handle. Startup acquires a new, unverified lease; the first
-existing post-startup verification gate must read all bytes before that new
-proof becomes reusable. Disk reads never delay serial attachment inside the
-power callback. Existing writable handles instead retain full reads.
-Any checks between retirement and reacquisition also read all bytes. No cached
-digest crosses a disk transition, and a broken proof cannot be retired and retried.
-The full backing-byte audit establishes another new proof after outer restoration,
-before finalization. Release checks and closes every retained
-descriptor before releasing the VM lock, including on interruption or cleanup
-failure. Descriptors are never passed to workers, and no proof is serialized or
-reused by recovery or a reopened maintenance operation.
+Recorded `cleanup-requested` recovery can audit a powered-off domain whose
+inactive XML exactly matches the saved original configuration. It checks snapshot
+metadata, targeted guest contents and configuration before completing the journal.
+This branch never starts, stops, restores or redefines a domain, and leaves the
+original attempt failed. Other off-state configurations still refuse recovery.
 
-Recorded `cleanup-requested` recovery can also audit a powered-off domain whose
-inactive XML exactly matches the saved original configuration. It independently
-checks the accepted baseline bytes, snapshot, guest contents and configuration
-again before completing the journal. This branch never starts, stops, restores
-or redefines a domain, and leaves the original attempt failed. Other off-state
-configurations still refuse recovery.
+The policy trusts accepted snapshot contents. Same-inode content corruption is
+outside its assurance. Update activation is `none`: this test-only change takes
+effect on the next controller invocation without replacing snapshots.
 
-This relies on the supported mounted filesystem's kernel enforcement and the
-existing trusted-controller boundary; it does not authorize raw block-device
-mutation or changes to the kernel or host security configuration. Guest code has
-no host share during an attempt. Backing owners and host administrators can
-request writes, but those requests invalidate the kernel proof. The accepted
-baseline, snapshot and persisted schemas are unchanged. Update activation is
-`none`: this test-only behavior takes effect on the next controller invocation.
-
-`baseline:verification` emits fixed fields for boundary, call count, mode, bytes
-actually read, elapsed seconds and outcome. Totals are retained in installed and
-public E2E results; the ledger now measures finalization separately from cleanup.
-The [kernel/refusal regressions](../unit/test_backing_verification_cleanup_safety.py)
-also join the automatic isolated safety prerequisites.
+`baseline:verification` retains boundary, call count, mode, elapsed seconds and
+outcome fields; `mode` is always `metadata-only` and `bytes_read` is zero for
+image-content verification (not a measure of all QEMU/guest I/O). Totals remain
+in installed and public E2E results. The
+[ownership and no-scan regressions](../unit/test_backing_verification_cleanup_safety.py)
+join the automatic isolated safety prerequisites.
 
 ### Earlier provenance qualifications
 
@@ -1255,23 +1231,19 @@ changed order, failed checks and replay refuse. Only the zero character count is
 read from the password interface, never its contents. See the
 [functional credential contract](../../docs/TestAutomation/E2E-Building-Blocks.md#functional-validation).
 
-The maintained Perl `lib/onpc_password.pm` also provides `enter_password(role, surface)`
-for fixed `gdm`, `polkit` and `lock` surfaces. It requires `NOVIDEO=1`, a registered
-variable, and a successful public `assert_screen` for the fixed
-`onpc-<surface>-<role>-masked-password` tag immediately before public `type_password`.
-Callers cannot override the password API's `secret` option. The needle contract
-must prove the selected fixture identity together with its empty, focused and
-masked password field; no generic password-field tag, coordinate or terminal
-fallback exists. The helper does not submit or assert authentication
-success. Unknown inputs and any API failure permanently refuse subsequent input.
+The retained `lib/onpc_password.pm::enter_password(role, surface)` entry point
+refuses before input. Its former image/needle proofs cannot authorize graphical
+secrets under the current mandate. New GDM, lock and Polkit bindings use the
+qualified provider recipient proofs, two fresh same-challenge observations and
+the unchanged sealed secret API. They preserve single-use delivery and the
+terminal failure latch; submission and authentication-result observation remain
+separate operations. Ordinary graphical roles/routes require their own live
+qualification in the [provider catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#external-provider-qualification).
 
-The credential-free smoke now routes explicit screenshots through
-`capture_before_authentication()`. Capture failure prevents later input, and
-starting any password operation permanently closes that helper's capture route,
-including on prompt failure. Exceptions crossing this boundary contain fixed
-codes only. This does **not** disable automatic os-autoinst screenshots; all raw
-captures remain private and unapproved for export. Trusted distribution code
-must use the helper; this is not a sandbox against code calling testapi directly.
+`capture_before_authentication()` also refuses. Automatic/raw worker captures
+remain private and unapproved for export; secret phases remain sealed and every
+cross-boundary error uses fixed codes. This is a trusted-helper contract, not a
+sandbox against arbitrary testapi calls.
 
 `FixtureCredentials` reads the literal `TEST_ACCOUNT_PASSWORD` from the host
 checkout's private mode-0600 `.envrc`. All four canonical fixture roles share
@@ -1292,83 +1264,42 @@ the outer lease. Passwords are registered for redaction before capture and
 passed through the existing private worker secret interface, never command-line
 arguments, public reports or logs.
 
-Distribution staging now accepts strictly paired PNG/JSON needles under
-`needles/onpc-<surface>-<role>-{account,masked-password}.*`, with matching tags, bounded
-dimensions/rectangles and 99–100% match thresholds. Both files enter the same
-source digest map and frozen copy as Perl sources. Missing pairs, extra fields,
-generic tags and links refuse before backend startup. Structural
-validation does not establish visual meaning. Reviewed GDM parent/other-parent
-account labels and the parent password prompt now have live evidence at 100%.
-The password needle jointly matches the fixture identity, empty field/visibility
-control and focus outline, excluding the blinking caret. Retain a small surrounding
-pixel margin: the matcher's blur reads neighboring pixels, so masking exactly
-at a match rectangle can reduce even an identical region's score. Only reviewed
-fixture pixels are retained in these assets; unrelated identities and clocks
-remain outside them. Other roles/surfaces still require reviewed needles and
-live positive/negative qualification before input. No coordinate fallback exists.
-The observation-only fixed tag, `onpc-gdm-parent-installed-account`, matches the
-reviewed fixture label after installation/reboot. Both retained GDM renderings
-can occur after setup; installation state does not uniquely determine label
-pixels. The fixed alternatives in `parent_needles.GDM_RENDERINGS` share their
-canonical observation or account-input tag. Observation alternatives have no
-click point; input alternatives retain the reviewed label, center click point
-and 100% threshold. Arbitrary aliases, roles, password extensions and altered
-alternative layouts refuse staging. Evidence retains the actual matched needle
-name and resolves only these fixed aliases when checking the expected stage.
+Distribution staging still validates retained paired PNG/JSON needle assets,
+fixed tags, bounds and source digests. Keep its malformed/escaping-asset and
+secret-storage regressions. Those files and historical image results do not
+qualify discovery, readiness, recipients or input. No new route may use generic
+needle, coordinate or positional selectors. Any external-provider image route
+requires the mandate's documented reason, explicit adapter and installed
+qualification; repository-owned UI always requires public automation IDs.
 
 ### GDM readiness and graphical return
 
-Case 1 uses `accessible_ui.py` through `UiObservations` and the shared `ui:`
-checkpoint reconciler. It activates the showing, enabled fixture account by
-public name/role: navigate Home/Down from the current list order, verify account
-focus, then press Enter. It verifies the intended account label and focused password role
-with the account list hidden, dismisses with Escape and observes the list again.
-After real serial command output and logout, it selects `sut` and requires a
-fresh semantic list observation. Ordered evidence cannot reuse the initial
-list to prove return. No geometry or image similarity gates these operations;
-password text is never read, and these checks authorize no graphical secret.
-Serial recipient safety and the smoke's independent harness checks remain intact.
-Public logind session metadata resolves the sole active local greeter's account,
-including dynamic GDM accounts. The adapter waits for its owned session bus;
-missing, ambiguous or wrong-owner connections fail before any UI action.
+Case 1 retains its `AccessibleUI`/`UiObservations` checkpoints, intended-account
+prompt, Escape return, real serial command/logout and fresh graphical return.
+Task 003a must qualify ordinary GDM account/recipient resolution before task 001r
+reruns that complete case. Its ready inventory binding does not qualify current
+provider discovery. Account selection uses the scoped GDM adapter with observed
+focus/result, never list-position-derived key counts. No graphical password is
+submitted by case 1.
 
-The following pixel helpers remain for legacy and credential qualification:
+Public logind metadata identifies the sole active local greeter; its owned
+runtime/session socket is validated before public accessibility access. Missing,
+ambiguous or wrong-owner connections refuse. Ordered checkpoints require fresh
+controller observations and never reuse the initial account list as proof of
+return. The real serial route retains its separate recipient, output, logout,
+continuity and cleanup proofs.
 
-`lib/onpc_gdm.pm` shares the existing reviewed GDM needles. `wait_list(90)`
-allows the initial display handoff to finish; later matches use 30-second
-deadlines. The smoke explicitly selects `sut` first: backend display activation
-alone does not set the public current-console identity. It requires that console
-and an actual account-label match. `select_parent()` matches/clicks that account and recognizes its empty,
-focused password prompt, then deliberately checks that the account-list needle
-refuses the prompt. `dismiss_prompt()` sends Escape and requires the list again.
-The serial helper calls `return_from_serial()` only after independently observed
-logout; it selects `sut` and requires a fresh account-list match before success.
-The successful installation path instead calls `return_after_reboot()` after
-changed boot and a fresh serial login prompt. This uses the separately reviewed
-`onpc-gdm-parent-installed-account` tag at 100%. Its two reviewed renderings
-match the same fixture identity; comparing one rendering against the other
-alone scores about 87.9%. Only the canonical fixture label and a 16-pixel blur
-border enter each asset; other accounts and the clock are blacked out. The
-[pixel regressions](../unit/test_e2e_gdm_pixels.py) exercise installed tinycv
-against both renderings, bounded position changes, wrong identities, password
-screens and the observation/input click boundary. A passing image comparison
-does not replace complete live journey qualification.
-There is no fixed ten-second render delay or whole-screen stillness gate in
-this graphical/serial smoke path. The separate credential qualification retains
-its settling check at the other parent's negative-prompt boundary.
-
-Account needles have a single matched region and an explicit public
-`click_point`, relative to that region and strictly inside it. Staging rejects
-out-of-region points, extra point options, and password-needle click points.
-The [public test API](https://github.com/os-autoinst/os-autoinst/blob/master/testapi.pm)
-documents `assert_screen`, `assert_and_click` and console selection; the installed
-pinned API is also checked locally. Existing pixels, 100% thresholds, clock and
-animation exclusions remain unchanged.
+Legacy `onpc_gdm::wait_list`, `select_parent`, `dismiss_prompt`,
+`return_from_serial` and `return_after_reboot` refuse before image/input access.
+Keep their refusal tests and retained pixel-asset checks; neither is an alternate
+execution route. Provider adapters and customer reboot qualification are named
+tasks in the single queue, not exemptions for older workers.
 
 Host regressions execute the real Perl helper with stubbed public testapi calls,
 and cover provisioning ownership, password verification, private storage,
 secret-scanned evidence, needle inputs and interrupted staging/worker cleanup.
-GDM parent password input and the serial-command qualification have passed. Test-tool
+Historical GDM password results do not qualify current graphical adapters;
+the real serial-command contract remains separate. Test-tool
 activation is `none` (next invocation); product data and accepted baseline are
 unchanged. `setup.sh` installs the pinned OpenSSL dependency on clean hosts.
 

@@ -15,10 +15,12 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **ABOUT01/02 and INFO01 overlay**. First scheduled consumer: [E2E-042, case 191](../E2E-Scenario-Recipes.md#e2e-042).
 Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments), [related block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
 
-Required implemented capabilities (IDs identify queue rows; no predecessor brief is needed):
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
 - **044a** — DESK10 same-desktop window switching.
+- **185p** — INFO01 Parent.
+- **185l** — ABOUT02/03 actual license handler identity/content and close/return.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -26,12 +28,15 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Bind overlay About, license viewer and the offered information links. Reuse the shared About reader and destination-specific normal exits; retain the request form's earlier observation.
 
+Reuse the destination-specific browser, mail and document operations from Parent qualification, then bind each offered overlay action to the actual child-session handler. Verify its owner/destination afresh; Parent evidence cannot certify a different handler or child-session route. Preserve each explicit close/return and no-mail-submission rule.
+
 ## Live VM acceptance
 
 On the live child overlay, read product/version and actual license, follow every offered information link and return. Close About and compare the original form choices before editing. No mail submission.
 
-Run affected safety/adapter checks, then use the complete first consumer if runnable.
-Otherwise implement/reuse the planned fixed qualification:
+Run affected safety/adapter checks, then implement and register the fixed slice
+qualification below in the existing guarded envelope. Run this slice here;
+its complete scenario remains a separate queue task:
 
 ```sh
 tools/run-tests integration check_e2e_read_overlay_about_and_links
@@ -46,12 +51,10 @@ establish complete scenario coverage.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-If a complete E2E scenario passed, refresh coverage immediately after that case.
-Use `tools/generate_test_coverage.sh`, which runs `tools/generate_test_coverage.py`.
-
 Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and the selected family's status
-in [E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md); leave unfinished scope pending.
+[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
+its composition changes. Runtime status belongs in the inventory; leave
+unfinished scope pending.
 Check **185o** in the [master's queue](../E2E-Task-Queue.md), update the master's
 **Next task** pointer, then delete this brief once its enduring context is maintained
 in source/contracts. Validate changed Markdown. Keep normal runner artifacts;

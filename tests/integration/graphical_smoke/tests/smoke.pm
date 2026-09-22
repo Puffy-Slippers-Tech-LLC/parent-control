@@ -7,6 +7,7 @@ use Time::HiRes qw(time sleep);
 use onpc_password ();
 use onpc_serial ();
 use onpc_gdm ();
+use onpc_fresh_desktop ();
 use onpc_vt6 ();
 use onpc_parent_about ();
 use onpc_parent_access ();
@@ -92,6 +93,13 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_gdm::recipient_qualification(\&exchange);
+        return;
+    }
+    if ($ready->{fresh_parent_desktop} || $ready->{fresh_standard_desktop}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_fresh_desktop::run(\&exchange,
+            $ready->{fresh_parent_desktop} ? 'parent' : 'standard');
         return;
     }
     if ($ready->{kiosk_entry}) {

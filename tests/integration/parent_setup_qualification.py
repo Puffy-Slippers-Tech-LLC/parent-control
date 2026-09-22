@@ -217,6 +217,25 @@ class GdmRecipientQualification(KioskEntryQualification):
         return GdmRecipientJourney(context, progress)
 
 
+class FreshDesktopQualification(KioskEntryQualification):
+    role = None
+
+    def journey(self, context, progress):
+        from app_snapshot import snapshot_name
+        from fresh_desktop import FreshDesktopJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FreshDesktopJourney(context, progress, role=self.role)
+
+
+class FreshParentDesktopQualification(FreshDesktopQualification):
+    role = 'parent'
+
+
+class FreshStandardDesktopQualification(FreshDesktopQualification):
+    role = 'standard'
+
+
 class GdmProductFreeQualification(ParentJourneyQualification):
     """Qualify Parent navigation without restoring or installing the product."""
 

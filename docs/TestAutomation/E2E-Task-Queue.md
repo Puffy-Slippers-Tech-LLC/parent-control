@@ -69,7 +69,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [x] | 003a | Prove the intended GDM password recipient | 011, 003aa | GDM01/02 prepared ordinary prompt entry; GDM03/04/08/09 Parent/other-parent recipient, refusal and Escape-return proofs; installed qualification and owned cleanup passed | 20–30 |
 | [x] | 003ab | Qualify product-free GDM navigation | 003a | GDM01/02/08/09 product-free Parent list, prompt and return binding | 20–30 |
 | [x] | 001r | Requalify retained case 1 | 003a, 003ab | Retained regression 1; complete graphical/serial recipe and capture/return reconciliation | 20–30 |
-| [ ] | 003ba | [Qualify fresh login without a keyring prompt](E2E-Tasks/003ba-fresh-desktop.md) | 003a | GDM05 fresh Parent/standard entry and DESK01 no-prompt desktop | 20–30 |
+| [ ] | 003ba | [Qualify fresh login without a keyring prompt](E2E-Tasks/003ba-fresh-desktop.md) | 003a | GDM05 fresh Parent/standard entry and DESK01 no-prompt desktop. Blocker: external session occupies the VM and the user requested a pause before VM work; resume when the user confirms the VM is free, then run live acceptance and cleanup. | 20–30 |
 | [ ] | 003b | [Cancel a real keyring prompt after login](E2E-Tasks/003b-desktop-keyring.md) | 003a, 003ba | GDM05 successful fresh fixture entry; DESK01; real gcr prompt Cancel and independent desktop readback | 20–30 |
 | [ ] | 003ca | [Open and dismiss Shell session controls](E2E-Tasks/003ca-shell-session-menu.md) | 003b | DESK02 Shell Quick Settings and session-menu entry/readback | 20–30 |
 | [ ] | 003c | [Switch User through qualified Shell controls](E2E-Tasks/003c-switch-user.md) | 003b, 003ca | DESK02/03 current Shell provider route and independently observed GDM return | 20–30 |

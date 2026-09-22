@@ -186,6 +186,15 @@ def pytest_command(root, argv, category):
     ignores = [arg.removeprefix('--ignore=') for arg in argv if arg.startswith('--ignore=')]
     argv = [arg for arg in argv if not arg.startswith('--ignore=')]
     selectors, options = arguments(argv, category)
+    if category == 'ui':
+        # UI is a host-only category. Keep this boundary in the shared command
+        # builder so aggregate, selected and direct launchers cannot diverge.
+        marker = next((option for option in options if option.startswith('-m=')), None)
+        if marker is None:
+            options.append('-m=not live_e2e')
+        elif marker != '-m=not live_e2e':
+            expression = marker.removeprefix('-m=')
+            options[options.index(marker)] = f'-m=({expression}) and not live_e2e'
     targets = selection(root, selectors, category)
     for ignored in ignores:
         if '::' in ignored:

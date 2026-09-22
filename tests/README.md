@@ -47,8 +47,8 @@ in source checks; package artifacts include the fixture payload. Bare
 `tools/run-tests artifacts` now performs two fresh builds and their
 reproducibility comparison, matching the granular artifact category in `all`;
 `artifacts build` still requests just one build. UI's explicit inventory arguments
-select the aggregate's non-live scope; focused UI commands retain their exact
-selectors without implicit marker exclusions. Mandatory cleanup prerequisites
+select the aggregate's non-live scope; the shared launcher applies that same
+host-only boundary to focused UI commands. Mandatory cleanup prerequisites
 and required package inputs still run wherever the selected suite needs them.
 
 The complete partition is **host + system + e2e = all**. Combine any of these
@@ -95,10 +95,9 @@ bucket; an explicit `--timeout` replaces that default. `-x`/`--exitfirst` and
 positive `--maxfail` retain one serial invocation with the original failure
 limit. Help and collection-only requests do not schedule test execution.
 
-UI-only selection adds no implicit marker filter. To select the same non-live
-UI scope as `host`, use `tools/run-tests ui -m 'not live_e2e'`; live spectator
-checks still require their separately active E2E attempt. Direct
-`tools/run-ui-tests` remains the serial narrow-check route. This development
+UI is a host-only category. Its shared launcher always excludes VM-dependent
+`live_e2e` checks, including for focused marker or file selections. Direct
+`tools/run-ui-tests` applies the same boundary and remains the serial narrow-check route. This development
 tooling refactor activates on the next checkout launcher invocation (`none`);
 it changes no installed helper, product service, or saved data.
 
@@ -230,9 +229,11 @@ pending scope and prerequisites.
 Every `tools/run-tests` category runs independently of its terminal. Closing the
 terminal detaches the display; tests continue. Ctrl+C requests cancellation and
 waits for owned cleanup. Invoke `tools/run-tests` in a new terminal to attach to
-the existing progress and final output, including its exit status. While a run
-is active or has an unread successful result, execution invocations warn and attach to it,
-ignoring new arguments—even another category, invalid options, or no arguments.
+the existing progress and final output, including its exit status. Within the
+requested host or VM scope, while a run is active or has an unread successful
+result, execution invocations warn and attach to it, ignoring new arguments—even
+another category or invalid options. Host and VM sessions have independent
+ownership and reconnect state, so one of each can run concurrently.
 The original selection and options remain in effect. Global and category help,
 listings, and collection-only invocations always return their requested inspection
 output without acquiring or checking test/session locks, attaching to a run, or
@@ -240,9 +241,12 @@ marking its result delivered.
 A failed or incomplete idle session can be replaced by an explicit new selection;
 its output is preserved and startup recovery runs before new VM checks. Host-only
 execution refuses pending VM recovery.
-Invoke without arguments to replay any unread result. After delivery, or when
-no session exists, an invocation without arguments starts the `all` aggregate.
-Session output and ownership records live under `artifacts/test-sessions/`.
+Invoke without arguments to replay any unread VM-side result. After delivery,
+or when no VM session exists, an invocation without arguments starts the `all`
+aggregate. VM session output and ownership records live under
+`artifacts/test-sessions/`; host-only records live under
+`artifacts/test-sessions-host/`. Reconnect to a host-only run with a host
+category such as `host`, `ui`, or `unit`.
 Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
@@ -303,11 +307,10 @@ one bucket so its stable latest-evidence paths have one writer. Accessible
 adapter and E2E spectator are separate parallel buckets: the adapter uses private
 compositors, buses, settings and attempt artifacts (including its Shell search),
 while the spectator uses process-local frame memory and per-test output. Host
-aggregates exclude `live_e2e` checks consistently during collection and execution:
-those need a separately active E2E attempt, and host jobs finish before VM stages.
-Select those checks explicitly with `tools/run-ui-tests --timeout 25m
-'tests/ui/test_e2e_watch.py' -m live_e2e` during live acceptance. Both buckets
-retain UI resource admission and exclusion from publishing.
+aggregates and focused UI runs exclude `live_e2e` checks consistently during
+collection and execution. Those checks belong to VM acceptance and are outside
+the host-only UI category. Both host spectator buckets retain UI resource
+admission and exclusion from publishing.
 The private compositor fixture is explicitly required by the nested-Shell module,
 so its outer Devkit viewer never depends on a prior module's display setup. The
 checkout `dogtail_config.ini` disables Dogtail's shared `/tmp` debug file through
@@ -565,7 +568,7 @@ read-only system diagnostics, and trust boundaries. Stable entry points are:
 ```sh
 tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphical_lease.py -q
 tools/run-tests component 'tests/component/test_*.py' -q
-tools/run-tests ui -m 'not live_e2e' -q
+tools/run-tests ui -q
 tools/run-tests integration check_graphical_worker
 tools/run-tests integration check_package_notice
 tools/run-tests system --artifacts /tmp/onpc-test-artifacts/first --area authorization
@@ -743,6 +746,10 @@ appear when their private compositor fixture starts, disappear on shutdown or
 expired heartbeat, and later workers reconnect automatically. The viewer may be
 opened, closed, resized or reopened without controlling the tests. Runs started
 before this feature was loaded need to finish and start again to publish frames.
+The viewer prints its private `/var/tmp/onpc-ui-viewer-*/viewer.log` location
+at startup and records Python and native GTK output there, so later warnings
+cannot interrupt the launching terminal. Reopen an existing viewer to load changes
+to its output handling.
 
 The shared [fixture](ui/conftest.py) owns an optional
 [collector](../tools/ui_watch_capture.py) and private PipeWire/WirePlumber

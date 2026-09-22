@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 import subprocess
+import sys
+import tempfile
 
 from common.oh_no_parent_control_ui.gtk_automation import (
     add_identified_window_controls, set_automation_id,
@@ -155,6 +157,35 @@ def application(feeds=None):
     return Viewer()
 
 
+def run_viewer():
+    """Keep native GTK diagnostics out of the launching terminal's live UI."""
+    directory = Path(tempfile.mkdtemp(prefix='onpc-ui-viewer-', dir='/var/tmp'))
+    log_path = directory / 'viewer.log'
+    print(f'UI viewer diagnostics: {log_path}', flush=True)
+    # GTK writes directly to fd 2; redirecting Python's sys.stderr is insufficient.
+    # Restore the caller's streams even when application construction fails.
+    with log_path.open('xb') as log:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        stdout = os.dup(1)
+        try:
+            stderr = os.dup(2)
+            try:
+                os.dup2(log.fileno(), 1)
+                os.dup2(log.fileno(), 2)
+                try:
+                    return application().run(['watch-ui'])
+                finally:
+                    sys.stdout.flush()
+                    sys.stderr.flush()
+            finally:
+                os.dup2(stderr, 2)
+                os.close(stderr)
+        finally:
+            os.dup2(stdout, 1)
+            os.close(stdout)
+
+
 def main():
     import argparse
     from e2e_watch_viewer import desktop_launch_command
@@ -173,4 +204,4 @@ def main():
         command = desktop_launch_command()
         command[-2] = str(Path(__file__).resolve().with_name('watch-ui'))
         return subprocess.run(command, check=False).returncode
-    return application().run(['watch-ui'])
+    return run_viewer()

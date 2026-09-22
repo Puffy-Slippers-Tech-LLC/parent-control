@@ -139,6 +139,42 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     assert session.follow(run, io.StringIO()) == 7
 
 
+def test_host_and_vm_sessions_start_and_reconnect_independently(tmp_path, workers, monkeypatch):
+    monkeypatch.setattr(test_commands, 'validate',
+                        lambda root, argv: [(argv[0], argv[1:])])
+
+    host_run, host_started = session.select(tmp_path, ['ui'])
+    vm_run, vm_started = session.select(tmp_path, ['e2e'])
+
+    assert host_started and vm_started
+    assert host_run.parent == tmp_path / 'artifacts/test-sessions-host'
+    assert vm_run.parent == tmp_path / 'artifacts/test-sessions'
+    assert session.select(tmp_path, ['ui']) == (host_run, False)
+    assert session.select(tmp_path, ['e2e']) == (vm_run, False)
+    assert len(workers) == 2
+    (tmp_path / 'release').touch()
+    assert session.follow(host_run, io.StringIO()) == 7
+    assert session.follow(vm_run, io.StringIO()) == 7
+
+
+@pytest.mark.parametrize(('argv', 'expected'), [
+    ([], False),
+    (['ui'], True),
+    (['ui', '-m', 'e2e'], True),
+    (['unit', '-q'], True),
+    (['host'], True),
+    (['host', 'system'], False),
+    (['system', 'host'], False),
+    (['e2e'], False),
+    (['integration', 'check_future'], False),
+    (['--stop-on-error'], False),
+    (['--stop-on-error', 'host'], True),
+    (['--stop-on-error', 'host', 'e2e'], False),
+])
+def test_request_scope_is_known_before_session_attachment(argv, expected):
+    assert test_commands.host_only_request(argv) is expected
+
+
 @pytest.mark.parametrize('category, expected', [('ui', 0), ('unit', 0), ('host', 0),
                                               ('system', 2), ('e2e', 2), ('all', 2)])
 def test_snapshot_probe_can_overlap_only_host_session(tmp_path, workers, monkeypatch,
@@ -283,7 +319,10 @@ def test_every_category_preserves_arguments_and_reconnects_before_validation(
     def refuse(*_):
         pytest.fail('new arguments must not be validated during attachment')
     monkeypatch.setattr(test_commands, 'validate', refuse)
-    for replacement in ([], ['unknown', '--invalid']):
+    replacement = ['unit', '--invalid'] if test_commands.host_only_request(argv) else [
+        'e2e', '--invalid']
+    for replacement in ([replacement] if test_commands.host_only_request(argv)
+                        else [replacement, []]):
         assert session.select(tmp_path, replacement) == (run, False)
     (tmp_path / 'release').touch()
     assert session.follow(run, io.StringIO()) == 7
@@ -298,7 +337,7 @@ def test_attach_warns_and_ctrl_c_cancels_real_nonaggregate_child(tmp_path, worke
         signal.raise_signal(signal.SIGINT)
         return follow(run)
     monkeypatch.setattr(session, 'follow', interrupt)
-    assert session.main(tmp_path, ['unknown', '--invalid']) == 130
+    assert session.main(tmp_path, ['unit', '--invalid']) == 130
     output = capsys.readouterr()
     assert 'WARNING: A previous run is in the background' in output.err
     assert 'ignoring all new arguments and attaching to it' in output.err
@@ -330,7 +369,9 @@ def test_observer_hangup_leaves_reconnectable_worker(tmp_path, workers, category
     _, status = os.waitpid(observer, 0)
     assert os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGHUP
     wait_for(tmp_path / 'started')
-    run, started = session.select(tmp_path, ['ignored'])
+    replacement = ['unit', '--invalid'] if test_commands.host_only_request([category]) else [
+        'e2e', '--invalid']
+    run, started = session.select(tmp_path, replacement)
     assert not started
     assert workers == []  # This observer never launched a replacement worker.
     (tmp_path / 'release').touch()
@@ -350,7 +391,7 @@ def test_dead_owner_is_incomplete_not_a_fabricated_pass(tmp_path):
 
 @pytest.mark.parametrize('result', [None, '1', '130'])
 def test_explicit_selection_replaces_idle_failed_owner_without_erasing_output(tmp_path, workers, result):
-    directory = session.prepare(tmp_path)
+    directory = session.prepare(tmp_path, host_only=True)
     old = directory / ('a' * 32)
     old.mkdir(mode=0o700)
     (old / 'output').write_text('failed evidence')

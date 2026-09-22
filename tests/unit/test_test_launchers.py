@@ -68,7 +68,10 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
         ROOT, 'tools/build_test_artifacts.py', '--output', output)
 
 
-@pytest.mark.parametrize('selector', ['check_e2e_toggle', 'check_e2e_toggle.py'])
+@pytest.mark.parametrize('selector', [
+    'check_e2e_toggle', 'check_e2e_toggle.py',
+    'check_e2e_parent_save', 'check_e2e_parent_save.py',
+])
 def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(monkeypatch, selector):
     import regression_process
 
@@ -230,8 +233,25 @@ def test_ui_globs_environment_timeout_and_exclusions(checkout):
     command = host.pytest_command(checkout, ['--timeout', '360s', 'tests/ui/test_*.py',
                                            '--ignore=tests/ui/test_future.py', '-q'], 'ui')
     assert command[:4] == ['/usr/bin/timeout', '--foreground', '360s', str(python)]
+    assert '-m=not live_e2e' in command
     assert '--ignore=tests/ui/test_future.py' in command
     assert command[-2:] == ['--', 'tests/ui/test_future.py']
+
+
+@pytest.mark.parametrize(('markers', 'expected'), [
+    ([], '-m=not live_e2e'),
+    (['-m', 'host_case'], '-m=(host_case) and not live_e2e'),
+    (['-m', 'not live_e2e'], '-m=not live_e2e'),
+    (['-m', 'live_e2e'], '-m=(live_e2e) and not live_e2e'),
+])
+def test_ui_launcher_always_excludes_vm_dependent_checks(checkout, markers, expected):
+    python = checkout / '.venv/onpc-ui-tests/bin/python'
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.symlink_to('/usr/bin/python3')
+
+    command = host.pytest_command(checkout, [*markers, 'tests/ui'], 'ui')
+
+    assert expected in command
 
 
 def test_untrusted_environment_is_removed(checkout, monkeypatch):

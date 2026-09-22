@@ -59,8 +59,8 @@ INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
 def suite_inventory(categories=(), *, inventory=None):
     """The exact, ordered granular partition consumed by all and fix-tests.
 
-    Arguments are explicit: focused UI selections never acquire an implicit
-    marker exclusion. Live spectator qualification needs its active E2E run.
+    Arguments are explicit. The shared UI launcher enforces its host-only
+    marker boundary for aggregate, focused and direct execution.
 
     Composite selections expand to implemented leaves in inventory order. An
     already discovered inventory may be supplied by reconnectable consumers;
@@ -161,7 +161,7 @@ Aggregate aliases (no suite selectors)
   Pending E2E variants remain excluded.
 
 UI-only validation (same UI buckets and resource limits as host)
-  tools/run-tests ui --timeout 1800s -m 'not live_e2e'
+  tools/run-tests ui --timeout 1800s
   tools/run-tests ui 'tests/ui/test_request*.py' -q
 
   Runs only selected UI tests and mandatory cleanup prerequisites; no builds.
@@ -170,7 +170,7 @@ UI-only validation (same UI buckets and resource limits as host)
   Default execution timeout is 1800s per bucket; explicit --timeout is preserved.
   -x/--exitfirst or positive --maxfail keeps one serial UI invocation.
   Category groups stay ordered; parallelism occurs within the UI category.
-  No implicit marker exclusions: select live_e2e only with its active attempt.
+  The UI category is host-only and always excludes VM-dependent live_e2e checks.
 
 Unit-only validation (same unit buckets and resource limits as host)
   tools/run-tests unit
@@ -279,9 +279,10 @@ def allocate_artifact_output(value):
 
 
 def qualification_artifact_command(root, category, args):
-    """Prepare UI17's fixed inputs in this run, including after retention expiry."""
+    """Prepare fixed Parent inputs in this run, including after retention expiry."""
     if category != 'integration' or args not in (
-            ['check_e2e_toggle'], ['check_e2e_toggle.py']):
+            ['check_e2e_toggle'], ['check_e2e_toggle.py'],
+            ['check_e2e_parent_save'], ['check_e2e_parent_save.py']):
         return None
     output = '/tmp/onpc-parent-setup-input'
     if os.path.lexists(output):
@@ -555,6 +556,24 @@ def host_only_selection(selected):
     return bool(selected) and all(kind in CATEGORIES and kind not in (
         'all', 'all-verify', 'system', 'e2e', 'integration', 'fast')
         for kind, _ in selected)
+
+
+def host_only_request(argv):
+    """Classify a request before validation so it reaches the right session.
+
+    Reconnection intentionally precedes full option validation. Only complete
+    phase combinations can contain more than one category; focused category
+    arguments must not be mistaken for category names (for example ``-m e2e``).
+    """
+    args = list(argv) or ['all']
+    if args[:1] == ['--stop-on-error']:
+        args = args[1:] or ['all']
+    category = args[0]
+    if category in PHASES:
+        phases = [argument for argument in args if argument in PHASES]
+        return bool(phases) and all(phase == 'host' for phase in phases)
+    return category in CATEGORIES and category not in (
+        'all', 'all-verify', 'system', 'e2e', 'integration', 'fast')
 
 
 def is_inspection(argv):

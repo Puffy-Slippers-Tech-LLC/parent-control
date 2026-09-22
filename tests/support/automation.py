@@ -29,13 +29,15 @@ class AutomationError(RuntimeError):
 
 class Automation:
     def __init__(self, api, root, *, query_errors=(), owner_pids=None, application_ids=None,
-                 application_owners=None, complete_read_wait=None):
+                 application_owners=None, application_owner_history=None,
+                 complete_read_wait=None):
         self.api = api
         self.root = root
         self.query_errors = query_errors
         self.owner_pids = owner_pids
         self.application_ids = application_ids
         self.application_owners = application_owners
+        self.application_owner_history = application_owner_history
         self.complete_read_wait = complete_read_wait
         self.input_uncertain = False
 
@@ -87,7 +89,8 @@ class Automation:
         """Return every fresh match so callers can assert surface cardinality."""
         reader = AccessibleUI(self.api, query_errors=self.query_errors,
                               owner_pids=self.owner_pids, application_ids=self.application_ids,
-                              application_owners=self.application_owners)
+                              application_owners=self.application_owners,
+                              application_owner_history=self.application_owner_history)
         reader.nodes = self.nodes
 
         def read():
@@ -119,7 +122,8 @@ class Automation:
         """Complete fresh exclusion anchored by a positive public surface ID."""
         reader = AccessibleUI(self.api, query_errors=self.query_errors,
                               owner_pids=self.owner_pids, application_ids=self.application_ids,
-                              application_owners=self.application_owners)
+                              application_owners=self.application_owners,
+                              application_owner_history=self.application_owner_history)
         reader.nodes = self.nodes
         try:
             return reader.absent_id(identity, within=within)

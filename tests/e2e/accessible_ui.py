@@ -506,7 +506,8 @@ class AccessibleUI:
 
     def __init__(self, api, *, timeout=45, query_errors=(), dispatch=None,
                  reset_observer=None, provider_contracts=None, fixture_uids=None,
-                 application_ids=None, owner_pids=None, application_owners=None):
+                 application_ids=None, owner_pids=None, application_owners=None,
+                 application_owner_history=None):
         self.api = api
         self.timeout = timeout
         self.query_errors = query_errors
@@ -524,6 +525,7 @@ class AccessibleUI:
         self.application_ids = application_ids
         self.owner_pids = owner_pids
         self.application_owners = application_owners
+        self.application_owner_history = application_owner_history
         self.input_uncertain = False
         self.incomplete_observations = []
         self.gdm_row_diagnostic_emitted = False
@@ -634,7 +636,8 @@ class AccessibleUI:
         return matches[0]
 
     def snapshot_owned_target(self, identity, *, root=None, showing=True,
-                              check_prompt=False, observation=None):
+                              check_prompt=False, observation=None,
+                              allow_unmapped_surface=False):
         """Resolve one repository-owned ID from one complete public snapshot."""
         require(type(identity) is str and identity, 'ui:automation-id')
         applications = owned_applications(identity)
@@ -699,7 +702,8 @@ class AccessibleUI:
                 identity, scope, showing=False, show=self.showing, identities=identities)
             if surface is not None:
                 self.validate_owned_surface(
-                    surface, application, nodes=nodes, snapshot=snapshot, identities=identities)
+                    surface, application, nodes=nodes, snapshot=snapshot,
+                    identities=identities, allow_unmapped=allow_unmapped_surface)
 
         if root is not None:
             root_id = identities.get(root, '')
@@ -774,7 +778,7 @@ class AccessibleUI:
         return found
 
     def validate_owned_surface(self, surface, application, *, visited=(), nodes=None,
-                               snapshot=None, identities=None):
+                               snapshot=None, identities=None, allow_unmapped=False):
         """Bind a dialog to its actual originating surface in the same app."""
         identify = public_automation_id if identities is None else identities.__getitem__
         identity = identify(surface)
@@ -815,6 +819,13 @@ class AccessibleUI:
             if relation.get_relation_type() == self.api.RelationType.CONTROLLED_BY:
                 parents.extend(relation.get_target(index)
                                for index in range(relation.get_n_targets()))
+        # Repository surfaces deliberately remove CONTROLLED_BY when they
+        # unmap. A complete negative observation may still see the hidden GTK
+        # accessible briefly, so its application scope proves ownership while
+        # its missing relation proves that it is no longer mapped. Showing
+        # surfaces and any relation that remains retain the full owner checks.
+        if allow_unmapped and not parents and not self.showing(surface):
+            return
         require(len(parents) == 1 and parents[0] in app_nodes, 'ui:missing-surface-owner')
         parent = parents[0]
         require(identities is None or parent in identities, 'ui:wrong-surface-owner')
@@ -849,12 +860,26 @@ class AccessibleUI:
             require(len(matches) <= 1, 'ui:ambiguous-automation-id')
             if matches:
                 target = (self.snapshot_owned_target(
-                    identity, showing=False, observation=observation)
+                    identity, showing=False, observation=observation,
+                    allow_unmapped_surface=True)
                     if owned_applications(identity) or identity.startswith('child-') else
                     self.snapshot_matches(
                         identity, nodes, showing=False, show=self.showing,
                         identities=identities))
                 if target != matches[0]:
+                    # A launched process can exit before AT-SPI removes its
+                    # last cached node. That node cannot prove absence and is
+                    # no longer eligible for input, but it is not a foreign
+                    # owner. Retry until a fresh complete tree drops it.
+                    history = (self.application_owner_history()
+                               if self.application_owner_history is not None else {})
+                    expected = owned_applications(identity)
+                    known_pids = {
+                        pid for application in expected
+                        for pid in history.get(application, ())
+                    }
+                    if expected and matches[0].get_process_id() in known_pids:
+                        return False
                     raise UiError('ui:wrong-absence-owner')
                 if self.showing(target):
                     return False

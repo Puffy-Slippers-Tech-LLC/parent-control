@@ -481,6 +481,54 @@ def test_absence_rejects_a_stable_dialog_outside_its_owned_application():
         reader.absent_id("feedback-success-dialog", within="kiosk-request-window")
 
 
+def test_absence_retries_a_cached_node_from_an_exited_exact_owner():
+    surrounding = Node("kiosk-request-window")
+    kiosk = Node("com.puffyslippers.OhNoParentControl", [surrounding])
+    stale = Node("parent-access-denied-window")
+    stale.get_process_id = Mock(return_value=200)
+    automation = adapter(Node("", [kiosk, stale]))
+    reader = AccessibleUI(
+        automation.api,
+        application_ids=lambda: {"com.puffyslippers.OhNoParentControl"},
+        application_owners=lambda: {
+            "com.puffyslippers.OhNoParentControl": {100},
+        },
+        application_owner_history=lambda: {
+            "com.puffyslippers.OhNoParentControl.Parent": {200},
+            "com.puffyslippers.OhNoParentControl": {100},
+        },
+    )
+    reader.nodes = automation.nodes
+
+    assert not reader.absent_id(
+        "parent-access-denied-window", within="kiosk-request-window",
+    )
+    automation.root().children.remove(stale)
+    assert reader.absent_id(
+        "parent-access-denied-window", within="kiosk-request-window",
+    )
+
+
+def test_absence_accepts_an_unmapped_dialog_after_its_owner_relation_is_removed():
+    parent = Node("parent-window")
+    feedback = Node("feedback-dialog")
+    privacy = Node("feedback-privacy-dialog", states=("sensitive",))
+    application = Node(
+        "com.puffyslippers.OhNoParentControl.Parent",
+        [parent, feedback, privacy],
+    )
+    feedback.relations = [SimpleNamespace(
+        get_relation_type=lambda: "controlled-by", get_n_targets=lambda: 1,
+        get_target=lambda _index: parent,
+    )]
+    ui = adapter(application)
+
+    assert ui.absent("feedback-privacy-dialog", within="feedback-dialog")
+    privacy.states.update(("showing", "visible"))
+    with pytest.raises(AutomationError, match="missing-surface-owner"):
+        ui.absent("feedback-privacy-dialog", within="feedback-dialog")
+
+
 def test_live_launches_cannot_exchange_their_application_identity():
     ui = adapter(Node("parent-window", [Node("parent-menu-button")]))
     ui.owner_pids = lambda: {100, 200}

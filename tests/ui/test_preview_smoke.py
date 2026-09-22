@@ -258,8 +258,11 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
                       events_path=path)
     wait_parent_ready(ui, wait_for_accessible_state)
     ui.activate("parent-page-app-limits")
-    wait_for_accessible_state(lambda: ui.state("parent-app-search", ui.api.StateType.SENSITIVE),
-                              "app catalogue loads")
+    wait_for_accessible_state(
+        lambda: (search := ui.find("parent-app-search")) is not None
+        and search.get_state_set().contains(ui.api.StateType.SENSITIVE),
+        "app catalogue loads",
+    )
     ui.focus("parent-app-search")
     type_text(ui, "parent-app-search", "thunderbird")
     key = hashlib.sha256(b"thunderbird_thunderbird.desktop").hexdigest()[:16]

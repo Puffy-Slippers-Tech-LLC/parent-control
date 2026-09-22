@@ -66,7 +66,13 @@ def test_request_error_review_restrictions_and_submission(
     dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog",
                             within="feedback-dialog")
     ui.activate("feedback-toggle-logs")
+    wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "No logs attached",
+                              "diagnostic logs are removed")
     ui.activate("feedback-toggle-logs")
+    wait_for_accessible_state(
+        lambda: ui.text("feedback-logs-row") == "diagnostic-logs.zip",
+        "diagnostic logs are restored",
+    )
     assert (ui.showing("feedback-download-logs") if overlay
             else ui.absent("feedback-download-logs", within="feedback-dialog"))
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
@@ -142,7 +148,8 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
     assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
     assert ui.state("feedback-retry-logs", ui.api.StateType.SENSITIVE)
     ui.activate("feedback-toggle-logs")
-    assert ui.text("feedback-logs-row") == "No logs attached"
+    wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "No logs attached",
+                              "failed diagnostics are removed")
     assert ui.content(editor) == draft
     assert not events(path, "feedback")
     ui.activate("feedback-send")

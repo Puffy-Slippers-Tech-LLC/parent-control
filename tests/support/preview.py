@@ -86,6 +86,14 @@ def preview_applications(session, directory):
                             if application_ids[process] == identity and process.poll() is None)
         for identity in launch.application_ids()
     }
+    # Negative accessibility observations can briefly outlive their exact
+    # process after it exits. Retain only the PIDs this scope itself spawned so
+    # the reader can retry those stale nodes without trusting them for input.
+    launch.application_owner_history = lambda: {
+        identity: frozenset(process.pid for process, _log in processes
+                            if application_ids[process] == identity)
+        for identity in frozenset(application_ids.values()) if identity is not None
+    }
 
     try:
         yield launch

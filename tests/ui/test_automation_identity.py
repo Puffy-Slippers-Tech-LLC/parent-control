@@ -33,9 +33,17 @@ def test_station_selected_uids_drive_the_public_guest_projection(
     ui = automation
     wait_for_accessible_state(lambda: ui.showing("kiosk-approver-selector"), "request ready")
     ui.activate("kiosk-approver-selector")
+    wait_for_accessible_state(
+        lambda: ui.find("kiosk-approver-choice-1010") is not None,
+        "approver choice is published",
+    )
     ui.activate("kiosk-approver-choice-1010")
     wait_for_accessible_state(lambda: ui.showing("kiosk-approver-selected-1010"), "selected approver UID")
     ui.activate("kiosk-child-selector")
+    wait_for_accessible_state(
+        lambda: ui.find("kiosk-child-choice-1002") is not None,
+        "child choice is published",
+    )
     ui.activate("kiosk-child-choice-1002")
     wait_for_accessible_state(lambda: ui.showing("kiosk-child-selected-1002"), "selected child UID")
     wait_for_accessible_state(lambda: ui.showing("kiosk-screen-limit-notice"), "disabled child loaded")

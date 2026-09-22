@@ -212,6 +212,21 @@ def test_capture_reconnect_clears_pixels_and_resumes_same_branch(capture):
     assert resumed[2] == b'\x01' * 16
 
 
+def test_capture_monitor_change_recovers_without_a_pipeline_error(capture):
+    collector, _clock = capture
+    connection = collector.connection = Mock()
+
+    collector.monitors_changed(Mock())
+    collector.close.assert_not_called()
+    collector.monitors_changed(connection)
+
+    collector.close.assert_called_once()
+    frame = read_frame(collector.publication.frames.memory)
+    assert collector.stage == 'retry'
+    assert frame[1]['state'] == 'waiting' and frame[2] == b''
+    assert frame[1]['detail'] == 'Reconnecting capture'
+
+
 def test_capture_repeated_failure_stops_after_three_retries(capture):
     collector, clock = capture
     collector.begin.side_effect = RuntimeError('stream unavailable')

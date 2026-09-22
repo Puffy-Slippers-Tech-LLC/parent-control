@@ -67,7 +67,8 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [x] | 017 | Observe Parent save results | 010 | PARENT08 snapshot saved/control states; installed qualification and owned cleanup passed | 25–45 |
 | [x] | 003aa | Select an ordinary GDM account and return | 011 | GDM01/02 ordinary account-list navigation and Escape return | 20–30 |
 | [x] | 003a | Prove the intended GDM password recipient | 011, 003aa | GDM01/02 prepared ordinary prompt entry; GDM03/04/08/09 Parent/other-parent recipient, refusal and Escape-return proofs; installed qualification and owned cleanup passed | 20–30 |
-| [ ] | 001r | [Requalify retained case 1](E2E-Tasks/001r-case-1-regression.md) | 003a | Retained regression 1; complete graphical/serial recipe and capture/return reconciliation | 20–30 |
+| [ ] | 003ab | [Qualify product-free GDM navigation](E2E-Tasks/003ab-product-free-gdm.md) | 003a | GDM01/02/08/09 product-free Parent list, prompt and return binding | 20–30 |
+| [ ] | 001r | [Requalify retained case 1](E2E-Tasks/001r-case-1-regression.md) | 003a, 003ab | Retained regression 1; complete graphical/serial recipe and capture/return reconciliation. Blocker: installed adapter requires the absent station account on the product-free baseline; resume when: 003ab qualifies the product-free binding | 20–30 |
 | [ ] | 003ba | [Qualify fresh login without a keyring prompt](E2E-Tasks/003ba-fresh-desktop.md) | 003a | GDM05 fresh Parent/standard entry and DESK01 no-prompt desktop | 20–30 |
 | [ ] | 003b | [Cancel a real keyring prompt after login](E2E-Tasks/003b-desktop-keyring.md) | 003a, 003ba | GDM05 successful fresh fixture entry; DESK01; real gcr prompt Cancel and independent desktop readback | 20–30 |
 | [ ] | 003ca | [Open and dismiss Shell session controls](E2E-Tasks/003ca-shell-session-menu.md) | 003b | DESK02 Shell Quick Settings and session-menu entry/readback | 20–30 |

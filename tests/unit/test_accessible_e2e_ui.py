@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
+import accessible_ui
 from accessible_ui import (KIOSK_SESSION_OPERATIONS, PARENT_APPLICATION, UiError,
                            greeter_account, session_environment)
 from private_artifacts import EvidenceError
@@ -67,6 +68,32 @@ def parent_toggle_ui(*, states=('showing', 'visible', 'sensitive')):
                   identity='parent-screen-limit-toggle')
     root = Node('Oh No! Parent Control', identity='parent-window', children=[toggle])
     return ui_for(root), root, toggle
+
+
+def parent_save_ui(*, enabled=True, controls_enabled=True, child_uid=1001):
+    control_states = ['showing', 'visible']
+    if controls_enabled:
+        control_states.append('sensitive')
+    toggle_states = [*control_states, *(['checked'] if enabled else [])]
+    allowance_states = [
+        'showing', 'visible',
+        *(['sensitive'] if enabled and controls_enabled else []),
+    ]
+    selected = Node(
+        'Riley (Child)', 'label', identity=f'parent-child-selected-{child_uid}')
+    picker = Node(
+        'Selected child', 'button', states=control_states,
+        identity='parent-child-selector', children=[selected])
+    toggle = Node(
+        'Screen time limit', 'switch', states=toggle_states,
+        identity='parent-screen-limit-toggle')
+    allowance = Node(
+        '30 minutes', 'button', states=allowance_states,
+        identity='parent-daily-limit-selector')
+    root = Node(
+        'Oh No! Parent Control', identity='parent-window',
+        children=[picker, toggle, allowance])
+    return ui_for(root), root, picker, toggle, allowance
 
 
 def test_owned_lookup_reads_each_subtree_once_and_reacquires_after_transition():
@@ -157,6 +184,43 @@ def test_explicit_toggle_never_replays_an_uncertain_or_unobserved_action():
     toggle.action.do_action.assert_called_once_with(0)
 
 
+@pytest.mark.parametrize('enabled', [True, False])
+def test_parent_save_snapshot_requires_terminal_control_states(enabled):
+    ui, _root, _picker, _toggle, _allowance = parent_save_ui(enabled=enabled)
+    assert ui.parent_save_snapshot(accessible_ui.CHILD, enabled) == {
+        'child': 'fixture-child', 'result': 'saved', 'limit_enabled': enabled,
+        'child_selector_enabled': True, 'toggle_enabled': True,
+        'allowance_enabled': enabled,
+    }
+
+
+def test_parent_save_snapshot_refuses_the_wrong_child_without_input():
+    ui, _root, _picker, toggle, _allowance = parent_save_ui()
+    with pytest.raises(UiError, match='ui:wrong-child'):
+        ui.parent_save_snapshot(accessible_ui.EXISTING_CHILD, True)
+    assert ui.parent_save_operation('parent-save-wrong-child-refused') == {
+        'refusal': 'wrong-child'}
+    toggle.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['saving', 'duplicate', 'stale'])
+def test_parent_save_snapshot_refuses_incomplete_or_unsettled_results(fault):
+    ui, root, picker, toggle, _allowance = parent_save_ui(
+        controls_enabled=fault != 'saving')
+    if fault == 'duplicate':
+        duplicate = Node(
+            'Screen time limit', 'switch',
+            states=('showing', 'visible', 'sensitive', 'checked'),
+            identity='parent-screen-limit-toggle')
+        duplicate.parent = root
+        root.children.append(duplicate)
+    elif fault == 'stale':
+        picker.states.add('defunct')
+    with pytest.raises(UiError):
+        ui.parent_save_snapshot(accessible_ui.CHILD, True)
+    toggle.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('operation', [
     'parent-toggle-enabled', 'parent-toggle-disabled', 'parent-toggle-current',
     'parent-toggle-wrong-refused', 'parent-toggle-hidden-refused',
@@ -171,6 +235,20 @@ def test_toggle_observation_accepts_only_its_fixed_sanitized_result(operation):
     result['toggle'] = {'state': True, 'activated': False}
     session.transport.call.return_value = (json.dumps(result) + '\n').encode()
     with pytest.raises(EvidenceError, match='ui:toggle-response'):
+        session.observe(operation)
+
+
+@pytest.mark.parametrize('operation', accessible_ui.PARENT_SAVE_OPERATIONS)
+def test_parent_save_observation_accepts_only_its_fixed_sanitized_result(operation):
+    expected = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'save': expected}
+    session = UiObservations(SimpleNamespace(call=Mock(
+        return_value=(json.dumps(result) + '\n').encode())))
+    assert session.observe(operation)['save'] == expected
+    result['save'] = {'result': 'saved'}
+    session.transport.call.return_value = (json.dumps(result) + '\n').encode()
+    with pytest.raises(EvidenceError, match='ui:parent-save-response'):
         session.observe(operation)
 
 

@@ -12,6 +12,7 @@ artifacts/test-activity/
 artifacts/test-retention/
 artifacts/test-retention-host/
 artifacts/test-sessions/
+artifacts/test-sessions-host/
 artifacts/fix-tests/
 artifacts/coverage/
 .venv/

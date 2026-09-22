@@ -18,6 +18,45 @@ from ui_watch_transport import Feeds, Publication, label, registry
 from ui_watch_capture import Capture
 
 
+@pytest.mark.parametrize('fails', [False, True])
+def test_viewer_logs_native_output_and_restores_terminal(tmp_path, monkeypatch, capfd, fails):
+    import ui_watch_viewer as viewer
+
+    allocate = tempfile.mkdtemp
+    monkeypatch.setattr(viewer.tempfile, 'mkdtemp',
+                        lambda **kwargs: allocate(prefix=kwargs['prefix'], dir=tmp_path))
+
+    def run(arguments):
+        assert arguments == ['watch-ui']
+        print('Python viewer output')
+        os.write(1, b'native stdout\n')
+        os.write(2, b'Gtk-WARNING: viewer measurement\n')
+        if fails:
+            raise RuntimeError('viewer failed')
+        return 7
+
+    monkeypatch.setattr(viewer, 'application', lambda: SimpleNamespace(run=run))
+    if fails:
+        with pytest.raises(RuntimeError, match='viewer failed'):
+            viewer.run_viewer()
+    else:
+        assert viewer.run_viewer() == 7
+    os.write(1, b'terminal stdout restored\n')
+    os.write(2, b'terminal stderr restored\n')
+    terminal = capfd.readouterr()
+    directories = list(tmp_path.iterdir())
+    assert len(directories) == 1
+    directory = directories[0]
+    assert directory.stat().st_mode & 0o777 == 0o700
+    assert terminal.out == (f'UI viewer diagnostics: {directory / "viewer.log"}\n'
+                            'terminal stdout restored\n')
+    assert terminal.err == 'terminal stderr restored\n'
+    logged = (directory / 'viewer.log').read_text()
+    assert 'Python viewer output\n' in logged
+    assert 'native stdout\n' in logged
+    assert 'Gtk-WARNING: viewer measurement\n' in logged
+
+
 def ready(feeds):
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:

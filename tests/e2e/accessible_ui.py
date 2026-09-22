@@ -109,6 +109,25 @@ TOGGLE_OPERATIONS = {
     'parent-toggle-hidden-refused': {'refusal': 'hidden-control', 'state': False},
 }
 OPERATIONS |= frozenset(TOGGLE_OPERATIONS)
+PARENT_SAVE_OPERATIONS = {
+    'parent-save-wrong-child-refused': {'refusal': 'wrong-child'},
+    'parent-save-enabled': {
+        'child': 'fixture-child', 'result': 'saved', 'limit_enabled': True,
+        'child_selector_enabled': True, 'toggle_enabled': True,
+        'allowance_enabled': True,
+    },
+    'parent-save-reopened': {
+        'child': 'fixture-child', 'result': 'saved', 'limit_enabled': True,
+        'child_selector_enabled': True, 'toggle_enabled': True,
+        'allowance_enabled': True,
+    },
+    'parent-save-disabled': {
+        'child': 'fixture-child', 'result': 'saved', 'limit_enabled': False,
+        'child_selector_enabled': True, 'toggle_enabled': True,
+        'allowance_enabled': False,
+    },
+}
+OPERATIONS |= frozenset(PARENT_SAVE_OPERATIONS)
 PARENT = 'Jamie (Parent)'
 OTHER_PARENT = 'Casey (Parent)'
 KIOSK = 'Oh No! Parent Control'
@@ -1321,6 +1340,71 @@ class AccessibleUI:
             return {'refusal': 'hidden-control', 'state': False}
         desired = operation == 'parent-toggle-enabled'
         return self.set_toggle('parent-screen-limit-toggle', desired, root=root)
+
+    def parent_save_snapshot(self, child, expected_enabled):
+        """PARENT08: wait for one terminal saved/control-state snapshot."""
+        require(child in CHILD_IDENTITIES and type(expected_enabled) is bool,
+                'ui:parent-save-binding')
+        uid = (self.fixture_uids.get(child) if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        require(type(uid) is int and uid >= 1000, 'ui:fixture-child-uid')
+        expected_selected = 'parent-child-selected-' + str(uid)
+
+        def saved():
+            snapshot, identities, facts = {}, {}, {}
+            nodes = list(self.nodes(
+                strict=True, snapshot=snapshot, identities=identities, facts=facts))
+            observation = (nodes, snapshot, identities, facts)
+            root = self.snapshot_owned_target(
+                'parent-window', check_prompt=True, observation=observation)
+            if root is None:
+                return False
+            root_nodes = self.snapshot_scope(nodes, snapshot, root)
+            picker = self.snapshot_matches(
+                'parent-child-selector', root_nodes, showing=True, show=self.showing)
+            toggle = self.snapshot_matches(
+                'parent-screen-limit-toggle', root_nodes, showing=True, show=self.showing)
+            allowance = self.snapshot_matches(
+                'parent-daily-limit-selector', root_nodes, showing=True, show=self.showing)
+            if picker is None or toggle is None or allowance is None:
+                return False
+            picker_nodes = self.snapshot_scope(nodes, snapshot, picker)
+            selected = [node for node in picker_nodes
+                        if re.fullmatch(r'parent-child-selected-[0-9]+', identities[node])
+                        and self.showing(node)]
+            require(len(selected) == 1, 'ui:selected-child')
+            require(identities[selected[0]] == expected_selected
+                    and selected[0].get_name() == child, 'ui:wrong-child')
+            value = {
+                'child': CHILD_IDENTITIES[child], 'result': 'saved',
+                'limit_enabled': self.has_state(toggle, self.api.StateType.CHECKED),
+                'child_selector_enabled': self.has_state(
+                    picker, self.api.StateType.SENSITIVE),
+                'toggle_enabled': self.has_state(toggle, self.api.StateType.SENSITIVE),
+                'allowance_enabled': self.has_state(
+                    allowance, self.api.StateType.SENSITIVE),
+            }
+            expected = {
+                'child': CHILD_IDENTITIES[child], 'result': 'saved',
+                'limit_enabled': expected_enabled, 'child_selector_enabled': True,
+                'toggle_enabled': True, 'allowance_enabled': expected_enabled,
+            }
+            return value if value == expected else False
+
+        return self.wait(saved, 'parent-save', prompt_in_predicate=True)
+
+    def parent_save_operation(self, operation):
+        """Installed PARENT08 saved snapshot and wrong-child refusal."""
+        require(operation in PARENT_SAVE_OPERATIONS, 'ui:parent-save-operation')
+        if operation == 'parent-save-wrong-child-refused':
+            try:
+                self.parent_save_snapshot(EXISTING_CHILD, True)
+            except UiError as error:
+                require(str(error) == 'ui:wrong-child', 'ui:parent-save-wrong-refusal')
+                return {'refusal': 'wrong-child'}
+            raise UiError('ui:parent-save-wrong-accepted')
+        return self.parent_save_snapshot(
+            CHILD, operation != 'parent-save-disabled')
 
     def read_label(self, root, projection, *, maximum, expected=None):
         """UI03: bounded registered nonsecret projections; no arbitrary text."""
@@ -2935,6 +3019,8 @@ class AccessibleUI:
             self.parent_empty()
         elif operation in TOGGLE_OPERATIONS:
             result['toggle'] = self.parent_toggle_operation(operation)
+        elif operation in PARENT_SAVE_OPERATIONS:
+            result['save'] = self.parent_save_operation(operation)
         elif operation in PICKER_OPERATIONS:
             result['focused'] = self.open_child_picker(PICKER_OPERATIONS[operation])
         elif operation in HIGHLIGHT_OPERATIONS:

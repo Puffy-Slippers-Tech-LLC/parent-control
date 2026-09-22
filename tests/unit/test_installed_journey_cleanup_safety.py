@@ -131,6 +131,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             }
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
+        if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
+            result['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
         return result
     monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(observe=observe_ui)))
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')

@@ -229,8 +229,8 @@ def test_ui_invalid_collection_refuses_before_cleanup(ui_run, nodes):
     assert len(control.calls) == 1 and not control.gate
 
 
-def test_ui_defaults_timeout_but_never_adds_marker_exclusions(ui_run):
+def test_ui_defaults_timeout_and_preserves_host_only_boundary(ui_run):
     run, _ = ui_run
-    args, options = selected_options(run.root, ['-m', 'live_e2e', '--maxfail=0'])
+    args, options = selected_options(run.root, ['-m', 'chosen', '--maxfail=0'])
     assert args[:2] == options[:2] == ['--timeout', '1800s']
-    assert '-m=live_e2e' in options and not any('not live_e2e' in arg for arg in options)
+    assert '-m=(chosen) and not live_e2e' in options

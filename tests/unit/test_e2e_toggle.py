@@ -12,8 +12,10 @@ from tests.support.perl import run_perl
 
 def test_toggle_qualification_uses_the_fixed_installed_snapshot_and_selector(tmp_path):
     import check_e2e_toggle as check
+    import check_e2e_parent_save as save_check
 
     assert check.ASSETS == Path('/tmp/onpc-parent-setup-input')
+    assert save_check.ASSETS == check.ASSETS
     context = SimpleNamespace(directory=tmp_path)
     journey = ParentToggleQualification.journey(context, lambda *_: None)
     assert context.installed_snapshot == 'onpc-v1.1'
@@ -97,14 +99,24 @@ def test_toggle_worker_selects_the_child_before_toggling_and_consumes_every_resu
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
     assert stages == [
         'parent-window', 'child-picker-opened', 'child-choice-highlighted',
-        'parent-selected', 'wrong-control-refused', 'limit-enabled',
-        'limit-disabled', 'limit-current', 'hidden-control-refused', 'disabled-settings',
+        'parent-selected', 'wrong-control-refused', 'wrong-child-refused',
+        'limit-enabled', 'save-enabled', 'save-reopened', 'limit-disabled',
+        'save-disabled', 'limit-current', 'hidden-control-refused', 'disabled-settings',
     ]
     inputs = [event for event in result['events'] if event[0] in ('key', 'text', 'secret')]
     assert inputs == [['key', 'ret']]
     commit = result['events'].index(['key', 'ret'])
     assert result['events'][commit - 1] == ['stage', 'child-choice-highlighted']
     assert result['events'][commit + 1] == ['record', 'parent-toggle-parent-selected']
+
+
+def test_parent_save_is_the_fixed_argument_free_integration_selector():
+    from tests.support.paths import ROOT
+
+    source = (ROOT / 'tests/integration/check_e2e_parent_save.py').read_text()
+    assert "ASSETS = Path('/tmp/onpc-parent-setup-input')" in source
+    assert 'parent_toggle=True' in source
+    assert 'sys.argv' not in source
 
 
 def test_toggle_worker_refuses_input_without_independent_choice_focus(monkeypatch):

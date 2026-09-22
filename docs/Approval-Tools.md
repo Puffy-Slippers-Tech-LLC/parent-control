@@ -323,11 +323,14 @@ unread result.
 Internal workers inherit the verified checkout activity lock and execute their
 assigned work without reattaching to their own session. Older runs without
 session metadata still refuse competing launches through that lock.
-Host-only selections use a separate activity lock and retention journal, so
+Host-only selections use a separate activity lock, reconnect namespace and
+retention journal, so
 `tools/prepare-appsnapshot` can run alongside `tools/run-tests ui` or other
 host-only tests. Selections containing system, E2E or integration work retain
-the VM-side checkout lock; the privileged cross-controller VM lease remains
-authoritative. Existing processes keep their original locks until they exit.
+the VM-side checkout lock and reconnect namespace; the privileged
+cross-controller VM lease remains authoritative. A host run and a VM run can
+therefore proceed and be reattached independently. Existing processes keep
+their original locks until they exit.
 
 When starting a new run, system and E2E listings run as the ordinary user without safety tests, privilege
 or VM mutation. `fast --list` forwards `LIST=1` once its target exists. `all`

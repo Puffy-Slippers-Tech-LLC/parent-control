@@ -9,9 +9,8 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 
-# Host collection and execution must select the same runnable inventory.
-# Live spectator acceptance needs an independently active VM attempt and is
-# selected explicitly, outside the aggregate's pre-VM host phase.
+# UI is host-only. The shared launcher always excludes VM-dependent live_e2e
+# checks; aggregate arguments make the same boundary explicit in its inventory.
 TIMEOUT_ARGS = ('--timeout', '1800s')
 HOST_ARGS = (*TIMEOUT_ARGS, '-m', 'not live_e2e')
 
@@ -19,8 +18,8 @@ HOST_ARGS = (*TIMEOUT_ARGS, '-m', 'not live_e2e')
 def selected_options(root, args):
     """Keep validated pytest options; collected IDs supply the worker targets.
 
-    UI-only execution gets the host bucket timeout by default. Do not inherit
-    host's marker filter: explicit selections must retain their exact scope.
+    UI-only execution gets the host bucket timeout by default. The shared
+    launcher combines caller marker filters with the host-only boundary.
     """
     from test_launcher import pytest_command
     args = list(args) if args[:1] == ['--timeout'] else [*TIMEOUT_ARGS, *args]

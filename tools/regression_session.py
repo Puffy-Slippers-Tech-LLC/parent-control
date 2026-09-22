@@ -55,8 +55,9 @@ def busy(fd):
     return False
 
 
-def prepare(root):
-    directory = root / 'artifacts/test-sessions'
+def prepare(root, *, host_only=False):
+    directory = root / ('artifacts/test-sessions-host' if host_only
+                        else 'artifacts/test-sessions')
     for parent in (directory, *directory.parents):
         if parent.is_symlink():
             raise ValueError('aggregate session path contains a symlink')
@@ -68,11 +69,13 @@ def prepare(root):
 
 
 def select(root, argv):
-    from test_commands import host_only_selection, is_inspection, validate
+    from test_commands import host_only_request, is_inspection, validate
     # Inspection never attaches, waits for locks, or consumes an unread result.
     if is_inspection(argv):
         return None, False
-    directory = prepare(root)
+    requested = list(argv) or ['all']
+    host_only = host_only_request(requested)
+    directory = prepare(root, host_only=host_only)
     with lock(directory / 'gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         current = directory / 'current.json'
@@ -97,11 +100,10 @@ def select(root, argv):
         # Reconnection wins over new execution arguments, including invalid
         # selections. Validate only when starting a new run, under the same gate.
         # Idle invocations with no arguments start the complete aggregate.
-        requested = list(argv) or ['all']
-        selected = validate(root, requested)
+        validate(root, requested)
         # Keep host-only ownership independent of standalone VM preparation.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
-        with test_activity.activity(root, host_only=host_only_selection(selected)):
+        with test_activity.activity(root, host_only=host_only):
             run = directory / uuid.uuid4().hex
             run.mkdir(mode=0o700)
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:

@@ -49,6 +49,10 @@ OPERATION_LABELS = {
     'parent-toggle-wrong-refused': 'Refusing an unregistered Parent toggle binding',
     'parent-toggle-hidden-refused': 'Refusing the hidden Parent screen time limit',
     'parent-toggle-disabled-settings': 'Reading settings while screen time is disabled',
+    'parent-save-wrong-child-refused': 'Refusing a Parent save result for the wrong child',
+    'parent-save-enabled': 'Reading the saved enabled Parent controls',
+    'parent-save-reopened': 'Reading the saved state from a fresh Parent observation',
+    'parent-save-disabled': 'Reading the saved disabled Parent controls',
     'discovery-ready': 'Checking existing-child settings and remaining time',
     'new-child-picker-opened': 'Expanding the child selector for [New child]',
     'new-child-choice-highlighted': 'Checking [New child] is highlighted',
@@ -342,6 +346,11 @@ class UiObservations:
                     and result['toggle'] == accessible_ui.TOGGLE_OPERATIONS[operation],
                     'ui:toggle-response')
             expected['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
+        if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'save'}
+                    and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],
+                    'ui:parent-save-response')
+            expected['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
         if operation in accessible_ui.KIOSK_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'])

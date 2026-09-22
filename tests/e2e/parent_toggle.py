@@ -11,8 +11,12 @@ PLAN = JourneyPlan(
         'child-choice-highlighted': 'ui:child-choice-highlighted',
         'parent-selected': 'ui:parent-selected',
         'wrong-control-refused': 'ui:parent-toggle-wrong-refused',
+        'wrong-child-refused': 'ui:parent-save-wrong-child-refused',
         'limit-enabled': 'ui:parent-toggle-enabled',
+        'save-enabled': 'ui:parent-save-enabled',
+        'save-reopened': 'ui:parent-save-reopened',
         'limit-disabled': 'ui:parent-toggle-disabled',
+        'save-disabled': 'ui:parent-save-disabled',
         'limit-current': 'ui:parent-toggle-current',
         'hidden-control-refused': 'ui:parent-toggle-hidden-refused',
         'disabled-settings': 'ui:parent-toggle-disabled-settings',
@@ -22,10 +26,12 @@ PLAN = JourneyPlan(
         'parent-window': 'start', 'child-picker-opened': 'step-1',
         'child-choice-highlighted': 'step-1', 'parent-selected': 'step-1',
         'wrong-control-refused': 'step-1', 'limit-enabled': 'step-1',
-        'limit-disabled': 'step-2', 'limit-current': 'step-2',
+        'wrong-child-refused': 'step-1', 'save-enabled': 'step-1',
+        'save-reopened': 'step-1', 'limit-disabled': 'step-2',
+        'save-disabled': 'step-2', 'limit-current': 'step-2',
         'hidden-control-refused': 'step-2', 'disabled-settings': 'step-2',
     },
-    advance_after={'limit-enabled': 'step-2'},
+    advance_after={'save-reopened': 'step-2'},
 )
 
 

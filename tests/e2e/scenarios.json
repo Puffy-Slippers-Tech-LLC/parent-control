@@ -619,9 +619,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then repeatedly open the panel form to verify one form with this child fixed."},
+          {"id": "step-1", "operation": "ui", "description": "Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then explicitly test graphical panel launch: select the child's panel request entry repeatedly and verify one overlay form with this child fixed."},
           {"id": "step-2", "operation": "ui", "description": "Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice."},
-          {"id": "step-3", "operation": "ui", "description": "Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, request again, verify a new parent prompt is required and cancel."}
+          {"id": "step-3", "operation": "ui", "description": "Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -633,7 +633,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "The selected parent approves the displayed request. Excluded soft apps close; included soft activity remains. Hard launches stay denied and later requests still require authentication."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Repeated use of the child panel request entry opens one fixed-child overlay. The selected parent approves the displayed request. Excluded soft apps close; included soft activity remains. Hard launches stay denied and later requests still require authentication."}
         ],
         "backend": [],
         "other_user": []
@@ -648,7 +648,7 @@
         "full_combinations": [
           ["soft-apps", "approver"]
         ],
-        "rationale": "Fully combine two approvers with both soft-app choices. Visible success does not assert backend atomicity."
+        "rationale": "Fully combine two approvers with both soft-app choices. These cases explicitly test repeated graphical panel launch and singleton overlay behavior in step 1; their later ordinary reopen uses the direct child app command. Visible success does not assert backend atomicity."
       },
       "variants": [
         {"coverage_id": 30, "id": "excluded-first", "owner": "request-approval", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -1343,7 +1343,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode."},
-          {"id": "step-2", "operation": "ui", "description": "While time remains, reveal the normal panel entry, request additional time and approve. Read the new countdown against the earlier larger balance and elapsed navigation time."},
+          {"id": "step-2", "operation": "ui", "description": "While time remains, request additional time and approve. Windowed variants launch the overlay through the direct child app command. Fullscreen variants explicitly test graphical launch: reveal the normal Shell panel entry and open the overlay through it. Read the new countdown against the earlier larger balance and elapsed navigation time."},
           {"id": "step-3", "operation": "wait", "description": "Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks."}
         ],
         "end": [
@@ -1356,7 +1356,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "The request extends the larger balance by its duration, allowing elapsed time. The same game continues until the extended deadline."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Fullscreen variants open the child overlay through the revealed Shell panel entry. The request extends the larger balance by its duration, allowing elapsed time. The same game continues until the extended deadline."}
         ],
         "backend": [],
         "other_user": []
@@ -1371,7 +1371,7 @@
         "full_combinations": [
           ["time", "gameplay"]
         ],
-        "rationale": "Both dominant sources by both display modes are combined. E2E-014 owns input boundaries."
+        "rationale": "Both dominant sources by both display modes are combined. The two fullscreen variants explicitly test graphical panel launch of the overlay; windowed variants use REQUEST02's direct command. E2E-014 owns input boundaries."
       },
       "variants": [
         {"coverage_id": 128, "id": "daily-dominant-windowed", "owner": "continuous-journeys", "parameters": {"time": "daily-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},

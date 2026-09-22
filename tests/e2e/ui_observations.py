@@ -43,6 +43,7 @@ OPERATION_LABELS = {
     'parent-window': 'Waiting for the Parent window',
     'parent-command-launch': 'Invoking the Parent command as [Parent user]',
     'standard-parent-command-launch': 'Invoking the Parent command as [Standard user]',
+    'child-command-launch': 'Invoking the child overlay command as [Child user]',
     'standard-parent-closed': 'Checking denial dismissal returns to the standard desktop',
     'parent-empty': 'Checking the explanation for no eligible children',
     'child-picker-opened': 'Expanding the child selector for [Child user]',

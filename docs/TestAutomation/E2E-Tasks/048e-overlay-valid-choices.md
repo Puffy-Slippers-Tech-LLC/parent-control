@@ -10,7 +10,7 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048** — DESK12, REQUEST02/03 overlay entry/readback.
+- **048** — DESK12, REQUEST02 direct entry, REQUEST13 panel entry and REQUEST03 readback.
 - **014** — FLOW04 kiosk.
 - **047** — APP04; FLOW08 native usable-app scope.
 

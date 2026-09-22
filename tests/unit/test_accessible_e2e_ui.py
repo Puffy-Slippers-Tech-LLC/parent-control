@@ -90,6 +90,35 @@ def test_direct_parent_command_requires_safe_entry_and_never_replays(monkeypatch
         submit.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'session', 'desktop', 'prompt', 'submission'])
+def test_direct_child_command_requires_safe_entry_and_never_replays(monkeypatch, fault):
+    ui = ui_for(Node())
+    session = Mock(side_effect=UiError('session') if fault == 'session' else None)
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', session)
+    ui.desktop_result = Mock(side_effect=UiError('desktop') if fault == 'desktop' else None)
+    ui.handle_system_prompt = Mock(side_effect=UiError('prompt') if fault == 'prompt' else None)
+    submit = Mock(side_effect=TimeoutError() if fault == 'submission' else None)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    if fault:
+        with pytest.raises((UiError, TimeoutError)):
+            ui.run('child-command-launch', '')
+    else:
+        assert ui.run('child-command-launch', '') == {
+            'operation': 'child-command-launch', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    if fault not in ('session', 'desktop', 'prompt'):
+        submit.assert_called_once_with([
+            '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+            '--service-type=exec', '/usr/bin/oh-no-parent-control-child',
+        ], stdin=accessible_ui.subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.run('child-command-launch', '')
+        assert submit.call_count == 1
+    else:
+        submit.assert_not_called()
+    if fault != 'session':
+        ui.desktop_result.assert_called_once_with(accessible_ui.EXISTING_CHILD, 'success')
+
+
 @pytest.mark.parametrize('fault', [None, 'root', 'wrong-euid', 'foreign-user', 'remote',
                                    'inactive', 'wrong-seat', 'tty', 'duplicate', 'missing'])
 def test_direct_parent_launch_requires_one_active_local_graphical_user(monkeypatch, fault):
@@ -2247,6 +2276,53 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
             'operation': 'standard-parent-unavailable', 'outcome': 'passed', 'interface': 'AT-SPI'}
         assert now[0] >= 2
         if fault == 'transient-stale': assert now[0] >= 4
+    suggestion.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-query', 'missing-description',
+    'unrelated-description', 'launcher', 'disabled-launcher', 'management',
+    'duplicate-suggestion',
+    'incomplete-tree'])
+def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
+        monkeypatch, fault):
+    product = accessible_ui.PRODUCT
+    field = Node(product, 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    field.value = 'Other query' if fault == 'wrong-query' else product
+    field.get_text_iface = lambda: field
+    description = Node('Search "' + product + '" on the web', 'label')
+    suggestion = Node('Search online', 'push button', children=[description])
+    overview = Node('Overview', 'panel', children=[field, suggestion])
+    shell = Node('gnome-shell', 'application', children=[overview])
+    desktop = Node(children=[shell])
+    if fault == 'missing-description': suggestion.children.clear()
+    if fault == 'unrelated-description':
+        suggestion.children.clear()
+        overview.children.append(description)
+    if fault == 'launcher': overview.children.append(Node(product, 'push button'))
+    if fault == 'disabled-launcher':
+        overview.children.append(Node(product, 'push button', states=('showing', 'visible')))
+    if fault == 'management': desktop.children.append(Node(identity='parent-window'))
+    if fault == 'duplicate-suggestion':
+        overview.children.append(Node('Search online', 'push button', children=[
+            Node(description.name, 'label')]))
+    ui = ui_for(desktop)
+    if fault == 'incomplete-tree': overview.children.append(None)
+    ui.query_errors = (LookupError,)
+    ui.timeout = 5
+    ui.api.Text = SimpleNamespace(get_character_count=lambda text: len(text.value),
+                                  get_text=lambda text, start, end: text.value[start:end])
+    now = [0.0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda seconds: now.__setitem__(
+        0, now[0] + seconds))
+    if fault:
+        with pytest.raises(UiError):
+            ui.run('standard-parent-unavailable', '')
+    else:
+        assert ui.run('standard-parent-unavailable', '') == {
+            'operation': 'standard-parent-unavailable', 'outcome': 'passed',
+            'interface': 'AT-SPI'}
+        assert now[0] >= 2
     suggestion.action.do_action.assert_not_called()
 
 

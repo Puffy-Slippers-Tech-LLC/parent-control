@@ -320,6 +320,49 @@ def test_off_recovery_audits_exact_restoration_without_vm_mutations(lease_rig, f
     lease.source.connection.defineXML.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'phase', 'run', 'snapshot'])
+def test_off_isolated_recovery_restores_only_recorded_cleanup(lease_rig, fault):
+    import system_runner as runner
+    lease, current = lease_rig
+    lease.view.graphics_type = 'vnc'
+    lease.__enter__()
+    lease.prepare()
+    lease.start()
+    lease.save('cleanup-requested')
+    lease.capture.retire_vm_ownership()
+    lease.source.off, current['id'] = True, -1
+    lease.release()
+    recovery = runner.Lease(lease.source, lease.commands, lease.inspect,
+                            directory=lease.directory, anchor=lease.capture.anchor,
+                            graphics_type='vnc')
+    if fault == 'phase':
+        state = json.loads(lease.journal.read_bytes())
+        state['phase'] = 'running'
+        lease.journal.write_bytes(baseline.encode(state))
+    elif fault == 'run':
+        current['xml'] = current['xml'].replace(lease.state['run'], 'b' * 32)
+    elif fault == 'snapshot':
+        lease.source.baseline_xml = lease.source.baseline_xml.replace(
+            '<creationTime>100', '<creationTime>200')
+    lease.source.domain.reset_mock()
+    lease.source.connection.reset_mock()
+    if fault is None:
+        recovery.recover_graphical_cleanup()
+        assert recovery.state['phase'] == 'complete'
+        lease.source.domain.revertToSnapshot.assert_called_once()
+        lease.source.connection.defineXML.assert_called_once_with(lease.original_xml)
+        assert lease.source.off and current['id'] == -1
+    else:
+        with pytest.raises((runner.Error, baseline.CaptureError)):
+            recovery.recover_graphical_cleanup()
+        lease.source.domain.revertToSnapshot.assert_not_called()
+        lease.source.connection.defineXML.assert_not_called()
+        assert json.loads(lease.journal.read_bytes())['phase'] != 'complete'
+    assert recovery.fd is None
+    lease.source.domain.create.assert_not_called()
+    lease.source.domain.destroyFlags.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'instance', 'run', 'busy', 'maintenance'])
 @pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
 def test_dead_running_owner_recovery_requires_its_vm_identity_and_lease(lease_rig, fault, graphics_type):

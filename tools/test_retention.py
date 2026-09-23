@@ -2,7 +2,8 @@
 
 Never discover deletion targets by scanning temporary-directory prefixes. The
 coordinator holds an exclusive storage lease until its children finish; writers
-serialize the private journal. Replaced paths and unfinished owners fail closed.
+serialize the private journal. Unregistered replacements and unfinished owners
+fail closed. A recreated path belongs to its latest recorded allocation.
 """
 
 from contextlib import contextmanager
@@ -19,6 +20,21 @@ import uuid
 VARIABLE = 'ONPC_TEST_RETENTION'
 RUNS_TO_KEEP = 3
 _locks = set()
+
+
+def latest_allocations(entries):
+    """Return each path's last registered owner, in oldest-to-newest entries.
+
+    Producers can remove an allocation and exclusively recreate the same named
+    output in a later run. Keep the old journal records as evidence, but never
+    validate or delete the new allocation using an expired owner's identity.
+    The latest record still undergoes every identity and tree safety check.
+    """
+    latest = {}
+    for index, entry in enumerate(entries):
+        for record in entry['paths']:
+            latest[record['path']] = (index, record)
+    return list(latest.values())
 
 
 def directory(path):
@@ -84,9 +100,8 @@ class Store:
                     return False
                 if state['finished'] and not marked:
                     return False
-                for entry in [state, *state['history']]:
-                    for record in entry['paths']:
-                        remove(record, validate_only=True)
+                for _, record in latest_allocations([*state['history'], state]):
+                    remove(record, validate_only=True)
                 run = uuid.UUID(hex=state['run']).hex
                 archive = f'recovered-{run}.json'
                 if archive not in os.listdir(fd):
@@ -203,11 +218,11 @@ class Store:
                     history = state['history'] + [dict(run=state['run'], paths=state['paths'])]
                     # A late refusal (for example an inaccessible sbuild
                     # chroot) must preserve its earlier report and build log.
-                    for entry in history:
-                        for record in entry['paths']:
-                            remove(record, validate_only=True)
-                    for entry in history[:-(RUNS_TO_KEEP - 1)]:
-                        for record in entry['paths']:
+                    allocations = latest_allocations(history)
+                    for _, record in allocations:
+                        remove(record, validate_only=True)
+                    for index, record in allocations:
+                        if index < len(history) - (RUNS_TO_KEEP - 1):
                             remove(record)
                     state = dict(run=run, finished=False, paths=[],
                                  history=history[-(RUNS_TO_KEEP - 1):])
@@ -243,35 +258,34 @@ def legacy_system_evidence(state):
     guard. Audit every allocation; archive the whole journal without deletion.
     """
     legacy = False
-    for entry in [state, *state['history']]:
-        for record in entry['paths']:
-            path = Path(record['path'])
-            if (path.parent != Path('/tmp') or not path.name.startswith('onpc-system-')
-                    or record.get('mode', 0o700) != 0o700):
+    for _, record in latest_allocations([*state['history'], state]):
+        path = Path(record['path'])
+        if (path.parent != Path('/tmp') or not path.name.startswith('onpc-system-')
+                or record.get('mode', 0o700) != 0o700):
+            remove(record, validate_only=True)
+            continue
+        try:
+            target = directory(path)
+        except FileNotFoundError:
+            continue
+        try:
+            info = os.fstat(target)
+            if stat.S_IMODE(info.st_mode) != 0o755:
                 remove(record, validate_only=True)
                 continue
+            if (info.st_uid != os.geteuid() or
+                    (info.st_dev, info.st_ino) != (record['device'], record['inode'])):
+                raise ValueError('retention: legacy allocation identity changed')
+            parent = directory(path.parent)
             try:
-                target = directory(path)
-            except FileNotFoundError:
-                continue
-            try:
-                info = os.fstat(target)
-                if stat.S_IMODE(info.st_mode) != 0o755:
-                    remove(record, validate_only=True)
-                    continue
-                if (info.st_uid != os.geteuid() or
-                        (info.st_dev, info.st_ino) != (record['device'], record['inode'])):
-                    raise ValueError('retention: legacy allocation identity changed')
-                parent = directory(path.parent)
-                try:
-                    if mount_id(target) != mount_id(parent):
-                        raise ValueError('retention: mounted storage is not disposable')
-                finally:
-                    os.close(parent)
-                check_tree(target, info.st_dev)
-                legacy = True
+                if mount_id(target) != mount_id(parent):
+                    raise ValueError('retention: mounted storage is not disposable')
             finally:
-                os.close(target)
+                os.close(parent)
+            check_tree(target, info.st_dev)
+            legacy = True
+        finally:
+            os.close(target)
     return legacy
 
 

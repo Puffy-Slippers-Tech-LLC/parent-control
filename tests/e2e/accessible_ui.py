@@ -49,6 +49,9 @@ OPERATIONS |= frozenset({
     'child-command-launch',
 })
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
+OPERATIONS |= frozenset({'shell-search-started', 'shell-search-wrong-result-refused',
+                         'shell-search-cleared',
+                         'shell-search-dismissed'})
 OPERATIONS |= frozenset({'standard-management-denied'})
 STANDARD_OPERATIONS |= frozenset({'standard-management-denied'})
 STANDARD_OPERATIONS |= frozenset({'standard-parent-command-launch', 'standard-parent-closed'})
@@ -3404,6 +3407,21 @@ class AccessibleUI:
             self.search_ready('overview', focused=True)
         elif operation == 'parent-search-entered':
             self.wait_search(lambda: self.search_query(PRODUCT), 'parent-search-entered')
+        elif operation == 'shell-search-started':
+            self.wait_search(lambda: self.search_query(PRODUCT[:1]), 'shell-search-started')
+        elif operation == 'shell-search-wrong-result-refused':
+            require(self.search_query(PRODUCT), 'ui:search-query')
+            try:
+                self.launchable_result('Terminal')
+            except UiError as error:
+                require(str(error) == 'ui:search-binding', 'ui:wrong-search-refusal')
+            else:
+                raise UiError('ui:wrong-search-accepted')
+        elif operation == 'shell-search-cleared':
+            self.search_ready('overview')
+        elif operation == 'shell-search-dismissed':
+            self.standard_shell_desktop(no_prompt=True)
+            require(self.shell_search_field() is None, 'ui:search-not-dismissed')
         elif operation == 'app-grid':
             self.focus_search_result()
         elif operation == 'parent-window':

@@ -737,11 +737,17 @@ class Lease:
             require(not self.source.domain.autostart() and
                     (off if isolated else (off or self.source.domain.ID() == state['domain_id'])),
                     'recovery:domain-replaced-or-off')
-            if off and not isolated:
-                require(self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) ==
-                        state['original_xml'], 'recovery:off-configuration-changed')
-            else:
-                display_root = ET.fromstring(self.source.domain.XMLDesc(0))
+            active_xml = self.source.domain.XMLDesc(0)
+            restored_off = (off and not isolated and
+                            self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) ==
+                            state['original_xml'])
+            off_isolated = off and not isolated and not restored_off
+            if off_isolated:
+                require(state['phase'] == 'cleanup-requested' and
+                        self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) == active_xml,
+                        'recovery:off-configuration-changed')
+            if not restored_off:
+                display_root = ET.fromstring(active_xml)
                 displays = display_root.findall('devices/graphics')
                 if self.view.graphics_type == 'vnc':
                     validate_private_vnc(display_root)
@@ -756,13 +762,16 @@ class Lease:
                          graphics_type=self.view.graphics_type)
             self.state = state
             self.view.original_shares = self.capture.state['source']['layout']['source_shares']
-            self.view.run = None if off and not isolated else state['run']
+            self.view.run = None if restored_off else state['run']
             self.view.domain_id = None if off else state['domain_id']
             self.snapshot_xml = self.source.baseline()
-            self.guard()
+            if off:
+                self.guard(off=True)
+            else:
+                self.guard()
             require(self.capture.verify_snapshot(boundary='recovery') ==
                     self.capture.state['proof'], 'recovery:baseline-changed')
-            if off and not isolated:
+            if restored_off:
                 # No domain mutation is authorized by the off-state branch.
                 # Independently audit the restored guest and reconcile the
                 # exact inactive configuration again before completing cleanup.
@@ -776,6 +785,22 @@ class Lease:
                 self.delete_suite_snapshot()
                 self.save('complete')
                 log('recovery:verified-restored-off')
+                return
+            if off_isolated:
+                # A host reboot can stop the recorded guest after cleanup was
+                # requested but before the snapshot revert. The exact off,
+                # isolated run can only be restored, never started or adopted.
+                self.restore()
+                self.delete_suite_snapshot()
+                require(self.capture.verify_snapshot(boundary='restoration') ==
+                        self.capture.state['proof'], 'cleanup:baseline-changed')
+                require(self.inspect(Path(self.capture.state['source']['layout']['disk']),
+                                     self.capture.state['script_digest']) ==
+                        self.capture.state['guest'], 'cleanup:guest-changed')
+                self.source.connection.defineXML(self.original_xml)
+                self.capture.revalidate(off=True)
+                self.save('complete')
+                log('recovery:restored-interrupted-off')
                 return
             self.mutated = True
             # An interrupted bootstrap may leave a never-started isolated

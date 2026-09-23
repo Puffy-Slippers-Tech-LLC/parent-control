@@ -246,6 +246,16 @@ class ShellSearchResultsQualification(KioskEntryQualification):
         return ShellSearchResultsJourney(context, progress)
 
 
+class ParentSearchLaunchQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from parent_search_launch import ParentSearchLaunchJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ParentSearchLaunchJourney(context, progress)
+
+
 class FreshStandardDesktopQualification(FreshDesktopQualification):
     role = 'standard'
 

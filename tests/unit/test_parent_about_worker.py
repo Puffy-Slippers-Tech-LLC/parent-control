@@ -247,6 +247,7 @@ def test_close_observation_precedes_semantic_footer_reveal_and_return_close():
     ('license', 'license', 'license-closed'),
     ('about', 'about-returned', 'parent-returned'),
     ('management-denied', 'management-denied', 'denial-closed'),
+    ('parent', 'close-ready', 'closed'),
 ])
 @pytest.mark.parametrize('fault', ['', 'stale', 'missing', 'uncertain', 'result', 'binding'])
 def test_shared_window_close_requires_fresh_proof_and_cannot_replay(window, before, after, fault):

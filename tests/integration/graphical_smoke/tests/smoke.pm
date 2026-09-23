@@ -9,6 +9,7 @@ use onpc_serial ();
 use onpc_gdm ();
 use onpc_fresh_desktop ();
 use onpc_shell_search ();
+use onpc_parent_search_launch ();
 use onpc_vt6 ();
 use onpc_parent_about ();
 use onpc_parent_access ();
@@ -94,6 +95,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_gdm::recipient_qualification(\&exchange);
+        return;
+    }
+    if ($ready->{parent_search_launch}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_search_launch::run(\&exchange);
         return;
     }
     if ($ready->{shell_search_results}) {

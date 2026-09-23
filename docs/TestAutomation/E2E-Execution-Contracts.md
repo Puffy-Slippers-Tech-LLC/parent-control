@@ -185,6 +185,9 @@ pending until those complete cases pass. Preserve valid unchanged results, and
 rerun any earlier case affected by a later change before migration close-out.
 This staged migration gate does not exempt subsequent shared changes from the
 normal regression requirement or add scenario-to-scenario dependencies.
+The initial gate's completed acceptance and the developer's explicit direction
+to reuse their seven separate passing validations are recorded in the
+[current scope](E2E-Execution-Plan.md#current-scope).
 
 Staged artifacts, evidence and VM ownership must remain valid. Checkout edits
 during a run follow the [documentation map's contract](README.md); they do not

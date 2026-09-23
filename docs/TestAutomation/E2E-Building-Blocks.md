@@ -350,7 +350,7 @@ these blocks, not copies of them.
 | ABOUT01 | C | Open the declared surface's About entry; read product/version and reach the license information. Parent's established binding stays ready; overlay/kiosk bindings are pending. | `onpc_about::open_about` binds `AccessibleUI.open_about(version)`: UI01 → UI04(menu) → UI04(About) → UI01 → UI03 → UI09. [About contracts](#about-block-contracts). | ready |
 | ABOUT02 | C | Follow the license link to the actual viewer and read the identifying license content. | `AccessibleUI.open_license` follows the ID-addressed product link once. `license_viewer_snapshot` scopes GNOME Text Editor's public `view` ID; `read_document` verifies bounded GPL title/version text. `check_e2e_license_viewer` qualified independent entry and live unrelated/empty/ambiguous viewer refusal in run `20260923T201618Z-50520052`. [Provider scope](#about-block-contracts). | ready for Parent/GNOME Text Editor; other bindings pending |
 | ABOUT04 | C | Reach and read the About footer in the already open About window through semantic ID reveal. | `onpc_about::read_footer(journey, returned, 'semantic-reveal')` delegates to `AccessibleUI.about_footer`: UI09 → UI03(footer), with no preliminary positional keys. [About contracts](#about-block-contracts). | ready |
-| ABOUT03 | C | Close the license, read the About footer, close About and compare the selected child/settings with the supplied earlier observation. | `onpc_about::return_to_parent` composes UI18 → ABOUT04 → UI18; `JourneyPlan.settings_checks` supplies UI12. `onpc_license_viewer_provider::run` qualified those leaves with active-viewer proof, ambiguous-close refusal, single-use close, complete viewer absence, active owned About return, footer read and unchanged child/switch/allowance in run `20260923T201618Z-50520052`. Complete case 151 requalification remains task 151r. | ready for Parent/GNOME Text Editor; other bindings pending |
+| ABOUT03 | C | Close the license, read the About footer, close About and compare the selected child/settings with the supplied earlier observation. | `onpc_about::return_to_parent` composes UI18 → ABOUT04 → UI18; `JourneyPlan.settings_checks` supplies UI12. `onpc_license_viewer_provider::run` qualified those leaves with active-viewer proof, ambiguous-close refusal, single-use close, complete viewer absence, active owned About return, footer read and unchanged child/switch/allowance in run `20260923T201618Z-50520052`. Complete case 151 passed the composed journey, collection and owned cleanup in run `20260923T202401Z-9e9a5886`. | ready for Parent/GNOME Text Editor; other bindings pending |
 | FEED01 | C | Open ordinary Parent feedback through its Feedback action and observe editor/collection state. Error-report entry uses FEED15; no hidden error creation. | UI01 → UI04(feedback entry) → UI01 → UI02 → UI03. | pending |
 | FEED03 | C | Read the visible synthetic draft, exact attachment list and validation/control state into an explicit observation. | UI01 → UI02 → UI03 → UI13(attachments). Only the declared synthetic content is eligible for comparison. | pending |
 | FEED04 | C | Apply one offered rich-text format to an explicit synthetic range and observe its public text attributes. Select the range through normal keyboard input, then use its toolbar/menu. | UI21(editor) → UI05 for bounded declared selection → UI04 or UI15(format) → UI24. No DOM bridge or direct text/selection assignment. | pending |
@@ -1054,10 +1054,9 @@ management denial and absence of management controls, then closed it through
 `onpc_window::close` and independently observed the clear standard desktop.
 Private collection, reconciliation and owned cleanup passed in that run (now outside runner retention). Complete case 6 then passed in run `20260923T193956Z-9e1b6eac` (also outside runner retention), including the specific denial, management exclusion, desktop return, collection and owned cleanup.
 
-GDM07 preserves Parent sign-in's assertions: use UI14's ID-addressed account
-navigation, verify focus before Enter, positively observe the wrong
-account's empty masked prompt and refuse it as the intended recipient, then
-dismiss and select Parent. Two fresh intended-recipient checkpoints require the
+GDM07 uses the shared qualified account navigation to select only Parent and
+verify focus before Enter. Wrong-account refusal belongs to separate harness
+qualification, not this customer journey. Two fresh intended-recipient checkpoints require the
 exact account, hidden list and sole showing/enabled/focused empty masked field.
 The final proof immediately precedes the unchanged sealed secret API. No new
 role, password surface or appearance gate is qualified. Legacy image helpers
@@ -1086,8 +1085,8 @@ and the active ID-owned About dialog in one fresh complete snapshot. This route
 does not qualify ordinary document editing, saving, other handlers or overlay
 About. Its installed qualification is recorded in the provider table below.
 
-The fixed `check_e2e_license_viewer` capability qualification passed in the
-[retained report](Evidence/test-all-runs/20260923T201618Z-50520052/report.md).
+The fixed `check_e2e_license_viewer` capability qualification passed in run
+`20260923T201618Z-50520052` (now outside runner retention).
 `LicenseViewerProviderJourney` and `onpc_license_viewer_provider::run` enter
 through fresh Parent/About observations, refuse a wrong entry proof, and open
 real unrelated and empty fixture documents through the desktop user's service
@@ -1100,7 +1099,12 @@ selected child, switch and allowance. Fixture files are exclusively created,
 contain no trailing newline (matching GtkSourceView's public buffer), and are
 removed after observed closure; the guarded attempt owns failure cleanup.
 Private evidence reconciliation, collection and owned cleanup passed. This
-qualifies the capability only; complete case 151 remains task 151r.
+qualifies the capability only. Complete case 151 separately passed through
+`parent_about.PLAN` and `onpc_parent_about::run` in run
+`20260923T202401Z-9e9a5886`: fresh Parent entry, direct launch, selected child,
+About/version, actual GPL content, normal license close, footer, About close and
+unchanged child/switch/allowance. Capture reconciliation, product,
+infrastructure, collection, owned cleanup and suite baseline restoration passed.
 
 UI18 observes the ID-owned About window or qualified viewer's active state
 before acknowledging Alt-F4.
@@ -1336,8 +1340,9 @@ Parent list/focus/prompt/Escape-return cycles with collection and owned cleanup.
 The installed `gdm_nonsecret_account()` binding retains its station cardinality
 checks. Retained case 1 now binds every graphical stage to the product-free
 operations and passed its complete graphical/serial route, reconciliation,
-collection and cleanup in an earlier run. Complete-case acceptance awaits its own
-validation task.
+collection and cleanup. The shared migration audit reran complete case 1 in
+`20260923T202714Z-fc680b74`, including authenticated serial input, observed command
+output, logout-before-return and suite baseline restoration.
 
 ### Reachability and result checks
 

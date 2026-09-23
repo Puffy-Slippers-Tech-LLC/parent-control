@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **235r — [Requalify retained case 193](E2E-Tasks/235r-case-193-regression.md)**.
+Next task: **185l — [Qualify the installed license viewer](E2E-Tasks/185l-license-provider.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

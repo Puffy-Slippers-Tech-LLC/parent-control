@@ -57,7 +57,18 @@ OPERATION_LABELS = {
     'child-choice-highlighted': 'Checking [Child user] is highlighted',
     'parent-selected': 'Checking the selected child and displayed settings',
     'about': 'Opening About and reading product information',
+    'about-rechecked': 'Rechecking About after closing temporary documents',
+    'license-unrelated-launched': 'Opening a synthetic unrelated viewer document',
+    'license-unrelated-ready': 'Refusing unrelated license content and link entry',
+    'license-unrelated-closed': 'Checking the unrelated document closed',
+    'license-empty-launched': 'Opening an empty viewer document',
+    'license-empty-ready': 'Refusing empty license content and link entry',
+    'license-empty-closed': 'Checking the empty document closed',
     'license': 'Opening and reading the installed license',
+    'license-ambiguous-launched': 'Opening a second viewer window',
+    'license-ambiguous-ready': 'Refusing ambiguous viewer and close input',
+    'license-ambiguous-closed': 'Checking the second window closed',
+    'license-provider-refusals': 'Qualifying the installed license viewer and refusal guards',
     'license-closed': 'Checking the license window is closed',
     'about-returned': 'Reading the About footer',
     'parent-returned': 'Checking the returned child and unchanged settings',
@@ -293,7 +304,8 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation in ('parent-search-close-ready', 'standard-search-qualified'):
+        if operation in ('parent-search-close-ready', 'standard-search-qualified',
+                         'license-provider-refusals'):
             require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
             expected['provider'] = accessible_ui.validate_shell_metadata(result['provider'])
         if operation == 'station-entry-branch':

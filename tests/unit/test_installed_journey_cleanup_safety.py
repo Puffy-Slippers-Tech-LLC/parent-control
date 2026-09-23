@@ -25,6 +25,7 @@ import parent_discovery
 import shell_search_results
 import parent_search_launch
 import parent_terminal_provider
+import license_viewer_provider
 import shell_search
 import accessible_ui
 import inventory
@@ -58,11 +59,11 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
                                  command_help.PLAN, desktop_session.LOGOUT_PLAN,
                                  desktop_session.SWITCH_PLAN, kiosk_entry.PLAN,
                                  request_exit.PLAN, parent_toggle.PLAN,
-                                 parent_terminal_provider.PLAN],
+                                 parent_terminal_provider.PLAN, license_viewer_provider.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
-                              'terminal-provider'])
+                              'terminal-provider', 'license-viewer-provider'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -385,9 +386,11 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'reused', 'reordered', 'wrong-operation'])
 @pytest.mark.parametrize('plan', [parent_discovery.PLAN, parent_discovery.EMPTY_PLAN, parent_access.PLAN,
-                                 parent_about.PLAN, shell_search_results.PLAN, parent_search_launch.PLAN,
+                                 parent_about.PLAN, license_viewer_provider.PLAN,
+                                 shell_search_results.PLAN, parent_search_launch.PLAN,
                                  shell_search.PLAN],
-                         ids=['discovery', 'empty', 'standard-access', 'about', 'shell-search', 'search-launch',
+                         ids=['discovery', 'empty', 'standard-access', 'about', 'license-viewer-provider',
+                              'shell-search', 'search-launch',
                               'standard-search'])
 def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
     details, observations = [], []

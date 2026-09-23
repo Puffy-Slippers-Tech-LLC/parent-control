@@ -14,6 +14,7 @@ use onpc_parent_terminal_provider ();
 use onpc_shell_search_standard ();
 use onpc_vt6 ();
 use onpc_parent_about ();
+use onpc_license_viewer_provider ();
 use onpc_parent_access ();
 use onpc_parent_terminal ();
 use onpc_command_help ();
@@ -61,6 +62,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_parent_about::run(\&exchange, $ready->{parent_review} ? 1 : 0);
+        return;
+    }
+    if ($ready->{license_viewer_provider}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_license_viewer_provider::run(\&exchange);
         return;
     }
     if ($ready->{command_help}) {

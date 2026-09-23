@@ -11,6 +11,10 @@ sub close {
     my ($journey, $window, $proof) = @_;
     my %stages = (
         license => ['license', 'license-closed'],
+        'license-qualified' => ['license-provider-refusals', 'license-closed'],
+        'license-unrelated-fixture' => ['license-unrelated-ready', 'license-unrelated-closed'],
+        'license-empty-fixture' => ['license-empty-ready', 'license-empty-closed'],
+        'license-ambiguous-fixture' => ['license-ambiguous-ready', 'license-ambiguous-closed'],
         about => ['about-returned', 'parent-returned'],
         'management-denied' => ['management-denied', 'denial-closed'],
         parent => ['close-ready', 'closed'],

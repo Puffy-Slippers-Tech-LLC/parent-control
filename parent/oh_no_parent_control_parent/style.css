@@ -200,10 +200,28 @@ button.about-link > label {
   box-shadow: none;
 }
 
-.account-picker button {
+.account-picker > button {
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.parent-account-choice {
+  min-height: 66px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.parent-account-choice:hover,
+.parent-account-choice:focus-visible {
+  background: alpha(#7657f6, 0.16);
+}
+
+.parent-account-choice:active {
+  background: alpha(#7657f6, 0.24);
 }
 
 .account-actions-separator {

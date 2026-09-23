@@ -649,7 +649,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          parent_access=False, desktop_session_logout=False, desktop_session_switch=False,
          gdm_navigation=False, gdm_recipient=False, gdm_product_free=False,
          kiosk_entry=False, request_exit=False, parent_toggle=False,
-         fresh_desktop=None):
+         fresh_desktop=None, shell_search_results=False):
     require(fresh_desktop is None or (
             fresh_desktop in ('parent', 'standard', 'standard-keyring')
             and assets is not None and provision_credentials
@@ -657,8 +657,17 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          parent_setup, parent_input, parent_standard_input,
                          parent_about, parent_access, desktop_session_logout,
                          desktop_session_switch, gdm_navigation, gdm_recipient,
-                         gdm_product_free, kiosk_entry, request_exit, parent_toggle))),
+                         gdm_product_free, kiosk_entry, request_exit, parent_toggle,
+                         shell_search_results))),
             'smoke:fresh-desktop-prerequisites')
+    require(type(shell_search_results) is bool and (not shell_search_results or (
+            assets is not None and provision_credentials and fresh_desktop is None
+            and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
+                         parent_setup, parent_input, parent_standard_input,
+                         parent_about, parent_access, desktop_session_logout,
+                         desktop_session_switch, gdm_navigation, gdm_recipient,
+                         gdm_product_free, kiosk_entry, request_exit, parent_toggle)))),
+            'smoke:shell-search-prerequisites')
     require(type(parent_toggle) is bool and (not parent_toggle or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
@@ -805,6 +814,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'product-free-gdm-qualification'
         if fresh_desktop is not None:
             result['scope'] = 'fresh-' + fresh_desktop + '-desktop-qualification'
+        if shell_search_results:
+            result['scope'] = 'installed-shell-search-results-qualification'
         if kiosk_entry:
             result['scope'] = 'installed-kiosk-entry-qualification'
         if request_exit:
@@ -830,7 +841,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = preflight_source(staged)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
-                        or fresh_desktop is not None
+                        or fresh_desktop is not None or shell_search_results
                         or request_exit or parent_toggle):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                 else:
@@ -882,6 +893,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if fresh_desktop == 'standard-keyring':
                     from parent_setup_qualification import KeyringStandardDesktopQualification
                     qualification_class = KeyringStandardDesktopQualification
+                if shell_search_results:
+                    from parent_setup_qualification import ShellSearchResultsQualification
+                    qualification_class = ShellSearchResultsQualification
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification

@@ -1453,6 +1453,38 @@ def test_shell_search_launcher_requires_one_owned_exact_result():
     unrelated.component.grab_focus.assert_not_called()
 
 
+def test_shell_search_first_character_and_wrong_result_use_exact_live_query():
+    field = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    field.get_text_iface = lambda: field
+    launcher = Node('Oh No! Parent Control', 'button')
+    shell = Node('gnome-shell', 'application', children=[field, launcher])
+    ui = ui_for(Node(role='desktop frame', children=[shell]))
+    query = {'value': 'O'}
+    ui.api.Text = SimpleNamespace(
+        get_character_count=lambda _: len(query['value']),
+        get_text=lambda *_: query['value'])
+    assert ui.run('shell-search-started', '')['outcome'] == 'passed'
+    with pytest.raises(UiError, match='ui:search-query'):
+        ui.run('shell-search-wrong-result-refused', '')
+    query['value'] = accessible_ui.PRODUCT
+    assert ui.run('shell-search-wrong-result-refused', '')['outcome'] == 'passed'
+    launcher.component.grab_focus.assert_not_called()
+
+
+def test_shell_search_dismissal_refuses_visible_or_incomplete_field():
+    field = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    shell = Node('gnome-shell', 'application', children=[field])
+    ui = ui_for(Node(role='desktop frame', children=[shell]))
+    ui.standard_shell_desktop = Mock(return_value=True)
+    with pytest.raises(UiError, match='ui:search-not-dismissed'):
+        ui.run('shell-search-dismissed', '')
+    field.states.remove('showing')
+    assert ui.run('shell-search-dismissed', '')['outcome'] == 'passed'
+    shell.children.append(None)
+    with pytest.raises(UiError, match='ui:incomplete-tree'):
+        ui.run('shell-search-dismissed', '')
+
+
 @pytest.mark.parametrize('fault', [None, 'duplicate-owner', 'wrong-owner', 'duplicate-panel',
                                  'hidden', 'stale', 'incomplete'])
 def test_standard_desktop_requires_unique_live_shell_panel(fault):

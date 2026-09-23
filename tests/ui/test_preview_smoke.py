@@ -83,9 +83,14 @@ def test_parent_preview_publishes_and_loads_management_controls(
     ui.activate("parent-child-selector", action_name="menu.popup")
     wait_for_accessible_state(lambda: ui.showing("parent-child-choice-1002"),
                               "child choices are ID-addressable actions")
+    for identity in ("parent-child-selector", "parent-child-popover",
+                     "parent-child-choices", "parent-child-choice-1001",
+                     "parent-child-choice-1002"):
+        assert ui.target(identity).get_accessible_id() == identity
     ui.activate("parent-child-choice-1002")
     wait_for_accessible_state(lambda: ui.showing("parent-child-selected-1002"),
                               "selected child is published by UID")
+    assert ui.target("parent-child-selector").get_accessible_id() == "parent-child-selector"
 
 
 def test_parent_daily_allowance_menu_opens_and_selects(

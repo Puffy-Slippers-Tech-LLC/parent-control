@@ -449,6 +449,13 @@ the current run, removing older registered directories, including logs and
 failed-test evidence. Failed or cooperatively interrupted runs count toward the
 same three-run limit. Copy any evidence needed for longer work before it expires.
 
+When a producer exclusively recreates and registers a previously removed named
+output, its latest allocation record owns that path. Older records remain in
+the journal but cannot validate or delete the newer allocation. Recovery and
+rotation validate the latest recorded identity, ownership and mount boundaries;
+an unregistered replacement still refuses. The recreated output expires with
+its latest owner.
+
 Host-only runs use `artifacts/test-retention-host/`; VM-containing runs and
 snapshot preparation keep `artifacts/test-retention/`. Each journal retains
 its own last three runs, so active host evidence cannot block VM preparation

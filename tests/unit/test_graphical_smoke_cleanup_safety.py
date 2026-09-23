@@ -14,6 +14,24 @@ from tests.support.vm_baseline import local_preparation_source
 from tests.support.e2e_evidence import worker_evidence
 
 
+@pytest.mark.parametrize('primary', ['vnc', 'spice'])
+def test_recovery_detects_primary_display_with_private_observer(primary):
+    xml = (f'<domain><devices><graphics type="{primary}"/>'
+           '<graphics type="dbus" p2p="yes"><gl enable="no"/></graphics>'
+           '</devices></domain>')
+    assert recovery.recorded_graphics_type(xml) == primary
+
+
+@pytest.mark.parametrize('displays', [
+    '<graphics type="vnc"/><graphics type="spice"/>',
+    '<graphics type="dbus" p2p="yes"><gl enable="no"/></graphics>',
+    '<graphics type="vnc"/><graphics type="dbus" p2p="no"><gl enable="no"/></graphics>',
+])
+def test_recovery_refuses_ambiguous_or_unsafe_display(displays):
+    with pytest.raises(recovery.runner.Error):
+        recovery.recorded_graphics_type(f'<domain><devices>{displays}</devices></domain>')
+
+
 @pytest.fixture
 def login_window():
     lease = Mock(fd=42, state={'phase': 'isolated', 'domain_id': None})

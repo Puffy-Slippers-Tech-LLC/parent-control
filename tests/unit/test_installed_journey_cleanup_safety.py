@@ -22,6 +22,7 @@ import kiosk_entry
 import request_exit
 import parent_toggle
 import parent_discovery
+import shell_search_results
 import accessible_ui
 import inventory
 from private_artifacts import EvidenceError, PrivateCollector
@@ -379,8 +380,8 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'reused', 'reordered', 'wrong-operation'])
 @pytest.mark.parametrize('plan', [parent_discovery.PLAN, parent_discovery.EMPTY_PLAN, parent_access.PLAN,
-                                 parent_about.PLAN],
-                         ids=['discovery', 'empty', 'standard-access', 'about'])
+                                 parent_about.PLAN, shell_search_results.PLAN],
+                         ids=['discovery', 'empty', 'standard-access', 'about', 'shell-search'])
 def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
     details, observations = [], []
     for stage, tag in plan.screen_tags.items():

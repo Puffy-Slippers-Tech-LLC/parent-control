@@ -319,6 +319,68 @@ def test_replaced_allocation_is_preserved_and_refused(tmp_path, kind):
     assert path.exists()
 
 
+@pytest.mark.parametrize('same_run', [False, True])
+def test_recreated_registered_output_expires_with_its_latest_owner(tmp_path, same_run):
+    store = retention.Store(tmp_path / 'state')
+    with store.session() as first:
+        path = allocated(tmp_path, 'named-output')
+    # Keep the old inode allocated so the fixture cannot accidentally reuse it.
+    original = tmp_path / 'original'
+    path.rename(original)
+    with store.session(run=first if same_run else None):
+        retention.allocate(lambda: path.mkdir(mode=0o700) or str(path))
+        (path / 'test.log').write_text('new output')
+    journal = json.loads((store.path / 'current.json').read_text())
+    records = [record for entry in [*journal['history'], journal]
+               for record in entry['paths'] if record['path'] == str(path)]
+    assert len(records) == 2
+    assert records[0]['inode'] != records[1]['inode']
+    assert not retention.legacy_system_evidence(journal)
+    # Expiring the old owner must neither reject nor delete the new allocation.
+    advance_to_expiry(store)
+    assert (path / 'test.log').read_text() == 'new output'
+    with store.session():
+        assert not path.exists()
+    assert (original / 'test.log').exists()
+
+
+@pytest.mark.parametrize('fault', [None, 'unregistered', 'old-identity', 'symlink', 'mode'])
+def test_recreated_output_recovery_still_checks_latest_identity(tmp_path, fault):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        path = allocated(tmp_path, 'named-output')
+    original = tmp_path / 'original'
+    path.rename(original)
+    with store.session():
+        retention.allocate(lambda: path.mkdir(mode=0o700) or str(path))
+        (path / 'test.log').write_text('new output')
+        retention.preserve_for_recovery()
+    journal = store.path / 'current.json'
+    before = journal.read_bytes()
+    if fault in ('unregistered', 'old-identity', 'symlink'):
+        path.rename(tmp_path / 'new-output')
+        if fault == 'unregistered':
+            path.mkdir(mode=0o700)
+        elif fault == 'old-identity':
+            original.rename(path)
+        else:
+            path.symlink_to(tmp_path / 'new-output', target_is_directory=True)
+    elif fault == 'mode':
+        path.chmod(0o755)
+    if fault:
+        with pytest.raises((ValueError, OSError)):
+            store.reconcile(lambda: None)
+        assert journal.read_bytes() == before
+        assert (store.path / 'recovery-required').exists()
+    else:
+        assert store.reconcile(lambda: None)
+        assert (path / 'test.log').read_text() == 'new output'
+        advance_to_expiry(store)
+        assert path.exists()
+        with store.session():
+            assert not path.exists()
+
+
 def test_nested_symlink_never_deletes_its_target(tmp_path):
     store = retention.Store(tmp_path / 'state')
     outside = tmp_path / 'outside'

@@ -188,7 +188,13 @@ class ParentAccountSelector(Gtk.MenuButton):
         popover = Gtk.Popover(child=choices_scroll)
         set_automation_id(popover, "parent-child-popover")
         self.set_popover(popover)
+        self.set_create_popup_func(self._prepare_popover)
         self._show_selection()
+
+    def _prepare_popover(self, _button):
+        # Ellipsized account labels have a tiny minimum width. Size the menu
+        # from the visible selector on every open, including after a resize.
+        self.get_popover().set_size_request(self.get_width(), -1)
 
     @staticmethod
     def _content(label, icon_file, automation_id):

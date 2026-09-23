@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify the shared DESK03 switch command on a fresh Parent desktop."""
+"""Qualify DESK04 logout and DESK03 switch in separate restored attempts."""
 
 from pathlib import Path
 import sys
@@ -9,6 +9,9 @@ ASSETS = Path('/tmp/onpc-parent-setup-input')
 
 
 def main():
+    result = smoke(assets=ASSETS, provision_credentials=True, desktop_session_logout=True)
+    if result != 0:
+        return result
     return smoke(assets=ASSETS, provision_credentials=True, desktop_session_switch=True)
 
 

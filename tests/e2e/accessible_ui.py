@@ -178,7 +178,6 @@ EXTERNAL_PROVIDER_CONTRACTS = {
             }),
             'panel': (None, {
                 'activities': None, 'app-grid': None,
-                'lock': None,
             }),
             'app-grid': (None, {
                 'search': None, 'result::parent': None,
@@ -187,8 +186,11 @@ EXTERNAL_PROVIDER_CONTRACTS = {
             'notifications': (None, {'notification': None, 'dismiss': None}),
             'lock-screen': (None, {'recipient': None, 'password': None, 'unlock': None}),
         },
-        'blocked_consumers': ('DESK01-12', 'SEARCH01-06', 'PANEL01-03',
-                              'LIFE02', 'LIFE03', 'LIFE06'),
+        # System session/power/network inputs use session_control and guarded
+        # commands. Only their required public results need a GUI provider.
+        'blocked_consumers': ('DESK01 desktop observation', 'DESK06-08 lock/unlock',
+                              'DESK10 window activation', 'DESK12 panel reveal',
+                              'SEARCH01-06', 'PANEL01-03'),
     },
     'ding-desktop': {
         'application_id': None,
@@ -213,7 +215,8 @@ EXTERNAL_PROVIDER_CONTRACTS = {
                 'session-choice::<provider-session-id>': None,
             }),
         },
-        'blocked_consumers': ('GDM login', 'account switching', 'kiosk entry'),
+        'blocked_consumers': ('GDM account selection/login', 'greeter result observation',
+                              'kiosk entry'),
     },
     'gnome-shell-polkit-agent': {
         'application_id': None,

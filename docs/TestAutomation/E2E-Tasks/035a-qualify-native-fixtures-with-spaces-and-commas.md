@@ -40,7 +40,7 @@ Bind the two supported native path fixtures required by case 188: one space and 
 
 ## Live VM acceptance
 
-On the live VM, copy each declared executable through the file manager. Under publicly saved Hard and Soft rules, require original and identical-copy denial while N remains usable. Do not generalize this to arbitrary copied programs.
+On the live VM, copy each declared executable through the shared FILE05 command helper and verify its exact destination/content. Under publicly saved Hard and Soft rules, require original and identical-copy denial while N remains usable. Do not generalize this to arbitrary copied programs.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

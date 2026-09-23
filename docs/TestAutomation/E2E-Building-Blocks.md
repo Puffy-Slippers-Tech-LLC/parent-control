@@ -25,11 +25,12 @@ validation](#functional-validation) applies the mandate here. Callable names
 locate implementation to inspect, not permission to reuse noncompliant selectors
 or input routes. Documentation alone does not establish compliance or a live pass.
 
-The tests simulate a customer's operations and observe the results. They do
-not care how the application achieves them. Select users, type into real
-prompts, operate settings, launch applications, read messages and use windows.
-Never replace those steps with product methods, saved-data reads/writes,
-process inspection, service checks or synthetic grants. Existing runner
+The tests exercise customer-facing product behavior and observe the results.
+Select users in the app, type into its real approval prompts, operate product
+settings, read messages and use windows. Never replace those product actions
+and assertions with internal methods, saved-data reads/writes, process inspection,
+service checks or synthetic grants. Supporting system operations and launch
+routes follow the distinction below. Existing runner
 ownership, secret handling, installation setup and cleanup remain supporting
 machinery, not customer assertions. Apply the distinction below to each action.
 
@@ -245,7 +246,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | DESK08 | C | Attempt normal unlock with an explicit expected success or time-limit denial. | DESK06 → DESK07 twice → UI19 → UI05(Enter) → GDM06. | pending |
 | DESK09 | C | From another usable desktop, visit a specified retained user's desktop without replacing it. Inputs include target account and expected unlock result. | DESK03 → GDM02(destination=lock) → DESK08. Fresh entry explicitly uses DESK03 → GDM07 instead. | pending |
 | DESK10 | C | Activate a named existing window with the simplest reliable public focus action or bounded shortcut, then verify that window is active. | Shared ownership-scoped window adapter; no mandatory app-switcher tour, logout or relaunch. | pending |
-| DESK11 | C | From a recognized lock/rejected sign-in screen, return to the account list using that surface's normal Switch User, Cancel or Back action. Require the declared source; never try several routes after failure. | UI01 → UI04 or UI05 for the registered source route → GDM01. Reused after expiry, rejection and kiosk replacement. | pending |
+| DESK11 | C | From an observed locked fixture session, use the shared greeter-return command; from an observed rejected GDM prompt, use Escape. Preserve the denial observation before leaving and independently require the usable account list. Select the route from the declared source; never try alternatives after uncertain input. | Locked desktop: `session_control.observe` with the bound `return-greeter` action preserves the locked session and invokes GDM's public API without another Lock. Rejected GDM: fresh provider observation → UI05(Escape) → GDM01. No lock-screen Switch User button or menu navigation. | pending |
 | DESK12 | C | Expose a named Shell panel control from a previously observed unlocked desktop, including fullscreen gameplay. Input declares already-showing or a qualified normal reveal sequence. | UI05 for reveal when declared → DESK01 → UI01 → UI02(control). The app publishes `child-request-button` and `child-countdown-animation-toggle`; installed reveal/consumer qualification remains pending. Do not require hidden panel controls before reveal. Qualify fullscreen with E2E-024. | pending |
 
 ### App-grid search and Parent launch
@@ -324,7 +325,7 @@ these blocks, not copies of them.
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | APP02(present) → UI03 → UI12 only for compare. A newly launched window cannot satisfy retained-activity expectations. No hidden process/window inspection. | pending |
-| APP05 | C | Choose the real offline game's offered windowed/fullscreen mode and reproducible level, then observe active gameplay. | UI15(mode/level) → APP03(start) → UI01 → UI03. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
+| APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. Task 296 qualifies the Lunar/Minecraft and Shell tray provider bindings, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
 ### Time and ordinary lifecycle boundaries
@@ -335,7 +336,7 @@ these blocks, not copies of them.
 | TIME02 | C | Observe minute ticks/final seconds over real monotonic intervals; compare actual displayed values and formatting with explicit tolerances. | TIME01 → UI10 → TIME01 → UI12. No guest clock/usage manipulation. | pending |
 | TIME03 | A | Let a declared bounded real interval elapse while retaining the runner guard and deadline. Return elapsed time only; this does not prove a lock or grant expiry. | Extract a guarded monotonic wait with finite progress checkpoints for E2E-010/022. | pending |
 | TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | Bounded APP03 → TIME03 repetitions, with TIME02 only while the countdown is showing → UI01(lock) → UI05(harmless normal input) → UI01(lock challenge)/UI02. Do not require a visible countdown during fullscreen play or inspect the game underneath the lock. | pending |
-| LIFE01 | C | Close and reopen one named ordinary app through its normal launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | Parent: UI18 → PARENT01 direct command. Other ordinary apps use their declared launcher, including SEARCH05 where applicable. Caller reads/compares the relevant fields afterward. Overlay/kiosk reopening uses their explicit exit/entry blocks. | pending |
+| LIFE01 | C | Close and reopen one named ordinary app through a shared direct command, unless the case explicitly tests its graphical launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | Parent: UI18 → PARENT01. Other ordinary apps use APP01 with the declared route; SEARCH05 is limited to explicit app-grid checks. Caller reads/compares the relevant fields afterward. Overlay/kiosk reopening uses their explicit exit/entry blocks. | pending |
 | LIFE02 | C | Reboot through a fixed supported system command in the owned guest, then observe a new boot and fresh GDM in the same attempt. | Shared guarded transport reboot/boot-transition recorder. No Shell power menu or confirmation; product persistence and activation notices remain required. | pending |
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
 | LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | Shared FILE01/02/06 with validated artifact identity, administrator authority and bounded output. No Terminal, sudo-prompt exercise or private product-state assertion. | pending |
@@ -406,7 +407,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | pending |
 | FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | APP01 → APP02 → APP03 only for expected usable access. | pending |
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | FLOW15(entry=retained) → APP04(compare) → APP03. | pending |
-| FLOW10 | C | Launch the prepared real game, select mode/level and play to natural lock. | FLOW08(game, usable) → APP05 → APP04(record activity) → TIME04. | pending |
+| FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | DESK11 → FLOW06 → FLOW15(child, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. | pending |
 | FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: REQUEST12(cancel) → DESK03 → REQUEST01. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02. Both then REQUEST03 → UI12(shared values and user-local selectors). Interactive mute remains deferred outside this current-choice composite. | pending |
 | FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09 → PARENT17 → PARENT18(confirm) only if revocation is declared → PARENT09 → UI12(no grant) → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
@@ -1125,7 +1126,7 @@ Parent stays open. The new child must appear without restarting Parent.
 
 The empty-account recipe composes GDM07 and SEARCH06, consuming the explicit
 fresh desktop observation before whole-query input. SEARCH06 stops at the
-ID-addressed, independently focused launchable result. Search-field readiness,
+provider-resolved, independently focused launchable result. Search-field readiness,
 focus and complete-query readback are separate checkpoints before that result.
 A second fresh result-focus observation and the durable step-2
 boundary precede FIX02; only its successful acknowledgement opens step-3 and
@@ -1142,12 +1143,14 @@ enforcement.
 
 The [adapter](../../tests/e2e/accessible_ui.py) exposes ID-scoped text reading,
 complete child-list collection, popup absence, highlight, selection, settings,
-page navigation and scroll/reveal callables. All targets, including list rows,
-must be resolved by public ID before labels or states verify their meaning. Local roots may be reused within
-one invocation and are reacquired after page transitions. The shared keyring
-handler must resolve registered prompt/control automation IDs in a fresh traversal before
-each wait/input; it keeps no cross-call UI cache. Missing/stale reads, ambiguous
-prompts, uncertain clicks and undisposed dialogs still refuse. This keeps
+page navigation and scroll/reveal callables. All repository-owned targets,
+including child-list rows, must be resolved by public ID before labels or states
+verify their meaning. External Shell/GDM controls use the qualified provider
+adapter. Local roots may be reused within one observation and are reacquired
+after input or page transitions. The shared prompt guard uses one fresh,
+complete scoped observation before input and refuses unexpected dialogs without
+dismissing them. Prepared keyring Cancel remains separate harness qualification.
+Missing/stale reads, ambiguous prompts and uncertain input still refuse. This keeps
 installed-catalogue size from multiplying prompt scans without changing
 observation deadlines or substituting appearance checks.
 
@@ -1233,7 +1236,7 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 
 | Provider / surface | Current gap and route-specific return condition | Affected consumers |
 | --- | --- | --- |
-| GNOME Shell desktop, panel, app grid, sessions, notifications, lock | Shell `50.1-0ubuntu1.2` exposed no nonempty public IDs. On the pinned Ubuntu 26.04, English-GDM, baseline-keyboard image, `AccessibleUI.standard_shell_desktop(no_prompt=True)` qualified unique Activities control and complete prompt-free observations for the fresh Parent and standard fixture buses through `check_e2e_fresh_desktop`. `check_e2e_desktop_keyring` also qualified the independent standard desktop readback after the prepared gcr Cancel branch below. `AccessibleUI.shell_search_snapshot` qualified fresh Parent search, result focus and launched window in case 3 (run `20260922T212944Z-ad23b979`). The same scoped adapter qualified standard-account split-query readback, exact web suggestion and stable launcher/window absence in case 5 (run `20260922T221644Z-33631d6d`). Other necessary lock, retained-session and product-panel observations remain unqualified. Session, power and connectivity inputs use shared system commands. | Fresh DESK01 Parent/standard and prepared standard gcr return, Parent SEARCH01/03/04/05/06 and standard SEARCH01/03/04 branches ready; other necessary DESK01/06–12, SEARCH01–06 and PANEL01–03 GUI bindings pending; DESK03–05 and LIFE02/03/06 inputs are system helpers |
+| GNOME Shell desktop, panel, app grid, sessions, notifications, lock | Shell `50.1-0ubuntu1.2` exposed no nonempty public IDs. On the pinned Ubuntu 26.04, English-GDM, baseline-keyboard image, `AccessibleUI.standard_shell_desktop(no_prompt=True)` qualified unique Activities control and complete prompt-free observations for the fresh Parent and standard fixture buses through `check_e2e_fresh_desktop`. `check_e2e_desktop_keyring` also qualified the independent standard desktop readback after the prepared gcr Cancel branch below. `AccessibleUI.shell_search_snapshot` qualified fresh Parent search, result focus and launched window in case 3 (run `20260922T212944Z-ad23b979`). The same scoped adapter qualified standard-account split-query readback, exact web suggestion and stable launcher/window absence in case 5 (run `20260922T221644Z-33631d6d`). Other necessary lock, retained-session and product-panel observations remain unqualified. Session, power and connectivity inputs use shared system commands. | Fresh DESK01 Parent/standard and prepared standard gcr return, Parent SEARCH01/03/04/05/06 and standard SEARCH01/03/04 branches ready; other necessary DESK01/06–08/10/12, SEARCH01–06 and PANEL01–03 GUI bindings pending; DESK03–05, DESK11 locked-session return and LIFE02/03/06 inputs are system helpers |
 | GDM greeter | Historical installed/product-free list, recipient and Escape qualification remains harness evidence. Shared customer entry now selects only the intended account, verifies two fresh recipient proofs, delivers once and independently observes the desktop or product denial. Wrong-account tours and keyring exercises are excluded from routine entry. The direct composition still needs live qualification; retained locks and new account bindings remain pending. | GDM01–03/05–09 for unavoidable graphical entry; GDM04 harness safety only |
 | Graphical VT6 getty/login | Retained routes refuse before image, secret or input access. Qualify a dedicated recipient/input adapter; serial proof cannot authorize graphical secret input. | Retained VT6 qualification modes |
 | MATE Polkit agent | No provider registry binding exists for the kiosk agent. Qualify the real MATE challenge owner, displayed request and selected administrator, sole empty masked focused field, cancel/rejection/approval results and secret guards. | AUTH01/02, station approval and request flows |
@@ -1473,10 +1476,10 @@ showing, enabled, focused field. Review, uncertain input, capture and replay
 refuse; preserve the secret API and recipient-safety assertions while migrating
 any legacy appearance gates to semantic proofs.
 
-SEARCH01 consumes a fresh desktop observation, dismisses recognized login-keyring
-prompts before sending Super-A once, and returns the showing, enabled, editable,
-empty Overview field. A modal can consume the shortcut; dismissal must precede
-the opening gesture, with no shortcut replay. UI21 consumes that reply for
+SEARCH01 consumes a fresh desktop observation and requires a prompt-free desktop
+before sending Super-A once, then returns the showing, enabled, editable,
+empty Overview field. A modal can consume the shortcut; the prompt guard refuses
+it before the opening gesture, with no dismissal or shortcut replay. UI21 consumes that reply for
 semantic focus through the qualified Shell adapter, then independently observes
 focus. SEARCH03 consumes the fresh focus proof, types the first
 character once, reads it at `search-started`, types the remainder once and
@@ -1497,9 +1500,9 @@ belong to their own scenarios.
 
 Current prompt middleware has host-only recognition/refusal for MATE Polkit,
 Shell Polkit, keyring and unknown authentication modals, including late
-arrivals. Its automatic input composition remains unqualified. The separate
+arrivals. Routine customer/search flows perform no automatic prompt dismissal. The separate
 `AccessibleUI.cancel_keyring_prompt` route is qualified for the prepared standard
-gcr challenge described in the provider catalogue: masked-field focus, one Cancel,
+gcr harness challenge described in the provider catalogue: masked-field focus, one Cancel,
 observed disappearance and independent desktop readback without input replay.
 Incomplete or ambiguous provider observations refuse before input.
 Separate MATE Polkit, Shell Polkit and keyring adapters must independently

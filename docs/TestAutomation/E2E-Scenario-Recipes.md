@@ -114,7 +114,10 @@ remaining forms before the common outer cleanup.
 
 Activities must have recognizable public state, such as an unfinished synthetic
 document or a real offline game level. APP03 proves interaction changes that
-state. A later newly launched app cannot prove earlier work survived. When testing a new
+state. Game mode/level preparation uses APP05's shared supported commands or
+shortcuts; settings-menu traversal is not a product assertion. Bind startup
+options before FLOW08 launches and never relaunch a retained game to prepare it.
+A later newly launched app cannot prove earlier work survived. When testing a new
 launch beside an already-open app, use a declared supported new-instance route
 and identify the new public window; merely presenting the old window is not a
 successful new launch. Never
@@ -671,7 +674,7 @@ Implementation status: All cases pending.
 Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers / special-paths / pattern-files.
 
 1. FLOW16(ample daily) → PARENT04(App Limits) → UI04(legend) → UI03 → PARENT12(assets).
-2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, FILE04/05 and LIFE01.
+2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.
 3. PARENT12 → UI12(saved/expected rule) → C → FLOW08(declared positive and negative targets). Search-only checks compare rules without changing them.
 
 ### E2E-042
@@ -1008,8 +1011,9 @@ saved rows and, when stated, using the app as the child.
 | 189 pattern-files | Save a same-directory version wildcard for the prepared AppImage. FILE05 adds the next matching version and a nonmatching file; FLOW08 matching denied and existing nonmatch usable. The new nonmatch may require the documented refresh: wait up to 60 seconds through TIME03/APP02 read-only observations, then perform one declared launch. A failed uncertain launch is not retried as if it never happened. A pattern unable to preserve existing nonmatches must report failure and retain the previous rule. |
 
 No screenshot geometry or file/process introspection supplies an app result.
-FIX04 stages declared assets only; customer copies, renames, installs and rule
-changes still use the listed UI blocks. Supported asset identities and normal
+FIX04 stages declared assets only. At the declared journey checkpoints, FILE05
+performs copies/renames and LIFE04 performs package changes through shared
+commands; Parent's UI performs rule changes. Supported asset identities and normal
 launch commands must be specified before implementation; absent assets or
 inaccessible required public observations leave the consumer pending.
 
@@ -1043,9 +1047,9 @@ toggle without a change cannot demonstrate reapplication.
 
 ### Pending approval and account changes
 
-FLOW17 is qualified separately for each normal route. Lock is the desktop's
-normal lock shortcut; Switch User/sign-out require reachable session controls;
-close requires a real supported way to close the requesting app while the
+FLOW17 is qualified separately for each route. Lock, Switch User and sign-out
+use the shared system helpers with explicit source-session checks; app close
+requires a real supported way to close the requesting app while the
 system prompt remains open. Escape on the system prompt merely cancels
 authentication and does not qualify app-close or session-leave.
 

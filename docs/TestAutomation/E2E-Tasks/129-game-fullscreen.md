@@ -23,11 +23,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Extend the real game's mode/level selection and ordinary input observations to fullscreen. Keep countdown reads conditional on public visibility during play. Reuse the bounded natural-expiry loop.
+Extend the real game's shared mode/level preparation and ordinary input observations to fullscreen. Use supported launch options or its fixed fullscreen shortcut and independently observe the result; do not automate game settings menus for preparation. Keep countdown reads conditional on public visibility during play. Reuse the bounded natural-expiry loop.
 
 ## Live VM acceptance
 
-On the live VM, select fullscreen through the game's normal control, start the declared level and observe actual play/input effects. Play to natural lock and prove normal input belongs to the lock. Do not require a Shell panel or visible countdown while the game hides them.
+On the live VM, prepare fullscreen and the declared level through the shared command/shortcut route, then observe actual gameplay input/effects. Play to natural lock and prove normal input belongs to the lock. Do not require a Shell panel or visible countdown while the game hides them.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

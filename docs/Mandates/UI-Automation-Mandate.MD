@@ -11,14 +11,21 @@
   connectivity, fixture account/file management, clock/timezone reads and
   supporting-tool launch. Use Super+L or the supported session lock API for
   explicit locking; switch to the greeter without Quick Settings or power-menu
-  navigation. Logout uses `gnome-session-quit --logout --no-prompt` for the bound
-  desktop user. Choose and validate the route before input; never try a second
+  navigation. From an already locked session, invoke the shared greeter-return
+  command without unlocking or locking again. Logout uses
+  `gnome-session-quit --logout --no-prompt` for the bound desktop user. Choose
+  and validate the route before input; never try a second
   route after an uncertain command. Preserve the owned VM, fixture/session
   identity, command transport, observation and cleanup contracts.
 - **GDM and login:** Reuse one shared entry helper that goes straight to the
   intended account. Use only the minimal selection/keyboard authentication
-  needed when a graphical login or unlock is required. Fresh secret-recipient
-  checks remain mandatory; deliberately visiting a wrong account, repeatedly
+  needed when a graphical login or unlock is required. Prefer direct public
+  focus of the identified account; otherwise use bounded Up/Down navigation
+  with freshly observed account identity and focus, then Enter. Escape returns
+  from an observed selected-account prompt to the account list. Do not derive
+  key counts from an assumed account order or use mouse geometry for these
+  routes. Fresh secret-recipient checks remain mandatory; deliberately visiting
+  a wrong account, repeatedly
   opening/dismissing prompts, and exercising keyring dialogs belong to harness
   safety qualification, never routine customer journeys. SSH authentication
   cannot substitute for a graphical PAM denial or retained-session unlock that

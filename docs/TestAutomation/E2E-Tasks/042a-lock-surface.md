@@ -22,7 +22,7 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Implement ordinary Lock and a bounded normal-key reveal inside the Shell lock adapter. Observe lock ownership and that ordinary desktop input is unavailable; do not authorize a secret.
+Reuse the shared DESK05 lock command or Super+L shortcut. The Shell lock adapter observes the resulting surface and supplies a bounded normal-key reveal only when the challenge is hidden by its curtain. Observe lock ownership and that ordinary desktop input is unavailable; do not authorize a secret or navigate Shell menus.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,

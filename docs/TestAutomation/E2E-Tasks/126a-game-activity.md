@@ -31,7 +31,7 @@ Keep installation, mode/level composition and natural expiry in their own tasks.
 
 ## Live VM acceptance
 
-On the live VM, install the declared game if needed, enter a child with ample publicly prepared time, launch it and start the fixed level through explicit normal UI inputs. Play an action, independently observe its effect, capture recognizable progress and compare a fresh observation of the same window. An independently opened game at the declared level is also a valid entry. Wrong-window or missing prior-activity input refuses. Do not wait for expiry, substitute a timer/mock game or use private state. If choosing/installing the asset and adding its public adapters expose separate substantial work, split those scoped consumers before implementation.
+On the live VM, install the declared game if needed, enter a child with ample publicly prepared time, and launch the fixed game/level through shared supported commands or shortcuts. Perform a real gameplay input, independently observe its effect, capture recognizable progress and compare a fresh observation of the same window. An independently opened game at the declared level is also a valid entry. Wrong-window or missing prior-activity input refuses. Do not wait for expiry, substitute a timer/mock game or use private state. If choosing/installing the asset and adding its public adapters expose separate substantial work, split those scoped consumers before implementation.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

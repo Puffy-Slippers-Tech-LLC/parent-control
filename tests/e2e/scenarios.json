@@ -1290,7 +1290,7 @@
           {"id": "step-1", "operation": "ui", "description": "Sign in as a parent, select the child in Parent, enable limits and save zero daily minutes. Keep the real offline game Always Allowed."},
           {"id": "step-2", "operation": "ui", "description": "Switch User and try correct-password child sign-in; read the time-limit restriction."},
           {"id": "step-3", "operation": "ui", "description": "Enter the station, choose the child and parent, request short time and obtain actual approval. Observe return to sign-in."},
-          {"id": "step-4", "operation": "ui", "description": "Sign in as the child, read the countdown, open the real game, choose the declared mode and play the declared offline level."},
+          {"id": "step-4", "operation": "ui", "description": "Sign in as the child and read the countdown. Use shared supported commands or shortcuts to open the real game in the declared mode/level, then perform real gameplay input and observe its effects."},
           {"id": "step-5", "operation": "wait", "description": "Keep playing until the desktop locks naturally. Confirm normal input now reaches the lock screen and cannot continue the game."},
           {"id": "step-6", "operation": "ui", "description": "Try the correct password and read the time restriction. Obtain replacement time normally, unlock, and continue the recognizable earlier game to check retention."}
         ],
@@ -2096,7 +2096,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child."},
-          {"id": "step-2", "operation": "ui", "description": "Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules."},
+          {"id": "step-2", "operation": "ui", "description": "Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use shared FILE05 commands for copies/renames and Parent's UI for all rules."},
           {"id": "step-3", "operation": "ui", "description": "Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save."}
         ],
         "end": [
@@ -2257,7 +2257,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval."},
+          {"id": "step-1", "operation": "ui", "description": "Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval."},
           {"id": "step-2", "operation": "ui", "description": "Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after."},
           {"id": "step-3", "operation": "ui", "description": "Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access."}
         ],

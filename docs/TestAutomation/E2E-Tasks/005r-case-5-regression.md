@@ -20,7 +20,7 @@ catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Preserve the recipe's declared discovery/profile setup, exact query and stable absence comparison. Launcher unavailability is separate from terminal execution denial.
+Preserve the recipe's declared discovery/profile setup, exact query and stable absence comparison. Launcher unavailability is separate from direct command execution denial.
 
 ## Live VM acceptance
 

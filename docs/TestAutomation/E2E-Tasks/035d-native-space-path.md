@@ -23,7 +23,7 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Bind the fixed space-containing executable and identical-copy destination, plus allowed N. Stage through FIX04 and copy through qualified public Files actions.
+Bind the fixed space-containing executable and identical-copy destination, plus allowed N. Stage through FIX04 and copy through the shared FILE05 command helper.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,
@@ -32,7 +32,7 @@ observer and worker; add no independent runner or fixture framework.
 
 ## Live VM acceptance
 
-Copy the declared executable on the VM; under publicly saved Hard and Soft rules require original/copy denial while N remains usable. Independently supplied Files entry and wrong-destination refusals must pass.
+Copy the declared executable on the VM through FILE05; under publicly saved Hard and Soft rules require original/copy denial while N remains usable. Qualify independently prepared owned source/destination fixtures and wrong-path/owner/destination refusal before mutation.
 
 Use a fresh guarded VM attempt through shared watchvm intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation

@@ -14,8 +14,11 @@ sub open_about {
 
 sub open_license {
     onpc_progress::operation('Opening the license');
-    my ($journey, $about) = @_;
-    $journey->consume_observation('about', $about);
+    my ($journey, $about, $stage) = @_;
+    $stage //= 'about';
+    die 'about:license-stage' unless (@_ == 2 && $stage eq 'about')
+        || (@_ == 3 && $stage eq 'about-rechecked');
+    $journey->consume_observation($stage, $about);
     return $journey->seen('license');
 }
 

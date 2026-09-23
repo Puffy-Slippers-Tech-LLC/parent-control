@@ -1873,6 +1873,26 @@ def test_semantic_license_close_requires_fresh_absence_and_active_owned_about(fa
         ui.window_closed('license', 'about')
 
 
+@pytest.mark.parametrize('kind', ['unrelated', 'empty', 'ambiguous'])
+@pytest.mark.parametrize('fault', [None, 'wrong-content', 'wrong-window-count'])
+def test_license_fixture_requires_exact_public_text_and_window_count(kind, fault):
+    ui, desktop, owner, window, content, about, link = semantic_license_ui()
+    if kind == 'ambiguous':
+        owner.children.append(Node(states=('showing', 'visible', 'sensitive')))
+    value = '' if kind == 'empty' else 'ONPC E2E synthetic ' + kind + ' document'
+    if fault == 'wrong-content':
+        value += 'unexpected'
+    if fault == 'wrong-window-count':
+        owner.children.append(Node())
+    ui.api.Text.get_character_count = lambda _: len(value)
+    ui.api.Text.get_text = Mock(return_value=value)
+    if fault:
+        with pytest.raises(UiError, match='ui:license-fixture-'):
+            ui.license_fixture_windows(kind)
+    else:
+        assert ui.license_fixture_windows(kind) == (window, content)
+
+
 @pytest.mark.parametrize('projection,label', [
     ('about-product', 'Oh No! Parent Control'), ('about-version', 'Version 1.1'),
     ('about-footer', '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'),

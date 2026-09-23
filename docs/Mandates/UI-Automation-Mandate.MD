@@ -17,6 +17,8 @@
   and validate the route before input; never try a second
   route after an uncertain command. Preserve the owned VM, fixture/session
   identity, command transport, observation and cleanup contracts.
+  Any tools / apps not owned by this app, if needed, must be triggered by most reliable,
+  simplest non-GUI way, e.t., terminal is by keyboard, Text editor by the built-in command
 - **GDM and login:** Reuse one shared entry helper that goes straight to the
   intended account. Use only the minimal selection/keyboard authentication
   needed when a graphical login or unlock is required. Prefer direct public

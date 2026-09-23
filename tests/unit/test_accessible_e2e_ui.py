@@ -1433,6 +1433,21 @@ def test_shell_search_adapter_scopes_unique_editable_field_to_owner(fault):
     field.component.grab_focus.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'open', 'wrong-result', 'incomplete'])
+def test_parent_search_closure_requires_complete_absence(fault):
+    child = Node(role='frame', identity=(
+        'parent-access-denied-window' if fault == 'wrong-result' else 'parent-window'))
+    root = Node(role='desktop frame', children=[child] if fault in ('open', 'wrong-result') else [])
+    ui = ui_for(root)
+    ui.standard_shell_desktop = Mock()
+    if fault == 'incomplete':
+        root.children.append(None)
+        with pytest.raises(UiError):
+            ui.parent_search_closed()
+    else:
+        assert ui.parent_search_closed() is (fault is None)
+
+
 def test_shell_search_launcher_requires_one_owned_exact_result():
     launcher = Node('Oh No! Parent Control', 'button')
     unrelated = Node('Oh No! Parent Control', 'button')

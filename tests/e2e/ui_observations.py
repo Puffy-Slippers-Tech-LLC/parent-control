@@ -40,6 +40,8 @@ OPERATION_LABELS = {
     'parent-search-ready': 'Reading the empty Parent app search field',
     'parent-search-focused': 'Checking the Parent app search field is focused',
     'parent-search-entered': 'Checking the complete Parent app search query',
+    'parent-search-close-ready': 'Checking the owned Parent window before closing',
+    'parent-search-closed': 'Checking Parent closed and the desktop returned',
     'shell-search-started': 'Checking the first Parent search character',
     'shell-search-wrong-result-refused': 'Refusing an unrelated search result binding',
     'shell-search-dismissed': 'Checking search closed and the desktop returned',
@@ -290,6 +292,9 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'parent-search-close-ready':
+            require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
+            expected['provider'] = accessible_ui.validate_shell_metadata(result['provider'])
         if operation == 'station-entry-branch':
             require(type(result) is dict and set(result) == {*expected, 'branch'}, 'ui:response')
             branch = result['branch']

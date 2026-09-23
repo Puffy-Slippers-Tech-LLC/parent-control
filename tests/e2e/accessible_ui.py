@@ -49,6 +49,7 @@ OPERATIONS |= frozenset({
     'child-command-launch',
 })
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
+OPERATIONS |= frozenset({'parent-search-close-ready', 'parent-search-closed'})
 OPERATIONS |= frozenset({'shell-search-started', 'shell-search-wrong-result-refused',
                          'shell-search-cleared',
                          'shell-search-dismissed'})
@@ -1879,6 +1880,33 @@ class AccessibleUI:
         # Keep the input latch set: even a successful submission cannot be
         # repeated by this adapter instance. The next checkpoint is a new read.
 
+    def parent_search_closed(self):
+        """Independent complete window absence on the qualified Parent desktop."""
+        self.standard_shell_desktop(no_prompt=True)
+        _owner, nodes, _snapshot, facts = self.shell_search_snapshot()
+        forbidden = {'parent-window', 'parent-access-denied-window', 'startup-error-window'}
+        return not any(facts[node]['showing'] and facts[node]['identity'] in forbidden
+                       for node in nodes)
+
+    def shell_provider_metadata(self):
+        """Qualification provenance only; no product state or arbitrary text."""
+        from gi.repository import Gio
+        owner, _nodes, _snapshot, _facts = self.shell_search_snapshot()
+        require(owner is not None, 'ui:shell-provider-owner')
+        pid = owner.get_process_id()
+        require(type(pid) is int and pid > 0, 'ui:shell-provider-owner')
+        environment = dict(item.split(b'=', 1) for item in
+                           Path('/proc/' + str(pid) + '/environ').read_bytes().split(b'\0')
+                           if b'=' in item)
+        locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
+                  or environment.get(b'LANG') or b'C').decode('ascii')
+        version = subprocess.check_output(
+            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'gnome-shell'],
+            text=True, timeout=5).strip()
+        sources = Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack()
+        return validate_shell_metadata({'version': version, 'locale': locale,
+                                        'keyboard': [list(source) for source in sources]})
+
     def launch_child_command(self):
         """REQUEST02 input: submit the installed child overlay command once.
 
@@ -3424,6 +3452,12 @@ class AccessibleUI:
             require(self.shell_search_field() is None, 'ui:search-not-dismissed')
         elif operation == 'app-grid':
             self.focus_search_result()
+        elif operation == 'parent-search-close-ready':
+            result['provider'] = self.shell_provider_metadata()
+            self.wait(lambda: self.has_state(self.parent(), self.api.StateType.ACTIVE),
+                      'parent-search-close-ready')
+        elif operation == 'parent-search-closed':
+            self.wait(self.parent_search_closed, 'parent-search-closed')
         elif operation == 'parent-window':
             self.parent()
         elif operation == 'parent-empty':
@@ -3466,6 +3500,22 @@ class AccessibleUI:
         elif operation == 'kiosk-request-escape-ready':
             self.focus_kiosk_escape_recipient()
         return result
+
+
+def validate_shell_metadata(value):
+    """Bound the nonsecret tuple on both sides of the observation transport."""
+    require(type(value) is dict and set(value) == {'version', 'locale', 'keyboard'},
+            'ui:shell-metadata')
+    require(type(value['keyboard']) is list and 0 < len(value['keyboard']) <= 8,
+            'ui:shell-metadata')
+    words = [value['version'], value['locale']]
+    for source in value['keyboard']:
+        require(type(source) is list and len(source) == 2 and source[0] in ('xkb', 'ibus'),
+                'ui:shell-metadata')
+        words.extend(source)
+    require(all(type(word) is str and re.fullmatch(r'[A-Za-z0-9_.+:@()/-]{1,128}', word)
+                for word in words), 'ui:shell-metadata')
+    return value
 
 
 def greeter_account(*, station_branch=False, station_required=False):

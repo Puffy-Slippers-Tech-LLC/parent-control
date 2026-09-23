@@ -159,6 +159,18 @@ class ChildPreviewTests(unittest.TestCase):
 
         self.assertIn('socket_path="$onpc_preview_root/runtime/session-bus"', orchestration)
         self.assertIn('--address="$onpc_preview_bus_address"', orchestration)
+        self.assertIn(
+            'export DBUS_SESSION_BUS_ADDRESS="$onpc_preview_bus_address"',
+            orchestration,
+        )
+        self.assertIn(
+            'export DBUS_SYSTEM_BUS_ADDRESS="$onpc_preview_bus_address"',
+            orchestration,
+        )
+        self.assertIn(
+            'export AT_SPI_BUS_ADDRESS="$onpc_preview_bus_address"',
+            orchestration,
+        )
 
     def test_host_viewer_honors_explicit_x11_without_affecting_child_overlay(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -25,8 +25,10 @@ from regression_session import FRAME_DIRECTORY, busy, lock
 from test_commands import suite_inventory
 
 
-DEFAULT_MODEL = 'gpt-5.6-sol'
+DEFAULT_MODEL = 'gpt-6-sol'
 DEFAULT_EFFORT = 'high'
+APP_MODEL = 'gpt-6-astra'
+APP_EFFORT = 'high'
 TAIL_BYTES = 128 * 1024
 AGENT_GRACE = 3.0
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
@@ -91,14 +93,26 @@ def agent_command(root, model, effort, run=None):
     return [*command, '-']
 
 
-def repair_prompt(prompt):
+def repair_prompt(prompt, *, app_issue=None):
+    instructions = (
+        'Classify the failure from the evidence as a test issue, an app issue, or '
+        'uncertain before editing. If it is a test issue, fix it in this session '
+        'and return status "test_fixed". If it is an app issue, make no edits and return '
+        'status "app_issue" with a concise reason. If classification remains '
+        'uncertain, make no edits and return status "uncertain" with the competing '
+        'explanations. The launcher will start a stronger agent for either of the '
+        'last two statuses. '
+        if app_issue is None else
+        'The Sol session classified this as an app issue or uncertain and ended. '
+        'Recheck the classification using the original failure evidence, then fix '
+        'the root cause in this checkout. Return status "fixed" after a repair. '
+        f'Its classification was: {app_issue}\n\n')
     return (prompt + '\n\n'
-            'This is one independent repair attempt in tools/fix-tests. Fix the recorded '
-            'root cause in this checkout and preserve unrelated work. Follow AGENTS.md '
+            'This is one independent repair attempt in tools/fix-tests. '
+            + instructions + 'Preserve unrelated work. Follow AGENTS.md '
             'and docs/Approval-Tools.md. Do not change expected product behavior or weaken, '
             'skip or delete tests to obtain a pass. Report any missing authority or '
             'prerequisite using status "blocked" in the final result. Otherwise use '
-            'status "fixed" so the script can validate your repair. '
             'The script owns test execution: finish after the repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions. '
             'Do not read or resume previous Codex sessions, histories, memories or repair '
@@ -331,10 +345,11 @@ def worker(root, run, owner, model, effort, requested='[]'):
         if (run / 'cancel').exists():
             raise Stopped()
 
-    def execute(kind, category='', options=()):
+    def execute(kind, category='', options=(), *, agent_model=None, agent_effort=None):
         check_stop()
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                   '--supervise', str(root), str(run), str(owner), kind, category, model, effort,
+                   '--supervise', str(root), str(run), str(owner), kind, category,
+                   agent_model or model, agent_effort or effort,
                    json.dumps(options)]
         # The supervisor inherits ownership, but the test/agent does not. Its
         # stdin pipe is a liveness lease, not an interactive agent conversation.
@@ -386,7 +401,7 @@ def worker(root, run, owner, model, effort, requested='[]'):
             return handoff(run)
 
     def repair(prompt):
-        print(f'\nfix-tests: fresh repair session ({model}, {effort})', flush=True)
+        print(f'\nfix-tests: classify and repair ({model}, {effort})', flush=True)
         (run / 'prompt.txt').write_text(repair_prompt(prompt), encoding='utf-8')
         # Truncate only our own last reply; an agent crash cannot reuse it.
         (run / 'agent-result.json').write_text('')
@@ -396,7 +411,23 @@ def worker(root, run, owner, model, effort, requested='[]'):
         result = json.loads((run / 'agent-result.json').read_text())
         if not isinstance(result, dict):
             raise ValueError('repair agent did not return a result object')
-        if result.get('status') != 'fixed':
+        if result.get('status') in ('app_issue', 'uncertain'):
+            classification = result['status'] + ': ' + str(result.get('summary', ''))
+            print(f'\nfix-tests: app review ({APP_MODEL}, {APP_EFFORT}); {classification}',
+                  flush=True)
+            (run / 'prompt.txt').write_text(
+                repair_prompt(prompt, app_issue=classification), encoding='utf-8')
+            (run / 'agent-result.json').write_text('')
+            status = execute('agent', agent_model=APP_MODEL, agent_effort=APP_EFFORT)
+            if status:
+                raise ValueError(f'app review agent exited with status {status}; '
+                                 'inspect the output before restarting')
+            result = json.loads((run / 'agent-result.json').read_text())
+            if not isinstance(result, dict):
+                raise ValueError('app review agent did not return a result object')
+            if result.get('status') != 'fixed':
+                raise ValueError('repair blocked: ' + str(result.get('summary', 'no repair result')))
+        elif result.get('status') != 'test_fixed':
             raise ValueError('repair blocked: ' + str(result.get('summary', 'no repair result')))
 
     status = 1

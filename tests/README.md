@@ -164,11 +164,16 @@ a complete selected pass needs no repairs; it never invokes the `all` aggregate.
 Without categories the existing two-round full-regression behavior is unchanged.
 Categories and model options apply to new runs; attaching keeps the active run's scope.
 
-The launcher itself is Python scripting. Repairs default to `gpt-5.6-sol` with
-high reasoning; `--model` and `--effort` override those defaults for a new run.
-Each agent uses `codex exec --ephemeral`, disabled conversation history and
-memories, and receives only the latest failure handoff. The script never resumes
-or forks a session and never feeds previous agent output into a later prompt.
+The launcher itself is Python scripting. Each failure starts with the current
+Sol default, `gpt-6-sol`, at high reasoning. That agent classifies the failure
+first and repairs a test defect in the same session. For an app issue or uncertain
+classification, it exits without editing and the launcher starts a fresh
+`gpt-6-astra` agent at high reasoning to recheck and repair. The next failure
+starts again with Sol. `--model` and `--effort` override the initial agent for a
+new run; app review always uses Astra at high reasoning. Each agent uses
+`codex exec --ephemeral`, disabled conversation history and memories, and receives
+the latest failure handoff. The script never resumes or forks a session; the app
+review receives only the original handoff and the Sol classification summary.
 The [official noninteractive documentation](https://learn.chatgpt.com/docs/non-interactive-mode)
 defines the ephemeral invocation. Existing CLI authentication, configuration,
 workspace sandbox and command rules remain in effect; agents cannot request

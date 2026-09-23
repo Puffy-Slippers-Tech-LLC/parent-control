@@ -1,5 +1,6 @@
 """Real keyring qualification stays bound to one guarded, owned attempt."""
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -14,6 +15,11 @@ from owned_commands import CommandError
 from parent_setup_qualification import KeyringStandardDesktopQualification
 from private_artifacts import EvidenceError
 from tests.support.perl import run_perl
+
+
+PROVIDER_METADATA = {'packages': {'gcr': '3.41.2-1', 'gnome-shell': '50.1-1'},
+                     'provider_locale': 'en_US.UTF-8', 'keyboard_sources': [['xkb', 'us']]}
+READY = (json.dumps(PROVIDER_METADATA, sort_keys=True) + '\n').encode()
 
 
 def test_keyring_plan_keeps_gdm_safety_and_distinct_prompt_observation():
@@ -50,47 +56,109 @@ def test_fixed_selector_uses_separate_attempts_and_stops_after_failure(monkeypat
 
 
 def test_keyring_preparation_uses_guarded_fixed_guest_command():
-    transport = SimpleNamespace(call=Mock(return_value=b'keyring-fixture:challenge-requested\n'))
+    transport = SimpleNamespace(call=Mock(return_value=READY))
     journey = SimpleNamespace(transport=transport)
     guard = Mock()
-    assert prepare_keyring(journey, guard) == {'profile': 'locked-login-keyring'}
+    assert prepare_keyring(journey, guard) == {'profile': 'locked-login-keyring', **PROVIDER_METADATA}
     assert guard.call_count == 2
     argv = transport.call.call_args.args[0]
     assert argv == ['/usr/bin/python3', '-I', '-', 'standard']
     assert transport.call.call_args.kwargs['timeout'] == 60
-    assert b'keyring-fixture:challenge-requested' in transport.call.call_args.kwargs['input']
+    assert b'org.gnome.keyring.PrivatePrompter' in transport.call.call_args.kwargs['input']
     transport.call.return_value = b'wrong-profile\n'
     with pytest.raises(EvidenceError, match='keyring-fixture:preparation'):
         prepare_keyring(journey, guard)
 
 
-def test_guest_fixture_locks_only_its_login_collection_without_password(monkeypatch):
-    account = SimpleNamespace(pw_name='onpc-child-jordan', pw_uid=1002)
+def test_guest_fixture_uses_owned_bus_and_secret_service_without_extra_tool(monkeypatch, capsys):
+    account = SimpleNamespace(pw_name='onpc-child-jordan', pw_uid=1002, pw_gid=1002,
+                              pw_dir='/home/onpc-child-jordan')
     monkeypatch.setattr(fixture.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(fixture.sys, 'argv', ['keyring_prompt_fixture.py', 'standard'])
     monkeypatch.setattr(fixture.pwd, 'getpwnam', lambda _: account)
     monkeypatch.setattr(fixture.os, 'stat', lambda path, follow_symlinks: SimpleNamespace(
         st_uid=1002, st_mode=0o040700 if path == '/run/user/1002' else 0o140700))
-    run = Mock()
     launch = Mock()
-    monkeypatch.setattr(fixture.subprocess, 'run', run)
+    read_fd, write_fd = fixture.os.pipe()
+    fixture.os.write(write_fd, READY)
+    fixture.os.close(write_fd)
+    launch.return_value.stdout = fixture.os.fdopen(read_fd, 'rb')
     monkeypatch.setattr(fixture.subprocess, 'Popen', launch)
     fixture.main()
-    assert run.call_count == 2
-    store, lock = [call.args[0] for call in run.call_args_list]
-    lookup = launch.call_args.args[0]
-    assert store[-5:] == ['store', '--collection=default',
-                          '--label=ONPC disposable test item',
-                          'onpc-e2e-fixture', 'keyring-cancel']
-    assert lock[-2:] == ['lock', '--collection=default']
-    assert lookup[-4:] == ['search', '--unlock', 'onpc-e2e-fixture', 'keyring-cancel']
-    assert run.call_args_list[0].kwargs['input'] == b'fixture-only-value\n'
+    command = launch.call_args.args[0]
+    assert launch.call_args.kwargs['user'] == 1002
+    assert launch.call_args.kwargs['group'] == 1002
+    assert launch.call_args.kwargs['extra_groups'] == []
+    assert launch.call_args.kwargs['env']['HOME'] == account.pw_dir
+    assert command[-4:-1] == ['/usr/bin/python3', '-I', '-c']
+    assert command[-1] == fixture.CHALLENGE
+    assert 'secret-tool' not in command[-1]
+    for method in ('ReadAlias', 'Lock', 'Unlock', 'Prompt'):
+        assert "'" + method + "'" in command[-1]
     assert launch.call_args.kwargs['start_new_session'] is True
+    assert capsys.readouterr().out == READY.decode()
+
+
+@pytest.mark.parametrize('replaced', [True, False])
+def test_challenge_binds_real_gcr_before_requesting_one_prompt(monkeypatch, capsys, replaced):
+    from gi.repository import Gio, GLib
+    import signal
+    import time
+    collection = '/org/freedesktop/secrets/collection/login'
+    prompt = '/org/freedesktop/secrets/prompt/test'
+    replies = [GLib.Variant('(u)', (1,)),
+               GLib.Variant('(s)', (':1.42',)),
+               GLib.Variant('(s)', (':1.42' if replaced else ':1.7',)),
+               GLib.Variant('(u)', (4242,)),
+               GLib.Variant('(o)', (collection,)),
+               GLib.Variant('(v)', (GLib.Variant('s', 'Login'),)),
+               GLib.Variant('(aoo)', ([collection], '/')),
+               GLib.Variant('(aoo)', ([], prompt)), GLib.Variant('()', ())]
+    bus = Mock()
+    bus.call_sync.side_effect = replies
+    monkeypatch.setattr(Gio, 'bus_get_sync', Mock(return_value=bus))
+    monkeypatch.setattr(GLib, 'MainLoop', Mock())
+    monkeypatch.setattr(GLib, 'timeout_add_seconds', Mock())
+    monkeypatch.setattr(signal, 'alarm', Mock())
+    monkeypatch.setattr(time, 'monotonic', Mock(side_effect=[0, 6]))
+    read_environment = Mock(return_value=b'LANG=C.UTF-8\0LC_MESSAGES=en_US.UTF-8\0PRIVATE=hidden\0')
+    monkeypatch.setattr(Path, 'read_bytes', read_environment)
+    monkeypatch.setattr(fixture.subprocess, 'check_output', Mock(
+        side_effect=['3.41.2-1', '50.1-1']))
+    settings = Mock()
+    settings.get_value.return_value = GLib.Variant('a(ss)', [('xkb', 'us')])
+    monkeypatch.setattr(Gio.Settings, 'new', Mock(return_value=settings))
+    exec(fixture.CHALLENGE, {})
+    if not replaced:
+        assert capsys.readouterr().out == 'keyring-fixture:failed:gcr-provider\n'
+        assert bus.call_sync.call_count == 3
+        return
+    assert capsys.readouterr().out == READY.decode()
+    assert [call.args[3] for call in bus.call_sync.call_args_list] == [
+        'StartServiceByName', 'GetNameOwner', 'GetNameOwner', 'GetConnectionUnixProcessID',
+        'ReadAlias', 'Get', 'Lock', 'Unlock', 'Prompt']
+    assert [call.args[4].unpack() for call in bus.call_sync.call_args_list[:3]] == [
+        ('org.gnome.keyring.PrivatePrompter', 0),
+        ('org.gnome.keyring.PrivatePrompter',), ('org.gnome.keyring.SystemPrompter',)]
+    assert fixture.provider_metadata(READY) == PROVIDER_METADATA
+    read_environment.assert_called_once_with()
+
+
+@pytest.mark.parametrize('value', [None, [], {}, {'unexpected': 'private'},
+    {**PROVIDER_METADATA, 'packages': ['gcr', 'gnome-shell']},
+    {**PROVIDER_METADATA, 'provider_locale': 'private value\n'},
+    {**PROVIDER_METADATA, 'keyboard_sources': []},
+    {**PROVIDER_METADATA, 'keyboard_sources': ['xk']},
+    {**PROVIDER_METADATA, 'keyboard_sources': [['unexpected', 'us']]},
+    {**PROVIDER_METADATA, 'provider_locale': 'x' * 4097},
+])
+def test_provider_metadata_refuses_unbounded_or_unexpected_fields(value):
+    with pytest.raises(ValueError, match='^keyring-fixture:provider-metadata$'):
+        fixture.provider_metadata(json.dumps(value).encode())
 
 
 def test_guest_fixture_rejects_unbound_role_before_process_launch(monkeypatch):
     run = Mock()
-    monkeypatch.setattr(fixture.subprocess, 'run', run)
     monkeypatch.setattr(fixture.subprocess, 'Popen', run)
     monkeypatch.setattr(fixture.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(fixture.sys, 'argv', ['keyring_prompt_fixture.py', 'other'])

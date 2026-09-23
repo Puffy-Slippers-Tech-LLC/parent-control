@@ -95,11 +95,13 @@ sub run {
         onpc_gdm::recipient_qualification(\&exchange);
         return;
     }
-    if ($ready->{fresh_parent_desktop} || $ready->{fresh_standard_desktop}) {
+    if ($ready->{fresh_parent_desktop} || $ready->{fresh_standard_desktop}
+        || $ready->{keyring_standard_desktop}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_fresh_desktop::run(\&exchange,
-            $ready->{fresh_parent_desktop} ? 'parent' : 'standard');
+            $ready->{fresh_parent_desktop} ? 'parent' : 'standard',
+            $ready->{keyring_standard_desktop} ? 1 : 0);
         return;
     }
     if ($ready->{kiosk_entry}) {

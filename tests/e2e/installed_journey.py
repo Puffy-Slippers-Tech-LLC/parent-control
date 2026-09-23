@@ -238,7 +238,10 @@ class InstalledJourney:
         self.check_request(stage, observed)
         if stage in plan.stage_actions:
             if self.watch_progress is not None:
-                self.watch_progress.operation('Preparing the declared child-account fixture')
+                self.watch_progress.operation(
+                    'Preparing the login-keyring prompt'
+                    if plan.stage_actions[stage] == 'prepare-keyring'
+                    else 'Preparing the declared child-account fixture')
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)
         guard()

@@ -5,7 +5,7 @@
 - Treat this computer as the development host. The product is not installed and
   must not be installed unless the task explicitly requires an installed-system
   workflow. Development previews and the maintained test viewers are allowed.
-- When asked for "handoff time", stop at the earliest clean boundary without interrupting important ongoing work and return
+- When asked for "handoff time" or a similar phrase, stop at the earliest clean boundary without interrupting important ongoing work and return
   a concise continuation prompt. Include only the remaining work and recommend a
   model and effort; do not save the prompt in the repository.
 - Do not send progress messages while a command is running. Report it after it

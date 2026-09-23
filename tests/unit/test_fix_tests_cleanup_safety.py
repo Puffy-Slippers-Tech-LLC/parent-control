@@ -45,7 +45,8 @@ def checkout(tmp_path, monkeypatch):
 
     def record(*args, **kwargs):
         child = popen(*args, **kwargs)
-        spawned.append(child)
+        if '--worker' in args[0]:
+            spawned.append(child)
         return child
 
     monkeypatch.setattr(fix_tests.subprocess, 'Popen', record)
@@ -275,7 +276,7 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
     assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_MODEL]
+        'gpt-6-sol', 'gpt-6-sol']
     for index, agent in enumerate(agents, 1):
         assert agent['prompt'].startswith(f'LATEST FAILURE ONLY {index}\n')
         assert agent['prompt'].count('LATEST FAILURE ONLY') == 1
@@ -297,7 +298,7 @@ def test_app_or_uncertain_classification_starts_fresh_strong_agent(checkout, mod
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
     assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        fix_tests.DEFAULT_MODEL, fix_tests.APP_MODEL]
+        'gpt-6-sol', 'gpt-6-astra']
     assert all('model_reasoning_effort="high"' in agent['args'] for agent in agents)
     assert agents[1]['prompt'].startswith('LATEST FAILURE ONLY\n')
     assert f'{classification}: fixture result' in agents[1]['prompt']
@@ -341,7 +342,7 @@ def test_supervisor_does_not_spawn_work_after_startup_cancellation(checkout, rea
             child = subprocess.Popen(
                 [sys.executable, '-IBu', str(ROOT / 'tools/fix_tests.py'), '--supervise',
                  str(root), str(run), str(owner), 'test', 'unit',
-                 fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT],
+                 'gpt-6-sol', fix_tests.DEFAULT_EFFORT],
                 stdin=read_fd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 pass_fds=(owner,), start_new_session=True)
             output, _ = child.communicate(timeout=10)

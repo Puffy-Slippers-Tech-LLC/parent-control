@@ -12,6 +12,14 @@ import time
 def main():
     root = Path.cwd()
     kind, *args = sys.argv[1:]
+    if kind == 'agent' and args == ['debug', 'models']:
+        print(json.dumps({'models': [
+            {'slug': 'gpt-6-astra', 'visibility': 'list', 'priority': 1,
+             'supported_reasoning_levels': [{'effort': 'high'}]},
+            {'slug': 'gpt-6-sol', 'visibility': 'list', 'priority': 2,
+             'supported_reasoning_levels': [{'effort': 'high'}]},
+        ]}))
+        return 0
     if kind == 'test' and args == ['--list']:
         if (root / 'inventory.json').exists():
             print((root / 'inventory.json').read_text())
@@ -90,9 +98,8 @@ def main():
         time.sleep(15)
     count = int((root / 'repair-count').read_text()) if (root / 'repair-count').exists() else 0
     (root / 'repair-count').write_text(str(count + 1))
-    if mode != 'agent-repeat' or count >= 1:
-        if mode not in ('agent-app', 'agent-uncertain') or count >= 1:
-            (root / 'fixed').touch()
+    if mode not in ('agent-repeat', 'agent-app', 'agent-uncertain') or count >= 1:
+        (root / 'fixed').touch()
     status = ('app_issue' if mode == 'agent-app' and count == 0 else
               'uncertain' if mode == 'agent-uncertain' and count == 0 else
               'blocked' if mode == 'agent-blocked' else

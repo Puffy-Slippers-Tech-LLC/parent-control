@@ -130,7 +130,7 @@ def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monk
     for key in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
                 'ONPC_TEST_ACTIVITY_FD', fix_tests.FRAME_DIRECTORY):
         monkeypatch.setenv(key, 'previous-context')
-    command = fix_tests.agent_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
+    command = fix_tests.agent_command(ROOT, 'gpt-6-sol', fix_tests.DEFAULT_EFFORT)
     assert command[:5] == ['/opt/codex', '--ask-for-approval', 'never', 'exec', '--ephemeral']
     assert command[command.index('--model') + 1] == 'gpt-6-sol'
     assert 'model_reasoning_effort="high"' in command
@@ -144,6 +144,24 @@ def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monk
     assert fix_tests.repair_prompt('LATEST FAILURE').startswith('LATEST FAILURE\n')
     assert 'status "test_fixed"' in fix_tests.repair_prompt('LATEST FAILURE')
     assert 'status "uncertain"' in fix_tests.repair_prompt('LATEST FAILURE')
+
+
+def test_model_catalog_selects_latest_visible_high_sol_and_strongest(monkeypatch):
+    monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
+
+    def entry(slug, priority, *, visibility='list', high=True):
+        return {'slug': slug, 'priority': priority, 'visibility': visibility,
+                'supported_reasoning_levels': [{'effort': 'high' if high else 'medium'}]}
+
+    catalog = {'models': [
+        entry('gpt-6-astra', 2), entry('gpt-6-sol', 3),
+        entry('gpt-6.1-sol', 4), entry('gpt-7-sol', 1, visibility='hide'),
+        entry('gpt-7-astra', 1, high=False),
+    ]}
+    run = Mock(return_value=Mock(stdout=json.dumps(catalog)))
+    monkeypatch.setattr(fix_tests.subprocess, 'run', run)
+    assert fix_tests.available_models() == ('gpt-6.1-sol', 'gpt-6-astra')
+    assert run.call_args.args[0] == ['/opt/codex', 'debug', 'models']
 
 
 def test_agent_transcript_formats_markdown_and_code_across_byte_boundaries():

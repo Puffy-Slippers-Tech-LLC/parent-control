@@ -11,6 +11,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import selectors
 import shutil
 import signal
@@ -25,9 +26,7 @@ from regression_session import FRAME_DIRECTORY, busy, lock
 from test_commands import suite_inventory
 
 
-DEFAULT_MODEL = 'gpt-6-sol'
 DEFAULT_EFFORT = 'high'
-APP_MODEL = 'gpt-6-astra'
 APP_EFFORT = 'high'
 TAIL_BYTES = 128 * 1024
 AGENT_GRACE = 3.0
@@ -93,6 +92,34 @@ def agent_command(root, model, effort, run=None):
     return [*command, '-']
 
 
+def available_models():
+    codex = shutil.which('codex')
+    if codex is None:
+        raise ValueError('Codex CLI is missing; install and authenticate it before running fix-tests')
+    catalog = subprocess.run([codex, 'debug', 'models'], env=environment(),
+                             capture_output=True, text=True, check=True)
+    response = json.loads(catalog.stdout)
+    models = response.get('models') if isinstance(response, dict) else None
+    if not isinstance(models, list):
+        raise ValueError('Codex returned an invalid model catalog')
+    listed = [entry for entry in models if isinstance(entry, dict)
+              and entry.get('visibility') == 'list'
+              and isinstance(entry.get('slug'), str)
+              and isinstance(entry.get('priority'), int)
+              and not isinstance(entry.get('priority'), bool)
+              and isinstance(entry.get('supported_reasoning_levels'), list)
+              and any(isinstance(level, dict) and level.get('effort') == 'high'
+                      for level in entry['supported_reasoning_levels'])]
+    sol = [entry for entry in listed
+           if re.fullmatch(r'gpt-(\d+(?:\.\d+)*)-sol', entry['slug'])]
+    if not sol:
+        raise ValueError('Codex model catalog has no listed high-reasoning Sol model')
+    newest_sol = max(sol, key=lambda entry: tuple(
+        int(part) for part in entry['slug'][4:-4].split('.')))
+    strongest = min(listed, key=lambda entry: entry['priority'])
+    return newest_sol['slug'], strongest['slug']
+
+
 def repair_prompt(prompt, *, app_issue=None):
     instructions = (
         'Classify the failure from the evidence as a test issue, an app issue, or '
@@ -103,7 +130,7 @@ def repair_prompt(prompt, *, app_issue=None):
         'explanations. The launcher will start a stronger agent for either of the '
         'last two statuses. '
         if app_issue is None else
-        'The Sol session classified this as an app issue or uncertain and ended. '
+        'The first session classified this as an app issue or uncertain and ended. '
         'Recheck the classification using the original failure evidence, then fix '
         'the root cause in this checkout. Return status "fixed" after a repair. '
         f'Its classification was: {app_issue}\n\n')
@@ -112,8 +139,8 @@ def repair_prompt(prompt, *, app_issue=None):
             + instructions + 'Preserve unrelated work. Follow AGENTS.md '
             'and docs/Approval-Tools.md. Do not change expected product behavior or weaken, '
             'skip or delete tests to obtain a pass. Report any missing authority or '
-            'prerequisite using status "blocked" in the final result. Otherwise use '
-            'The script owns test execution: finish after the repair; '
+            'prerequisite using status "blocked" in the final result. '
+            'The script owns test execution: finish after classification or repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions. '
             'Do not read or resume previous Codex sessions, histories, memories or repair '
             'transcripts. Use only this failure handoff and the current repository.\n')
@@ -332,7 +359,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         os.close(owner)
 
 
-def worker(root, run, owner, model, effort, requested='[]'):
+def worker(root, run, owner, model, effort, app_model, requested='[]'):
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     def cancel(*_):
@@ -413,12 +440,12 @@ def worker(root, run, owner, model, effort, requested='[]'):
             raise ValueError('repair agent did not return a result object')
         if result.get('status') in ('app_issue', 'uncertain'):
             classification = result['status'] + ': ' + str(result.get('summary', ''))
-            print(f'\nfix-tests: app review ({APP_MODEL}, {APP_EFFORT}); {classification}',
+            print(f'\nfix-tests: app review ({app_model}, {APP_EFFORT}); {classification}',
                   flush=True)
             (run / 'prompt.txt').write_text(
                 repair_prompt(prompt, app_issue=classification), encoding='utf-8')
             (run / 'agent-result.json').write_text('')
-            status = execute('agent', agent_model=APP_MODEL, agent_effort=APP_EFFORT)
+            status = execute('agent', agent_model=app_model, agent_effort=APP_EFFORT)
             if status:
                 raise ValueError(f'app review agent exited with status {status}; '
                                  'inspect the output before restarting')
@@ -461,7 +488,7 @@ def worker(root, run, owner, model, effort, requested='[]'):
     return status
 
 
-def select(root, *, stop=False, model=DEFAULT_MODEL, effort=DEFAULT_EFFORT, categories=()):
+def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()):
     directory = private_directory(root / 'artifacts/fix-tests')
     with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner:
         fcntl.flock(gate, fcntl.LOCK_EX)
@@ -474,6 +501,8 @@ def select(root, *, stop=False, model=DEFAULT_MODEL, effort=DEFAULT_EFFORT, cate
             return run, False
         if stop:
             return None, False
+        default_model, app_model = available_models()
+        model = default_model if model is None else model
         # Completed, cancelled and abruptly killed runs never block a new run.
         # Keep their logs; neither PID files nor cancel markers grant ownership.
         run = private_directory(directory / uuid.uuid4().hex)
@@ -482,6 +511,7 @@ def select(root, *, stop=False, model=DEFAULT_MODEL, effort=DEFAULT_EFFORT, cate
         with (run / 'output').open('xb') as output:
             subprocess.Popen(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                               '--worker', str(root), str(run), str(owner), model, effort,
+                              app_model,
                               json.dumps(categories)],
                              cwd=root, env=environment(), stdin=subprocess.DEVNULL,
                              stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
@@ -547,7 +577,7 @@ def follow_output(run, stream, dashboard):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
-    parser.add_argument('--model', default=DEFAULT_MODEL, help='repair model (default: Sol)')
+    parser.add_argument('--model', help='initial repair model (default: latest available Sol)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
                         default=DEFAULT_EFFORT, help='reasoning effort (default: high)')
     parser.add_argument('categories', nargs='*', metavar='CATEGORY',

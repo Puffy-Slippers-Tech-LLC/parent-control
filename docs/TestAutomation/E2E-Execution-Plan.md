@@ -13,14 +13,15 @@ and retained regressions. Briefs never select a different task.
 
 ## Next task
 
-Next task: **003d — [Log out through the shared system harness](E2E-Tasks/003d-logout.md)**.
+Next task: **001sa — [Read product Shell search results](E2E-Tasks/001sa-shell-search-results.md)**.
 
-Task 003c qualified a fresh installed Parent entry, one shared lock/greeter
-command, independent retained-source locked/inactive readback and usable GDM,
-with private collection and owned cleanup
-([run `20260923T165604Z-68e07519`](Evidence/test-all-runs/20260923T165604Z-68e07519/report.md)).
-This capability slice supplies no complete-scenario acceptance credit. Task 003d
-next qualifies direct logout and independent source disappearance/GDM results.
+Task 003d qualified direct logout from a fresh installed Parent desktop:
+the source session ended and GDM remained usable. The same fixed check
+requalified switch user in a separate restored attempt, retaining the source
+session. Private collection and owned cleanup passed
+([run `20260923T170614Z-02c46f60`](Evidence/test-all-runs/20260923T170614Z-02c46f60/report.md)).
+These capability slices supply no complete-scenario acceptance credit. Task
+001sa next qualifies the product's Shell search result bindings.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -45,7 +46,7 @@ also qualified the Parent/GNOME Text Editor license-reading and return binding.
 This manual validation does not close the current provider migration gate:
 the explicit retained regression rows still require their own qualified routes,
 guarded acceptance and close-out in queue order. Keep the **Next task** pointer
-on 003d. Reuse valid scoped evidence when those tasks reach their turn, and
+on 001sa. Reuse valid scoped evidence when those tasks reach their turn, and
 rerun a case if an intervening change affects it. A checked queue task records
 its delivered scope; it does not override a later `pending` block or scenario
 status. A capability run or historical `ready` inventory binding does not by

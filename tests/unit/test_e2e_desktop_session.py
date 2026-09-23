@@ -275,15 +275,18 @@ def test_plans_declare_every_stage_and_keep_prefixes_distinct():
     assert LOGOUT_PLAN.worker_mode != SWITCH_PLAN.worker_mode
 
 
-def test_switch_qualification_uses_installed_snapshot_and_only_the_switch_attempt():
+def test_session_qualification_uses_installed_snapshot_and_separate_attempts():
     import check_e2e_desktop_session as check
-    from parent_setup_qualification import DesktopSwitchQualification, KioskEntryQualification
+    from parent_setup_qualification import (DesktopLogoutQualification,
+                                            DesktopSwitchQualification, KioskEntryQualification)
 
-    assert issubclass(DesktopSwitchQualification, KioskEntryQualification)
-    context = SimpleNamespace()
-    journey = DesktopSwitchQualification.journey(context, Mock())
-    assert context.installed_snapshot == 'onpc-v1.1'
-    assert journey.plan.worker_mode == 'desktop_session_switch'
+    for qualification, mode in ((DesktopLogoutQualification, 'desktop_session_logout'),
+                                (DesktopSwitchQualification, 'desktop_session_switch')):
+        assert issubclass(qualification, KioskEntryQualification)
+        context = SimpleNamespace()
+        journey = qualification.journey(context, Mock())
+        assert context.installed_snapshot == 'onpc-v1.1'
+        assert journey.plan.worker_mode == mode
 
     calls = []
     original = check.smoke
@@ -292,5 +295,18 @@ def test_switch_qualification_uses_installed_snapshot_and_only_the_switch_attemp
         assert check.main() == 0
     finally:
         check.smoke = original
+    assert calls == [
+        {'assets': check.ASSETS, 'provision_credentials': True,
+         'desktop_session_logout': True},
+        {'assets': check.ASSETS, 'provision_credentials': True,
+         'desktop_session_switch': True},
+    ]
+
+    calls.clear()
+    check.smoke = lambda **kwargs: calls.append(kwargs) or 1
+    try:
+        assert check.main() == 1
+    finally:
+        check.smoke = original
     assert calls == [{'assets': check.ASSETS, 'provision_credentials': True,
-                      'desktop_session_switch': True}]
+                      'desktop_session_logout': True}]

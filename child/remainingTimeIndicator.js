@@ -98,12 +98,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             'child-request-button',
             appName,
             'Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings.');
-        this._requestButton.connect('clicked', () => {
-            this._tooltip.hide();
-            this._contextMenu?.close();
-            this.setRequestActive(true);
-            this._onRequest?.(this);
-        });
+        this._requestButton.connect('clicked', () => this._activateRequest());
         content.add_child(this._requestButton);
         this.add_child(content);
         this._tooltip = new St.Label({
@@ -125,6 +120,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._layoutSyncId = 0;
         this._flashTimeoutId = 0;
         this._contextMenuDestroyId = 0;
+        this._contextMenuInputGuard = false;
         this._destroyed = false;
         this._activeExtensionEnd = approvedGrantRemaining > 0
             ? Main.timeLimitsManager.getCurrentTime() + approvedGrantRemaining
@@ -186,6 +182,16 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
     }
 
+    _activateRequest() {
+        // Menu closure and focus restoration are not a new request. Keep the
+        // guard until a fresh activation press reaches the request button.
+        if (this._contextMenuInputGuard || this._contextMenu?.isOpen)
+            return;
+        this._tooltip.hide();
+        this.setRequestActive(true);
+        this._onRequest?.(this);
+    }
+
     _syncTooltip() {
         if (!this._tooltip || this._destroyed)
             return;
@@ -228,17 +234,73 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._connect(this._requestButton,
             'button-press-event', (_button, event) => {
                 this._tooltip.hide();
-                if (event.get_button() !== Clutter.BUTTON_SECONDARY)
+                if (event.get_button() !== Clutter.BUTTON_SECONDARY) {
+                    this._beginRequestInput();
                     return Clutter.EVENT_PROPAGATE;
-                this._requestButton.fake_release();
+                }
+                this._releaseForContextMenu();
                 this._openContextMenu();
                 return Clutter.EVENT_STOP;
             });
+        // Capture on the reactive button before its default key handling.
+        // Clutter omits non-reactive actors from event delivery, including
+        // this passive panel container. A handler there never sees the fresh
+        // request press and leaves the context-menu guard permanently armed.
+        this._connect(this._requestButton, 'captured-event', (_actor, event) =>
+            this._captureRequestKey(event));
         this._connect(this._requestButton, 'popup-menu', () => {
             this._tooltip.hide();
+            // The keyboard popup-menu signal has no pointer grab to cancel.
+            this._contextMenuInputGuard = true;
             this._openContextMenu();
             return Clutter.EVENT_STOP;
         });
+    }
+
+    _captureRequestKey(event) {
+        if (event.type() !== Clutter.EventType.KEY_PRESS)
+            return Clutter.EVENT_PROPAGATE;
+        const keySymbol = event.get_key_symbol();
+        // Clutter's captured key-event source is not reliably the actor that
+        // owns keyboard focus. Use Shell's public key-focus state to identify
+        // the actual recipient. In particular, Space on the countdown toggle
+        // must not arm a later synthetic/delayed click on the request button.
+        if (global.stage.get_key_focus() !== this._requestButton)
+            return Clutter.EVENT_PROPAGATE;
+        const opensContextMenu = keySymbol === Clutter.KEY_Menu ||
+            (keySymbol === Clutter.KEY_F10 &&
+             Boolean(event.get_state() & Clutter.ModifierType.SHIFT_MASK));
+        if (opensContextMenu) {
+            this._contextMenuInputGuard = true;
+            this._tooltip.hide();
+            this._openContextMenu();
+            return Clutter.EVENT_STOP;
+        }
+        if ([
+            Clutter.KEY_space,
+            Clutter.KEY_Return,
+            Clutter.KEY_KP_Enter,
+            Clutter.KEY_ISO_Enter,
+        ].includes(keySymbol))
+            this._beginRequestInput();
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _releaseForContextMenu() {
+        // Cancel the pointer gesture; only a new request press may disarm
+        // the guard, not the menu's closing input or focus restoration.
+        this._contextMenuInputGuard = true;
+        this._requestButton.fake_release();
+    }
+
+    _beginRequestInput() {
+        // A new primary pointer press or activation-key press addressed to the
+        // source button separates a deliberate request from the tail of the
+        // context-menu input. Merely destroying the menu is not such a
+        // boundary: its Escape/key release can be dispatched after the menu's
+        // accessibility nodes disappear.
+        if (!this._contextMenu?.isOpen)
+            this._contextMenuInputGuard = false;
     }
 
     _openContextMenu() {
@@ -292,6 +354,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._contextMenu = null;
         this._contextMenuManager = null;
         this._countdownAnimationItem = null;
+        if (this._destroyed)
+            this._contextMenuInputGuard = false;
     }
 
     _syncCountdownAnimationSetting() {

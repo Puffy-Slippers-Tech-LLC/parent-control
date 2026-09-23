@@ -2042,14 +2042,49 @@ def test_child_collection_uses_an_independent_current_list(fault):
         assert collect() == ('new-fixture-child', 'fixture-child')
 
 
-def test_closed_picker_cannot_hide_a_stale_subtree():
+def test_closed_picker_cannot_hide_a_persistently_stale_subtree(monkeypatch):
     from accessible_ui import PRODUCT, NEW_CHILD
     stale = Node('private-canary', states=('defunct',))
     picker = Node('', 'button', identity='parent-child-selector', children=[
         Node(NEW_CHILD, 'label', identity='parent-child-selected-1003')])
     ui = ui_for(Node(PRODUCT, identity='parent-window', children=[picker, stale]))
+    ui.timeout = 1
+    monkeypatch.setattr('accessible_ui.time.sleep', lambda _seconds: None)
+    clock = iter((0, 0, 2))
+    monkeypatch.setattr('accessible_ui.time.monotonic', lambda: next(clock))
     with pytest.raises(UiError, match='stale-picker'):
         ui.selected_child(NEW_CHILD)
+    assert len(ui.incomplete_observations) == 2
+
+
+def test_closed_picker_retries_a_transient_stale_subtree_without_input(monkeypatch):
+    from accessible_ui import PRODUCT, NEW_CHILD
+    stale = Node('private-canary', states=('defunct',))
+    picker = Node('', 'button', identity='parent-child-selector', children=[
+        Node(NEW_CHILD, 'label', identity='parent-child-selected-1003')])
+    root = Node(PRODUCT, identity='parent-window', children=[picker, stale])
+    ui = ui_for(root)
+    ui.timeout = 1
+    monkeypatch.setattr('accessible_ui.time.sleep', lambda _seconds: None)
+    expected = {'child': NEW_CHILD}
+    ui.settings = Mock(return_value=expected)
+    original_has_state = ui.has_state
+    stale_reads = 0
+
+    def has_state(node, state):
+        nonlocal stale_reads
+        value = original_has_state(node, state)
+        if node is stale and state == ui.api.StateType.DEFUNCT and value:
+            stale_reads += 1
+            root.children.remove(stale)
+        return value
+
+    ui.has_state = has_state
+    assert ui.selected_child(NEW_CHILD) == expected
+    assert stale_reads == 1
+    assert ui.incomplete_observations == [
+        {'checkpoint': 'picker-close', 'notes': []}]
+    picker.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'missing-id', 'wrong-uid', 'wrong-label'])

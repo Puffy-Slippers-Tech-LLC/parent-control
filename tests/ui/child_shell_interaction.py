@@ -345,6 +345,9 @@ def main():
             _countdown_animation_setting,
             "the countdown animation choice to persist",
         )
+        windows, cancel = _overlay_surfaces()
+        if _launch_records() or windows or cancel:
+            raise AssertionError("Changing the countdown preference opened a request overlay")
         # The setting action does not close Shell's check-menu.  Close it as
         # the customer recipe requires, then independently prove its absence
         # before routing the normal request action to the indicator.
@@ -353,6 +356,9 @@ def main():
             lambda: _find_countdown_animation_item() is None,
             "the countdown animation menu to close after Escape",
         )
+        windows, cancel = _overlay_surfaces()
+        if _launch_records() or windows or cancel:
+            raise AssertionError("Closing the countdown menu opened a request overlay")
         print("interaction stage=countdown-preference-persisted", flush=True)
 
         # Shell's St.Button has no AT-SPI Action interface. Resolve and focus

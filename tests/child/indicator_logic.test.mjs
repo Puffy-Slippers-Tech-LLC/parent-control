@@ -107,6 +107,173 @@ test('tooltip follows hover, stays on the monitor, and hides during interaction'
     assert.equal(indicator._tooltip.visible, false);
 });
 
+test('countdown preference interaction cannot activate the request overlay', () => {
+    const indicator = createIndicator();
+    let active = false;
+    let requests = 0;
+    let closes = 0;
+    Object.assign(indicator, {
+        _tooltip: {hide() {}},
+        _contextMenu: {
+            isOpen: true,
+            close: () => closes++,
+        },
+        _contextMenuInputGuard: true,
+        setRequestActive: value => { active = value; },
+        _onRequest: () => requests++,
+    });
+
+    indicator._activateRequest();
+    assert.deepEqual({active, requests, closes}, {active: false, requests: 0, closes: 0});
+
+    indicator._contextMenu.isOpen = false;
+    indicator._activateRequest();
+    assert.deepEqual({active, requests, closes}, {active: false, requests: 0, closes: 0});
+
+    indicator._contextMenu = null;
+    indicator._beginRequestInput();
+    indicator._activateRequest();
+    assert.deepEqual({active, requests, closes}, {active: true, requests: 1, closes: 0});
+});
+
+test('context-menu input cannot activate the request overlay', () => {
+    const buttonHandlers = new Map();
+    const indicatorHandlers = new Map();
+    const actions = [];
+    let focusedActor = null;
+    let active = false;
+    let requests = 0;
+    const indicator = createIndicator({
+        Clutter: {
+            BUTTON_SECONDARY: 3,
+            EVENT_PROPAGATE: 'propagate',
+            EVENT_STOP: 'stop',
+            KEY_Escape: 9,
+            KEY_space: 65,
+            KEY_Return: 36,
+            KEY_KP_Enter: 104,
+            KEY_ISO_Enter: 108,
+            KEY_Menu: 135,
+            KEY_F10: 76,
+            EventType: {KEY_PRESS: 'key-press', BUTTON_PRESS: 'button-press'},
+            ModifierType: {SHIFT_MASK: 1},
+        },
+        global: {stage: {get_key_focus: () => focusedActor}},
+    });
+    Object.assign(indicator, {
+        _signals: [],
+        reactive: false,
+        connect(signal, callback) {
+            indicatorHandlers.set(signal, callback);
+            return indicatorHandlers.size;
+        },
+        _tooltip: {hide: () => actions.push('hide')},
+        _requestButton: {
+            reactive: true,
+            connect(signal, callback) {
+                buttonHandlers.set(signal, callback);
+                return buttonHandlers.size;
+            },
+            fake_release() {
+                actions.push('release');
+                indicator._activateRequest();
+            },
+        },
+        _contextMenuInputGuard: false,
+        setRequestActive: value => { active = value; },
+        _onRequest: () => requests++,
+        _openContextMenu: () => actions.push('open'),
+    });
+    focusedActor = indicator._requestButton;
+
+    indicator._installContextMenuHandler();
+    const eventSource = {};
+    const keyEvent = (symbol, state = 0) => ({
+        type: () => 'key-press',
+        get_key_symbol: () => symbol,
+        get_state: () => state,
+        // Captured key events need not report the actor that owns key focus.
+        get_source: () => eventSource,
+    });
+    // Clutter omits non-reactive ancestors from both phases of key delivery.
+    // Dispatch through the real signal connections, not the handler method:
+    // wiring capture to the passive panel container must fail this regression.
+    const capture = event => {
+        for (const [actor, handlers] of [
+            [indicator, indicatorHandlers],
+            [indicator._requestButton, buttonHandlers],
+        ]) {
+            if (actor.reactive &&
+                handlers.get('captured-event')?.(actor, event) === 'stop')
+                return 'stop';
+        }
+        return 'propagate';
+    };
+    assert.equal(capture(keyEvent(135)), 'stop');
+    assert.deepEqual(actions, ['hide', 'open']);
+    indicator._activateRequest();
+    assert.deepEqual({active, requests}, {active: false, requests: 0});
+
+    actions.length = 0;
+    assert.equal(capture(keyEvent(76, 1)), 'stop');
+    assert.deepEqual(actions, ['hide', 'open']);
+    indicator._activateRequest();
+    assert.deepEqual({active, requests}, {active: false, requests: 0});
+
+    actions.length = 0;
+    assert.equal(buttonHandlers.get('popup-menu')(), 'stop');
+    assert.deepEqual(actions, ['hide', 'open']);
+    assert.deepEqual({active, requests}, {active: false, requests: 0});
+
+    // The keyboard route must not manufacture a pointer release; the guard
+    // still rejects any source-button click propagated by menu interaction.
+    indicator._activateRequest();
+    assert.deepEqual({active, requests}, {active: false, requests: 0});
+
+    indicator._contextMenuInputGuard = false;
+    actions.length = 0;
+    assert.equal(buttonHandlers.get('button-press-event')(
+        null, {get_button: () => 3}), 'stop');
+    assert.deepEqual(actions, ['hide', 'release', 'open']);
+    assert.deepEqual({active, requests}, {active: false, requests: 0});
+
+    indicator._contextMenu = {destroy: () => actions.push('destroy')};
+    indicator._destroyContextMenu();
+    // Menu destruction is not an input boundary. A delayed click from the
+    // closing key/release must remain suppressed regardless of main-loop
+    // scheduling.
+    indicator._activateRequest();
+    assert.deepEqual({active, requests}, {active: false, requests: 0});
+
+    // Captured activation keys from the popup item are not request input,
+    // including when their delivery races with menu teardown. They must not
+    // clear the guard and authorize a delayed click on the source button.
+    const popupItem = {};
+    focusedActor = popupItem;
+    assert.equal(capture(keyEvent(65)), 'propagate');
+    indicator._activateRequest();
+    assert.deepEqual({active, requests}, {active: false, requests: 0});
+
+    // Escape closes the menu and can then bubble to its source button. It is
+    // not a new request input and must not disarm the context-menu guard.
+    assert.equal(capture(keyEvent(9)), 'propagate');
+    indicator._activateRequest();
+    assert.deepEqual({active, requests}, {active: false, requests: 0});
+
+    focusedActor = indicator._requestButton;
+    assert.equal(capture(keyEvent(65)), 'propagate');
+    indicator._activateRequest();
+    assert.deepEqual({active, requests}, {active: true, requests: 1});
+
+    assert.equal(capture({type: () => 'button-press'}), 'propagate');
+
+    indicator._contextMenuInputGuard = true;
+    assert.equal(buttonHandlers.get('button-press-event')(
+        null, {get_button: () => 1}), 'propagate');
+    indicator._activateRequest();
+    assert.deepEqual({active, requests}, {active: true, requests: 2});
+});
+
 test('countdown animation setting gates the final-minute effects', () => {
     const indicator = createIndicator({
         Clutter: {AnimationMode: {LINEAR: 'linear'}},

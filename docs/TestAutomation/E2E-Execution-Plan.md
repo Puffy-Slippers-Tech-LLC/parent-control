@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **002r — [Requalify retained case 6](E2E-Tasks/002r-case-6-regression.md)**.
+Next task: **235r — [Requalify retained case 193](E2E-Tasks/235r-case-193-regression.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

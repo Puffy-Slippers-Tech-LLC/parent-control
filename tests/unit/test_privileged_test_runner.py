@@ -16,6 +16,11 @@ select = runner['selection']
 
 @pytest.fixture
 def checkout(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    tools = tmp_path / 'tools'
+    tools.mkdir()
+    for name in ('regression_process.py', 'test_activity.py'):
+        shutil.copy2(root / 'tools' / name, tools / name)
     integration = tmp_path / 'tests/integration'
     integration.mkdir(parents=True)
     (integration / 'check_future_feature.py').touch()
@@ -98,7 +103,10 @@ def test_prerequisites_drop_privileges_and_gate_root_test(checkout, monkeypatch,
     prerequisites = execute.call_args_list[0]
     assert prerequisites.kwargs['user'] == 1000
     assert prerequisites.kwargs['group'] == 1000
-    assert any(p.endswith('test_future_cleanup_safety.py') for p in prerequisites.args[0])
+    assert prerequisites.args[0] == [
+        '/usr/bin/python3', '-IB', str(checkout / 'tools/regression_process.py'),
+        '--cleanup-prerequisites',
+    ]
     if safety_status == 0:
         assert 'user' not in execute.call_args_list[1].kwargs
 
@@ -113,7 +121,6 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     """
     root = Path(__file__).resolve().parents[2]
     tools = checkout / 'tools'
-    tools.mkdir()
     for name in ('onpc-test-runner', 'regression_process.py', 'test_launcher.py', 'test_activity.py',
                  'test_retention.py'):
         shutil.copy2(root / 'tools' / name, tools / name)

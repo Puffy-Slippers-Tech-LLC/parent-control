@@ -315,7 +315,7 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
         build.assert_called_once()
         assert build.call_args.args[0] == [
             '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
-            '--output', directory]
+            '--reuse', '--output', directory]
         if status:
             assert result == status
             execute.assert_not_called()

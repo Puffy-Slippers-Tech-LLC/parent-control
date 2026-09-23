@@ -5,11 +5,10 @@ import json
 
 from tests.support.paths import ROOT
 from tests.support.perl import run_perl
+from tests.support.gdm_navigation import RUN
 
 
 def test_product_free_worker_repeats_the_fixed_cycle_with_its_own_markers():
-    from test_e2e_gdm_navigation import RUN
-
     source = RUN.replace('onpc_gdm::navigation_qualification',
                          'onpc_gdm::product_free_qualification')
     result = json.loads(run_perl(source).stdout)

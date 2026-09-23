@@ -1153,6 +1153,14 @@ picker reads and failed fixture preparation refuse. Outer cleanup restores the
 fixture. Neither discovery recipe changes time policy or claims child-login
 enforcement.
 
+Case **4 / E2E-003/none** passed its complete retained `parent_discovery.EMPTY_PLAN`
+and `onpc_parent_discovery::run_none` route through `tools/run-tests e2e --id '4'`
+in [run `20260923T184507Z-a2d36b98`](Evidence/test-all-runs/20260923T184507Z-a2d36b98/report.md).
+The declared two-child FIX02 checkpoint, independent Parent explanation and sole
+`(None)` picker observation, private evidence collection and owned cleanup passed.
+Coverage was regenerated. This closes retained task 004r for the empty-account
+binding; it does not qualify other SEARCH01–06 bindings.
+
 The [adapter](../../tests/e2e/accessible_ui.py) exposes ID-scoped text reading,
 complete child-list collection, popup absence, highlight, selection, settings,
 page navigation and scroll/reveal callables. All repository-owned targets,
@@ -1479,7 +1487,7 @@ overlay scope, authentication and case 57 remain pending.
 ### Search and standard sign-in contracts
 
 `check_e2e_parent_search_launch` qualified SEARCH05's administrator management
-bindings in [run `20260923T182610Z-718ecc45`](Evidence/test-all-runs/20260923T182610Z-718ecc45/report.md).
+bindings in run `20260923T182610Z-718ecc45` (outside runner retention).
 `onpc_parent::open_from_app_grid` launched the full product query once and
 independently observed the owned `parent-window`. After normal closure, a
 separate caller supplied a fresh SEARCH06 result to `launch_search_result`;

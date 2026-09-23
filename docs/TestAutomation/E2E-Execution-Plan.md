@@ -11,9 +11,15 @@ in [execution contracts](E2E-Execution-Contracts.md). Its canonical
 [queue](E2E-Task-Queue.md) is one fixed sequence, including provider qualification
 and retained regressions. Briefs never select a different task.
 
+Queue IDs identify tasks. Numeric case IDs in briefs and `--id` commands identify
+inventory variant `coverage_id` values; `E2E-NNN` identifies their scenario family.
+Keep each brief's case, variant parameters, recipe and consumer hints aligned
+with those owners. Reconciliation checks metadata without closing queue rows or
+changing runtime readiness on the strength of documentation alone.
+
 ## Next task
 
-Next task: **004r — [Requalify retained case 4](E2E-Tasks/004r-case-4-regression.md)**.
+Next task: **001s — [Prove Parent is unavailable to a standard account](E2E-Tasks/001s-shell-search.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

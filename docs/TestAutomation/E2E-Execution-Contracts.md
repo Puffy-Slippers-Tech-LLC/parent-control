@@ -211,6 +211,12 @@ pending; a later complete scenario is not a prerequisite of its own building blo
 
 For a **scenario**, register the complete recipe in the established
 inventory/worker path, preserving every finite branch and terminal result.
+Once the full executable binding and required capabilities are available, set
+the variant to `ready` with that binding and a null `pending_reason` so the runner
+can execute it. Keep the task unchecked until acceptance and close-out pass.
+`ready` records registration, not a passing result; `pending` has no executable
+and cannot be used for the acceptance run. Preserve any failed attempt and its
+remaining work on the current task under the failure contract.
 Run each exact `tools/run-tests e2e --id '<case>'` separately. Registration is
 not acceptance. Require public results, reconciliation, collection and cleanup.
 Refresh coverage after **each** successful case, including retained regressions,
@@ -259,7 +265,8 @@ After the guard is released and cleanup succeeds:
    Preserve every declared inventory case exactly once as implementation scope;
    retained regression rows separately revisit the seven existing bindings.
    Splitting former paired rows changes task granularity, never case IDs, finite
-   matrices or assertions. Lunar case 253 remains pending. Retain system
+   matrices or assertions. Planning repairs leave Lunar case 253 pending; its
+   scenario task follows the registration and acceptance sequence above. Retain system
    obligations formerly numbered 140–150 outside the UI inventory and preserve
    all seven retained ready case implementations and bindings. Their shared
    provider routes still require qualification under the current mandate.
@@ -271,7 +278,8 @@ tools/run-tests unit 'tests/unit/test_e2e_plan.py' 'tests/unit/test_e2e_inventor
 ```
 
 It checks the pointer, task/brief dependencies, one case per scenario task,
-case assignment, session sizing/exception metadata and capability-before-consumer
+case assignment and parameters, first-consumer hints, session sizing/exception
+metadata and capability-before-consumer
 order. It does not qualify UI
 adapters or establish a live pass.
 

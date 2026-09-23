@@ -2333,8 +2333,10 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
 
 @pytest.mark.parametrize('fault', [None, 'wrong-query', 'missing-description',
     'unrelated-description', 'launcher', 'disabled-launcher', 'management',
-    'duplicate-suggestion',
-    'incomplete-tree'])
+    'duplicate-suggestion', 'wrong-description', 'hidden-description',
+    'disabled-suggestion', 'duplicate-field', 'wrong-owner', 'duplicate-owner',
+    'incomplete-tree', 'delayed-launcher', 'transient-query', 'transient-description',
+    'transient-incomplete', 'transient-defunct'])
 def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
         monkeypatch, fault):
     product = accessible_ui.PRODUCT
@@ -2347,6 +2349,13 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
     shell = Node('gnome-shell', 'application', children=[overview])
     desktop = Node(children=[shell])
     if fault == 'missing-description': suggestion.children.clear()
+    if fault == 'wrong-description': description.name = 'Search for another product'
+    if fault == 'hidden-description': description.states.remove('showing')
+    if fault == 'disabled-suggestion': suggestion.states.remove('sensitive')
+    if fault == 'wrong-owner': shell.name = 'unrelated application'
+    if fault == 'duplicate-owner': desktop.children.append(Node('gnome-shell', 'application'))
+    if fault == 'duplicate-field': overview.children.append(Node(
+        'Search', 'text', states=('showing', 'visible', 'sensitive', 'editable')))
     if fault == 'unrelated-description':
         suggestion.children.clear()
         overview.children.append(description)
@@ -2358,6 +2367,9 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
         overview.children.append(Node('Search online', 'push button', children=[
             Node(description.name, 'label')]))
     ui = ui_for(desktop)
+    # Absence reads the query from this same complete snapshot, never a second
+    # field/tree whose result could conceal replacement of the original field.
+    ui.search_query = Mock(side_effect=AssertionError('mixed search snapshots'))
     if fault == 'incomplete-tree': overview.children.append(None)
     ui.query_errors = (LookupError,)
     ui.timeout = 5
@@ -2365,9 +2377,22 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
                                   get_text=lambda text, start, end: text.value[start:end])
     now = [0.0]
     monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
-    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda seconds: now.__setitem__(
-        0, now[0] + seconds))
-    if fault:
+    def tick(seconds):
+        now[0] += seconds
+        if fault == 'delayed-launcher' and now[0] >= 1:
+            overview.children.append(Node(product, 'push button'))
+        if fault == 'transient-query':
+            field.value = 'O' if 1 <= now[0] < 2 else product
+        if fault == 'transient-description':
+            description.name = ('Other result' if 1 <= now[0] < 2 else
+                                'Search "' + product + '" on the web')
+        if fault == 'transient-incomplete':
+            overview.children = [field, suggestion] + ([None] if 1 <= now[0] < 2 else [])
+        if fault == 'transient-defunct':
+            desktop.states = {'defunct'} if 1 <= now[0] < 2 else {'showing', 'visible'}
+    monkeypatch.setattr(accessible_ui.time, 'sleep', tick)
+    if fault not in (None, 'transient-query', 'transient-description',
+                    'transient-incomplete', 'transient-defunct'):
         with pytest.raises(UiError):
             ui.run('standard-parent-unavailable', '')
     else:
@@ -2375,6 +2400,7 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
             'operation': 'standard-parent-unavailable', 'outcome': 'passed',
             'interface': 'AT-SPI'}
         assert now[0] >= 2
+        if fault: assert now[0] >= 4
     suggestion.action.do_action.assert_not_called()
 
 

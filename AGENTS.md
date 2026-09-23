@@ -53,9 +53,15 @@
 ## Test and customer acceptance
 
 - Follow the [test-automation documentation map](docs/TestAutomation/README.md)
-  and the executable inventory in `tests/e2e/scenarios.json`. Customer acceptance
+  and the [executable inventory](tests/e2e/scenarios.json). Customer acceptance
   operates the installed product through public interfaces and observes customer
   results; backend probes and internal fault injection remain engineering tests.
+- Use the documentation map's ownership and status terms when reconciling E2E
+  records: the plan selects the next task from its canonical queue, briefs define
+  unfinished task scope, and inventory `coverage_id` values select runnable cases.
+  Task IDs and scenario IDs are separate namespaces. Inventory `ready` means
+  registered for execution; task completion requires its acceptance and close-out.
+  Reconciliation alone supplies no live acceptance or task-completion credit.
 - For “Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md”,
   implement exactly its first unchecked active queue row. Table order is final;
   task IDs are labels, and prerequisites name earlier tasks' delivered scopes.

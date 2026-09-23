@@ -2802,7 +2802,7 @@
         "rationale": "One continuous real-application regression: allowed autostart control, ungranted denial, active time-only boot denial, explicit soft approval and replacement exclusion. Generic native routes, wildcard version updates and lifecycle persistence remain owned by E2E-019, E2E-041 and E2E-022; they do not qualify this launcher integration."
       },
       "variants": [
-        {"coverage_id": 253, "id": "appimagelauncher-login-autostart", "owner": "application-access", "parameters": {"route": "appimagelauncher-login-autostart"}, "status": "pending", "pending_reason": "Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified (tasks 295, 296, 296a, 296b and 297).", "executable": null}
+        {"coverage_id": 253, "id": "appimagelauncher-login-autostart", "owner": "application-access", "parameters": {"route": "appimagelauncher-login-autostart"}, "status": "pending", "pending_reason": "Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified. Task 297 and its transitive prerequisites in docs/TestAutomation/E2E-Task-Queue.md own the remaining work.", "executable": null}
       ]
     }
   ]

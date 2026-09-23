@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">11385</span>/<span style="color: gray">0</span>/11385 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">11387</span>/<span style="color: gray">0</span>/11387 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">144</span>/<span style="color: gray">0</span>/144 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,7 +15,7 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">32</span>/<span style="color: gray">0</span>/32 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">7</span>/<span style="color: gray">235</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">11957</span>/<span style="color: gray">235</span>/12192** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">11959</span>/<span style="color: gray">235</span>/12194** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -5084,6 +5084,6 @@ Variant: route: appimagelauncher login autostart
 - On the same child desktop request 15 minutes with soft apps explicitly included, obtain real approval, and launch the same original AppImage through AppImageLauncher. Use Lunar to launch Minecraft, enter the same prepared world and perform the declared game action. Exit Minecraft and Quit Lunar normally; closing a window to the tray is not quitting.
 - Request another 15 minutes with soft apps explicitly excluded and obtain real approval. Repeat the read-only grant checks bracketing the reboot and blocked observations: log in as the child first, observe the full 90-second autostart interval and one original-AppImage command denial before visiting Parent. Lunar and Minecraft remain unavailable while the grant stays positive and the unrelated allowed app is usable. Do not repair policy after boot or treat a hidden launcher, missing network, broken game or expired desktop time as successful blocking.
 
-Pending: Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified (tasks 295, 296, 296a, 296b and 297).
+Pending: Planning only: manual Lunar/AppImageLauncher/Minecraft VM preparation, repeatable restored-fixture validation, external tray/game and login-interval observer qualification, and the complete installed journey remain unimplemented/unqualified. Task 297 and its transitive prerequisites in docs/TestAutomation/E2E-Task-Queue.md own the remaining work.
 
 </div>

@@ -145,6 +145,50 @@ def test_case_assignments_preserve_inventory_and_one_case_per_task(rows, variant
     assert Counter(obligations) == Counter(range(140, 151))
 
 
+def test_scenario_brief_bindings_match_inventory(rows, variants):
+    errors = []
+    for row in rows:
+        if row['done'] or not row['cases']:
+            continue
+        path = re.search(r'\]\((E2E-Tasks/[^)]+\.md)\)', row['title'])[1]
+        brief = (DOCS / path).read_text()
+        bindings = re.findall(r'^- \*\*(\d+) — ([^:]+):\*\* (.+)\.$', brief, re.M)
+        # Some dedicated briefs select their case solely through the live command.
+        for number, name, values in bindings:
+            _, variant = variants[int(number)]
+            expected = {f'{key}={value}' for key, value in variant['parameters'].items()}
+            actual = set(re.findall(r'`([^`]+)`', values))
+            if (int(number) not in row['cases'] or name != variant['id']
+                    or actual != expected):
+                errors.append((row['id'], number, name, actual, expected))
+    assert not errors, errors
+
+
+def test_brief_consumer_hints_follow_queue_and_inventory(rows, variants):
+    dependencies = {}
+    for row in rows:
+        dependencies[row['id']] = set(row['requires'])
+        for required in row['requires']:
+            dependencies[row['id']].update(dependencies[required])
+    errors = []
+    for row in rows:
+        if row['done']:
+            continue
+        path = re.search(r'\]\((E2E-Tasks/[^)]+\.md)\)', row['title'])[1]
+        brief = (DOCS / path).read_text()
+        hint = re.search(r'First scheduled consumer: \[(E2E-\d+), case (\d+)\]', brief)
+        if hint is None:
+            continue
+        consumers = [candidate for candidate in rows
+                     if not candidate['deferred'] and is_case(candidate)
+                     and row['id'] in dependencies[candidate['id']]]
+        assert consumers, row['id']
+        expected = case_number(consumers[0])
+        if int(hint[2]) != expected or hint[1] != variants[expected][0]['id']:
+            errors.append((row['id'], hint[1], hint[2], expected))
+    assert not errors, errors
+
+
 def test_each_capability_is_followed_by_all_newly_enabled_cases_in_numeric_order(rows):
     active = [row for row in rows if not row['deferred']]
     available = {row['id'] for row in active if row['done']}

@@ -21,7 +21,7 @@ Deliver **APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindin
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **295** — FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available.
+- **295** — FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
 - **052c** — TIME03.
 - **296d** — APP06 Lunar/tray snapshot and close-to-tray/restore.

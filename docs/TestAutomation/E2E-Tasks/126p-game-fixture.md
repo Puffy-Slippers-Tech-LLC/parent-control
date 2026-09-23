@@ -18,7 +18,7 @@ Bind the maintained offline game's verified asset, package profile and finite
 level data through the [fixture contract](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope).
 Repository-owned fixture controls require public automation IDs; this is not an
 external-provider exemption. Stage through FIX04 and install with the qualified
-LIFE04 terminal route. Leave game input, mode changes and expiry to later tasks.
+LIFE04 shared administrator SSH command route. Leave game input, mode changes and expiry to later tasks.
 
 ## Live VM acceptance
 

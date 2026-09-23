@@ -246,12 +246,11 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
 
-def test_worker_uses_independent_wrong_and_valid_entries_for_cancel_and_escape():
+def test_worker_uses_direct_station_entries_for_cancel_and_escape():
     result = json.loads(run_perl(RUN).stdout)
     assert result['ok']
     exchanges = [event[1] for event in result['events'] if event[0] == 'exchange']
     expected_route = lambda route: [
-        route + '-greeter', route + '-parent-focused', route + '-wrong-entry-refused',
         route + '-station-list', route + '-station-focused', route + '-station-branch',
         route + '-request-form',
     ]
@@ -260,7 +259,7 @@ def test_worker_uses_independent_wrong_and_valid_entries_for_cancel_and_escape()
         *expected_route('escape'), 'escape-ready', 'escape-returned',
     ]
     assert [event[1] for event in result['events'] if event[0] == 'key'] == [
-        'ret', 'esc', 'ret', 'ret', 'esc', 'ret', 'esc']
+        'ret', 'ret', 'esc']
     assert result['events'][-3:] == [
         ['disable'], ['power', 'off'], ['stage', 'shutdown']]
 

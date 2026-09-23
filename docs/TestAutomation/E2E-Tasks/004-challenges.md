@@ -19,7 +19,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#public-observations-a
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **003d** — DESK04 direct logout command and independent GDM result.
 - **004a** — JourneyPlan repeated invocation IDs and assertion placement.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
@@ -30,7 +30,7 @@ Replace the one-authentication-per-worker limitation with explicit, single-use c
 
 ## Live VM acceptance
 
-In one guarded VM attempt, authenticate the Parent, log out through the normal UI, then authenticate again with a new challenge. Reject stale/reused proofs in safety regressions; no reset of the existing failure latch. After external-provider route qualification, run affected credential safety and retained cases 1, 3, 4, 5, 151.
+In one guarded VM attempt, authenticate the Parent, log out through the shared DESK04 command, then authenticate again with a new challenge. Reject stale/reused proofs in safety regressions; no reset of the existing failure latch. After external-provider route qualification, run affected credential safety and retained cases 1, 3, 4, 5, 151.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

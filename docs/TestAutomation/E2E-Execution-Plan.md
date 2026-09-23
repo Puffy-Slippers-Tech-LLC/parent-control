@@ -13,14 +13,17 @@ and retained regressions. Briefs never select a different task.
 
 ## Next task
 
-Next task: **003ca — [Open and dismiss Shell session controls](E2E-Tasks/003ca-shell-session-menu.md)**.
+Next task: **003c — [Switch users through the shared system harness](E2E-Tasks/003c-switch-user.md)**.
 
 Task 003b qualified separate fresh Parent and standard fixture entries, real gcr
 Cancel after masked-field focus, disappearance and independent prompt-free desktop
 readback, with private collection and owned cleanup
 ([run `20260923T051904Z-f0d79b4d`](Evidence/test-all-runs/20260923T051904Z-f0d79b4d/report.md)).
-This capability slice supplies no complete-scenario acceptance credit. Task 003ca
-next qualifies Shell Quick Settings and session-menu entry, dismissal and readback.
+This historical harness slice supplies no complete-scenario acceptance credit.
+Routine entry now goes directly to the intended account. The system-operation
+audit removed Shell menu/logout-dialog tasks: 003c and 003d qualify shared system
+commands and independent session results. No completed GDM or Shell task grants
+an exemption from the current command/shortcut-first rule.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -33,8 +36,8 @@ eligible work.
 Current scenario status and counts come from `tests/e2e/scenarios.json`; block
 status comes from the catalogue. The developer reports manually verifying that
 all seven currently ready cases—1, 3, 4, 5, 6, 151 and 193—pass on 2026-09-22.
-No runner artifact was supplied for that complete set. Preserve their
-implementations and bindings.
+No runner artifact was supplied for that complete set. Preserve their customer
+assertions and registered bindings; supporting routes follow the current mandate.
 
 Earlier guarded runs separately passed complete cases 6 and 151 (run
 `20260922T220454Z-80a92d46`) and case 193 (run
@@ -45,7 +48,7 @@ also qualified the Parent/GNOME Text Editor license-reading and return binding.
 This manual validation does not close the current provider migration gate:
 the explicit retained regression rows still require their own qualified routes,
 guarded acceptance and close-out in queue order. Keep the **Next task** pointer
-on 003ca. Reuse valid scoped evidence when those tasks reach their turn, and
+on 003c. Reuse valid scoped evidence when those tasks reach their turn, and
 rerun a case if an intervening change affects it. A checked queue task records
 its delivered scope; it does not override a later `pending` block or scenario
 status. A capability run or historical `ready` inventory binding does not by
@@ -53,8 +56,8 @@ itself validate a complete case.
 
 Retired E2E IDs 140–150 remain separate system-test obligations and cannot be
 selected as UI cases. Deferred mute task 154 is outside current-release
-completion and blocks no active task. Consumerless SEC01/GDM10 extractions retain
-their recorded scope. A customer pass cannot replace displaced engineering
+completion and blocks no active task. SEC01 retains secret safety; GDM10's
+unnecessary navigation extraction is retired. A customer pass cannot replace displaced engineering
 obligations under their maintained owners.
 
 ## Execute one task
@@ -75,8 +78,10 @@ obligations under their maintained owners.
    entry, finite inputs, expected public results, precision and deadlines first.
    Apply the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) and
    [functional validation](E2E-Building-Blocks.md#functional-validation) to every
-   required surface, including setup, login and retained paths. Fix missing owned
-   IDs first; qualify external-provider adapters where usable IDs are unavailable.
+   required operation. Use shared shortcuts, SSH or system commands for Shell,
+   GDM preparation and other supporting work. GUI adapters are for tested product
+   features and unavoidable graphical authentication; qualify those remaining
+   routes and fix missing owned IDs before their consumers.
 5. Finish live verification, cleanup and close-out. Report the task ID, result
    and next task. The next identical prompt repeats this workflow.
 

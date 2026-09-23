@@ -40,7 +40,7 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Compose system controls, guarded real wait, supported wake input and observed actual return surface. Keep subsequent unlock separate; retained activity comparisons require successful legitimate access.
 
-Qualify the actual Shell Suspend action, guarded real wait and supported normal wake input. Record the displayed return/lock state independently; backend service state cannot establish the customer result. Task 043a owns subsequent unlock and task 052c owns the bounded real wait.
+Use the shared LIFE03 supported system suspend command, guarded real wait and supported wake input. Record the displayed return/lock state independently; backend service state cannot establish the customer result. Task 043a owns subsequent unlock and task 052c owns the bounded real wait.
 
 ## Live VM acceptance
 

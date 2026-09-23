@@ -85,31 +85,10 @@ OPERATION_LABELS = {
     'standard-search-started': 'Checking the first search character',
     'standard-search-entered': 'Checking the complete Parent search query',
     'standard-parent-unavailable': 'Checking Parent is unavailable to the standard account',
-    'standard-terminal-input': 'Finding the active terminal input surface',
-    'standard-terminal-focused': 'Focusing terminal input and checking its focus',
-    'standard-terminal-wrong-surface': 'Refusing terminal input on the desktop',
-    'standard-terminal-closed': 'Checking the terminal window is closed',
     'standard-management-denied': 'Reading administrator-access denial and checking management is absent',
-    'standard-denial-closed': 'Checking denial dismissal returns to Terminal',
 }
 OPERATION_LABELS.update({
     'help-desktop-clear': 'Checking the desktop after command documentation',
-    'help-system-prompt': 'Checking for a login-keyring prompt',
-    'help-terminal-input': 'Finding the active terminal input surface',
-    'help-terminal-focused': 'Checking focused shell input before reading command help',
-    'help-terminal-wrong-surface': 'Refusing help input on the desktop',
-    'help-terminal-closed': 'Checking Terminal and product windows are closed',
-    'help-shell-ready': 'Checking normal terminal input after command documentation',
-    **{'help-content-' + key: 'Reading installed ' + key.replace('-', ' ')
-       for key in accessible_ui.HELP_BINDINGS},
-})
-OPERATION_LABELS.update({
-    'session-menu-toggle': 'Locating the desktop system menu',
-    'session-menu-power': 'Locating the Power Off Menu',
-    'session-menu': 'Opening the desktop session menu',
-    'switch-user': 'Choosing Switch User from the session menu',
-    'logout': 'Choosing Log Out from the session menu',
-    'logout-confirm': 'Confirming Log Out',
 })
 OPERATION_LABELS.update({
     'gdm-station-wrong-entry-refused': 'Checking a password account does not enter the request station',
@@ -207,8 +186,6 @@ class UiObservations:
         self.transport = transport
         self.progress = progress
         self.last_operation = None
-        self.wrong_recipient_refused = False
-        self.standard_wrong_recipient_refused = False
         self.system_prompt = system_prompt
 
     @staticmethod
@@ -371,17 +348,15 @@ class UiObservations:
         require(result == expected, 'ui:response')
         if operation == 'gdm-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
-            self.wrong_recipient_refused = True
         elif operation == 'gdm-parent-recipient':
-            require(self.wrong_recipient_refused and self.last_operation == 'gdm-focused',
+            require(self.last_operation == 'gdm-focused',
                     'ui:recipient-order')
         elif operation == 'gdm-parent-recipient-rechecked':
             require(self.last_operation == 'gdm-parent-recipient', 'ui:recipient-order')
         elif operation == 'gdm-standard-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
-            self.standard_wrong_recipient_refused = True
         elif operation == 'gdm-standard-recipient':
-            require(self.standard_wrong_recipient_refused and self.last_operation == 'gdm-standard-focused',
+            require(self.last_operation == 'gdm-standard-focused',
                     'ui:recipient-order')
         elif operation == 'gdm-standard-recipient-rechecked':
             require(self.last_operation == 'gdm-standard-recipient', 'ui:recipient-order')

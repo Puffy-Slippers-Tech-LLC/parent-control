@@ -16,13 +16,13 @@ predecessor brief is an input to this session.
 
 ## Scope and prerequisites
 
-Deliver **SEARCH01–06 Parent launchable and standard-account unavailable bindings; terminal search entry**.
+Deliver **SEARCH01–06 Parent launchable and standard-account unavailable bindings**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **003b** — GDM05 successful fresh fixture entry; DESK01; real gcr prompt Cancel and independent desktop readback.
-- **003c** — DESK02/03 current Shell provider route and independently observed GDM return.
-- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **003ba** — GDM05 fresh Parent/standard entry and DESK01 no-prompt desktop; separate installed qualification, private collection and owned cleanup passed.
+- **003c** — DESK03 shared lock/greeter command and independent GDM result.
+- **003d** — DESK04 direct logout command and independent GDM result.
 - **001sb** — SEARCH05 administrator Parent launch and owned-window result.
 
 ## Read only this context
@@ -34,11 +34,11 @@ catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Implement provider-local Overview/app-grid/search resolution and guarded keyboard focus. Read empty, first-character and full queries independently. Distinguish the real Parent launcher from its web suggestion and resolve the actual Terminal launcher for the next consumer. Keep owned Parent controls ID-addressed. Reuse the qualified keyring handling before opening Overview; never replay a shortcut consumed by a modal.
+Implement provider-local Overview/app-grid/search resolution and guarded keyboard focus. Read empty, first-character and full queries independently. Distinguish the real Parent launcher from its web suggestion using the full product query. Keep owned Parent controls ID-addressed. Require a prompt-free desktop before opening Overview; never replay a shortcut consumed by a modal.
 
 ## Live VM acceptance
 
-On the pinned VM, launch Parent once from a real administrator search and independently observe its owned window. Through a standard-account entry, require exact query readback, the associated web description and complete stable exclusion of the launcher/management window. Do not activate the web suggestion. Qualify Terminal search-result identity/focus without claiming terminal input. Cover independent valid entry, wrong result, ambiguity, incomplete absence, stale focus and uncertain input; collect evidence and clean up.
+On the pinned VM, launch Parent once from a real administrator search and independently observe its owned window. Through a standard-account entry, require exact query readback, the associated web description and complete stable exclusion of the launcher/management window. Do not activate the web suggestion. Scope search qualification to the explicitly tested product launcher. Cover independent valid entry, wrong result, ambiguity, incomplete absence, stale focus and uncertain input; collect evidence and clean up.
 
 Implement and register this planned fixed qualification before invoking it:
 

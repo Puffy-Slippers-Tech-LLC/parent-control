@@ -46,7 +46,7 @@ fresh-default observation are a separate capability.
 
 ## Live VM acceptance
 
-On the live VM, remove the product through the administrator terminal, read the final reboot-required text, reboot normally and enter the child desktop to use the prepared app. Reinstall, follow the actual activation notice and open Parent. Require affected package cleanup checks and owned cleanup; case 139 owns the complete retained-settings lifecycle.
+On the live VM, remove the product through the shared administrator SSH package helper, read the final reboot-required text, reboot normally and enter the child desktop to use the prepared app. Reinstall, follow the actual activation notice and open Parent. Require affected package cleanup checks and owned cleanup; case 139 owns the complete retained-settings lifecycle.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

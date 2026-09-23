@@ -17,20 +17,20 @@ Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001t** — FILE01/02/06 terminal command, help/denial projections and normal close/return.
+- **001t** — PARENT01 direct command, public management denial and desktop return.
 - **009** — UI16.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Implement bounded normal app-switcher navigation to an explicitly identified existing window. Independently observe its active state. Bind Parent, Terminal and feedback first; the diagnostic-viewer binding is qualified by FEED08. Do not log out, unlock, relaunch a window or restore fields.
+Use shared public window activation or a reliable keyboard shortcut to return to an explicitly identified existing window. Independently observe its active state. Bind Parent, a supporting viewer and feedback first; the diagnostic-viewer binding is qualified by FEED08. Do not log out, unlock, relaunch a window or restore fields.
 
-Keep switcher discovery and navigation inside the qualified Shell adapter. Reacquire each application's owner after switching and compare preserved public draft/state; no title or position selects a repository-owned surface. Tests reject absent/wrong windows, focus loss and uncertain input.
+Keep window activation and any necessary keyboard navigation in the shared adapter; do not add a Shell switcher tour. Launch supporting windows by shared commands. Reacquire each application's owner after switching and compare preserved public draft/state; no title or position selects a repository-owned surface. Tests reject absent/wrong windows, focus loss and uncertain input.
 
 ## Live VM acceptance
 
-Open Parent feedback with a synthetic draft and Terminal on the same live desktop. Switch to Terminal and back normally, verify the intended active window each time and compare the unchanged draft before editing. An absent target must fail without relaunching it. No retained-user or child-login work is needed.
+Open Parent feedback with a synthetic draft and a supporting viewer on the same live desktop. Activate the viewer and return through the shared helper, verify the intended active window each time and compare the unchanged draft before editing. An absent target must fail without relaunching it. No retained-user or child-login work is needed.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

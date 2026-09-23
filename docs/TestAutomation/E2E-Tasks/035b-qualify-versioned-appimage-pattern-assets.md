@@ -17,7 +17,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-an
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **036** — FILE07/04/05; FIX04 synthetic files.
+- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
 - **186** — PARENT15 failed-save; FEED15 Parent and report-close binding.
 - **052c** — TIME03.
@@ -30,7 +30,7 @@ Bind the current/next matching AppImage versions and existing/new nonmatches for
 
 ## Live VM acceptance
 
-On the live VM, add the next version through the file manager, require matching versions denied and existing nonmatches usable. For the new nonmatch, wait at most the recipe's 60 seconds and issue one declared launch. A rejected pattern must expose its report and preserve the prior confirmed rule.
+On the live VM, add the next version through shared FILE05 copy commands, require matching versions denied and existing nonmatches usable. For the new nonmatch, wait at most the recipe's 60 seconds and issue one declared launch. A rejected pattern must expose its report and preserve the prior confirmed rule.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

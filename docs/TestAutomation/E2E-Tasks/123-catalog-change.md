@@ -30,7 +30,7 @@ Bind a verified old/new fixture package pair and extend LIFE04(update). Leave th
 
 ## Live VM acceptance
 
-On the VM, type a nondefault unsaved match draft, update the fixture through a separate visible administrator terminal, return to the same editor and Save. Close/reopen Parent through LIFE01, reselect the child and independently read the refreshed public app row and expected rule; save-time target resolution does not refresh existing rows. Preserve owned cleanup; no autosave pause or saved-preference probe.
+On the VM, type a nondefault unsaved match draft, update the fixture through the shared administrator SSH package helper, return to the same editor and Save. Close/reopen Parent through LIFE01, reselect the child and independently read the refreshed public app row and expected rule; save-time target resolution does not refresh existing rows. Preserve owned cleanup; no autosave pause or saved-preference probe.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

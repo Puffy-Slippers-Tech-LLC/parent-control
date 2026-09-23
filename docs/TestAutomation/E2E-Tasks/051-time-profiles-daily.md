@@ -18,7 +18,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-frag
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
-- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **003d** — DESK04 direct logout command and independent GDM result.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 

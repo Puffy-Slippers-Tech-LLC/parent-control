@@ -19,7 +19,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#refactoring-the-estab
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001t** — FILE01/02/06 terminal command, help/denial projections and normal close/return.
+- **001t** — PARENT01 direct command, public management denial and desktop return.
 - **004** — UI19/GDM05 distinct single-use authentication challenges.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
@@ -30,7 +30,7 @@ Reuse the accepted product-free baseline and FIX04 transfer. Extend the existing
 
 ## Live VM acceptance
 
-Start a fresh guarded VM attempt from the accepted product-free baseline, authenticate the intended administrator through two fresh recipient proofs, launch Terminal and observe its usable nonsecret input. Verify the setup-mode/ownership refusals in isolated regressions before the live run. Do not use a maintenance reset as a customer step.
+Start a fresh guarded VM attempt from the accepted product-free baseline, authenticate the intended administrator through two fresh recipient proofs, bind the shared administrator SSH command context and verify its authority. Verify the setup-mode/ownership refusals in isolated regressions before the live run. Do not use a maintenance reset as a customer step.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

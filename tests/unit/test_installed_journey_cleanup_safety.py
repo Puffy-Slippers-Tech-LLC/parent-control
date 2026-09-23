@@ -16,6 +16,7 @@ import parent_access
 import parent_terminal
 import command_help
 import command_documentation
+import session_control
 import desktop_session
 import kiosk_entry
 import request_exit
@@ -140,6 +141,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         lambda _transport, binding: {'operation': binding,
                                                        'outcome': 'passed',
                                                        'interface': 'SSH stdout'})
+    monkeypatch.setattr(session_control, 'observe',
+                        lambda _transport, binding: {'operation': binding,
+                                                     'outcome': 'passed',
+                                                     'interface': 'system session'})
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),
@@ -201,7 +206,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 if plan is parent_access.PLAN and stage == 'system-prompt':
                     assert reply == {'observed': stage}
                 tag = plan.screen_tags.get(stage, '')
-                if tag.startswith('ui:') and tag[3:] in accessible_ui.SESSION_ACTION_OPERATIONS:
+                if tag.startswith('system:'):
                     assert reply == {'observed': stage}
                 acknowledged.append(stage)
             assert [s['stage'] for s in options['validate']()] == list(plan.screen_tags)

@@ -1,58 +1,44 @@
-# 184b — Remove a logged-out spare child through Users
+# 184b — Remove a logged-out spare child through shared account helpers
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
-
-## Read only this context
-
-Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
-Read only the named block rows/callables, this recipe's selected cases and
-applicable finite-data rows. Prerequisite IDs are completion checks; do not open
-their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
+Estimate: 20–30 minutes. Follow the
+[session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **ACCOUNT02 remove-child**. First scheduled consumer: [E2E-040, case 180](../E2E-Scenario-Recipes.md#e2e-040).
-Read the [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and the selected consumer's recipe.
+Deliver **ACCOUNT02 remove-child**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **184** — ACCOUNT02 add-child; AUTH04 account-creation password fields.
+- **184** — ACCOUNT01/02 shared account read/create; AUTH04 protected-account guards.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+## Read only this context
+
+Read ACCOUNT02 and the maintained shared account/cleanup helpers delivered by task 184.
+Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 ## Implementation
 
-Compose only the normal remove action and its explicit confirmation for a registered spare child. Prepare that spare through the qualified add route in this attempt. Refuse an active child, the last administrator and the station before any removal input.
-
-Resolve the actual Settings removal controls and confirmations within the declared spare account. Reject protected or ambiguous accounts before input. Read the resulting complete public list; account-database probes cannot replace it.
+Remove only the explicitly registered, logged-out spare child through the shared command/API route. Reject active accounts, baseline accounts, the station and the last administrator before any mutation. No Users dialog or confirmation-cancel exercise.
 
 ## Live VM acceptance
 
-On the live VM, add a spare, keep it logged out, and select its removal in Users. Cancel first and observe the unchanged list; reopen, confirm and independently require only that spare absent. Parent/request refresh remains in the scenario consumers.
+Prepare the spare in this attempt, remove it once and independently require only that account absent. Prove protected-account and wrong-owner refusals leave the account set unchanged. Parent/request refresh and fallback remain the complete scenario's GUI assertions.
 
-Run affected safety/adapter checks, then implement and register the fixed slice
-qualification below in the existing guarded envelope. Run this slice here;
-its complete scenario remains a separate queue task:
+Implement and register this planned fixed qualification and its cleanup coverage before invoking it:
 
 ```sh
 tools/run-tests integration check_e2e_remove_disposable_child
 ```
 
-This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
-before invocation. Require every stated result, independent valid entry, wrong-entry
-refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
-establish complete scenario coverage.
+Use the shared watchvm intent, display and guarded command transport. Pass
+applicable cleanup/ownership checks in isolation first. Require independent
+result readback, sanitized evidence and owned cleanup. Host tests alone do not
+qualify a live route or complete a customer scenario.
 
 ## Close out
 
-After this slice's live qualification and cleanup, follow the
-[master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
-its composition changes. Runtime status belongs in the inventory; leave
-unfinished scope pending.
-Check **184b** in the [master's queue](../E2E-Task-Queue.md), update the master's
-**Next task** pointer, then delete this brief once its enduring context is maintained
-in source/contracts. Validate changed Markdown. Keep normal runner artifacts;
-no task archive, evidence document or accumulated history.
+Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
+Record the proven callable/scope and existing artifact, check **184b** only after
+acceptance and cleanup, and advance the sole pointer in queue order. Keep an
+unmet requirement pending with its return condition. Delete this brief after
+its enduring contract is recorded in the catalogue/source.

@@ -15,8 +15,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 ## Implementation
 
 Bind the maintained repository-owned A/H/S Snap payloads and their pinned asset
-manifest. FIX04 transfers bytes only. Extend the qualified visible administrator
-terminal and authentication route for the fixed Snap installation command; no
+manifest. FIX04 transfers bytes only. Extend the shared administrator SSH package helper for the fixed Snap installation command; no
 arbitrary installer or new fixture framework. Preserve the package signatures,
 confinement and ordinary package-manager outcome checks. This task owns setup;
 command and app-grid launch behavior belong to their following tasks.
@@ -24,7 +23,7 @@ command and app-grid launch behavior belong to their following tasks.
 ## Live VM acceptance
 
 In a fresh guarded attempt, stage and install the declared Snap fixtures and
-independently read real terminal completion and their public Parent catalogue
+independently read real bounded command completion and their public Parent catalogue
 identities/default rules. Refuse wrong manifests, recipient or failed installation.
 An unpacked launcher or host Snap smoke is not installed Snap qualification.
 

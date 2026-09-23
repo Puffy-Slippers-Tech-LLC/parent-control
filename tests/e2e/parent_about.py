@@ -21,8 +21,7 @@ PLAN = JourneyPlan(
     screen_tags=SCREEN_TAGS,
     phases={
         'ready': 'setup', 'setup-detached': 'setup', 'installed-greeter': 'start',
-        'other-parent-focused': 'step-1', 'wrong-recipient-refused': 'step-1',
-        'parent-list': 'step-1', 'parent-focused': 'step-1',
+        'parent-focused': 'step-1',
         'recipient-qualified': 'step-1', 'recipient-rechecked': 'step-1',
         'desktop': 'step-1', 'parent-command': 'step-1',
         'parent-window': 'step-1', 'child-picker-opened': 'step-1',

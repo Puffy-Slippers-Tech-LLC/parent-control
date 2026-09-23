@@ -24,11 +24,11 @@ Use maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Bind the finite A/H/S/N native fixture manifest to maintained public apps and verified package assets. Reuse FIX04 for powered-off transfer and LIFE04 for any required installation through the visible administrator terminal. Staging a package does not install it. Register only the fixed fixture install profile and the identities needed by the public catalogue; app launching and usability belong to a separate slice.
+Bind the finite A/H/S/N native fixture manifest to maintained public apps and verified package assets. Reuse FIX04 for powered-off transfer and LIFE04 for any required installation through the shared administrator SSH package helper. Staging a package does not install it. Register only the fixed fixture install profile and the identities needed by the public catalogue; app launching and usability belong to a separate slice.
 
 ## Live VM acceptance
 
-In a fresh guarded installed VM attempt, stage the declared assets, install missing fixtures through the real terminal/authentication route and read successful completion. Open Parent's App Limits and independently observe each declared launcher and its default access/match fields through PARENT12/UI13. Reopening the catalogue must show the same fixture set. Do not count a manifest entry as an installed launcher or seed app policy. Missing supported assets or public catalogue identities block this consumer.
+In a fresh guarded installed VM attempt, stage the declared assets, install missing fixtures through the shared administrator SSH package helper and read successful completion. Open Parent's App Limits and independently observe each declared launcher and its default access/match fields through PARENT12/UI13. Reopening the catalogue must show the same fixture set. Do not count a manifest entry as an installed launcher or seed app policy. Missing supported assets or public catalogue identities block this consumer.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

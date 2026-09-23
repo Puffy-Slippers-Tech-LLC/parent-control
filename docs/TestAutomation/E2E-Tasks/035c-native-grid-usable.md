@@ -11,7 +11,7 @@ complete cases released directly by this slice in the canonical queue.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **035p** — FIX04 native assets; LIFE04 fixture installation.
-- **001t** — FILE01/02/06 terminal command, help/denial projections and normal close/return.
+- **001t** — PARENT01 direct command, public management denial and desktop return.
 - **009** — UI16.
 
 ## Read only this context

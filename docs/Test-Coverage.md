@@ -384,8 +384,8 @@ Variant: installation: clean
 
 **Steps:**
 
-- On a supported computer without the app, sign in as a parent, open Terminal and install the supplied release with the documented package command. Authenticate if asked and read the completion and reboot notice.
-- Restart using the desktop controls. At sign-in, check that personal accounts remain available and the Oh No! Parent Control request station is offered.
+- On a supported computer without the app, use the shared guarded SSH administrator helper to install the verified supplied release with the documented package command. Read the actual completion and reboot notice.
+- Restart using the shared LIFE02 system command. At sign-in, check that personal accounts remain available and the Oh No! Parent Control request station is offered.
 - Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -950,8 +950,8 @@ Variant: outcome: wrong password; surface: child overlay
 
 **Steps:**
 
-- Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
-- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
+- Enable limits and block a test app in Parent. Overlay has positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
+- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the shared command helper as the active child desktop user to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
 - Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -970,8 +970,8 @@ Variant: outcome: cancel; surface: child overlay
 
 **Steps:**
 
-- Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
-- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
+- Enable limits and block a test app in Parent. Overlay has positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
+- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the shared command helper as the active child desktop user to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
 - Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -990,8 +990,8 @@ Variant: outcome: wrong password; surface: kiosk
 
 **Steps:**
 
-- Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
-- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
+- Enable limits and block a test app in Parent. Overlay has positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
+- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the shared command helper as the active child desktop user to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
 - Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -1010,8 +1010,8 @@ Variant: outcome: cancel; surface: kiosk
 
 **Steps:**
 
-- Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
-- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
+- Enable limits and block a test app in Parent. Overlay has positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices.
+- In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the shared command helper as the active child desktop user to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices.
 - Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2465,7 +2465,7 @@ Variant: change: update
 **Steps:**
 
 - Give the child usable time. In Parent set the app to Hard Blocked, open its Edit Match Rule dialog and enter the declared rule covering its updated target without saving.
-- Update or remove that app using its normal package command in another administrator terminal, leaving the editor open.
+- Update or remove that app using its registered package command through the shared administrator SSH helper, leaving the editor open.
 - Return and Save, then reopen Parent to refresh the list. For update, inspect the row and try the updated app as the child. For removal, observe the missing row, reinstall, refresh, read its retained rule before editing and try launching.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2485,7 +2485,7 @@ Variant: change: remove
 **Steps:**
 
 - Give the child usable time. In Parent set the app to Hard Blocked, open its Edit Match Rule dialog and enter the declared rule covering its updated target without saving.
-- Update or remove that app using its normal package command in another administrator terminal, leaving the editor open.
+- Update or remove that app using its registered package command through the shared administrator SSH helper, leaving the editor open.
 - Return and Save, then reopen Parent to refresh the list. For update, inspect the row and try the updated app as the child. For removal, observe the missing row, reinstall, refresh, read its retained rule before editing and try launching.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -2585,7 +2585,7 @@ Variant: boundary: app restart; grant: active
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2606,7 +2606,7 @@ Variant: boundary: app restart; grant: expired
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2627,7 +2627,7 @@ Variant: boundary: sign out in; grant: active
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2648,7 +2648,7 @@ Variant: boundary: sign out in; grant: expired
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2669,7 +2669,7 @@ Variant: boundary: reboot; grant: active
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2690,7 +2690,7 @@ Variant: boundary: reboot; grant: expired
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2711,7 +2711,7 @@ Variant: boundary: idle; grant: active
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2732,7 +2732,7 @@ Variant: boundary: idle; grant: expired
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2753,7 +2753,7 @@ Variant: boundary: suspend wake; grant: active
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -2774,7 +2774,7 @@ Variant: boundary: suspend wake; grant: expired
 **Steps:**
 
 - Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open.
-- Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return.
+- Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return.
 - Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time.
 - Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work.
 
@@ -3177,9 +3177,9 @@ Variant: delivery: retry
 **Steps:**
 
 - Compose authorized synthetic feedback and files in Parent and review Privacy and submission contents.
-- Disconnect the declared connection using desktop network controls, preserving the independent observation channel.
+- Disconnect the declared connection using the shared LIFE06 system-network command, preserving the independent observation channel.
 - Return to feedback, select Send once and read retry progress and unavailable editing/duplicate Send.
-- Reconnect through those same normal controls within the retry period.
+- Reconnect through the same shared system-network helper within the retry period.
 - Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3619,7 +3619,7 @@ Variant: change: add child
 **Steps:**
 
 - Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
-- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Through shared system-account commands, add a spare standard child, remove the selected/last spare child, change the spare remembered approver to standard, or remove the spare remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
 - Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3639,7 +3639,7 @@ Variant: change: remove selected
 **Steps:**
 
 - Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
-- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Through shared system-account commands, add a spare standard child, remove the selected/last spare child, change the spare remembered approver to standard, or remove the spare remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
 - Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3659,7 +3659,7 @@ Variant: change: remove last child
 **Steps:**
 
 - Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
-- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Through shared system-account commands, add a spare standard child, remove the selected/last spare child, change the spare remembered approver to standard, or remove the spare remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
 - Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3679,7 +3679,7 @@ Variant: change: ineligible approver
 **Steps:**
 
 - Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
-- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Through shared system-account commands, add a spare standard child, remove the selected/last spare child, change the spare remembered approver to standard, or remove the spare remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
 - Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3699,7 +3699,7 @@ Variant: change: missing remembered child
 **Steps:**
 
 - Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
-- In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
+- Through shared system-account commands, add a spare standard child, remove the selected/last spare child, change the spare remembered approver to standard, or remove the spare remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
 - Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3898,7 +3898,7 @@ Variant: surface: child overlay
 
 **Steps:**
 
-- Disconnect the declared connection through desktop network controls. In Parent enable limits and save the allowance and hard/soft app rules.
+- Disconnect the declared connection through the shared LIFE06 system-network command. In Parent enable limits and save the allowance and hard/soft app rules.
 - Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt.
 - Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection.
 
@@ -3918,7 +3918,7 @@ Variant: surface: kiosk
 
 **Steps:**
 
-- Disconnect the declared connection through desktop network controls. In Parent enable limits and save the allowance and hard/soft app rules.
+- Disconnect the declared connection through the shared LIFE06 system-network command. In Parent enable limits and save the allowance and hard/soft app rules.
 - Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt.
 - Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection.
 
@@ -4298,7 +4298,7 @@ Variant: flow: no reply
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4318,7 +4318,7 @@ Variant: flow: background
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4338,7 +4338,7 @@ Variant: flow: app exit
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4358,7 +4358,7 @@ Variant: flow: retry expired
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4378,7 +4378,7 @@ Variant: flow: overlay stop
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4398,7 +4398,7 @@ Variant: flow: kiosk stop
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4418,7 +4418,7 @@ Variant: flow: overlay success
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4438,7 +4438,7 @@ Variant: flow: kiosk success
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4458,7 +4458,7 @@ Variant: flow: parent error success
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -5078,8 +5078,8 @@ Variant: route: appimagelauncher login autostart
 
 **Steps:**
 
-- Through Parent enable 120 daily minutes and confirm no grant, leaving Lunar Allowed. As the child launch the original AppImage through AppImageLauncher, use Lunar to enter the prepared Minecraft world and perform an observable game action. Exit Minecraft and close Lunar to its tray. Reboot through desktop controls and log in as the child first, without opening Parent. Observe Lunar autostart within 90 seconds of usable desktop entry, restore it from the tray and launch/use Minecraft again. Quit both applications through their normal controls.
-- As the parent save Lunar as Soft Blocked with its declared same-directory version pattern and read the saved choice. Return to the child's usable desktop with no grant and attempt the original AppImage command once in Terminal. Observe a specific access denial, no usable Lunar or Minecraft, and continued use of the declared unrelated allowed app.
+- Through Parent enable 120 daily minutes and confirm no grant, leaving Lunar Allowed. As the child launch the original AppImage through AppImageLauncher, use Lunar to enter the prepared Minecraft world and perform an observable game action. Exit Minecraft and close Lunar to its tray. Reboot through the shared LIFE02 system command and log in as the child first, without opening Parent. Observe Lunar autostart within 90 seconds of usable desktop entry, restore it from the tray and launch/use Minecraft again. Quit both applications through their normal controls.
+- As the parent save Lunar as Soft Blocked with its declared same-directory version pattern and read the saved choice. Return to the child's usable desktop with no grant and attempt the original AppImage command once through the shared SSH helper as the active child desktop user. Observe a specific access denial, no usable Lunar or Minecraft, and continued use of the declared unrelated allowed app.
 - As the child request 15 minutes with soft apps explicitly excluded and obtain real parent approval. Read the positive grant through a read-only Parent visit, return to the child, reboot normally and log in as the child first without opening Parent or changing policy. Observe the complete login-autostart interval through 90 seconds after desktop readiness: no Lunar tray/background control, usable Lunar window or Minecraft. Attempt the same original AppImage command once, observe a specific access denial, and use the unrelated allowed app. Only afterward visit Parent to confirm the grant stayed positive, then return to the child.
 - On the same child desktop request 15 minutes with soft apps explicitly included, obtain real approval, and launch the same original AppImage through AppImageLauncher. Use Lunar to launch Minecraft, enter the same prepared world and perform the declared game action. Exit Minecraft and Quit Lunar normally; closing a window to the tray is not quitting.
 - Request another 15 minutes with soft apps explicitly excluded and obtain real approval. Repeat the read-only grant checks bracketing the reboot and blocked observations: log in as the child first, observe the full 90-second autostart interval and one original-AppImage command denial before visiting Parent. Lunar and Minecraft remain unavailable while the grant stays positive and the unrelated allowed app is usable. Do not repair policy after boot or treat a hidden launcher, missing network, broken game or expired desktop time as successful blocking.

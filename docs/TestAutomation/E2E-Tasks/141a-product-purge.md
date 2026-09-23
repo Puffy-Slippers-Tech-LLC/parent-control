@@ -29,7 +29,7 @@ Bind the exact verified purge command, permitted challenge and final notice. Aft
 
 ## Live VM acceptance
 
-In a fresh live attempt, make one public setting nondefault, purge through the administrator terminal and follow its actual activation notice. Enter an ordinary child desktop and use the fixture app. Reinstall, follow activation and read the visible fresh default before editing. Require package cleanup checks and owned cleanup; the uninterrupted retained-settings journey remains case 139.
+In a fresh live attempt, make one public setting nondefault, purge through the shared administrator SSH package helper and follow its actual activation notice. Enter an ordinary child desktop and use the fixture app. Reinstall, follow activation and read the visible fresh default before editing. Require package cleanup checks and owned cleanup; the uninterrupted retained-settings journey remains case 139.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

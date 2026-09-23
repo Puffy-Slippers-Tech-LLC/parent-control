@@ -36,7 +36,7 @@ sub run_none {
         exchange => $exchange, prefix => 'parent-empty', review => 0,
     );
     onpc_gdm::reattach_functional();
-    my $desktop = onpc_parent::sign_in($journey, 'parent', 'other-parent', 'success');
+    my $desktop = onpc_parent::sign_in($journey, 'parent', 'success');
     onpc_parent::search_whole_query($journey, $desktop, 'Oh No! Parent Control', 'app-grid');
     # Pause before launching Parent so the fixed fixture state is complete and
     # durably recorded before the customer-visible result can be produced.

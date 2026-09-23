@@ -9,7 +9,7 @@ Deliver **Retained regression 5; standard-account app-grid unavailability**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001s** — SEARCH01–06 Parent launchable and standard-account unavailable bindings; terminal search entry.
+- **001s** — SEARCH01–06 Parent launchable and standard-account unavailable bindings.
 
 ## Read only this context
 

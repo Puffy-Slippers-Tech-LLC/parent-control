@@ -28,7 +28,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **003d** — DESK04 direct logout command and independent GDM result.
 - **042a** — DESK05/06 explicit Lock, curtain and challenge reveal.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
@@ -37,7 +37,7 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Implement normal explicit Lock, curtain/challenge observation and a separate public lock-recipient proof. Bind intended identity and empty focused masked field; GDM proofs never authorize lock input.
 
-Resolve this actual Shell lock surface separately from GDM and the desktop menu. Observe that ordinary desktop input is blocked while locked. Reject ambiguous or wrong-owner challenges and qualify the guarded reveal/input/readback on the pinned VM.
+Resolve this actual Shell lock surface separately from GDM; explicit locking uses shared DESK05 (Super+L or the session lock API). Observe that ordinary desktop input is blocked while locked. Reject ambiguous or wrong-owner challenges and qualify the guarded reveal/input/readback on the pinned VM.
 
 ## Live VM acceptance
 

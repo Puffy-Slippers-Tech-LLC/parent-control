@@ -1,4 +1,4 @@
-# 152 — Change connectivity through public network controls
+# 152 — Observe feedback retry and recovery
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
@@ -26,11 +26,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Reuse LIFE06's already-qualified public disconnect/reconnect controls. Extend FEED09 only for real retry and recovery during one authorized submission, preserving the normal retry window and safe observation transport. No transport fault injection or forged response.
+Reuse LIFE06's shared system disconnect/reconnect commands. Extend FEED09 only for real retry and recovery during one authorized submission, preserving the normal retry window and safe observation transport. No transport fault injection or forged response.
 
 ## Live VM acceptance
 
-In the authorized live retry attempt, disconnect through UI, submit once, observe retry, reconnect before its deadline and observe automatic success for that same submission. If network controls also sever required harness access with no supported route, retain the blocker.
+In the authorized live retry attempt, disconnect through the shared system helper, submit once, observe retry, reconnect before its deadline and observe automatic success for that same submission. If the selected connection change also severs required harness access with no supported route, retain the blocker.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

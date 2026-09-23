@@ -3,7 +3,6 @@
 import copy
 import importlib.util
 import json
-import subprocess
 
 import gi
 import pytest
@@ -77,53 +76,6 @@ def _record_parent_public_state(ui, module, log_path):
     path = log_path.with_name('parent-public-state.json')
     path.write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
     print('Parent public state:', path)
-
-
-def test_installed_settings_users_publishes_builder_ids(hermetic_ui_session, tmp_path):
-    """Qualify the installed GTK provider, not a project preview double."""
-    log_path = tmp_path / 'gnome-control-center.log'
-    with log_path.open('wb') as log:
-        process = subprocess.Popen(
-            ['/usr/bin/gnome-control-center', 'system', 'users'],
-            env=hermetic_ui_session.environment,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-        )
-        try:
-            spec = importlib.util.spec_from_file_location(
-                'e2e_accessible_ui', ROOT / 'tests/e2e/accessible_ui.py')
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            from gi.repository import Atspi, GLib
-            ui = module.AccessibleUI(
-                Atspi, timeout=10, query_errors=(GLib.Error,),
-                dispatch=lambda: GLib.MainContext.default().iteration(False))
-            for identity in ('split_view', 'search_button', 'search_bar',
-                             'panel_list', 'navigation', 'current_user_page',
-                             'user_list', 'add_user_button_row'):
-                # This is an inventory of the provider's partial Builder IDs,
-                # not a qualified interaction path. Some controls (notably the
-                # search entry) are intentionally hidden until their identified
-                # owner control is activated.
-                assert ui.wait(
-                    lambda identity=identity: [
-                        node for node in ui.nodes()
-                        if module.public_automation_id(node) == identity
-                    ],
-                    identity,
-                )
-            # Partial Builder IDs are inventory only. Settings publishes no
-            # qualified application/surface chain, so this test must not
-            # activate the globally discovered search button.
-            assert ui.provider_contracts['gnome-settings']['application_id'] is None
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=5)
 
 
 @pytest.mark.parametrize('dismissal', ['close', 'window-manager'])

@@ -32,7 +32,7 @@ Bind verified fixture removal/reinstallation commands. Save the real open draft 
 
 ## Live VM acceptance
 
-On the live VM, leave a nondefault match draft open, remove the fixture in a separate administrator terminal, return and Save. Close/reopen Parent through LIFE01, reselect the child and observe exclusion from the refreshed public catalogue. Reinstall through the visible terminal, reopen Parent again and independently read the retained rule before editing it.
+On the live VM, leave a nondefault match draft open, remove the fixture through the shared administrator SSH package helper, return and Save. Close/reopen Parent through LIFE01, reselect the child and observe exclusion from the refreshed public catalogue. Reinstall through the shared administrator SSH package helper, reopen Parent again and independently read the retained rule before editing it.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

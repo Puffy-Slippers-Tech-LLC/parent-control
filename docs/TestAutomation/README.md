@@ -78,6 +78,10 @@ them separate from customer scenario completion.
 All live UI work inherits the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD),
 including its external-provider exception. The catalogue records implementation
 gaps and route qualification; it does not redefine that mandate.
+Apply its route-selection rule before creating UI work: routine Shell, GDM and
+other system operations use shared commands, SSH or shortcuts. Only tested app
+features and unavoidable graphical authentication need GUI adapters. Historical
+completed tasks cannot make an unrelated system UI a customer requirement.
 
 Provider work follows the same [execution plan](E2E-Execution-Plan.md#external-provider-work-within-the-sequence)
 and ordered queue as every customer capability. There is one next-task pointer;

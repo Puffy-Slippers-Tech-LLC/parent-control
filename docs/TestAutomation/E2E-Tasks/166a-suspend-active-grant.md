@@ -25,7 +25,7 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Qualify the actual Shell Suspend action, supported wake input and independent return surface. Reuse a real grant-only profile, guarded wait and legitimate unlock; backend power state does not prove the customer result.
+Use the shared LIFE03 system suspend command, supported wake input and independent return-surface observation. Reuse a real grant-only profile, guarded wait and legitimate unlock; backend power state does not prove the customer result.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,

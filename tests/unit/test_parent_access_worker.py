@@ -210,8 +210,7 @@ def test_failed_prompt_dismissal_never_sends_the_overview_shortcut():
     assert ['key', 'super-a'] not in result['events']
 
 
-@pytest.mark.parametrize('stage', ['installed-greeter', 'other-parent-focused',
-    'wrong-recipient-refused', 'standard-list', 'standard-focused',
+@pytest.mark.parametrize('stage', ['installed-greeter', 'standard-focused',
     'standard-recipient-qualified', 'standard-recipient-rechecked'])
 def test_standard_functional_credential_gate_refuses_before_secret(stage):
     result = json.loads(run_perl(PROBE, '0', stage).stdout)

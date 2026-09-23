@@ -46,7 +46,7 @@ sub _enter_functional_gdm_password {
         die "secret:video-policy\n" unless testapi::get_var('NOVIDEO', 0) eq '1';
         # Each fixed controller checkpoint freshly requires the intended
         # identity and sole empty, masked, showing, enabled, focused field.
-        # The controller also requires the preceding wrong-recipient refusal.
+        # Wrong-recipient rejection is tested separately by harness qualification.
         # No input, action replay or capture occurs between these checks.
         my $prefix = $role eq 'parent' ? '' : 'standard-';
         my $proof;
@@ -67,7 +67,7 @@ sub _enter_functional_gdm_password {
 }
 
 # UI19: consume one explicit fresh recipient proof and type once. The GDM05
-# caller owns its two checks; the controller owns their wrong-recipient/order
+# caller owns its two checks; the controller owns their recipient/order
 # qualification. This leaf neither submits nor infers authentication success.
 sub type_fixture_secret {
     onpc_progress::operation('Entering the protected fixture credential');

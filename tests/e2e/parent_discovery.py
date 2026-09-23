@@ -29,8 +29,7 @@ PLAN = JourneyPlan(
     phases={
         "ready": "setup", "setup-detached": "setup",
         "installed-greeter": "start", "recipient-qualified": "step-1",
-        "other-parent-focused": "step-1", "wrong-recipient-refused": "step-1",
-        "parent-list": "step-1", "parent-focused": "step-1", "recipient-rechecked": "step-1",
+        "parent-focused": "step-1", "recipient-rechecked": "step-1",
         "desktop": "step-1", "app-grid": "step-1", "parent-selected": "step-1",
         "search-ready": "step-1", "search-focused": "step-1", "search-entered": "step-1",
         "parent-window": "step-1",
@@ -63,8 +62,7 @@ EMPTY_PLAN = JourneyPlan(
     phases={
         "ready": "setup", "setup-detached": "setup",
         "installed-greeter": "start", "recipient-qualified": "step-1",
-        "other-parent-focused": "step-1", "wrong-recipient-refused": "step-1",
-        "parent-list": "step-1", "parent-focused": "step-1", "recipient-rechecked": "step-1",
+        "parent-focused": "step-1", "recipient-rechecked": "step-1",
         "desktop": "step-1", "app-grid": "step-1",
         "search-ready": "step-1", "search-focused": "step-1", "search-entered": "step-1",
         "fixture-requested": "step-2", "empty": "step-3",

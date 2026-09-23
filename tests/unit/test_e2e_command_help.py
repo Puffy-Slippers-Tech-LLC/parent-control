@@ -1,80 +1,12 @@
 """Command documentation uses bounded SSH stdout and leaves the desktop clear."""
 
 import json
-from types import SimpleNamespace
-from unittest.mock import Mock
 
 import pytest
 
-from accessible_ui import HELP_BINDINGS, UiError
 from command_documentation import BINDINGS, command, observe, validate
 from private_artifacts import EvidenceError
-from tests.support.accessible_ui import Node, ui_for
 from tests.support.perl import run_perl
-
-PROMPT = 'onpc-parent-jamie@fixture:~$ '
-def terminal(value):
-    field = Node(role='terminal',
-                 states=('showing', 'visible', 'sensitive', 'focused'))
-    window = Node(children=[field],
-                  states=('showing', 'visible', 'active'))
-    application = Node('Ptyxis', 'application', children=[window],
-                       identity='org.gnome.Ptyxis')
-    root = Node(role='desktop frame', children=[application])
-    ui = ui_for(root)
-    text = object()
-    field.get_text_iface = lambda: text
-    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value),
-        get_text=Mock(side_effect=lambda _, start, end: value[start:end]))
-    return ui, root, field
-
-
-@pytest.mark.parametrize('binding', HELP_BINDINGS)
-@pytest.mark.parametrize('fault', [None, 'echo', 'wrong-content', 'background', 'product',
-                                   'request', 'stale', 'wrong-return'])
-def test_content_requires_identifying_output_and_right_terminal_state(binding, fault):
-    command, kind, identity = HELP_BINDINGS[binding]
-    value = (f'usage: {command} [-h]\n{identity}\noptions:\n'
-             ' -h, --help  show this help message and exit\n' + PROMPT if kind == 'help'
-             else f'{command.upper()}(1)\nNAME\n{command} - {identity}\nSYNOPSIS\n'
-                  f'{command} [options]\nDESCRIPTION\n{identity}\n:')
-    if fault == 'echo': value = PROMPT + command + ' --help\n' + PROMPT
-    if fault == 'wrong-content': value = value.replace(identity, 'unrelated documentation')
-    if fault == 'wrong-return':
-        value = value.removesuffix(PROMPT) + (':' if kind == 'help' else '\n' + PROMPT)
-    ui, root, field = terminal(value)
-    if fault == 'background': field.parent.states.remove('active')
-    if fault == 'product':
-        root.children.append(Node('Oh No! Parent Control', identity='parent-access-denied-window'))
-    if fault == 'request':
-        root.children.append(Node('Request', 'push button', identity='kiosk-request-window'))
-    if fault == 'stale': root.children.append(Node(states=('defunct',)))
-    if fault in ('product', 'request', 'stale'):
-        with pytest.raises(UiError): ui.help_content(binding)
-    else:
-        assert ui.help_content(binding) is (fault is None)
-
-
-def test_station_manual_purpose_survives_man_line_hyphenation():
-    value = ('OH-NO-PARENT-CONTROL(1)\nNAME\n'
-             'oh-no-parent-control - run the parent-con‐\n'
-             '       trol request interface\nSYNOPSIS\n'
-             'oh-no-parent-control [options]\nDESCRIPTION\n')
-    ui, _, _ = terminal(value)
-    assert ui.help_content('station-manual')
-    ui, _, _ = terminal(value.replace('request interface', 'unrelated purpose'))
-    assert not ui.help_content('station-manual')
-
-
-def test_projection_is_bounded_and_raw_terminal_text_never_leaves_adapter():
-    ui, _, _ = terminal('private-prefix' * 1000 + '\n' + PROMPT)
-    assert ui.run('help-shell-ready', '1') == {
-        'operation': 'help-shell-ready', 'outcome': 'passed', 'interface': 'AT-SPI'}
-    assert all(call.args[2] - call.args[1] <= 8192 for call in ui.api.Text.get_text.call_args_list)
-    ui, _, _ = terminal('x' * 65537)
-    with pytest.raises(UiError, match='text-bound'): ui.help_terminal_text()
-    ui.api.Text.get_text.assert_not_called()
-
 
 def test_fixed_stream_commands_run_as_parent_without_shell_or_terminal():
     for binding, (name, kind, _) in BINDINGS.items():

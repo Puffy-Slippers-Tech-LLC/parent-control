@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify DESK02/03/04 with separate Switch User and confirmed Log Out attempts."""
+"""Qualify shared DESK03/04 system commands in separate switch/logout attempts."""
 
 from pathlib import Path
 import sys

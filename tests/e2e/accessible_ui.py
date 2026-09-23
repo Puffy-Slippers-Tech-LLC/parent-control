@@ -44,51 +44,16 @@ STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'fresh-standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
     'keyring-cancel-standard',
 })
-TERMINAL_OPERATIONS = frozenset({
-    'standard-terminal-input',
-    'standard-terminal-focused', 'standard-terminal-wrong-surface',
-    'standard-terminal-closed', 'standard-management-denied', 'standard-denial-closed',
-})
-OPERATIONS |= TERMINAL_OPERATIONS
 OPERATIONS |= frozenset({
     'parent-command-launch', 'standard-parent-command-launch', 'standard-parent-closed',
     'child-command-launch',
 })
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
-STANDARD_OPERATIONS |= TERMINAL_OPERATIONS
+OPERATIONS |= frozenset({'standard-management-denied'})
+STANDARD_OPERATIONS |= frozenset({'standard-management-denied'})
 STANDARD_OPERATIONS |= frozenset({'standard-parent-command-launch', 'standard-parent-closed'})
 STANDARD_OPERATIONS |= frozenset({'child-command-launch'})
-HELP_BINDINGS = {
-    'parent-help': ('oh-no-parent-control-parent', 'help',
-                    'Administrator-facing GTK 4/libadwaita parent-control application.'),
-    'station-help': ('oh-no-parent-control', 'help',
-                     'Libadwaita application for the GNOME Kiosk request station.'),
-    'parent-manual': ('oh-no-parent-control-parent', 'manual',
-                      'configure controls for managed users'),
-    'station-manual': ('oh-no-parent-control', 'manual',
-                       'run the parent-control request interface'),
-}
-HELP_OPERATIONS = frozenset({
-    'help-desktop-clear',
-    'help-system-prompt', 'help-terminal-input', 'help-terminal-focused',
-    'help-terminal-wrong-surface', 'help-terminal-closed', 'help-shell-ready',
-    *('help-content-' + key for key in HELP_BINDINGS),
-})
-OPERATIONS |= HELP_OPERATIONS
-SESSION_OPERATIONS = frozenset({
-    'session-menu-toggle', 'session-menu-power', 'session-menu',
-    'switch-user', 'logout', 'logout-confirm',
-})
-# Session actions remain registered for caller regressions, but cannot become
-# reachable until the external Shell publishes its complete ID contract.
-SESSION_ACTION_OPERATIONS = frozenset({
-    'session-menu-toggle', 'session-menu-power', 'switch-user', 'logout', 'logout-confirm',
-})
-OPERATIONS |= SESSION_OPERATIONS
-SESSION_ACTION_NAMES = {
-    'switch-user': 'Switch User…',
-    'logout': 'Log Out…',
-}
+OPERATIONS |= frozenset({'help-desktop-clear'})
 PRODUCT = 'Oh No! Parent Control'
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
@@ -212,17 +177,13 @@ EXTERNAL_PROVIDER_CONTRACTS = {
                 'desktop': None, 'launcher': None,
             }),
             'panel': (None, {
-                'activities': None, 'app-grid': None, 'quick-settings': None,
+                'activities': None, 'app-grid': None,
                 'lock': None,
             }),
             'app-grid': (None, {
                 'search': None, 'result::parent': None,
                 'web-suggestion::parent': None,
             }),
-            'session-menu': (None, {
-                'power': None, 'switch-user': None, 'log-out': None,
-            }),
-            'logout-dialog': (None, {'confirm': None}),
             'notifications': (None, {'notification': None, 'dismiss': None}),
             'lock-screen': (None, {'recipient': None, 'password': None, 'unlock': None}),
         },
@@ -307,26 +268,6 @@ EXTERNAL_PROVIDER_CONTRACTS = {
         'blocked_consumers': ('FILE03 portal route', 'FEED06 portal route',
                               'FEED08 portal diagnostic-save route'),
     },
-    'gnome-settings': {
-        'application_id': None,
-        'surfaces': {
-            'settings': (None, {
-                'search': 'search_entry', 'panel-list': 'panel_list',
-            }),
-            'users': (None, {
-                # The page/list/action IDs are real installed GTK 4 Builder
-                # IDs. Account rows are created dynamically without a stable
-                # provider-owned identity, and neither page is a scoped root.
-                'page': 'current_user_page', 'account-list': 'user_list',
-                'account-row::<provider-account-id>': None,
-                'add-user': 'add_user_button_row', 'name': 'fullname_row',
-                'password': 'password_row', 'administrator': 'account_type_switch',
-                'automatic-login': 'auto_login_switch',
-                'remove-user': 'remove_user_button',
-            }),
-        },
-        'blocked_consumers': ('ACCOUNT01', 'ACCOUNT02', 'TIME05'),
-    },
     'gnome-text-editor': {
         'application_id': None,
         'surfaces': {
@@ -335,7 +276,7 @@ EXTERNAL_PROVIDER_CONTRACTS = {
                 'content': None, 'save': None, 'close': None,
             }),
         },
-        'blocked_consumers': ('ABOUT02', 'FILE08', 'FILE09',
+        'blocked_consumers': ('ABOUT02', 'FILE08',
                               'FEED08 saved-output review', 'retained-work scenarios'),
     },
     'document-viewer': {
@@ -357,7 +298,7 @@ EXTERNAL_PROVIDER_CONTRACTS = {
         'surfaces': {
             'files': (None, {'directory-row': None, 'file-row': None, 'open': None}),
         },
-        'blocked_consumers': ('FILE04', 'FILE05', 'FILE08', 'FEED08'),
+        'blocked_consumers': ('FILE04 tested file-manager launch',),
     },
     'gnome-file-roller': {
         'application_id': None,
@@ -365,17 +306,6 @@ EXTERNAL_PROVIDER_CONTRACTS = {
             'archive': (None, {'archive-content': None, 'extract': None, 'close': None}),
         },
         'blocked_consumers': ('FILE08 archive review', 'FEED08 archive review'),
-    },
-    'terminal': {
-        'application_id': None,
-        'surfaces': {
-            'terminal': (None, {'input-output': None}),
-            'authentication': (None, {
-                'recipient': None, 'secret': None, 'submit': None, 'cancel': None,
-            }),
-        },
-        'blocked_consumers': ('FILE01', 'FILE02', 'FILE06', 'INFO02', 'LIFE04',
-                              'AUTH01-04'),
     },
 }
 
@@ -1905,191 +1835,6 @@ class AccessibleUI:
                 'ui:search-result')
         return target
 
-    def terminal_input(self, *, focused=False):
-        """FILE01/UI21: a unique terminal in its active application window.
-
-        No previous launch is required. Overview and inactive/background windows
-        cannot authorize input. Window titles may contain private shell paths;
-        select by the provider's scoped public ID and never export those titles.
-        """
-        surface, registered = self.provider_surface(
-            'terminal', 'terminal', ('input-output',))
-        if surface is None:
-            return None
-        field = self.find_id(registered['input-output'], root=surface)
-        if (field is None or field.get_role_name() != 'terminal'
-                or not self.has_state(field, self.api.StateType.SENSITIVE)):
-            return None
-        if not self.has_state(surface, self.api.StateType.ACTIVE):
-            return None
-        if focused and not self.has_state(field, self.api.StateType.FOCUSED):
-            return None
-        return field
-
-    def standard_terminal_snapshot(self):
-        """Ptyxis external-provider route for terminal operations on the fixture user bus.
-
-        Resolve its sole public terminal and active owning window without using
-        window titles, terminal contents, coordinates or tree position. Other
-        terminal providers and multiple windows/tabs refuse, including absence.
-        """
-        root = self.api.get_desktop(0)
-        require(root is not None, 'ui:incomplete-tree')
-        snapshot, facts = {}, {}
-        nodes = list(self.nodes(root, strict=True, snapshot=snapshot, facts=facts))
-        # Window replacement can leave a defunct node in an otherwise complete
-        # traversal; discard this read so the bounded wait can reacquire it.
-        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
-                                  for node in nodes), 'ui:incomplete-tree')
-        self.handle_system_prompt(observation=(nodes, snapshot, facts))
-        # The registry enumerates application roots even when the provider's
-        # reverse Parent property does not point back to that desktop. Use the
-        # same complete snapshot's direct child edges for ownership throughout.
-        owners = [node for node in nodes if node in snapshot[root]
-                  and facts[node]['role'] == 'application'
-                  and (facts[node]['identity'] in ('org.gnome.Ptyxis', 'com.raggesilver.Ptyxis')
-                       or (not facts[node]['identity']
-                           and facts[node]['name'].casefold() == 'ptyxis'))]
-        require(len(owners) <= 1, 'ui:terminal-provider-owner')
-        terminals = [node for node in nodes if facts[node]['role'] == 'terminal'
-                     and facts[node]['showing']]
-        require(len(terminals) <= 1, 'ui:terminal-ambiguous')
-        if terminals and not owners:
-            # Fixed provider vocabulary only; never emit arbitrary application
-            # names, window titles, shell contents or user paths.
-            known = ('ptyxis', 'org.gnome.Ptyxis', 'com.raggesilver.Ptyxis',
-                     'org.gnome.Ptyxis.Devel', 'com.raggesilver.Ptyxis.Devel',
-                     'gnome-terminal', 'org.gnome.Terminal')
-            applications = [facts[node] for node in nodes
-                            if facts[node]['role'] == 'application']
-            print(json.dumps({'terminal_provider': {
-                'application_names': [value for value in known
-                                      if any(item['name'].casefold() == value.casefold()
-                                             for item in applications)],
-                'application_ids': [value for value in known
-                                    if any(item['identity'] == value for item in applications)],
-                'unidentified_applications': sum(not item['identity'] for item in applications),
-                'applications': len(applications),
-            }}, sort_keys=True), file=sys.stderr, flush=True)
-        if not owners and not terminals:
-            return None, None, (nodes, snapshot, facts)
-        require(len(owners) == 1, 'ui:terminal-provider-owner')
-        owned = self.snapshot_scope(nodes, snapshot, owners[0])
-        windows = [node for node in owned if facts[node]['role'] in ('frame', 'window')
-                   and facts[node]['showing']]
-        require(len(windows) <= 1, 'ui:terminal-window-ambiguous')
-        if not terminals:
-            return windows[0] if windows else None, None, (nodes, snapshot, facts)
-        field = terminals[0]
-        require(field in owned, 'ui:terminal-provider-owner')
-        require(len(windows) == 1, 'ui:terminal-window-ambiguous')
-        require(field in self.snapshot_scope(nodes, snapshot, windows[0]),
-                'ui:terminal-provider-owner')
-        return windows[0], field, (nodes, snapshot, facts)
-
-    def standard_terminal_input(self, *, focused=False):
-        if self.provider_contracts['terminal']['application_id']:
-            self.handle_system_prompt()
-            return self.terminal_input(focused=focused)
-        window, field, _observation = self.standard_terminal_snapshot()
-        if (field is None or not self.has_state(window, self.api.StateType.ACTIVE)
-                or not self.has_state(field, self.api.StateType.SENSITIVE)
-                or (focused and not self.has_state(field, self.api.StateType.FOCUSED))):
-            return None
-        return field
-
-    def standard_focus_terminal(self):
-        if self.provider_contracts['terminal']['application_id']:
-            return self.focus_terminal()
-        require(not self.input_uncertain, 'ui:uncertain-input')
-        field = self.wait(self.standard_terminal_input, 'terminal-input', prompt_in_predicate=True)
-        if self.has_state(field, self.api.StateType.FOCUSED):
-            return
-        component = field.get_component_iface()
-        require(component is not None, 'ui:terminal-focus-unavailable')
-        self.input_uncertain = True
-        require(component.grab_focus(), 'ui:terminal-focus-refused')
-        self.wait(lambda: self.standard_terminal_input(focused=True), 'terminal-focus',
-                  prompt_in_predicate=True)
-        self.input_uncertain = False
-
-    def standard_terminal_absent(self):
-        if self.provider_contracts['terminal']['application_id']:
-            self.handle_system_prompt()
-            return self.terminal_absent()
-        window, field, _observation = self.standard_terminal_snapshot()
-        return window is None and field is None
-
-    def standard_denial_closed(self):
-        if self.provider_contracts['terminal']['application_id']:
-            self.handle_system_prompt()
-            surrounding = self.terminal_return_surface()
-            if not self.absent_id('parent-access-denied-window', within=surrounding):
-                return False
-            self.management_absent(within=surrounding)
-            return True
-        window, field, (nodes, _snapshot, facts) = self.standard_terminal_snapshot()
-        if (field is None or not self.has_state(window, self.api.StateType.ACTIVE)
-                or not self.has_state(field, self.api.StateType.FOCUSED)):
-            return False
-        # Public owned IDs still determine product absence. The positive
-        # surrounding surface is the freshly qualified provider terminal.
-        forbidden = {'parent-access-denied-window', 'parent-window',
-                     'parent-screen-limits-page', 'parent-app-limits-page',
-                     'parent-screen-limit-toggle'}
-        return not any(facts[node]['showing'] and facts[node]['identity'] in forbidden
-                       for node in nodes)
-
-    def focus_terminal(self):
-        # Application SCREEN extents are not reliable global coordinates on
-        # Wayland. Focus the qualified public component without translating
-        # its window-local geometry into framebuffer pointer input.
-        require(not self.input_uncertain, 'ui:uncertain-input')
-        field = self.fresh_owned_target(self.wait(self.terminal_input, 'terminal-input'))
-        if self.has_state(field, self.api.StateType.FOCUSED):
-            return
-        component = field.get_component_iface()
-        require(component is not None, 'ui:terminal-focus-unavailable')
-        self.input_uncertain = True
-        require(component.grab_focus(), 'ui:terminal-focus-refused')
-        # Never retry the action, even if the resulting observation times out.
-        self.wait(lambda: self.terminal_input(focused=True), 'terminal-focus')
-        self.input_uncertain = False
-
-    def help_terminal_text(self):
-        """INFO02's bounded local projection; never export terminal contents."""
-        field = self.standard_terminal_input(focused=True)
-        if field is None:
-            return None
-        text = field.get_text_iface()
-        require(text is not None, 'ui:terminal-text-unavailable')
-        count = self.api.Text.get_character_count(text)
-        require(0 <= count <= 65536, 'ui:terminal-text-bound')
-        # Only the current finite help/manual display and trailing shell prompt.
-        return self.api.Text.get_text(text, max(0, count - 8192), count)
-
-    @staticmethod
-    def help_shell_prompt(value):
-        import re
-        # Fixture's normal shell prompt, read publicly and never retained.
-        return bool(value and re.search(r'(?:^|\n)onpc-parent-jamie@[^\s:]+:[^\n]*\$\s*', value))
-
-    def help_product_absent(self):
-        window, field, (nodes, _snapshot, facts) = self.standard_terminal_snapshot()
-        require(window is not None and field is not None
-                and self.has_state(window, self.api.StateType.ACTIVE)
-                and self.has_state(field, self.api.StateType.FOCUSED)
-                and self.has_state(field, self.api.StateType.SENSITIVE),
-                'ui:terminal-return-unqualified')
-        forbidden = {
-            'parent-window', 'parent-screen-limits-page', 'parent-app-limits-page',
-            'parent-screen-limit-toggle', 'kiosk-request-window',
-            'kiosk-request-form', 'feedback-dialog', 'parent-access-denied-window',
-            'startup-error-window',
-        }
-        require(not any(facts[node]['showing'] and facts[node]['identity'] in forbidden
-                        for node in nodes), 'ui:help-product-window')
-
     def help_desktop_clear(self):
         """Check the parent desktop after each stream read, with no product window."""
         self.standard_shell_desktop(no_prompt=True)
@@ -2103,46 +1848,6 @@ class AccessibleUI:
                      'feedback-dialog', 'startup-error-window'}
         require(not any(self.showing(node) and public_automation_id(node) in forbidden
                         for node in nodes), 'ui:help-product-window')
-
-    def terminal_return_surface(self):
-        surface, registered = self.provider_surface(
-            'terminal', 'terminal', ('input-output',))
-        require(surface is not None and self.find_id(
-            registered['input-output'], root=surface) is not None,
-            'ui:terminal-return-unqualified')
-        return public_automation_id(surface)
-
-    def terminal_absent(self):
-        """Complete ID-scoped absence of the registered terminal surface."""
-        _application_id, surface_id, _registered = self.require_provider_contract(
-            'terminal', 'terminal', ('input-output',))
-        nodes = list(self.nodes(strict=True))
-        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
-                                  for node in nodes), 'ui:incomplete-tree')
-        return not any(public_automation_id(node) == surface_id and self.showing(node)
-                       for node in nodes)
-
-    def help_content(self, binding):
-        import re
-        require(binding in HELP_BINDINGS, 'ui:help-binding')
-        command, kind, identity = HELP_BINDINGS[binding]
-        value = self.help_terminal_text()
-        if value is None:
-            return False
-        # man may insert a Unicode line-break hyphen inside a word at the
-        # terminal's current width; keep the required purpose check intact.
-        normalized = ' '.join(re.sub(r'[\u00ad\u2010]\s+', '', value).split())
-        if kind == 'help':
-            found = (re.search(r'(?:^|\n)usage: ' + re.escape(command) + r'\s', value)
-                     and identity in normalized and '--help' in value
-                     and 'show this help message and exit' in normalized
-                     and self.help_shell_prompt(value))
-        else:
-            found = (command.upper() + '(1)' in value and identity in normalized
-                     and all(section in value for section in ('NAME', 'SYNOPSIS', 'DESCRIPTION'))
-                     and not self.help_shell_prompt(value))
-        self.help_product_absent()
-        return bool(found)
 
     def launch_parent_command(self, *, standard=False):
         """PARENT01: submit one fixed public executable as the desktop user.
@@ -2351,48 +2056,6 @@ class AccessibleUI:
             return kind is None
         self.wait(dismissed, 'keyring-dismissed', prompt_in_predicate=True)
         self.standard_shell_desktop(no_prompt=True)
-
-    def session_menu_toggle(self):
-        """DESK02 entry target, observed only through Shell's panel IDs."""
-        self.desktop_result(PARENT, 'success')
-        target = self.find_provider_control('gnome-shell', 'panel', 'quick-settings')
-        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
-                'ui:session-menu-toggle')
-        return target
-
-    def session_menu_power(self):
-        """DESK02 power target, observed only in the ID-scoped open menu."""
-        target = self.find_provider_control('gnome-shell', 'session-menu', 'power')
-        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
-                'ui:session-menu-power')
-        return target
-
-    def session_menu(self):
-        """DESK02: observe Switch User and Log Out after Power Off Menu is open."""
-        surface, registered = self.provider_surface(
-            'gnome-shell', 'session-menu', ('switch-user', 'log-out'))
-        require(surface is not None, 'ui:session-menu')
-        for logical in ('switch-user', 'log-out'):
-            target = self.find_id(registered[logical], root=surface)
-            require(target is not None and self.has_state(
-                target, self.api.StateType.SENSITIVE),
-                    'ui:session-menu')
-
-    def choose_session_action(self, action):
-        """Observe one exact ID-scoped action; legacy input routes refuse."""
-        require(action in SESSION_ACTION_NAMES, 'ui:session-action-binding')
-        logical = {'switch-user': 'switch-user', 'logout': 'log-out'}[action]
-        target = self.find_provider_control('gnome-shell', 'session-menu', logical)
-        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
-                'ui:session-action')
-        return target
-
-    def logout_confirm(self):
-        """DESK04 confirmation target, distinct by provider surface and ID."""
-        target = self.find_provider_control('gnome-shell', 'logout-dialog', 'confirm')
-        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
-                'ui:logout-confirm')
-        return target
 
     def greeter_list(self, name=PARENT):
         """GDM01: resolve the greeter/list/account entirely by provider IDs."""
@@ -3702,26 +3365,8 @@ class AccessibleUI:
             self.cancel_keyring_prompt()
         elif operation in ('desktop', 'standard-desktop'):
             self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
-        elif operation == 'help-system-prompt':
-            self.desktop_result(PARENT, 'success')
         elif operation == 'help-desktop-clear':
             self.help_desktop_clear()
-        elif operation == 'help-terminal-input':
-            self.wait(self.standard_terminal_input, 'terminal-input', prompt_in_predicate=True)
-        elif operation == 'help-terminal-focused':
-            self.standard_focus_terminal()
-            self.wait(lambda: self.help_shell_prompt(self.help_terminal_text()), 'help-shell-ready')
-        elif operation == 'help-terminal-wrong-surface':
-            self.desktop_result(PARENT, 'success')
-            require(self.standard_terminal_absent(), 'ui:help-wrong-surface')
-        elif operation == 'help-terminal-closed':
-            self.desktop_result(PARENT, 'success')
-            self.wait(self.standard_terminal_absent, 'terminal-closed', prompt_in_predicate=True)
-        elif operation == 'help-shell-ready':
-            self.wait(lambda: self.help_shell_prompt(self.help_terminal_text()), 'help-shell-ready')
-            self.help_product_absent()
-        elif operation.startswith('help-content-'):
-            self.wait(lambda: self.help_content(operation.removeprefix('help-content-')), 'help-content')
         elif operation == 'standard-system-prompt':
             self.desktop_result(EXISTING_CHILD, 'success')
         elif operation in ('parent-command-launch', 'standard-parent-command-launch'):
@@ -3730,21 +3375,8 @@ class AccessibleUI:
             self.launch_child_command()
         elif operation == 'standard-parent-closed':
             self.wait(self.parent_denial_closed, 'denial-closed')
-        elif operation == 'standard-terminal-input':
-            self.wait(self.standard_terminal_input, 'terminal-input', prompt_in_predicate=True)
-        elif operation == 'standard-terminal-focused':
-            self.standard_focus_terminal()
-        elif operation == 'standard-terminal-wrong-surface':
-            # Positive desktop evidence makes a missing terminal meaningful.
-            self.desktop_result(EXISTING_CHILD, 'success')
-            require(self.standard_terminal_input(focused=True) is None, 'ui:terminal-wrong-surface')
-        elif operation == 'standard-terminal-closed':
-            self.desktop_result(EXISTING_CHILD, 'success')
-            self.wait(self.standard_terminal_absent, 'terminal-closed', prompt_in_predicate=True)
         elif operation == 'standard-management-denied':
             self.management_denied()
-        elif operation == 'standard-denial-closed':
-            self.wait(self.standard_denial_closed, 'denial-closed', prompt_in_predicate=True)
         elif operation == 'standard-app-grid':
             self.search_ready('overview')
         elif operation == 'standard-search-focused':
@@ -3801,17 +3433,6 @@ class AccessibleUI:
         elif operation == 'parent-returned':
             self.window_closed('about', 'parent')
             result['settings'] = self.settings()
-        elif operation == 'session-menu-toggle':
-            self.activate_provider('gnome-shell', 'panel', 'quick-settings')
-        elif operation == 'session-menu-power':
-            self.activate_provider('gnome-shell', 'session-menu', 'power')
-        elif operation == 'session-menu':
-            self.session_menu()
-        elif operation in SESSION_ACTION_NAMES:
-            logical = {'switch-user': 'switch-user', 'logout': 'log-out'}[operation]
-            self.activate_provider('gnome-shell', 'session-menu', logical)
-        elif operation == 'logout-confirm':
-            self.activate_provider('gnome-shell', 'logout-dialog', 'confirm')
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-request-cancel':

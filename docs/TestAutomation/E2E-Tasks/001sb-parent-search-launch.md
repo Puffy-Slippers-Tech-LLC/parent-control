@@ -10,7 +10,7 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001sa** — SEARCH01/02/03/04/06 exact queries and Terminal result identity.
+- **001sa** — SEARCH01/02/03/04/06 product query and launcher identity.
 
 ## Read only this context
 

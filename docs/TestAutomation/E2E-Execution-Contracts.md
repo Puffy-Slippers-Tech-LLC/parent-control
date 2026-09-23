@@ -90,7 +90,14 @@ external prerequisites are already available.
 
 ## External-provider work within the sequence
 
-Provider adapters are capability work for named consumers. Their scope and
+First establish that the GUI operation exercises the app feature under test or
+is unavoidable graphical authentication. Routine Shell/GDM/system work uses
+shared shortcuts, SSH or public system commands/APIs, including work delivered
+by completed rows. Do not create provider tasks for Quick Settings, logout
+confirmations, Users wizards, clock pages or Terminal command entry. Negative
+GDM/keyring exercises qualify harness safety separately from customer journeys.
+
+Necessary provider adapters are capability work for named consumers. Their scope and
 current qualification stay in the
 [provider catalogue](E2E-Building-Blocks.md#external-provider-qualification);
 their next action is always a row in this queue. Repository-owned UI and fixtures
@@ -137,8 +144,10 @@ complete any new capability.
 Follow [functional validation](E2E-Building-Blocks.md#functional-validation).
 Apply [environment preparation and customer interaction](E2E-Building-Blocks.md#environment-preparation-and-customer-interaction)
 to every step: use the most reliable and efficient supported invocation for
-supporting tools and session preparation; use real graphical customer actions
-and public observations for product features and transitions under test.
+supporting tools and all non-app system operations; use real graphical customer
+actions for the app features being tested. Product behavior across a system
+transition requires the real transition and public app result, not GNOME menu
+navigation. Put reusable system operations in shared harness libraries.
 Use public accessibility, normal customer input and independent observations
 of required results. Backend product probes, synthetic grants, clock changes,
 internal faults and cosmetic/screenshot comparisons cannot pass customer cases.

@@ -12,19 +12,19 @@ sub login_functional {
     my ($journey) = @_;
     die 'parent:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::reattach_functional();
-    return sign_in($journey, 'parent', 'other-parent', 'success');
+    return sign_in($journey, 'parent', 'success');
 }
 
 # GDM07: registered fresh accounts; setup reattachment belongs to the envelope.
 sub sign_in {
     onpc_progress::operation('Signing in through the greeter');
-    my ($journey, $account, $wrong_account, $expected) = @_;
-    die 'parent:entry-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
+    my ($journey, $account, $expected) = @_;
+    die 'parent:entry-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && ($account eq 'parent' || $account eq 'other-child')
-        && $wrong_account eq 'other-parent' && $expected eq 'success';
-    my $list = onpc_gdm::refuse_wrong_recipient($journey, $wrong_account, $account);
+        && $expected eq 'success';
+    my $list = $journey->seen('installed-greeter');
     my $prefix = $account eq 'parent' ? 'parent' : 'standard';
-    onpc_gdm::choose_account($journey, $account, $list, "$prefix-list", "$prefix-focused");
+    onpc_gdm::choose_account($journey, $account, $list, 'installed-greeter', "$prefix-focused");
     # GDM05 keeps both fresh controller recipient checks and the sealed UI19 API.
     $account eq 'parent' ? onpc_password::enter_parent_gdm_password($journey)
         : onpc_password::enter_standard_gdm_password($journey);
@@ -133,7 +133,7 @@ sub enter_desktop {
     my ($journey, $source, $account, $entry, $expected) = @_;
     die 'parent:desktop-binding' unless @_ == 5 && $source eq 'gdm' && $account eq 'parent'
         && $entry eq 'fresh' && $expected eq 'success';
-    return sign_in($journey, $account, 'other-parent', $expected);
+    return sign_in($journey, $account, $expected);
 }
 
 # FLOW01: independently supplied greeter, new Parent window, explicit child.
@@ -173,11 +173,11 @@ sub login_standard_functional {
     my ($journey) = @_;
     die 'parent:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::reattach_functional();
-    return sign_in($journey, 'other-child', 'other-parent', 'success');
+    return sign_in($journey, 'other-child', 'success');
 }
 
-# Installed account pixels and negative recipient qualification are shared by
-# Parent customers. An observation tag alone never authorizes password input.
+# Legacy appearance-based entry stays refused. Shared direct entry above
+# requires two fresh recipient proofs before password input.
 sub login {
     onpc_progress::operation('Signing in as [Parent user]');
     die 'parent:legacy-login-refused';

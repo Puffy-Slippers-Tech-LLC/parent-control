@@ -5,7 +5,7 @@ Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Session boundary
 
-Add the native command usable route through the qualified terminal. Reuse 035c for grid launch and shared app observations.
+Add the native command usable route through the shared guarded SSH helper as the active child desktop user. Reuse 035c for grid launch and shared app observations.
 
 Tasks **035c** supply the extracted operations through their maintained
 callables and qualified scope. The delivery below is cumulative with those
@@ -29,7 +29,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-an
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **035p** — FIX04 native assets; LIFE04 fixture installation.
-- **001t** — FILE01/02/06 terminal command, help/denial projections and normal close/return.
+- **001t** — PARENT01 direct command, public management denial and desktop return.
 - **009** — UI16.
 - **035c** — APP01/02/03 native app-grid usable route.
 
@@ -41,7 +41,7 @@ Reuse the qualified native fixture manifest and public installation route in thi
 
 ## Live VM acceptance
 
-On the VM, launch the actual app from the grid and terminal and perform a normal action with visible result. Keep denial/hidden bindings pending for their public-policy consumer. No fake window or process probe.
+On the VM, launch the actual app through its declared grid route and shared direct-command route and perform a normal action with visible result. Keep denial/hidden bindings pending for their public-policy consumer. No fake window or process probe.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

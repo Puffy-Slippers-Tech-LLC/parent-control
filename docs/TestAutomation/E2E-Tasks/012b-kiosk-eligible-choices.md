@@ -12,7 +12,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **011** — REQUEST01, REQUEST03.
 - **017** — PARENT08 snapshot saved/control states; installed qualification and owned cleanup passed.
-- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **003d** — DESK04 direct logout command and independent GDM result.
 
 ## Read only this context
 

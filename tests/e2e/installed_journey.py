@@ -156,7 +156,8 @@ class InstalledJourney:
         if value is None:
             return
         require(stage not in self.request_observations, 'ui:request-replay')
-        self.request_observations[stage] = RequestObservation.from_request(value)
+        self.request_observations[stage] = RequestObservation.from_request(
+            value, operation=observed.get('ui', {}).get('operation', 'kiosk-request-form'))
 
     def dismiss_system_prompt(self, stage, point, guard):
         """Retired coordinate rendezvous; the guest adapter owns semantic Cancel."""

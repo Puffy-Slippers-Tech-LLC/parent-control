@@ -58,6 +58,15 @@ def test_station_selected_uids_drive_the_public_guest_projection(
     assert result['approver'] == 'other-fixture-parent'
     assert result['duration_seconds'] == 1800
     assert result['request_enabled'] is False
+    # REQUEST04 uses the same installed reader and public actions; each
+    # selection validates the complete offered UID set before committing.
+    result = reader.select_kiosk_account('child', CHILD, expected=(CHILD, EXISTING_CHILD))
+    assert result['child'] == 'fixture-child'
+    assert result['request_enabled'] is True
+    result = reader.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT))
+    assert result['approver'] == 'fixture-parent'
+    independent = reader.kiosk_request_form(enabled=True)
+    assert independent == result
 
 
 def test_parent_feedback_and_about_publish_public_ids(

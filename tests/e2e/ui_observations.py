@@ -114,6 +114,11 @@ OPERATION_LABELS.update({
     'gdm-station-focused': 'Checking the request station is focused',
     'gdm-station-returned': 'Checking the usable greeter after leaving the request station',
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
+    'kiosk-child-select': 'Checking eligible children and selecting the enabled child',
+    'kiosk-approver-select': 'Checking eligible approvers and selecting the parent',
+    'kiosk-enabled-form': 'Independently reading the enabled station selections',
+    'kiosk-choice-refusals': 'Refusing wrong and absent station account choices',
+    'parent-kiosk-refused': 'Refusing station selection on the Parent surface',
     'kiosk-request-cancel': 'Cancelling the request station through its public control',
     'kiosk-request-escape-ready': 'Checking the request station recipient before Escape',
     'station-entry-branch': 'Observing the offered station session branch without input',
@@ -164,7 +169,7 @@ class RequestObservation:
     mute: bool | None
 
     @classmethod
-    def from_request(cls, value):
+    def from_request(cls, value, *, operation='kiosk-request-form'):
         fields = tuple(cls.__dataclass_fields__)
         require(type(value) is dict and set(value) == set(fields), 'ui:request')
         observation = cls(**value)
@@ -178,13 +183,17 @@ class RequestObservation:
                     'cancel_enabled'))
                 and type(observation.message) is str and observation.mute is None,
                 'ui:request')
+        enabled = operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
+        require(enabled or operation in accessible_ui.KIOSK_OPERATIONS, 'ui:request-operation')
+        child, approver = accessible_ui.KIOSK_ACCOUNT_REQUESTS.get(
+            operation, ('existing-fixture-child', 'other-fixture-parent'))
         require(observation == cls(
-            surface='kiosk', form_count=1, child='existing-fixture-child',
-            approver='other-fixture-parent', duration_seconds=1800, custom_text=None,
+            surface='kiosk', form_count=1, child=child,
+            approver=approver, duration_seconds=1800, custom_text=None,
             allow_soft=False, child_selector_enabled=True,
-            approver_selector_enabled=False, duration_enabled=False,
-            soft_choice_enabled=False, request_enabled=False, cancel_enabled=True,
-            message='screen-limit-disabled', mute=None,
+            approver_selector_enabled=enabled, duration_enabled=enabled,
+            soft_choice_enabled=enabled, request_enabled=enabled, cancel_enabled=True,
+            message='' if enabled else 'screen-limit-disabled', mute=None,
         ), 'ui:request')
         return observation
 
@@ -363,9 +372,9 @@ class UiObservations:
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],
                     'ui:parent-save-response')
             expected['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
-        if operation in accessible_ui.KIOSK_OPERATIONS:
+        if operation in accessible_ui.KIOSK_OPERATIONS or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS:
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
-            RequestObservation.from_request(result['request'])
+            RequestObservation.from_request(result['request'], operation=operation)
             expected['request'] = result['request']
         require(result == expected, 'ui:response')
         if operation == 'gdm-wrong-recipient-refused':

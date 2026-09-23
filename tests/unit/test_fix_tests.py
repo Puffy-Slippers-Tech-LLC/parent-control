@@ -132,7 +132,7 @@ def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monk
         monkeypatch.setenv(key, 'previous-context')
     command = fix_tests.agent_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
     assert command[:5] == ['/opt/codex', '--ask-for-approval', 'never', 'exec', '--ephemeral']
-    assert command[command.index('--model') + 1] == 'gpt-5.6-sol'
+    assert command[command.index('--model') + 1] == 'gpt-6-sol'
     assert 'model_reasoning_effort="high"' in command
     assert 'features.memories=false' in command and 'history.persistence="none"' in command
     assert 'workspace-write' in command
@@ -142,6 +142,8 @@ def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monk
     assert command[-1] == '-'
     assert 'previous-context' not in fix_tests.environment().values()
     assert fix_tests.repair_prompt('LATEST FAILURE').startswith('LATEST FAILURE\n')
+    assert 'status "test_fixed"' in fix_tests.repair_prompt('LATEST FAILURE')
+    assert 'status "uncertain"' in fix_tests.repair_prompt('LATEST FAILURE')
 
 
 def test_agent_transcript_formats_markdown_and_code_across_byte_boundaries():

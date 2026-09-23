@@ -250,6 +250,12 @@ onpc_preview_start_private_bus() {
         IFS= read -r onpc_preview_bus_address <"$onpc_preview_bus_log_path" || true
         if [[ $onpc_preview_bus_address == unix:* ]]; then
             export DBUS_SESSION_BUS_ADDRESS="$onpc_preview_bus_address"
+            # A nested Shell is test infrastructure, not a client of the
+            # developer host's services.  Keep GNOME's own system-bus probes
+            # on the bounded private bus too, so parallel UI work cannot
+            # exhaust (or depend on) the host daemon's per-user connection
+            # allowance before the extension interaction starts.
+            export DBUS_SYSTEM_BUS_ADDRESS="$onpc_preview_bus_address"
             export AT_SPI_BUS_ADDRESS="$onpc_preview_bus_address"
             return 0
         fi

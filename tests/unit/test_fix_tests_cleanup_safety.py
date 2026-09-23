@@ -274,6 +274,8 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
+    assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
+        fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_MODEL]
     for index, agent in enumerate(agents, 1):
         assert agent['prompt'].startswith(f'LATEST FAILURE ONLY {index}\n')
         assert agent['prompt'].count('LATEST FAILURE ONLY') == 1
@@ -281,6 +283,27 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
         assert agent['thread'] is None
         assert '--ephemeral' in agent['args']
         assert not {'resume', 'fork', '--last'} & set(agent['args'])
+
+
+@pytest.mark.parametrize('mode, classification', [
+    ('agent-app', 'app_issue'), ('agent-uncertain', 'uncertain')])
+def test_app_or_uncertain_classification_starts_fresh_strong_agent(checkout, mode,
+                                                                   classification):
+    root, _ = checkout
+    (root / 'mode').write_text(mode)
+    run, _ = fix_tests.select(root, categories=('unit',))
+    assert fix_tests.follow(run, io.StringIO()) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
+    assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
+        fix_tests.DEFAULT_MODEL, fix_tests.APP_MODEL]
+    assert all('model_reasoning_effort="high"' in agent['args'] for agent in agents)
+    assert agents[1]['prompt'].startswith('LATEST FAILURE ONLY\n')
+    assert f'{classification}: fixture result' in agents[1]['prompt']
+    assert 'PREVIOUS AGENT TRANSCRIPT' not in agents[1]['prompt']
+    assert '--ephemeral' in agents[1]['args']
+    assert not {'resume', 'fork', '--last'} & set(agents[1]['args'])
 
 
 def test_discovered_arguments_reach_each_test_without_reconstruction(checkout):

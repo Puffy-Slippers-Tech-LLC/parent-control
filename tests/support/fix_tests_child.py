@@ -91,10 +91,16 @@ def main():
     count = int((root / 'repair-count').read_text()) if (root / 'repair-count').exists() else 0
     (root / 'repair-count').write_text(str(count + 1))
     if mode != 'agent-repeat' or count >= 1:
-        (root / 'fixed').touch()
+        if mode not in ('agent-app', 'agent-uncertain') or count >= 1:
+            (root / 'fixed').touch()
+    status = ('app_issue' if mode == 'agent-app' and count == 0 else
+              'uncertain' if mode == 'agent-uncertain' and count == 0 else
+              'blocked' if mode == 'agent-blocked' else
+              'fixed' if mode in ('agent-app', 'agent-uncertain') and count >= 1 else
+              'test_fixed')
     reply = Path(args[args.index('--output-last-message') + 1])
     reply.write_text(json.dumps([] if mode == 'agent-invalid' else
-                               {'status': 'blocked' if mode == 'agent-blocked' else 'fixed',
+                               {'status': status,
                                 'summary': 'fixture result'}))
     print(json.dumps({'type': 'item.completed', 'item': {
         'id': 'message', 'type': 'agent_message',

@@ -1498,6 +1498,13 @@ owned cleanup. The sanitized provider tuple was Shell `50.1-0ubuntu1.2`, locale
 bindings remain pending. This is a capability qualification, with no complete
 case 5 acceptance credit. See the [run report](Evidence/test-all-runs/20260923T191129Z-64de2a7a/report.md).
 
+The complete retained E2E-004/app-grid case 5 passed through
+`parent_access.PLAN` and `onpc_parent_access::run` in run
+`20260923T192157Z-7d86e72a`. Its fresh standard-account login, exact
+`Oh No! Parent Control` query, web suggestion, stable Parent launcher/window
+absence, private collection, reconciliation and owned cleanup all passed.
+The suggestion was not opened. See the [run report](Evidence/test-all-runs/20260923T192157Z-7d86e72a/report.md).
+
 `check_e2e_parent_search_launch` qualified SEARCH05's administrator management
 bindings in run `20260923T182610Z-718ecc45` (outside runner retention).
 `onpc_parent::open_from_app_grid` launched the full product query once and

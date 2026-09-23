@@ -411,8 +411,10 @@ Implementation status: All cases pending. UI17's Parent Screen time limit bindin
 and PARENT08's saved/control snapshots have installed slice qualification,
 including wrong-child refusal and owned cleanup. REQUEST04's exact eligible
 kiosk child/approver selection and independent enabled-form readback have installed
-slice qualification. Disabled-child availability remains a prerequisite for case
-57; transient saving is not qualified.
+slice qualification. `check_e2e_request_choices` also qualified disabled-child
+selection, explanation, unavailable Request and absence of authentication after
+public Parent disable/save preparation. Complete case 57 remains pending;
+transient saving is not qualified.
 
 **Kiosk selection and unavailable requests.** Cases 53, 54, 55, 56, 57.
 

@@ -89,6 +89,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_toggle', 'check_e2e_toggle.py',
     'check_e2e_parent_save', 'check_e2e_parent_save.py',
     'check_e2e_kiosk_eligible_choices', 'check_e2e_kiosk_eligible_choices.py',
+    'check_e2e_request_choices', 'check_e2e_request_choices.py',
 ])
 def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(monkeypatch, selector):
     import regression_process

@@ -172,12 +172,17 @@ KIOSK_ACCOUNT_REQUESTS = {
     'kiosk-approver-select': ('fixture-child', 'fixture-parent'),
     'kiosk-enabled-form': ('fixture-child', 'fixture-parent'),
 }
+KIOSK_DISABLED_REQUESTS = {
+    'kiosk-disabled-child-select': ('fixture-child', 'other-fixture-parent'),
+    'kiosk-disabled-form': ('fixture-child', 'other-fixture-parent'),
+}
 KIOSK_ACCOUNT_REFUSALS = frozenset({'kiosk-choice-refusals', 'parent-kiosk-refused'})
-OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
+OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
                                    'kiosk-request-escape-ready'})
 KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS
-                            | frozenset(KIOSK_ACCOUNT_REQUESTS) | {'kiosk-choice-refusals'})
+                            | frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS)
+                            | {'kiosk-choice-refusals'})
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
@@ -2962,9 +2967,10 @@ class AccessibleUI:
                 'ui:kiosk-account-unavailable')
         return selector, form, observation
 
-    def select_kiosk_account(self, field, name, *, expected):
+    def select_kiosk_account(self, field, name, *, expected, enabled=True):
         """UI15: exact offered fixture set, one public action, fresh readback."""
         require(not self.input_uncertain, 'ui:uncertain-input')
+        require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
         require(field in ('child', 'approver'), 'ui:kiosk-account-field')
         accounts = CHILD_ACCOUNTS if field == 'child' else APPROVER_ACCOUNTS
         require(type(expected) is tuple and len(expected) == len(set(expected))
@@ -3012,7 +3018,7 @@ class AccessibleUI:
         self.input_uncertain = True
         self.invalidate_observation()
         canonical = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
-        result = self.kiosk_request_form(enabled=True, expected_selection=(field, canonical[name]))
+        result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]))
         self.input_uncertain = False
         return result
 
@@ -3761,6 +3767,13 @@ class AccessibleUI:
         elif operation == 'parent-returned':
             self.window_closed('about', 'parent')
             result['settings'] = self.settings()
+        elif operation in KIOSK_DISABLED_REQUESTS:
+            if operation == 'kiosk-disabled-child-select':
+                result['request'] = self.select_kiosk_account(
+                    'child', CHILD, expected=(CHILD, EXISTING_CHILD), enabled=False)
+            else:
+                result['request'] = self.kiosk_request_form(
+                    enabled=False, expected_selection=('child', CHILD_IDENTITIES[CHILD]))
         elif operation in KIOSK_ACCOUNT_REQUESTS:
             if operation == 'kiosk-child-select':
                 result['request'] = self.select_kiosk_account(

@@ -167,9 +167,17 @@ GDM_SESSION_LABELS = {
     'Log In': 'sign-in', 'Cancel': 'cancel',
 }
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form'})
+KIOSK_ACCOUNT_REQUESTS = {
+    'kiosk-child-select': ('fixture-child', 'other-fixture-parent'),
+    'kiosk-approver-select': ('fixture-child', 'fixture-parent'),
+    'kiosk-enabled-form': ('fixture-child', 'fixture-parent'),
+}
+KIOSK_ACCOUNT_REFUSALS = frozenset({'kiosk-choice-refusals', 'parent-kiosk-refused'})
+OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
                                    'kiosk-request-escape-ready'})
-KIOSK_SESSION_OPERATIONS = KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS
+KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS
+                            | frozenset(KIOSK_ACCOUNT_REQUESTS) | {'kiosk-choice-refusals'})
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
@@ -2727,8 +2735,14 @@ class AccessibleUI:
                 and self.has_state(field, self.api.StateType.FOCUSED),
                 'ui:gdm-password-focus')
 
-    def kiosk_request_form(self):
-        """Read REQUEST03's fixed disabled-child station state."""
+    def kiosk_request_form(self, *, enabled=False, expected_selection=None):
+        """Read REQUEST03's default-duration station state after accounts load."""
+        require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
+        require(expected_selection is None or (type(expected_selection) is tuple and len(expected_selection) == 2
+                and expected_selection[0] in ('child', 'approver')
+                and expected_selection[1] in (CHILD_IDENTITIES if expected_selection[0] == 'child'
+                                   else APPROVER_IDENTITIES).values()),
+                'ui:kiosk-selected-binding')
         last_reset = None
         diagnostic = KioskDiagnostic()
         self.kiosk_diagnostic = diagnostic
@@ -2873,21 +2887,29 @@ class AccessibleUI:
             selected = [index for index, button in enumerate(durations)
                         if self.has_state(button, self.api.StateType.PRESSED)]
             require(selected == [2], 'ui:kiosk-duration-selection')
-            require(not any(self.has_state(button, self.api.StateType.SENSITIVE)
-                            for button in durations), 'ui:kiosk-duration-availability')
+            if enabled:
+                if not all(self.has_state(button, self.api.StateType.SENSITIVE)
+                           for button in durations):
+                    return None
+            else:
+                require(not any(self.has_state(button, self.api.StateType.SENSITIVE)
+                                for button in durations), 'ui:kiosk-duration-availability')
 
             notice = lookup('kiosk-screen-limit-notice', form_nodes, identity_by_node)
-            if notice is None:
+            if enabled and notice is not None:
+                return None
+            if not enabled and notice is None:
                 return None
             diagnostic.emit('message')
-            message = ' '.join(notice.get_name().split())
-            require(message == 'Screen limit is not enabled in Parent App',
-                    'ui:kiosk-disabled-message')
+            if not enabled:
+                message = ' '.join(notice.get_name().split())
+                require(message == 'Screen limit is not enabled in Parent App',
+                        'ui:kiosk-disabled-message')
             custom = lookup('kiosk-custom-duration', form_nodes, identity_by_node)
             require(lookup('kiosk-mute-button', window_nodes, identity_by_node) is None,
                     'ui:kiosk-mute-present')
             diagnostic.emit('projection')
-            return {
+            projection = {
                 'surface': 'kiosk', 'form_count': 1,
                 'child': selected_identity(
                     child, 'Child account', CHILD_IDENTITIES, 'kiosk-child'),
@@ -2899,12 +2921,15 @@ class AccessibleUI:
                 'allow_soft': self.has_state(allow_soft, self.api.StateType.CHECKED),
                 'child_selector_enabled': self.has_state(child, self.api.StateType.SENSITIVE),
                 'approver_selector_enabled': self.has_state(approver, self.api.StateType.SENSITIVE),
-                'duration_enabled': False,
+                'duration_enabled': enabled,
                 'soft_choice_enabled': self.has_state(allow_soft, self.api.StateType.SENSITIVE),
                 'request_enabled': self.has_state(request, self.api.StateType.SENSITIVE),
                 'cancel_enabled': self.has_state(cancel, self.api.StateType.SENSITIVE),
-                'message': 'screen-limit-disabled', 'mute': None,
+                'message': '' if enabled else 'screen-limit-disabled', 'mute': None,
             }
+            if expected_selection is not None and projection[expected_selection[0]] != expected_selection[1]:
+                return None
+            return projection
         try:
             result = self.wait(observe, 'kiosk-request-form')
             diagnostic.emit(status='passed')
@@ -2914,6 +2939,82 @@ class AccessibleUI:
             raise
         finally:
             self.kiosk_diagnostic = None
+
+    def kiosk_account_snapshot(self, field):
+        """One complete owned snapshot for a station account input boundary."""
+        require(field in ('child', 'approver'), 'ui:kiosk-account-field')
+        snapshot, facts = {}, {}
+        nodes = list(self.nodes(strict=True, snapshot=snapshot, facts=facts))
+        identities = {node: facts[node]['identity'] for node in nodes}
+        require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                        for node in nodes), 'ui:stale-request-form')
+        observation = (nodes, snapshot, identities, facts)
+        self.handle_system_prompt(observation=(nodes, snapshot, facts))
+        window = self.snapshot_owned_target('kiosk-request-window', observation=observation)
+        require(window is not None, 'ui:kiosk-account-surface')
+        form = self.snapshot_owned_target(
+            'kiosk-request-form', root=window, observation=observation)
+        require(form is not None, 'ui:kiosk-account-surface')
+        selector = self.snapshot_owned_target(
+            f'kiosk-{field}-selector', root=form, showing=False, observation=observation)
+        require(selector is not None and self.has_state(selector, self.api.StateType.VISIBLE)
+                and self.has_state(selector, self.api.StateType.SENSITIVE),
+                'ui:kiosk-account-unavailable')
+        return selector, form, observation
+
+    def select_kiosk_account(self, field, name, *, expected):
+        """UI15: exact offered fixture set, one public action, fresh readback."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(field in ('child', 'approver'), 'ui:kiosk-account-field')
+        accounts = CHILD_ACCOUNTS if field == 'child' else APPROVER_ACCOUNTS
+        require(type(expected) is tuple and len(expected) == len(set(expected))
+                and set(expected) <= set(accounts) and name in expected,
+                'ui:kiosk-account-choice')
+        bindings = {}
+        for label in expected:
+            uid = (self.fixture_uids.get(label) if self.fixture_uids is not None
+                   else pwd.getpwnam(accounts[label]).pw_uid)
+            require(type(uid) is int and uid >= 1000, 'ui:fixture-account-uid')
+            identity = f'kiosk-{field}-choice-{uid}'
+            require(identity not in bindings, 'ui:duplicate-choice-identity')
+            bindings[identity] = label
+        selector, _form, _observation = self.kiosk_account_snapshot(field)
+        self._invoke_target(selector)
+        self.invalidate_observation()
+
+        def offered():
+            _selector, form, observation = self.kiosk_account_snapshot(field)
+            nodes, snapshot, identities, _facts = observation
+            choices = self.snapshot_owned_target(
+                f'kiosk-{field}-choices', root=form, observation=observation)
+            if choices is None:
+                return None
+            scope = self.snapshot_scope(nodes, snapshot, choices)
+            found = {}
+            for node in scope:
+                identity = identities[node]
+                if not identity.startswith(f'kiosk-{field}-choice-'):
+                    continue
+                require(identity in bindings and identity not in found,
+                        'ui:kiosk-eligible-set')
+                require(self.has_state(node, self.api.StateType.VISIBLE)
+                        and self.has_state(node, self.api.StateType.SENSITIVE),
+                        'ui:kiosk-account-unavailable')
+                label = 'Child account' if field == 'child' else 'Approving parent'
+                require(' '.join(node.get_name().split()) == f'{label}: {bindings[identity]}',
+                        'ui:kiosk-choice-label')
+                found[identity] = node
+            require(set(found) == set(bindings), 'ui:kiosk-eligible-set')
+            return next(found[identity] for identity in found if bindings[identity] == name)
+
+        target = self.wait(offered, 'kiosk-offered-accounts', prompt_in_predicate=True)
+        self._invoke_target(target)
+        self.input_uncertain = True
+        self.invalidate_observation()
+        canonical = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
+        result = self.kiosk_request_form(enabled=True, expected_selection=(field, canonical[name]))
+        self.input_uncertain = False
+        return result
 
     def kiosk_exit_target(self, *, with_window=False):
         """Resolve the fresh owned Cancel control inside one showing form."""
@@ -3660,6 +3761,34 @@ class AccessibleUI:
         elif operation == 'parent-returned':
             self.window_closed('about', 'parent')
             result['settings'] = self.settings()
+        elif operation in KIOSK_ACCOUNT_REQUESTS:
+            if operation == 'kiosk-child-select':
+                result['request'] = self.select_kiosk_account(
+                    'child', CHILD, expected=(CHILD, EXISTING_CHILD))
+            elif operation == 'kiosk-approver-select':
+                result['request'] = self.select_kiosk_account(
+                    'approver', PARENT, expected=(PARENT, OTHER_PARENT))
+            else:
+                result['request'] = self.kiosk_request_form(enabled=True)
+        elif operation in KIOSK_ACCOUNT_REFUSALS:
+            if operation == 'parent-kiosk-refused':
+                self.parent()
+                try:
+                    self.kiosk_account_snapshot('child')
+                except UiError as error:
+                    require(str(error) == 'ui:kiosk-account-surface', 'ui:kiosk-wrong-refusal')
+                else:
+                    raise UiError('ui:kiosk-wrong-entry-accepted')
+            else:
+                for field, name, expected in (
+                        ('child', PARENT, (CHILD, EXISTING_CHILD)),
+                        ('approver', NEW_CHILD, (PARENT, OTHER_PARENT))):
+                    try:
+                        self.select_kiosk_account(field, name, expected=expected)
+                    except UiError as error:
+                        require(str(error) == 'ui:kiosk-account-choice', 'ui:kiosk-wrong-refusal')
+                    else:
+                        raise UiError('ui:kiosk-wrong-choice-accepted')
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-request-cancel':

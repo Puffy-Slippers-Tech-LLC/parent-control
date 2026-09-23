@@ -181,6 +181,16 @@ class KioskEntryQualification(ParentJourneyQualification):
         lease.save('isolated')
 
 
+class KioskEligibleChoicesQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_eligible_choices import KioskEligibleChoicesJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskEligibleChoicesJourney(context, progress)
+
+
 class DesktopLogoutQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

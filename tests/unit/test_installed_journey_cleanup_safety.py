@@ -19,6 +19,7 @@ import command_documentation
 import session_control
 import desktop_session
 import kiosk_entry
+import kiosk_eligible_choices
 import request_exit
 import parent_toggle
 import parent_discovery
@@ -58,12 +59,12 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
                                  parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN,
                                  command_help.PLAN, desktop_session.LOGOUT_PLAN,
                                  desktop_session.SWITCH_PLAN, kiosk_entry.PLAN,
-                                 request_exit.PLAN, parent_toggle.PLAN,
+                                 request_exit.PLAN, parent_toggle.PLAN, kiosk_eligible_choices.PLAN,
                                  parent_terminal_provider.PLAN, license_viewer_provider.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
-                              'terminal-provider', 'license-viewer-provider'])
+                              'kiosk-eligible-choices', 'terminal-provider', 'license-viewer-provider'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -128,7 +129,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             result['settings'] = {'child': accessible_ui.CHILD_IDENTITIES[
                 accessible_ui.SETTINGS_OPERATIONS[operation]], 'limit_enabled': False,
                 'allowance': ['1 hour'] if operation.startswith('new-') else ['0 minutes']}
-        if operation in accessible_ui.KIOSK_OPERATIONS:
+        if operation in accessible_ui.KIOSK_OPERATIONS or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS:
             result['request'] = {
                 'surface': 'kiosk', 'form_count': 1, 'child': 'existing-fixture-child',
                 'approver': 'other-fixture-parent', 'duration_seconds': 1800,
@@ -138,6 +139,11 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'request_enabled': False, 'cancel_enabled': True,
                 'message': 'screen-limit-disabled', 'mute': None,
             }
+            if operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS:
+                child, approver = accessible_ui.KIOSK_ACCOUNT_REQUESTS[operation]
+                result['request'].update(child=child, approver=approver,
+                    approver_selector_enabled=True, duration_enabled=True,
+                    soft_choice_enabled=True, request_enabled=True, message='')
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:

@@ -21,6 +21,21 @@ Read only the named block rows/callables, this recipe's selected cases and
 applicable finite-data rows. Prerequisite IDs are completion checks; do not open
 their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
+Reuse `AccessibleUI.select_kiosk_account` and `kiosk_request_form` in
+`tests/e2e/accessible_ui.py`, `RequestObservation.from_request` in
+`tests/e2e/ui_observations.py`, and the enabled preparation in
+`tests/e2e/kiosk_eligible_choices.py` / `onpc_kiosk_eligible_choices::run`.
+The argument-free `check_e2e_kiosk_eligible_choices` passed the enabled branch,
+independent readback, refusals and owned cleanup in run
+`20260923T204614Z-0601b77a`. Reuse that unchanged branch evidence; new or changed
+composition still needs qualification. The account selector currently waits for
+an enabled result; extend its explicit expected-result binding for the disabled
+child without weakening the existing checks. Relevant host checks are
+`tests/unit/test_e2e_kiosk_eligible_choices.py`,
+`tests/unit/test_e2e_kiosk_entry.py`,
+`tests/unit/test_installed_journey_cleanup_safety.py`, and
+`tests/ui/test_automation_identity.py::test_station_selected_uids_drive_the_public_guest_projection`.
+
 ## Scope and prerequisites
 
 Deliver **REQUEST04 kiosk child/approver; REQUEST08 unavailable state**. First scheduled consumer: [E2E-017, case 57](../E2E-Scenario-Recipes.md#e2e-017).

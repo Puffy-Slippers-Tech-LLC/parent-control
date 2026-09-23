@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **001s — [Prove Parent is unavailable to a standard account](E2E-Tasks/001s-shell-search.md)**.
+Next task: **005r — [Requalify retained case 5](E2E-Tasks/005r-case-5-regression.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

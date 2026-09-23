@@ -91,6 +91,7 @@ OPERATION_LABELS = {
     'standard-search-started': 'Checking the first search character',
     'standard-search-entered': 'Checking the complete Parent search query',
     'standard-parent-unavailable': 'Checking Parent is unavailable to the standard account',
+    'standard-search-qualified': 'Qualifying stable Parent search unavailability',
     'standard-management-denied': 'Reading administrator-access denial and checking management is absent',
 }
 OPERATION_LABELS.update({
@@ -292,7 +293,7 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation == 'parent-search-close-ready':
+        if operation in ('parent-search-close-ready', 'standard-search-qualified'):
             require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
             expected['provider'] = accessible_ui.validate_shell_metadata(result['provider'])
         if operation == 'station-entry-branch':

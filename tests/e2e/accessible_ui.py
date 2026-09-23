@@ -57,6 +57,8 @@ OPERATIONS |= frozenset({'standard-management-denied'})
 STANDARD_OPERATIONS |= frozenset({'standard-management-denied'})
 STANDARD_OPERATIONS |= frozenset({'standard-parent-command-launch', 'standard-parent-closed'})
 STANDARD_OPERATIONS |= frozenset({'child-command-launch'})
+OPERATIONS |= frozenset({'standard-search-qualified'})
+STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 OPERATIONS |= frozenset({'help-desktop-clear'})
 PRODUCT = 'Oh No! Parent Control'
 LICENSE_LINK = 'GNU General Public License v3.0'
@@ -2893,15 +2895,7 @@ class AccessibleUI:
             field = self.shell_search_field()
             if field is None:
                 return False
-            text = field.get_text_iface()
-            require(text is not None, 'ui:search-text-unavailable')
-            count = self.api.Text.get_character_count(text)
-            require(0 <= count <= 80, 'ui:search-text-bound')
-            matches = (count == len(expected)
-                       and self.api.Text.get_text(text, 0, count) == expected)
-            self.search_status = ('query-matched' if matches else
-                                  'query-mismatch-length=' + str(count))
-            return matches
+            return self.shell_query_matches(field, expected)
         surface, registered = self.provider_surface(
             'gnome-shell', 'app-grid', ('search',))
         self.search_status = 'surface-missing'
@@ -2917,6 +2911,19 @@ class AccessibleUI:
             self.search_status = 'field-unusable'
             return False
         return self.read_label(field, 'search-query', expected=expected, maximum=80)
+
+    def shell_query_matches(self, field, expected):
+        """Read the field from the caller's fresh scoped Shell observation."""
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal'), 'ui:search-binding')
+        text = field.get_text_iface()
+        require(text is not None, 'ui:search-text-unavailable')
+        count = self.api.Text.get_character_count(text)
+        require(0 <= count <= 80, 'ui:search-text-bound')
+        matches = (count == len(expected)
+                   and self.api.Text.get_text(text, 0, count) == expected)
+        self.search_status = ('query-matched' if matches else
+                              'query-mismatch-length=' + str(count))
+        return matches
 
     def shell_search_snapshot(self):
         """Shell 50 Overview adapter; semantics stay inside this provider scope.
@@ -3031,6 +3038,9 @@ class AccessibleUI:
         def observed():
             nonlocal stable_since
             try:
+                # Keep prompt/traversal failures inside the interval guard.
+                # wait() retries these reads; none may bridge a stable interval.
+                self.handle_system_prompt()
                 if semantic_shell:
                     owner, nodes, snapshot, facts = self.shell_search_snapshot()
                     self.search_status = 'shell-owner-missing'
@@ -3045,7 +3055,7 @@ class AccessibleUI:
                               and self.has_state(node, self.api.StateType.EDITABLE)]
                     require(len(fields) <= 1, 'ui:shell-search-ambiguous')
                     self.search_status = 'shell-field-missing'
-                    if not fields or not self.search_query(product):
+                    if not fields or not self.shell_query_matches(fields[0], product):
                         stable_since = None
                         return False
                     description = 'Search "' + product + '" on the web'
@@ -3120,16 +3130,17 @@ class AccessibleUI:
                 if stable_since is None:
                     stable_since = now
                 return now - stable_since >= stable_seconds
-            except self.query_errors:
+            except (UiError, *self.query_errors):
                 stable_since = None
                 self.search_status = 'incomplete-read'
                 raise
-        return self.wait_search(observed, 'standard-parent-unavailable')
+        return self.wait_search(observed, 'standard-parent-unavailable',
+                                prompt_in_predicate=True)
 
-    def wait_search(self, predicate, code):
+    def wait_search(self, predicate, code, *, prompt_in_predicate=False):
         self.search_status = 'observation-pending'
         try:
-            return self.wait(predicate, code)
+            return self.wait(predicate, code, prompt_in_predicate=prompt_in_predicate)
         except UiError as error:
             if str(error) == 'ui:timeout:' + code:
                 raise UiError(str(error) + ':' + self.search_status) from None
@@ -3428,6 +3439,9 @@ class AccessibleUI:
             self.wait_search(lambda: self.search_query(PRODUCT), 'standard-search-entered')
         elif operation == 'standard-parent-unavailable':
             self.search_result(PRODUCT, 'unavailable', stable_seconds=2)
+        elif operation == 'standard-search-qualified':
+            self.search_result(PRODUCT, 'unavailable', stable_seconds=2)
+            result['provider'] = self.shell_provider_metadata()
         elif operation == 'parent-search-ready':
             self.search_ready('overview')
         elif operation == 'parent-search-focused':

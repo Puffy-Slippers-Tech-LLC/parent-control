@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **151r — [Requalify retained case 151](E2E-Tasks/151r-case-151-regression.md)**.
+Next task: **012b — [Select eligible kiosk children and approvers](E2E-Tasks/012b-kiosk-eligible-choices.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -30,25 +30,26 @@ eligible work.
 ## Current scope
 
 Current scenario status and counts come from `tests/e2e/scenarios.json`; block
-status comes from the catalogue. The developer reports manually verifying that
-all seven currently ready cases—1, 3, 4, 5, 6, 151 and 193—pass on 2026-09-22.
-No runner artifact was supplied for that complete set. Preserve their customer
-assertions and registered bindings; supporting routes follow the current mandate.
+status comes from the catalogue. The initial provider migration gate is closed.
+On 2026-09-23 the developer confirmed separately validating all seven ready
+cases—1, 3, 4, 5, 6, 151 and 193—and explicitly directed that they need not be
+rerun. This confirmation supplies the shared regression gate's acceptance;
+no runner artifact was supplied for that complete set.
 
-Earlier guarded runs separately passed complete cases 6 and 151 (run
-`20260922T220454Z-80a92d46`) and case 193 (run
-`20260922T225544Z-f49bdf46`), both now outside runner retention,
-including product, infrastructure, collection and cleanup outcomes. Case 151
-also qualified the Parent/GNOME Text Editor license-reading and return binding.
+Task 151r separately passed the complete guarded About/license/return case in
+run `20260923T202401Z-9e9a5886`, including unchanged child/settings, capture
+reconciliation, product, infrastructure, collection, owned cleanup and baseline
+restoration. Before the developer's direction, the shared-change audit also
+started fresh case 1 and 3 runs; both passed with collection and cleanup
+(`20260923T202714Z-fc680b74` and `20260923T202932Z-38973041`). Coverage was
+regenerated after each successful case. Cases 4, 5, 6 and 193 were not rerun
+during this close-out.
 
-This manual validation does not close the current provider migration gate:
-the explicit retained regression rows still require their own qualified routes,
-guarded acceptance and close-out in queue order. Keep the **Next task** pointer
-on the first unchecked row. Reuse valid scoped evidence when those tasks reach their turn, and
-rerun a case if an intervening change affects it. A checked queue task records
-its delivered scope; it does not override a later `pending` block or scenario
-status. A capability run or historical `ready` inventory binding does not by
-itself validate a complete case.
+Preserve the customer assertions and registered bindings; supporting routes
+follow the current mandate. A checked queue task records its delivered scope;
+it does not override a later `pending` block or scenario status. Future shared
+changes retain their affected regression requirements. A capability run or
+historical `ready` inventory binding does not itself validate a complete case.
 
 Retired E2E IDs 140–150 remain separate system-test obligations and cannot be
 selected as UI cases. Deferred mute task 154 is outside current-release

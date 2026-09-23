@@ -14,7 +14,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Read only this context
 
-Read DESK04 and the shared session files referenced by task 003c's catalogue row, plus the session ownership/cleanup regressions.
+Read DESK04, `LOGOUT_PLAN` in [desktop_session.py](../../../tests/e2e/desktop_session.py), [session_control.py](../../../tests/e2e/session_control.py), [onpc_desktop_session.pm](../../../tests/integration/graphical_smoke/lib/onpc_desktop_session.pm), and the session ownership/cleanup regressions in [test_e2e_desktop_session.py](../../../tests/unit/test_e2e_desktop_session.py) and [test_desktop_session_cleanup_safety.py](../../../tests/unit/test_desktop_session_cleanup_safety.py).
 Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 ## Implementation
@@ -23,7 +23,7 @@ Invoke `gnome-session-quit --logout --no-prompt` once as the bound desktop user 
 
 ## Live VM acceptance
 
-From an independently prepared Parent desktop, log out once and require the source session ended and GDM usable. Reject wrong source/UID/session and uncertain replay. Run both modes of the existing combined qualification in separate restored attempts; preserve the switch mode's retained-session assertion.
+From an independently prepared Parent desktop, log out once and require the source session ended and GDM usable. Reject wrong source/UID/session and uncertain replay. Extend `check_e2e_desktop_session` to run logout and the already qualified switch mode in separate restored attempts; preserve the switch mode's retained-session assertion.
 
 Use the existing fixed qualification:
 

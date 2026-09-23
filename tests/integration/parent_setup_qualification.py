@@ -163,14 +163,6 @@ class DesktopLogoutQualification(ParentJourneyQualification):
         return DesktopSessionJourney(context, progress, LOGOUT_PLAN)
 
 
-class DesktopSwitchQualification(ParentJourneyQualification):
-    @staticmethod
-    def journey(context, progress):
-        from desktop_session import DesktopSessionJourney, SWITCH_PLAN
-        context.installed_snapshot = 'desktop-session'
-        return DesktopSessionJourney(context, progress, SWITCH_PLAN)
-
-
 class KioskEntryQualification(ParentJourneyQualification):
     @staticmethod
     def journey(context, progress):
@@ -195,6 +187,16 @@ class KioskEntryQualification(ParentJourneyQualification):
         lease.state['domain_id'] = None
         lease.guard(off=True)
         lease.save('isolated')
+
+
+class DesktopSwitchQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from desktop_session import DesktopSessionJourney, SWITCH_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return DesktopSessionJourney(context, progress, SWITCH_PLAN)
 
 
 class GdmNavigationQualification(KioskEntryQualification):

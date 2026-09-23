@@ -13,17 +13,14 @@ and retained regressions. Briefs never select a different task.
 
 ## Next task
 
-Next task: **003c — [Switch users through the shared system harness](E2E-Tasks/003c-switch-user.md)**.
+Next task: **003d — [Log out through the shared system harness](E2E-Tasks/003d-logout.md)**.
 
-Task 003b qualified separate fresh Parent and standard fixture entries, real gcr
-Cancel after masked-field focus, disappearance and independent prompt-free desktop
-readback, with private collection and owned cleanup
-([run `20260923T051904Z-f0d79b4d`](Evidence/test-all-runs/20260923T051904Z-f0d79b4d/report.md)).
-This historical harness slice supplies no complete-scenario acceptance credit.
-Routine entry now goes directly to the intended account. The system-operation
-audit removed Shell menu/logout-dialog tasks: 003c and 003d qualify shared system
-commands and independent session results. No completed GDM or Shell task grants
-an exemption from the current command/shortcut-first rule.
+Task 003c qualified a fresh installed Parent entry, one shared lock/greeter
+command, independent retained-source locked/inactive readback and usable GDM,
+with private collection and owned cleanup
+([run `20260923T165604Z-68e07519`](Evidence/test-all-runs/20260923T165604Z-68e07519/report.md)).
+This capability slice supplies no complete-scenario acceptance credit. Task 003d
+next qualifies direct logout and independent source disappearance/GDM results.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -48,7 +45,7 @@ also qualified the Parent/GNOME Text Editor license-reading and return binding.
 This manual validation does not close the current provider migration gate:
 the explicit retained regression rows still require their own qualified routes,
 guarded acceptance and close-out in queue order. Keep the **Next task** pointer
-on 003c. Reuse valid scoped evidence when those tasks reach their turn, and
+on 003d. Reuse valid scoped evidence when those tasks reach their turn, and
 rerun a case if an intervening change affects it. A checked queue task records
 its delivered scope; it does not override a later `pending` block or scenario
 status. A capability run or historical `ready` inventory binding does not by

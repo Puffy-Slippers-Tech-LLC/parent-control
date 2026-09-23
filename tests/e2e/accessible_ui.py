@@ -1059,12 +1059,16 @@ class AccessibleUI:
                     self.kiosk_diagnostic.query_errors += 1
                     self.kiosk_diagnostic.emit(status='query-error')
             except UiError as error:
-                if str(error) not in ('ui:incomplete-tree', 'ui:system-prompt-observation-failed'):
+                if str(error) not in (
+                        'ui:incomplete-tree', 'ui:stale-picker',
+                        'ui:system-prompt-observation-failed'):
                     raise
                 # Discard the entire observation. A child can disappear between
                 # ChildCount and GetChildAtIndex during a public UI transition.
-                # Prompt scans can encounter the same disappearing objects;
-                # a failed scan never authorizes the predicate or any input.
+                # GTK can likewise leave a defunct picker node in one AT-SPI
+                # snapshot while removing a closed popover. Prompt scans can
+                # encounter the same disappearing objects; a failed scan never
+                # authorizes the predicate or any input.
                 # Only a later complete read may satisfy the predicate; no
                 # action is replayed and the original deadline is retained.
                 incomplete = error
@@ -1079,7 +1083,8 @@ class AccessibleUI:
                 return value
             self.invalidate_observation()
             if time.monotonic() >= deadline:
-                if incomplete is not None and str(incomplete) == 'ui:system-prompt-observation-failed':
+                if incomplete is not None and str(incomplete) in (
+                        'ui:stale-picker', 'ui:system-prompt-observation-failed'):
                     raise incomplete
                 raise UiError('ui:timeout:' + code) from incomplete
             time.sleep(.2)

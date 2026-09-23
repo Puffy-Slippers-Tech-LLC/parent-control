@@ -31,6 +31,10 @@ the sole active local fixture session and owned user bus before input, submits
 the selected command once, and independently reads the destination through logind.
 Switching locks first and invokes GDM's public API through the desktop user's
 service manager; logout invokes `gnome-session-quit --logout --no-prompt`.
+The `return-greeter` binding instead requires an already locked active fixture
+session and invokes the same GDM API without another Lock or an unlock. It
+rechecks that source before input and requires it retained and locked after the
+transition. The caller observes any tested lock/denial before leaving it.
 `InstalledJourney` records these as `system:` stages. A subsequent GDM/app
 observation supplies the required public result. No Quick Settings, confirmation
 dialog or fallback after uncertain submission is involved.
@@ -455,12 +459,13 @@ desktop's owned session bus. Missing/stale UI cannot prove absence; cosmetics
 do not gate acceptance. The shared functional GDM gate selects the intended account directly and
 independently verifies its empty masked field and focus twice through ordered
 standard-specific checkpoints before secret input. Wrong-recipient rejection
-belongs to separate harness safety qualification. Search input and keyring handling must use their separately qualified
-provider adapters: tasks 001s and 003b respectively. Prefer direct public actions
+belongs to separate harness safety qualification. Search uses its qualified
+Shell provider adapter; prepared keyring handling remains separate harness work.
+Prefer direct public actions
 and observed focus/results; geometry is permitted only within an explicitly
 qualified external adapter when the mandate's conditions are met. The current
-shared prompt middleware refuses prompts; it does not automatically Cancel an
-unqualified keyring dialog. Unknown prompts, uncertain input and replay refuse.
+shared prompt middleware refuses prompts without cancelling keyring dialogs.
+Unknown prompts, uncertain input and replay refuse.
 Legacy needles and their refusal regressions confer no input authorization.
 Do not press Enter on an unrelated suggestion. No time policy is changed or
 enforcement claimed.
@@ -487,7 +492,7 @@ E2E-042/command-help is implemented by `command_help.PLAN` and
 both installed `--help` commands and both manuals through the guarded VM SSH
 transport. It checks the public desktop after each read and requires no product
 window. This stream route passed complete case 193, including collection and
-cleanup, in [run 20260922T225544Z-f49bdf46](../../docs/TestAutomation/Evidence/test-all-runs/20260922T225544Z-f49bdf46/report.md).
+cleanup, in run `20260922T225544Z-f49bdf46` (subject to runner retention).
 Omitting both `--ready` and `--scenario` requests the whole inventory and still
 refuses while any variant is pending. A ready-suite pass is partial coverage.
 

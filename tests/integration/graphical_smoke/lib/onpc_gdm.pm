@@ -3,7 +3,6 @@ use strict;
 use warnings;
 use onpc_progress ();
 use testapi ();
-use onpc_pointer ();
 use onpc_journey ();
 
 # GDM02's functional credential binding. Prompt qualification is the caller's
@@ -182,8 +181,9 @@ sub _dismiss_observed_prompt {
     return $journey->seen('dismissed');
 }
 
-# Retained legacy entry points refuse until the installed provider exposes the
-# complete public-ID contract used by the functional GDM route above.
+# Retired image-based entry points remain refused. Use the shared functional
+# entry above with its scoped provider adapter; new provider IDs cannot revive
+# a geometry-based account-selection route.
 sub wait_list {
     onpc_progress::operation('Waiting for the greeter account list');
     die "gdm:provider-id-required\n";
@@ -226,8 +226,7 @@ sub reattach_functional {
     die "gdm:reconnect\n" unless (testapi::current_console() // '') eq 'sut';
 }
 
-# Installed input has a separate reviewed tag; the observation-only tag stays
-# unable to authorize clicks. This acquisition route never submits a secret.
+# Retired image acquisition cannot authorize selection or secret input.
 sub inspect_installed_parent {
     onpc_progress::operation('Checking the Parent sign-in prompt');
     die "gdm:provider-id-required\n";

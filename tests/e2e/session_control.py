@@ -17,9 +17,10 @@ import time
 
 ACCOUNTS = {'parent': 'onpc-parent-jamie', 'standard': 'onpc-child-jordan'}
 BINDINGS = {role + '-' + action: (role, action)
-            for role in ACCOUNTS for action in ('switch-user', 'logout', 'lock')}
+            for role in ACCOUNTS for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
 LABELS = {'switch-user': 'Switching to the greeter',
-          'logout': 'Logging out the fixture desktop', 'lock': 'Locking the fixture desktop'}
+          'logout': 'Logging out the fixture desktop', 'lock': 'Locking the fixture desktop',
+          'return-greeter': 'Returning from the locked fixture session to the greeter'}
 
 
 class SessionError(RuntimeError):
@@ -75,13 +76,14 @@ def local_graphical(props):
             and props['Type'] in ('wayland', 'x11'))
 
 
-def source_session(current, uid):
+def source_session(current, uid, *, locked=False):
     active = [(identity, props) for identity, props in current.items()
               if local_graphical(props) and props['Active'] == 'yes']
     require(len(active) == 1, 'active-session')
     identity, props = active[0]
     require(props['User'] == str(uid) and props['Class'] in ('user', 'user-early'), 'source-owner')
-    require(props['LockedHint'] == 'no', 'source-locked')
+    require(props['LockedHint'] == ('yes' if locked else 'no'),
+            'source-unlocked' if locked else 'source-locked')
     owned = [key for key, item in current.items() if local_graphical(item)
              and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
     require(owned == [identity], 'ambiguous-source')
@@ -106,14 +108,17 @@ def submit(action):
         call(['/usr/bin/gnome-session-quit', '--logout', '--no-prompt'])
         return
     # Resolve the switching dependency before the first mutation.
-    if action == 'switch-user':
+    if action in ('switch-user', 'return-greeter'):
         import gi
         gi.require_version('Gdm', '1.0')
         from gi.repository import Gdm
         require(callable(Gdm.goto_login_session_sync), 'switch-api')
-    call(['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
-          '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.Lock'])
-    if action == 'switch-user':
+    # A lock/denial result must be observed before return-greeter. Preserve
+    # that already locked session; no unlock, extra Lock or Shell navigation.
+    if action != 'return-greeter':
+        call(['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
+              '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.Lock'])
+    if action in ('switch-user', 'return-greeter'):
         # GDM resolves the calling process's seat. An SSH process belongs to a
         # remote session even after setuid; the desktop user's service manager
         # runs this fixed command outside that remote session so GDM resolves
@@ -138,7 +143,7 @@ def destination(current, source, uid, action):
               if local_graphical(props) and props['Active'] == 'yes']
     require(len(active) <= 1, 'ambiguous-destination')
     greeter = bool(active and active[0]['Class'] == 'greeter')
-    if action == 'switch-user':
+    if action in ('switch-user', 'return-greeter'):
         require(original is not None, 'source-lost')
         return greeter and original['Active'] == 'no' and original['LockedHint'] == 'yes'
     return greeter and original is None
@@ -149,7 +154,8 @@ def execute(binding):
     role, action = BINDINGS[binding]
     account = pwd.getpwnam(ACCOUNTS[role])
     require(account.pw_uid >= 1000, 'fixture-identity')
-    source = source_session(sessions(), account.pw_uid)
+    locked = action == 'return-greeter'
+    source = source_session(sessions(), account.pw_uid, locked=locked)
     env = environment(account)
     os.initgroups(account.pw_name, account.pw_gid)
     os.setgid(account.pw_gid)
@@ -157,7 +163,7 @@ def execute(binding):
     os.environ.clear()
     os.environ.update(env)
     # Recheck after changing identity, immediately before the single submission.
-    require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
+    require(source_session(sessions(), account.pw_uid, locked=locked) == source, 'source-changed')
     submit(action)
     deadline = time.monotonic() + 45
     while not destination(sessions(), source, account.pw_uid, action):

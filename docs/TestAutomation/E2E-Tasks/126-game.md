@@ -25,7 +25,7 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Reuse the qualified real-game launch, usability and activity callables. Bind its offered windowed mode/level controls, compose APP05 from UI15 and APP03 plus independent gameplay observations, then compose FLOW10 from game FLOW08, APP05, APP04 and TIME04. Use real normal input and bounded public results; no fake game, timer or private state probe.
+Reuse the qualified real-game launch, usability and activity callables. Prepare its declared windowed mode/level through shared supported launch options or keyboard shortcuts, then compose APP05's independent mode/level observation and APP03 gameplay input/effect. Bind any startup options before FLOW08 launches; never relaunch retained activity for preparation. Compose FLOW10 from game FLOW08, APP05, APP04 and TIME04. Preserve real gameplay and bounded public results; no settings-menu tour, fake game, timer or private state probe.
 
 ## Live VM acceptance
 

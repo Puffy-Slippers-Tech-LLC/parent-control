@@ -18,9 +18,10 @@ def props(uid='1000', *, active='yes', locked='no', kind='user', remote='no', se
 
 
 @pytest.mark.parametrize('fault', ['wrong-owner', 'remote', 'wrong-seat', 'greeter',
-                                   'locked', 'multiple-active', 'multiple-owned', 'missing'])
-def test_source_refuses_wrong_or_ambiguous_sessions(fault):
-    source = props()
+                                   'wrong-lock-state', 'multiple-active', 'multiple-owned', 'missing'])
+@pytest.mark.parametrize('locked', [False, True])
+def test_source_refuses_wrong_or_ambiguous_sessions(fault, locked):
+    source = props(locked='yes' if locked else 'no')
     current = {'7': source}
     if fault == 'wrong-owner':
         source['User'] = '1001'
@@ -30,8 +31,8 @@ def test_source_refuses_wrong_or_ambiguous_sessions(fault):
         source['Seat'] = 'seat1'
     elif fault == 'greeter':
         source['Class'] = 'greeter'
-    elif fault == 'locked':
-        source['LockedHint'] = 'yes'
+    elif fault == 'wrong-lock-state':
+        source['LockedHint'] = 'no' if locked else 'yes'
     elif fault == 'multiple-active':
         current['8'] = props('1001')
     elif fault == 'multiple-owned':
@@ -39,22 +40,28 @@ def test_source_refuses_wrong_or_ambiguous_sessions(fault):
     else:
         current.clear()
     with pytest.raises(control.SessionError):
-        control.source_session(current, 1000)
+        control.source_session(current, 1000, locked=locked)
 
 
 def test_source_and_independent_results_distinguish_logout_lock_and_switch():
     assert control.source_session({'7': props()}, 1000) == '7'
+    assert control.source_session({'7': props(locked='yes')}, 1000, locked=True) == '7'
     greeter = props('120', kind='greeter')
     switched = {'7': props(active='no', locked='yes'), '8': greeter}
     assert control.destination(switched, '7', 1000, 'switch-user')
+    assert control.destination(switched, '7', 1000, 'return-greeter')
+    assert not control.destination({'7': props(locked='yes')}, '7', 1000, 'return-greeter')
+    assert not control.destination({'7': props(active='no'), '8': greeter},
+                                   '7', 1000, 'return-greeter')
     assert not control.destination(switched, '7', 1000, 'logout')
     assert control.destination({'8': greeter}, '7', 1000, 'logout')
     assert not control.destination({'7': props()}, '7', 1000, 'lock')
     assert control.destination({'7': props(locked='yes')}, '7', 1000, 'lock')
-    with pytest.raises(control.SessionError, match='source-lost'):
-        control.destination({'8': greeter}, '7', 1000, 'switch-user')
-    with pytest.raises(control.SessionError, match='source-replaced'):
-        control.destination({'7': props('1001'), '8': greeter}, '7', 1000, 'switch-user')
+    for action in ('switch-user', 'return-greeter'):
+        with pytest.raises(control.SessionError, match='source-lost'):
+            control.destination({'8': greeter}, '7', 1000, action)
+        with pytest.raises(control.SessionError, match='source-replaced'):
+            control.destination({'7': props('1001'), '8': greeter}, '7', 1000, action)
 
 
 def test_logout_is_one_direct_command_without_force_or_a_shell(monkeypatch):
@@ -69,31 +76,33 @@ def test_logout_is_one_direct_command_without_force_or_a_shell(monkeypatch):
     assert call.call_count == 1
 
 
-def test_switch_locks_before_public_gdm_api_and_never_retries(monkeypatch):
+@pytest.mark.parametrize('action', ['switch-user', 'return-greeter'])
+def test_greeter_command_locks_only_an_unlocked_source_and_never_retries(monkeypatch, action):
     events = []
     gdm = SimpleNamespace(goto_login_session_sync=Mock())
     monkeypatch.setitem(__import__('sys').modules, 'gi', SimpleNamespace(require_version=Mock()))
     monkeypatch.setitem(__import__('sys').modules, 'gi.repository', SimpleNamespace(Gdm=gdm))
     monkeypatch.setattr(control, 'call', lambda argv: events.append(argv))
-    control.submit('switch-user')
-    assert events[0] == [
-        '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
-        '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.Lock']
-    assert len(events) == 2
-    assert events[1][:8] == [
+    control.submit(action)
+    if action == 'switch-user':
+        assert events[0] == [
+            '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
+            '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.Lock']
+    assert len(events) == (2 if action == 'switch-user' else 1)
+    assert events[-1][:8] == [
         '/usr/bin/systemd-run', '--user', '--quiet', '--collect', '--wait',
         '--pipe', '--service-type=exec', '/usr/bin/python3']
-    assert events[1][8:10] == ['-I', '-c']
-    assert 'Gdm.goto_login_session_sync(None)' in events[1][-1]
+    assert events[-1][8:10] == ['-I', '-c']
+    assert 'Gdm.goto_login_session_sync(None)' in events[-1][-1]
     gdm.goto_login_session_sync.assert_not_called()
     events.clear()
     def fail(_):
-        events.append('failed-lock')
+        events.append('failed-command')
         raise TimeoutError
     monkeypatch.setattr(control, 'call', fail)
     with pytest.raises(TimeoutError):
-        control.submit('switch-user')
-    assert events == ['failed-lock']
+        control.submit(action)
+    assert events == ['failed-command']
 
 
 @pytest.mark.parametrize('binding', ['root-logout', 'parent-reboot', 'parent-logout;id', ''])
@@ -105,9 +114,14 @@ def test_unregistered_commands_refuse_before_session_lookup(monkeypatch, binding
     read.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['initial-owner', 'changed-source'])
-def test_execute_checks_ownership_again_after_dropping_privileges(monkeypatch, fault):
-    account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='onpc-parent-jamie')
+@pytest.mark.parametrize('fault', ['initial-owner', 'changed-source', 'initial-lock', 'changed-lock'])
+@pytest.mark.parametrize('binding', ['parent-logout', 'standard-return-greeter'])
+def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges(
+        monkeypatch, fault, binding):
+    role, action = control.BINDINGS[binding]
+    locked = 'yes' if action == 'return-greeter' else 'no'
+    wrong_lock = 'no' if locked == 'yes' else 'yes'
+    account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name=control.ACCOUNTS[role])
     monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: account)
     monkeypatch.setattr(control, 'environment', lambda _: {})
@@ -115,13 +129,15 @@ def test_execute_checks_ownership_again_after_dropping_privileges(monkeypatch, f
     for name in ('initgroups', 'setgid', 'setuid'):
         monkeypatch.setattr(control.os, name, Mock())
     monkeypatch.setattr(control, 'sessions', Mock(side_effect=[
-        {'7': props('1001' if fault == 'initial-owner' else '1000')},
-        {'8': props()},
+        {'7': props('1001' if fault == 'initial-owner' else '1000',
+                    locked=wrong_lock if fault == 'initial-lock' else locked)},
+        {'8' if fault == 'changed-source' else '7':
+            props(locked=wrong_lock if fault == 'changed-lock' else locked)},
     ]))
     submit = Mock()
     monkeypatch.setattr(control, 'submit', submit)
     with pytest.raises(control.SessionError):
-        control.execute('parent-logout')
+        control.execute(binding)
     submit.assert_not_called()
 
 
@@ -134,7 +150,8 @@ def test_removed_shell_gui_operations_cannot_execute(operation):
         ui.run(operation, '')
 
 
-@pytest.mark.parametrize('binding', ['parent-logout', 'standard-switch-user'])
+@pytest.mark.parametrize('binding', ['parent-logout', 'standard-switch-user',
+                                    'parent-return-greeter', 'standard-return-greeter'])
 def test_controller_requires_command_result_over_guarded_transport(binding):
     role, action = control.BINDINGS[binding]
     expected = {'operation': binding, 'outcome': 'passed', 'interface': 'system session',

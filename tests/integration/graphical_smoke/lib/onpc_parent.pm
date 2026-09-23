@@ -5,7 +5,6 @@ use onpc_progress ();
 use testapi ();
 use onpc_gdm ();
 use onpc_password ();
-use onpc_pointer ();
 
 sub login_functional {
     onpc_progress::operation('Signing in as [Parent user]');
@@ -39,8 +38,8 @@ sub open_search {
     die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && $surface eq 'overview';
     $journey->consume_observation('desktop', $desktop);
-    # A login-keyring modal can consume Super-A. Dismiss it before the single
-    # opening gesture, rather than repairing an Overview that never opened.
+    # A modal can consume Super-A. Require a prompt-free desktop before the
+    # single opening gesture; routine search never exercises keyring dismissal.
     $journey->seen('system-prompt');
     testapi::send_key('super-a');
     return $journey->seen('app-grid');

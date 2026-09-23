@@ -565,6 +565,107 @@ def keyring_ui(*, fault=None, root_children=()):
     return ui, dialog, controls
 
 
+def semantic_keyring_ui(*, fault=None):
+    field = Node('', 'password text', states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_text_iface = lambda: field
+    field.get_child_count = Mock(side_effect=AssertionError('secret traversed'))
+    cancel = Node('Cancel', 'push button')
+    controls = [field, cancel]
+    if fault == 'duplicate-cancel': controls.append(Node('Cancel', 'push button'))
+    if fault == 'unfocused': field.states.remove('focused')
+    if fault == 'hidden': cancel.states.remove('showing')
+    if fault == 'disabled': cancel.states.remove('sensitive')
+    if fault == 'unmasked': field.role = 'text'
+    dialog = Node('Unlock Login Keyring', 'dialog', children=controls)
+    dialogs = [dialog]
+    if fault == 'extra-modal': dialogs.append(Node('Unexpected', 'dialog'))
+    owner = Node('gcr Prompter', 'application', children=dialogs)
+    if fault == 'wrong-owner': owner.name = 'Unknown Agent'
+    if fault == 'wrong-dialog': dialog.name = 'Authentication Required'
+    shell = Node('GNOME Shell', 'application', children=[Node('Activities', 'toggle button')])
+    root = Node(role='desktop frame', children=[shell, owner])
+    ui = ui_for(root, provider_contracts={})
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 1 if fault == 'nonempty' else 0,
+                                  get_text=Mock(side_effect=AssertionError('secret read')))
+    return ui, root, owner, field, cancel
+
+
+@pytest.mark.parametrize('fault', ['duplicate-cancel', 'extra-modal', 'unfocused', 'hidden', 'disabled',
+                                   'unmasked', 'wrong-owner', 'wrong-dialog', 'nonempty'])
+def test_semantic_keyring_cancel_refuses_unsafe_target_without_input(fault):
+    ui, _root, _owner, field, cancel = semantic_keyring_ui(fault=fault)
+    with pytest.raises(UiError):
+        ui.keyring_cancel_target()
+    cancel.action.do_action.assert_not_called()
+    field.get_child_count.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+
+
+def test_semantic_keyring_cancel_requires_a_real_visible_prompt():
+    ui, root, owner, _field, cancel = semantic_keyring_ui()
+    root.children.remove(owner)
+    ui.standard_shell_desktop = Mock()
+    with pytest.raises(UiError, match='timeout:keyring-prompt'):
+        ui.cancel_keyring_prompt()
+    cancel.action.do_action.assert_not_called()
+    ui.standard_shell_desktop.assert_not_called()
+
+
+def test_semantic_keyring_cancel_observes_disappearance_before_desktop():
+    ui, root, owner, field, cancel = semantic_keyring_ui()
+    cancel.action.do_action.side_effect = lambda _: root.children.remove(owner) or True
+    ui.standard_shell_desktop = Mock(return_value=True)
+    ui.cancel_keyring_prompt()
+    cancel.action.do_action.assert_called_once_with(0)
+    ui.standard_shell_desktop.assert_called_once_with(no_prompt=True)
+    field.get_child_count.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+
+
+def test_semantic_keyring_cancel_refuses_replacement_without_replay():
+    ui, root, owner, _field, cancel = semantic_keyring_ui()
+    replacement = Node('Unknown Agent', 'application', children=[
+        Node('Authentication Required', 'dialog', children=[Node('', 'password text')])])
+    def replace(_index):
+        root.children.remove(owner)
+        replacement.parent = root
+        root.children.append(replacement)
+        return True
+    cancel.action.do_action.side_effect = replace
+    ui.standard_shell_desktop = Mock()
+    with pytest.raises(UiError, match='keyring-prompt-replaced'):
+        ui.cancel_keyring_prompt()
+    cancel.action.do_action.assert_called_once_with(0)
+    ui.standard_shell_desktop.assert_not_called()
+
+
+def test_semantic_keyring_cancel_refuses_incomplete_absence():
+    ui, root, owner, _field, cancel = semantic_keyring_ui()
+    def incomplete(_index):
+        root.children.remove(owner)
+        root.children.append(None)
+        return True
+    cancel.action.do_action.side_effect = incomplete
+    ui.standard_shell_desktop = Mock()
+    with pytest.raises(UiError, match='timeout:keyring-dismissed'):
+        ui.cancel_keyring_prompt()
+    cancel.action.do_action.assert_called_once_with(0)
+    ui.standard_shell_desktop.assert_not_called()
+
+
+def test_semantic_keyring_cancel_latches_uncertain_action():
+    ui, _root, _owner, _field, cancel = semantic_keyring_ui()
+    cancel.action.do_action.return_value = False
+    ui.standard_shell_desktop = Mock()
+    with pytest.raises(UiError, match='action-refused'):
+        ui.cancel_keyring_prompt()
+    assert ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.cancel_keyring_prompt()
+    cancel.action.do_action.assert_called_once_with(0)
+    ui.standard_shell_desktop.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'wrong-account', 'no-prompt', 'unfocused', 'list-remains'])
 def test_gdm_selection_requires_independent_identity_prompt_and_focus(fault):
     recipient = Node('Other Parent' if fault == 'wrong-account' else 'Jamie (Parent)', 'label')

@@ -256,6 +256,16 @@ class ParentSearchLaunchQualification(KioskEntryQualification):
         return ParentSearchLaunchJourney(context, progress)
 
 
+class ParentTerminalProviderQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from parent_terminal_provider import ParentTerminalProviderJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ParentTerminalProviderJourney(context, progress)
+
+
 class ShellSearchQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

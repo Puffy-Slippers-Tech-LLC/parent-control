@@ -24,6 +24,7 @@ import parent_toggle
 import parent_discovery
 import shell_search_results
 import parent_search_launch
+import parent_terminal_provider
 import shell_search
 import accessible_ui
 import inventory
@@ -56,10 +57,12 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
                                  parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN,
                                  command_help.PLAN, desktop_session.LOGOUT_PLAN,
                                  desktop_session.SWITCH_PLAN, kiosk_entry.PLAN,
-                                 request_exit.PLAN, parent_toggle.PLAN],
+                                 request_exit.PLAN, parent_toggle.PLAN,
+                                 parent_terminal_provider.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
-                              'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle'])
+                              'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
+                              'terminal-provider'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -71,7 +74,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-003/none'
     if plan is parent_access.PLAN:
         selector = 'E2E-004/app-grid'
-    if plan is parent_terminal.PLAN:
+    if plan in (parent_terminal.PLAN, parent_terminal_provider.PLAN):
         selector = 'E2E-004/terminal'
     if plan is command_help.PLAN:
         selector = 'E2E-042/command-help'

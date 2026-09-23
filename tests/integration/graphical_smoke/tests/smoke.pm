@@ -10,6 +10,7 @@ use onpc_gdm ();
 use onpc_fresh_desktop ();
 use onpc_shell_search ();
 use onpc_parent_search_launch ();
+use onpc_parent_terminal_provider ();
 use onpc_shell_search_standard ();
 use onpc_vt6 ();
 use onpc_parent_about ();
@@ -102,6 +103,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_parent_search_launch::run(\&exchange);
+        return;
+    }
+    if ($ready->{parent_terminal_provider}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_terminal_provider::run(\&exchange);
         return;
     }
     if ($ready->{shell_search}) {

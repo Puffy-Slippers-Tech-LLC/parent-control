@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify shared DESK03/04 system commands in separate switch/logout attempts."""
+"""Qualify the shared DESK03 switch command on a fresh Parent desktop."""
 
 from pathlib import Path
 import sys
@@ -8,8 +8,9 @@ from check_graphical_smoke import main as smoke
 ASSETS = Path('/tmp/onpc-parent-setup-input')
 
 
+def main():
+    return smoke(assets=ASSETS, provision_credentials=True, desktop_session_switch=True)
+
+
 if __name__ == '__main__':
-    status = smoke(assets=ASSETS, provision_credentials=True, desktop_session_logout=True)
-    if status:
-        sys.exit(status)
-    sys.exit(smoke(assets=ASSETS, provision_credentials=True, desktop_session_switch=True))
+    sys.exit(main())

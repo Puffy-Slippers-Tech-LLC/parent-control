@@ -115,7 +115,8 @@ def test_unregistered_commands_refuse_before_session_lookup(monkeypatch, binding
 
 
 @pytest.mark.parametrize('fault', ['initial-owner', 'changed-source', 'initial-lock', 'changed-lock'])
-@pytest.mark.parametrize('binding', ['parent-logout', 'standard-return-greeter'])
+@pytest.mark.parametrize('binding', ['parent-switch-user', 'parent-logout',
+                                    'standard-return-greeter'])
 def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges(
         monkeypatch, fault, binding):
     role, action = control.BINDINGS[binding]
@@ -272,3 +273,24 @@ def test_plans_declare_every_stage_and_keep_prefixes_distinct():
         assert plan.advance_after['desktop'] == 'step-2'
     assert LOGOUT_PLAN.prefix != SWITCH_PLAN.prefix
     assert LOGOUT_PLAN.worker_mode != SWITCH_PLAN.worker_mode
+
+
+def test_switch_qualification_uses_installed_snapshot_and_only_the_switch_attempt():
+    import check_e2e_desktop_session as check
+    from parent_setup_qualification import DesktopSwitchQualification, KioskEntryQualification
+
+    assert issubclass(DesktopSwitchQualification, KioskEntryQualification)
+    context = SimpleNamespace()
+    journey = DesktopSwitchQualification.journey(context, Mock())
+    assert context.installed_snapshot == 'onpc-v1.1'
+    assert journey.plan.worker_mode == 'desktop_session_switch'
+
+    calls = []
+    original = check.smoke
+    try:
+        check.smoke = lambda **kwargs: calls.append(kwargs) or 0
+        assert check.main() == 0
+    finally:
+        check.smoke = original
+    assert calls == [{'assets': check.ASSETS, 'provision_credentials': True,
+                      'desktop_session_switch': True}]

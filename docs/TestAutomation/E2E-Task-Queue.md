@@ -84,7 +84,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [x] | 001r | Requalify retained case 1 | 003a, 003ab | Retained regression 1; complete graphical/serial recipe and capture/return reconciliation | 20–30 |
 | [x] | 003ba | Qualify fresh login without a keyring prompt | 003a | GDM05 fresh Parent/standard entry and DESK01 no-prompt desktop; separate installed qualification, private collection and owned cleanup passed | 20–30 |
 | [x] | 003b | Qualify optional harness keyring cancellation (isolated) | 003a, 003ba | GDM05 separate fresh Parent/standard entry; DESK01; real gcr masked-field focus, single Cancel, disappearance and independent desktop readback; provider metadata, private evidence reconciliation and owned cleanup passed | 20–30 |
-| [ ] | 003c | [Switch users through the shared system harness](E2E-Tasks/003c-switch-user.md) | 003ba | DESK03 shared lock/greeter command and independent GDM result | 20–30 |
+| [x] | 003c | Switch users through the shared system harness | 003ba | DESK03 fresh installed Parent entry; one lock/greeter command, retained source locked/inactive and independent usable GDM; private collection and owned cleanup passed | 20–30 |
 | [ ] | 003d | [Log out through the shared system harness](E2E-Tasks/003d-logout.md) | 003ba, 003c | DESK04 direct logout command and independent GDM result | 20–30 |
 | [ ] | 001sa | [Read the product's Shell search results](E2E-Tasks/001sa-shell-search-results.md) | 003ba, 003c, 003d | SEARCH01/02/03/04/06 product query and launcher identity | 20–30 |
 | [ ] | 001sb | [Launch Parent through administrator search](E2E-Tasks/001sb-parent-search-launch.md) | 001sa | SEARCH05 administrator Parent launch and owned-window result | 20–30 |

@@ -13,7 +13,7 @@ and retained regressions. Briefs never select a different task.
 
 ## Next task
 
-Next task: **003r — [Requalify retained case 3](E2E-Tasks/003r-case-3-regression.md)**.
+Next task: **004r — [Requalify retained case 4](E2E-Tasks/004r-case-4-regression.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">11322</span>/<span style="color: gray">0</span>/11322 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">11385</span>/<span style="color: gray">0</span>/11385 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">145</span>/<span style="color: gray">0</span>/145 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">144</span>/<span style="color: gray">0</span>/144 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">29</span>/<span style="color: gray">0</span>/29 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| Integration qualification | <span style="color: green">32</span>/<span style="color: gray">0</span>/32 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">7</span>/<span style="color: gray">235</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">11892</span>/<span style="color: gray">235</span>/12127** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">11957</span>/<span style="color: gray">235</span>/12192** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -2797,7 +2797,7 @@ Variant: gameplay: windowed
 - Sign in as a parent, select the child in Parent, enable limits and save zero daily minutes. Keep the real offline game Always Allowed.
 - Switch User and try correct-password child sign-in; read the time-limit restriction.
 - Enter the station, choose the child and parent, request short time and obtain actual approval. Observe return to sign-in.
-- Sign in as the child, read the countdown, open the real game, choose the declared mode and play the declared offline level.
+- Sign in as the child and read the countdown. Use shared supported commands or shortcuts to open the real game in the declared mode/level, then perform real gameplay input and observe its effects.
 - Keep playing until the desktop locks naturally. Confirm normal input now reaches the lock screen and cannot continue the game.
 - Try the correct password and read the time restriction. Obtain replacement time normally, unlock, and continue the recognizable earlier game to check retention.
 
@@ -2820,7 +2820,7 @@ Variant: gameplay: fullscreen
 - Sign in as a parent, select the child in Parent, enable limits and save zero daily minutes. Keep the real offline game Always Allowed.
 - Switch User and try correct-password child sign-in; read the time-limit restriction.
 - Enter the station, choose the child and parent, request short time and obtain actual approval. Observe return to sign-in.
-- Sign in as the child, read the countdown, open the real game, choose the declared mode and play the declared offline level.
+- Sign in as the child and read the countdown. Use shared supported commands or shortcuts to open the real game in the declared mode/level, then perform real gameplay input and observe its effects.
 - Keep playing until the desktop locks naturally. Confirm normal input now reaches the lock screen and cannot continue the game.
 - Try the correct password and read the time restriction. Obtain replacement time normally, unlock, and continue the recognizable earlier game to check retention.
 
@@ -3719,7 +3719,7 @@ Variant: flow: search filters
 **Steps:**
 
 - Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3739,7 +3739,7 @@ Variant: flow: match editor
 **Steps:**
 
 - Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3759,7 +3759,7 @@ Variant: flow: match reopen
 **Steps:**
 
 - Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3779,7 +3779,7 @@ Variant: flow: shared launchers
 **Steps:**
 
 - Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3799,7 +3799,7 @@ Variant: flow: special paths
 **Steps:**
 
 - Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3819,7 +3819,7 @@ Variant: flow: pattern files
 **Steps:**
 
 - Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use normal file tools for copies/renames and Parent for all rules.
+- Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3938,7 +3938,7 @@ Variant: calendar: ordinary; time: daily reset
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 
@@ -3958,7 +3958,7 @@ Variant: calendar: ordinary; time: rest of day
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 
@@ -3978,7 +3978,7 @@ Variant: calendar: ordinary; time: fixed grant
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 
@@ -3998,7 +3998,7 @@ Variant: calendar: spring forward; time: daily reset
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 
@@ -4018,7 +4018,7 @@ Variant: calendar: spring forward; time: rest of day
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 
@@ -4038,7 +4038,7 @@ Variant: calendar: spring forward; time: fixed grant
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 
@@ -4058,7 +4058,7 @@ Variant: calendar: fall back; time: daily reset
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 
@@ -4078,7 +4078,7 @@ Variant: calendar: fall back; time: rest of day
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 
@@ -4098,7 +4098,7 @@ Variant: calendar: fall back; time: fixed grant
 
 **Steps:**
 
-- Start in the declared natural calendar window. Read desktop date, time and timezone; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
+- Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
 

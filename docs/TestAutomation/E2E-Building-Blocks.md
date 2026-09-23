@@ -1103,6 +1103,17 @@ references belong in retained runner artifacts and the implementation report.
 The `parent-window` checkpoint separates successful launch from subsequent
 picker input. Per-attempt evidence and outcomes remain in the runner artifacts.
 
+Case **3 / E2E-003/existing-and-new** passed the complete current route through
+`tools/run-tests e2e --id '3'` in
+[run `20260923T183522Z-d4969e1e`](Evidence/test-all-runs/20260923T183522Z-d4969e1e/report.md).
+The retained `parent_discovery.PLAN` and `onpc_parent_discovery::run` bindings
+qualified fresh Parent entry, SEARCH05 launch, ID-owned existing/new-child
+selection, FIX01 after unchanged initial settings, both pages and all four
+immutable settings comparisons without reopening Parent. Private evidence
+reconciliation, product, infrastructure, collection, owned cleanup and final
+baseline restoration passed; coverage was regenerated. This closes retained
+task 003r only; case 4's empty-account binding keeps its separate acceptance.
+
 The [worker](../../tests/integration/graphical_smoke/lib/onpc_parent_discovery.pm)
 composes FLOW15 and the explicit SEARCH05 discovery exception from
 [onpc_parent.pm](../../tests/integration/graphical_smoke/lib/onpc_parent.pm),
@@ -1484,7 +1495,7 @@ keyboard sources `[["xkb", "us"]]` on the pinned Ubuntu 26.04 image. This suppli
 no complete-scenario credit; the FIX02 empty-result binding remains pending.
 
 `check_e2e_shell_search_results` qualified the fresh Parent SEARCH01/02/03/04/06
-slice in [run `20260923T180845Z-4df4db55`](Evidence/test-all-runs/20260923T180845Z-4df4db55/report.md):
+slice in run `20260923T180845Z-4df4db55` (now outside runner retention):
 `onpc_shell_search::run` supplies the search entry independently of the
 `AccessibleUI` observations; `shell_search_field`, `focus_search_field`,
 `search_ready` and `search_query` observe the empty field, fresh focus, `O`, then

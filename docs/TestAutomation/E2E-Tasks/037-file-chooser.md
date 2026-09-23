@@ -17,7 +17,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-fil
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **036** — FILE07/04/05; FIX04 synthetic files.
+- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 - **029** — FEED01, FEED03.
 - **031** — FEED09 validation/control snapshots.
 

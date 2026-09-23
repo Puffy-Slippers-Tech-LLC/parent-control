@@ -46,3 +46,12 @@ def test_entry_fragments_do_not_share_mutable_recipe_state():
         changed = factory(*args)
         changed.clear()
         assert factory(*args) == expected
+
+
+def test_routine_login_has_no_wrong_account_visit_or_prompt_dismissal():
+    from journey_blocks import fresh_desktop
+    for role in ('parent', 'other-child'):
+        stages = fresh_desktop(role)
+        assert not any('wrong' in value or 'other-parent' in value or 'dismiss' in value
+                       for value in (*stages, *stages.values()))
+        assert len(stages) == 5

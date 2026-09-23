@@ -18,8 +18,7 @@ PLAN = JourneyPlan(
     },
     phases={
         "ready": "setup", "setup-detached": "setup",
-        "installed-greeter": "start", "other-parent-focused": "step-1",
-        "wrong-recipient-refused": "step-1", "standard-list": "step-1",
+        "installed-greeter": "start",
         "standard-focused": "step-1", "standard-recipient-qualified": "step-1",
         "standard-recipient-rechecked": "step-1",
         "desktop": "step-1", "system-prompt": "step-1", "app-grid": "step-1",

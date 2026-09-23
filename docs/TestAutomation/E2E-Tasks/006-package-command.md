@@ -17,19 +17,19 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **005** — AUTH03; FILE06 package challenge/completion.
+- **005** — AUTH03 administrator command authority; FILE06 package output.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Compose FILE01/02/06, the optional AUTH03 twice → UI19 → submit branch, then FILE06 completion. Begin with install, verified asset path and final notice; extend update/remove/reinstall/purge profiles only with their consumers.
+Compose shared FILE01/02/06 with AUTH03 administrator command authority and verified artifact checks. Submit one registered package command over guarded SSH, then read bounded completion and the actual notice. Begin with install, verified asset path and final notice; extend update/remove/reinstall/purge profiles only with their consumers.
 
 ## Live VM acceptance
 
-From a product-free guarded VM attempt, install the verified package through the visible administrator terminal and real authentication, then read successful completion and final reboot-required text. Color is not an acceptance condition.
+From a product-free guarded VM attempt, install the verified package through the shared administrator SSH command helper, then read successful completion and final reboot-required text. Color is not an acceptance condition.
 
-Require one command submission, the actual authentication result, independent completion/notice and the declared public product result. Preserve private capture and cleanup; installation here does not qualify update, removal or purge.
+Require one command submission, validated administrator authority, independent completion/notice and the declared public product result. Preserve private capture and cleanup; installation here does not qualify update, removal or purge.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

@@ -6,14 +6,10 @@ Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 ## Session boundary
 
 Qualify PARENT01's shared direct-command launch with the standard-account
-management-denial result and desktop return. No terminal is opened;
-authentication remains task 005.
+management-denial result and desktop return through the existing shared launch helper.
 
-Tasks **001ta** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
+Reuse the maintained direct-command operations and qualified scope. Preserve the
+management-denial assertion and independent desktop result. No saved VM state or
 predecessor brief is an input to this session.
 
 ## Scope and prerequisites
@@ -22,8 +18,7 @@ Deliver **PARENT01 direct command, public management denial and desktop return**
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001s** — SEARCH01–06 Parent launchable and standard-account unavailable bindings; terminal search entry.
-- **001ta** — FILE01/02/06 terminal owner, nonsecret submission, help and close.
+- **001s** — SEARCH01–06 Parent launchable and standard-account unavailable bindings.
 
 ## Read only this context
 
@@ -37,8 +32,8 @@ catalogue; a checked historical task does not override it.
 Reuse `onpc_parent::launch`, its fixed executable and active-user session guard.
 Preserve one submission/no replay after uncertain execution and independently
 observe the specific owned denial, management absence and desktop return.
-Terminal/help qualification remains in 001ta; do not restore terminal input
-as a Parent launch path. Authentication remains task 005.
+Help and manuals use shared INFO02 guarded command output. Supporting commands
+never require Terminal entry or unrelated authentication dialogs.
 
 ## Live VM acceptance
 

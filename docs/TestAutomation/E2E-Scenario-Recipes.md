@@ -33,12 +33,14 @@ account names required on a customer's computer. Limits initially are off,
 allowances zero and app rules allowed. Prepare every tested policy through
 Parent and every grant through the real system approval prompt.
 
-Customer steps use app interfaces, ordinary desktop controls, Users settings,
-package commands and normal app/file actions. Only setup, credential safety,
-transport ownership, and final cleanup use the existing harness exceptions.
-Cases 3 and 4 retain their established account-fixture checkpoints as supporting
-setup; their earlier result covers visible discovery/empty state, not operation of
-Users settings. Case 179 adds that actual customer account-creation route.
+Customer steps use the app's real controls and observe its public results.
+Routine Shell/GDM, account/file preparation, package commands, connectivity and
+lifecycle operations use shared SSH, shortcuts or supported system APIs.
+Cases 3, 4 and 179–183 use shared account helpers and independently observe the
+app's discovery, empty-state, eligibility and selector fallback behavior.
+No scenario tests GNOME Users settings, Quick Settings or Terminal entry merely
+to prepare those results. The shared sign-in helper goes directly to the intended
+account; wrong-account visits are separate harness safety qualification.
 Case 1 is explicitly not a customer journey. Retired IDs 140–150 are not UI
 cases; their engineering checks remain in system-test tasks 169–179.
 
@@ -362,7 +364,7 @@ Implementation status: All cases pending.
 Bindings: surface = child-overlay / kiosk; outcome = wrong-password / cancel.
 
 1. P0 → FLOW02(overlay daily-positive or kiosk zero) → FLOW03(blocked target). Overlay C → FILE01 → FLOW04; kiosk G → FLOW04.
-2. FLOW07(wrong approval credential or cancel). Overlay DESK10(terminal) → FILE02(target command) → FILE06(denied) → DESK10(form) → REQUEST03. Kiosk REQUEST12(cancel) → C(fresh,denied) → DESK11 → REQUEST01 → REQUEST03. UI12(choices).
+2. FLOW07(wrong approval credential or cancel). Overlay FILE02(target command over guarded SSH as the active child) → FILE06(denied) → REQUEST03. Kiosk REQUEST12(cancel) → C(fresh,denied) → DESK11 → REQUEST01 → REQUEST03. UI12(choices).
 3. FLOW05(fresh approval) → C if kiosk → TIME01 → FLOW08(expected target).
 
 ### E2E-014
@@ -448,7 +450,7 @@ Implementation status: All cases pending.
 Bindings: change = update / remove.
 
 1. FLOW16(usable time) → PARENT10 → PARENT16(Hard Blocked) → PARENT13 → UI16(match draft covering the declared updated target).
-2. LIFE04(app update/remove in its newly opened administrator terminal); Parent's editor stays open.
+2. LIFE04(app update/remove through shared administrator SSH commands); Parent's editor stays open.
 3. DESK10(editor) → PARENT15(save) → LIFE01(Parent) → PARENT02. Update: PARENT12 → C → FLOW08. Remove: UI13(app absent) → LIFE04(reinstall) → LIFE01 → PARENT02 → PARENT12 → UI12(retained rule) → C → FLOW08.
 
 ### E2E-021
@@ -538,7 +540,7 @@ Bindings: lifecycle = continuous.
 1. V(parent,fresh) → LIFE04(install) → FILE06(notice) → LIFE02.
 2. FLOW16 → FLOW03 → both forms FLOW04/REQUEST03/REQUEST12 → FLOW06 → C → FLOW08.
 3. P → LIFE04(remove) → FILE06(notice) → LIFE02 → C(fresh) → FLOW08(formerly blocked,usable).
-4. V(parent,fresh after the removal reboot) → LIFE04(reinstall) → LIFE05 → P(new window) → PARENT03/PARENT09/PARENT12(retained choices,zero grant) → request-entry(kiosk) → REQUEST03 → REQUEST12(cancel) → FLOW16/FLOW03(reapply) → C → FLOW08. P → LIFE04(purge) → LIFE05 → LIFE04(reinstall) → LIFE05 → P(new window) → PARENT03(defaults) → G → REQUEST01 → REQUEST03(fresh shared defaults). A removed product has no Parent window to launch; package work uses the ordinary administrator desktop/terminal. A disabled child has no overlay entry until limits are publicly enabled.
+4. V(parent,fresh after the removal reboot) → LIFE04(reinstall) → LIFE05 → P(new window) → PARENT03/PARENT09/PARENT12(retained choices,zero grant) → request-entry(kiosk) → REQUEST03 → REQUEST12(cancel) → FLOW16/FLOW03(reapply) → C → FLOW08. P → LIFE04(purge) → LIFE05 → LIFE04(reinstall) → LIFE05 → P(new window) → PARENT03(defaults) → G → REQUEST01 → REQUEST03(fresh shared defaults). A removed product has no Parent window to launch; package work uses the shared administrator SSH helper. A disabled child has no overlay entry until limits are publicly enabled.
 
 ### E2E-030
 
@@ -949,7 +951,7 @@ Minecraft activity and continuous login observations before case composition.
 Bind exact original AppImage path, integrated launcher,
 same-directory `Lunar Client-*.AppImage` pattern, tray/autostart settings, local
 world and one observable in-world action before implementation. The ordinary
-terminal command invokes that original AppImage with AppImageLauncher integration
+shared SSH command invokes that original AppImage as the active child desktop user with AppImageLauncher integration
 intact; it does not extract or invoke an inner runtime. Use the same bytes/route
 at all checkpoints. N is an existing unrelated allowed native app with a
 declared normal input/result, not Minecraft's embedded Java executable.
@@ -975,7 +977,7 @@ reboot and the blocked observations; the child must be first to sign in.
 The login observer must be ready before submission and cover every relevant
 public surface as it becomes available, without collecting secrets. A usable
 Lunar/Minecraft surface during a denied interval fails even if later closed.
-Fail incomplete observation rather than inferring absence. The ordinary terminal
+Fail incomplete observation rather than inferring absence. The shared command
 attempt supplies positive access-denied evidence; command echo, generic failure,
 hidden launcher or missing network/game assets cannot replace it. The allowed
 autostart and explicit-soft-approval controls prevent a broken preparation from
@@ -1047,9 +1049,11 @@ close requires a real supported way to close the requesting app while the
 system prompt remains open. Escape on the system prompt merely cancels
 authentication and does not qualify app-close or session-leave.
 
-If the modal/session prevents a declared route, retain that case pending with
-the unavailable action. Never replace it with a signal, forced logout, console
-command or private callback. On return, inspect the original balance and
+Use shared lock/switch/logout commands even when an approval modal is open;
+accessibility of Shell menus is not a gate. If the supported system route itself
+is unavailable, retain the case pending with that blocker. Do not replace app
+Close/Cancel, natural expiry or normal logout with a signal, forced termination
+or private callback. On return, inspect the original balance and
 restriction before new approval, and require a new system prompt.
 
 Cooldown cases 176–178 measure from the first successful approval to the next
@@ -1059,9 +1063,9 @@ extend the product cooldown or delay a response. Cases 206/207 and the request
 error-report sending cases have the same public-error prerequisite.
 
 Accounts in cases 179–183 are disposable spare accounts, prepared independently.
-Users settings may require ordinary administrator authentication through AUTH04.
+Shared account operations validate administrator authority through AUTH04.
 Remove only logged-out spare children, retaining an administrator to finish the
-journey. For 182, both station and overlay remember Sam before Users changes Sam
+journey. For 182, both station and overlay remember Sam before ACCOUNT02 changes Sam
 to standard; reopen and select the remaining eligible Jamie. For 183, station
 remembers Jordan, Jordan is removed while logged out, and station falls back to
 Riley with Riley's own request values. A missing eligible replacement uses the
@@ -1078,7 +1082,7 @@ collector read is never substituted.
 | 152 formatting/draft | Synthetic heading, bold, italic, underline, strike, numbered/bulleted list, quote, code block, link and remove-formatting. FEED04/UI24 reads actual public range attributes, not only a pressed toolbar control. Include one file and a synthetic reply address for close/reopen preservation. App exit/relaunch resets text, formatting, address and files. |
 | 153 text/email | Empty, whitespace, ordinary ASCII, exactly 5000 and 5001 UTF-16 units, and mixed emoji at those boundaries. Empty/valid synthetic/malformed reply addresses. Include a hidden control character and the declared excessive-formatting document; read rejection without submitting valid content. Exact hidden-character and formatting fixtures come from the current specification/maintained transport limits, and must be reviewed before binding. |
 | 154 attachments | Chooser Cancel; one file then Remove; 5 files accepted and a sixth rejected; per-file 5 MiB accepted and 5 MiB+1 rejected. With diagnostics excluded, two files totaling 8 MiB accepted and 8 MiB+1 rejected. One invalid file in a multi-selection adds none and preserves existing attachments. Names of 180 characters accepted, 181 and hidden controls rejected; an empty filename is not creatable through normal file tools and remains technical validation. |
-| 154 original file change | FEED06 attaches the synthetic text file; FILE08 opens its original in the ordinary editor and FILE09 saves longer declared synthetic text. DESK10(feedback) → FEED07 reads the original attachment's unchanged name/size, then FEED13 → FEED06 re-adds it → FEED07 reads the larger size. Frozen contents are inspected only if the app offers a genuine public preview; otherwise byte immutability remains transport coverage. |
+| 154 original file change | FEED06 attaches the synthetic text file; FILE09 changes its original through the shared fixture-file command. FEED07 reads the original attachment's unchanged name/size, then FEED13 → FEED06 re-adds it → FEED07 reads the larger size. Frozen contents are inspected only if the app offers a genuine public preview; otherwise byte immutability remains transport coverage. |
 | 155 diagnostic ZIP | Observe collection, then save via FILE03. Cancel preserves draft and prepared archive. Choose a visibly unwritable destination, read the save error, then choose a writable location. Open the saved ZIP in a normal archive viewer; read the system-information entry and Parent/Child/Kiosk/Broker folders, empty folders where applicable, and the actual bounded contents. Do not open original product logs. |
 | 155 privacy | FEED05 reads what is sent, optional logs/files/email and retention disclosure. Review exported synthetic data for forbidden personal values. Absence in one archive is not a proof of every producer's sanitization; all privacy, date-retention and byte bounds keep their engineering tests. |
 
@@ -1147,7 +1151,7 @@ reuse it to reach a later distinct outcome.
 
 | Behavior | Primary owner |
 | --- | --- |
-| Installation/defaults; account discovery; standard management exclusion | 2; 3–4 and 179–183 for actual Users changes; 5–6 |
+| Installation/defaults; account discovery; standard management exclusion | 2; 3–4 and 179–183 for real account changes through shared helpers; 5–6 |
 | Allowance values/saves; enable/edit/disable and child access | 158–159; 7–12 |
 | App-rule transitions; launch routes; catalogue/matching; updates | 13–16; 62–109; 184–189; 110–111 |
 | Active-grant revocation; no-grant; expired grant with daily time | 17–20; 160–161; 170 |

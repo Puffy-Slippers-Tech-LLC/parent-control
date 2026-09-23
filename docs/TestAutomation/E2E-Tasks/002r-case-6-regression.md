@@ -9,7 +9,7 @@ Deliver **Retained regression 6; shared PARENT01 direct-command management denia
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001t** — Public denial projection. Case 6 now uses PARENT01 direct execution;
+- **001t** — PARENT01 direct command, public management denial and desktop return.
   its historical `terminal` selector does not require opening a terminal.
 
 ## Read only this context

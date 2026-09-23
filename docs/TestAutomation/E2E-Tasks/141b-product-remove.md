@@ -35,7 +35,7 @@ observer and worker; add no independent runner or fixture framework.
 
 ## Live VM acceptance
 
-Remove through the administrator terminal, read the real reboot notice, reboot normally and enter the child to use the fixture app. Pass applicable package cleanup checks; do not assert reinstall persistence yet.
+Remove through the shared administrator SSH package helper, read the real reboot notice, reboot normally and enter the child to use the fixture app. Pass applicable package cleanup checks; do not assert reinstall persistence yet.
 
 Use a fresh guarded VM attempt through shared watchvm intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation

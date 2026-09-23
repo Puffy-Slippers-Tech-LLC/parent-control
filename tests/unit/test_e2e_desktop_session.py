@@ -1,192 +1,151 @@
-"""Session menu, Switch User and confirmed Log Out stay on public controls."""
+"""System session helpers preserve fixture identity and never navigate menus."""
 
 import json
-import copy
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
-from accessible_ui import EXTERNAL_PROVIDER_CONTRACTS, SESSION_ACTION_NAMES, UiError
-from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
+import session_control as control
+from accessible_ui import OPERATIONS, UiError
+from tests.support.accessible_ui import Node, ui_for
 from tests.support.perl import run_perl
 
 
-SHELL_CONTROLS = {
-    'desktop': {'desktop': 'test-shell-desktop-control'},
-    'panel': {'quick-settings': 'test-shell-quick-settings'},
-    'session-menu': {'power': 'test-shell-power', 'switch-user': 'test-shell-switch-user',
-                     'log-out': 'test-shell-log-out'},
-    'logout-dialog': {'confirm': 'test-shell-log-out-confirm'},
-}
-SHELL_CONTRACTS = copy.deepcopy(TEST_PROMPT_CONTRACTS)
-SHELL_CONTRACTS['gnome-shell'] = {
-    'application_id': 'test-shell-application',
-    'surfaces': {surface: ('test-shell-' + surface, controls)
-                 for surface, controls in SHELL_CONTROLS.items()},
-    'blocked_consumers': (),
-}
+def props(uid='1000', *, active='yes', locked='no', kind='user', remote='no', seat='seat0'):
+    return {'User': uid, 'Active': active, 'LockedHint': locked, 'Class': kind,
+            'Remote': remote, 'Seat': seat, 'Type': 'wayland'}
 
 
-def session_desktop(*, system_open=False, power_open=False, actions=True, confirm=False):
-    desktop = Node(identity=SHELL_CONTROLS['desktop']['desktop'])
-    system = Node('System', 'menu', identity=SHELL_CONTROLS['panel']['quick-settings'])
-    power = Node('Power Off Menu', 'push button', identity=SHELL_CONTROLS['session-menu']['power'])
-    switch = Node('Switch User…', 'menu item', identity=SHELL_CONTROLS['session-menu']['switch-user'])
-    logout = Node('Log Out…', 'menu item', identity=SHELL_CONTROLS['session-menu']['log-out'])
-    confirm_button = Node('Log Out', 'push button', identity=SHELL_CONTROLS['logout-dialog']['confirm'])
-    for node in (power, switch, logout, confirm_button):
-        node.states.clear()
-    if system_open:
-        power.states.update(('showing', 'visible', 'sensitive'))
-    if power_open and actions:
-        switch.states.update(('showing', 'visible', 'sensitive'))
-        logout.states.update(('showing', 'visible', 'sensitive'))
-    if confirm:
-        confirm_button.states.update(('showing', 'visible', 'sensitive'))
-    surfaces = [
-        Node(identity='test-shell-desktop', children=[desktop]),
-        Node(identity='test-shell-panel', children=[system]),
-        Node(identity='test-shell-session-menu', children=[power, switch, logout]),
-        Node(identity='test-shell-logout-dialog', children=[confirm_button]),
-    ]
-    application = Node(identity='test-shell-application', children=surfaces)
-    return (ui_for(application, provider_contracts=SHELL_CONTRACTS), system, power,
-            switch, logout, confirm_button)
-
-
-def test_desktop_positive_surface_permits_no_prompt_without_prompt_ids():
-    ui, system, power, switch, logout, confirm = session_desktop()
-    for provider in ('mate-polkit-agent', 'gnome-shell-polkit-agent',
-                     'gcr-keyring-prompter'):
-        ui.provider_contracts[provider] = copy.deepcopy(EXTERNAL_PROVIDER_CONTRACTS[provider])
-    assert ui.run('desktop', '') == {
-        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI'}
-    assert ui.prompt_session == 'desktop'
-    for control in (system, power, switch, logout, confirm):
-        control.action.do_action.assert_not_called()
-
-
-@pytest.mark.parametrize('fault', [None, 'no-desktop', 'no-system'])
-def test_session_menu_toggle_requires_scoped_ids_without_an_atk_action(fault):
-    ui, system, power, switch, logout, _ = session_desktop()
-    if fault == 'no-desktop':
-        ui.api.get_desktop(0).children[0].children.clear()
-    if fault == 'no-system':
-        ui.api.get_desktop(0).children[1].children.clear()
-    if fault:
-        with pytest.raises(UiError):
-            ui.session_menu_toggle()
-        return
-    assert ui.session_menu_toggle() is system
-    assert system.action.do_action.call_count == 0
-    assert power.action.do_action.call_count == 0
-
-
-@pytest.mark.parametrize('fault', [None, 'closed', 'disabled'])
-def test_session_menu_power_requires_scoped_id_without_an_atk_action(fault):
-    ui, system, power, switch, logout, _ = session_desktop(system_open=fault is None)
-    if fault == 'disabled':
-        power.states.update(('showing', 'visible'))
-    if fault:
-        with pytest.raises(UiError):
-            ui.session_menu_power()
-        return
-    assert ui.session_menu_power() is power
-    assert system.action.do_action.call_count == 0
-    assert power.action.do_action.call_count == 0
-    assert switch.action.do_action.call_count == 0
-    assert logout.action.do_action.call_count == 0
-
-
-@pytest.mark.parametrize('fault', [None, 'no-switch', 'no-logout'])
-def test_session_menu_observes_both_actions_without_activating(fault):
-    ui, system, power, switch, logout, _ = session_desktop(
-        system_open=True, power_open=True, actions=fault is None)
-    if fault == 'no-switch':
-        logout.states.update(('showing', 'visible', 'sensitive'))
-    if fault == 'no-logout':
-        switch.states.update(('showing', 'visible', 'sensitive'))
-    if fault:
-        with pytest.raises(UiError):
-            ui.session_menu()
+@pytest.mark.parametrize('fault', ['wrong-owner', 'remote', 'wrong-seat', 'greeter',
+                                   'locked', 'multiple-active', 'multiple-owned', 'missing'])
+def test_source_refuses_wrong_or_ambiguous_sessions(fault):
+    source = props()
+    current = {'7': source}
+    if fault == 'wrong-owner':
+        source['User'] = '1001'
+    elif fault == 'remote':
+        source['Remote'] = 'yes'
+    elif fault == 'wrong-seat':
+        source['Seat'] = 'seat1'
+    elif fault == 'greeter':
+        source['Class'] = 'greeter'
+    elif fault == 'locked':
+        source['LockedHint'] = 'yes'
+    elif fault == 'multiple-active':
+        current['8'] = props('1001')
+    elif fault == 'multiple-owned':
+        current['8'] = props(active='no')
     else:
-        ui.session_menu()
-    assert system.action.do_action.call_count == 0
-    assert power.action.do_action.call_count == 0
-    assert switch.action.do_action.call_count == 0
-    assert logout.action.do_action.call_count == 0
+        current.clear()
+    with pytest.raises(control.SessionError):
+        control.source_session(current, 1000)
 
 
-@pytest.mark.parametrize('action, fault', [
-    ('switch-user', None), ('logout', None),
-    ('switch-user', 'closed'), ('logout', 'closed'),
-    ('lock', None), ('switch-user', 'three-dots'),
-])
-def test_session_action_resolves_only_the_registered_open_item(action, fault):
-    ui, _, _, switch, logout, confirm = session_desktop(system_open=True, power_open=True)
-    if fault == 'closed':
-        switch.states.clear()
-        logout.states.clear()
-    if fault == 'three-dots':
-        switch.identity = ''
-    if action not in SESSION_ACTION_NAMES or fault:
-        with pytest.raises(UiError):
-            ui.choose_session_action(action)
-        assert switch.action.do_action.call_count == 0
-        assert logout.action.do_action.call_count == 0
-        return
-    assert ui.choose_session_action(action) is (switch if action == 'switch-user' else logout)
-    assert switch.action.do_action.call_count == 0
-    assert logout.action.do_action.call_count == 0
-    assert confirm.action.do_action.call_count == 0
+def test_source_and_independent_results_distinguish_logout_lock_and_switch():
+    assert control.source_session({'7': props()}, 1000) == '7'
+    greeter = props('120', kind='greeter')
+    switched = {'7': props(active='no', locked='yes'), '8': greeter}
+    assert control.destination(switched, '7', 1000, 'switch-user')
+    assert not control.destination(switched, '7', 1000, 'logout')
+    assert control.destination({'8': greeter}, '7', 1000, 'logout')
+    assert not control.destination({'7': props()}, '7', 1000, 'lock')
+    assert control.destination({'7': props(locked='yes')}, '7', 1000, 'lock')
+    with pytest.raises(control.SessionError, match='source-lost'):
+        control.destination({'8': greeter}, '7', 1000, 'switch-user')
+    with pytest.raises(control.SessionError, match='source-replaced'):
+        control.destination({'7': props('1001'), '8': greeter}, '7', 1000, 'switch-user')
 
 
-@pytest.mark.parametrize('fault', [None, 'menu-only', 'missing'])
-def test_logout_confirm_uses_the_dialog_scope_not_the_menu_item(fault):
-    ui, _, _, switch, logout, confirm = session_desktop(
-        system_open=True, power_open=True, confirm=fault != 'missing')
-    if fault == 'menu-only':
-        confirm.states.clear()
-    if fault:
-        with pytest.raises(UiError):
-            ui.logout_confirm()
-        assert confirm.action.do_action.call_count == 0
-    else:
-        assert ui.logout_confirm() is confirm
-        assert confirm.action.do_action.call_count == 0
-    assert switch.action.do_action.call_count == 0
-    assert logout.action.do_action.call_count == 0
+def test_logout_is_one_direct_command_without_force_or_a_shell(monkeypatch):
+    call = Mock()
+    monkeypatch.setattr(control, 'call', call)
+    control.submit('logout')
+    call.assert_called_once_with(['/usr/bin/gnome-session-quit', '--logout', '--no-prompt'])
+    call.reset_mock()
+    call.side_effect = TimeoutError
+    with pytest.raises(TimeoutError):
+        control.submit('logout')
+    assert call.call_count == 1
 
 
-def test_session_action_refuses_matching_label_outside_registered_surface():
-    ui, _, _, switch, *_ = session_desktop(system_open=True, power_open=True)
-    switch.identity = ''
-    ui.api.get_desktop(0).children.append(Node('Switch User…', 'menu item'))
-    with pytest.raises(UiError):
-        ui.choose_session_action('switch-user')
+def test_switch_locks_before_public_gdm_api_and_never_retries(monkeypatch):
+    events = []
+    gdm = SimpleNamespace(goto_login_session_sync=Mock())
+    monkeypatch.setitem(__import__('sys').modules, 'gi', SimpleNamespace(require_version=Mock()))
+    monkeypatch.setitem(__import__('sys').modules, 'gi.repository', SimpleNamespace(Gdm=gdm))
+    monkeypatch.setattr(control, 'call', lambda argv: events.append(argv))
+    control.submit('switch-user')
+    assert events[0] == [
+        '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
+        '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.Lock']
+    assert len(events) == 2
+    assert events[1][:8] == [
+        '/usr/bin/systemd-run', '--user', '--quiet', '--collect', '--wait',
+        '--pipe', '--service-type=exec', '/usr/bin/python3']
+    assert events[1][8:10] == ['-I', '-c']
+    assert 'Gdm.goto_login_session_sync(None)' in events[1][-1]
+    gdm.goto_login_session_sync.assert_not_called()
+    events.clear()
+    def fail(_):
+        events.append('failed-lock')
+        raise TimeoutError
+    monkeypatch.setattr(control, 'call', fail)
+    with pytest.raises(TimeoutError):
+        control.submit('switch-user')
+    assert events == ['failed-lock']
 
 
-@pytest.mark.parametrize('operation', [
-    'session-menu-toggle', 'session-menu-power', 'session-menu',
-    'switch-user', 'logout', 'logout-confirm',
-])
-def test_run_dispatches_session_operations(operation):
-    ui, system, power, switch, logout, confirm = session_desktop(
-        system_open=True, power_open=True, confirm=True)
-    action_targets = {
-        'session-menu-toggle': system,
-        'session-menu-power': power,
-        'switch-user': switch,
-        'logout': logout,
-        'logout-confirm': confirm,
-    }
-    target = action_targets.get(operation)
-    if target is not None:
-        target.states.remove('showing')
-    result = ui.run(operation, '')
-    expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-    assert result == expected
-    if target is not None:
-        target.action.do_action.assert_called_once_with(0)
+@pytest.mark.parametrize('binding', ['root-logout', 'parent-reboot', 'parent-logout;id', ''])
+def test_unregistered_commands_refuse_before_session_lookup(monkeypatch, binding):
+    read = Mock()
+    monkeypatch.setattr(control, 'sessions', read)
+    with pytest.raises(control.SessionError, match='binding'):
+        control.execute(binding)
+    read.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['initial-owner', 'changed-source'])
+def test_execute_checks_ownership_again_after_dropping_privileges(monkeypatch, fault):
+    account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='onpc-parent-jamie')
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: account)
+    monkeypatch.setattr(control, 'environment', lambda _: {})
+    monkeypatch.setattr(control.os, 'environ', {})
+    for name in ('initgroups', 'setgid', 'setuid'):
+        monkeypatch.setattr(control.os, name, Mock())
+    monkeypatch.setattr(control, 'sessions', Mock(side_effect=[
+        {'7': props('1001' if fault == 'initial-owner' else '1000')},
+        {'8': props()},
+    ]))
+    submit = Mock()
+    monkeypatch.setattr(control, 'submit', submit)
+    with pytest.raises(control.SessionError):
+        control.execute('parent-logout')
+    submit.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['session-menu-toggle', 'session-menu-power',
+                                       'session-menu', 'switch-user', 'logout', 'logout-confirm'])
+def test_removed_shell_gui_operations_cannot_execute(operation):
+    assert operation not in OPERATIONS
+    ui = ui_for(Node())
+    with pytest.raises(UiError, match='operation'):
+        ui.run(operation, '')
+
+
+@pytest.mark.parametrize('binding', ['parent-logout', 'standard-switch-user'])
+def test_controller_requires_command_result_over_guarded_transport(binding):
+    role, action = control.BINDINGS[binding]
+    expected = {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                'source_retained': action != 'logout', 'destination': 'greeter'}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(expected).encode()))
+    assert control.observe(transport, binding) == expected
+    assert transport.call.call_args.args[0] == ['/usr/bin/python3', '-I', '-', binding]
+    assert transport.call.call_args.kwargs['input'] == __import__('pathlib').Path(control.__file__).read_bytes()
+    transport.call.return_value = b'{}'
+    with pytest.raises(control.SessionError, match='response'):
+        control.observe(transport, binding)
 
 
 LEAF = r'''
@@ -197,38 +156,23 @@ our ($block, $fault) = @ARGV;
 our @events;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
-sub current_console { 'sut' }
 sub record_info { }
-sub send_key { push @main::events, ['key', @_]; }
-sub mouse_set { push @main::events, ['pointer', @_]; }
-sub mouse_click { push @main::events, ['click', $_[0] // 'left']; }
-sub console { bless {}, 'Console' }
-package Console;
-sub mouse_width { 1280 }
-sub mouse_height { 800 }
 package main;
 require onpc_desktop_session;
 my $journey = onpc_journey->new(prefix => 'unit', review => 0, exchange => sub {
     push @events, ['seen', $_[0]];
     return {};
 });
+my $desktop = $journey->seen('desktop');
+$desktop = {} if $fault eq 'stale';
+@events = ();
 my $ok = eval {
-    if ($block eq 'open_menu') {
-        my $desktop = $journey->seen($fault eq 'wrong-desktop' ? 'session-menu' : 'desktop');
-        @events = ();
-        onpc_desktop_session::open_menu($journey, $desktop);
-        onpc_desktop_session::open_menu($journey, $desktop) if $fault eq 'replay';
+    if ($block eq 'switch_user') {
+        onpc_desktop_session::switch_user($journey, $desktop);
+        onpc_desktop_session::switch_user($journey, $desktop) if $fault eq 'replay';
     } else {
-        $journey->seen('desktop');
-        my $menu = $fault eq 'stale-menu' ? {} : $journey->seen('session-menu');
-        @events = ();
-        if ($block eq 'switch_user') {
-            onpc_desktop_session::switch_user($journey, $menu);
-            onpc_desktop_session::switch_user($journey, $menu) if $fault eq 'replay';
-        } else {
-            onpc_desktop_session::log_out($journey, $menu);
-            onpc_desktop_session::log_out($journey, $menu) if $fault eq 'replay';
-        }
+        onpc_desktop_session::log_out($journey, $desktop);
+        onpc_desktop_session::log_out($journey, $desktop) if $fault eq 'replay';
     }
     1;
 };
@@ -236,37 +180,14 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
 
-@pytest.mark.parametrize('block, fault', [
-    ('open_menu', ''),
-    ('open_menu', 'wrong-desktop'),
-    ('open_menu', 'replay'),
-    ('switch_user', ''),
-    ('switch_user', 'stale-menu'),
-    ('switch_user', 'replay'),
-    ('log_out', ''),
-    ('log_out', 'stale-menu'),
-    ('log_out', 'replay'),
-])
-def test_session_helpers_consume_fresh_proofs_without_replay(block, fault):
+@pytest.mark.parametrize('block', ['switch_user', 'log_out'])
+@pytest.mark.parametrize('fault', ['', 'stale', 'replay'])
+def test_session_workers_consume_fresh_desktop_proofs_once(block, fault):
     result = json.loads(run_perl(LEAF, block, fault).stdout)
     assert result['ok'] == (not fault)
-    if fault:
-        if fault == 'replay':
-            assert result['events']
-        else:
-            assert not result['events']
-        return
-    if block == 'open_menu':
-        assert result['events'] == [['seen', 'session-menu-toggle'],
-                                   ['seen', 'session-menu-power'],
-                                   ['seen', 'session-menu']]
-    elif block == 'switch_user':
-        assert result['events'] == [['seen', 'switch-user'],
-                                   ['seen', 'gdm-switched']]
-    else:
-        assert result['events'] == [['seen', 'logout'],
-                                   ['seen', 'logout-confirm'],
-                                   ['seen', 'gdm-logged-out']]
+    expected = ([['seen', 'switch-user'], ['seen', 'gdm-switched']] if block == 'switch_user'
+                else [['seen', 'logout'], ['seen', 'gdm-logged-out']])
+    assert result['events'] == ([] if fault == 'stale' else expected)
 
 
 RUN_PROBE = r'''

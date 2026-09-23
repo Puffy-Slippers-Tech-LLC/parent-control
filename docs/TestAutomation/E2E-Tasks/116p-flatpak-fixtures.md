@@ -15,8 +15,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 ## Implementation
 
 Bind the maintained repository-owned A/H/S Flatpak bundles and pinned runtime
-manifest. FIX04 transfers bytes only. Extend the qualified visible administrator
-terminal/authentication route for the fixed installation commands and declared
+manifest. FIX04 transfers bytes only. Extend the shared administrator SSH package helper for the fixed installation commands and declared
 installation scope. No arbitrary remote, installer or new fixture framework.
 Launching and public app activity remain in the following capability tasks.
 

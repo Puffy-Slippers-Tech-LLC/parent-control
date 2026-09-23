@@ -9,7 +9,7 @@ Deliver **FILE08 text-document identity/content and normal close/return**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **036** — FILE07/04/05; FIX04 synthetic files.
+- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 
 ## Read only this context
 
@@ -20,11 +20,11 @@ catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Bind Files Open to the real text editor, its document identity, meaningful content and active close/return. Reuse license-viewer code only for the same handler. Resolve the external document through its provider adapter; a window title alone cannot identify it.
+Bind the shared direct `gio open` operation to the registered text editor, its document identity, meaningful content and active close/return. Reuse license-viewer code only for the same handler. Resolve the external document through its provider adapter; a window title alone cannot identify it.
 
 ## Live VM acceptance
 
-Open the declared text file through Files, read exact public identifying content, close normally and observe return. Qualify independently opened valid Files entry. Reject wrong document, ambiguous window, unrelated/empty content and uncertain close; require installed evidence and cleanup.
+Open the declared text file through the shared command helper, read exact public identifying content, close normally and observe return. Qualify an independently opened valid document. Reject wrong document, ambiguous window, unrelated/empty content and uncertain close; require installed evidence and cleanup.
 
 Implement and register this planned fixed qualification before invoking it:
 

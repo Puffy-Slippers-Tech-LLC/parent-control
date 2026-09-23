@@ -836,13 +836,6 @@ def test_partial_provider_registration_cannot_authorize_lookup(mutation, error):
 
 
 def test_installed_external_provider_audit_keeps_partial_builder_ids_blocked():
-    assert EXTERNAL_PROVIDER_CONTRACTS["gnome-settings"]["application_id"] is None
-    settings = EXTERNAL_PROVIDER_CONTRACTS["gnome-settings"]["surfaces"]["settings"]
-    users = EXTERNAL_PROVIDER_CONTRACTS["gnome-settings"]["surfaces"]["users"]
-    assert settings == (None, {"search": "search_entry", "panel-list": "panel_list"})
-    assert users[1]["account-list"] == "user_list"
-    assert users[1]["account-row::<provider-account-id>"] is None
-
     chooser = EXTERNAL_PROVIDER_CONTRACTS[
         "xdg-desktop-portal-gnome-nautilus"]["surfaces"]["file-chooser"]
     assert chooser[1]["location"] == "filename_entry"

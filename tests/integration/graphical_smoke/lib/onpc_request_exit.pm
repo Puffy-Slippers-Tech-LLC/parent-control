@@ -13,25 +13,7 @@ sub enter_station {
         && ref($journey) eq 'onpc_journey'
         && defined($route) && $route =~ /\A(?:cancel|escape)\z/;
 
-    # Each route independently refuses the normal password account before
-    # entering the passwordless request station through its qualified row.
-    my $list = $journey->seen($route . '-greeter');
-    my $parent = $journey->highlight_choice(
-        $list, $route . '-greeter', $route . '-parent-focused');
-    $journey->consume_observation($route . '-parent-focused', $parent);
-    testapi::send_key('ret');
-    my $refused = $journey->seen($route . '-wrong-entry-refused');
-    $journey->consume_observation($route . '-wrong-entry-refused', $refused);
-    testapi::send_key('esc');
-
-    my $station_list = $journey->seen($route . '-station-list');
-    my $station = $journey->highlight_choice(
-        $station_list, $route . '-station-list', $route . '-station-focused');
-    $journey->consume_observation($route . '-station-focused', $station);
-    testapi::send_key('ret');
-    my $branch = $journey->seen($route . '-station-branch');
-    die 'request-exit:unresolved-session-choice' unless
-        ($branch->{station_destination} // '') eq 'default-request-form';
+    onpc_gdm::enter_station($journey, $route . '-');
     $journey->seen($route . '-request-form');
 }
 

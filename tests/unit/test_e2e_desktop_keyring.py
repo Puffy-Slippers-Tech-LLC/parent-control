@@ -29,8 +29,8 @@ def test_keyring_plan_keeps_gdm_safety_and_distinct_prompt_observation():
         context, Mock())
     assert isinstance(journey, KeyringDesktopJourney)
     assert context.installed_snapshot == 'onpc-v1.1'
-    assert journey.plan.screen_tags['wrong-recipient-refused'] == (
-        'ui:gdm-standard-wrong-recipient-refused')
+    assert 'wrong-recipient-refused' not in journey.plan.screen_tags
+    assert journey.plan.screen_tags['installed-greeter'] == 'ui:gdm-standard-list'
     assert list(journey.plan.screen_tags)[-4:] == [
         'standard-recipient-qualified', 'standard-recipient-rechecked',
         'desktop', 'keyring-cancelled-desktop']

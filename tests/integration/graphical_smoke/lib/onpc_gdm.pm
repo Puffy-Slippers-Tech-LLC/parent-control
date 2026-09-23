@@ -12,9 +12,8 @@ sub choose_account {
     onpc_progress::operation('Selecting the intended greeter account');
     my ($journey, $account, $list, $list_stage, $focused_stage) = @_;
     my %bindings = (
-        parent => 'parent-list/parent-focused',
-        'other-parent' => 'installed-greeter/other-parent-focused',
-        'other-child' => 'standard-list/standard-focused',
+        parent => 'installed-greeter/parent-focused',
+        'other-child' => 'installed-greeter/standard-focused',
     );
     die 'gdm:selection-binding' unless @_ == 5 && ref($journey) eq 'onpc_journey'
         && exists($bindings{$account}) && join('/', $list_stage, $focused_stage) eq $bindings{$account};
@@ -24,19 +23,24 @@ sub choose_account {
     testapi::send_key('ret');
 }
 
-# GDM04: positive wrong-account prompt and negative intended-recipient proof,
-# then a single dismissal and a fresh account-list observation.
-sub refuse_wrong_recipient {
-    onpc_progress::operation('Rejecting the wrong-account password prompt');
-    my ($journey, $wrong, $intended) = @_;
-    die 'gdm:recipient-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && $wrong eq 'other-parent' && ($intended eq 'parent' || $intended eq 'other-child');
-    choose_account($journey, $wrong, $journey->seen('installed-greeter'),
-                   'installed-greeter', 'other-parent-focused');
-    my $proof = $journey->seen('wrong-recipient-refused');
-    $journey->consume_observation('wrong-recipient-refused', $proof);
-    testapi::send_key('esc');
-    return $journey->seen($intended eq 'parent' ? 'parent-list' : 'standard-list');
+# REQUEST01: one intended station selection and independent public form entry.
+# Shared by station consumers; wrong-account exercises are never prerequisites.
+sub enter_station {
+    onpc_progress::operation('Entering the request station through the greeter');
+    my ($journey, $prefix) = @_;
+    die 'gdm:station-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A(?:cancel-|escape-)?\z/;
+    die 'gdm:console' unless testapi::current_console() eq 'sut';
+    my $list_stage = $prefix . 'station-list';
+    my $focused_stage = $prefix . 'station-focused';
+    my $list = $journey->seen($list_stage);
+    my $focused = $journey->highlight_choice($list, $list_stage, $focused_stage);
+    $journey->consume_observation($focused_stage, $focused);
+    testapi::send_key('ret');
+    my $branch = $journey->seen($prefix . 'station-branch');
+    die 'gdm:unresolved-session-choice' unless
+        ($branch->{station_destination} // '') eq 'default-request-form';
+    return $branch;
 }
 
 sub functional_selection {

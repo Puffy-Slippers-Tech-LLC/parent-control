@@ -85,8 +85,7 @@ def test_customer_worker_selects_existing_and_new_children_in_order():
 
 
 @pytest.mark.parametrize('stage', ['child-picker-opened', 'child-choice-highlighted',
-    'installed-greeter', 'other-parent-focused', 'wrong-recipient-refused',
-    'parent-list', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
+    'installed-greeter', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
     'desktop', 'search-ready', 'search-focused', 'search-entered',
     'app-grid', 'parent-window', 'parent-selected', 'existing-apps',
     'fixture-requested', 'new-child-visible',
@@ -120,8 +119,7 @@ def test_empty_worker_observes_explanation_without_child_input():
 
 
 @pytest.mark.parametrize('stage', [
-    'installed-greeter', 'other-parent-focused', 'wrong-recipient-refused',
-    'parent-list', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
+    'installed-greeter', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
     'desktop', 'search-ready', 'search-focused', 'search-entered',
     'app-grid', 'fixture-requested', 'empty',
 ])

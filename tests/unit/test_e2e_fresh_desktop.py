@@ -34,9 +34,9 @@ def test_each_role_has_a_distinct_installed_login_and_desktop(role, qualificatio
         ('standard-' if role == 'standard' else '') + 'recipient-rechecked',
         'desktop',
     ]
-    assert journey.plan.screen_tags['wrong-recipient-refused'] == 'ui:' + (
-        'gdm-standard-wrong-recipient-refused' if role == 'standard'
-        else 'gdm-wrong-recipient-refused')
+    assert 'wrong-recipient-refused' not in journey.plan.screen_tags
+    assert journey.plan.screen_tags['installed-greeter'] == (
+        'ui:gdm-standard-list' if role == 'standard' else 'ui:gdm-list')
 
 
 def test_undeclared_role_refuses_before_any_guest_work():

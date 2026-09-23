@@ -6,7 +6,7 @@ Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **006** — LIFE04 install only.
-- **036** — FILE07/04/05; FIX04 synthetic files.
+- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 
 First consumer:
 [E2E-052/case 253](../E2E-Scenario-Recipes.md#e2e-052).

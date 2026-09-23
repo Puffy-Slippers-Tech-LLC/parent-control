@@ -3,39 +3,22 @@
 from pathlib import Path
 
 from installed_journey import InstalledJourney, JourneyPlan
+from journey_blocks import fresh_desktop
 from keyring_prompt_fixture import provider_metadata
 from private_artifacts import require
 
 
 def _plan(role):
     standard = role == 'standard'
-    account = 'standard' if standard else 'parent'
     prefix = 'fresh-standard' if standard else 'fresh-parent'
+    screens = fresh_desktop('other-child' if standard else 'parent')
+    screens['desktop'] = 'ui:fresh-standard-desktop' if standard else 'ui:fresh-parent-desktop'
     return JourneyPlan(
         prefix=prefix, worker_mode=prefix.replace('-', '_') + '_desktop',
-        screen_tags={
-            'installed-greeter': 'ui:gdm-other-list',
-            'other-parent-focused': 'ui:gdm-other-focused',
-            'wrong-recipient-refused': 'ui:' + (
-                'gdm-standard-wrong-recipient-refused' if standard
-                else 'gdm-wrong-recipient-refused'),
-            account + '-list': 'ui:gdm-standard-list' if standard else 'ui:gdm-list',
-            account + '-focused': 'ui:gdm-standard-focused' if standard else 'ui:gdm-focused',
-            ('standard-' if standard else '') + 'recipient-qualified': 'ui:' + (
-                'gdm-standard-recipient' if standard else 'gdm-parent-recipient'),
-            ('standard-' if standard else '') + 'recipient-rechecked': 'ui:' + (
-                'gdm-standard-recipient-rechecked' if standard
-                else 'gdm-parent-recipient-rechecked'),
-            'desktop': 'ui:fresh-standard-desktop' if standard else 'ui:fresh-parent-desktop',
-        },
+        screen_tags=screens,
         phases={'ready': 'setup', 'setup-detached': 'setup',
-                'installed-greeter': 'start',
-                'other-parent-focused': 'step-1',
-                'wrong-recipient-refused': 'step-1',
-                account + '-list': 'step-1', account + '-focused': 'step-1',
-                ('standard-' if standard else '') + 'recipient-qualified': 'step-1',
-                ('standard-' if standard else '') + 'recipient-rechecked': 'step-1',
-                'desktop': 'step-1'},
+                **{stage: 'start' if stage == 'installed-greeter' else 'step-1'
+                   for stage in screens}},
     )
 
 

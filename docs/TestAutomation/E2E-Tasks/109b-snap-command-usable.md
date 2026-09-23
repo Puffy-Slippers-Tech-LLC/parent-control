@@ -23,7 +23,7 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Reuse the qualified installed Snap profile and terminal. Bind fixed command launch, owned window/usability observations, immutable activity and a supported separate-window command.
+Reuse the qualified installed Snap profile and guarded SSH command binding. Bind fixed command launch, owned window/usability observations, immutable activity and a supported separate-window command.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,
@@ -32,7 +32,7 @@ observer and worker; add no independent runner or fixture framework.
 
 ## Live VM acceptance
 
-Launch each declared Snap fixture, perform its normal action, capture S and open a distinguishable second instance while the earlier activity remains. Qualify independent terminal entry and wrong-scope/echo-only/uncertain-input refusal.
+Launch each declared Snap fixture, perform its normal action, capture S and open a distinguishable second instance while the earlier activity remains. Qualify independent guarded SSH command entry and wrong-scope/echo-only/uncertain-input refusal.
 
 Use a fresh guarded VM attempt through shared watchvm intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation

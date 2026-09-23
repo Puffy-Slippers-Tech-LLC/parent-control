@@ -1,60 +1,44 @@
-# 005 — Qualify terminal administrator password input
+# 005 — Qualify the shared package command boundary
 
-Estimate: 40–60 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
-
-Session exception: A real installation challenge, sealed secret delivery, command completion and the affected credential/retained regressions remain one qualification.
-
-## Read only this context
-
-Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
-Read only the named block rows/callables, this recipe's selected cases and
-applicable finite-data rows. Prerequisite IDs are completion checks; do not open
-their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
+Estimate: 20–30 minutes. Follow the
+[session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **AUTH03; FILE06 package challenge/completion**. First scheduled consumer: [E2E-002, case 2](../E2E-Scenario-Recipes.md#e2e-002).
-Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form), [related block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
+Deliver **AUTH03 administrator command authority; FILE06 package output**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **005a** — Product-free graphical start and verified package staging.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+## Read only this context
+
+Read AUTH03, FILE01/02/06, LIFE04 and the existing guarded command/artifact validation in `installed_setup` and `vm_transport`.
+Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 ## Implementation
 
-Bind one declared installation command and selected administrator to the real non-echoing terminal challenge. Extend FILE06 to observe that challenge, then implement AUTH03's independent recipient qualification. Reuse applicable safety machinery; a generic Password string is insufficient. Qualification submits the command with FILE02, qualifies the challenge twice, types UI19 once and submits with UI05; LIFE04 is composed only afterward.
-
-Bind the actual qualified terminal owner/window to the declared package command and administrator. Generic password text, echoed input or backend identity alone cannot authorize a secret. Keep wrong-recipient, stale/reused-proof, non-echoing-input, capture and uncertain-delivery regressions; read real command completion independently.
+Bind one fixed package-operation command to the owned VM, verified release input and authorized administrator context. Validate arguments and artifacts before submission. Carry completion and the actual package notice as bounded stdout/stderr; do not create a Terminal or exercise an unrelated sudo password prompt.
 
 ## Live VM acceptance
 
-On the VM, reach a real package-command challenge, refuse wrong-account/wrong-recipient evidence, obtain two fresh intended proofs and type the fixture secret once. Captures and outputs remain secret-safe; completion is independently read.
+Qualify independent valid command input and reject unregistered commands, wrong artifacts, wrong VM/attempt and replay. A real package command's completion/notice must be read independently under the existing attempt envelope; installation composition remains task 006.
 
-Run affected safety/adapter checks, then implement and register the fixed slice
-qualification below in the existing guarded envelope. Run this slice here;
-its complete scenario remains a separate queue task:
+Implement and register this planned fixed qualification and its cleanup coverage before invoking it:
 
 ```sh
-tools/run-tests integration check_e2e_terminal_auth
+tools/run-tests integration check_e2e_package_authority
 ```
 
-This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
-before invocation. Require every stated result, independent valid entry, wrong-entry
-refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
-establish complete scenario coverage.
+Use the shared watchvm intent, display and guarded command transport. Pass
+applicable cleanup/ownership checks in isolation first. Require independent
+result readback, sanitized evidence and owned cleanup. Host tests alone do not
+qualify a live route or complete a customer scenario.
 
 ## Close out
 
-After this slice's live qualification and cleanup, follow the
-[master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
-its composition changes. Runtime status belongs in the inventory; leave
-unfinished scope pending.
-Check **005** in the [master's queue](../E2E-Task-Queue.md), update the master's
-**Next task** pointer, then delete this brief once its enduring context is maintained
-in source/contracts. Validate changed Markdown. Keep normal runner artifacts;
-no task archive, evidence document or accumulated history.
+Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
+Record the proven callable/scope and existing artifact, check **005** only after
+acceptance and cleanup, and advance the sole pointer in queue order. Keep an
+unmet requirement pending with its return condition. Delete this brief after
+its enduring contract is recorded in the catalogue/source.

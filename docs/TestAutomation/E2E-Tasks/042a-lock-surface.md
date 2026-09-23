@@ -10,7 +10,7 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **003d** — DESK04 direct logout command and independent GDM result.
 
 ## Read only this context
 

@@ -1,59 +1,44 @@
-# 036 — Qualify file rename and compose synthetic-file operations
+# 036 — Prepare synthetic files through shared commands
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
-
-## Read only this context
-
-Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
-Read only the named block rows/callables, this recipe's selected cases and
-applicable finite-data rows. Prerequisite IDs are completion checks; do not open
-their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
+Estimate: 20–30 minutes. Follow the
+[session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **FILE07/04/05; FIX04 synthetic files**. First scheduled consumer: [E2E-031, case 152](../E2E-Scenario-Recipes.md#e2e-031).
-Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use), [related block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope) and only the selected consumer's recipe.
+Deliver **FILE05 bounded copy/rename; FIX04 synthetic files**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **009** — UI16.
-- **036d** — FILE05 copy; exact source/destination and public resulting entry.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+## Read only this context
+
+Read FIX04 and FILE05 in the catalogue, the prepared synthetic attachment inputs, and the existing fixture transfer/ownership helpers.
+Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 ## Implementation
 
-Reuse task 036c's staged synthetic files and Nautilus Location/entry projections, and task 036d's public copy operation. Add normal Rename for one exact synthetic file, then compose the existing navigation/copy/rename contract. Keep dynamic names inside the scoped Files adapter; direct filesystem changes cannot supply acceptance.
+Implement fixed shared SSH file operations for the declared synthetic fixtures: stage, bounded listing/read, copy and rename. Use argument arrays and canonical owned fixture directories. Reject traversal, symlinks, wrong owner, duplicate destinations and unregistered files before mutation. Reuse one helper; no Nautilus location/copy/rename tour.
 
 ## Live VM acceptance
 
-On the VM open the normal file manager, navigate to the synthetic directory, select the exact file, copy and rename through normal UI, and observe the expected entries independently. Supply an independently opened file manager as another entry; wrong/absent destinations refuse without fallback.
+Stage the finite fixtures including names with spaces, copy and rename declared files, and independently verify the exact resulting files/content. Failed validation leaves the fixture unchanged. Uncertain operations refuse replay. Qualify cleanup of only owned files. Chooser GUI and file-manager enforcement launch routes remain their own product consumers.
 
-For Rename independently observe the new entry and absence of the old entry in a complete recognized directory. Exercise Cancel and wrong-file/duplicate-name refusal. Retain source/destination guards and never replay an uncertain copy or rename.
-
-Run affected safety/adapter checks, then implement and register the fixed slice
-qualification below in the existing guarded envelope. Run this slice here;
-its complete scenario remains a separate queue task:
+Implement and register this planned fixed qualification and its cleanup coverage before invoking it:
 
 ```sh
 tools/run-tests integration check_e2e_files
 ```
 
-This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
-before invocation. Require every stated result, independent valid entry, wrong-entry
-refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
-establish complete scenario coverage.
+Use the shared watchvm intent, display and guarded command transport. Pass
+applicable cleanup/ownership checks in isolation first. Require independent
+result readback, sanitized evidence and owned cleanup. Host tests alone do not
+qualify a live route or complete a customer scenario.
 
 ## Close out
 
-After this slice's live qualification and cleanup, follow the
-[master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
-its composition changes. Runtime status belongs in the inventory; leave
-unfinished scope pending.
-Check **036** in the [master's queue](../E2E-Task-Queue.md), update the master's
-**Next task** pointer, then delete this brief once its enduring context is maintained
-in source/contracts. Validate changed Markdown. Keep normal runner artifacts;
-no task archive, evidence document or accumulated history.
+Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
+Record the proven callable/scope and existing artifact, check **036** only after
+acceptance and cleanup, and advance the sole pointer in queue order. Keep an
+unmet requirement pending with its return condition. Delete this brief after
+its enduring contract is recorded in the catalogue/source.

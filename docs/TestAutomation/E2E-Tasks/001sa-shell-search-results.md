@@ -1,18 +1,18 @@
-# 001sa — Read Shell search results and the Terminal entry
+# 001sa — Read product Shell search results
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **SEARCH01/02/03/04/06 exact queries and Terminal result identity**. Named consumer: task **001s** and any
+Deliver **SEARCH01/02/03/04/06 exact product query and result identity**. Named consumer: task **001s** and any
 complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **003b** — GDM05 successful fresh fixture entry; DESK01; real gcr prompt Cancel and independent desktop readback.
-- **003c** — DESK02/03 current Shell provider route and independently observed GDM return.
-- **003d** — DESK04 current Shell logout/confirmation route and independently observed GDM return.
+- **003ba** — GDM05 fresh Parent/standard entry and DESK01 no-prompt desktop; separate installed qualification, private collection and owned cleanup passed.
+- **003c** — DESK03 shared lock/greeter command and independent GDM result.
+- **003d** — DESK04 direct logout command and independent GDM result.
 
 ## Read only this context
 
@@ -24,7 +24,7 @@ catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Bind Overview/app-grid/search to the scoped Shell provider and guarded keyboard focus. Read empty, first-character and full queries and identify the actual Terminal result. Reuse qualified keyring handling.
+Bind Overview/app-grid/search to the scoped Shell provider and guarded keyboard focus. Read empty, first-character and full product queries and identify the actual product result. Require a prompt-free desktop; keyring exercises are separate harness qualification.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,
@@ -33,7 +33,7 @@ observer and worker; add no independent runner or fixture framework.
 
 ## Live VM acceptance
 
-On the VM, enter each declared query, read its exact result set, identify and focus Terminal without claiming terminal input, then dismiss normally. Independently supplied search entry works; wrong result, incomplete trees and stale focus refuse.
+On the VM, enter each declared query, read its exact result set, identify and focus the product result without activating an unrelated suggestion, then dismiss normally. Independently supplied search entry works; wrong result, incomplete trees and stale focus refuse.
 
 Use a fresh guarded VM attempt through shared watchvm intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation

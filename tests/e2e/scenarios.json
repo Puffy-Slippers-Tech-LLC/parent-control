@@ -81,8 +81,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "On a supported computer without the app, sign in as a parent, open Terminal and install the supplied release with the documented package command. Authenticate if asked and read the completion and reboot notice."},
-          {"id": "step-2", "operation": "ui", "description": "Restart using the desktop controls. At sign-in, check that personal accounts remain available and the Oh No! Parent Control request station is offered."},
+          {"id": "step-1", "operation": "ui", "description": "On a supported computer without the app, use the shared guarded SSH administrator helper to install the verified supplied release with the documented package command. Read the actual completion and reboot notice."},
+          {"id": "step-2", "operation": "ui", "description": "Restart using the shared LIFE02 system command. At sign-in, check that personal accounts remain available and the Oh No! Parent Control request station is offered."},
           {"id": "step-3", "operation": "ui", "description": "Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in."}
         ],
         "end": [
@@ -676,8 +676,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Enable limits and block a test app in Parent. Overlay has positive daily time and an open child terminal; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices."},
-          {"id": "step-2", "operation": "ui", "description": "In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the existing terminal to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices."},
+          {"id": "step-1", "operation": "ui", "description": "Enable limits and block a test app in Parent. Overlay has positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices."},
+          {"id": "step-2", "operation": "ui", "description": "In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the shared command helper as the active child desktop user to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices."},
           {"id": "step-3", "operation": "ui", "description": "Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior."}
         ],
         "end": [
@@ -1118,7 +1118,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give the child usable time. In Parent set the app to Hard Blocked, open its Edit Match Rule dialog and enter the declared rule covering its updated target without saving."},
-          {"id": "step-2", "operation": "ui", "description": "Update or remove that app using its normal package command in another administrator terminal, leaving the editor open."},
+          {"id": "step-2", "operation": "ui", "description": "Update or remove that app using its registered package command through the shared administrator SSH helper, leaving the editor open."},
           {"id": "step-3", "operation": "ui", "description": "Return and Save, then reopen Parent to refresh the list. For update, inspect the row and try the updated app as the child. For removal, observe the missing row, reinstall, refresh, read its retained rule before editing and try launching."}
         ],
         "end": [
@@ -1224,7 +1224,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open."},
-          {"id": "step-2", "operation": "ui", "description": "Perform the declared app restart, sign-out, reboot, idle interval or suspend/wake through normal controls. Use enough time for active return and a short grant for expired return."},
+          {"id": "step-2", "operation": "ui", "description": "Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return."},
           {"id": "step-3", "operation": "wait", "description": "Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time."},
           {"id": "step-4", "operation": "ui", "description": "Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work."}
         ],
@@ -1703,7 +1703,7 @@
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
       "requirements": ["ONPC-CORE-FEEDBACK-009", "ONPC-CORE-FEEDBACK-010", "ONPC-CORE-FEEDBACK-011"],
-      "requirement_gap": "Requires qualified ordinary network controls preserving observation and explicitly authorized real service submission; injected transport/idempotency/recipient checks remain separate.",
+      "requirement_gap": "Requires shared system-network commands preserving management and observation and explicitly authorized real service submission; injected transport/idempotency/recipient checks remain separate.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Logging-and-Feedback.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
@@ -1717,9 +1717,9 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Compose authorized synthetic feedback and files in Parent and review Privacy and submission contents."},
-          {"id": "step-2", "operation": "ui", "description": "Disconnect the declared connection using desktop network controls, preserving the independent observation channel."},
+          {"id": "step-2", "operation": "ui", "description": "Disconnect the declared connection using the shared LIFE06 system-network command, preserving the independent observation channel."},
           {"id": "step-3", "operation": "ui", "description": "Return to feedback, select Send once and read retry progress and unavailable editing/duplicate Send."},
-          {"id": "step-4", "operation": "ui", "description": "Reconnect through those same normal controls within the retry period."},
+          {"id": "step-4", "operation": "ui", "description": "Reconnect through the same shared system-network helper within the retry period."},
           {"id": "step-5", "operation": "ui", "description": "Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft."}
         ],
         "end": [
@@ -1744,7 +1744,7 @@
           "delivery": ["retry"]
         },
         "full_combinations": [],
-        "rationale": "The customer route uses ordinary network controls. Injected transport failure, frozen bytes, idempotency and recipient verification remain separately owned."
+        "rationale": "The customer route changes real connectivity through shared system commands. Injected transport failure, frozen bytes, idempotency and recipient verification remain separately owned."
       },
       "variants": [
         {"coverage_id": 157, "id": "retry", "owner": "continuous-journeys", "parameters": {"delivery": "retry"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
@@ -2041,7 +2041,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices."},
-          {"id": "step-2", "operation": "ui", "description": "In normal Users settings, add a standard child, remove the selected/last child, change the remembered approver to standard, or remove the remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts."},
+          {"id": "step-2", "operation": "ui", "description": "Through shared system-account commands, add a spare standard child, remove the selected/last spare child, change the spare remembered approver to standard, or remove the spare remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts."},
           {"id": "step-3", "operation": "ui", "description": "Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing."}
         ],
         "end": [
@@ -2066,7 +2066,7 @@
           "change": ["add-child", "remove-selected", "remove-last-child", "ineligible-approver", "missing-remembered-child"]
         },
         "full_combinations": [],
-        "rationale": "Owns real Users-interface changes; ready discovery retains its narrower account-fixture qualification."
+        "rationale": "Owns app reactions to real account changes through shared system commands; ready discovery retains its narrower account-fixture qualification."
       },
       "variants": [
         {"coverage_id": 179, "id": "add-child", "owner": "continuous-journeys", "parameters": {"change": "add-child"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -2205,7 +2205,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Disconnect the declared connection through desktop network controls. In Parent enable limits and save the allowance and hard/soft app rules."},
+          {"id": "step-1", "operation": "ui", "description": "Disconnect the declared connection through the shared LIFE06 system-network command. In Parent enable limits and save the allowance and hard/soft app rules."},
           {"id": "step-2", "operation": "ui", "description": "Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt."},
           {"id": "step-3", "operation": "ui", "description": "Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection."}
         ],
@@ -2431,7 +2431,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through normal network controls before one explicit Send."},
+          {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send."},
           {"id": "step-2", "operation": "ui", "description": "Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance."},
           {"id": "step-3", "operation": "ui", "description": "Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed."}
         ],
@@ -2767,8 +2767,8 @@
           {"id": "start", "operation": "begin", "description": "Begin one independent attempt with the selected child, parent and finite provider profile; record boot/session continuity and secret-excluding evidence. No resume, in-journey snapshot restore or backend product probes."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Through Parent enable 120 daily minutes and confirm no grant, leaving Lunar Allowed. As the child launch the original AppImage through AppImageLauncher, use Lunar to enter the prepared Minecraft world and perform an observable game action. Exit Minecraft and close Lunar to its tray. Reboot through desktop controls and log in as the child first, without opening Parent. Observe Lunar autostart within 90 seconds of usable desktop entry, restore it from the tray and launch/use Minecraft again. Quit both applications through their normal controls."},
-          {"id": "step-2", "operation": "ui", "description": "As the parent save Lunar as Soft Blocked with its declared same-directory version pattern and read the saved choice. Return to the child's usable desktop with no grant and attempt the original AppImage command once in Terminal. Observe a specific access denial, no usable Lunar or Minecraft, and continued use of the declared unrelated allowed app."},
+          {"id": "step-1", "operation": "ui", "description": "Through Parent enable 120 daily minutes and confirm no grant, leaving Lunar Allowed. As the child launch the original AppImage through AppImageLauncher, use Lunar to enter the prepared Minecraft world and perform an observable game action. Exit Minecraft and close Lunar to its tray. Reboot through the shared LIFE02 system command and log in as the child first, without opening Parent. Observe Lunar autostart within 90 seconds of usable desktop entry, restore it from the tray and launch/use Minecraft again. Quit both applications through their normal controls."},
+          {"id": "step-2", "operation": "ui", "description": "As the parent save Lunar as Soft Blocked with its declared same-directory version pattern and read the saved choice. Return to the child's usable desktop with no grant and attempt the original AppImage command once through the shared SSH helper as the active child desktop user. Observe a specific access denial, no usable Lunar or Minecraft, and continued use of the declared unrelated allowed app."},
           {"id": "step-3", "operation": "ui", "description": "As the child request 15 minutes with soft apps explicitly excluded and obtain real parent approval. Read the positive grant through a read-only Parent visit, return to the child, reboot normally and log in as the child first without opening Parent or changing policy. Observe the complete login-autostart interval through 90 seconds after desktop readiness: no Lunar tray/background control, usable Lunar window or Minecraft. Attempt the same original AppImage command once, observe a specific access denial, and use the unrelated allowed app. Only afterward visit Parent to confirm the grant stayed positive, then return to the child."},
           {"id": "step-4", "operation": "ui", "description": "On the same child desktop request 15 minutes with soft apps explicitly included, obtain real approval, and launch the same original AppImage through AppImageLauncher. Use Lunar to launch Minecraft, enter the same prepared world and perform the declared game action. Exit Minecraft and Quit Lunar normally; closing a window to the tray is not quitting."},
           {"id": "step-5", "operation": "ui", "description": "Request another 15 minutes with soft apps explicitly excluded and obtain real approval. Repeat the read-only grant checks bracketing the reboot and blocked observations: log in as the child first, observe the full 90-second autostart interval and one original-AppImage command denial before visiting Parent. Lunar and Minecraft remain unavailable while the grant stays positive and the unrelated allowed app is usable. Do not repair policy after boot or treat a hidden launcher, missing network, broken game or expired desktop time as successful blocking."}

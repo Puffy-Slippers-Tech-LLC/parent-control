@@ -1,4 +1,4 @@
-"""DESK02/03/04 qualification: session menu, Switch User, and confirmed Log Out."""
+"""DESK03/04 qualification: shared system switching and logout commands."""
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop
@@ -21,16 +21,12 @@ def _plan(prefix, worker_mode, extra, extra_phase):
 
 LOGOUT_PLAN = _plan(
     'desktop-logout', 'desktop_session_logout',
-    {'session-menu-toggle': 'ui:session-menu-toggle',
-     'session-menu-power': 'ui:session-menu-power', 'session-menu': 'ui:session-menu',
-     'logout': 'ui:logout', 'logout-confirm': 'ui:logout-confirm',
+    {'logout': 'system:parent-logout',
      'gdm-logged-out': 'ui:gdm-returned'},
     'step-2')
 SWITCH_PLAN = _plan(
     'desktop-switch', 'desktop_session_switch',
-    {'session-menu-toggle': 'ui:session-menu-toggle',
-     'session-menu-power': 'ui:session-menu-power', 'session-menu': 'ui:session-menu',
-     'switch-user': 'ui:switch-user', 'gdm-switched': 'ui:gdm-returned'},
+    {'switch-user': 'system:parent-switch-user', 'gdm-switched': 'ui:gdm-returned'},
     'step-2')
 
 

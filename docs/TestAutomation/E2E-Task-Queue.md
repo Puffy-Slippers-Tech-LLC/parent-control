@@ -9,8 +9,17 @@ An incomplete or blocked row stays current; there is no second queue to consult.
 The master owns live acceptance, coverage refresh and close-out. A checked row
 records its delivered scope at completion time. It does not override a later
 pending block/provider qualification; see the [status vocabulary](README.md#status-vocabulary).
-The completed tasks remain intact; the first new rows restore their missing
-provider bindings under the current mandate.
+Completed GDM/Shell rows record historical harness qualification, not customer
+features or mandatory GUI choreography. Their consumers use the current shared
+entry/session helpers. Wrong-account visits and keyring exercises are isolated
+harness safety checks. Task 003's menu implementation is superseded by DESK03/04
+system commands; its checked status does not qualify the replacement.
+
+The system-operation audit removed unnecessary menu/dialog tasks 003ca/003da,
+Terminal-help task 001ta (INFO02 already reads SSH stdout), Users-wizard tasks
+184d/184a/184e, and Shell-calendar task 191a. File-preparation slices 036e/036c/036d
+are consolidated into 036's shared commands. Their GUI actions carry no product
+acceptance obligation; the dependent product assertions remain in their cases.
 The developer's [manual validation of the ready cases](E2E-Execution-Plan.md#current-scope)
 records reported passing results. It does not check the retained regression rows
 or change this queue's first unchecked task; each row closes through its stated
@@ -60,33 +69,30 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | Done | ID | Task | Requires tasks | Delivered scope | Minutes |
 | --- | --- | --- | --- | --- | --- |
 | [x] | 192 | Align inventory regression fixtures with the current metadata | Baseline | Host-only metadata compatibility; no product readiness change | 25–45 |
-| [x] | 001 | Visible terminal launch, submission and denial | Baseline | FILE01, FILE02, FILE06 | 25–45 |
+| [x] | 001 | Historical Terminal route (retired) | Baseline | Replaced by shared command helpers and PARENT01 | 25–45 |
 | [x] | 002 | E2E-004: terminal | 001 | Cases 6 | 30–55 |
 | [x] | 185c | Read installed command help and manuals | 001 | INFO02 | 20–40 |
 | [x] | 235 | E2E-042: command-help | 185c | Cases 193 | 30–55 |
-| [x] | 003 | Open session controls and switch or sign out | Baseline | DESK02, DESK03, DESK04 | 35–55 |
+| [x] | 003 | Historical Shell session-menu route (retired) | Baseline | DESK02 retired; DESK03/04 shared command replacement awaits qualification | 35–55 |
 | [x] | 011 | Enter and read the request station | Baseline | REQUEST01, REQUEST03 | 35–55 |
 | [x] | 013 | Observe request results and exits | 011 | REQUEST11/12 kiosk Cancel and Escape | 25–45 |
 | [x] | 010 | Set one public toggle explicitly | Baseline | UI17 Parent Screen time limit binding; installed qualification and owned cleanup passed | 25–45 |
 | [x] | 017 | Observe Parent save results | 010 | PARENT08 snapshot saved/control states; installed qualification and owned cleanup passed | 25–45 |
-| [x] | 003aa | Select an ordinary GDM account and return | 011 | GDM01/02 ordinary account-list navigation and Escape return | 20–30 |
-| [x] | 003a | Prove the intended GDM password recipient | 011, 003aa | GDM01/02 prepared ordinary prompt entry; GDM03/04/08/09 Parent/other-parent recipient, refusal and Escape-return proofs; installed qualification and owned cleanup passed | 20–30 |
+| [x] | 003aa | Qualify harness GDM navigation (isolated) | 011 | GDM01/02 ordinary account-list navigation and Escape return | 20–30 |
+| [x] | 003a | Qualify harness GDM recipient guards (isolated) | 011, 003aa | GDM01/02 prepared ordinary prompt entry; GDM03/04/08/09 Parent/other-parent recipient, refusal and Escape-return proofs; installed qualification and owned cleanup passed | 20–30 |
 | [x] | 003ab | Qualify product-free GDM navigation | 003a | GDM01/02/08/09 product-free Parent list, prompt and return binding | 20–30 |
 | [x] | 001r | Requalify retained case 1 | 003a, 003ab | Retained regression 1; complete graphical/serial recipe and capture/return reconciliation | 20–30 |
 | [x] | 003ba | Qualify fresh login without a keyring prompt | 003a | GDM05 fresh Parent/standard entry and DESK01 no-prompt desktop; separate installed qualification, private collection and owned cleanup passed | 20–30 |
-| [x] | 003b | Cancel a real keyring prompt after login | 003a, 003ba | GDM05 separate fresh Parent/standard entry; DESK01; real gcr masked-field focus, single Cancel, disappearance and independent desktop readback; provider metadata, private evidence reconciliation and owned cleanup passed | 20–30 |
-| [ ] | 003ca | [Open and dismiss Shell session controls](E2E-Tasks/003ca-shell-session-menu.md) | 003b | DESK02 Shell Quick Settings and session-menu entry/readback | 20–30 |
-| [ ] | 003c | [Switch User through qualified Shell controls](E2E-Tasks/003c-switch-user.md) | 003b, 003ca | DESK02/03 current Shell provider route and independently observed GDM return | 20–30 |
-| [ ] | 003da | [Open and cancel the Shell logout confirmation](E2E-Tasks/003da-logout-cancel.md) | 003b, 003c | DESK04 logout-confirmation entry and Cancel branch | 20–30 |
-| [ ] | 003d | [Confirm Shell logout and observe GDM](E2E-Tasks/003d-logout.md) | 003b, 003c, 003da | DESK04 current Shell logout/confirmation route and independently observed GDM return | 20–30 |
-| [ ] | 001sa | [Read Shell search results and the Terminal entry](E2E-Tasks/001sa-shell-search-results.md) | 003b, 003c, 003d | SEARCH01/02/03/04/06 exact queries and Terminal result identity | 20–30 |
+| [x] | 003b | Qualify optional harness keyring cancellation (isolated) | 003a, 003ba | GDM05 separate fresh Parent/standard entry; DESK01; real gcr masked-field focus, single Cancel, disappearance and independent desktop readback; provider metadata, private evidence reconciliation and owned cleanup passed | 20–30 |
+| [ ] | 003c | [Switch users through the shared system harness](E2E-Tasks/003c-switch-user.md) | 003ba | DESK03 shared lock/greeter command and independent GDM result | 20–30 |
+| [ ] | 003d | [Log out through the shared system harness](E2E-Tasks/003d-logout.md) | 003ba, 003c | DESK04 direct logout command and independent GDM result | 20–30 |
+| [ ] | 001sa | [Read the product's Shell search results](E2E-Tasks/001sa-shell-search-results.md) | 003ba, 003c, 003d | SEARCH01/02/03/04/06 product query and launcher identity | 20–30 |
 | [ ] | 001sb | [Launch Parent through administrator search](E2E-Tasks/001sb-parent-search-launch.md) | 001sa | SEARCH05 administrator Parent launch and owned-window result | 20–30 |
 | [ ] | 003r | [Requalify retained case 3](E2E-Tasks/003r-case-3-regression.md) | 001sb | Retained regression 3; existing/new-child discovery | 20–30 |
 | [ ] | 004r | [Requalify retained case 4](E2E-Tasks/004r-case-4-regression.md) | 001sb | Retained regression 4; no-child discovery | 20–30 |
-| [ ] | 001s | [Prove Parent is unavailable to a standard account](E2E-Tasks/001s-shell-search.md) | 003b, 003c, 003d, 001sb | SEARCH01–06 Parent launchable and standard-account unavailable bindings; terminal search entry | 20–30 |
+| [ ] | 001s | [Prove Parent is unavailable to a standard account](E2E-Tasks/001s-shell-search.md) | 003ba, 003c, 003d, 001sb | SEARCH01–06 Parent launchable and standard-account unavailable bindings | 20–30 |
 | [ ] | 005r | [Requalify retained case 5](E2E-Tasks/005r-case-5-regression.md) | 001s | Retained regression 5; standard-account app-grid unavailability | 20–30 |
-| [ ] | 001ta | [Submit one nonsecret terminal command and read help](E2E-Tasks/001ta-terminal-help.md) | 001s | FILE01/02/06 terminal owner, nonsecret submission, help and close | 20–30 |
-| [ ] | 001t | [Read direct-command management denial](E2E-Tasks/001t-terminal-provider.md) | 001s, 001ta | PARENT01 direct command, public management denial and desktop return | 20–30 |
+| [ ] | 001t | [Read direct-command management denial](E2E-Tasks/001t-terminal-provider.md) | 001s | PARENT01 direct command, public management denial and desktop return | 20–30 |
 | [ ] | 002r | [Requalify retained case 6](E2E-Tasks/002r-case-6-regression.md) | 001t | Retained regression 6; shared PARENT01 direct-command management denial | 20–30 |
 | [ ] | 235r | [Requalify retained case 193](E2E-Tasks/235r-case-193-regression.md) | 001t | Retained regression 193; both installed commands/manuals from guarded SSH stdout and clear desktop return | 20–30 |
 | [ ] | 185l | [Qualify the installed license viewer](E2E-Tasks/185l-license-provider.md) | 001s | ABOUT02/03 actual license handler identity/content and close/return | 20–30 |
@@ -101,7 +107,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 004a | [Give repeated public operations distinct stages](E2E-Tasks/004a-give-repeated-public-operations-distinct-stages.md) | Baseline | JourneyPlan repeated invocation IDs and assertion placement | 30–50 (exception) |
 | [ ] | 004 | [Allow distinct single-use authentication challenges](E2E-Tasks/004-challenges.md) | 003d, 004a | UI19/GDM05 distinct single-use authentication challenges | 40–60 (exception) |
 | [ ] | 005a | [Start a graphical journey before product installation](E2E-Tasks/005a-product-free-entry.md) | 001t, 004 | Product-free graphical start and verified package staging | 30–50 (exception) |
-| [ ] | 005 | [Qualify terminal administrator password input](E2E-Tasks/005-terminal-auth.md) | 005a | AUTH03; FILE06 package challenge/completion | 40–60 (exception) |
+| [ ] | 005 | [Qualify the shared package command boundary](E2E-Tasks/005-terminal-auth.md) | 005a | AUTH03 administrator command authority; FILE06 package output | 20–30 |
 | [ ] | 006 | [Perform a customer package operation](E2E-Tasks/006-package-command.md) | 005 | LIFE04 install only | 20–30 |
 | [ ] | 007 | [Observe a deliberate customer reboot](E2E-Tasks/007-customer-reboot.md) | 006 | LIFE02 | 40–60 (exception) |
 | [ ] | 077a | [Read app rows and initial access choices](E2E-Tasks/077a-app-row-observations.md) | Baseline | PARENT12; UI13 complete public app-row observations | 20–30 |
@@ -143,10 +149,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 033 | [Apply and observe rich-text formatting](E2E-Tasks/033-format.md) | 009 | UI24, FEED04 | 20–30 |
 | [ ] | 044a | [Return to an already-open window on one desktop](E2E-Tasks/044a-window-switch.md) | 001t, 009 | DESK10 same-desktop window switching | 20–30 |
 | [ ] | 032 | [E2E-031: validation](E2E-Tasks/032-case-153.md) | 030, 031, 033, 044a | Cases 153 | 20–30 |
-| [ ] | 036e | [Stage synthetic files and navigate to their directory](E2E-Tasks/036e-files-location.md) | 009, 001s | FIX04 synthetic files; FILE07 Nautilus directory entry | 20–30 |
-| [ ] | 036c | [Select exact synthetic entries in Files](E2E-Tasks/036c-files-navigation.md) | 009, 001s, 036e | FIX04 synthetic files; FILE07 and FILE04 exact Nautilus location/entry observations | 20–30 |
-| [ ] | 036d | [Qualify public file copy and destination readback](E2E-Tasks/036d-files-copy.md) | 036c | FILE05 copy; exact source/destination and public resulting entry | 20–30 |
-| [ ] | 036 | [Qualify file rename and compose synthetic-file operations](E2E-Tasks/036-files.md) | 009, 036d | FILE07/04/05; FIX04 synthetic files | 20–30 |
+| [ ] | 036 | [Prepare synthetic files through shared commands](E2E-Tasks/036-files.md) | 009 | FILE05 bounded copy/rename; FIX04 synthetic files | 20–30 |
 | [ ] | 037 | [Select multiple files or cancel through the installed chooser](E2E-Tasks/037-file-chooser.md) | 036, 029, 031 | FILE03 installed feedback open/cancel; actual provider binding | 20–30 |
 | [ ] | 038a | [Read attachment details and remove one item](E2E-Tasks/038a-attachment-items.md) | 037, 010, 031 | FEED06/07/13 attachment names, sizes, order and removal | 20–30 |
 | [ ] | 038b | [Qualify offered attachment preview and return](E2E-Tasks/038b-attachment-preview.md) | 038a | FEED12 offered preview and unchanged attachment-list return | 20–30 |
@@ -155,7 +158,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 034 | [E2E-031: draft-reopen](E2E-Tasks/034-case-152.md) | 033, 030a, 038, 044a | Cases 152 | 20–30 |
 | [ ] | 195a | [Qualify the installed text-document handler](E2E-Tasks/195a-document-open.md) | 036 | FILE08 text-document identity/content and normal close/return | 20–30 |
 | [ ] | 195 | [Qualify archive contents and compose document opening](E2E-Tasks/195-open-a-customer-document-or-archive.md) | 036, 195a | FILE08 | 20–30 |
-| [ ] | 196 | [Edit and save an open synthetic document](E2E-Tasks/196-edit-and-save-an-open-synthetic-document.md) | 195 | FILE09 | 20–30 |
+| [ ] | 196 | [Prepare synthetic source changes and retained work](E2E-Tasks/196-edit-and-save-an-open-synthetic-document.md) | 036 | FILE09 | 20–30 |
 | [ ] | 039 | [E2E-031: attachments](E2E-Tasks/039-case-154.md) | 038, 030, 196, 044a | Cases 154 | 35–55 (exception) |
 | [ ] | 016b | [Start and collect a trace of an unchanged public state](E2E-Tasks/016b-trace-stable-state.md) | 004a, 031 | UI25/26 observer readiness, token lifetime and stable-state collection | 40–60 (exception) |
 | [ ] | 016 | [Trace one public state transition](E2E-Tasks/016-trace.md) | 004a, 031, 016b | UI25/26 trace start/readiness and finish | 40–60 (exception) |
@@ -172,7 +175,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 185s | [Qualify the Parent support mail destination](E2E-Tasks/185s-support-destination.md) | 044a, 001s | INFO01 Parent support mail recipient/subject and close without sending | 20–30 |
 | [ ] | 185p | [Read Parent Help and legal notices and complete information links](E2E-Tasks/185p-read-parent-information-links.md) | 044a, 185w, 185v, 185s, 185l | INFO01 Parent | 20–30 |
 | [ ] | 232 | [E2E-042: parent-links](E2E-Tasks/232-case-190.md) | 185p | Cases 190 | 20–30 |
-| [ ] | 193 | [Operate public connectivity controls](E2E-Tasks/193-operate-public-connectivity-controls.md) | 003d, 010, 044a | LIFE06 | 20–30 |
+| [ ] | 193 | [Change connectivity through shared system commands](E2E-Tasks/193-operate-public-connectivity-controls.md) | 003d, 010, 044a | LIFE06 | 20–30 |
 | [ ] | 035p | [Install the declared native app fixtures](E2E-Tasks/035p-native-fixtures.md) | 006, 077a | FIX04 native assets; LIFE04 fixture installation | 20–30 |
 | [ ] | 077b | [Search the public app catalogue](E2E-Tasks/077b-catalogue-search.md) | 010, 035p, 009, 077a | PARENT10 exact catalogue search results | 20–30 |
 | [ ] | 077 | [Filter the public app catalogue](E2E-Tasks/077-catalogue.md) | 010, 035p, 009, 077a, 077b | PARENT10, PARENT11 | 20–30 |
@@ -428,16 +431,13 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 210 | [E2E-038: toggle](E2E-Tasks/210-case-168.md) | 182, 047a | Cases 168 | 20–30 |
 | [ ] | 211 | [E2E-038: app-save](E2E-Tasks/211-case-169.md) | 182, 047a | Cases 169 | 20–30 |
 | [ ] | 212 | [E2E-038: revoke](E2E-Tasks/212-case-170.md) | 182, 047a | Cases 170 | 20–30 |
-| [ ] | 184d | [Open Users settings and read its locked state](E2E-Tasks/184d-users-page.md) | 004, 048d, 001s | ACCOUNT01 Settings Users page and account-list observation | 20–30 |
-| [ ] | 184a | [Authenticate Users Unlock and observe controls](E2E-Tasks/184a-open-users-settings-and-qualify-its-authentication.md) | 004, 048d, 001s, 184d | AUTH04 Users Unlock; ACCOUNT01 | 20–30 |
-| [ ] | 184e | [Fill and cancel the nonsecret add-child wizard](E2E-Tasks/184e-users-add-cancel.md) | 184a, 009 | ACCOUNT02 add-child nonsecret fields and Cancel | 20–30 |
-| [ ] | 184 | [Create the registered spare child](E2E-Tasks/184-change-disposable-accounts-through-users-settings.md) | 184a, 009, 184e | ACCOUNT02 add-child; AUTH04 account-creation password fields | 20–30 |
+| [ ] | 184 | [Create the registered spare child through shared account helpers](E2E-Tasks/184-change-disposable-accounts-through-users-settings.md) | 004 | ACCOUNT01/02 shared account read/create; AUTH04 protected-account guards | 20–30 |
 | [ ] | 221 | [E2E-040: add-child](E2E-Tasks/221-case-179.md) | 184, 017, 044a | Cases 179 | 20–30 |
-| [ ] | 184b | [Remove a logged-out spare child through Users](E2E-Tasks/184b-remove-disposable-child.md) | 184 | ACCOUNT02 remove-child | 20–30 |
+| [ ] | 184b | [Remove a logged-out spare child through shared account helpers](E2E-Tasks/184b-remove-disposable-child.md) | 184 | ACCOUNT02 remove-child | 20–30 |
 | [ ] | 222 | [E2E-040: remove-selected](E2E-Tasks/222-case-180.md) | 184b, 017, 044a | Cases 180 | 20–30 |
 | [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 184b, 017, 044a | Cases 181 | 20–30 |
 | [ ] | 225 | [E2E-040: missing-remembered-child](E2E-Tasks/225-case-183.md) | 184b, 014, 180, 044 | Cases 183 | 20–30 |
-| [ ] | 184c | [Change a spare approver's role through Users](E2E-Tasks/184c-change-spare-account-role.md) | 184a, 009 | ACCOUNT02 change-role | 20–30 |
+| [ ] | 184c | [Change a spare approver role through shared account helpers](E2E-Tasks/184c-change-spare-account-role.md) | 184 | ACCOUNT02 change-role | 20–30 |
 | [ ] | 224 | [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md) | 184c, 155 | Cases 182 | 20–30 |
 | [ ] | 169 | [Preserve and qualify system obligation 140: startup enforcement](E2E-Tasks/169-system-140.md) | Baseline | System obligation 140 | 30–60 (exception) |
 | [ ] | 170 | [Preserve and qualify system obligation 141: broker startup](E2E-Tasks/170-system-141.md) | Baseline | System obligation 141 | 30–60 (exception) |
@@ -454,7 +454,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 150 | [Submit one authorized synthetic report and read success](E2E-Tasks/150-feedback-send.md) | 150a | FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief | 20–30 |
 | [ ] | 151 | [E2E-032: success](E2E-Tasks/151-case-156.md) | 150 | Cases 156; gate in brief | 35–55 (exception) |
 | [ ] | 256 | [E2E-047: no-reply](E2E-Tasks/256-case-214.md) | 150 | Cases 214; gate in brief | 20–30 |
-| [ ] | 152 | [Change connectivity through public network controls](E2E-Tasks/152-network.md) | 150, 193 | FEED09 Parent retry/recovery over qualified LIFE06; gate in brief | 20–30 |
+| [ ] | 152 | [Observe feedback recovery after system network changes](E2E-Tasks/152-network.md) | 150, 193 | FEED09 Parent retry/recovery over qualified LIFE06; gate in brief | 20–30 |
 | [ ] | 153 | [E2E-033: retry](E2E-Tasks/153-case-157.md) | 152 | Cases 157; gate in brief | 35–55 (exception) |
 | [ ] | 257 | [E2E-047: background](E2E-Tasks/257-case-215.md) | 152 | Cases 215; gate in brief | 20–30 |
 | [ ] | 258 | [E2E-047: app-exit](E2E-Tasks/258-case-216.md) | 152, 030a | Cases 216; gate in brief | 20–30 |
@@ -521,8 +521,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 147 | [E2E-021: approve-without-soft](E2E-Tasks/147-case-113.md) | 143, 079b, 065 | Cases 113; gate in brief | 40–60 (exception) |
 | [ ] | 148 | [E2E-021: approve-with-soft](E2E-Tasks/148-case-114.md) | 143, 079b, 065 | Cases 114; gate in brief | 40–60 (exception) |
 | [ ] | 149 | [E2E-021: revoke](E2E-Tasks/149-case-115.md) | 143, 079b, 065 | Cases 115; gate in brief | 40–60 (exception) |
-| [ ] | 191a | [Read the Shell calendar and clock](E2E-Tasks/191a-calendar-provider.md) | 003d, 044a, 052c | TIME05 Shell calendar and DESK12 clock binding | 20–30 |
-| [ ] | 191 | [Read timezone and compose local calendar observations](E2E-Tasks/191-read-local-calendar-and-timezone.md) | 191a, 001s | TIME05 Settings Date & Time binding and composed calendar observation | 20–30 |
+| [ ] | 191 | [Read local date, time and timezone through SSH](E2E-Tasks/191-read-local-calendar-and-timezone.md) | 052c | TIME05 read-only system clock/timezone observations | 20–30 |
 | [ ] | 238 | [E2E-044: ordinary-daily-reset](E2E-Tasks/238-case-196.md) | 191, 065, 062 | Cases 196; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 239 | [E2E-044: ordinary-rest-of-day](E2E-Tasks/239-case-197.md) | 191, 065, 062 | Cases 197; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 240 | [E2E-044: ordinary-fixed-grant](E2E-Tasks/240-case-198.md) | 191, 065, 062 | Cases 198; gate in brief | Scheduled window; ≤60 (exception) |

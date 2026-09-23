@@ -2,6 +2,11 @@
 
 ## Functional GUI acceptance
 
+Apply the [UI mandate](../../docs/Mandates/UI-Automation-Mandate.MD) before
+choosing an input route. Use GUI input for tested product features and necessary
+graphical authentication. Supporting Shell/GDM, package, file, account, clock,
+network and lifecycle work belongs in shared command/shortcut helpers.
+
 Follow [functional validation](../../docs/TestAutomation/E2E-Building-Blocks.md#functional-validation)
 for all new and migrated customer cases. Cosmetic defects (including alignment,
 size, color, font, resolution and scale changes) pass while the customer can
@@ -17,6 +22,25 @@ including the external-provider exception. Retained ready bindings do not prove
 current provider qualification. Legacy pixel routes described below are migration
 references, not executable exemptions. `ui:` stages retain public observations
 as screen evidence; worker markers alone cannot pass.
+
+### Shared system and account entry helpers
+
+[`session_control.py`](session_control.py) owns fixed fixture lock, switch-user
+and logout operations through the attempt's guarded SSH transport. It validates
+the sole active local fixture session and owned user bus before input, submits
+the selected command once, and independently reads the destination through logind.
+Switching locks first and invokes GDM's public API through the desktop user's
+service manager; logout invokes `gnome-session-quit --logout --no-prompt`.
+`InstalledJourney` records these as `system:` stages. A subsequent GDM/app
+observation supplies the required public result. No Quick Settings, confirmation
+dialog or fallback after uncertain submission is involved.
+
+[`journey_blocks.py`](journey_blocks.py) and the shared `onpc_parent::sign_in` /
+`onpc_gdm::enter_station` workers go straight to the intended account. Customer
+entry never visits an unrelated account or exercises a keyring prompt first.
+Unavoidable password input retains fresh recipient and capture guards. Harness
+negative-recipient qualification is separate. The changed entry/session
+compositions require live qualification before any new readiness claim.
 
 ## Customer scope and runtime transition — 2026-09-14
 
@@ -67,8 +91,8 @@ but before Parent launches to make the two canonical child fixtures ineligible.
 It requires that exact eligible set before any mutation, refusing missing,
 substituted or additional standard accounts while leaving the package request station
 unchanged; outer baseline restoration owns reversal. Its customer uses the
-shared functional GDM wrong-recipient refusal and two fresh intended-recipient
-checks before secret input. Enter launches Parent only after fixture preparation
+shared direct GDM entry and two fresh intended-recipient checks before secret
+input. Wrong-account visits are isolated harness safety checks. Enter launches Parent only after fixture preparation
 is durably recorded. `ui:parent-empty` independently requires the showing empty
 explanation and the child picker's `(None)` placeholder; appearance, resolution
 and scale do not gate acceptance. Fixture role/collision checks are setup
@@ -428,10 +452,10 @@ product query and web-only suggestion, and independently requires no Parent
 launcher or management window over a bounded interval of fresh complete reads.
 The `ui:standard-*` checkpoints connect only to the canonical other-child
 desktop's owned session bus. Missing/stale UI cannot prove absence; cosmetics
-do not gate acceptance. The shared functional GDM gate independently verifies
-wrong-recipient refusal and the intended standard account's empty masked field
-and focus twice through ordered standard-specific checkpoints before secret
-input. Search input and keyring handling must use their separately qualified
+do not gate acceptance. The shared functional GDM gate selects the intended account directly and
+independently verifies its empty masked field and focus twice through ordered
+standard-specific checkpoints before secret input. Wrong-recipient rejection
+belongs to separate harness safety qualification. Search input and keyring handling must use their separately qualified
 provider adapters: tasks 001s and 003b respectively. Prefer direct public actions
 and observed focus/results; geometry is permitted only within an explicitly
 qualified external adapter when the mandate's conditions are met. The current
@@ -556,7 +580,9 @@ including through a symlink.
 Each attempt has distinct setup, start, ordered steps, end and cleanup phases.
 Provisioning belongs only in setup and the outer reset only in cleanup.
 Customer steps use `ui` when any branch performs input or navigation, including
-steps that also read results. Reserve `observe` for wholly read-only steps and
+steps that also read results. This metadata label does not mandate GUI input:
+supporting system actions always use shared shortcuts, SSH or commands, and a
+mixed customer step may compose those helpers. Reserve `observe` for wholly read-only steps and
 `wait` for real waits. Fault and
 controlled-environment operations require the matching category and a declared
 intervention with actor, step and expected evidence. Every family declares
@@ -841,7 +867,7 @@ before worker startup, it uses the existing guarded `mounted_guest` and public
 libguestfs upload/checksum APIs to copy pinned descriptors into the fresh fixed
 `/var/lib/onpc-e2e-assets` directory. Package alias and exact transfer inventory
 must match controller-captured digests. Files become root-owned 0644 and
-directories 0755 so later real terminal installation can read these nonsecret
+directories 0755 so the shared package command can read these nonsecret
 assets. Existing destinations, stale inputs, special files, changed copied
 bytes, extra entries and a second provisioning call refuse. No package is
 installed, no product state is written and no host share is attached.
@@ -1310,8 +1336,9 @@ secret-filtered saves omit those names, but its initial vars and automatic
 backend output can still contain secrets: **never export raw vars/logs/captures**.
 
 Case 3 uses `enter_parent_gdm_password(journey)` from the same helper. Its fixed
-controller stages require an independently rejected wrong-account prompt followed
-by two fresh intended-account/empty-masked-field/focus observations. The second
+controller stages go directly to the intended account and require two fresh
+intended-account/empty-masked-field/focus observations. Wrong-account rejection
+is exercised separately by harness safety qualification. The second
 durable acknowledgement immediately precedes secret input; review mode, capture,
 changed order, failed checks and replay refuse. Only the zero character count is
 read from the password interface, never its contents. See the

@@ -25,9 +25,9 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Add one explicitly planned customer boot transition to InstalledJourney, reusing the qualified product-free installation start. Reboot through desktop controls, bind the changed boot only as harness continuity, and reacquire fresh GDM. Unplanned reboot still fails. This task does not introduce another setup route.
+Add one explicitly planned customer boot transition to InstalledJourney, reusing the qualified product-free installation start. Reboot through the shared guarded SSH system command, bind the changed boot only as harness continuity, and reacquire fresh GDM. Unplanned reboot still fails. This task does not introduce another setup route.
 
-The normal Shell reboot action and its confirmation are a provider binding in this task. Qualify exact owner, offered action and fresh confirmation before input; observe the resulting fresh GDM independently. Reset, VM maintenance and ACPI power operations cannot substitute for this customer action.
+Use one fixed supported guest reboot command in shared lifecycle infrastructure. Validate the owned VM and planned boot transition before submission, then independently observe the changed boot and fresh usable GDM. Do not automate Shell power menus or confirmations. A baseline reset or maintenance restore cannot satisfy reboot continuity.
 
 ## Live VM acceptance
 

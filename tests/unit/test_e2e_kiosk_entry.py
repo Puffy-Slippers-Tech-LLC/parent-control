@@ -567,7 +567,6 @@ my $ok = eval {
         my ($stage) = @_;
         push @events, ['exchange', $stage];
         return {ui_focused => 1} if $stage eq 'station-list';
-        return {ui_focused => 1} if $stage eq 'installed-greeter';
         return {station_destination => $destination} if $stage eq 'station-branch';
         return {observed => $stage};
     });
@@ -577,15 +576,14 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 '''
 
 
-def test_station_worker_uses_one_wrong_route_then_one_passwordless_route():
+def test_station_worker_uses_only_the_intended_passwordless_route():
     result = json.loads(run_perl(RUN).stdout)
     assert result['ok']
     exchanges = [event[1] for event in result['events'] if event[0] == 'exchange']
     assert exchanges == [
-        'installed-greeter', 'wrong-parent-focused', 'wrong-entry-refused',
         'station-list', 'station-focused', 'station-branch', 'request-form']
     keys = [event[1] for event in result['events'] if event[0] == 'key']
-    assert keys == ['ret', 'esc', 'ret']
+    assert keys == ['ret']
     assert not any(event[0] == 'secret' for event in result['events'])
     assert result['events'][-3:] == [
         ['disable'], ['power', 'off'], ['stage', 'shutdown']]
@@ -595,7 +593,7 @@ def test_station_worker_uses_one_wrong_route_then_one_passwordless_route():
 def test_station_worker_never_activates_an_unresolved_session_choice(destination):
     result = json.loads(run_perl(RUN, destination).stdout)
     assert not result['ok']
-    assert [event[1] for event in result['events'] if event[0] == 'key'] == ['ret', 'esc', 'ret']
+    assert [event[1] for event in result['events'] if event[0] == 'key'] == ['ret']
     assert result['events'][-1] == ['exchange', 'station-branch']
 
 

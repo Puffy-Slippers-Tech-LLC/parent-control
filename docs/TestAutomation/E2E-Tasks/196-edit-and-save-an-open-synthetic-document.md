@@ -1,4 +1,4 @@
-# 196 — Edit and save an open synthetic document
+# 196 — Change a synthetic attachment source
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
@@ -17,19 +17,19 @@ Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-fil
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **195** — FILE08.
+- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Bind UI16 to the ordinary editor's open synthetic document, then normal Save and public saved/clean-state readback. The existing writable file is an input; do not add Save As or direct filesystem writes.
+Extend the shared FILE05 fixture helper to change only the declared synthetic source file over guarded SSH. Validate ownership, path and original content before one write; read back the changed file independently. The product feature under test is the attachment snapshot and re-add behavior.
 
-Use the actual registered editor adapter; qualify document identity, edit, Save and public clean/saved readback separately. Reject wrong-document and uncertain-save input; missing public saved-state evidence blocks completion even when an external ID is available.
+Keep fixed fixture data and all file operations in shared infrastructure. Reject traversal, symlinks, wrong ownership and uncertain writes. For later retained-work consumers, compose the registered APP03/04 work fixture: make one observable edit/save and compare the same work after enforcement. Qualify that binding independently; source-file mutation alone cannot prove that a running app remains usable or retains its activity.
 
 ## Live VM acceptance
 
-On the VM, open the declared document through FILE08, enter longer synthetic text, Save and read exact text plus saved state. Reopen through normal UI and confirm the content. Missing public saved-state information leaves this binding pending.
+On the VM, change the declared synthetic source through the shared command and independently read the new bytes. Confirm refusal of wrong paths/owners and cleanup of only owned files. Case 154 owns the attachment snapshot and re-add assertions through the product UI.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

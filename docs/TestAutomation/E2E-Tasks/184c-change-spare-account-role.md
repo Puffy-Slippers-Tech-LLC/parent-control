@@ -1,59 +1,44 @@
-# 184c — Change a spare approver's role through Users
+# 184c — Change a spare approver role through shared account helpers
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
-
-## Read only this context
-
-Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
-Read only the named block rows/callables, this recipe's selected cases and
-applicable finite-data rows. Prerequisite IDs are completion checks; do not open
-their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
+Estimate: 20–30 minutes. Follow the
+[session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **ACCOUNT02 change-role**. First scheduled consumer: [E2E-040, case 182](../E2E-Scenario-Recipes.md#e2e-040).
-Read the [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and the selected consumer's recipe.
+Deliver **ACCOUNT02 change-role**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **184a** — AUTH04 Users Unlock; ACCOUNT01.
-- **009** — UI16.
+- **184** — ACCOUNT01/02 shared account read/create; AUTH04 protected-account guards.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+## Read only this context
+
+Read ACCOUNT01/02, AUTH04 and the maintained spare-account helper and protection tests.
+Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 ## Implementation
 
-Bind the normal role selector for the registered spare approver. Reuse ACCOUNT01 and the qualified Users authentication; retain the active Jamie administrator. Observe the explicit chosen role after confirmation without account-service calls.
-
-Use the actual Settings role selector and public role readback for the spare only. Refuse protected/wrong accounts and ambiguous roles. The complete consumer must independently observe public approver eligibility; it cannot infer that result from account-service state.
+Change only the registered spare approver's role using the shared supported system-command/API route. Retain the active Jamie administrator and independently read the resulting role. No Users selector or Unlock prompt.
 
 ## Live VM acceptance
 
-On the live VM, read the spare Sam approver's administrator role, change it to standard through Users and independently verify the row and retained Jamie administrator. Cancel an uncommitted role change in a separate attempt and compare the original role. This qualifies role changes, not remembered request selectors.
+Read the spare Sam role, change administrator to standard once and verify the result and retained Jamie administrator. Protected/wrong-account/ambiguous requests must refuse before mutation. The complete consumer must observe request-selector eligibility/fallback through the app.
 
-Run affected safety/adapter checks, then implement and register the fixed slice
-qualification below in the existing guarded envelope. Run this slice here;
-its complete scenario remains a separate queue task:
+Implement and register this planned fixed qualification and its cleanup coverage before invoking it:
 
 ```sh
 tools/run-tests integration check_e2e_change_spare_account_role
 ```
 
-This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
-before invocation. Require every stated result, independent valid entry, wrong-entry
-refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
-establish complete scenario coverage.
+Use the shared watchvm intent, display and guarded command transport. Pass
+applicable cleanup/ownership checks in isolation first. Require independent
+result readback, sanitized evidence and owned cleanup. Host tests alone do not
+qualify a live route or complete a customer scenario.
 
 ## Close out
 
-After this slice's live qualification and cleanup, follow the
-[master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
-its composition changes. Runtime status belongs in the inventory; leave
-unfinished scope pending.
-Check **184c** in the [master's queue](../E2E-Task-Queue.md), update the master's
-**Next task** pointer, then delete this brief once its enduring context is maintained
-in source/contracts. Validate changed Markdown. Keep normal runner artifacts;
-no task archive, evidence document or accumulated history.
+Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
+Record the proven callable/scope and existing artifact, check **184c** only after
+acceptance and cleanup, and advance the sole pointer in queue order. Keep an
+unmet requirement pending with its return condition. Delete this brief after
+its enduring contract is recorded in the catalogue/source.

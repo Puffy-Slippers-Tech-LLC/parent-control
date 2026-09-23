@@ -9,7 +9,7 @@ Deliver **Retained regression 193; both installed commands/manuals and clear des
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **001t** — Historical PARENT01 direct-command denial and desktop return. The current INFO02 stream route does not use its terminal capability.
+- **001t** — PARENT01 direct command, public management denial and desktop return.
 
 ## Read only this context
 

@@ -1,5 +1,34 @@
 # UI automation mandate
 
+- **Choose the route by the feature under test:** Real GUI operations are for
+  the product features the case exercises, such as its dropdowns, toggles,
+  textboxes, approval prompts and explicitly tested launch routes. All other
+  desktop, Shell and GDM work is harness infrastructure. Use the simplest
+  reliable supported shortcut, SSH command or public system API, in shared
+  libraries; never duplicate it in a case. This applies to completed tasks and
+  retained implementations as well as new work.
+- **System operations:** Use direct commands for logout, reboot, suspend,
+  connectivity, fixture account/file management, clock/timezone reads and
+  supporting-tool launch. Use Super+L or the supported session lock API for
+  explicit locking; switch to the greeter without Quick Settings or power-menu
+  navigation. Logout uses `gnome-session-quit --logout --no-prompt` for the bound
+  desktop user. Choose and validate the route before input; never try a second
+  route after an uncertain command. Preserve the owned VM, fixture/session
+  identity, command transport, observation and cleanup contracts.
+- **GDM and login:** Reuse one shared entry helper that goes straight to the
+  intended account. Use only the minimal selection/keyboard authentication
+  needed when a graphical login or unlock is required. Fresh secret-recipient
+  checks remain mandatory; deliberately visiting a wrong account, repeatedly
+  opening/dismissing prompts, and exercising keyring dialogs belong to harness
+  safety qualification, never routine customer journeys. SSH authentication
+  cannot substitute for a graphical PAM denial or retained-session unlock that
+  the product case must observe. Locking cannot substitute for natural expiry.
+- **Observe the tested result:** System-command success establishes only that
+  input was accepted. Independently check the required destination/session and
+  the product's public result. Testing product behavior across logout, reboot,
+  account changes or offline use does not make GNOME's menus or Settings pages
+  product features. Only an explicitly tested product integration, such as its
+  app-grid entry, file chooser or external link, needs that GUI route.
 - **Parent app launch:** Every case that needs Parent functionality without
   testing app-grid discovery must reuse PARENT01
   ([`onpc_parent::launch`](../../tests/integration/graphical_smoke/lib/onpc_parent.pm)),
@@ -25,7 +54,9 @@
   block. Declare that exception in the case metadata and recipe. Preserve
   session identity, prompt refusal, single-use execution and independent
   result checks.
-- Except for the external-provider exception below, every automated UI target
+- For GUI operations required by the feature under test, and unavoidable
+  graphical authentication, except for the external-provider exception below,
+  every automated UI target
   must be resolved by a stable public `automation-id`,
   scoped to its owning application and surface. Shared controls use one ID
   contract across surfaces, suites and helpers. Reject missing, duplicate,
@@ -34,14 +65,16 @@
   tree/list position or geometry. Do not use coordinates, extents, image matching,
   layout, display scale, scroll position, window titles, frame roles, color or
   theme to identify a target, route input, establish readiness or decide
-  acceptance. This includes setup, login, retained sessions and legacy paths.
+  acceptance. These constraints apply when GUI interaction is necessary;
+  they never require replacing a system command with GUI setup.
 - Add a missing ID to repository-owned application or fixture code and expose it
   through the public accessibility interface before implementing its consumer.
   Documentation-only work records the requirement without claiming implementation
   or qualification.
 - **Approved external-provider exception:** For dependencies outside this
   repository's application and fixture code that lack usable public IDs,
-  provider-specific adapters are authorized without renewed approval, including
+  provider-specific adapters are authorized when GUI interaction is necessary
+  under the rules above, without renewed approval, including
   discovery, readiness and reacquisition. Prefer available IDs, then scoped
   public accessibility semantics and ordinary keyboard navigation with observed
   focus/results. Use geometry or image matching only when accessibility actions

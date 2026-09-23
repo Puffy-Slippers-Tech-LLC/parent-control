@@ -15,7 +15,7 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **FLOW17 overlay Switch User**. First scheduled consumer: [E2E-039, case 172](../E2E-Scenario-Recipes.md#e2e-039).
 Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
-**Gate:** The normal leave/close action must be reachable while the real prompt is pending. If the modal prevents it, leave this binding pending; signals, forced logout and agent Cancel cannot replace it.
+Use the shared system-session helper for this lock, switch-user or logout action while the real approval prompt is pending. A modal blocking Shell menus is not a gate. Independently observe the session transition, cancelled request and later fresh request; do not substitute the approval prompt's Cancel action.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
@@ -27,7 +27,7 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Compose only the overlay Switch User branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use the offered session controls to Switch User, observe GDM and return to the same retained child desktop. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
+Compose only the overlay Switch User branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use the shared DESK03 lock/greeter command to switch users, observe GDM and return to the same retained child desktop. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
 
 ## Live VM acceptance
 

@@ -17,7 +17,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-fil
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **036** — FILE07/04/05; FIX04 synthetic files.
+- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 - **195a** — FILE08 text-document identity/content and normal close/return.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
@@ -28,7 +28,7 @@ Reuse task 195a's text-document Open/read/close binding. Add the actual File Rol
 
 ## Live VM acceptance
 
-On the VM, open each staged synthetic file through its normal handler and read the identifying public contents/window. Qualify an independently open file-manager entry; a missing file or unexpected handler fails without a fallback launch.
+On the VM, open each staged synthetic file through its normal handler and read the identifying public contents/window. Use shared direct handler launch and qualify an independently opened document; a missing file or unexpected handler fails without a fallback launch.
 
 For the archive, read its identifying public entry/content and close normally to the expected surrounding Files surface. Refuse wrong archive/entry, ambiguous handler, unrelated content and uncertain close. A window title alone cannot identify the document.
 

@@ -299,8 +299,8 @@ def test_unsupported_display_or_weak_match_cannot_authorize_a_click(fault):
     assert not any(event[0] in ('pointer', 'click', 'secret') for event in result['events'])
 
 
-@pytest.mark.parametrize('stage', ['wrong-recipient-refused', 'recipient-qualified', 'recipient-rechecked'])
-def test_about_sign_in_requires_wrong_recipient_refusal_and_two_fresh_checks(stage):
+@pytest.mark.parametrize('stage', ['recipient-qualified', 'recipient-rechecked'])
+def test_about_sign_in_requires_two_fresh_recipient_checks(stage):
     result = json.loads(run_perl(PROBE, '0', stage).stdout)
     assert not result['ok']
     assert ['secret'] not in result['events']
@@ -314,5 +314,6 @@ def test_about_sign_in_uses_functional_proofs_immediately_before_one_secret():
     index = events.index(['secret'])
     assert events[index - 2:index] == [
         ['stage', 'recipient-qualified'], ['stage', 'recipient-rechecked']]
-    assert events.index(['stage', 'wrong-recipient-refused']) < index - 2
+    assert ['stage', 'wrong-recipient-refused'] not in events
+    assert ['key', 'esc'] not in events[:index]
     assert not any(event[0] in ('assert', 'check', 'pointer', 'click') for event in events)

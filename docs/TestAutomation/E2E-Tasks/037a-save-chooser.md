@@ -28,7 +28,7 @@ Extend FILE03 for the actual Gtk.FileDialog save chooser reached from feedback D
 
 ## Live VM acceptance
 
-On the live VM, observe collection complete, open Download's chooser, choose a synthetic destination and filename, then Save. Independently observe closure and the named file in the file manager. Exercise Cancel from a fresh chooser and prove that no second file was created.
+On the live VM, observe collection complete, open Download's chooser, choose a synthetic destination and filename, then Save. Independently observe chooser closure and verify the named file through the shared FILE05 readback. Exercise Cancel from a fresh chooser and prove that no second file was created.
 
 Record exactly the provider route and caller exercised. Refuse wrong ownership, ambiguous filename/directory and uncertain Save. A native result cannot qualify a portal binding or conversely; unsupported unused backends remain unqualified rather than adding speculative fixtures.
 

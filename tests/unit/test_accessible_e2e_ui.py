@@ -1392,23 +1392,13 @@ def test_prompt_recognition_does_not_require_complete_provider_id_contracts():
     ui.handle_system_prompt()
 
 
-@pytest.mark.parametrize('entry', ['terminal', 'license'])
-def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input(entry):
-    from accessible_ui import PARENT
+def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input():
     ui = ui_for(Node(), qualify_prompts=False)
-    if entry == 'license':
-        # A declared ID binding may not silently fall back to the semantic
-        # adapter when its remaining contract is incomplete.
-        ui.provider_contracts['document-viewer']['application_id'] = 'partial-viewer'
+    # Partial provider IDs cannot silently fall back to the semantic adapter.
+    ui.provider_contracts['document-viewer']['application_id'] = 'partial-viewer'
     ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
-    call = {
-        'search': lambda: ui.search_query(''),
-        'terminal': lambda: ui.terminal_input(),
-        'license': lambda: ui.open_license(),
-    }[entry]
-    expected = 'surface' if entry == 'license' else 'application'
-    with pytest.raises(UiError, match='^ui:unqualified-provider-' + expected + '$'):
-        call()
+    with pytest.raises(UiError, match='^ui:unqualified-provider-surface$'):
+        ui.open_license()
     ui.api.get_desktop.assert_not_called()
 
 
@@ -1520,168 +1510,6 @@ def test_fresh_desktop_requires_sustained_positive_shell_without_a_prompt(monkey
         monotonic=lambda: next(clock), sleep=lambda _: None))
     assert ui.run(operation, '')['outcome'] == 'passed'
     panel.action.do_action.assert_not_called()
-
-
-def standard_terminal_ui():
-    field = Node(role='terminal', states=('showing', 'visible', 'sensitive', 'focused'))
-    window = Node('private title is not a selector', 'frame', children=[field],
-                  states=('showing', 'visible', 'active'))
-    owner = Node('ptyxis', 'application', children=[window])
-    root = Node(role='desktop frame', children=[owner])
-    return ui_for(root), root, owner, window, field
-
-
-def test_help_terminal_uses_qualified_semantic_owner_without_provider_ids():
-    ui, root, owner, window, field = standard_terminal_ui()
-    ui.desktop_result = Mock(return_value=True)
-    with pytest.raises(UiError, match='help-wrong-surface'):
-        ui.run('help-terminal-wrong-surface', '')
-    field.get_text_iface = lambda: field
-    value = 'usage: oh-no-parent-control-parent --help\nonpc-parent-jamie@fixture:~$ '
-    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value),
-                                  get_text=lambda *_: value)
-    assert ui.help_terminal_text() == value
-    ui.help_product_absent()
-    product = Node(identity='parent-window')
-    product.parent = root
-    root.children.append(product)
-    with pytest.raises(UiError, match='help-product-window'):
-        ui.help_product_absent()
-    root.children.remove(product)
-    owner.children.remove(window)
-    assert ui.run('help-terminal-wrong-surface', '')['outcome'] == 'passed'
-
-
-@pytest.mark.parametrize('fault', [None, 'wrong-owner', 'duplicate-owner', 'duplicate-terminal',
-                                 'inactive', 'unfocused', 'disabled', 'hidden', 'stale',
-                                 'incomplete'])
-def test_standard_terminal_requires_unique_active_owned_focused_input(fault):
-    ui, root, owner, window, field = standard_terminal_ui()
-    if fault == 'wrong-owner':
-        owner.name = 'unrelated'
-    if fault == 'duplicate-owner':
-        other = Node('ptyxis', 'application')
-        other.parent = root
-        root.children.append(other)
-    if fault == 'duplicate-terminal':
-        other = Node(role='terminal')
-        other.parent = window
-        window.children.append(other)
-    if fault == 'inactive': window.states.remove('active')
-    if fault == 'unfocused': field.states.remove('focused')
-    if fault == 'disabled': field.states.remove('sensitive')
-    if fault == 'hidden': field.states.remove('showing')
-    if fault == 'stale': field.states.add('defunct')
-    if fault == 'incomplete': owner.children.append(None)
-    if fault in ('wrong-owner', 'duplicate-owner', 'duplicate-terminal', 'stale', 'incomplete'):
-        with pytest.raises(UiError):
-            ui.standard_terminal_input(focused=True)
-    else:
-        assert ui.standard_terminal_input(focused=True) is (None if fault else field)
-    field.component.grab_focus.assert_not_called()
-
-
-def test_standard_terminal_focus_observes_result_and_never_replays_uncertain_input():
-    ui, _root, _owner, _window, field = standard_terminal_ui()
-    field.states.remove('focused')
-    field.component.grab_focus.side_effect = lambda: True
-    with pytest.raises(UiError, match='terminal-focus'):
-        ui.standard_focus_terminal()
-    with pytest.raises(UiError, match='uncertain-input'):
-        ui.standard_focus_terminal()
-    field.component.grab_focus.assert_called_once_with()
-
-
-def test_standard_terminal_closure_requires_fresh_complete_absence():
-    ui, _root, _owner, window, field = standard_terminal_ui()
-    assert not ui.standard_terminal_absent()
-    window.children.remove(field)
-    assert not ui.standard_terminal_absent()
-    window.states.remove('showing')
-    assert ui.standard_terminal_absent()
-    window.children.append(None)
-    with pytest.raises(UiError, match='incomplete-tree'):
-        ui.standard_terminal_absent()
-
-
-def test_standard_terminal_wait_retries_stale_snapshot_without_accepting_it(monkeypatch):
-    ui, _root, _owner, _window, field = standard_terminal_ui()
-    ui.timeout = 1
-    field.states.add('defunct')
-    snapshot = ui.standard_terminal_snapshot
-    calls = 0
-
-    def observe():
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            field.states.remove('defunct')
-        return snapshot()
-
-    monkeypatch.setattr(ui, 'standard_terminal_snapshot', observe)
-    assert ui.wait(ui.standard_terminal_input, 'terminal-input', prompt_in_predicate=True) is field
-    assert calls == 2
-    assert ui.incomplete_observations == [{'checkpoint': 'terminal-input', 'notes': []}]
-
-
-@pytest.mark.parametrize('identity', ['org.gnome.Ptyxis', 'com.raggesilver.Ptyxis',
-                                     'unrelated-application'])
-def test_standard_terminal_prefers_application_id_over_name(identity):
-    ui, _root, owner, _window, field = standard_terminal_ui()
-    owner.identity = identity
-    if identity == 'unrelated-application':
-        with pytest.raises(UiError, match='terminal-provider-owner'):
-            ui.standard_terminal_input(focused=True)
-    else:
-        owner.name = 'translated application name'
-        assert ui.standard_terminal_input(focused=True) is field
-
-
-def test_standard_terminal_uses_registry_child_edge_without_reverse_parent():
-    ui, _root, owner, _window, field = standard_terminal_ui()
-    owner.identity = 'org.gnome.Ptyxis'
-    owner.get_parent = Mock(return_value=None)
-    assert ui.standard_terminal_input(focused=True) is field
-    owner.get_parent.assert_not_called()
-
-
-@pytest.mark.parametrize('fault', ['nested-application', 'foreign-terminal', 'second-window'])
-def test_standard_terminal_rejects_wrong_snapshot_ownership(fault):
-    ui, root, owner, window, field = standard_terminal_ui()
-    owner.identity = 'org.gnome.Ptyxis'
-    if fault == 'nested-application':
-        root.children[:] = [Node('unrelated', 'application', children=[owner])]
-        # A misleading reverse link cannot override the observed child edges.
-        owner.parent = root
-    elif fault == 'foreign-terminal':
-        window.children.remove(field)
-        root.children.append(Node('unrelated', 'application', children=[field]))
-    else:
-        owner.children.append(Node(role='frame'))
-    with pytest.raises(UiError, match='terminal-(provider-owner|window-ambiguous)'):
-        ui.standard_terminal_input(focused=True)
-    field.component.grab_focus.assert_not_called()
-
-
-@pytest.mark.parametrize('operation', ['standard_terminal_input', 'standard_terminal_absent',
-                                      'standard_denial_closed'])
-def test_standard_terminal_id_routes_keep_prompt_guard(operation):
-    ui, _root, _owner, _window, _field = standard_terminal_ui()
-    ui.provider_contracts['terminal']['application_id'] = 'test-terminal-application'
-    ui.handle_system_prompt = Mock(side_effect=UiError('ui:system-prompt-refused'))
-    with pytest.raises(UiError, match='system-prompt-refused'):
-        getattr(ui, operation)()
-
-
-@pytest.mark.parametrize('identity', ['parent-access-denied-window', 'parent-window',
-                                   'parent-screen-limit-toggle'])
-def test_standard_denial_return_rejects_remaining_denial_or_management(identity):
-    ui, root, _owner, _window, _field = standard_terminal_ui()
-    assert ui.standard_denial_closed()
-    leftover = Node(identity=identity)
-    leftover.parent = root
-    root.children.append(leftover)
-    assert not ui.standard_denial_closed()
 
 
 def test_dead_unrelated_subtree_does_not_hide_live_control():
@@ -2320,7 +2148,7 @@ def test_live_wrong_account_prompt_explicitly_refuses_parent_recipient():
 
 @pytest.mark.parametrize('fault', [None, 'skip-wrong', 'skip-first', 'replay', 'intervening-state'])
 @pytest.mark.parametrize('standard', [False, True])
-def test_controller_requires_ordered_wrong_recipient_then_fresh_parent_recheck(fault, standard):
+def test_controller_requires_fresh_recipient_recheck_without_wrong_account_detour(fault, standard):
     transport = SimpleNamespace(call=Mock())
     ui = UiObservations(transport)
     def observe(operation):
@@ -2335,9 +2163,6 @@ def test_controller_requires_ordered_wrong_recipient_then_fresh_parent_recheck(f
         observe('gdm-other-focused')
         observe('gdm-wrong-recipient-refused')
     observe('gdm-focused')
-    if fault == 'skip-wrong':
-        with pytest.raises(EvidenceError, match='recipient-order'): observe('gdm-parent-recipient')
-        return
     if fault != 'skip-first': observe('gdm-parent-recipient')
     if fault == 'intervening-state': observe('gdm-focused')
     if fault in ('skip-first', 'intervening-state'):

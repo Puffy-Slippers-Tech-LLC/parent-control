@@ -650,7 +650,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          gdm_navigation=False, gdm_recipient=False, gdm_product_free=False,
          kiosk_entry=False, request_exit=False, parent_toggle=False,
          fresh_desktop=None, shell_search_results=False, parent_search_launch=False,
-         shell_search=False):
+         shell_search=False, parent_terminal_provider=False):
+    require(type(parent_terminal_provider) is bool and (not parent_terminal_provider or (
+            assets is not None and provision_credentials and fresh_desktop is None
+            and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
+                         parent_setup, parent_input, parent_standard_input,
+                         parent_about, parent_access, desktop_session_logout,
+                         desktop_session_switch, gdm_navigation, gdm_recipient,
+                         gdm_product_free, kiosk_entry, request_exit, parent_toggle,
+                         shell_search_results, parent_search_launch, shell_search)))),
+            'smoke:parent-terminal-provider-prerequisites')
     require(type(shell_search) is bool and (not shell_search or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -838,6 +847,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-parent-search-launch-qualification'
         if shell_search:
             result['scope'] = 'installed-standard-search-qualification'
+        if parent_terminal_provider:
+            result['scope'] = 'installed-parent-terminal-provider-qualification'
         if kiosk_entry:
             result['scope'] = 'installed-kiosk-entry-qualification'
         if request_exit:
@@ -864,7 +875,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or fresh_desktop is not None or shell_search_results or parent_search_launch
-                        or shell_search
+                        or shell_search or parent_terminal_provider
                         or request_exit or parent_toggle):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                 else:
@@ -925,6 +936,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if shell_search:
                     from parent_setup_qualification import ShellSearchQualification
                     qualification_class = ShellSearchQualification
+                if parent_terminal_provider:
+                    from parent_setup_qualification import ParentTerminalProviderQualification
+                    qualification_class = ParentTerminalProviderQualification
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification

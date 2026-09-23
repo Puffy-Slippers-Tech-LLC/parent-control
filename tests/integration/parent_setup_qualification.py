@@ -236,6 +236,17 @@ class FreshStandardDesktopQualification(FreshDesktopQualification):
     role = 'standard'
 
 
+class KeyringStandardDesktopQualification(FreshDesktopQualification):
+    role = 'standard'
+
+    def journey(self, context, progress):
+        from app_snapshot import snapshot_name
+        from fresh_desktop import KeyringDesktopJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KeyringDesktopJourney(context, progress)
+
+
 class GdmProductFreeQualification(ParentJourneyQualification):
     """Qualify Parent navigation without restoring or installing the product."""
 

@@ -651,7 +651,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_entry=False, request_exit=False, parent_toggle=False,
          fresh_desktop=None):
     require(fresh_desktop is None or (
-            fresh_desktop in ('parent', 'standard')
+            fresh_desktop in ('parent', 'standard', 'standard-keyring')
             and assets is not None and provision_credentials
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
                          parent_setup, parent_input, parent_standard_input,
@@ -879,6 +879,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if fresh_desktop == 'standard':
                     from parent_setup_qualification import FreshStandardDesktopQualification
                     qualification_class = FreshStandardDesktopQualification
+                if fresh_desktop == 'standard-keyring':
+                    from parent_setup_qualification import KeyringStandardDesktopQualification
+                    qualification_class = KeyringStandardDesktopQualification
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification

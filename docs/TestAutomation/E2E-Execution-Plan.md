@@ -13,14 +13,14 @@ and retained regressions. Briefs never select a different task.
 
 ## Next task
 
-Next task: **003b — [Cancel a real keyring prompt after login](E2E-Tasks/003b-desktop-keyring.md)**.
+Next task: **003ca — [Open and dismiss Shell session controls](E2E-Tasks/003ca-shell-session-menu.md)**.
 
-Task 003ba qualified separate fresh Parent and standard fixture entries through
-wrong-recipient refusal, two ordered masked-field checks, sealed single-use input,
-independent prompt-free Shell desktop observation, private collection and owned
-cleanup (run `20260922T204911Z-51662d44`, subject to runner retention).
-This capability slice supplies no complete-scenario acceptance credit. Task 003b
-next qualifies the real gcr keyring Cancel branch and independent desktop return.
+Task 003b qualified separate fresh Parent and standard fixture entries, real gcr
+Cancel after masked-field focus, disappearance and independent prompt-free desktop
+readback, with private collection and owned cleanup
+([run `20260923T051904Z-f0d79b4d`](Evidence/test-all-runs/20260923T051904Z-f0d79b4d/report.md)).
+This capability slice supplies no complete-scenario acceptance credit. Task 003ca
+next qualifies Shell Quick Settings and session-menu entry, dismissal and readback.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -37,15 +37,15 @@ No runner artifact was supplied for that complete set. Preserve their
 implementations and bindings.
 
 Earlier guarded runs separately passed complete cases 6 and 151 (run
-`20260922T220454Z-80a92d46`, now outside runner retention) and
-[case 193](Evidence/test-all-runs/20260922T225544Z-f49bdf46/report.md),
+`20260922T220454Z-80a92d46`) and case 193 (run
+`20260922T225544Z-f49bdf46`), both now outside runner retention,
 including product, infrastructure, collection and cleanup outcomes. Case 151
 also qualified the Parent/GNOME Text Editor license-reading and return binding.
 
 This manual validation does not close the current provider migration gate:
 the explicit retained regression rows still require their own qualified routes,
 guarded acceptance and close-out in queue order. Keep the **Next task** pointer
-on 003b. Reuse valid scoped evidence when those tasks reach their turn, and
+on 003ca. Reuse valid scoped evidence when those tasks reach their turn, and
 rerun a case if an intervening change affects it. A checked queue task records
 its delivered scope; it does not override a later `pending` block or scenario
 status. A capability run or historical `ready` inventory binding does not by

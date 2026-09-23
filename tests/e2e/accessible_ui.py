@@ -32,6 +32,7 @@ OPERATIONS = frozenset({
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
     'fresh-parent-desktop', 'fresh-standard-desktop',
+    'keyring-cancel-standard',
     'standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
     'gdm-standard-list', 'gdm-standard-focused', 'gdm-standard-wrong-recipient-refused',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
@@ -41,6 +42,7 @@ OPERATIONS = frozenset({
 })
 STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'fresh-standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-started', 'standard-search-entered', 'standard-parent-unavailable',
+    'keyring-cancel-standard',
 })
 TERMINAL_OPERATIONS = frozenset({
     'standard-terminal-input',
@@ -2286,6 +2288,70 @@ class AccessibleUI:
             return desktop if time.monotonic() - stable_since >= 2 else None
         return self.wait(stable, 'fresh-shell-desktop', prompt_in_predicate=True)
 
+    def keyring_cancel_target(self):
+        """Resolve the real gcr login-keyring Cancel through one complete tree."""
+        root = self.api.get_desktop(0)
+        require(root is not None, 'ui:incomplete-tree')
+        snapshot, facts = {}, {}
+        nodes = list(self.nodes(root, strict=True, protect_text=True,
+                                snapshot=snapshot, facts=facts))
+        kind = self.system_prompt_kind(observation=(nodes, snapshot, facts))
+        require(kind in (None, 'keyring'), 'ui:keyring-prompt-replaced')
+        if kind is None:
+            return None
+        applications = [node for node in nodes if node.get_parent() == root
+                        and facts[node]['role'] == 'application'
+                        and self._prompt_application_kind(facts[node]['name']) == 'keyring']
+        require(len(applications) == 1, 'ui:keyring-owner')
+        # GTK's application container has no window visibility state. Require
+        # a live owner here and visible dialog/controls below, as for Shell.
+        require(not self.has_state(applications[0], self.api.StateType.DEFUNCT),
+                'ui:stale-surface')
+        scopes = self.snapshot_scope(nodes, snapshot, applications[0])
+        dialogs = [node for node in scopes if node is not applications[0]
+                   and facts[node]['showing']
+                   and (facts[node]['role'] in ('dialog', 'alert') or facts[node]['modal'])]
+        require(len(dialogs) == 1
+                and facts[dialogs[0]]['name'].casefold() == 'unlock login keyring',
+                'ui:keyring-dialog')
+        controls = self.snapshot_scope(nodes, snapshot, dialogs[0])
+        fields = [node for node in controls if facts[node]['role'] == 'password text'
+                  and facts[node]['showing']]
+        require(len(fields) == 1 and self.has_state(fields[0], self.api.StateType.SENSITIVE)
+                and self.has_state(fields[0], self.api.StateType.FOCUSED),
+                'ui:keyring-focus')
+        interface = fields[0].get_text_iface()
+        require(interface is not None and self.api.Text.get_character_count(interface) == 0,
+                'ui:keyring-secret-state')
+        buttons = [node for node in controls if facts[node]['role'] in ('push button', 'button')
+                   and facts[node]['name'] == 'Cancel' and facts[node]['showing']]
+        require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
+                'ui:keyring-cancel')
+        self._keyring_challenge = (applications[0], dialogs[0], fields[0], buttons[0])
+        return buttons[0]
+
+    def cancel_keyring_prompt(self):
+        """Cancel once, then independently observe a stable prompt-free desktop."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        target = self.wait(self.keyring_cancel_target, 'keyring-prompt',
+                           prompt_in_predicate=True)
+        challenge = self._keyring_challenge
+        self._invoke_target(target)
+        def dismissed():
+            root = self.api.get_desktop(0)
+            require(root is not None, 'ui:incomplete-tree')
+            snapshot, facts = {}, {}
+            nodes = list(self.nodes(root, strict=True, protect_text=True,
+                                    snapshot=snapshot, facts=facts))
+            kind = self.system_prompt_kind(observation=(nodes, snapshot, facts))
+            require(kind in (None, 'keyring'), 'ui:keyring-prompt-replaced')
+            if kind == 'keyring':
+                require(all(node in nodes for node in challenge),
+                        'ui:keyring-prompt-replaced')
+            return kind is None
+        self.wait(dismissed, 'keyring-dismissed', prompt_in_predicate=True)
+        self.standard_shell_desktop(no_prompt=True)
+
     def session_menu_toggle(self):
         """DESK02 entry target, observed only through Shell's panel IDs."""
         self.desktop_result(PARENT, 'success')
@@ -3632,6 +3698,8 @@ class AccessibleUI:
                 self.greeter_list()
         elif operation in ('fresh-parent-desktop', 'fresh-standard-desktop'):
             self.standard_shell_desktop(no_prompt=True)
+        elif operation == 'keyring-cancel-standard':
+            self.cancel_keyring_prompt()
         elif operation in ('desktop', 'standard-desktop'):
             self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
         elif operation == 'help-system-prompt':
@@ -3892,6 +3960,8 @@ def main():
     os.environ.update(HOME=account.pw_dir, USER=account.pw_name,
                       **environment,
                       LANG='C.UTF-8', NO_AT_BRIDGE='0')
+    if sys.argv[1] == 'keyring-cancel-standard':
+        require_active_launch_session()
     import gi
     gi.require_version('Atspi', '2.0')
     from gi.repository import Atspi, GLib

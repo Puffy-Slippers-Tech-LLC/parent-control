@@ -74,7 +74,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [x] | 003ab | Qualify product-free GDM navigation | 003a | GDM01/02/08/09 product-free Parent list, prompt and return binding | 20–30 |
 | [x] | 001r | Requalify retained case 1 | 003a, 003ab | Retained regression 1; complete graphical/serial recipe and capture/return reconciliation | 20–30 |
 | [x] | 003ba | Qualify fresh login without a keyring prompt | 003a | GDM05 fresh Parent/standard entry and DESK01 no-prompt desktop; separate installed qualification, private collection and owned cleanup passed | 20–30 |
-| [ ] | 003b | [Cancel a real keyring prompt after login](E2E-Tasks/003b-desktop-keyring.md) | 003a, 003ba | GDM05 successful fresh fixture entry; DESK01; real gcr prompt Cancel and independent desktop readback | 20–30 |
+| [x] | 003b | Cancel a real keyring prompt after login | 003a, 003ba | GDM05 separate fresh Parent/standard entry; DESK01; real gcr masked-field focus, single Cancel, disappearance and independent desktop readback; provider metadata, private evidence reconciliation and owned cleanup passed | 20–30 |
 | [ ] | 003ca | [Open and dismiss Shell session controls](E2E-Tasks/003ca-shell-session-menu.md) | 003b | DESK02 Shell Quick Settings and session-menu entry/readback | 20–30 |
 | [ ] | 003c | [Switch User through qualified Shell controls](E2E-Tasks/003c-switch-user.md) | 003b, 003ca | DESK02/03 current Shell provider route and independently observed GDM return | 20–30 |
 | [ ] | 003da | [Open and cancel the Shell logout confirmation](E2E-Tasks/003da-logout-cancel.md) | 003b, 003c | DESK04 logout-confirmation entry and Cancel branch | 20–30 |

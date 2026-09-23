@@ -579,7 +579,8 @@ def semantic_keyring_ui(*, fault=None):
     dialog = Node('Unlock Login Keyring', 'dialog', children=controls)
     dialogs = [dialog]
     if fault == 'extra-modal': dialogs.append(Node('Unexpected', 'dialog'))
-    owner = Node('gcr Prompter', 'application', children=dialogs)
+    owner = Node('gcr Prompter', 'application', children=dialogs,
+                 states=('defunct',) if fault == 'stale-owner' else ())
     if fault == 'wrong-owner': owner.name = 'Unknown Agent'
     if fault == 'wrong-dialog': dialog.name = 'Authentication Required'
     shell = Node('GNOME Shell', 'application', children=[Node('Activities', 'toggle button')])
@@ -591,7 +592,7 @@ def semantic_keyring_ui(*, fault=None):
 
 
 @pytest.mark.parametrize('fault', ['duplicate-cancel', 'extra-modal', 'unfocused', 'hidden', 'disabled',
-                                   'unmasked', 'wrong-owner', 'wrong-dialog', 'nonempty'])
+                                   'unmasked', 'wrong-owner', 'stale-owner', 'wrong-dialog', 'nonempty'])
 def test_semantic_keyring_cancel_refuses_unsafe_target_without_input(fault):
     ui, _root, _owner, field, cancel = semantic_keyring_ui(fault=fault)
     with pytest.raises(UiError):
@@ -622,10 +623,13 @@ def test_semantic_keyring_cancel_observes_disappearance_before_desktop():
     ui.api.Text.get_text.assert_not_called()
 
 
-def test_semantic_keyring_cancel_refuses_replacement_without_replay():
+@pytest.mark.parametrize('same_provider', [False, True])
+def test_semantic_keyring_cancel_refuses_replacement_without_replay(same_provider):
     ui, root, owner, _field, cancel = semantic_keyring_ui()
-    replacement = Node('Unknown Agent', 'application', children=[
-        Node('Authentication Required', 'dialog', children=[Node('', 'password text')])])
+    replacement = Node('gcr Prompter' if same_provider else 'Unknown Agent',
+                       'application', children=[
+        Node('Unlock Login Keyring' if same_provider else 'Authentication Required',
+             'dialog', children=[Node('', 'password text')])])
     def replace(_index):
         root.children.remove(owner)
         replacement.parent = root
@@ -651,6 +655,25 @@ def test_semantic_keyring_cancel_refuses_incomplete_absence():
         ui.cancel_keyring_prompt()
     cancel.action.do_action.assert_called_once_with(0)
     ui.standard_shell_desktop.assert_not_called()
+
+
+def test_semantic_keyring_cancel_refuses_queued_prompt_during_desktop_readback():
+    ui, root, owner, _field, cancel = semantic_keyring_ui()
+    cancel.action.do_action.side_effect = lambda _: root.children.remove(owner) or True
+    original = ui.system_prompt_kind
+    reads = 0
+    def observe(**kwargs):
+        nonlocal reads
+        reads += 1
+        # Initial challenge, observed disappearance, then a queued challenge
+        # arrives before the independent desktop observation can succeed.
+        if reads == 3:
+            return 'keyring'
+        return original(**kwargs)
+    ui.system_prompt_kind = observe
+    with pytest.raises(UiError, match='fresh-desktop-prompt'):
+        ui.cancel_keyring_prompt()
+    cancel.action.do_action.assert_called_once_with(0)
 
 
 def test_semantic_keyring_cancel_latches_uncertain_action():

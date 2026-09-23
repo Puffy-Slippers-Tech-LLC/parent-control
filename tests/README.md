@@ -164,13 +164,16 @@ a complete selected pass needs no repairs; it never invokes the `all` aggregate.
 Without categories the existing two-round full-regression behavior is unchanged.
 Categories and model options apply to new runs; attaching keeps the active run's scope.
 
-The launcher itself is Python scripting. Each failure starts with the current
-Sol default, `gpt-6-sol`, at high reasoning. That agent classifies the failure
-first and repairs a test defect in the same session. For an app issue or uncertain
-classification, it exits without editing and the launcher starts a fresh
-`gpt-6-astra` agent at high reasoning to recheck and repair. The next failure
-starts again with Sol. `--model` and `--effort` override the initial agent for a
-new run; app review always uses Astra at high reasoning. Each agent uses
+The launcher itself is Python scripting. At the start of each new run, it reads
+the Codex CLI model catalog and selects the newest listed Sol model that supports
+high reasoning (`gpt-6-sol` currently). Each failure starts with that model at
+high reasoning. It classifies the failure first and repairs a test defect in the
+same session. For an app issue or uncertain classification, it exits without
+editing and the launcher starts a fresh session with the catalog's strongest
+listed high-reasoning model (`gpt-6-astra` currently) to recheck and repair. The
+next failure starts again with Sol. `--model` and `--effort` override the initial
+agent for a new run; app review always uses the strongest model at high reasoning.
+Each agent uses
 `codex exec --ephemeral`, disabled conversation history and memories, and receives
 the latest failure handoff. The script never resumes or forks a session; the app
 review receives only the original handoff and the Sol classification summary.

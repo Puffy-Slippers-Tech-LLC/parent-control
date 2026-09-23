@@ -191,6 +191,16 @@ class KioskEligibleChoicesQualification(KioskEntryQualification):
         return KioskEligibleChoicesJourney(context, progress)
 
 
+class RequestChoicesQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from request_choices import RequestChoicesJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RequestChoicesJourney(context, progress)
+
+
 class DesktopLogoutQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

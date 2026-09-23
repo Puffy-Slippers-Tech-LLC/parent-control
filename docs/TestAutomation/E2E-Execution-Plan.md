@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **012 — [Read kiosk disabled-child availability](E2E-Tasks/012-request-choices.md)**.
+Next task: **018 — [E2E-017: disabled-child](E2E-Tasks/018-case-57.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

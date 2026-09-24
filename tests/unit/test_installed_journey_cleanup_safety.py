@@ -62,12 +62,12 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
                                  command_help.PLAN, desktop_session.LOGOUT_PLAN,
                                  desktop_session.SWITCH_PLAN, kiosk_entry.PLAN,
                                  request_exit.PLAN, parent_toggle.PLAN, kiosk_eligible_choices.PLAN,
-                                 request_choices.PLAN, kiosk_no_child.PLAN,
+                                 request_choices.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN,
                                  parent_terminal_provider.PLAN, license_viewer_provider.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
-                              'kiosk-eligible-choices', 'request-choices', 'kiosk-no-child',
+                              'kiosk-eligible-choices', 'request-choices', 'kiosk-no-child', 'no-child-case',
                               'terminal-provider', 'license-viewer-provider'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
@@ -84,6 +84,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-004/terminal'
     if plan is command_help.PLAN:
         selector = 'E2E-042/command-help'
+    if plan is kiosk_no_child.CASE_PLAN:
+        selector = 'E2E-017/no-child'
     scenario_id, variant_id = selector.split('/', 1)
     selected = next(
         variant
@@ -252,7 +254,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             if plan is parent_discovery.PLAN:
                 expected_steps.append('step-3')
                 actions['create-account'].assert_called_once()
-            elif plan is parent_discovery.EMPTY_PLAN:
+            elif plan in (parent_discovery.EMPTY_PLAN, kiosk_no_child.CASE_PLAN):
                 expected_steps.append('step-3')
                 actions['prepare-empty'].assert_called_once()
             elif plan is command_help.PLAN:
@@ -405,10 +407,10 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
 @pytest.mark.parametrize('plan', [parent_discovery.PLAN, parent_discovery.EMPTY_PLAN, parent_access.PLAN,
                                  parent_about.PLAN, license_viewer_provider.PLAN,
                                  shell_search_results.PLAN, parent_search_launch.PLAN,
-                                 shell_search.PLAN, kiosk_no_child.PLAN],
+                                 shell_search.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN],
                          ids=['discovery', 'empty', 'standard-access', 'about', 'license-viewer-provider',
                               'shell-search', 'search-launch',
-                              'standard-search', 'kiosk-no-child'])
+                              'standard-search', 'kiosk-no-child', 'no-child-case'])
 def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
     details, observations = [], []
     for stage, tag in plan.screen_tags.items():

@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **026 — [E2E-017: no-child](E2E-Tasks/026-case-54.md)**.
+Next task: **024 — [Prepare the no-approver kiosk profile](E2E-Tasks/024-kiosk-fixtures.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

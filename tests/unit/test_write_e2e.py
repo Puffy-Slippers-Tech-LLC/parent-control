@@ -85,9 +85,10 @@ def test_queue_order_is_authoritative_and_deferred_tasks_are_excluded(tmp_path):
 
 
 @pytest.mark.parametrize('value', ['0', '-1', 'garbage', '1.5'])
-def test_invalid_session_limit_refuses_before_spawn(tmp_path, value):
+@pytest.mark.parametrize('option', ['--sessions', '--tasks'])
+def test_invalid_limit_refuses_before_spawn(tmp_path, value, option):
     with pytest.raises(SystemExit) as error:
-        workflow.select(tmp_path, ['--sessions', value])
+        workflow.select(tmp_path, [option, value])
     assert error.value.code == 2
 
 

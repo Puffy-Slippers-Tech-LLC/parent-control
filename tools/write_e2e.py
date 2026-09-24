@@ -214,7 +214,7 @@ def execute(root, run, owner, effort):
     return json.loads((run / 'agent-result.json').read_text())
 
 
-def worker(root, run, owner, sessions, state_json):
+def worker(root, run, owner, sessions, tasks, state_json):
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     def cancel(*_):
@@ -223,7 +223,7 @@ def worker(root, run, owner, sessions, state_json):
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, cancel)
     state = json.loads(state_json)
-    count, status, reason = 0, 0, 'session limit reached'
+    count, completed, status, reason = 0, 0, 0, 'session limit reached'
     try:
         while sessions is None or count < sessions:
             if (run / 'cancel').exists():
@@ -255,10 +255,14 @@ def worker(root, run, owner, sessions, state_json):
             updated = accept_result(root, state, result, before)
             if updated['phase'] == 'complete':
                 stage_task(root, result['stage_paths'])
+                completed += 1
             state = updated
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'blocked':
                 status, reason = 1, 'blocked'
+                break
+            if completed >= tasks:
+                reason = 'task limit reached'
                 break
         if (run / 'stop').exists():
             reason = 'stopped at a session boundary'
@@ -268,14 +272,15 @@ def worker(root, run, owner, sessions, state_json):
         status, reason = 1, str(error)
     finally:
         save_handoff(run, state, reason)
-        launcher.atomic(run / 'result.json', {'status': status, 'sessions': count})
+        launcher.atomic(run / 'result.json', {'status': status, 'sessions': count,
+                                             'tasks': completed})
         os.close(owner)
     return status
 
 
 def positive(value):
     if not value.isdecimal() or int(value) < 1:
-        raise argparse.ArgumentTypeError('--sessions must be a positive integer')
+        raise argparse.ArgumentTypeError('must be a positive integer')
     return int(value)
 
 
@@ -298,6 +303,8 @@ def select(root, argv):
     def command(run, owner):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
         parser.add_argument('--sessions', type=positive, help='maximum fresh sessions; omitted means unlimited')
+        parser.add_argument('--tasks', type=positive, default=1,
+                            help='maximum completed tasks; default: 1; stops when either limit is reached')
         parser.add_argument('--stop', action='store_true', help='finish the current session and stop before the next')
         args = parser.parse_args(argv)
         state = initial_state(root, run.parent)
@@ -305,7 +312,8 @@ def select(root, argv):
         from fix_tests_render import AgentRenderer
         launcher.agent_command(root, MODEL, 'low')
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
-                str(root), str(run), str(owner), json.dumps(args.sessions), json.dumps(state)]
+                str(root), str(run), str(owner), json.dumps(args.sessions),
+                json.dumps(args.tasks), json.dumps(state)]
     return launcher.select(root, 'write-e2e', command, stop='--stop' in argv, stop_marker='stop')
 
 
@@ -345,7 +353,8 @@ def main(argv=None):
 if __name__ == '__main__':
     mode, root, run, owner, *options = sys.argv[1:]
     if mode == '--worker':
-        sys.exit(worker(Path(root), Path(run), int(owner), json.loads(options[0]), options[1]))
+        sys.exit(worker(Path(root), Path(run), int(owner), json.loads(options[0]),
+                        json.loads(options[1]), options[2]))
     if mode == '--supervise':
         root, run = Path(root), Path(run)
         command = launcher.agent_command(root, MODEL, options[0], run,

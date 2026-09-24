@@ -224,14 +224,18 @@ Run [tools/write-e2e](../tools/write-e2e) to implement the execution plan's firs
 unchecked active task through fresh unattended Codex sessions:
 
 ```sh
-tools/write-e2e --sessions 3
+tools/write-e2e --sessions 3 --tasks 1
+tools/write-e2e --tasks 2
 tools/write-e2e
 tools/write-e2e --stop
 ```
 
 `--sessions N` limits the total number of new sessions across implementation,
 live verification, retries and subsequent tasks. Omitting it imposes no session
-limit; an empty active queue or a blocker still stops the workflow. A live run
+limit. `--tasks N` limits completed tasks and defaults to `1`. Both limits accept
+positive integers; the launcher stops when either limit is reached. A task counts
+only after acceptance, queue close-out and successful staging. An empty active
+queue or a blocker still stops the workflow. A live run
 always wins over new arguments, including different limits and invalid options.
 Closing the terminal detaches. Another invocation attaches to its styled output.
 `--stop` finishes the current session, including test cleanup and its handoff or
@@ -267,10 +271,10 @@ workflow lock. Already-running tests that the agent merely attaches to remain
 owned by their original caller.
 
 Private output and checkpoints use the shared storage and retention libraries
-under `output/test-runs/host/write-e2e/`. At a session limit or safe stop, the
+under `output/test-runs/host/write-e2e/`. At a session/task limit or safe stop, the
 launcher prints a short task status and next-session prompt, also saved as
 `handoff.txt`. A new invocation after that boundary continues the latest
-handoff with a fresh session budget. An interrupted or blocked checkpoint
+handoff with fresh session and task budgets. An interrupted or blocked checkpoint
 starts an Astra High recovery session that rechecks evidence and cleanup,
 resolves authorized remaining host work, then hands off before live testing.
 Unresolved blockers stop again; an interrupted session that changed the queue

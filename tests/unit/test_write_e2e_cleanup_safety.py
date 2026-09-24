@@ -136,16 +136,21 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
         assert staged.stdout.count('| [x] |') == completed
 
 
-def test_concurrent_attach_ignores_all_new_parameters_and_terminal_loss(checkout):
+def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     root, spawned = checkout
     script(root, {'result': reply(), 'wait': True})
     with ThreadPoolExecutor(max_workers=2) as pool:
-        values = list(pool.map(lambda _: workflow.select(root, ['--sessions', '1']), range(2)))
+        values = list(pool.map(lambda _: workflow.select(root, []), range(2)))
     run = values[0][0]
     assert values[1][0] == run and sorted(item[1] for item in values) == [False, True]
     wait_for(root / 'agent-ready-1')
     assert len(spawned) == 1 and os.getsid(spawned[0].pid) == spawned[0].pid
-    assert workflow.select(root, ['--sessions', 'invalid', '--tasks', 'invalid', '--unknown']) == (run, False)
+    limits = (run / 'limits.json').read_text()
+    assert workflow.select(root, []) == (run, False)
+    assert (run / 'limits.json').read_text() == limits
+    with pytest.raises(SystemExit):
+        workflow.select(root, ['--sessions', 'invalid', '--tasks', 'invalid', '--unknown'])
+    assert (run / 'limits.json').read_text() == limits
 
     class Closed(io.StringIO):
         def write(self, value):
@@ -154,8 +159,54 @@ def test_concurrent_attach_ignores_all_new_parameters_and_terminal_loss(checkout
     with pytest.raises(BrokenPipeError):
         launcher.follow(run, Closed())
     assert spawned[0].poll() is None
+    workflow.select(root, ['--stop'])
     (root / 'release').touch()
     assert launcher.follow(run, io.StringIO()) == 0
+
+
+@pytest.mark.parametrize('initial, adjustment, sessions, completed', [
+    (['--tasks', '1'], ['--tasks', '2'], 4, 2),
+    (['--tasks', '2'], ['--tasks', '-1'], 2, 1),
+    (['--sessions', '1'], ['--sessions', '1'], 2, 1),
+    (['--sessions', '2'], ['--sessions', '-1'], 1, 0),
+    (['--tasks', '2', '--sessions', '4'], ['--tasks', '-1', '--sessions', '-3'], 1, 0),
+    (['--tasks', '2'], ['--tasks', '-9'], 1, 0),
+    ([], ['--sessions', '1'], 2, 1),
+    ([], ['--sessions', '0'], 1, 0),
+    ([], ['--sessions', '-1'], 1, 0),
+])
+def test_attached_adjustments_control_next_boundary(checkout, initial, adjustment, sessions, completed):
+    root, spawned = checkout
+    script(root, {'result': reply(), 'wait': True},
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply(task_id='002')},
+           {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
+    run, _ = workflow.select(root, initial)
+    wait_for(root / 'agent-ready-1')
+    assert workflow.select(root, adjustment) == (run, False)
+    assert len(spawned) == 1 and spawned[0].poll() is None
+    (root / 'release').touch()
+    assert launcher.follow(run, io.StringIO()) == 0
+    assert json.loads((run / 'result.json').read_text()) == {
+        'status': 0, 'sessions': sessions, 'tasks': completed}
+
+
+def test_concurrent_adjustments_accumulate_without_resetting_completed_work(checkout):
+    root, _ = checkout
+    script(root, {'result': reply()},
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply(task_id='002'), 'wait': True})
+    run, _ = workflow.select(root, ['--tasks', '2', '--sessions', '4'])
+    wait_for(root / 'agent-ready-3')
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        attached = list(pool.map(lambda _: workflow.select(root, ['--tasks', '1', '--sessions', '2']), range(4)))
+    assert attached == [(run, False)] * 4
+    assert json.loads((run / 'limits.json').read_text()) == {'tasks': 6, 'sessions': 12, 'started': 3}
+    workflow.select(root, ['--tasks', '-6', '--sessions', '-12'])
+    (root / 'release').touch()
+    assert launcher.follow(run, io.StringIO()) == 0
+    assert json.loads((run / 'result.json').read_text()) == {'status': 0, 'sessions': 3, 'tasks': 1}
+    assert workflow.queue_state(root) == ('002', {'001': True, '002': False})
 
 
 def test_unlimited_run_stops_at_handoff_without_interrupting_agent(checkout):
@@ -259,7 +310,15 @@ def test_cancelled_run_can_restart_through_fresh_recovery_session(checkout):
     recovered, started = workflow.select(root, ['--sessions', '1'])
     assert started and recovered != run
     assert launcher.follow(recovered, io.StringIO()) == 0
-    invocation = calls(root)[1]
+    invocations = calls(root)
+    invocation = invocations[1]
+    assert invocation['pid'] != invocations[0]['pid']
     assert 'model_reasoning_effort="high"' in invocation['args']
-    assert 'Recover the same unfinished task' in invocation['prompt']
+    progress = json.loads((recovered / 'progress.json').read_text())
+    assert progress['task_id'] == '001' and progress['phase'] == 'recover'
+    prompt = ' '.join(invocation['prompt'].split())
+    assert 'Recover this task with GPT-6-Astra High' in prompt
+    assert 'Do not run live VM tests or close the task/advance the pointer' in prompt
+    assert str(run) in prompt
+    assert workflow.queue_state(root) == ('001', {'001': False, '002': False})
     assert 'RECOVERED HANDOFF' in (recovered / 'handoff.txt').read_text()

@@ -209,7 +209,16 @@ def worker(root, run, owner, sessions, tasks, state_json):
     state = json.loads(state_json)
     count, completed, status, reason = 0, 0, 0, 'session limit reached'
     try:
-        while sessions is None or count < sessions:
+        while True:
+            with launcher.lock(run / 'limits-gate') as gate:
+                fcntl.flock(gate, fcntl.LOCK_EX)
+                limits = json.loads((run / 'limits.json').read_text())
+                sessions, tasks = limits['sessions'], limits['tasks']
+                if completed >= tasks or (sessions is not None and count >= sessions):
+                    reason = 'task limit reached' if completed >= tasks else 'session limit reached'
+                    launcher.atomic(run / 'limits.json', dict(limits, closed=True))
+                    break
+                launcher.atomic(run / 'limits.json', dict(limits, started=count + 1))
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
             if (run / 'stop').exists():
@@ -244,9 +253,6 @@ def worker(root, run, owner, sessions, tasks, state_json):
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'blocked':
                 status, reason = 1, 'blocked'
-                break
-            if completed >= tasks:
-                reason = 'task limit reached'
                 break
         if (run / 'stop').exists():
             reason = 'stopped at a session boundary'
@@ -284,13 +290,44 @@ def initial_state(root, directory):
 
 
 def select(root, argv):
-    def command(run, owner):
+    initial_limits = {}
+
+    def parse(attaching=False):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-        parser.add_argument('--sessions', type=positive, help='maximum fresh sessions; omitted means unlimited')
-        parser.add_argument('--tasks', type=positive, default=1,
-                            help='maximum completed tasks; default: 1; stops when either limit is reached')
+        kind = int if attaching else positive
+        parser.add_argument('--sessions', type=kind,
+                            help='new run: maximum sessions (default unlimited); active run: signed adjustment')
+        parser.add_argument('--tasks', type=kind,
+                            help='new run: maximum completed tasks (default 1); active run: signed adjustment')
         parser.add_argument('--stop', action='store_true', help='finish the current session and stop before the next')
-        args = parser.parse_args(argv)
+        return parser.parse_args(argv)
+
+    def attach(run):
+        args = parse(attaching=True)
+        if args.sessions is None and args.tasks is None:
+            return
+        with launcher.lock(run / 'limits-gate') as gate:
+            fcntl.flock(gate, fcntl.LOCK_EX)
+            path = run / 'limits.json'
+            if not path.exists():
+                raise ValueError('active launcher predates adjustable limits; attach without parameters or restart after it stops')
+            limits = json.loads(path.read_text())
+            if limits.get('closed') or (run / 'result.json').exists():
+                raise ValueError('active launcher is finishing; limits can no longer be adjusted')
+            for key in ('tasks', 'sessions'):
+                delta = getattr(args, key)
+                if delta is not None:
+                    base = limits[key] if limits[key] is not None else limits['started']
+                    limits[key] = max(0, base + delta)
+            launcher.atomic(path, limits)
+            print(f"write-e2e: limits now tasks={limits['tasks']}, "
+                  f"sessions={limits['sessions'] if limits['sessions'] is not None else 'unlimited'}", flush=True)
+
+    def command(run, owner):
+        args = parse()
+        if args.tasks is None:
+            args.tasks = 1
+        initial_limits.update(sessions=args.sessions, tasks=args.tasks, started=0)
         state = initial_state(root, run.parent)
         # Preflight transport/rendering only; do not spend a model session here.
         from launcher_render import AgentRenderer
@@ -298,7 +335,9 @@ def select(root, argv):
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.sessions),
                 json.dumps(args.tasks), json.dumps(state)]
-    return launcher.select(root, 'write-e2e', command, stop='--stop' in argv, stop_marker='stop')
+    return launcher.select(root, 'write-e2e', command, stop='--stop' in argv, stop_marker='stop',
+                           on_attach=attach,
+                           on_start=lambda run: launcher.atomic(run / 'limits.json', initial_limits))
 
 
 def main(argv=None):

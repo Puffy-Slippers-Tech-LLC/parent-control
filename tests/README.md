@@ -297,9 +297,11 @@ workflow lock. Already-running tests that the agent merely attaches to remain
 owned by their original caller.
 
 Private output and checkpoints use the shared storage and retention libraries
-under `output/test-runs/host/write-e2e/`. At a session/task limit or safe stop, the
-launcher prints a short task status and next-session prompt, also saved as
-`handoff.txt`. A new invocation after that boundary continues the latest
+under `output/test-runs/host/write-e2e/`. At a successful task boundary, the
+launcher prints a green `Task ID complete` line after acceptance and staging. It
+saves the full summary and next-session prompt in `handoff.txt` without printing
+them. At an incomplete session boundary or safe stop, it still prints and saves
+the handoff. A new invocation after that boundary continues the latest
 handoff with fresh session and task budgets. An interrupted or blocked checkpoint
 starts an Astra High recovery session that rechecks evidence and cleanup,
 resolves authorized remaining host work, then hands off before live testing.

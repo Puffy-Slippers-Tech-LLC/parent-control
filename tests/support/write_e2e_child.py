@@ -66,6 +66,7 @@ def agent(root):
     destination.write_text(json.dumps(result) if not step.get('invalid') else 'bad result')
     print(json.dumps({'type': 'item.completed', 'item': {
         'type': 'agent_message', 'text': json.dumps(result)}}), flush=True)
+    print(json.dumps({'type': 'turn.completed'}), flush=True)
     return 0
 
 

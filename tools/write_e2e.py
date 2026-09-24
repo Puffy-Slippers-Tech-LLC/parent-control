@@ -161,7 +161,7 @@ def stage_task(root, paths):
         raise ValueError('task staging failed: ' + result.stderr.strip())
 
 
-def save_handoff(run, state, reason):
+def save_handoff(run, state, reason, *, display=True):
     prompt = state['handoff']
     if state['in_flight']:
         prompt = (
@@ -172,8 +172,16 @@ def save_handoff(run, state, reason):
     text = f"Task {state['task_id'] or 'none'}: {reason}. {state['summary']}\n\nNext session prompt:\n{prompt}\n"
     (run / 'handoff.txt').write_text(text, encoding='utf-8')
     launcher.atomic(run / 'checkpoint.json', state)
+    if display:
+        from launcher_render import AgentRenderer
+        AgentRenderer(sys.stdout).message(text)
+        sys.stdout.flush()
+
+
+def show_completion(task):
     from launcher_render import AgentRenderer
-    AgentRenderer(sys.stdout).message(text)
+    from rich.text import Text
+    AgentRenderer(sys.stdout).console.print(Text(f'Task {task} complete', style='green'))
     sys.stdout.flush()
 
 
@@ -251,6 +259,8 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 completed += 1
             state = updated
             launcher.atomic(run / 'checkpoint.json', state)
+            if state['phase'] == 'complete':
+                show_completion(task)
             if state['phase'] == 'blocked':
                 status, reason = 1, 'blocked'
                 break
@@ -261,7 +271,8 @@ def worker(root, run, owner, sessions, tasks, state_json):
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         status, reason = 1, str(error)
     finally:
-        save_handoff(run, state, reason)
+        save_handoff(run, state, reason,
+                     display=not (status == 0 and completed and state['phase'] == 'complete'))
         launcher.atomic(run / 'result.json', {'status': status, 'sessions': count,
                                              'tasks': completed})
         os.close(owner)
@@ -383,5 +394,6 @@ if __name__ == '__main__':
         command = launcher.agent_command(root, MODEL, options[0], run,
                                         schema=Path(__file__).with_name('write_e2e_response.schema.json'))
         command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_WORKFLOW_DIRECTORY=' + json.dumps(str(run))]
-        sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True))
+        sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True,
+                                    hide_task_completion=True))
     raise SystemExit('private write-e2e worker entry point')

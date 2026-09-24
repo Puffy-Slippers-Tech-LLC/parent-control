@@ -334,8 +334,10 @@ def test_command_output_is_compact_and_retained(tmp_path, command, output, exit_
     rendered = Text.from_ansi(stream.getvalue())
     if output:
         assert output.splitlines()[0] in rendered.plain
-    if len(output.splitlines()) > 6:
-        assert '+24 lines (agent-commands.log)' in rendered.plain
+    if len(output.splitlines()) > 3:
+        assert '+27 lines (agent-commands.log)' in rendered.plain
+        assert output.splitlines()[2] in rendered.plain
+        assert output.splitlines()[3] not in rendered.plain
         assert output.splitlines()[-1] not in rendered.plain
     assert ('Exit 2' in rendered.plain) == (exit_code == 2)
     assert 'Exit 0' not in rendered.plain
@@ -344,6 +346,25 @@ def test_command_output_is_compact_and_retained(tmp_path, command, output, exit_
     assert retained == ''.join(
         f'\nCommand {identity}: {command}\n{output}\nExit: {exit_code}\n'
         for identity in ('first', 'second'))
+
+
+@pytest.mark.parametrize('separator', ['\n', '\r\n', '\r'])
+def test_command_preview_bounds_multiline_status_output(separator):
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    output = separator.join([
+        'Session started', 'Reattach instructions', '│',
+        '│  Arbitrary scheduler status', '│    Arbitrary work progress',
+    ])
+    AgentRenderer(stream).event({'type': 'item.completed', 'item': {
+        'id': 'status', 'type': 'command_execution', 'command': 'example',
+        'aggregated_output': output, 'exit_code': 0}})
+    rendered = Text.from_ansi(stream.getvalue()).plain
+    assert 'Session started' in rendered
+    assert 'Reattach instructions' in rendered
+    assert 'Arbitrary' not in rendered
+    assert '+2 lines' in rendered
 
 
 def test_command_markdown_output_is_hidden_without_archive():

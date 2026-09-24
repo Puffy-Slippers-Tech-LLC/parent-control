@@ -187,7 +187,7 @@ read/search entries, plans, tool activity and file-change summaries. Consecutive
 reads and searches share one heading and display filenames. Commands
 use blue executable names and green quoted arguments; output and connectors are
 gray, with red failure statuses. Short output previews appear beneath commands,
-limited to six display lines with an omitted-line count. Successful exploration
+limited to three display lines with an omitted-line count. Successful exploration
 bodies and zero exit statuses are hidden. Interleaved results repeat their
 command context. Full output is retained in
 `agent-commands.log` inside the same run, using the transcript's size limit.
@@ -245,10 +245,18 @@ tools/write-e2e --stop
 `--sessions N` limits the total number of new sessions across implementation,
 live verification, retries and subsequent tasks. Omitting it imposes no session
 limit. `--tasks N` limits completed tasks and defaults to `1`. Both limits accept
-positive integers; the launcher stops when either limit is reached. A task counts
+positive integers for a new run; the launcher stops when either limit is reached. A task counts
 only after acceptance, queue close-out and successful staging. An empty active
-queue or a blocker still stops the workflow. A live run
-always wins over new arguments, including different limits and invalid options.
+queue or a blocker still stops the workflow. With a live run, an invocation without
+parameters attaches without changing limits. Explicit `--tasks` and `--sessions`
+values are signed adjustments to the existing maxima: `--tasks 2` changes a
+maximum of 1 to 3; `--tasks -1` changes 2 to 1. Omitted limits stay unchanged,
+and an unlimited session maximum becomes sessions already started plus N.
+Adjustments accumulate across terminals
+and clamp at zero. They take effect before the next session; the current session
+finishes normally and completed work is preserved. Invalid options are rejected.
+An owner already finishing at its limit refuses adjustments; restart after it exits.
+Workers started before adjustable-limit support require a restart to accept changes.
 Closing the terminal detaches. Another invocation attaches to its styled output,
 using the same compact session transcript as `fix-tests`: agent messages,
 commands and their results remain visually separate, including without color.

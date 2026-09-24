@@ -423,6 +423,13 @@ public Parent disable/save preparation. Transient saving is not qualified.
 
 **Kiosk selection and unavailable requests.** Cases 53, 54, 55, 56, 57.
 
+FIX03's no-child profile and public station empty-state slice passed
+`check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, including
+wrong-entry refusal, exact empty child set/explanation, disabled Request,
+no authentication prompt, collection and owned baseline restoration.
+Reuse `kiosk_no_child.PLAN`, `EmptyAccountFixture.prepare` and
+`AccessibleUI.kiosk_request_form(no_child=True)`; complete case 54 remains pending.
+
 Bindings: accounts = multiple / no-child / no-parent / ineligible-parent / disabled-child.
 
 1. Account profile is the declared setup. Enable available targets with FLOW16 except disabled-child and no-parent. No-parent starts directly at GDM with default limits off: no inaccessible administrator setup or hidden enabled-policy fixture is needed to inspect its empty parent list. G → REQUEST01.

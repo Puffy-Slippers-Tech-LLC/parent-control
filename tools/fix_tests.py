@@ -285,7 +285,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
     status = 1
     try:
         try:
-            from fix_tests_render import AgentRenderer  # Check before expensive tests.
+            from launcher_render import AgentRenderer  # Check before expensive tests.
         except ImportError as error:
             raise ValueError('agent rendering requires the setup-provided python3-rich package') from error
         agent_command(root, model, effort)  # Fail before running expensive tests.

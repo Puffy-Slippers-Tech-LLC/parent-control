@@ -110,6 +110,12 @@ def main():
                                {'status': status,
                                 'summary': 'fixture result'}))
     print(json.dumps({'type': 'item.completed', 'item': {
+        'id': 'thinking', 'type': 'reasoning', 'text': 'PRIVATE REASONING FIXTURE'}}), flush=True)
+    print(json.dumps({'type': 'item.completed', 'item': {
+        'id': 'source', 'type': 'command_execution', 'command': 'cat example.py',
+        'aggregated_output': '\n'.join(f'if value == {number}: return True' for number in range(30)),
+        'exit_code': 0}}), flush=True)
+    print(json.dumps({'type': 'item.completed', 'item': {
         'id': 'message', 'type': 'agent_message',
         'text': '**Formatted repair**\n\n```python\ndef repaired():\n    return True\n```'}}), flush=True)
     print('agent stderr diagnostic', file=sys.stderr, flush=True)

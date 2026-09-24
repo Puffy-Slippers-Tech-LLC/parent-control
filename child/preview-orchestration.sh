@@ -6,6 +6,7 @@
 onpc_preview_configure() {
     onpc_preview_source_dir=$1
     onpc_preview_root=$2
+    onpc_preview_runtime_dir="$onpc_preview_root/runtime"
     onpc_preview_uuid=${3:-oh-no-parent-control@tech.puffyslippers.com}
     onpc_preview_schema_source=${ONPC_PREVIEW_SYSTEM_SCHEMA_DIR:-/usr/share/glib-2.0/schemas}
     onpc_preview_ready_timeout=${ONPC_PREVIEW_READY_TIMEOUT_SECONDS:-30}
@@ -113,9 +114,9 @@ onpc_preview_prepare_environment() {
     payload_source_dir=${ONPC_PREVIEW_EXTENSION_SOURCE_DIR:-$onpc_preview_source_dir}
 
     mkdir -p "$extension_dir" "$onpc_preview_root/config" "$onpc_preview_root/cache" \
-        "$onpc_preview_root/state" "$onpc_preview_root/runtime" "$onpc_preview_root/home" \
+        "$onpc_preview_root/state" "$onpc_preview_runtime_dir" "$onpc_preview_root/home" \
         "$onpc_preview_root/tmp" "$schema_dir" "$onpc_preview_log_dir"
-    chmod 0700 "$onpc_preview_root/runtime" "$onpc_preview_root/tmp"
+    chmod 0700 "$onpc_preview_runtime_dir" "$onpc_preview_root/tmp"
     if [[ ${ONPC_PREVIEW_PAYLOAD_MODE:-symlink} == copy ]]; then
         # Exercise the same immutable payload list as installation.  In
         # particular, automated runs must not follow edits in the checkout
@@ -150,7 +151,7 @@ onpc_preview_prepare_environment() {
     export XDG_CONFIG_HOME="$onpc_preview_root/config"
     export XDG_CACHE_HOME="$onpc_preview_root/cache"
     export XDG_STATE_HOME="$onpc_preview_root/state"
-    export XDG_RUNTIME_DIR="$onpc_preview_root/runtime"
+    export XDG_RUNTIME_DIR="$onpc_preview_runtime_dir"
     export HOME="$onpc_preview_root/home"
     export TMPDIR="$onpc_preview_root/tmp"
     export GSETTINGS_BACKEND=keyfile
@@ -236,7 +237,7 @@ onpc_preview_enable_host_devkit_viewer() {
 onpc_preview_start_private_bus() {
     local deadline socket_path
     onpc_preview_bus_log_path="$onpc_preview_log_dir/session-bus.log"
-    socket_path="$onpc_preview_root/runtime/session-bus"
+    socket_path="$onpc_preview_runtime_dir/session-bus"
     onpc_preview_bus_address="unix:path=$socket_path"
     : >"$onpc_preview_bus_log_path"
     setsid dbus-daemon --session --nofork --address="$onpc_preview_bus_address" \

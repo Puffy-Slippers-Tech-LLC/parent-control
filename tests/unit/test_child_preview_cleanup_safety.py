@@ -8,10 +8,51 @@ import tempfile
 import time
 import unittest
 
+import pytest
+
 
 ROOT = pathlib.Path(__file__).parents[2]
 ORCHESTRATION = ROOT / "child" / "preview-orchestration.sh"
 LIFECYCLE_RUNNER = ROOT / "tests" / "ui" / "run-child-shell-lifecycle"
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_shell_socket_runtime_is_short_and_outlives_owned_cleanup(tmp_path, monkeypatch, failed):
+    import socket
+    from tests.support import child_shell
+
+    artifact = tmp_path / ('long-checkout-path-' * 8) / 'retained-artifacts'
+    artifact.mkdir(parents=True)
+    evidence = artifact / 'preserved.log'
+    evidence.write_text('retain failure evidence')
+    environment = {'ONPC_CHILD_SHELL_ARTIFACT_DIR': str(artifact),
+                   'ONPC_CHILD_SHELL_RUNTIME_DIR': str(artifact / 'untrusted-runtime')}
+    runtimes = []
+
+    def execute(actual, timeout):
+        runtime = pathlib.Path(actual['ONPC_CHILD_SHELL_RUNTIME_DIR'])
+        runtimes.append(runtime)
+        assert actual['ONPC_CHILD_SHELL_ARTIFACT_DIR'] == str(artifact)
+        assert runtime != artifact / 'untrusted-runtime'
+        assert runtime.stat().st_mode & 0o777 == 0o700
+        assert timeout == 17
+        # Exercise the actual AF_UNIX limit, independent of checkout depth.
+        with socket.socket(socket.AF_UNIX) as server:
+            server.bind(str(runtime / 'session-bus'))
+        assert runtime.exists()  # The runner still owns its service teardown.
+        if failed:
+            raise RuntimeError('owned cleanup finished after failure')
+        return 'finished'
+
+    monkeypatch.setattr(child_shell, '_run_child_shell', execute)
+    if failed:
+        with pytest.raises(RuntimeError, match='owned cleanup finished'):
+            child_shell.run_child_shell(environment, timeout=17)
+    else:
+        assert child_shell.run_child_shell(environment, timeout=17) == 'finished'
+    assert len(runtimes) == 1 and not runtimes[0].exists()
+    assert evidence.read_text() == 'retain failure evidence'
+    assert environment['ONPC_CHILD_SHELL_RUNTIME_DIR'] == str(artifact / 'untrusted-runtime')
 
 
 class ChildPreviewCleanupSafetyTests(unittest.TestCase):

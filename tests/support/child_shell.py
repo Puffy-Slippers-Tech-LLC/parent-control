@@ -5,9 +5,19 @@ import signal
 import subprocess
 
 from tests.support.paths import ROOT
+from tools.test_storage import runtime_directory
 
 
 def run_child_shell(environment, timeout=90):
+    # AF_UNIX names cannot contain the retained artifact directory's full
+    # checkout path. Keep only sockets in the shared short runtime allocation,
+    # alive until the runner and its trapped service cleanup have finished.
+    with runtime_directory(prefix="onpc-shell-") as runtime:
+        return _run_child_shell(
+            {**environment, "ONPC_CHILD_SHELL_RUNTIME_DIR": str(runtime)}, timeout)
+
+
+def _run_child_shell(environment, timeout):
     process = subprocess.Popen(
         ["bash", str(ROOT / "tests/ui/run-child-shell-lifecycle")],
         cwd=ROOT,

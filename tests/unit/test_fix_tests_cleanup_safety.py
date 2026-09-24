@@ -12,6 +12,7 @@ import sys
 import time
 
 import pytest
+from rich.text import Text
 
 import fix_tests
 from regression_session import busy, lock
@@ -144,6 +145,18 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
     executed = [call['category'] for call in calls if call['kind'] == 'test']
     assert executed == (['unit', 'unit', 'ui', 'system', 'e2e', 'all'] if expected == 0 else ['unit'])
     assert 'Traceback' not in output.getvalue()
+    assert 'PRIVATE REASONING FIXTURE' not in output.getvalue()
+    rendered = Text.from_ansi(output.getvalue()).plain
+    assert 'Explored' in rendered
+    assert 'Read example.py' in rendered
+    assert 'Result · source' not in rendered
+    assert 'Exit 0' not in rendered
+    assert 'display lines omitted' not in rendered
+    assert '+24 lines' not in rendered
+    source = '\n'.join(f'if value == {number}: return True' for number in range(30))
+    assert all(line not in rendered for line in source.splitlines())
+    assert (run / 'agent-commands.log').read_text() == (
+        f'\nCommand source: cat example.py\n{source}\nExit: 0\n')
 
 
 @pytest.mark.parametrize('kill_owner', [False, True])

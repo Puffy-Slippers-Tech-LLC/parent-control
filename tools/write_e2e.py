@@ -18,6 +18,7 @@ import detached_launcher as launcher
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
 MODEL = 'gpt-6-astra'
+MAX_TASK_SESSIONS = 5
 INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
 through host validation, then hand off before live VM testing.
 """
@@ -235,6 +236,20 @@ def show_completion(task, task_sessions, launcher_sessions):
     sys.stdout.flush()
 
 
+def task_session_limit_reached(state):
+    return (state['phase'] != 'complete'
+            and state.get('task_sessions', 0) >= MAX_TASK_SESSIONS)
+
+
+def show_session_limit(state):
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    message = (f"Task {state['task_id']} is not complete in {state['task_sessions']} sessions. "
+               'Launcher exited early.')
+    AgentRenderer(sys.stdout).console.print(Text(message, style='bold red'), soft_wrap=True)
+    sys.stdout.flush()
+
+
 def execute(root, run, owner, effort):
     (run / 'agent-result.json').write_text('')
     with launcher.lock(run / 'nested-gate') as gate:
@@ -273,6 +288,10 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 fcntl.flock(gate, fcntl.LOCK_EX)
                 limits = json.loads((run / 'limits.json').read_text())
                 sessions, tasks = limits['sessions'], limits['tasks']
+                if task_session_limit_reached(state):
+                    status, reason = 1, 'task session limit reached'
+                    launcher.atomic(run / 'limits.json', dict(limits, closed=True))
+                    break
                 if completed >= tasks or (sessions is not None and count >= sessions):
                     reason = 'task limit reached' if completed >= tasks else 'session limit reached'
                     launcher.atomic(run / 'limits.json', dict(limits, closed=True))
@@ -346,6 +365,8 @@ def worker(root, run, owner, sessions, tasks, state_json):
             publish_progress(run, previous[-1]['key'], lines)
         save_handoff(run, state, reason,
                      display=not (status == 0 and completed and state['phase'] == 'complete'))
+        if task_session_limit_reached(state):
+            show_session_limit(state)
         launcher.atomic(run / 'result.json', {'status': status, 'sessions': count,
                                              'tasks': completed})
         os.close(owner)

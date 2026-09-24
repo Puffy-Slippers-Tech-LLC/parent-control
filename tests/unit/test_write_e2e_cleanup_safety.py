@@ -186,18 +186,61 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
         assert staged.stdout.count('| [x] |') == completed
 
 
-def test_plain_new_run_stops_after_five_sessions_without_task_completion(checkout):
+@pytest.mark.parametrize('args', [[], ['--tasks', '2'], ['--sessions', '20', '--tasks', '2']])
+def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     root, _ = checkout
     script(root, {'result': reply()},
            *({'result': reply(live='failed')} for _ in range(4)))
-    run, started = workflow.select(root, [])
+    run, started = workflow.select(root, args)
     assert started
-    assert json.loads((run / 'limits.json').read_text()) == {
-        'sessions': 5, 'tasks': 1, 'started': 0}
-    assert launcher.follow(run, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 1
+    assert len(calls(root)) == 5
     assert json.loads((run / 'result.json').read_text()) == {
-        'status': 0, 'sessions': 5, 'tasks': 0}
-    assert 'session limit reached' in (run / 'handoff.txt').read_text()
+        'status': 1, 'sessions': 5, 'tasks': 0}
+    assert 'task session limit reached' in (run / 'handoff.txt').read_text()
+    from rich.console import Console
+    from rich.text import Text
+    rendered = Text.from_ansi(output.getvalue())
+    warning = 'Task 001 is not complete in 5 sessions. Launcher exited early.'
+    assert rendered.plain.rstrip().splitlines()[-1] == warning
+    assert rendered.plain.index('Next session prompt:') < rendered.plain.index(warning)
+    style = rendered.get_style_at_offset(Console(), rendered.plain.index(warning))
+    assert style.bold and style.color.get_truecolor().hex == '#800000'
+    assert workflow.queue_state(root)[0] == '001'
+    restarted, started = workflow.select(root, ['--tasks', '2'])
+    assert started
+    assert launcher.follow(restarted, io.StringIO()) == 1
+    assert len(calls(root)) == 5
+
+
+def test_task_cap_counts_sessions_before_restart(checkout):
+    root, _ = checkout
+    script(root, {'result': reply()},
+           *({'result': reply(live='failed')} for _ in range(4)))
+    first, _ = workflow.select(root, ['--sessions', '3'])
+    assert launcher.follow(first, io.StringIO()) == 0
+    second, _ = workflow.select(root, ['--tasks', '2'])
+    assert launcher.follow(second, io.StringIO()) == 1
+    assert len(calls(root)) == 5
+    assert json.loads((second / 'result.json').read_text()) == {
+        'status': 1, 'sessions': 2, 'tasks': 0}
+
+
+def test_completion_on_fifth_session_resets_cap_for_next_task(checkout):
+    root, _ = checkout
+    script(root, {'result': reply()},
+           *({'result': reply(live='failed')} for _ in range(3)),
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply(task_id='002')},
+           {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
+    run, _ = workflow.select(root, ['--tasks', '2'])
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0
+    assert len(calls(root)) == 7
+    assert 'Launcher exited early.' not in output.getvalue()
+    assert json.loads((run / 'result.json').read_text()) == {
+        'status': 0, 'sessions': 7, 'tasks': 2}
 
 
 def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):

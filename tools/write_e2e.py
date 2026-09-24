@@ -307,7 +307,7 @@ def select(root, argv):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
         kind = int if attaching else positive
         parser.add_argument('--sessions', type=kind,
-                            help='new run: maximum sessions (default unlimited); active run: signed adjustment')
+                            help='new run: maximum sessions (plain invocation defaults to 5); active run: signed adjustment')
         parser.add_argument('--tasks', type=kind,
                             help='new run: maximum completed tasks (default 1); active run: signed adjustment')
         parser.add_argument('--stop', action='store_true', help='finish the current session and stop before the next')
@@ -336,6 +336,8 @@ def select(root, argv):
 
     def command(run, owner):
         args = parse()
+        if not argv:
+            args.sessions = 5
         if args.tasks is None:
             args.tasks = 1
         initial_limits.update(sessions=args.sessions, tasks=args.tasks, started=0)

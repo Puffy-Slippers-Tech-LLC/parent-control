@@ -166,7 +166,7 @@ def test_model_catalog_selects_latest_visible_high_sol_and_strongest(monkeypatch
 
 
 def test_agent_transcript_formats_markdown_and_code_across_byte_boundaries():
-    from fix_tests_render import AgentRenderer
+    from launcher_render import AgentRenderer
     from rich.text import Text
     stream = io.StringIO()
     renderer = AgentRenderer(stream)
@@ -188,7 +188,7 @@ def test_agent_transcript_formats_markdown_and_code_across_byte_boundaries():
 
 
 def test_agent_transcript_preserves_activity_failures_and_unknown_events():
-    from fix_tests_render import AgentRenderer
+    from launcher_render import AgentRenderer
     from rich.text import Text
     stream = io.StringIO()
     renderer = AgentRenderer(stream)
@@ -215,13 +215,220 @@ def test_agent_transcript_preserves_activity_failures_and_unknown_events():
     renderer.feed(b'plain diagnostic\npartial diagnostic')
     renderer.finish()
     text = Text.from_ansi(stream.getvalue()).plain
-    assert text.count('cat example.py') == 1
-    for expected in ('failure details', 'Exit 2', 'example.py', '-old', '+new',
+    assert text.count('Read example.py') == 1
+    assert 'failure details' in text
+    for expected in ('Exit 2', 'example.py', '-old', '+new',
                      'Keep assertion', 'tool result', 'public docs', 'Repair blocked',
                      'Missing prerequisite', 'agent failed', 'keep unknown evidence',
                      'null', 'plain diagnostic', 'partial diagnostic'):
         assert expected in text
     assert '\033[?1049' not in stream.getvalue()
+
+
+@pytest.mark.parametrize('width', [40, 100])
+def test_agent_transcript_separates_messages_and_interleaved_command_results(width):
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream, width=width)
+    commands = [dict(id=name, type='command_execution', command='cat ' + name)
+                for name in ('first.py', 'second.py')]
+    for command in commands:
+        renderer.event({'type': 'item.started', 'item': command})
+    renderer.event({'type': 'item.completed', 'item': {
+        'type': 'agent_message', 'text': '**Checking results**'}})
+    renderer.event({'type': 'item.completed', 'item': {
+        **commands[1], 'aggregated_output': 'if fault:\n    raise EvidenceError()\n',
+        'exit_code': 0}})
+    renderer.event({'type': 'item.completed', 'item': {
+        **commands[0], 'aggregated_output': '\033[2J[bold]failure[/bold]', 'exit_code': 2}})
+    # Interleaved results repeat their command context, without panel chrome.
+    plain = Text.from_ansi(stream.getvalue()).plain
+    assert '╭' not in plain and 'Result ·' not in plain and '• Agent' not in plain
+    assert 'Exit 2' in plain and 'Exit 0' not in plain
+    assert 'Checking results' in plain
+    for hidden in ('if fault:', 'EvidenceError'):
+        assert hidden not in plain
+    assert '[bold]failure[/bold]' in plain
+    assert plain.count('Read first.py') == plain.count('Read second.py') == 2
+    assert '**' not in plain and '\033[2J' not in stream.getvalue()
+    assert all(len(line) <= width for line in plain.splitlines()), repr(plain)
+
+
+def test_agent_transcript_renders_empty_completed_command_without_start_event():
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    AgentRenderer(stream).event({'type': 'item.completed', 'item': {
+        'id': 'empty', 'type': 'command_execution', 'command': 'true',
+        'aggregated_output': '', 'exit_code': 0}})
+    plain = Text.from_ansi(stream.getvalue()).plain
+    assert plain.strip() == '• Ran true'
+    assert '(no output)' not in plain
+
+
+@pytest.mark.parametrize('width', [40, 60, 100])
+def test_transcript_observer_preserves_message_alignment_at_terminal_width(monkeypatch, width):
+    from launcher_render import AgentRenderer, TranscriptWriter
+    from rich.text import Text
+    source = io.StringIO()
+    paragraphs = [
+        'The **launcher** output keeps wrapped text aligned beneath the first word '
+        'while preserving café and 日本語 in the retained transcript.',
+        'The next paragraph uses the same indentation and keeps its blank separator.',
+    ]
+    AgentRenderer(source).event({'type': 'item.completed', 'item': {
+        'type': 'agent_message', 'text': '\n\n'.join(paragraphs)}})
+    output = io.StringIO()
+    monkeypatch.setattr(output, 'isatty', lambda: True)
+    monkeypatch.setattr(output, 'fileno', lambda: 123)
+    monkeypatch.setattr(detached_launcher.os, 'get_terminal_size',
+                        lambda fd: detached_launcher.os.terminal_size((width, 24)))
+    writer = TranscriptWriter(output)
+    # Observer reads may split ANSI sequences or fall in the middle of a row.
+    for char in source.getvalue():
+        writer.write(char)
+    writer.write('', final=True)
+    rendered = Text.from_ansi(output.getvalue())
+    lines = rendered.plain.splitlines()
+    content = [line for line in lines if line.strip()]
+    assert content[0].startswith('• The launcher')
+    assert all(line.startswith('  ') for line in content[1:])
+    assert all(Text(line).cell_len <= width for line in lines)
+    assert ' '.join(rendered.plain.split()) == (
+        '• ' + ' '.join(' '.join(paragraphs).replace('**', '').split()))
+    next_paragraph = next(i for i, line in enumerate(lines) if 'The next paragraph' in line)
+    assert not lines[next_paragraph - 1].strip()
+    start = rendered.plain.index('launcher')
+    assert any(span.start <= start < span.end and span.style.bold for span in rendered.spans)
+
+
+def test_agent_transcript_hides_reasoning_but_keeps_user_facing_updates():
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream)
+    for kind in ('item.started', 'item.updated', 'item.completed'):
+        renderer.event({'type': kind, 'item': {
+            'type': 'reasoning', 'text': 'Internal deliberation'}})
+    assert stream.getvalue() == ''
+    renderer.event({'type': 'item.completed', 'item': {
+        'type': 'agent_message', 'text': 'Checking the renderer.'}})
+    assert 'Checking the renderer.' in Text.from_ansi(stream.getvalue()).plain
+
+
+@pytest.mark.parametrize('command', ['example --check', "/bin/bash -lc 'example --check'"])
+@pytest.mark.parametrize('output', ['', 'short result', '\n'.join(
+    f'if value == {number}: return True' for number in range(30))])
+@pytest.mark.parametrize('exit_code', [0, 2])
+def test_command_output_is_compact_and_retained(tmp_path, command, output, exit_code):
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    archive = tmp_path / 'agent-commands.log'
+    renderer = AgentRenderer(stream, command_log=archive)
+    for identity in ('first', 'second'):
+        renderer.event({'type': 'item.completed', 'item': {
+            'id': identity, 'type': 'command_execution', 'command': command,
+            'aggregated_output': output, 'exit_code': exit_code}})
+    rendered = Text.from_ansi(stream.getvalue())
+    if output:
+        assert output.splitlines()[0] in rendered.plain
+    if len(output.splitlines()) > 6:
+        assert '+24 lines (agent-commands.log)' in rendered.plain
+        assert output.splitlines()[-1] not in rendered.plain
+    assert ('Exit 2' in rendered.plain) == (exit_code == 2)
+    assert 'Exit 0' not in rendered.plain
+    assert '/bin/bash' not in rendered.plain
+    retained = archive.read_text()
+    assert retained == ''.join(
+        f'\nCommand {identity}: {command}\n{output}\nExit: {exit_code}\n'
+        for identity in ('first', 'second'))
+
+
+def test_command_markdown_output_is_hidden_without_archive():
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    AgentRenderer(stream).event({'type': 'item.completed', 'item': {
+        'id': 'docs', 'type': 'command_execution', 'command': 'cat README.md',
+        'aggregated_output': '**Instructions**\n\n```python\ndef fixed():\n    return True\n```',
+        'exit_code': 0}})
+    rendered = Text.from_ansi(stream.getvalue())
+    assert 'Instructions' not in rendered.plain and 'def fixed():' not in rendered.plain
+    assert '**' not in rendered.plain and '```' not in rendered.plain
+    assert '• Explored' in rendered.plain and 'Read README.md' in rendered.plain
+
+
+def test_compact_command_colors_and_wrapping():
+    from launcher_render import AgentRenderer
+    from rich.color import Color
+    from rich.text import Text
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream, width=40)
+    renderer.event({'type': 'item.completed', 'item': {
+        'id': 'links', 'type': 'command_execution',
+        'command': '/bin/bash -lc "tools/read-only links \'tests/README.md\'"',
+        'aggregated_output': 'links: documents=1 checked=31 missing=0', 'exit_code': 0}})
+    rendered = Text.from_ansi(stream.getvalue())
+    assert '• Ran tools/read-only' in rendered.plain
+    assert '└ links:' in rendered.plain
+    assert all(len(line) <= 40 for line in rendered.plain.splitlines()), repr(rendered.plain)
+    for word, color in [('tools/read-only', 'bright_blue'), ("'tests/README.md'", 'green'),
+                        ('links: documents', 'bright_black')]:
+        start = rendered.plain.index(word)
+        assert any(span.start <= start < span.end and
+                   span.style.color.get_truecolor() == Color.parse(color).get_truecolor()
+                   for span in rendered.spans if span.style.color)
+
+
+def test_consecutive_exploration_is_grouped_and_messages_break_the_group():
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream, width=50)
+    for identity, command in enumerate([
+            "rg -n '^## |^###' 'docs/Approval-Tools.md'",
+            "cat 'tools/launcher_render.py' 'tests/unit/test_fix_tests.py'",
+            "sed -n '1,20p' 'tests/README.md'"]):
+        item = {'id': str(identity), 'type': 'command_execution', 'command': command}
+        renderer.event({'type': 'item.started', 'item': item})
+        renderer.event({'type': 'item.completed', 'item': {
+            **item, 'exit_code': 0, 'aggregated_output': 'hidden contents'}})
+    text = Text.from_ansi(stream.getvalue()).plain
+    assert text.count('• Explored') == 1
+    assert 'Search ^## |^### in Approval-Tools.md' in text
+    assert 'Read launcher_render.py, test_fix_tests.py' in text
+    assert '    Read README.md' in text
+    assert 'hidden contents' not in text and 'tools/' not in text
+    renderer.event({'type': 'item.completed', 'item': {
+        'type': 'agent_message', 'text': 'Checking.'}})
+    renderer.event({'type': 'item.completed', 'item': {
+        **item, 'id': 'next', 'exit_code': 0}})
+    assert Text.from_ansi(stream.getvalue()).plain.count('• Explored') == 2
+
+
+@pytest.mark.parametrize('command', ['cat file; touch other', 'rg word file && build',
+                                    'cat $(command)', 'cat `command`'])
+def test_compound_commands_are_not_hidden_as_exploration(command):
+    from launcher_render import AgentRenderer
+    assert AgentRenderer(io.StringIO()).exploration({'command': command}) is None
+
+
+def test_diff_has_syntax_colors_line_numbers_and_changed_backgrounds():
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    stream = io.StringIO()
+    AgentRenderer(stream, width=40).event({'type': 'item.completed', 'item': {
+        'type': 'file_change', 'status': 'completed', 'changes': [{
+            'kind': 'update', 'path': 'example.py',
+            'diff': '@@ -95,2 +70,2 @@\n-    return "old"\n+    return "new"\n     pass'}]}})
+    text = Text.from_ansi(stream.getvalue())
+    assert '95 - ' in text.plain and '70 + ' in text.plain and '71   ' in text.plain
+    backgrounds = {span.style.bgcolor.get_truecolor() for span in text.spans if span.style.bgcolor}
+    assert (255, 235, 233) in backgrounds and (218, 251, 225) in backgrounds
+    assert any(span.style.color for span in text.spans
+               if text.plain[span.start:span.end].strip() == 'return')
 
 
 def test_follow_keeps_unicode_across_reads_and_reattaches_at_complete_lines(tmp_path, monkeypatch):

@@ -651,7 +651,19 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_entry=False, request_exit=False, parent_toggle=False,
          fresh_desktop=None, shell_search_results=False, parent_search_launch=False,
          shell_search=False, parent_terminal_provider=False,
-         license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False):
+         license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False,
+         kiosk_no_child=False):
+    require(type(kiosk_no_child) is bool and (not kiosk_no_child or (
+            assets is not None and provision_credentials and fresh_desktop is None
+            and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
+                         parent_setup, parent_input, parent_standard_input,
+                         parent_about, parent_access, desktop_session_logout,
+                         desktop_session_switch, gdm_navigation, gdm_recipient,
+                         gdm_product_free, kiosk_entry, request_exit, parent_toggle,
+                         shell_search_results, parent_search_launch, shell_search,
+                         parent_terminal_provider, license_viewer_provider,
+                         kiosk_eligible_choices, request_choices)))),
+            'smoke:kiosk-no-child-prerequisites')
     require(type(request_choices) is bool and (not request_choices or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -888,6 +900,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-kiosk-eligible-choices-qualification'
         if request_choices:
             result['scope'] = 'installed-request-choices-qualification'
+        if kiosk_no_child:
+            result['scope'] = 'installed-kiosk-no-child-qualification'
         if request_exit:
             result['scope'] = 'installed-request-exit-qualification'
         if parent_toggle:
@@ -913,7 +927,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or fresh_desktop is not None or shell_search_results or parent_search_launch
                         or shell_search or parent_terminal_provider or license_viewer_provider
-                        or request_exit or parent_toggle or kiosk_eligible_choices or request_choices):
+                        or request_exit or parent_toggle or kiosk_eligible_choices or request_choices
+                        or kiosk_no_child):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                     staged = directory / 'input'
                 else:
@@ -992,6 +1007,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if request_choices:
                     from parent_setup_qualification import RequestChoicesQualification
                     qualification_class = RequestChoicesQualification
+                if kiosk_no_child:
+                    from parent_setup_qualification import KioskNoChildQualification
+                    qualification_class = KioskNoChildQualification
                 if request_exit:
                     from parent_setup_qualification import RequestExitQualification
                     qualification_class = RequestExitQualification

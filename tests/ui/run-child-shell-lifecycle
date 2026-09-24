@@ -44,6 +44,9 @@ if [[ $scenario == reload ]]; then
 else
     onpc_preview_configure "$repo_root/child" "$artifact_root"
 fi
+# The Python lifecycle owner allocates and removes this socket-only directory.
+# Retained logs, payloads, caches and screenshots stay under artifact_root.
+onpc_preview_runtime_dir=${ONPC_CHILD_SHELL_RUNTIME_DIR:?ONPC_CHILD_SHELL_RUNTIME_DIR is required}
 ONPC_PREVIEW_PAYLOAD_MODE=copy
 export ONPC_PREVIEW_PAYLOAD_MODE
 

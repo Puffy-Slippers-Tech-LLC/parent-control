@@ -19,6 +19,7 @@ import warnings
 
 
 OPERATIONS = frozenset({
+    'gdm-no-child-refused',
     'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-navigation-returned',
     'gdm-product-free-list', 'gdm-product-free-focused',
     'gdm-product-free-select-parent', 'gdm-product-free-returned',
@@ -131,6 +132,7 @@ GDM_PROVIDER_CONTROLS = (
     'session-choice::<provider-session-id>',
 )
 GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
+    'gdm-no-child-refused',
     'gdm-navigation-returned', 'gdm-dismissed', 'gdm-returned',
     'gdm-product-free-list', 'gdm-product-free-focused',
     'gdm-product-free-select-parent', 'gdm-product-free-returned',
@@ -166,7 +168,8 @@ GDM_SESSION_LABELS = {
     'Ubuntu on Xorg': 'ubuntu-xorg', 'Sign In': 'sign-in',
     'Log In': 'sign-in', 'Cancel': 'cancel',
 }
-KIOSK_OPERATIONS = frozenset({'kiosk-request-form', 'kiosk-child-choices-closed'})
+KIOSK_OPERATIONS = frozenset({'kiosk-request-form', 'kiosk-child-choices-closed',
+                              'kiosk-no-child-form'})
 KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-child-choices-open'})
 OPERATIONS |= KIOSK_OPERATIONS | KIOSK_CHOICE_OPERATIONS
 KIOSK_ACCOUNT_REQUESTS = {
@@ -2742,9 +2745,11 @@ class AccessibleUI:
                 and self.has_state(field, self.api.StateType.FOCUSED),
                 'ui:gdm-password-focus')
 
-    def kiosk_request_form(self, *, enabled=False, expected_selection=None):
+    def kiosk_request_form(self, *, enabled=False, expected_selection=None, no_child=False):
         """Read REQUEST03's default-duration station state after accounts load."""
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
+        require(type(no_child) is bool and (not no_child or (
+                not enabled and expected_selection is None)), 'ui:kiosk-profile-binding')
         require(expected_selection is None or (type(expected_selection) is tuple and len(expected_selection) == 2
                 and expected_selection[0] in ('child', 'approver')
                 and expected_selection[1] in (CHILD_IDENTITIES if expected_selection[0] == 'child'
@@ -2909,10 +2914,27 @@ class AccessibleUI:
             notice = lookup('kiosk-screen-limit-notice', form_nodes, identity_by_node)
             if enabled and notice is not None:
                 return None
-            if not enabled and notice is None:
+            if not enabled and not no_child and notice is None:
                 return None
             diagnostic.emit('message')
-            if not enabled:
+            if no_child:
+                status = lookup('kiosk-request-status', form_nodes, identity_by_node, emit=False)
+                if status is None or ' '.join(status.get_name().split()) in (
+                        'Loading accounts…', 'Loading request details…'):
+                    return None
+                require(' '.join(status.get_name().split()) ==
+                        'No local standard accounts are available. Create one, then reopen this screen.',
+                        'ui:kiosk-no-child-message')
+                # Include hidden choices: an empty selection alone does not
+                # prove the form's complete offered child set is empty.
+                require(not any(identity_by_node[node].startswith('kiosk-child-choice-')
+                                for node in form_nodes), 'ui:kiosk-no-child-choices')
+                control_nodes = self.snapshot_scope(public_nodes, snapshot, child)
+                selected = [node for node in control_nodes if identity_by_node[node].startswith(
+                    'kiosk-child-selected-')]
+                require(len(selected) == 1 and identity_by_node[selected[0]] ==
+                        'kiosk-child-selected-none', 'ui:kiosk-no-child-selection')
+            elif not enabled:
                 message = ' '.join(notice.get_name().split())
                 require(message == 'Screen limit is not enabled in Parent App',
                         'ui:kiosk-disabled-message')
@@ -2922,7 +2944,7 @@ class AccessibleUI:
             diagnostic.emit('projection')
             projection = {
                 'surface': 'kiosk', 'form_count': 1,
-                'child': selected_identity(
+                'child': 'none' if no_child else selected_identity(
                     child, 'Child account', CHILD_IDENTITIES, 'kiosk-child'),
                 'approver': selected_identity(
                     approver, 'Approving parent', APPROVER_IDENTITIES,
@@ -2936,7 +2958,8 @@ class AccessibleUI:
                 'soft_choice_enabled': self.has_state(allow_soft, self.api.StateType.SENSITIVE),
                 'request_enabled': self.has_state(request, self.api.StateType.SENSITIVE),
                 'cancel_enabled': self.has_state(cancel, self.api.StateType.SENSITIVE),
-                'message': '' if enabled else 'screen-limit-disabled', 'mute': None,
+                'message': 'no-child' if no_child else (
+                    '' if enabled else 'screen-limit-disabled'), 'mute': None,
             }
             if projection['child'] is None or projection['approver'] is None:
                 return None
@@ -3649,7 +3672,15 @@ class AccessibleUI:
         elif operation == 'station-default-entry':
             result['entry'] = self.station_default_entry(self.branch_owner)
         elif operation in GREETER_OPERATIONS:
-            if operation in ('gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused'):
+            if operation == 'gdm-no-child-refused':
+                self.gdm_nonsecret_account(KIOSK)
+                try:
+                    self.kiosk_account_snapshot('child')
+                except UiError as error:
+                    require(str(error) == 'ui:kiosk-account-surface', 'ui:kiosk-wrong-refusal')
+                else:
+                    raise UiError('ui:kiosk-wrong-entry-accepted')
+            elif operation in ('gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused'):
                 self.wait(lambda: self.password_recipient(OTHER_PARENT), 'gdm-other-recipient')
                 name = EXISTING_CHILD if operation == 'gdm-standard-wrong-recipient-refused' else PARENT
                 require(not self.password_recipient(name), 'ui:gdm-wrong-recipient-accepted')
@@ -3852,6 +3883,8 @@ class AccessibleUI:
             result['request'] = self.collapse_kiosk_child_choices()
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
+        elif operation == 'kiosk-no-child-form':
+            result['request'] = self.kiosk_request_form(no_child=True)
         elif operation == 'kiosk-request-cancel':
             self.cancel_kiosk_request()
         elif operation == 'kiosk-request-escape-ready':

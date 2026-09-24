@@ -309,7 +309,7 @@ def select(root, argv):
         args = parser.parse_args(argv)
         state = initial_state(root, run.parent)
         # Preflight transport/rendering only; do not spend a model session here.
-        from fix_tests_render import AgentRenderer
+        from launcher_render import AgentRenderer
         launcher.agent_command(root, MODEL, 'low')
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.sessions),

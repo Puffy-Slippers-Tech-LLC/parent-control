@@ -33,6 +33,43 @@ def _qualified_absent_prompt_contracts(module):
     return contracts
 
 
+def test_no_child_station_adapter_reads_real_empty_form(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from tests.support.request_form import launch_request, calls
+    from gi.repository import Atspi, GLib
+
+    spec = importlib.util.spec_from_file_location('e2e_no_child_ui', ROOT / 'tests/e2e/accessible_ui.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    # Bind this maintained preview's finite labels/UIDs to the same sanitized
+    # roles. Installed qualification retains the canonical VM fixture binding.
+    module.APPROVER_IDENTITIES = {'Taylor Morgan': 'other-fixture-parent',
+                                  'Avery Quinn': 'fixture-parent'}
+    _application, path = launch_request(
+        launch_ui, tmp_path, overlay=False, scenario='no-children')
+    wait_for_accessible_state(lambda: automation.showing('kiosk-request-window'),
+                              'empty station window')
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.KIOSK_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        fixture_uids={'Taylor Morgan': 1000, 'Avery Quinn': 1010},
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    for _ in range(2):
+        result = ui.run('kiosk-no-child-form', '')['request']
+        assert result == {
+            'surface': 'kiosk', 'form_count': 1, 'child': 'none',
+            'approver': 'other-fixture-parent', 'duration_seconds': 1800,
+            'custom_text': None, 'allow_soft': False,
+            'child_selector_enabled': True, 'approver_selector_enabled': False,
+            'duration_enabled': False, 'soft_choice_enabled': False,
+            'request_enabled': False, 'cancel_enabled': True,
+            'message': 'no-child', 'mute': None,
+        }
+    assert not calls(path, 'RequestAccess')
+
+
 def _record_parent_public_state(ui, module, log_path):
     """Keep bounded public failure evidence without retrying customer input."""
     evidence = {'incomplete_reads': [], 'discarded_observations': ui.incomplete_observations}

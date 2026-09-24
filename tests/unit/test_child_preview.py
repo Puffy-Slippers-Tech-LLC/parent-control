@@ -157,7 +157,8 @@ class ChildPreviewTests(unittest.TestCase):
     def test_private_bus_uses_the_preview_runtime_socket(self):
         orchestration = (ROOT / "child" / "preview-orchestration.sh").read_text()
 
-        self.assertIn('socket_path="$onpc_preview_root/runtime/session-bus"', orchestration)
+        self.assertIn('onpc_preview_runtime_dir="$onpc_preview_root/runtime"', orchestration)
+        self.assertIn('socket_path="$onpc_preview_runtime_dir/session-bus"', orchestration)
         self.assertIn('--address="$onpc_preview_bus_address"', orchestration)
         self.assertIn(
             'export DBUS_SESSION_BUS_ADDRESS="$onpc_preview_bus_address"',

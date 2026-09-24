@@ -22,6 +22,7 @@ use onpc_desktop_session ();
 use onpc_kiosk_entry ();
 use onpc_kiosk_eligible_choices ();
 use onpc_request_choices ();
+use onpc_kiosk_no_child ();
 use onpc_disabled_child ();
 use onpc_request_exit ();
 use onpc_parent_toggle ();
@@ -146,6 +147,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_disabled_child::run(\&exchange);
+        return;
+    }
+    if ($ready->{kiosk_no_child}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_no_child::run(\&exchange);
         return;
     }
     if ($ready->{request_choices}) {

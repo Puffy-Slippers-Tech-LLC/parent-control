@@ -123,6 +123,8 @@ OPERATION_LABELS.update({
     'kiosk-enabled-form': 'Independently reading the enabled station selections',
     'kiosk-choice-refusals': 'Refusing wrong and absent station account choices',
     'parent-kiosk-refused': 'Refusing station selection on the Parent surface',
+    'gdm-no-child-refused': 'Refusing the station form on the greeter',
+    'kiosk-no-child-form': 'Reading the exact empty child set and unavailable request',
     'kiosk-request-cancel': 'Cancelling the request station through its public control',
     'kiosk-request-escape-ready': 'Checking the request station recipient before Escape',
     'station-entry-branch': 'Observing the offered station session branch without input',
@@ -193,13 +195,17 @@ class RequestObservation:
         child, approver = {**accessible_ui.KIOSK_ACCOUNT_REQUESTS,
                            **accessible_ui.KIOSK_DISABLED_REQUESTS}.get(
             operation, ('existing-fixture-child', 'other-fixture-parent'))
+        no_child = operation == 'kiosk-no-child-form'
+        if no_child:
+            child = 'none'
         require(observation == cls(
             surface='kiosk', form_count=1, child=child,
             approver=approver, duration_seconds=1800, custom_text=None,
             allow_soft=False, child_selector_enabled=True,
             approver_selector_enabled=enabled, duration_enabled=enabled,
             soft_choice_enabled=enabled, request_enabled=enabled, cancel_enabled=True,
-            message='' if enabled else 'screen-limit-disabled', mute=None,
+            message='no-child' if no_child else (
+                '' if enabled else 'screen-limit-disabled'), mute=None,
         ), 'ui:request')
         return observation
 

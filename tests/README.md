@@ -182,11 +182,23 @@ defines the ephemeral invocation. Existing CLI authentication, configuration,
 workspace sandbox and command rules remain in effect; agents cannot request
 interactive approvals. Install/authenticate Codex separately before starting.
 Agent output uses `exec --json` events rendered with the setup-provided Rich
-library: Markdown messages, syntax-highlighted code blocks and commands, command
-results, plans, tool activity and file-change summaries. Diffs are highlighted
+library: compact bulleted Markdown messages, `Ran` commands and `Explored`
+read/search entries, plans, tool activity and file-change summaries. Consecutive
+reads and searches share one heading and display filenames. Commands
+use blue executable names and green quoted arguments; output and connectors are
+gray, with red failure statuses. Short output previews appear beneath commands,
+limited to six display lines with an omitted-line count. Successful exploration
+bodies and zero exit statuses are hidden. Interleaved results repeat their
+command context. Full output is retained in
+`agent-commands.log` inside the same run, using the transcript's size limit.
+Reasoning events are hidden; user-facing agent updates and
+final results remain visible. Diffs use syntax colors, hunk line numbers and
+pale red/green backgrounds for removals/additions
 when supplied by the event; file-change events containing only paths show those
 paths without inventing a diff. The detached supervisor renders an append-only,
-100-column transcript with ANSI styling retained on reattachment. CLI diagnostics
+100-column transcript with ANSI styling retained on reattachment. Terminal
+observers wrap its text to their current width with hanging indentation preserved.
+CLI diagnostics
 remain separate from event parsing, and unknown events remain visible. There is
 no interactive input box or approval prompt; the result file still controls
 repair verification. Development activation is `none`; new launcher processes
@@ -237,7 +249,9 @@ positive integers; the launcher stops when either limit is reached. A task count
 only after acceptance, queue close-out and successful staging. An empty active
 queue or a blocker still stops the workflow. A live run
 always wins over new arguments, including different limits and invalid options.
-Closing the terminal detaches. Another invocation attaches to its styled output.
+Closing the terminal detaches. Another invocation attaches to its styled output,
+using the same compact session transcript as `fix-tests`: agent messages,
+commands and their results remain visually separate, including without color.
 `--stop` finishes the current session, including test cleanup and its handoff or
 task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
@@ -261,6 +275,10 @@ authentication, sandbox and command grants apply; missing grants or unresolved
 behavior decisions stop with a blocker. No live Codex or VM work is performed
 by the launcher's regression tests.
 
+The shared [session renderer](../tools/launcher_render.py) applies these display
+rules to every supervised agent; launchers do not format agent events themselves.
+`run-tests` produces test dashboards rather than agent events and preserves
+those dashboards when observed through either workflow launcher.
 The shared [detached launcher module](../tools/detached_launcher.py) owns
 workflow attachment, process supervision, fresh Codex transport, log rotation
 and output following for `fix-tests` and `write-e2e`; `run-tests` shares its lock

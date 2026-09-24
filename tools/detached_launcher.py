@@ -156,8 +156,8 @@ def supervise(root, run, owner, kind, command, *, nested=False):
         return 130
     renderer = None
     if kind == 'agent':
-        from fix_tests_render import AgentRenderer
-        renderer = AgentRenderer(sys.stdout)
+        from launcher_render import AgentRenderer
+        renderer = AgentRenderer(sys.stdout, command_log=run / 'agent-commands.log')
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
     child_env = environment()
@@ -234,6 +234,8 @@ def supervise(root, run, owner, kind, command, *, nested=False):
                 # Close any same-session subprocess left behind by the agent.
                 os.killpg(child.pid, signal.SIGKILL)
         status = child.wait()
+        if renderer and (run / 'agent-commands.log').exists():
+            compact_log(run / 'agent-commands.log')
         if nested and finish_nested(root, run):
             status = status or 1
         return 130 if requested else status if status >= 0 else 128 - status
@@ -362,6 +364,8 @@ def follow(run, stream=None, *, label='launcher'):
 
 
 def follow_output(run, stream, dashboard, *, label='launcher'):
+    from launcher_render import TranscriptWriter
+    transcript = TranscriptWriter(stream)
     last_frame = None
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     with lock(run.parent / 'owner') as owner, (run / 'output').open('rb') as output:
@@ -376,15 +380,16 @@ def follow_output(run, stream, dashboard, *, label='launcher'):
             if output.tell() > os.fstat(output.fileno()).st_size:
                 output.seek(0)
                 decoder.reset()
+                transcript.pending = ''
             data = output.read(65536)
             if data:
                 dashboard.restore_terminal()
-                stream.write(decoder.decode(data))
+                transcript.write(decoder.decode(data))
                 stream.flush()
                 continue
             if not active:
                 dashboard.restore_terminal()
-                stream.write(decoder.decode(b'', final=True))
+                transcript.write(decoder.decode(b'', final=True), final=True)
                 result = run / 'result.json'
                 if not result.exists():
                     stream.write(f'\n{label}: worker ended without a result; inspect the saved handoff before restarting.\n')

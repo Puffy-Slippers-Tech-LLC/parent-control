@@ -12,6 +12,7 @@ from tests.support.accessible_ui import Node
 from tests.support.e2e_kiosk import WORKER, request_form
 from tests.support.perl import run_perl
 from ui_observations import RequestObservation, UiObservations
+from kiosk_no_child import CASE_PLAN
 
 
 def empty_form():
@@ -156,3 +157,56 @@ def test_worker_requires_all_results_without_authentication(monkeypatch, refusal
         assert result['ok'], result['error']
         assert stages == expected
         assert result['events'][-1] == ['power', 'off']
+
+
+@pytest.mark.parametrize('refusal', [None, *CASE_PLAN.screen_tags])
+def test_complete_case_stops_at_each_failed_result(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    result = json.loads(run_perl(WORKER.replace(
+        'onpc_kiosk_eligible_choices', 'onpc_no_child')).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(CASE_PLAN.screen_tags)
+    assert 'wrong-entry' not in stages
+    assert not any(event[0] == 'secret' for event in result['events'])
+    if refusal:
+        assert not result['ok']
+        assert stages == expected[:expected.index(refusal) + 1]
+        assert ['power', 'off'] not in result['events']
+    else:
+        assert result['ok'], result['error']
+        assert stages == expected
+        assert result['events'][-1] == ['power', 'off']
+
+
+def test_complete_callback_owns_fresh_fixture_and_deadline(monkeypatch):
+    import kiosk_no_child
+    record = Mock()
+    monkeypatch.setattr(kiosk_no_child, 'record_installed_journey', record)
+    recorder, context = object(), SimpleNamespace(
+        lease=SimpleNamespace(state={'run': 'a' * 32}))
+    for _ in range(2):
+        kiosk_no_child.E2E_CASES['no-child'](recorder, context)
+        args, kwargs = record.call_args
+        assert args == (recorder, context, CASE_PLAN)
+        assert kwargs['timeout'] == 1800
+        journey = SimpleNamespace(context=context, transport=Mock())
+        journey.transport.call.return_value = b'onpc-e2e: stage=empty-account outcome=prepared\n'
+        prepare = kwargs['actions']['prepare-empty']
+        assert prepare(journey, Mock()) == {'eligible_accounts_removed': 2}
+        with pytest.raises(EvidenceError, match='controller-state'):
+            prepare(journey, Mock())
+        journey.transport.call.assert_called_once()
+    assert set(CASE_PLAN.phases) == set(CASE_PLAN.stages)
+    assert CASE_PLAN.advance_after == {
+        'station-list': 'step-1', 'station-branch': 'step-2', 'empty-form': 'step-3'}
+
+
+def test_empty_form_cancel_uses_only_enabled_cancel_control():
+    ui = empty_form()
+    ui.run('kiosk-no-child-form', '')
+    ui.run('kiosk-request-cancel', '')
+    ui.find_id('kiosk-request-cancel').action.do_action.assert_called_once()
+    for identity in ('kiosk-request-submit', 'kiosk-child-selector',
+                     'kiosk-approver-selector', 'kiosk-duration-1800'):
+        ui.find_id(identity).action.do_action.assert_not_called()

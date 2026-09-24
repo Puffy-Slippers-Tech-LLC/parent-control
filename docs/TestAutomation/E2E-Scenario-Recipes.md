@@ -407,8 +407,9 @@ Bindings: request = approved / denied / cancelled.
 
 ### E2E-017
 
-Implementation status: Case 57 passed complete live acceptance in run
-`20260924T001910Z-3076f596`, including collection and owned cleanup;
+Implementation status: Cases 57 and 54 passed complete live acceptance in runs
+`20260924T001910Z-3076f596` and `20260924T152534Z-98108590`, respectively,
+including collection, owned cleanup and baseline restoration;
 the other cases remain pending. `disabled_child.PLAN` / `onpc_disabled_child::run`
 keeps limits off, inspects and collapses the exact child choices through the
 same public selector trigger, selects the disabled child, independently reads
@@ -428,7 +429,11 @@ FIX03's no-child profile and public station empty-state slice passed
 wrong-entry refusal, exact empty child set/explanation, disabled Request,
 no authentication prompt, collection and owned baseline restoration.
 Reuse `kiosk_no_child.PLAN`, `EmptyAccountFixture.prepare` and
-`AccessibleUI.kiosk_request_form(no_child=True)`; complete case 54 remains pending.
+`AccessibleUI.kiosk_request_form(no_child=True)`. Complete case 54 is registered
+as `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`: direct station entry,
+independent empty-form and unavailable-submission observations, then Cancel
+and public GDM return. Its complete live acceptance passed independently of
+the qualification-only wrong-entry checks.
 
 Bindings: accounts = multiple / no-child / no-parent / ineligible-parent / disabled-child.
 

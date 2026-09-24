@@ -6,113 +6,28 @@ even SIGKILL of the worker cancels the current operation before releasing it.
 """
 
 import argparse
-import codecs
-import fcntl
 import json
 import os
 from pathlib import Path
 import re
-import selectors
 import shutil
 import signal
-import stat
 import subprocess
 import sys
-import time
-import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from regression_session import FRAME_DIRECTORY, busy, lock
 from test_commands import suite_inventory
+from detached_launcher import (
+    Stopped, atomic, private_directory, current_run, environment, agent_command,
+    compact_log, TAIL_BYTES,
+)
+import detached_launcher
 
 
 DEFAULT_EFFORT = 'high'
 APP_EFFORT = 'high'
-TAIL_BYTES = 128 * 1024
-MAX_LOG_BYTES = 32 * 1024 * 1024
-AGENT_GRACE = 3.0
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
-
-
-class Stopped(Exception):
-    pass
-
-
-def compact_log(path, *, writer_fd=None):
-    """Bound the repair transcript between owned operations; keep the latest tail."""
-    descriptor = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
-    with os.fdopen(descriptor, 'r+b') as stream:
-        info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
-            raise ValueError('unsafe repair transcript')
-        if info.st_size <= MAX_LOG_BYTES:
-            return
-        stream.seek(-MAX_LOG_BYTES // 2, os.SEEK_END)
-        stream.readline()
-        tail = stream.read()
-        stream.seek(0)
-        stream.write(b'[Earlier transcript expired under the storage limit.]\n' + tail)
-        stream.truncate()
-        stream.flush()
-        if writer_fd is not None:
-            writer = os.fstat(writer_fd)
-            if (writer.st_dev, writer.st_ino) == (info.st_dev, info.st_ino):
-                os.lseek(writer_fd, 0, os.SEEK_END)
-
-
-def atomic(path, value):
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(value), encoding='utf-8')
-    temporary.replace(path)
-
-
-def private_directory(path):
-    if any(part.is_symlink() for part in (path, *path.parents)):
-        raise ValueError('fix-tests state path contains a symlink')
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    info = path.stat()
-    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
-        raise ValueError('fix-tests state directory must be caller-owned and private')
-    return path
-
-
-def current_run(directory):
-    try:
-        name = json.loads((directory / 'current.json').read_text())['run']
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    if not isinstance(name, str) or len(name) != 32 or any(c not in '0123456789abcdef' for c in name):
-        return None
-    run = directory / name
-    return private_directory(run) if run.is_dir() else None
-
-
-def environment():
-    # Keep authentication, configuration and policy; discard inherited thread
-    # identities and launcher FD claims. No parent conversation is ever passed.
-    result = dict(os.environ)
-    for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
-                 'ONPC_TEST_ACTIVITY_FD', 'ONPC_REGRESSION_EVENTS',
-                 'ONPC_REGRESSION_INVENTORY', FRAME_DIRECTORY):
-        result.pop(name, None)
-    result['PYTHONUNBUFFERED'] = '1'
-    return result
-
-
-def agent_command(root, model, effort, run=None):
-    codex = shutil.which('codex')
-    if codex is None:
-        raise ValueError('Codex CLI is missing; install and authenticate it before running fix-tests')
-    command = [codex, '--ask-for-approval', 'never', 'exec', '--ephemeral',
-            '--sandbox', 'workspace-write', '--model', model,
-            '-c', f'model_reasoning_effort="{effort}"',
-            '-c', 'history.persistence="none"', '-c', 'features.memories=false',
-            '-c', 'features.multi_agent=false', '-c', 'features.multi_agent_v2=false',
-            '--json', '--color', 'never', '--cd', str(root)]
-    if run is not None:
-        command += ['--output-schema', str(Path(__file__).with_name('fix_tests_response.schema.json')),
-                    '--output-last-message', str(run / 'agent-result.json')]
-    return [*command, '-']
 
 
 def available_models():
@@ -255,131 +170,14 @@ def run_loop(categories, test, repair, check_stop, *, selected=False):
 
 
 def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
-    """Own one child until it is reaped; EOF means the loop worker died.
-
-    Tests get the runner's Ctrl+C path with unlimited time for guarded cleanup.
-    Agents get SIGTERM immediately, then bounded process-group termination.
-    The unreaped child pins its own process-group identity until cleanup ends.
-    """
-    signal.signal(signal.SIGHUP, signal.SIG_IGN)
-    requested = False
-
-    def stop(*_):
-        nonlocal requested
-        requested = True
-
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(sig, stop)
-    # A stop can arrive after the worker's check but before this supervisor
-    # starts. Do not begin another operation for an already cancelled run.
-    with selectors.DefaultSelector() as parent:
-        parent.register(sys.stdin, selectors.EVENT_READ)
-        parent_gone = bool(parent.select(0))
-    if requested or parent_gone or (run / 'cancel').exists():
-        os.close(owner)
-        return 130
     if kind == 'test':
-        options = json.loads(test_args)
-        command = [str(root / 'tools/run-tests'), '--stop-on-error', category, *options]
+        command = [str(root / 'tools/run-tests'), '--stop-on-error', category,
+                   *json.loads(test_args)]
     elif kind == 'recovery':
         command = [str(root / 'tools/cleanup-e2e')]
     else:
         command = agent_command(root, model, effort, run)
-    renderer = None
-    if kind == 'agent':
-        from fix_tests_render import AgentRenderer
-        renderer = AgentRenderer(sys.stdout)
-    source = (run / 'prompt.txt').open('rb') if kind == 'agent' else None
-    log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
-    child_env = environment()
-    if kind != 'agent':
-        child_env[FRAME_DIRECTORY] = str(run)
-    child = subprocess.Popen(command, cwd=root, env=child_env,
-                             stdin=source if source is not None else subprocess.DEVNULL,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE if renderer else subprocess.STDOUT,
-                             start_new_session=True)
-    if source is not None:
-        source.close()
-    descriptor = None
-    try:
-        descriptor = os.pidfd_open(child.pid)
-        sent = None
-        ready = kind != 'test'
-        pending = b''
-        with selectors.DefaultSelector() as poller:
-            poller.register(sys.stdin, selectors.EVENT_READ, 'parent')
-            poller.register(child.stdout, selectors.EVENT_READ, 'output')
-            if child.stderr is not None:
-                poller.register(child.stderr, selectors.EVENT_READ, 'diagnostic')
-            poller.register(descriptor, selectors.EVENT_READ, 'exit')
-            exited = False
-            output_open = 2 if renderer else 1
-            while not exited or output_open:
-                requested = requested or (run / 'cancel').exists()
-                if requested and sent is None and ready:
-                    sent = time.monotonic()
-                    try:
-                        if kind != 'agent':
-                            signal.pidfd_send_signal(descriptor, signal.SIGINT)
-                        else:
-                            os.killpg(child.pid, signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
-                if kind == 'agent' and sent is not None and time.monotonic() - sent >= AGENT_GRACE:
-                    os.killpg(child.pid, signal.SIGKILL)
-                for key, _ in poller.select(.1):
-                    if key.data == 'parent':
-                        if not os.read(key.fd, 1):
-                            poller.unregister(key.fileobj)
-                        requested = True
-                    elif key.data == 'exit':
-                        # Do not reap yet: retain the process-group identity.
-                        exited = True
-                        poller.unregister(key.fileobj)
-                        if kind == 'agent':
-                            os.killpg(child.pid, signal.SIGKILL)
-                    else:
-                        data = os.read(key.fd, 65536)
-                        if not data:
-                            poller.unregister(key.fileobj)
-                            output_open -= 1
-                            if renderer and key.data == 'output':
-                                renderer.finish()
-                            continue
-                        if log is not None:
-                            log.write(data)
-                            log.flush()
-                        if renderer and key.data == 'output':
-                            renderer.feed(data)
-                        else:
-                            sys.stdout.buffer.write(data)
-                        sys.stdout.flush()
-                        if not ready:
-                            pending = (pending + data)[-8192:]
-                            ready = b' run-tests session:' in pending
-            if kind == 'agent':
-                # Close any same-session subprocess left behind by the agent.
-                os.killpg(child.pid, signal.SIGKILL)
-        status = child.wait()
-        return 130 if requested else status if status >= 0 else 128 - status
-    finally:
-        # Failure while supervising must not release ownership over a live child.
-        if child.returncode is None:
-            if kind == 'agent':
-                os.killpg(child.pid, signal.SIGKILL)
-            else:
-                child.send_signal(signal.SIGINT)
-            child.communicate()
-        child.stdout.close()
-        if child.stderr is not None:
-            child.stderr.close()
-        if descriptor is not None:
-            os.close(descriptor)
-        if log is not None:
-            log.close()
-            atomic(run / 'frame.json', [])
-        os.close(owner)
+    return detached_launcher.supervise(root, run, owner, kind, command)
 
 
 def worker(root, run, owner, model, effort, app_model, requested='[]'):
@@ -404,7 +202,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
         # The supervisor inherits ownership, but the test/agent does not. Its
         # stdin pipe is a liveness lease, not an interactive agent conversation.
         with subprocess.Popen(command, cwd=root, env=environment(), stdin=subprocess.PIPE,
-                              pass_fds=(owner,), start_new_session=True) as child:
+                              pass_fds=(owner, *detached_launcher.scratch_descriptors()), start_new_session=True) as child:
             status = child.wait()
         sys.stdout.flush()
         compact_log(run / 'output', writer_fd=1)
@@ -526,96 +324,17 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
                 if stop:
                     (run / 'cancel').touch(mode=0o600)
                 return run, False
-    from test_storage import directory as storage_directory
-    directory = storage_directory('fix-tests', root=root)
-    with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner:
-        fcntl.flock(gate, fcntl.LOCK_EX)
-        if busy(owner):
-            run = current_run(directory)
-            if run is None:
-                raise ValueError('active fix-tests owner has no readable run record')
-            if stop:
-                (run / 'cancel').touch(mode=0o600)
-            return run, False
-        if stop:
-            return None, False
+    def command(run, owner):
         default_model, app_model = available_models()
-        model = default_model if model is None else model
-        # Completed, cancelled and abruptly killed runs never block a new run.
-        # Keep their logs; neither PID files nor cancel markers grant ownership.
-        run = private_directory(directory / uuid.uuid4().hex)
-        import test_retention
-        with test_retention.Store(directory / 'retention').session():
-            test_retention.retain(run)
-        fcntl.flock(owner, fcntl.LOCK_EX)
-        atomic(directory / 'current.json', {'run': run.name})
-        with (run / 'output').open('xb') as output:
-            subprocess.Popen(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                              '--worker', str(root), str(run), str(owner), model, effort,
-                              app_model,
-                              json.dumps(categories)],
-                             cwd=root, env=environment(), stdin=subprocess.DEVNULL,
-                             stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                             pass_fds=(owner,))
-        return run, True
+        return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                '--worker', str(root), str(run), str(owner), model or default_model,
+                effort, app_model, json.dumps(categories)]
+
+    return detached_launcher.select(root, 'fix-tests', command, stop=stop)
 
 
 def follow(run, stream=None):
-    from regression import Dashboard
-    stream = stream or sys.stdout
-    dashboard = Dashboard([], stream=stream)
-    try:
-        return follow_output(run, stream, dashboard)
-    finally:
-        dashboard.restore_terminal()
-
-
-def follow_output(run, stream, dashboard):
-    last_frame = None
-    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
-    with lock(run.parent / 'owner') as owner, (run / 'output').open('rb') as output:
-        offset = max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES)
-        output.seek(offset)
-        if offset:
-            output.readline()  # Reattach at a full line, not midway through UTF-8/ANSI.
-        while True:
-            active = busy(owner)
-            # A new invocation may already own a newer run after this one ends.
-            active = active and current_run(run.parent) == run
-            if output.tell() > os.fstat(output.fileno()).st_size:
-                output.seek(0)
-                decoder.reset()
-            data = output.read(65536)
-            if data:
-                dashboard.restore_terminal()
-                stream.write(decoder.decode(data))
-                stream.flush()
-                continue
-            if not active:
-                dashboard.restore_terminal()
-                stream.write(decoder.decode(b'', final=True))
-                result = run / 'result.json'
-                if not result.exists():
-                    stream.write('\nfix-tests: worker ended without a result; invoke again to start fresh.\n')
-                    stream.flush()
-                    return 1
-                return json.loads(result.read_text())['status']
-            frame = run / 'frame.json'
-            if frame.exists():
-                lines = json.loads(frame.read_text())
-                if lines:
-                    try:
-                        category_status = json.loads((run / 'category.json').read_text())
-                    except (OSError, ValueError):
-                        category_status = None
-                    if isinstance(category_status, str):
-                        lines.append(category_status)
-                if not lines:
-                    dashboard.restore_terminal()
-                elif stream.isatty() or lines != last_frame:
-                    dashboard.draw_lines(lines)
-                last_frame = lines
-            time.sleep(.1)
+    return detached_launcher.follow(run, stream, label='fix-tests')
 
 
 def main(argv=None):

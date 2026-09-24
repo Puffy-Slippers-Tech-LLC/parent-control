@@ -86,11 +86,15 @@ class AgentRenderer:
                 except ValueError:
                     result = None
                 if (category == 'agent_message' and isinstance(result, dict)
-                        and result.get('status') in ('fixed', 'blocked')
+                        and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete')
                         and isinstance(result.get('summary'), str)):
-                    self.heading('Repair ' + result['status'],
-                                 'bold green' if result['status'] == 'fixed' else 'bold yellow')
+                    title = (result['status'].replace('_', ' ').capitalize()
+                             if 'handoff' in result else 'Repair ' + result['status'])
+                    self.heading(title,
+                                 'bold yellow' if result['status'] == 'blocked' else 'bold green')
                     text = result['summary']
+                    if isinstance(result.get('handoff'), str):
+                        text += '\n\nNext session prompt:\n\n' + result['handoff']
                 else:
                     self.heading('Agent' if category == 'agent_message' else 'Thinking',
                                  'bold cyan' if category == 'agent_message' else 'dim')

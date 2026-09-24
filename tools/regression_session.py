@@ -1,6 +1,5 @@
 """Reconnectable test owner; terminals only observe its durable output."""
 
-from contextlib import contextmanager
 import fcntl
 import json
 import os
@@ -17,7 +16,7 @@ import test_activity
 import test_launcher
 
 
-FRAME_DIRECTORY = 'ONPC_TEST_FRAME_DIRECTORY'
+from detached_launcher import FRAME_DIRECTORY, lock, busy
 
 
 class SessionOutput:
@@ -31,28 +30,6 @@ class SessionOutput:
         temporary = self.run / 'frame.tmp'
         temporary.write_text(json.dumps(lines))
         temporary.replace(self.run / 'frame.json')
-
-
-@contextmanager
-def lock(path):
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-    try:
-        info = os.fstat(fd)
-        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
-                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
-            raise ValueError('unsafe aggregate session lock')
-        yield fd
-    finally:
-        os.close(fd)
-
-
-def busy(fd):
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        return True
-    fcntl.flock(fd, fcntl.LOCK_UN)
-    return False
 
 
 def prepare(root, *, host_only=False):
@@ -119,11 +96,16 @@ def select(root, argv):
                 temporary.write_text(json.dumps({'run': run.name, 'argv': requested}))
                 temporary.replace(current)
                 from test_storage import scratch_descriptors
+                from detached_launcher import nested_operation, WORKFLOW_DIRECTORY
                 environment = test_launcher.environment(root)
-                subprocess.Popen(command, cwd=root, env=environment,
-                                 stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
-                                 start_new_session=True,
-                                 pass_fds=(*test_activity.descriptors(), owner, *scratch_descriptors()))
+                # Registration belongs to this public invocation. Test fixtures
+                # and further runner workers must not claim the agent's owner.
+                environment.pop(WORKFLOW_DIRECTORY, None)
+                with nested_operation(root, run):
+                    subprocess.Popen(command, cwd=root, env=environment,
+                                     stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
+                                     start_new_session=True,
+                                     pass_fds=(*test_activity.descriptors(), owner, *scratch_descriptors()))
         return run, True
 
 

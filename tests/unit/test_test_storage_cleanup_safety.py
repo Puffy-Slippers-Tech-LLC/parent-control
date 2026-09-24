@@ -246,13 +246,13 @@ def test_allocator_redirects_bulk_tmp_outputs(tmp_path, monkeypatch, parent):
 
 
 def test_repair_transcript_compaction_keeps_tail_and_writer_position(tmp_path, monkeypatch):
-    import fix_tests
-    monkeypatch.setattr(fix_tests, 'MAX_LOG_BYTES', 512)
+    import detached_launcher
+    monkeypatch.setattr(detached_launcher, 'MAX_LOG_BYTES', 512)
     path = tmp_path / 'output'
     with path.open('wb') as writer:
         writer.write(b'old line\n' * 100 + b'latest result\n')
         writer.flush()
-        fix_tests.compact_log(path, writer_fd=writer.fileno())
+        detached_launcher.compact_log(path, writer_fd=writer.fileno())
         writer.write(b'next result\n')
     assert path.stat().st_size < 512
     assert path.read_bytes().endswith(b'latest result\nnext result\n')

@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 import fix_tests
+import detached_launcher
 import regression
 import regression_selection
 import test_commands
@@ -232,7 +233,7 @@ def test_follow_keeps_unicode_across_reads_and_reattaches_at_complete_lines(tmp_
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
     assert output.getvalue() == original
-    monkeypatch.setattr(fix_tests, 'TAIL_BYTES', len('é\n\033[32mretained café\033[0m\n'.encode()) - 1)
+    monkeypatch.setattr(detached_launcher, 'TAIL_BYTES', len('é\n\033[32mretained café\033[0m\n'.encode()) - 1)
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
     assert output.getvalue() == '\033[32mretained café\033[0m\n'
@@ -246,8 +247,8 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
     fix_tests.atomic(run / 'frame.json', ['Overall - 0%'])
     fix_tests.atomic(run / 'category.json', 'Running category [unit] (1/4)')
     fix_tests.atomic(run / 'result.json', {'status': 0})
-    monkeypatch.setattr(fix_tests, 'current_run', lambda _: run)
-    monkeypatch.setattr(fix_tests, 'busy', lambda _: True)
+    monkeypatch.setattr(detached_launcher, 'current_run', lambda _: run)
+    monkeypatch.setattr(detached_launcher, 'busy', lambda _: True)
     polls = 0
 
     def advance(_):
@@ -258,9 +259,9 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
         elif polls == 3:
             fix_tests.atomic(run / 'frame.json', [])
             (run / 'output').write_text('category started\nfinal summary\n')
-            monkeypatch.setattr(fix_tests, 'busy', lambda _: False)
+            monkeypatch.setattr(detached_launcher, 'busy', lambda _: False)
 
-    monkeypatch.setattr(fix_tests.time, 'sleep', advance)
+    monkeypatch.setattr(detached_launcher.time, 'sleep', advance)
     output = io.StringIO()
     monkeypatch.setattr(output, 'isatty', lambda: tty)
     assert fix_tests.follow(run, output) == 0

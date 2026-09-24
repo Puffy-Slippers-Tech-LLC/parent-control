@@ -218,6 +218,66 @@ the loop does not alter expectations or bypass permissions to continue.
 The process lifecycle is qualified using isolated test/agent doubles in
 `test_fix_tests_cleanup_safety.py`; these tests never invoke the model or VM.
 
+### Scripted E2E implementation
+
+Run [tools/write-e2e](../tools/write-e2e) to implement the execution plan's first
+unchecked active task through fresh unattended Codex sessions:
+
+```sh
+tools/write-e2e --sessions 3
+tools/write-e2e
+tools/write-e2e --stop
+```
+
+`--sessions N` limits the total number of new sessions across implementation,
+live verification, retries and subsequent tasks. Omitting it imposes no session
+limit; an empty active queue or a blocker still stops the workflow. A live run
+always wins over new arguments, including different limits and invalid options.
+Closing the terminal detaches. Another invocation attaches to its styled output.
+`--stop` finishes the current session, including test cleanup and its handoff or
+task close-out, then starts no further session. Ctrl+C cancels immediately and
+waits for owned cleanup.
+
+The first session for each task uses GPT-6-Astra Low to implement and host-validate,
+then hands off before live VM testing. The installed `codex exec` transport has
+no in-session model-switch control, so live/repair sessions use the requested
+GPT-6-Astra High fallback. On a first live failure the agent reviews unstaged
+code, preserves evidence, repairs authorized defects, host-validates and hands
+off before another live attempt. Further failures repeat that boundary. A
+passing live session completes the plan's acceptance, checks the row and advances
+its sole pointer. It returns an explicit list of task-related code, test and
+close-out files; the launcher stages those files without committing before
+starting another session. This staging uses literal Git paths and needs no
+agent-side Git permission grant. Task 192 retains the plan's explicit host-only exception.
+Staged code is the baseline; agents do not analyze staged diffs.
+
+Each session is a new `exec --ephemeral` process with history and memories
+disabled. Only the latest standalone handoff crosses sessions. Existing CLI
+authentication, sandbox and command grants apply; missing grants or unresolved
+behavior decisions stop with a blocker. No live Codex or VM work is performed
+by the launcher's regression tests.
+
+The shared [detached launcher module](../tools/detached_launcher.py) owns
+workflow attachment, process supervision, fresh Codex transport, log rotation
+and output following for `fix-tests` and `write-e2e`; `run-tests` shares its lock
+primitives and registers test owners started inside an E2E agent session.
+Cancellation or worker death cancels only those recorded test runs, validates
+their directory identities and waits for guarded cleanup before releasing the
+workflow lock. Already-running tests that the agent merely attaches to remain
+owned by their original caller.
+
+Private output and checkpoints use the shared storage and retention libraries
+under `output/test-runs/host/write-e2e/`. At a session limit or safe stop, the
+launcher prints a short task status and next-session prompt, also saved as
+`handoff.txt`. A new invocation after that boundary continues the latest
+handoff with a fresh session budget. An interrupted or blocked checkpoint
+starts an Astra High recovery session that rechecks evidence and cleanup,
+resolves authorized remaining host work, then hands off before live testing.
+Unresolved blockers stop again; an interrupted session that changed the queue
+requires inspecting its saved handoff. The launcher never assumes an interrupted
+live test passed. Lifecycle qualification lives in
+[test_write_e2e_cleanup_safety.py](unit/test_write_e2e_cleanup_safety.py).
+
 ### Aggregate execution and reconnection
 
 Run `make test-all` (`tools/run-tests all`, also the default with no arguments)

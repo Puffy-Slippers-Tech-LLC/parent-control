@@ -309,6 +309,33 @@ def test_concurrent_reconnections_share_one_worker(tmp_path, workers):
     assert len(workers) == 1
 
 
+def test_agent_owned_runs_register_before_spawn_and_clear_parent_from_tests(tmp_path, workers, monkeypatch):
+    import fcntl
+    import detached_launcher
+    from test_storage import directory
+    parent = directory('write-e2e', root=tmp_path) / ('a' * 32)
+    parent.mkdir(mode=0o700)
+    detached_launcher.atomic(parent.parent / 'current.json', {'run': parent.name})
+    monkeypatch.setenv(detached_launcher.WORKFLOW_DIRECTORY, str(parent))
+    spawn = session.subprocess.Popen
+
+    def verify(command, **kwargs):
+        entries = json.loads((parent / 'nested.json').read_text())
+        assert entries[-1]['path'] == command[5]
+        assert detached_launcher.WORKFLOW_DIRECTORY not in kwargs['env']
+        return spawn(command, **kwargs)
+
+    monkeypatch.setattr(session.subprocess, 'Popen', verify)
+    with detached_launcher.lock(parent.parent / 'owner') as owner:
+        fcntl.flock(owner, fcntl.LOCK_EX)
+        run, started = session.select(tmp_path, ['unit'])
+        assert started
+        assert session.select(tmp_path, ['unit']) == (run, False)
+        assert len(json.loads((parent / 'nested.json').read_text())) == 1
+        (tmp_path / 'release').touch()
+        assert session.follow(run, io.StringIO()) == 7
+
+
 @pytest.mark.parametrize('argv', [[category, '--test-option'] for category in test_commands.CATEGORIES])
 def test_every_category_preserves_arguments_and_reconnects_before_validation(
         tmp_path, workers, monkeypatch, argv):

@@ -129,7 +129,13 @@ else
 APT := sudo apt
 endif
 
+build: export DEB_BUILD_OPTIONS := $(DEB_BUILD_OPTIONS)
 build: check-release-version
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)"
+
+# Called in a private manifest-selected source copy by build_package.py.
+.PHONY: _build-package
+_build-package:
 	@set -e; \
 	step='checking build prerequisites'; \
 	trap 'status=$$?; if [ "$$status" -ne 0 ]; then printf "FAIL: build: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \

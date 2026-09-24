@@ -12,10 +12,11 @@ import shutil
 from pathlib import PurePath
 
 from rich.console import Console
-from rich.markdown import Markdown
+from rich.markdown import CodeBlock, Markdown
 from rich.padding import Padding
 from rich.syntax import Syntax
 from rich.text import Text
+from rich.theme import Theme
 
 
 CONTROL = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))|[\x00-\x08\x0b-\x1f\x7f]')
@@ -23,6 +24,28 @@ CONTROL = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))
 
 def clean(value):
     return CONTROL.sub('', str(value))
+
+
+class SessionCodeBlock(CodeBlock):
+    def __rich_console__(self, console, options):
+        code = str(self.text).rstrip()
+        syntax = Syntax(code, self.lexer_name, theme='ansi_light',
+                        background_color='default', word_wrap=True)
+        if self.lexer_name in ('bash', 'sh', 'shell'):
+            text = syntax.highlight(code)
+            text.rstrip()
+            for match in re.finditer(r'(?m)^\s*(?:\$ )?([^\s#]+)', code):
+                text.stylize('#0066ff', *match.span(1))
+            for match in re.finditer(r'(?<!\S)--[\w-]+', code):
+                text.stylize('#ff0000', *match.span())
+            yield text
+        else:
+            yield syntax
+
+
+class SessionMarkdown(Markdown):
+    elements = {**Markdown.elements, 'fence': SessionCodeBlock,
+                'code_block': SessionCodeBlock}
 
 
 class TranscriptWriter:
@@ -77,12 +100,18 @@ class AgentRenderer:
         # inherits NO_COLOR from a noninteractive caller.
         self.console = Console(file=stream, width=width, force_terminal=True,
                                color_system='truecolor', no_color=False, style='#24292f',
+                               theme=Theme({'markdown.code': '#008000 not bold',
+                                            'markdown.link': '#0066ff underline',
+                                            'markdown.link_url': '#0066ff underline'}),
                                markup=False, highlight=False)
         self.pending = b''
         self.started = set()
         self.command_log = command_log
         self.last_command = None
         self.exploring = False
+
+    def message(self, text, title='Agent', style='default'):
+        self.block(title, SessionMarkdown(clean(text)), style)
 
     def feed(self, data):
         lines = (self.pending + data).split(b'\n')
@@ -241,15 +270,17 @@ class AgentRenderer:
             self.command_heading(item)
         if status == 0 and self.exploration(item):
             return
-        output = clean(item.get('aggregated_output', '')).rstrip()
+        output = clean(item.get('aggregated_output', '').replace('\r\n', '\n')
+                       .replace('\r', '\n')).rstrip()
         self.exploring = False
-        lines = Text(output).wrap(self.console, max(1, self.width - 4)) if output else []
-        for index, line in enumerate(lines[:6]):
+        lines = [row for line in output.splitlines()
+                 for row in Text(line).wrap(self.console, max(1, self.width - 4))]
+        for index, line in enumerate(lines[:3]):
             self.console.print(Text('  └ ' if index == 0 else '    ', style='bright_black') +
                                Text(line.plain, style='bright_black'))
-        if len(lines) > 6:
+        if len(lines) > 3:
             location = ' (agent-commands.log)' if self.command_log is not None else ''
-            self.console.print(Text(f'    +{len(lines) - 6} lines{location}', style='dim'))
+            self.console.print(Text(f'    +{len(lines) - 3} lines{location}', style='dim'))
         if status != 0:
             outcome = f'Exit {status}' if status is not None else item.get('status', 'completed')
             self.tree(outcome, style='red')
@@ -308,7 +339,7 @@ class AgentRenderer:
                         text += '\n\nNext session prompt:\n\n' + result['handoff']
                 else:
                     title, style = 'Agent', 'default'
-                self.block(title, Markdown(clean(text), code_theme='friendly'), style)
+                self.message(text, title, style)
         elif category == 'command_execution':
             identity = item['id']
             if identity not in self.started:

@@ -17,9 +17,8 @@ import detached_launcher as launcher
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
 MODEL = 'gpt-6-astra'
-INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md. Write the code, do host validation.
-Do handoff before live VM test.
-Treat staged code as latest code, do not analyze the diff
+INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
+through host validation, then hand off before live VM testing.
 """
 
 
@@ -47,52 +46,42 @@ def fresh_state(task):
 def session_prompt(state):
     task = state['task_id']
     common = f"""
-This is one independent unattended session in tools/write-e2e, for task {task}.
-Follow AGENTS.md and the execution plan's scoped reading routes. Work on exactly
-the first unchecked active queue row; do not implement a later task. Preserve
-unrelated edits. Treat staged code as the latest baseline. Do not analyze staged
-diffs or compare staged code to HEAD. Read current source as needed.
-Use existing grants, sandbox and maintained test launchers. Do not install the
-product on the development host. Missing authority, prerequisites or unresolved
-expected-versus-actual behavior decisions are blockers: preserve the evidence
-and return blocked. Never weaken tests or accept a changed expectation to pass.
-Do not stage files yourself. Do not commit, push, publish, start other agents,
-invoke write-e2e/fix-tests, or
-read/resume/fork prior Codex sessions, memories or transcripts. Do not start
-untracked background jobs; use maintained launchers and viewers. Wait for each
-test and its owned cleanup before returning.
-Run tests through tools/run-tests so this launcher can own their cancellation;
-do not clear or override ONPC_WORKFLOW_DIRECTORY.
-Return the required structured result. Keep summary under 600 characters and
-handoff under 16000 characters. The handoff must be a concise standalone
-prompt containing only remaining work, task ID, exact next commands/selectors,
-relevant artifact/evidence paths, blockers and recommended model/effort. Never
-paste previous conversations. ready_for_vm requires successful host validation
-and a handoff BEFORE the next live VM attempt. blocked stops the launcher.
-Only task 192 has the plan's host-only acceptance exception.
-The launcher owns staging after successful acceptance and close-out. For
-task_complete, return stage_paths listing every task-related code, test and
-close-out file (including deleted files), relative to the checkout; include the
-plan and queue. Use explicit files, never directories, wildcards or unrelated
-work. For other statuses return stage_paths empty.
+Task {task}: follow AGENTS.md and {PLAN}, using its scoped reading routes.
+This tools/write-e2e session stops at the phase boundary below.
+
+Treat staged code as the baseline. Do not analyze staged diffs or compare it to
+HEAD; read current source as needed. The launcher owns staging. Do not commit,
+push, publish, start other agents, invoke write-e2e/fix-tests, or access prior
+Codex sessions, memories or transcripts.
+Run tests through tools/run-tests for owned cancellation; preserve
+ONPC_WORKFLOW_DIRECTORY. Use maintained launchers/viewers for background work
+and wait for tests and owned cleanup before returning.
+
+Return the required structured result; unresolved blockers return blocked and
+stop the loop. Keep summary under 600 characters and handoff under 16000.
+The handoff is a standalone prompt with only remaining work, task ID, exact next
+commands/selectors, evidence paths, blockers and recommended model/effort.
+Format summary and handoff as Markdown: backticks for inline paths, selectors
+and identifiers; fenced bash blocks for commands; Markdown links for references.
+For task_complete, list every task-related code, test and close-out file in
+stage_paths, including deletions, plan and queue. Use explicit checkout-relative
+files, excluding unrelated work. Otherwise return stage_paths empty.
 """
     if state['phase'] == 'implement':
         return INITIAL_PROMPT + common + """
-Implement and host-validate this task. Do not run live VM tests, stage changes,
-mark the task complete or advance the pointer in this session (except task 192
-after its complete host-only acceptance). Return ready_for_vm, with live_result
-not_run and a handoff recommending GPT-6-Astra High for the live session.
+Do not run live VM tests or close the task/advance the pointer in this session.
+After host checks pass, return ready_for_vm with live_result not_run and a
+handoff for GPT-6-Astra High. Task 192 may instead return task_complete after
+the plan's host-only acceptance and close-out.
 """
     if state['phase'] == 'recover':
         return common + f"""
-Recover the same unfinished task with GPT-6-Astra High using only the handoff
-below and current source/evidence. Recheck the recorded blocker or interrupted
-operation and test cleanup. If the interrupted first live attempt failed, review
-unstaged code before repairing it. Do the remaining implementation and host
-validation. Do not start live VM tests, stage code, close the task or advance
-the pointer in this recovery session. Return ready_for_vm with live_result
-not_run only after host checks pass, otherwise blocked with the exact remaining
-requirement. Hand off before the next live attempt.
+Recover this task with GPT-6-Astra High from the handoff and current source/evidence.
+Recheck the blocker or interrupted operation and test cleanup. If the interrupted
+first live attempt failed, review unstaged code (including new files) before
+repairing it. Finish remaining implementation and host validation, then return
+ready_for_vm with live_result not_run. Do not run live VM tests or close the
+task/advance the pointer in this recovery session.
 
 Recovery handoff:
 Last operation evidence: {state.get('recovery_run', 'see handoff')}/output and prompt.txt.
@@ -100,26 +89,19 @@ Last operation evidence: {state.get('recovery_run', 'see handoff')}/output and p
 """
     review = (
         'This is the first live VM attempt for this task. If it fails, review the '
-        'unstaged code (including new files) before fixing it; do not review the staged diff.'
+        'unstaged code (including new files) before fixing it.'
         if state['live_attempts'] == 0 else
         'The first live attempt has already happened; use its failure evidence and current source.'
     )
     return common + f"""
-Continue the handoff below with GPT-6-Astra High. This exec transport cannot
-switch models in-session, so the requested Astra High fallback is already active.
-Run the task's required live VM acceptance and wait for completion, evidence
-collection, owned cleanup and baseline restoration. {review}
-If live acceptance fails, preserve expected versus actual and its evidence,
-fix authorized root causes, run the affected host validation, then return
-ready_for_vm with live_result failed and a new handoff BEFORE another live VM
-attempt. Do not rerun live acceptance in this session after a repair.
-If it passes, prepare only this task's code and supporting tests for staging.
-Complete the original plan's
-acceptance and close-out, refresh required coverage, check this row and advance
-the sole Next task pointer. Include this task's close-out files in stage_paths. Do not
-implement the following task. Return task_complete only after all of that,
-with live_result passed and the next-task handoff. If additional required live
-regressions fail, this is a failure, not task_complete.
+Continue the handoff with GPT-6-Astra High. Run this task's live acceptance,
+including required regressions, under the plan. {review}
+On failure, apply the repository failure contract, repair authorized defects
+and host-validate, then return ready_for_vm with live_result failed and a fresh
+handoff. Do not rerun live acceptance after a repair in this session.
+After all acceptance and cleanup pass, complete the plan's close-out and return
+task_complete with live_result passed and the next-task handoff. Leave the next
+task's implementation to a fresh session.
 
 Previous session's handoff:
 {state['handoff']}
@@ -190,7 +172,9 @@ def save_handoff(run, state, reason):
     text = f"Task {state['task_id'] or 'none'}: {reason}. {state['summary']}\n\nNext session prompt:\n{prompt}\n"
     (run / 'handoff.txt').write_text(text, encoding='utf-8')
     launcher.atomic(run / 'checkpoint.json', state)
-    print('\n' + text, flush=True)
+    from launcher_render import AgentRenderer
+    AgentRenderer(sys.stdout).message(text)
+    sys.stdout.flush()
 
 
 def execute(root, run, owner, effort):

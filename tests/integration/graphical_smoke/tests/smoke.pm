@@ -22,6 +22,7 @@ use onpc_desktop_session ();
 use onpc_kiosk_entry ();
 use onpc_kiosk_eligible_choices ();
 use onpc_request_choices ();
+use onpc_disabled_child ();
 use onpc_request_exit ();
 use onpc_parent_toggle ();
 use onpc_parent_discovery ();
@@ -139,6 +140,12 @@ sub run {
         onpc_fresh_desktop::run(\&exchange,
             $ready->{fresh_parent_desktop} ? 'parent' : 'standard',
             $ready->{keyring_standard_desktop} ? 1 : 0);
+        return;
+    }
+    if ($ready->{disabled_child}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_disabled_child::run(\&exchange);
         return;
     }
     if ($ready->{request_choices}) {

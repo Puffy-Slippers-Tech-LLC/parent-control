@@ -196,6 +196,30 @@ def test_pre_action_incomplete_read_retries_without_replaying_input():
     target.action.do_action.assert_called_once_with(0)
 
 
+def test_disappearing_node_retries_complete_read_before_input():
+    target = Node("parent-menu-button")
+    stale = Node("unrelated")
+    root = Node("parent-window", [target, stale])
+    stale.get_role_name = Mock(side_effect=[LookupError("node disappeared"), "panel"])
+    reads = 0
+
+    def wait(predicate, _description):
+        nonlocal reads
+        for _attempt in range(2):
+            reads += 1
+            try:
+                if predicate():
+                    return
+            except AutomationError as error:
+                assert str(error) == "automation:incomplete-tree"
+        raise AssertionError("complete read did not recover")
+
+    ui = adapter(root, query_errors=(LookupError,), complete_read_wait=wait)
+    ui.activate("parent-menu-button")
+    assert reads == 2
+    target.action.do_action.assert_called_once_with(0)
+
+
 def test_disabled_control_and_ambiguous_action_refuse_input():
     target = Node("submit", states=("showing", "visible"))
     with pytest.raises(AutomationError, match="disabled"):

@@ -10,8 +10,7 @@ from accessible_ui import UiError
 from disabled_child import PLAN
 from installed_journey import InstalledJourney
 from private_artifacts import EvidenceError
-from test_e2e_request_choices import disabled_accounts_form
-from test_e2e_kiosk_eligible_choices import WORKER
+from tests.support.e2e_kiosk import WORKER, disabled_accounts_form
 from tests.support.perl import run_perl
 from ui_observations import RequestObservation, UiObservations
 

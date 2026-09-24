@@ -99,8 +99,14 @@ class Capture:
                 ['pw-dump'], check=True, capture_output=True, text=True, timeout=3).stdout)
             serial = int(next(item['info']['props']['object.serial'] for item in objects
                               if item['id'] == node and item['type'] == 'PipeWire:Interface:Node'))
+            # Keep downstream samples independent of Mutter's buffer lifetime.
+            # Monitor reconfiguration removes the producer's buffers while
+            # appsink may still hold one. Sharing the PipeWire pool can then
+            # block sample handling before this loop dispatches MonitorsChanged
+            # or reaches the recovery flush. Copy at the source boundary using
+            # the supported buffer-pool switch (not deprecated always-copy).
             self.pipeline = self.Gst.parse_launch(
-                f'pipewiresrc target-object={serial} on-disconnect=error ! '
+                f'pipewiresrc target-object={serial} use-bufferpool=false on-disconnect=error ! '
                 'videoconvert ! videoscale ! '
                 'video/x-raw,format=BGRx,width=[1,2048],height=[1,2048],pixel-aspect-ratio=1/1 ! '
                 'appsink name=frames sync=false max-buffers=1 drop=true enable-last-sample=false')

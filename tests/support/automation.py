@@ -99,6 +99,10 @@ class Automation:
                     target = reader.snapshot_owned_target(identity, showing=False)
                     return [] if target is None else [target]
                 return reader.find_all_ids(identity)
+            except self.query_errors as error:
+                # A node can disappear during a complete AT-SPI traversal.
+                # Discard the snapshot and let the bounded read wait retry it.
+                raise AutomationError("automation:incomplete-tree") from error
             except UiError as error:
                 raise AutomationError(str(error).replace("ui:", "automation:").replace(
                     "ambiguous-automation-id", "ambiguous-id")) from error

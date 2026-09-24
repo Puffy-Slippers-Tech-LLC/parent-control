@@ -6,47 +6,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from accessible_ui import CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT, UiError
+from accessible_ui import CHILD, EXISTING_CHILD, PARENT, UiError
 from private_artifacts import EvidenceError
-from tests.support.accessible_ui import Node, ui_for
-from test_e2e_kiosk_entry import request_form
+from tests.support.accessible_ui import Node
+from tests.support.e2e_kiosk import WORKER, accounts_form
 from ui_observations import RequestObservation, UiObservations
-
-
-def accounts_form(field='child'):
-    ui, _ = request_form()
-    form = ui.find_id('kiosk-request-form')
-    selector = ui.find_id(f'kiosk-{field}-selector')
-    expected = (CHILD, EXISTING_CHILD) if field == 'child' else (PARENT, OTHER_PARENT)
-    label = 'Child account' if field == 'child' else 'Approving parent'
-    choices = Node(identity=f'kiosk-{field}-choices', states=('visible',), children=[
-        Node(f'{label}: {name}', identity=f'kiosk-{field}-choice-{ui.fixture_uids[name]}')
-        for name in expected])
-    choices.parent = form
-    form.children.append(choices)
-    selector.states.add('sensitive')
-    selector.action.do_action.side_effect = lambda _: choices.states.add('showing') or True
-
-    def commit(_):
-        selected = selector.children[0]
-        selected.identity = f'kiosk-{field}-selected-{ui.fixture_uids[expected[0]]}'
-        selected.name = expected[0]
-        selector.description = f'Selected {label.casefold()}: {expected[0]}.'
-        # Independent form read, with enabled availability after loading.
-        for node in form.children:
-            if node.identity == 'kiosk-screen-limit-notice':
-                node.states.discard('showing')
-            else:
-                node.states.add('sensitive')
-        choices.states.discard('showing')
-        return True
-
-    choices.children[0].action.do_action.side_effect = commit
-    if field == 'approver':
-        child = ui.find_id('kiosk-child-selector')
-        child.children[0].identity = 'kiosk-child-selected-1001'
-        child.description = f'Selected child account: {CHILD}.'
-    return ui, selector, choices, expected
 
 
 @pytest.mark.parametrize('field', ['child', 'approver'])
@@ -178,45 +142,6 @@ def test_account_snapshot_uses_one_complete_read_for_input_boundary():
     ui.nodes = Mock(wraps=ui.nodes)
     assert ui.kiosk_account_snapshot('child')[0] is selector
     assert ui.nodes.call_count == 1
-
-
-WORKER = r'''
-use strict;
-use warnings;
-use JSON::PP;
-our @events;
-BEGIN { $INC{'testapi.pm'} = 1; }
-package testapi;
-sub current_console { 'sut' }
-sub reset_consoles { }
-sub select_console { }
-sub send_key { push @main::events, ['key', $_[0]] }
-sub record_info { }
-sub get_var { '1' }
-sub get_required_var { 'fixture-only' }
-sub type_password { push @main::events, ['secret'] }
-sub console { bless {}, 'Console' }
-sub power { push @main::events, ['power', $_[0]] }
-sub check_shutdown { 1 }
-package Console;
-sub disable { }
-package main;
-require onpc_kiosk_eligible_choices;
-my $ok = eval {
-    onpc_kiosk_eligible_choices::run(sub {
-        my ($stage) = @_;
-        push @events, ['stage', $stage];
-        die 'fixture:refused' if ($ENV{ONPC_TEST_REFUSE_STAGE} // '') eq $stage;
-        return {observed => $stage, ui_focused => JSON::PP::true}
-            if $stage =~ /(?:greeter|station-list|focused|picker-opened)\z/;
-        return {observed => $stage, station_destination => 'default-request-form'}
-            if $stage eq 'station-branch';
-        return {observed => $stage};
-    });
-    1;
-};
-print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
-'''
 
 
 @pytest.mark.parametrize('refusal', [None, 'save-enabled', 'child-selected'])

@@ -98,9 +98,11 @@ def vm_demand(root):
     amount = int(memory.text) * units[memory.get('unit', 'KiB')]
     if cpus <= 0 or amount <= 0:
         raise ValueError('invalid pinned VM resource declaration')
-    # Reserve configured RAM, not only the guest's current resident pages,
-    # plus QEMU/controller overhead. No VM settings are changed.
-    return Demand(cpus + 1, amount + max(GIB, amount // 10))
+    # Admission estimates a working set, not the guest's maximum allocation.
+    # Budget half the configured RAM plus full QEMU/controller overhead; the
+    # separate desktop reserve and live pressure/swap gates still apply. This
+    # deliberately permits memory overcommit; it does not resize the guest.
+    return Demand(cpus + 1, (amount + 1) // 2 + max(GIB, amount // 10))
 
 
 @dataclass(frozen=True)
@@ -299,8 +301,8 @@ class Admission:
         # 1 GiB per branch without a cap stranded the sixth worker despite low
         # pressure. Startup budgets stay outside that pool: they may not yet
         # be reflected in the available-memory sample.
-        # VM demand already includes all configured guest RAM plus controller/
-        # QEMU overhead. Keep the same fixed desktop reserve as host work;
+        # VM demand includes its estimated working set plus controller/QEMU
+        # overhead. Keep the same fixed desktop reserve as host work;
         # a percentage of installed RAM needlessly blocks larger machines.
         reserve = HOST_MEMORY_RESERVE
         starting = [self.last < self.startup_until.get(name, math.inf) for name in active]

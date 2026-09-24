@@ -19,11 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **004a — [Give repeated public operations distinct stages](E2E-Tasks/004a-give-repeated-public-operations-distinct-stages.md)**.
+Next task: **004 — [Allow distinct single-use authentication challenges](E2E-Tasks/004-challenges.md)**.
 
-Remaining: implement and qualify JourneyPlan repeated invocation IDs and
-assertion placement, preserving fresh observations, durable acknowledgement
-ordering and the terminal failure latch.
+Remaining: implement and qualify UI19/GDM05 distinct single-use authentication
+challenges using the qualified repeated-stage interface, preserving recipient
+guards, sealed capture, durable acknowledgement ordering and the terminal
+failure latch.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

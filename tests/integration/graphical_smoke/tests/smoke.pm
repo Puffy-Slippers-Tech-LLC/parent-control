@@ -32,6 +32,7 @@ use onpc_parent_toggle ();
 use onpc_parent_discovery ();
 use onpc_journey ();
 use onpc_flow00 ();
+use onpc_repeated_operations ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -57,6 +58,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{repeated_operations}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_repeated_operations::run(\&exchange, $ready->{invocations});
+        return;
+    }
     # generalhw opens graphics during boot without setting testapi's selected
     # console. Establish that public selection before checking its identity.
     if ($ready->{functional_smoke}) {

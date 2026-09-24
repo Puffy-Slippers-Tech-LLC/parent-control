@@ -30,6 +30,7 @@ import shell_search_results
 import parent_search_launch
 import parent_terminal_provider
 import license_viewer_provider
+import repeated_operations
 import shell_search
 import accessible_ui
 import inventory
@@ -65,13 +66,14 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
                                  request_exit.PLAN, parent_toggle.PLAN, kiosk_eligible_choices.PLAN,
                                  request_choices.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN,
                                  kiosk_no_approver.PLAN, kiosk_no_approver.CASE_PLAN,
-                                 parent_terminal_provider.PLAN, license_viewer_provider.PLAN],
+                                 parent_terminal_provider.PLAN, license_viewer_provider.PLAN,
+                                 repeated_operations.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
                               'kiosk-eligible-choices', 'request-choices', 'kiosk-no-child', 'no-child-case',
                               'kiosk-no-approver', 'no-parent-case',
-                              'terminal-provider', 'license-viewer-provider'])
+                              'terminal-provider', 'license-viewer-provider', 'repeated-operations'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -102,6 +104,11 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         executable={'path': 'tests/e2e/installed_journey.py',
                     'test_id': 'synthetic-recorder-safety'},
     )
+    if plan is repeated_operations.PLAN:
+        scenario = next(s for s in document['scenarios'] if s['id'] == scenario_id)
+        scenario['assertions']['visible'] = [
+            {'id': assertion, 'step_id': plan.phases[stage], 'description': 'Independent return.'}
+            for stage, assertion in plan.assertions_after.items()]
     inventory_path = tmp_path / 'scenarios.json'
     inventory_path.write_text(json.dumps(document))
     inputs = {key: hashlib.sha256(key.encode()).hexdigest() for key in evidence.INPUT_FIELDS}
@@ -129,8 +136,11 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         Mock(return_value=SimpleNamespace(run=setup, provision=provision)))
     boot = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
+    operation_counts = {}
+
     def observe_ui(operation):
         import accessible_ui
+        operation_counts[operation] = operation_counts.get(operation, 0) + 1
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation == 'station-entry-branch':
             result['branch'] = {'destination': 'default-request-form', 'controls': []}
@@ -140,6 +150,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             result['settings'] = {'child': accessible_ui.CHILD_IDENTITIES[
                 accessible_ui.SETTINGS_OPERATIONS[operation]], 'limit_enabled': False,
                 'allowance': ['1 hour'] if operation.startswith('new-') else ['0 minutes']}
+            if plan is repeated_operations.PLAN and (
+                    operation == 'parent-selected' and operation_counts[operation] == 3
+                    or operation == 'parent-screen-page' and operation_counts[operation] == 2):
+                result['settings']['allowance'] = ['1 hour']
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS):
@@ -195,7 +209,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             if state['stage'] == boundary:
                 if (failure == 'observation-write' and value.get('event') == 'observation') or (
                         failure == 'return-step-write' and value.get('event') == 'step-started'
-                        and value['active_step'] == 'step-2'):
+                        and value['active_step'] == 'step-2') or (
+                        failure == 'assertion-write' and value.get('event') == 'assertion'):
                     raise OSError('fixed checkpoint failure')
             result = save(name, value)
             if value.get('event') == 'observation':
@@ -230,7 +245,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 assert recorder._active['step_id'] == plan.advance_after.get(stage, plan.phases[stage])
                 reply = json.loads((directory / (stage + '.reply.json')).read_bytes())
                 if stage == 'ready':
-                    assert reply == {plan.worker_mode: True}
+                    expected_ready = {plan.worker_mode: True}
+                    if plan.invocations:
+                        expected_ready['invocations'] = list(plan.invocations)
+                    assert reply == expected_ready
                     provision.assert_not_called()
                 else:
                     provision.assert_called_once()
@@ -242,6 +260,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 if tag.startswith('system:'):
                     assert reply == {'observed': stage}
                 acknowledged.append(stage)
+                if stage in plan.assertions_after:
+                    assertion = recorder.records[0]['assertions'][-1]
+                    assert assertion['assertion_id'] == plan.assertions_after[stage]
+                    assert assertion['step_id'] == plan.phases[stage]
             assert [s['stage'] for s in options['validate']()] == list(plan.screen_tags)
             return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
 
@@ -271,11 +293,21 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 expected_steps.append('step-3')
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)
-            assert steps[-2]['assertion_ids'] == ['visible-result']
+            if plan.assertions_after:
+                assert [(a['assertion_id'], a['step_id']) for a in recorder.records[0]['assertions']] == [
+                    (name, plan.phases[stage]) for stage, name in plan.assertions_after.items()]
+                assert operation_counts['parent-screen-page'] == 2
+            else:
+                assert steps[-2]['assertion_ids'] == ['visible-result']
         assert recorder._active is None
         setup.assert_not_called()
         journeys.Transport.return_value.reboot.assert_not_called()
         assert boot.read.call_args_list and all(call.args == ('boot',) for call in boot.read.call_args_list)
+
+
+def test_repeated_assertion_write_failure_prevents_reply_and_latches(tmp_path, monkeypatch):
+    test_shared_plan_records_before_input_and_latches_transition_failures(
+        tmp_path, monkeypatch, repeated_operations.PLAN, 'assertion-write')
 
 
 def test_invalid_phase_plan_refuses_before_credentials_or_worker(tmp_path):

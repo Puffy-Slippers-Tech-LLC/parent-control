@@ -86,12 +86,14 @@ HIGHLIGHT_OPERATIONS = {
     'discovery-child-choice-highlighted': EXISTING_CHILD,
 }
 SETTINGS_OPERATIONS = {
+    'parent-screen-page': CHILD,
     'parent-selected': CHILD, 'parent-returned': CHILD, 'discovery-ready': EXISTING_CHILD,
     'parent-toggle-disabled-settings': CHILD,
     'discovery-selected': EXISTING_CHILD,
     'new-child-selected': NEW_CHILD, 'new-child-screen': NEW_CHILD, 'existing-returned': EXISTING_CHILD,
 }
 OPERATIONS |= frozenset(SETTINGS_OPERATIONS)
+OPERATIONS |= frozenset({'parent-apps-page', 'parent-page-wrong-child-refused'})
 TOGGLE_OPERATIONS = {
     'parent-toggle-enabled': {'state': True, 'activated': True},
     'parent-toggle-disabled': {'state': False, 'activated': True},
@@ -3844,12 +3846,25 @@ class AccessibleUI:
             result['focused'] = self.open_child_picker(PICKER_OPERATIONS[operation])
         elif operation in HIGHLIGHT_OPERATIONS:
             self.child_highlighted(HIGHLIGHT_OPERATIONS[operation])
+        elif operation == 'parent-page-wrong-child-refused':
+            # A real selected child is a required entry condition. Refuse the
+            # different child's page before any page input, then reread entry.
+            self.selected_child(CHILD)
+            try:
+                self.parent_page(EXISTING_CHILD, 'App Limits')
+            except UiError as error:
+                require(str(error) == 'ui:selected-child', 'ui:page-wrong-refusal')
+            else:
+                raise UiError('ui:page-wrong-entry-accepted')
+            self.selected_child(CHILD)
+        elif operation == 'parent-apps-page':
+            self.parent_page(CHILD, 'App Limits')
         elif operation in ('existing-apps', 'new-child-apps'):
             child = EXISTING_CHILD if operation == 'existing-apps' else NEW_CHILD
             self.parent_page(child, 'App Limits')
         elif operation in SETTINGS_OPERATIONS and operation != 'parent-returned':
             child = SETTINGS_OPERATIONS[operation]
-            if operation in ('discovery-ready', 'new-child-screen'):
+            if operation in ('discovery-ready', 'new-child-screen', 'parent-screen-page'):
                 result['settings'] = self.parent_page(child, 'Screen Limits')
             else:
                 result['settings'] = self.selected_child(child)

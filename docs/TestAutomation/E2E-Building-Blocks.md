@@ -1002,18 +1002,30 @@ Further capabilities remain outside these seven recipes:
   other-child desktop. Add the intended child/other-parent/kiosk/lock routes
   only with their named entry consumer, preserving socket/account ownership
   checks. Metadata for routing is not evidence of product behavior.
-- `JourneyPlan.screen_tags` is ordered and each stage is unique. Repeated
-  blocks need unique invocation/stage IDs and a fresh controller observation
-  for each invocation; they cannot reuse a previous stage's result. Preserve
-  `phases`, `advance_after`, fixture action timing and store-before-reply.
+- `JourneyPlan.screen_tags` maps unique stage IDs to public operations, allowing
+  the same operation at several stages. `JourneyPlan.invocations` declares an
+  ordered finite subset for `onpc_journey::declare_invocations/invoke`; the ready
+  reply binds the worker's fixed list. Each invocation observes afresh and rejects
+  duplicate, missing, stale or reordered replies, with a terminal failure latch.
+  `assertions_after` places a visible assertion after its stage's durable
+  observation and before `advance_after` opens the next phase or replies permit
+  input. Empty declarations preserve existing workers and terminal assertions.
+  [The repeated-operation plan](../../tests/e2e/repeated_operations.py) gives two page-return
+  cycles separate immutable baselines and assertions, with wrong-child entry
+  refusal. Its fixed `check_e2e_give_repeated_public_operations_distinct_stages`
+  installed qualification passed in run `20260924T182527Z-aff50093`: fresh Parent
+  entry, wrong-child refusal, both immutable-baseline comparisons, durable
+  `first-return`/`step-1` and `second-return`/`step-2` assertions, collection,
+  reconciliation and owned cleanup. The first assertion precedes the next phase
+  and acknowledgement. Preserve `phases`, fixture timing and store-before-reply;
+  this qualifies the repeated PARENT03/04 and UI12 slice, not case 2 or repeated
+  authentication.
 - UI22 needs bounded public-state observation active before the triggering
   worker input. Extend the existing rendezvous for its named transition
   consumer, retaining durable readiness/input/result ordering, single input and
   the terminal failure latch. Post-action polling cannot replace this trace.
-- `InstalledJourney` currently rejects any customer-phase boot change and
-  `record_installed_journey` emits one terminal `visible-result` assertion.
-  LIFE02/05 and journeys with multiple declared assertions need small explicit
-  extensions for planned boot transitions and assertion placement. Reconnect
+- `InstalledJourney` currently rejects any customer-phase boot change.
+  LIFE02/05 still need explicit planned boot transitions. Reconnect
   only after the recorded customer reboot; unexpected boot changes must still
   fail. Keep the current path for the established customer cases.
 

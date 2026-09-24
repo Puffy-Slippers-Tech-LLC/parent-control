@@ -239,6 +239,11 @@ def test_parent_functional_adapter_at_display_scales(
         press_key(ui, 'parent-child-choice-1001', 'Return', state=Atspi.StateType.FOCUSED)
         selected = ui.run('parent-selected', version)
         assert selected['settings']['child'] == 'fixture-child'
+        ui.run('parent-page-wrong-child-refused', version)
+        for _ in range(2):
+            before = ui.run('parent-selected', version)['settings']
+            ui.run('parent-apps-page', version)
+            assert ui.run('parent-screen-page', version)['settings'] == before
         opened = ui.run('discovery-child-picker-opened', version)
         assert opened['focused'] is True
         ui.run('discovery-child-choice-highlighted', version)

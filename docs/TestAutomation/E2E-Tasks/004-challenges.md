@@ -12,6 +12,22 @@ Read only the named block rows/callables, this recipe's selected cases and
 applicable finite-data rows. Prerequisite IDs are completion checks; do not open
 their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
+Source route: `JourneyPlan.invocations`, `assertions_after` and
+`InstalledJourney._step` in
+[`installed_journey.py`](../../../tests/e2e/installed_journey.py),
+[`repeated_operations.PLAN`](../../../tests/e2e/repeated_operations.py),
+`onpc_journey::declare_invocations/invoke` in
+[`onpc_journey.pm`](../../../tests/integration/graphical_smoke/lib/onpc_journey.pm),
+the single-authentication latch in
+[`onpc_password.pm`](../../../tests/integration/graphical_smoke/lib/onpc_password.pm),
+and `UiObservations.last_operation` in
+[`ui_observations.py`](../../../tests/e2e/ui_observations.py).
+Preserve the recorder/worker checks in
+[`test_repeated_operations_cleanup_safety.py`](../../../tests/unit/test_repeated_operations_cleanup_safety.py)
+and [`test_installed_journey_cleanup_safety.py`](../../../tests/unit/test_installed_journey_cleanup_safety.py).
+The fixed `check_e2e_challenges` selector below is planned and must be
+implemented before invocation.
+
 ## Scope and prerequisites
 
 Deliver **UI19/GDM05 distinct single-use authentication challenges**. First scheduled consumer: [E2E-002, case 2](../E2E-Scenario-Recipes.md#e2e-002).
@@ -30,7 +46,7 @@ Replace the one-authentication-per-worker limitation with explicit, single-use c
 
 ## Live VM acceptance
 
-In one guarded VM attempt, authenticate the Parent, log out through the shared DESK04 command, then authenticate again with a new challenge. Reject stale/reused proofs in safety regressions; no reset of the existing failure latch. After external-provider route qualification, run affected credential safety and retained cases 1, 3, 4, 5, 151.
+In one guarded VM attempt, authenticate the Parent, log out through the shared DESK04 command, then authenticate again with a new challenge. Reject stale/reused proofs in safety regressions; no reset of the existing failure latch. Run affected credential safety checks and follow the master's current [affected-regression rules](../E2E-Execution-Contracts.md#live-verification-contract).
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

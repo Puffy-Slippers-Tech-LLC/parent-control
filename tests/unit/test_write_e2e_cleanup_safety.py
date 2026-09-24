@@ -96,7 +96,7 @@ def test_failure_repair_returns_before_retry_and_counts_every_session(checkout):
            {'result': reply(live='failed', handoff='REPAIRED')},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002', handoff='NEXT TASK LIVE')})
-    run, _ = workflow.select(root, ['--sessions', '4'])
+    run, _ = workflow.select(root, ['--sessions', '4', '--tasks', '2'])
     assert launcher.follow(run, io.StringIO()) == 0
     invocations = calls(root)
     assert len(invocations) == 4
@@ -108,6 +108,34 @@ def test_failure_repair_returns_before_retry_and_counts_every_session(checkout):
     assert 'Task 002' in (run / 'handoff.txt').read_text()
 
 
+@pytest.mark.parametrize('args, sessions, completed, reason', [
+    ([], 2, 1, 'task limit reached'),
+    (['--sessions', '3', '--tasks', '1'], 2, 1, 'task limit reached'),
+    (['--sessions', '1', '--tasks', '2'], 1, 0, 'session limit reached'),
+    (['--sessions', '3', '--tasks', '2'], 3, 1, 'session limit reached'),
+    (['--tasks', '2'], 4, 2, 'task limit reached'),
+    (['--sessions', '2', '--tasks', '1'], 2, 1, 'task limit reached'),
+])
+def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, completed, reason):
+    root, _ = checkout
+    script(root, {'result': reply()},
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply(task_id='002')},
+           {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
+    run, _ = workflow.select(root, args)
+    assert launcher.follow(run, io.StringIO()) == 0
+    assert len(calls(root)) == sessions
+    assert json.loads((run / 'result.json').read_text()) == {
+        'status': 0, 'sessions': sessions, 'tasks': completed}
+    assert reason in (run / 'handoff.txt').read_text()
+    _, queue = workflow.queue_state(root)
+    assert sum(queue.values()) == completed
+    if completed:
+        staged = subprocess.run(['git', 'show', ':' + workflow.QUEUE], cwd=root,
+                                capture_output=True, text=True, check=True)
+        assert staged.stdout.count('| [x] |') == completed
+
+
 def test_concurrent_attach_ignores_all_new_parameters_and_terminal_loss(checkout):
     root, spawned = checkout
     script(root, {'result': reply(), 'wait': True})
@@ -117,7 +145,7 @@ def test_concurrent_attach_ignores_all_new_parameters_and_terminal_loss(checkout
     assert values[1][0] == run and sorted(item[1] for item in values) == [False, True]
     wait_for(root / 'agent-ready-1')
     assert len(spawned) == 1 and os.getsid(spawned[0].pid) == spawned[0].pid
-    assert workflow.select(root, ['--sessions', 'invalid', '--unknown']) == (run, False)
+    assert workflow.select(root, ['--sessions', 'invalid', '--tasks', 'invalid', '--unknown']) == (run, False)
 
     class Closed(io.StringIO):
         def write(self, value):

@@ -18,9 +18,10 @@ from tests.support.write_e2e_fixtures import prepare, reply
 def test_session_controller_reports_task_title_and_phase(tmp_path, phase, attempts, summary):
     from rich.text import Text
     prepare(tmp_path)
-    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts)
-    assert [Text.from_ansi(line).plain for line in workflow.session_progress(tmp_path, state, 4)] == [
-        'Task 001: First', f'Session 4: {summary}']
+    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
+                 task_sessions=2)
+    assert [Text.from_ansi(line).plain for line in workflow.session_progress(tmp_path, state, 5)] == [
+        'Task 001: First', f'Session [2/5]: {summary}']
 
 
 def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, capsys):

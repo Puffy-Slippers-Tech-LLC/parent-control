@@ -19,8 +19,8 @@ def publish_progress(run, key, lines):
         steps[-1] = step
     else:
         steps.append(step)
-    # ANSI terminals have no independently scrollable upper pane. Keep the
-    # latest two major steps; ordinary output retains the full transcript.
+    # Reconnecting observers start with the latest two major steps. Attached
+    # observers retain their own controller scrollback.
     temporary = run / 'controller.tmp'
     temporary.write_text(json.dumps(steps[-2:]))
     temporary.replace(run / 'controller.json')

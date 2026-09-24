@@ -32,8 +32,7 @@ sub seen {
     return $reply;
 }
 
-# Opt-in finite public-operation invocations. Legacy authentication continues
-# through its existing challenge helpers; repeated operations cannot recycle
+# Opt-in finite public-operation invocations. Repeated operations cannot recycle
 # either a stage's reply file or another invocation's result.
 sub declare_invocations {
     my ($self, $stages) = @_;
@@ -46,6 +45,30 @@ sub declare_invocations {
     }
     $self->{invocations} = [@$stages];
     $self->{invocation_index} = 0;
+}
+
+sub declare_challenges {
+    my ($self, $bindings) = @_;
+    die 'journey:challenge-plan' if exists($self->{challenges}) || $self->{review};
+    die 'journey:challenge-plan' unless ref($bindings) eq 'HASH' && keys(%$bindings)
+        && ref($self->{invocations}) eq 'ARRAY';
+    my %stages;
+    my %copy;
+    for my $id (keys %$bindings) {
+        my $binding = $bindings->{$id};
+        die 'journey:challenge-plan' unless $id =~ /\A[a-z][a-z0-9-]*\z/
+            && ref($binding) eq 'ARRAY' && @$binding == 3
+            && ($binding->[0] eq 'parent' || $binding->[0] eq 'other-child');
+        my ($role, $first, $second) = @$binding;
+        my @positions = grep { $self->{invocations}[$_] eq $first }
+            0 .. $#{$self->{invocations}};
+        die 'journey:challenge-plan' unless @positions == 1
+            && $positions[0] + 1 < @{$self->{invocations}}
+            && $self->{invocations}[$positions[0] + 1] eq $second
+            && !$stages{$first}++ && !$stages{$second}++;
+        $copy{$id} = [@$binding];
+    }
+    $self->{challenges} = \%copy;
 }
 
 sub invoke {
@@ -99,7 +122,8 @@ sub highlight_choice {
     } else {
         $self->navigate_choice($choice);
     }
-    return $self->seen($focused_stage);
+    return (grep { $_ eq $focused_stage } @{$self->{invocations} // []})
+        ? $self->invoke($focused_stage) : $self->seen($focused_stage);
 }
 
 sub finish {

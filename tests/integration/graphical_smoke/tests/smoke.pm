@@ -33,6 +33,7 @@ use onpc_parent_discovery ();
 use onpc_journey ();
 use onpc_flow00 ();
 use onpc_repeated_operations ();
+use onpc_challenges ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -58,6 +59,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{challenges}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{repeated_operations}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

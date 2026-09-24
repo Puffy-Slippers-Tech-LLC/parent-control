@@ -61,7 +61,8 @@ def session_progress(root, state, count):
     summary = {'implement': 'Writing task code + host validation',
                'recover': 'Recovering interrupted work + host validation'}.get(
                    state['phase'], f"Live VM test {state['live_attempts'] + 1}, fix errors if any + host validation")
-    return [f'{task_label}: {title}', f'\033[1mSession {count}\033[22m: {summary}']
+    return [f'{task_label}: {title}',
+            f"\033[1mSession [{state['task_sessions']}/{count}]\033[22m: {summary}"]
 
 
 def session_prompt(state):

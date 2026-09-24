@@ -319,6 +319,30 @@ class LicenseViewerProviderQualification(KioskEntryQualification):
         return LicenseViewerProviderJourney(context, progress)
 
 
+class ChallengesQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from challenges import ChallengesJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ChallengesJourney(context, progress)
+
+    def record_progress(self, journey, stage, observed):
+        plan = journey.plan
+        self.result['active_phase'] = plan.phases[stage]
+        super().record_progress(journey, stage, observed)
+        if stage in plan.assertions_after:
+            smoke.require(observed.get('ui', {}).get('outcome') == 'passed',
+                          'challenges:public-result-required')
+            self.result.setdefault('assertions', []).append({
+                'stage': stage, **observed['assertion'], 'outcome': 'passed'})
+            self.checkpoint('assertion')
+        if stage in plan.advance_after:
+            self.result['active_phase'] = plan.advance_after[stage]
+            self.checkpoint('phase-started')
+
+
 class RepeatedOperationsQualification(KioskEntryQualification):
     """Finite page cycles in the same owned snapshot/collection envelope."""
 

@@ -22,6 +22,50 @@ my $failed = 0;
 my $authentication_started = 0;
 my $functional_started = 0;
 my $functional_input_started = 0;
+my %challenges_used;
+my $active_challenge;
+
+# Explicit UI19/GDM05 binding for subsequent authentications. A used identity
+# is never cleared, and any uncertainty poisons every later secret route.
+sub enter_gdm_challenge {
+    my ($journey, $id) = @_;
+    die "secret:input-refused\n" if $failed;
+    my $ok = eval {
+        die 'secret:challenge' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+            && !$journey->{review} && defined($id) && !$challenges_used{$id}
+            && ref($journey->{challenges}) eq 'HASH'
+            && ref($journey->{challenges}{$id}) eq 'ARRAY';
+        $challenges_used{$id} = 1;
+        # The compatibility route has no explicit identity and may never be
+        # used to obtain another authentication after an explicit challenge.
+        $functional_started = 1;
+        $functional_input_started = 1;
+        my ($role, $first, $second) = @{$journey->{challenges}{$id}};
+        $authentication_started = 1;
+        die 'secret:console' unless testapi::current_console() eq 'sut';
+        die 'secret:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
+        my $proof;
+        for my $entry ([$first, 'qualified'], [$second, 'rechecked']) {
+            my ($stage, $check) = @$entry;
+            $proof = $journey->invoke($stage);
+            my $context = $proof->{challenge};
+            die 'secret:recipient' unless keys(%$proof) == 2
+                && ref($context) eq 'HASH' && keys(%$context) == 4
+                && ($context->{id} // '') eq $id && ($context->{role} // '') eq $role
+                && ($context->{surface} // '') eq 'gdm' && ($context->{check} // '') eq $check;
+        }
+        $active_challenge = {journey => $journey, id => $id, role => $role,
+                             stage => $second, proof => $proof};
+        type_fixture_secret($role, $journey, $proof, $id);
+        1;
+    };
+    unless ($ok) {
+        $failed = 1;
+        undef $active_challenge;
+        die "secret:input-failed\n";
+    }
+    return 1;
+}
 
 sub enter_parent_gdm_password {
     onpc_progress::operation('Qualifying the Parent password recipient');
@@ -35,7 +79,10 @@ sub enter_standard_gdm_password {
 
 sub _enter_functional_gdm_password {
     my ($role, $journey) = @_;
-    die "secret:input-refused\n" if $failed || $functional_started;
+    if ($failed || $functional_started) {
+        $failed = 1;
+        die "secret:input-refused\n";
+    }
     $authentication_started = 1;
     $functional_started = 1;
     my $ok = eval {
@@ -71,16 +118,30 @@ sub _enter_functional_gdm_password {
 # qualification. This leaf neither submits nor infers authentication success.
 sub type_fixture_secret {
     onpc_progress::operation('Entering the protected fixture credential');
-    my ($role, $journey, $proof) = @_;
-    die "secret:input-refused\n" if $failed || $functional_input_started;
+    my ($role, $journey, $proof, $challenge) = @_;
+    if ($failed || (!defined($challenge) && $functional_input_started)) {
+        $failed = 1;
+        die "secret:input-refused\n";
+    }
     $authentication_started = 1;
-    $functional_input_started = 1;
+    $functional_input_started = 1 unless defined($challenge);
     my $ok = eval {
-        die "secret:arguments\n" unless @_ == 3 && ($role eq 'parent' || $role eq 'other-child')
+        die "secret:arguments\n" unless (@_ == 3 || @_ == 4) && ($role eq 'parent' || $role eq 'other-child')
             && ref($journey) eq 'onpc_journey' && !$journey->{review};
-        my $stage = ($role eq 'parent' ? '' : 'standard-') . 'recipient-rechecked';
-        die "secret:recipient\n" unless ref($proof) eq 'HASH' && keys(%$proof) == 1
-            && ($proof->{observed} // '') eq $stage;
+        my $stage;
+        if (defined($challenge)) {
+            my $active = $active_challenge;
+            undef $active_challenge; # Consume before accessing the secret API.
+            die 'secret:challenge' unless ref($active) eq 'HASH'
+                && $active->{journey} == $journey && $active->{id} eq $challenge
+                && $active->{role} eq $role && ref($proof) eq 'HASH'
+                && $active->{proof} == $proof;
+            $stage = $active->{stage};
+        } else {
+            $stage = ($role eq 'parent' ? '' : 'standard-') . 'recipient-rechecked';
+            die "secret:recipient\n" unless ref($proof) eq 'HASH' && keys(%$proof) == 1
+                && ($proof->{observed} // '') eq $stage;
+        }
         $journey->consume_observation($stage, $proof);
         die "secret:console\n" unless testapi::current_console() eq 'sut';
         die "secret:video-policy\n" unless testapi::get_var('NOVIDEO', 0) eq '1';

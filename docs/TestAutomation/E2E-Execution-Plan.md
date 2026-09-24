@@ -19,12 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **004 — [Allow distinct single-use authentication challenges](E2E-Tasks/004-challenges.md)**.
+Next task: **005a — [Start a graphical journey before product installation](E2E-Tasks/005a-product-free-entry.md)**.
 
-Remaining: implement and qualify UI19/GDM05 distinct single-use authentication
-challenges using the qualified repeated-stage interface, preserving recipient
-guards, sealed capture, durable acknowledgement ordering and the terminal
-failure latch.
+Remaining: implement and qualify product-free graphical entry and verified
+package staging through the shared guarded journey, preserving declared setup
+mode, administrator authority, recipient guards, input digests and owned cleanup.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

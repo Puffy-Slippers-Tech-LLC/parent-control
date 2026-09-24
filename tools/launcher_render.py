@@ -50,8 +50,9 @@ def clean(value):
 class LauncherDisplay:
     """Two panes owned by the observer, never by its streaming children.
 
-    Mouse reports select a pane on click and scroll its retained rows. The lower
-    pane starts focused. Absolute cursor positioning isolates their redraws.
+    Native terminal selection and context menus own the mouse by default.
+    Keyboard navigation (or opt-in mouse reports) scrolls the focused pane.
+    The lower pane starts focused. Absolute positioning isolates redraws.
     """
 
     def __init__(self, stream, *, log_path=None):
@@ -79,6 +80,7 @@ class LauncherDisplay:
         self.input_pending = b''
         self.scrollbar = None
         self.scrollbar_grab = None
+        self.mouse_capture = False
 
     def __enter__(self):
         if self.tty:
@@ -168,9 +170,30 @@ class LauncherDisplay:
             self.handle_input(os.read(self.input_fd, 4096))
 
     def handle_input(self, data):
-        """Decode SGR mouse reports, including reports split across reads."""
+        """Decode navigation keys and SGR reports, including fragmented reads."""
         self.input_pending += data
         while self.input_pending:
+            keys = (b'\x1b[A', b'\x1b[B', b'\x1b[5~', b'\x1b[6~',
+                    b'\x1b[F', b'\x1bOF', b'\x1b[4~', b'\x1b[8~', b'\t', b'm')
+            key = next((key for key in keys if self.input_pending.startswith(key)), None)
+            if key is not None:
+                self.input_pending = self.input_pending[len(key):]
+                if key == b'm':
+                    self.mouse_capture = not self.mouse_capture
+                    self.scrollbar_grab = None
+                    self.set_mouse_mode()
+                elif key == b'\t':
+                    self.focus = 'top' if self.focus == 'bottom' else 'bottom'
+                else:
+                    page = (self.top_height if self.focus == 'top' else
+                            self.size.lines - self.top_height - 1) if self.size else 1
+                    delta = {b'\x1b[A': 1, b'\x1b[B': -1,
+                             b'\x1b[5~': max(1, page), b'\x1b[6~': -max(1, page)}
+                    self.offsets[self.focus] = max(0, self.offsets[self.focus] + delta[key]) if key in delta else 0
+                    self.draw()
+                continue
+            if any(key.startswith(self.input_pending) for key in keys):
+                break
             match = re.match(rb'\x1b\[<(\d+);(\d+);(\d+)([Mm])', self.input_pending)
             if match:
                 button, column, row = map(int, match.groups()[:3])
@@ -330,7 +353,7 @@ class LauncherDisplay:
             self.screen = True
             self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
             if self.input_fd is not None:
-                self.stream.write('\033[?1002h\033[?1006h')
+                self.set_mouse_mode()
             self.previous = None
         if size != self.size:
             self.stream.write('\033[H\033[2J')
@@ -341,8 +364,18 @@ class LauncherDisplay:
         self.stream.flush()
         self.previous, self.size = encoded, size
 
+    def set_mouse_mode(self):
+        if self.input_fd is not None:
+            # Mouse reporting consumes selection and right clicks before the
+            # host terminal can apply its own menu/preferences (including VS Code).
+            self.stream.write('\033[?1000l\033[?1002l\033[?1003l\033[?1006l')
+            if self.mouse_capture:
+                self.stream.write('\033[?1002h\033[?1006h')
+            self.stream.flush()
+
     def restore_terminal(self):
         self.scrollbar_grab = None
+        self.mouse_capture = False
         if self.input_fd is not None:
             try:
                 self.stream.write('\033[?1002l\033[?1006l')

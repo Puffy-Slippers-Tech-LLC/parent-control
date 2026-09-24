@@ -349,6 +349,11 @@ def test_mouse_input_is_not_echoed_and_terminal_modes_are_restored(terminal, mon
                     current = termios.tcgetattr(slave)
                     assert not current[3] & (termios.ECHO | termios.ICANON)
                     assert current[3] & termios.ISIG == original[3] & termios.ISIG
+                    assert '\x1b[?1002h' not in terminal.getvalue()
+                    os.write(master, b'm')
+                    assert select.select([slave], [], [], 1)[0]
+                    display.poll_input()
+                    assert display.mouse_capture
                     before = terminal.getvalue()
                     # Empty top pane scroll and terminal arrow fallback must neither
                     # repaint content nor echo raw escape sequences into the screen.
@@ -386,6 +391,40 @@ def test_mouse_reports_can_arrive_in_fragments_and_scroll_is_bounded(terminal):
     assert ''.join(terminal.cells[2][:-1]).rstrip() == 'output 0'
     display.handle_input(b'\x1b[<65;2;8M' * 100)
     assert 'output 29' in terminal.visible()
+
+
+def test_keyboard_scrolling_keeps_native_mouse_available(terminal):
+    terminal.resize(50, 10)
+    display = LauncherDisplay(terminal)
+    display.update([{'key': 'task', 'lines': ['Task']}], [])
+    display.write(''.join(f'output {index}\n' for index in range(30)))
+    for byte in b'\x1b[5~':
+        display.handle_input(bytes([byte]))
+    assert display.offsets['bottom'] == 8
+    assert 'output 29' not in terminal.visible()
+    display.handle_input(b'\x1b[B')
+    assert display.offsets['bottom'] == 7
+    display.handle_input(b'\x1b[F')
+    assert display.offsets['bottom'] == 0
+    assert 'output 29' in terminal.visible()
+    display.handle_input(b'\t\x1b[A')
+    assert display.focus == 'top'
+    display.handle_input(b'\t')
+    assert display.focus == 'bottom'
+    assert not display.mouse_capture
+    assert '\x1b[?1002h' not in terminal.getvalue()
+
+
+def test_mouse_capture_can_be_returned_to_terminal(terminal):
+    display = LauncherDisplay(terminal)
+    display.input_fd = 123  # Mode output only; no terminal attribute operations.
+    display.handle_input(b'm')
+    assert '\x1b[?1002h\x1b[?1006h' in terminal.getvalue()
+    display.scrollbar_grab = 2
+    display.handle_input(b'm')
+    assert not display.mouse_capture
+    assert display.scrollbar_grab is None
+    assert terminal.getvalue().endswith('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l')
 
 
 def test_progress_reconnects_with_two_steps_and_coalesces_minor_updates(tmp_path):

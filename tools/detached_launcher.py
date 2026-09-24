@@ -260,7 +260,8 @@ def supervise(root, run, owner, kind, command, *, nested=False):
         os.close(owner)
 
 
-def select(root, name, command, *, stop=False, stop_marker='cancel'):
+def select(root, name, command, *, stop=False, stop_marker='cancel',
+           on_attach=None, on_start=None):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -270,6 +271,8 @@ def select(root, name, command, *, stop=False, stop_marker='cancel'):
             run = current_run(directory)
             if run is None:
                 raise ValueError(f'active {name} owner has no readable run record')
+            if on_attach is not None:
+                on_attach(run)
             if stop:
                 (run / stop_marker).touch(mode=0o600)
             return run, False
@@ -282,6 +285,8 @@ def select(root, name, command, *, stop=False, stop_marker='cancel'):
         import test_retention
         with test_retention.Store(directory / 'retention').session():
             test_retention.retain(run)
+        if on_start is not None:
+            on_start(run)
         fcntl.flock(owner, fcntl.LOCK_EX)
         atomic(directory / 'current.json', {'run': run.name})
         with (run / 'output').open('xb') as output:

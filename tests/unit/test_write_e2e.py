@@ -16,9 +16,10 @@ from tests.support.write_e2e_fixtures import prepare, reply
     ('live', 2, 'Live VM test 3, fix errors if any + host validation'),
 ])
 def test_session_controller_reports_task_title_and_phase(tmp_path, phase, attempts, summary):
+    from rich.text import Text
     prepare(tmp_path)
     state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts)
-    assert workflow.session_progress(tmp_path, state, 4) == [
+    assert [Text.from_ansi(line).plain for line in workflow.session_progress(tmp_path, state, 4)] == [
         'Task 001: First', f'Session 4: {summary}']
 
 

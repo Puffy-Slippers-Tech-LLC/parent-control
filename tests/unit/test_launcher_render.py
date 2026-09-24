@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import signal
 
 import pytest
 from rich.cells import get_character_cell_size
@@ -17,6 +18,8 @@ import regression_session
 class Terminal(io.StringIO):
     def __init__(self, width=80, height=24):
         super().__init__()
+        self.normal_screen = None
+        self.cursor_visible = True
         self.resize(width, height)
 
     def resize(self, width, height):
@@ -32,7 +35,14 @@ class Terminal(io.StringIO):
         for token in re.split(r'(\x1b\[[0-?]*[ -/]*[@-~])', value):
             if token.startswith('\x1b['):
                 args, operation = token[2:-1], token[-1:]
-                if operation == 'H':
+                if args == '?1049' and operation == 'h':
+                    self.normal_screen = ([row[:] for row in self.cells], self.row, self.column)
+                elif args == '?1049' and operation == 'l':
+                    self.cells, self.row, self.column = self.normal_screen
+                    self.normal_screen = None
+                elif args == '?25':
+                    self.cursor_visible = operation == 'h'
+                elif operation == 'H':
                     row, _, column = args.partition(';')
                     self.row, self.column = int(row or 1) - 1, int(column or 1) - 1
                 elif operation == 'J' and args == '2':
@@ -183,3 +193,59 @@ def test_plain_output_accumulates_without_cursor_escapes():
         display.write(f'output {index}\n')
     display.close()
     assert output.getvalue() == ''.join(f'Session {i}\noutput {i}\n' for i in range(4))
+
+
+@pytest.mark.parametrize('height', [1, 3, 24])
+@pytest.mark.parametrize('reason', ['success', 'interrupt', 'error', 'hup', 'term', 'quit'])
+@pytest.mark.parametrize('observer', ['workflow', 'tests'])
+def test_observer_restores_original_screen_on_every_exit(terminal, monkeypatch, height, reason, observer):
+    import detached_launcher
+
+    terminal.resize(80, height)
+    terminal.write('original shell prompt> ')
+    original = terminal.visible(), terminal.row, terminal.column
+    signals = {'hup': signal.SIGHUP, 'term': signal.SIGTERM, 'quit': signal.SIGQUIT}
+    handlers = {sig: signal.SIG_DFL for sig in signals.values()}
+    monkeypatch.setattr(signal, 'getsignal', lambda sig: handlers[sig])
+    monkeypatch.setattr(signal, 'signal', lambda sig, handler: handlers.__setitem__(sig, handler))
+    monkeypatch.delenv(regression_session.FRAME_DIRECTORY, raising=False)
+
+    def output(run, stream, display, **kwargs):
+        display.update([{'key': 'task', 'lines': ['controller header', 'session status']}],
+                       ['[Running] test details'])
+        display.write('agent transcript\nunfinished output')
+        if reason == 'interrupt':
+            raise KeyboardInterrupt
+        if reason == 'error':
+            raise RuntimeError('observer failed')
+        if reason in signals:
+            sig = signals[reason]
+            handlers[sig](sig, None)
+        return 0
+
+    monkeypatch.setattr(detached_launcher, 'follow_output', output)
+    follow = detached_launcher.follow if observer == 'workflow' else regression_session.follow
+    if reason == 'success':
+        assert follow(None, terminal) == 0
+    else:
+        exception = KeyboardInterrupt if reason == 'interrupt' else RuntimeError if reason == 'error' else SystemExit
+        with pytest.raises(exception) as caught:
+            follow(None, terminal)
+        if reason in signals:
+            assert caught.value.code == 128 + signals[reason]
+    assert (terminal.visible(), terminal.row, terminal.column) == original
+    assert terminal.cursor_visible
+    assert terminal.getvalue().endswith('\033[?25h\033[?1049l')
+    assert all(handler == signal.SIG_DFL for handler in handlers.values())
+
+
+def test_display_preserves_custom_and_ignored_signal_handlers(terminal, monkeypatch):
+    handlers = {signal.SIGHUP: signal.SIG_IGN, signal.SIGTERM: lambda *_: None,
+                signal.SIGQUIT: signal.SIG_DFL}
+    original = handlers.copy()
+    monkeypatch.setattr(signal, 'getsignal', lambda sig: handlers[sig])
+    monkeypatch.setattr(signal, 'signal', lambda sig, handler: handlers.__setitem__(sig, handler))
+    with LauncherDisplay(terminal):
+        assert handlers[signal.SIGHUP] == signal.SIG_IGN
+        assert handlers[signal.SIGTERM] is original[signal.SIGTERM]
+    assert handlers == original

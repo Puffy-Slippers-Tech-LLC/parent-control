@@ -51,11 +51,17 @@ def session_progress(root, state, count):
     queue = (root / QUEUE).read_text().split('## Deferred future work', 1)[0]
     row = re.search(r'^\| \[[ x]\] \| ' + re.escape(task) + r' \| ([^|]+) \|', queue, re.MULTILINE)
     title = row[1].strip() if row else task
+    brief = re.search(r'\[[^\]]+\]\(([^)]+)\)', title)
+    target = (root / QUEUE).parent / brief[1] if brief else root / QUEUE
+    # OSC 8 file links let the hosting editor handle navigation and its preview
+    # preference. Keep the link and bold style confined to the task label.
+    link = target.resolve().as_uri()
+    task_label = f'\033]8;;{link}\033\\\033[1mTask {task}\033[22m\033]8;;\033\\'
     title = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', title).replace('`', '').replace('**', '')
     summary = {'implement': 'Writing task code + host validation',
                'recover': 'Recovering interrupted work + host validation'}.get(
                    state['phase'], f"Live VM test {state['live_attempts'] + 1}, fix errors if any + host validation")
-    return [f'Task {task}: {title}', f'Session {count}: {summary}']
+    return [f'{task_label}: {title}', f'\033[1mSession {count}\033[22m: {summary}']
 
 
 def session_prompt(state):

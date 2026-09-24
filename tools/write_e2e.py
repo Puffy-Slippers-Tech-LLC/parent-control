@@ -428,11 +428,11 @@ def initial_state(root, directory):
                     state['stage_candidates'] = sorted(candidates)
                 state = dict(state, phase='recover', in_flight=False,
                              recovery_run=str(previous))
-            return state
+            # A new launcher inherits only work spent on the resumed task.
+            return dict(state, total_sessions=state.get('task_sessions', 0))
         if state.get('in_flight'):
             raise ValueError(f'interrupted task changed the queue; inspect the handoff in {previous}')
-        return dict(fresh_state(task),
-                    total_sessions=state.get('total_sessions', state.get('task_sessions', 0)))
+        return fresh_state(task)
     return fresh_state(task)
 
 

@@ -71,8 +71,12 @@ def calls(root):
 def test_first_session_success_closes_and_stages_without_another_session(checkout):
     root, _ = checkout
     script(root, {'result': reply('task_complete', 'passed'), 'close': True})
-    run, _ = workflow.select(root, ['--sessions', '1'])
-    assert launcher.follow(run, io.StringIO()) == 0
+    run, _ = workflow.select(root, [])
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0
+    from rich.text import Text
+    assert ('Task 001 complete.\n- Took 1 sessions.\n'
+            '- Total launcher sessions: 1\n') in Text.from_ansi(output.getvalue()).plain
     assert len(calls(root)) == 1
     assert workflow.queue_state(root)[0] == '002'
     state = json.loads((run / 'checkpoint.json').read_text())
@@ -127,7 +131,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert json.loads((second / 'result.json').read_text())['sessions'] == 1
 
 
-def test_cumulative_sessions_survive_task_change_and_restart(checkout):
+def test_cumulative_sessions_restart_only_for_a_new_task(checkout):
     from launcher_progress import read_progress
     from rich.text import Text
     root, _ = checkout
@@ -135,8 +139,8 @@ def test_cumulative_sessions_survive_task_change_and_restart(checkout):
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    for expected in ('2/2', '1/3', '2/4'):
-        run, started = workflow.select(root, ['--sessions', '2' if expected == '2/2' else '1'])
+    for sessions, expected in [('2', '2/2'), ('1', '1/1'), ('1', '2/2')]:
+        run, started = workflow.select(root, ['--sessions', sessions])
         assert started
         assert launcher.follow(run, io.StringIO()) == 0
         line = Text.from_ansi(read_progress(run)[-1]['lines'][-1]).plain
@@ -186,7 +190,7 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
            {'result': reply(task_id='002')},
            {'result': reply(task_id='002', live='failed')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    run, _ = workflow.select(root, ['--sessions', '5', '--tasks', '2'])
+    run, _ = workflow.select(root, ['--sessions', '9', '--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(run, output) == 0
     from rich.text import Text
@@ -195,6 +199,25 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     assert 'Task 002 complete.\n- Took 3 sessions.\n- Total launcher sessions: 5' in rendered
     assert rendered.count('- Duration: ') == 2
     assert len(re.findall(r'─+\nTask \d+ complete\.', rendered)) == 2
+
+
+def test_completion_excludes_sessions_from_previous_completed_launcher(checkout):
+    from rich.text import Text
+    root, _ = checkout
+    script(root, {'result': reply()},
+           {'result': reply(live='failed')},
+           {'result': reply(live='failed')},
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
+    first, _ = workflow.select(root, [])
+    assert launcher.follow(first, io.StringIO()) == 0
+    second, started = workflow.select(root, [])
+    assert started and second != first
+    output = io.StringIO()
+    assert launcher.follow(second, output) == 0
+    assert len(calls(root)) == 5
+    assert ('Task 002 complete.\n- Took 1 sessions.\n'
+            '- Total launcher sessions: 1\n') in Text.from_ansi(output.getvalue()).plain
 
 
 @pytest.mark.parametrize('args, sessions, completed, reason', [

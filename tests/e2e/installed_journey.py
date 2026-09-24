@@ -7,6 +7,7 @@ module owns transport/setup mechanics and boot continuity, never product probes.
 from dataclasses import dataclass, field
 import json
 import os
+import re
 import sys
 import time
 
@@ -39,6 +40,26 @@ class JourneyPlan:
     stage_actions: dict = field(default_factory=dict)
     review_mode: str | None = None
     settings_checks: dict = field(default_factory=dict)
+    invocations: tuple = ()
+    assertions_after: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        # Invocation IDs are filenames and immutable observation identities,
+        # independent of the public operation (which may occur many times).
+        require(all(type(stage) is str and re.fullmatch(r'[a-z][a-z0-9-]*', stage)
+                    and stage not in ('ready', 'setup-detached')
+                    for stage in self.screen_tags), self.prefix + ':stage-plan')
+        require(type(self.invocations) is tuple
+                and len(set(self.invocations)) == len(self.invocations)
+                and list(self.invocations) == [stage for stage in self.screen_tags
+                                               if stage in self.invocations]
+                and all(self.screen_tags[stage].startswith('ui:')
+                        for stage in self.invocations), self.prefix + ':invocation-plan')
+        require(set(self.assertions_after) <= set(self.screen_tags)
+                and all(type(value) is str and re.fullmatch(r'[a-z][a-z0-9-]*', value)
+                        for value in self.assertions_after.values())
+                and len(set(self.assertions_after.values())) == len(self.assertions_after),
+                self.prefix + ':assertion-plan')
 
     @property
     def stages(self):
@@ -190,6 +211,8 @@ class InstalledJourney:
         observed = {'stage': stage, 'outcome': 'observed' if self.review else 'passed'}
         if stage == 'ready':
             reply = {plan.worker_mode: True}
+            if plan.invocations:
+                reply['invocations'] = list(plan.invocations)
             if self.review:
                 reply[plan.review_mode] = True
         elif stage == 'setup-detached':
@@ -249,6 +272,10 @@ class InstalledJourney:
                 reply['ui_focused'] = True
         self.check_settings(stage, observed)
         self.check_request(stage, observed)
+        if stage in plan.assertions_after:
+            require(not self.review, plan.prefix + ':assertion-review')
+            observed['assertion'] = {'id': plan.assertions_after[stage],
+                                     'phase': plan.phases[stage]}
         if stage in plan.stage_actions:
             if self.watch_progress is not None:
                 self.watch_progress.operation(
@@ -267,6 +294,7 @@ class InstalledJourney:
         pending.rename(destination)
 
     def validate(self):
+        require(not self.failed, self.plan.prefix + ':previous-failure')
         require([s['stage'] for s in self.steps] == list(self.plan.stages),
                 self.plan.prefix + ':missing-stages')
         return matched_screens(self.context.directory, self.plan, self.steps)
@@ -309,6 +337,9 @@ def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=N
             recorder.continuity(boot=boot)
         artifact(stage, 'action-trace', observed)
         recorder.checkpoint('observation')
+        if stage in plan.assertions_after:
+            ref = artifact(stage + '-result', 'screen', observed)
+            recorder.assertion(plan.assertions_after[stage], artifact_ids=[ref])
         if stage in plan.advance_after:
             enter(plan.advance_after[stage])
             recorder.continuity(boot=boot)
@@ -324,7 +355,8 @@ def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=N
                                     validate=journey.validate, authenticate=True, timeout=timeout)
         require(worker['shutdown_verified'] is True, plan.prefix + ':shutdown-unverified')
         ref = artifact('matched-screens', 'screen', journey.validate())
-        recorder.assertion('visible-result', artifact_ids=[ref])
+        if not plan.assertions_after:
+            recorder.assertion('visible-result', artifact_ids=[ref])
         enter('end')
         recorder.continuity(boot=boot)
         artifact('continuity', 'continuity', {'boot_sha256': boot, 'stages': list(plan.stages)})

@@ -108,6 +108,11 @@ class ParentJourneyQualification(smoke.Qualification):
         """Optional fixed preparation before the graphical worker starts."""
         return
 
+    def record_progress(self, journey, stage, observed):
+        self.active_stage = stage
+        self.result['steps'] = list(journey.steps)
+        self.checkpoint('stage-observed')
+
     def execute(self, lease, guestfs):
         self.checkpoint('attempt-started')
         try:
@@ -127,9 +132,7 @@ class ParentJourneyQualification(smoke.Qualification):
             self.prepare_context(context)
 
             def progress(stage, observed):
-                self.active_stage = stage
-                self.result['steps'] = list(journey.steps)
-                self.checkpoint('stage-observed')
+                self.record_progress(journey, stage, observed)
 
             journey = self.journey(context, progress)
             self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
@@ -314,6 +317,35 @@ class LicenseViewerProviderQualification(KioskEntryQualification):
         version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
         context.installed_snapshot = snapshot_name(version)
         return LicenseViewerProviderJourney(context, progress)
+
+
+class RepeatedOperationsQualification(KioskEntryQualification):
+    """Finite page cycles in the same owned snapshot/collection envelope."""
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from repeated_operations import RepeatedOperationsJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RepeatedOperationsJourney(context, progress)
+
+    def record_progress(self, journey, stage, observed):
+        # Fixed capability evidence has no scenario registration or coverage
+        # credit. Record the same declared assertion-before-transition boundary
+        # as the scenario recorder, within the existing durable envelope.
+        plan = journey.plan
+        self.result['active_phase'] = plan.phases[stage]
+        super().record_progress(journey, stage, observed)
+        if stage in plan.assertions_after:
+            smoke.require(observed.get('comparison', {}).get('outcome') == 'passed',
+                          'repeated:comparison-required')
+            self.result.setdefault('assertions', []).append({
+                'stage': stage, **observed['assertion'], 'outcome': 'passed'})
+            self.checkpoint('assertion')
+        if stage in plan.advance_after:
+            self.result['active_phase'] = plan.advance_after[stage]
+            self.checkpoint('phase-started')
 
 
 class ShellSearchQualification(KioskEntryQualification):

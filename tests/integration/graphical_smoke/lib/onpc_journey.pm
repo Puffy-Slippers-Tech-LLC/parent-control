@@ -22,6 +22,7 @@ sub observe {
 
 sub seen {
     my ($self, $stage) = @_;
+    die 'journey:previous-failure' if $self->{invocation_failed};
     delete $self->{last_observation};
     testapi::record_info($self->{prefix} . '-' . $stage, $self->{review}
         ? 'Qualification observation; terminal matching remains required.'
@@ -31,8 +32,48 @@ sub seen {
     return $reply;
 }
 
+# Opt-in finite public-operation invocations. Legacy authentication continues
+# through its existing challenge helpers; repeated operations cannot recycle
+# either a stage's reply file or another invocation's result.
+sub declare_invocations {
+    my ($self, $stages) = @_;
+    die 'journey:invocation-plan' if exists($self->{invocations});
+    die 'journey:invocation-plan' unless ref($stages) eq 'ARRAY' && @$stages;
+    my %unique;
+    for my $stage (@$stages) {
+        die 'journey:invocation-plan' unless defined($stage)
+            && $stage =~ /\A[a-z][a-z0-9-]*\z/ && !$unique{$stage}++;
+    }
+    $self->{invocations} = [@$stages];
+    $self->{invocation_index} = 0;
+}
+
+sub invoke {
+    my ($self, $stage) = @_;
+    die 'journey:previous-failure' if $self->{invocation_failed};
+    my $reply;
+    my $ok = eval {
+        my $index = $self->{invocation_index};
+        die 'journey:invocation-order' unless ref($self->{invocations}) eq 'ARRAY'
+            && defined($index) && $index < @{$self->{invocations}}
+            && defined($stage) && $stage eq $self->{invocations}[$index];
+        $reply = $self->seen($stage);
+        die 'journey:invocation-reply' unless ref($reply) eq 'HASH'
+            && defined($reply->{observed}) && $reply->{observed} eq $stage;
+        $self->{invocation_index}++;
+        1;
+    };
+    unless ($ok) {
+        $self->{invocation_failed} = 1;
+        delete $self->{last_observation};
+        die $@;
+    }
+    return $reply;
+}
+
 sub consume_observation {
     my ($self, $stage, $reply) = @_;
+    die 'journey:previous-failure' if $self->{invocation_failed};
     my $last = delete $self->{last_observation};
     die 'journey:stale-observation' unless !$self->{review} && ref($last) eq 'HASH'
         && $last->{stage} eq $stage && ref($reply) eq 'HASH'
@@ -64,6 +105,12 @@ sub highlight_choice {
 sub finish {
     onpc_progress::operation('Restoring the test guest to its off baseline');
     my ($self) = @_;
+    die 'journey:previous-failure' if $self->{invocation_failed};
+    if (exists($self->{invocations})
+            && $self->{invocation_index} != @{$self->{invocations}}) {
+        $self->{invocation_failed} = 1;
+        die 'journey:missing-invocations';
+    }
     # No explicit captures after authentication. Automatic matcher results stay
     # private and are reconciled by the controller after the off-state restore.
     testapi::console('sut')->disable();

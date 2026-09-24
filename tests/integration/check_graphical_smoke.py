@@ -652,7 +652,18 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          fresh_desktop=None, shell_search_results=False, parent_search_launch=False,
          shell_search=False, parent_terminal_provider=False,
          license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False,
-         kiosk_no_child=False, kiosk_no_approver=False):
+         kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False):
+    require(type(repeated_operations) is bool and (not repeated_operations or (
+            assets is not None and provision_credentials and fresh_desktop is None
+            and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
+                         parent_setup, parent_input, parent_standard_input,
+                         parent_about, parent_access, desktop_session_logout,
+                         desktop_session_switch, gdm_navigation, gdm_recipient,
+                         gdm_product_free, kiosk_entry, request_exit, parent_toggle,
+                         shell_search_results, parent_search_launch, shell_search,
+                         parent_terminal_provider, license_viewer_provider,
+                         kiosk_eligible_choices, request_choices, kiosk_no_child,
+                         kiosk_no_approver)))), 'smoke:repeated-operations-prerequisites')
     require(type(kiosk_no_approver) is bool and (not kiosk_no_approver or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -919,6 +930,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-request-exit-qualification'
         if parent_toggle:
             result['scope'] = 'installed-parent-toggle-qualification'
+        if repeated_operations:
+            result['scope'] = 'installed-repeated-operations-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -941,7 +954,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or fresh_desktop is not None or shell_search_results or parent_search_launch
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or kiosk_eligible_choices or request_choices
-                        or kiosk_no_child or kiosk_no_approver):
+                        or kiosk_no_child or kiosk_no_approver or repeated_operations):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                     staged = directory / 'input'
                 else:
@@ -1008,6 +1021,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if license_viewer_provider:
                     from parent_setup_qualification import LicenseViewerProviderQualification
                     qualification_class = LicenseViewerProviderQualification
+                if repeated_operations:
+                    from parent_setup_qualification import RepeatedOperationsQualification
+                    qualification_class = RepeatedOperationsQualification
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification

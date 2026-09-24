@@ -294,6 +294,8 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_parent_search_launch'], ['check_e2e_parent_search_launch.py'],
             ['check_e2e_terminal_provider'], ['check_e2e_terminal_provider.py'],
             ['check_e2e_license_viewer'], ['check_e2e_license_viewer.py'],
+            ['check_e2e_give_repeated_public_operations_distinct_stages'],
+            ['check_e2e_give_repeated_public_operations_distinct_stages.py'],
             ['check_e2e_gdm_product_free'], ['check_e2e_gdm_product_free.py'],
             ['check_e2e_toggle'], ['check_e2e_toggle.py'],
             ['check_e2e_kiosk_eligible_choices'], ['check_e2e_kiosk_eligible_choices.py'],

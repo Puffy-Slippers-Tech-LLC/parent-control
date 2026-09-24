@@ -121,7 +121,7 @@ def follow(run, stream=None):
     # Only the final observer knows whether (and how large) its terminal is.
     destination = os.environ.get(FRAME_DIRECTORY)
     try:
-        with LauncherDisplay(stream) as display:
+        with LauncherDisplay(stream, log_path=run / 'output') as display:
             return follow_output(run, stream, display, label='run-tests',
                                  test_session=True, destination=Path(destination) if destination else None,
                                  owner_busy=lambda owner: busy(owner))

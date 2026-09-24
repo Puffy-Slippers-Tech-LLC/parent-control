@@ -28,6 +28,7 @@ my $active_challenge;
 # Explicit UI19/GDM05 binding for subsequent authentications. A used identity
 # is never cleared, and any uncertainty poisons every later secret route.
 sub enter_gdm_challenge {
+    onpc_progress::operation('Qualifying and consuming the declared password challenge');
     my ($journey, $id) = @_;
     die "secret:input-refused\n" if $failed;
     my $ok = eval {

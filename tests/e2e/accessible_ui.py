@@ -66,6 +66,7 @@ STANDARD_OPERATIONS |= frozenset({'child-command-launch'})
 OPERATIONS |= frozenset({'standard-search-qualified'})
 STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 OPERATIONS |= frozenset({'help-desktop-clear'})
+OPERATIONS |= frozenset({'gdm-product-free-provider', 'parent-desktop-provider'})
 PRODUCT = 'Oh No! Parent Control'
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
@@ -148,6 +149,7 @@ GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
     'gdm-station-returned'})
 GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list',
                                 'gdm-station-list', 'gdm-product-free-list'})
+GREETER_OPERATIONS |= frozenset({'gdm-product-free-provider'})
 GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-other-list', 'gdm-other-focused',
     'gdm-standard-list', 'gdm-standard-focused',
@@ -2053,8 +2055,20 @@ class AccessibleUI:
 
     def shell_provider_metadata(self):
         """Qualification provenance only; no product state or arbitrary text."""
-        from gi.repository import Gio
         owner, _nodes, _snapshot, _facts = self.shell_search_snapshot()
+        return self._shell_provider_metadata(owner)
+
+    def gdm_provider_metadata(self):
+        """Read the actual product-free greeter provider, never observer locale."""
+        owner, _rows = self.gdm_semantic_rows((PARENT,), excluded=(KIOSK,))
+        shell = self._shell_provider_metadata(owner, greeter=True)
+        version = subprocess.check_output(
+            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'gdm3'],
+            text=True, timeout=5).strip()
+        return validate_gdm_metadata({'shell': shell, 'gdm_version': version})
+
+    def _shell_provider_metadata(self, owner, *, greeter=False):
+        from gi.repository import Gio
         require(owner is not None, 'ui:shell-provider-owner')
         pid = owner.get_process_id()
         require(type(pid) is int and pid > 0, 'ui:shell-provider-owner')
@@ -2066,7 +2080,11 @@ class AccessibleUI:
         version = subprocess.check_output(
             ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'gnome-shell'],
             text=True, timeout=5).strip()
-        sources = Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack()
+        # Shell's InputSourceManager uses locale1 for the greeter, not the
+        # account's desktop GSettings (which can legitimately be empty).
+        # https://github.com/GNOME/gnome-shell/blob/50.1/js/ui/status/keyboard.js
+        sources = (greeter_keyboard_sources() if greeter else
+                   Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack())
         return validate_shell_metadata({'version': version, 'locale': locale,
                                         'keyboard': [list(source) for source in sources]})
 
@@ -3713,7 +3731,9 @@ class AccessibleUI:
         elif operation == 'station-default-entry':
             result['entry'] = self.station_default_entry(self.branch_owner)
         elif operation in GREETER_OPERATIONS:
-            if operation in ('gdm-no-child-refused', 'gdm-no-approver-refused'):
+            if operation == 'gdm-product-free-provider':
+                result['provider'] = self.gdm_provider_metadata()
+            elif operation in ('gdm-no-child-refused', 'gdm-no-approver-refused'):
                 self.gdm_nonsecret_account(KIOSK)
                 try:
                     self.kiosk_account_snapshot(
@@ -3773,6 +3793,9 @@ class AccessibleUI:
                 self.greeter_list()
         elif operation in ('fresh-parent-desktop', 'fresh-standard-desktop'):
             self.standard_shell_desktop(no_prompt=True)
+        elif operation == 'parent-desktop-provider':
+            self.standard_shell_desktop(no_prompt=True)
+            result['provider'] = self.shell_provider_metadata()
         elif operation == 'keyring-cancel-standard':
             self.cancel_keyring_prompt()
         elif operation in ('desktop', 'standard-desktop'):
@@ -3949,6 +3972,40 @@ class AccessibleUI:
         elif operation == 'kiosk-request-escape-ready':
             self.focus_kiosk_escape_recipient()
         return result
+
+
+def greeter_keyboard_sources():
+    """Read GDM Shell's system input-source configuration through locale1."""
+    from gi.repository import Gio, GLib
+    bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    reply = bus.call_sync(
+        'org.freedesktop.locale1', '/org/freedesktop/locale1',
+        'org.freedesktop.DBus.Properties', 'GetAll',
+        GLib.Variant('(s)', ('org.freedesktop.locale1',)),
+        GLib.VariantType.new('(a{sv})'), Gio.DBusCallFlags.NONE, 5000, None)
+    properties = reply.unpack()[0]
+    layouts = properties.get('X11Layout')
+    variants = properties.get('X11Variant')
+    require(type(layouts) is str and 0 < len(layouts) <= 1024
+            and type(variants) is str and len(variants) <= 1024,
+            'ui:greeter-keyboard-metadata')
+    layouts, variants = layouts.split(','), variants.split(',')
+    require(0 < len(layouts) <= 8 and len(variants) <= len(layouts)
+            and all(re.fullmatch(r'[A-Za-z0-9_-]{1,64}', item) for item in layouts)
+            and all(re.fullmatch(r'[A-Za-z0-9_-]{0,64}', item) for item in variants),
+            'ui:greeter-keyboard-metadata')
+    return [['xkb', layout + ('+' + variants[index] if
+                             index < len(variants) and variants[index] else '')]
+            for index, layout in enumerate(layouts)]
+
+
+def validate_gdm_metadata(value):
+    require(type(value) is dict and set(value) == {'shell', 'gdm_version'}
+            and type(value['gdm_version']) is str
+            and re.fullmatch(r'[A-Za-z0-9_.+:@()/-]{1,128}', value['gdm_version']),
+            'ui:gdm-metadata')
+    validate_shell_metadata(value['shell'])
+    return value
 
 
 def validate_shell_metadata(value):

@@ -10,7 +10,7 @@ from tests.support.write_e2e_fixtures import prepare, reply
 
 
 @pytest.mark.parametrize(('phase', 'attempts', 'summary'), [
-    ('implement', 0, 'Writing task code + host validation'),
+    ('implement', 0, 'Writing task code + host validation + first live VM test; close on success, hand off on failure'),
     ('recover', 0, 'Recovering interrupted work + host validation'),
     ('live', 0, 'Live VM test 1, fix errors if any + host validation'),
     ('live', 2, 'Live VM test 3, fix errors if any + host validation'),
@@ -50,7 +50,9 @@ def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, 
 def test_implementation_prompt_preserves_requested_boundary():
     prompt = workflow.session_prompt(workflow.fresh_state('001'))
     assert prompt.startswith(workflow.INITIAL_PROMPT)
-    assert 'Do not run live VM tests or close the task/advance the pointer' in prompt
+    assert "run this task's first live VM acceptance" in prompt
+    assert 'Leave failure review and repairs to the next' in prompt
+    assert 'task_complete with live_result passed' in prompt
     assert 'The launcher owns staging' in prompt
     assert 'Do not analyze staged' in prompt
     assert 'Do not commit' in prompt
@@ -63,12 +65,12 @@ def test_only_latest_handoff_crosses_into_first_live_then_retry(tmp_path):
     _, before = workflow.queue_state(tmp_path)
     state = workflow.accept_result(tmp_path, state, reply(handoff='CURRENT HANDOFF'), before)
     prompt = workflow.session_prompt(state)
-    assert 'first live VM attempt' in prompt
+    assert 'first live attempt failed' in prompt
     assert 'review the unstaged code' in prompt
     assert 'CURRENT HANDOFF' in prompt
     state = workflow.accept_result(tmp_path, state, reply(live='failed', handoff='LATEST REPAIR'), before)
     prompt = workflow.session_prompt(state)
-    assert state['live_attempts'] == 1
+    assert state['live_attempts'] == 2
     assert 'first live attempt has already happened' in prompt
     assert 'LATEST REPAIR' in prompt and 'CURRENT HANDOFF' not in prompt
 
@@ -91,6 +93,7 @@ def test_blocked_task_restarts_in_recovery_without_manual_checkpoint_reset(tmp_p
 
 @pytest.mark.parametrize('change', [
     {'task_id': '002'}, {'host_validated': False}, {'live_result': 'passed'},
+    {'live_result': 'not_run'},
     {'handoff': ''}, {'status': 'made_up'}, {'host_validated': 'yes'},
 ])
 def test_invalid_initial_handoff_cannot_advance(tmp_path, change):
@@ -100,9 +103,10 @@ def test_invalid_initial_handoff_cannot_advance(tmp_path, change):
         workflow.accept_result(tmp_path, workflow.fresh_state('001'), reply(**change), before)
 
 
-def test_completion_requires_live_success_and_queue_closeout(tmp_path):
+@pytest.mark.parametrize('phase', ['implement', 'live'])
+def test_completion_requires_live_success_and_queue_closeout(tmp_path, phase):
     prepare(tmp_path)
-    state = dict(workflow.fresh_state('001'), phase='live')
+    state = dict(workflow.fresh_state('001'), phase=phase)
     _, before = workflow.queue_state(tmp_path)
     with pytest.raises(ValueError, match='completion'):
         workflow.accept_result(tmp_path, state, reply('task_complete', 'passed'), before)
@@ -110,6 +114,7 @@ def test_completion_requires_live_success_and_queue_closeout(tmp_path):
     (tmp_path / workflow.PLAN).write_text('Next task: **002 — [Second](second.md)**.\n')
     result = workflow.accept_result(tmp_path, state, reply('task_complete', 'passed'), before)
     assert result['phase'] == 'complete'
+    assert result['live_attempts'] == 1
     with pytest.raises(ValueError, match='completion'):
         workflow.accept_result(tmp_path, state, reply('task_complete', 'failed'), before)
 
@@ -147,7 +152,7 @@ def test_host_only_exception_can_close_without_a_vm_attempt(tmp_path):
     (tmp_path / workflow.QUEUE).write_text('| [x] | 192 | Host only |\n| [ ] | 002 | Second |\n')
     (tmp_path / workflow.PLAN).write_text('Next task: **002 — [Second](second.md)**.\n')
     state = workflow.accept_result(tmp_path, workflow.fresh_state('192'),
-                                   reply('task_complete', task_id='192'), before)
+                                   reply('task_complete', 'not_run', task_id='192'), before)
     assert state['phase'] == 'complete' and state['live_attempts'] == 0
 
 

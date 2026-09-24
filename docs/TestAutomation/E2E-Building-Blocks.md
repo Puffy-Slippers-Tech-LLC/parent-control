@@ -201,7 +201,7 @@ the affected entry block; that connection metadata supplies no product evidence.
 | GDM04 | C | Harness safety qualification only: prove that another recipient cannot authorize an intended fixture secret. Never compose this negative exercise into customer sign-in. | `onpc_gdm::recipient_qualification`; wrong-recipient unit regressions. | ready; harness only |
 | GDM05 | C | Deliver the intended fixture password once to an already selected prompt after two fresh ordered recipient checks. Do not submit or infer success. No wrong-account visit is a prerequisite. | `onpc_password::enter_gdm_challenge` binds two fresh proofs to each declared challenge through `JourneyPlan.challenges` and `onpc_journey::declare_challenges`. `check_e2e_challenges` qualified two Parent authentications separated by shared DESK04 logout, independent desktop results and wrong-entry refusal, with durable assertions, reconciliation, private collection and owned cleanup (run `20260924T192200Z-c833e973`). Compatibility entries remain `enter_parent_gdm_password` / `enter_standard_gdm_password`. Other challenge recipients and surfaces remain pending. | pending; distinct Parent GDM challenge binding ready |
 | GDM06 | C | Observe the declared access result at GDM or lock: usable intended desktop, or time-limit rejection with its explanation and no desktop access. A generic failed login is not the expected denial. | Shell desktop, lock and denial-surface IDs are not qualified. | pending |
-| GDM07 | C | Shared minimal fresh graphical entry for the intended fixture account with declared success or product time-limit denial. Retained targets use unlock. | `journey_blocks.fresh_desktop` and `onpc_parent::sign_in`: intended account focus/Enter → fresh GDM03 proofs → GDM05 → Enter → GDM06/DESK01. No wrong-account visit or prompt-cancellation tour. Preserve real graphical PAM enforcement. | pending; direct Parent/standard entry implemented |
+| GDM07 | C | Shared minimal fresh graphical entry for the intended fixture account with declared success or product time-limit denial. Retained targets use unlock. | `journey_blocks.fresh_desktop` and `onpc_parent::sign_in`: intended account focus/Enter → fresh GDM03 proofs → GDM05 → Enter → GDM06/DESK01. `ProductFreeEntryJourney` / `onpc_product_free_entry::run` qualify the product-free Parent binding; see [qualification scope](#product-free-parent-entry-and-command-context). No wrong-account visit or prompt-cancellation tour. Preserve real graphical PAM enforcement. | product-free Parent success ready; other unqualified bindings pending |
 | GDM10 | C | Retired duplicate legacy Parent sign-in. | Consumers reuse shared GDM07; no separate provider qualification or implementation task. | retired |
 
 ### Harness transport and serial qualification
@@ -312,7 +312,7 @@ these blocks, not copies of them.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| FILE01 | A | Bind the guarded SSH channel to the declared fixture user/session for supporting commands. | Shared transport and fixed command registry; INFO02 already uses `command_documentation`. No graphical Terminal merely to execute commands. | pending for additional bindings |
+| FILE01 | A | Bind the guarded SSH channel to the declared fixture user/session for supporting commands. | Shared transport and fixed command registry; INFO02 already uses `command_documentation`. `session_control.observe` / `execute` bind `parent-command-context` to the active local administrator and read the verified staged package; [product-free qualification](#product-free-parent-entry-and-command-context) includes greeter refusal. No graphical Terminal merely to execute commands. | product-free Parent context ready; package-operation authority and additional bindings pending |
 | FILE02 | A | Submit one registered command with finite validated arguments over shared SSH as the declared user. No arbitrary shell strings or replay. | Direct argument arrays; PARENT01/REQUEST02 retain dedicated launch bindings. FILE06 observes the later result. | pending for additional bindings |
 | FILE06 | A | Read bounded stdout/stderr, exit status and required public product notice or launch denial. Command echo or generic failure cannot prove enforcement. | Shared command result adapter; graphical management denial remains PARENT01. No terminal rendering or unrelated password exercise. | pending for additional bindings |
 | FILE07 | C | Navigate an open file manager/chooser to one declared customer directory. Use its normal Location shortcut, enter the directory and observe the destination. | UI05(Location shortcut) → UI16(location field) → UI05(Enter) → UI01 → UI03(destination). Directory identity comes from prepared synthetic fixtures or the selected save location. | pending |
@@ -1393,6 +1393,36 @@ operations and passed its complete graphical/serial route, reconciliation,
 collection and cleanup. The shared migration audit reran complete case 1 in
 `20260923T202714Z-fc680b74`, including authenticated serial input, observed command
 output, logout-before-return and suite baseline restoration.
+
+### Product-free Parent entry and command context
+
+`check_e2e_product_free_entry` passed in run `20260924T203125Z-f94d7c37` on
+the accepted Ubuntu 26.04 product-free baseline. `ProductFreeEntryQualification`
+uses FIX04 without installing or rebooting the product; `InstalledJourney`
+requires exclusive setup modes and a matching booted transfer receipt.
+`ProductFreeEntryJourney` and `onpc_product_free_entry::run` reuse minimal Parent
+login, two fresh recipient proofs and single-use secret input, then independently
+observe the Parent desktop. The separate greeter entry proves command-context
+refusal. `session_control.execute('parent-command-context')` binds the active
+local unlocked Parent session, drops to that account, verifies administrator
+group authority and reads the protected staged package. The journey requires its
+digest to match verified input provenance before acknowledging the result.
+
+Durable `provider` observations at `installed-greeter` and `desktop` qualify
+GDM `50.1-0ubuntu0.1` and Shell `50.1-0ubuntu1.2`, with actual provider-process
+locale `en_US.UTF-8` and keyboard sources `[["xkb", "us"]]` on both surfaces.
+The greeter reader uses public locale1 `X11Layout`/`X11Variant`; the desktop
+reader uses account GSettings. Missing or malformed metadata refuses without
+synthesizing a default layout. Support is limited to these observed tuples and
+this route; other provider bindings retain their separate qualification.
+
+The run passed all three capability assertions, capture reconciliation, private
+collection, owned worker cleanup and baseline restoration. The durable
+after-cleanup result is
+`output/test-runs/privileged/allocations/onpc-e2e-evidence-liy0bxsc/event-000016.json`;
+the report is `output/test-runs/host/reports/20260924T203125Z-f94d7c37/report.md`.
+Package execution/notice and installation composition remain tasks 005/006;
+case 2 remains pending. This qualification supplies no complete-scenario credit.
 
 ### Reachability and result checks
 

@@ -34,6 +34,7 @@ use onpc_journey ();
 use onpc_flow00 ();
 use onpc_repeated_operations ();
 use onpc_challenges ();
+use onpc_product_free_entry ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -59,6 +60,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{product_free_entry}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_product_free_entry::run(\&exchange);
+        return;
+    }
     if ($ready->{challenges}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

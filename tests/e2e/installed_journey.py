@@ -250,7 +250,9 @@ class InstalledJourney:
         elif stage == 'setup-detached':
             install_current = getattr(context, 'install_current_package', False)
             product_free = getattr(context, 'product_free', False)
-            require(type(product_free) is bool and
+            require(type(product_free) is bool and type(install_current) is bool
+                    and not (product_free and (install_current or
+                             getattr(context, 'installed_snapshot', None))) and
                     (install_current is True or product_free
                      or getattr(context, 'installed_snapshot', None)),
                     plan.prefix + ':installed-snapshot-required')
@@ -278,6 +280,8 @@ class InstalledJourney:
                     observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
+            if product_free and getattr(context, 'asset_transfer', None) is not None:
+                observed['setup']['assets'] = context.asset_transfer.observe(self.vm)
             reply = {'setup_complete': True}
         else:
             # Harness boot identity is continuity metadata, never a product
@@ -319,6 +323,8 @@ class InstalledJourney:
                 self.watch_progress.operation(
                     'Preparing the login-keyring prompt'
                     if plan.stage_actions[stage] == 'prepare-keyring'
+                    else 'Checking command refusal outside the fixture desktop'
+                    if plan.stage_actions[stage] == 'refuse-command'
                     else 'Preparing the declared child-account fixture')
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)

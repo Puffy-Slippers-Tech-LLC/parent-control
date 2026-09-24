@@ -9,6 +9,7 @@ use onpc_password ();
 # Declared repeated GDM entry. The controller binds each stage to its public
 # operation; the password leaf separately consumes two same-challenge proofs.
 sub sign_in_challenge {
+    onpc_progress::operation('Signing in through the declared graphical challenge');
     my ($journey, $id, $list_stage, $focused_stage, $desktop_stage) = @_;
     die 'gdm:challenge-binding' unless @_ == 5 && ref($journey) eq 'onpc_journey'
         && ref($journey->{challenges}{$id}) eq 'ARRAY';

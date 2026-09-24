@@ -1,11 +1,13 @@
 package onpc_repeated_operations;
 use strict;
 use warnings;
+use onpc_progress ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_gdm ();
 
 sub run {
+    onpc_progress::operation('Qualifying repeated public operations with distinct stages');
     my ($exchange, $declared) = @_;
     my @stages = qw(wrong-child-refused baseline-first apps-first return-first
                     baseline-second apps-second return-second);

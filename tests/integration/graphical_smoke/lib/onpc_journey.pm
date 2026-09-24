@@ -35,6 +35,7 @@ sub seen {
 # Opt-in finite public-operation invocations. Repeated operations cannot recycle
 # either a stage's reply file or another invocation's result.
 sub declare_invocations {
+    onpc_progress::operation('Binding the declared public operation sequence');
     my ($self, $stages) = @_;
     die 'journey:invocation-plan' if exists($self->{invocations});
     die 'journey:invocation-plan' unless ref($stages) eq 'ARRAY' && @$stages;
@@ -48,6 +49,7 @@ sub declare_invocations {
 }
 
 sub declare_challenges {
+    onpc_progress::operation('Binding the declared authentication challenges');
     my ($self, $bindings) = @_;
     die 'journey:challenge-plan' if exists($self->{challenges}) || $self->{review};
     die 'journey:challenge-plan' unless ref($bindings) eq 'HASH' && keys(%$bindings)
@@ -72,6 +74,7 @@ sub declare_challenges {
 }
 
 sub invoke {
+    onpc_progress::operation('Observing the next declared public operation');
     my ($self, $stage) = @_;
     die 'journey:previous-failure' if $self->{invocation_failed};
     my $reply;

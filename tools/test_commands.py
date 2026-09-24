@@ -298,6 +298,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_give_repeated_public_operations_distinct_stages'],
             ['check_e2e_give_repeated_public_operations_distinct_stages.py'],
             ['check_e2e_gdm_product_free'], ['check_e2e_gdm_product_free.py'],
+            ['check_e2e_product_free_entry'], ['check_e2e_product_free_entry.py'],
             ['check_e2e_toggle'], ['check_e2e_toggle.py'],
             ['check_e2e_kiosk_eligible_choices'], ['check_e2e_kiosk_eligible_choices.py'],
             ['check_e2e_request_choices'], ['check_e2e_request_choices.py'],

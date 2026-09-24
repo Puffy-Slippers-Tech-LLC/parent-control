@@ -67,6 +67,19 @@ def calls(root):
     return [json.loads(line) for line in (root / 'calls.jsonl').read_text().splitlines()]
 
 
+def test_first_session_success_closes_and_stages_without_another_session(checkout):
+    root, _ = checkout
+    script(root, {'result': reply('task_complete', 'passed'), 'close': True})
+    run, _ = workflow.select(root, ['--sessions', '1'])
+    assert launcher.follow(run, io.StringIO()) == 0
+    assert len(calls(root)) == 1
+    assert workflow.queue_state(root)[0] == '002'
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['phase'] == 'complete' and state['live_attempts'] == 1
+    staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
+    assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
+
+
 def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     root, _ = checkout
     script(root, {'result': reply(handoff='LATEST LIVE HANDOFF')},
@@ -134,7 +147,7 @@ def test_failure_repair_returns_before_retry_and_counts_every_session(checkout):
     assert launcher.follow(run, io.StringIO()) == 0
     invocations = calls(root)
     assert len(invocations) == 4
-    assert 'first live VM attempt' in invocations[1]['prompt']
+    assert 'first live attempt failed' in invocations[1]['prompt']
     assert 'REPAIRED' in invocations[2]['prompt'] and 'FIRST' not in invocations[2]['prompt']
     assert 'first live attempt has already happened' in invocations[2]['prompt']
     assert invocations[3]['prompt'].startswith(workflow.INITIAL_PROMPT)
@@ -411,7 +424,7 @@ def test_expired_completed_nested_run_does_not_block_the_next_session(tmp_path):
 def test_cancelled_run_can_restart_through_fresh_recovery_session(checkout):
     root, _ = checkout
     script(root, {'result': reply(), 'wait': True},
-           {'result': reply(handoff='RECOVERED HANDOFF')})
+           {'result': reply(live='not_run', handoff='RECOVERED HANDOFF')})
     run, _ = workflow.select(root, [])
     wait_for(root / 'agent-ready-1')
     (run / 'cancel').touch()

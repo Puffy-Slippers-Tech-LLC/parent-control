@@ -1,5 +1,6 @@
 """Controller side of the fixed E2E-003 account fixture events."""
 
+import json
 import re
 
 from private_artifacts import require
@@ -30,6 +31,10 @@ class DynamicAccountFixture:
 
 
 class EmptyAccountFixture:
+    operation = 'prepare-empty'
+    result = b'onpc-e2e: stage=empty-account outcome=prepared\n'
+    removed = 'eligible_accounts_removed'
+
     def __init__(self, context):
         self.context = context
         self.attempted = False
@@ -45,9 +50,40 @@ class EmptyAccountFixture:
         result = journey.transport.call([
             "env", f"ONPC_EXPECTED_RUN={run}", "PYTHONDONTWRITEBYTECODE=1",
             "/usr/bin/python3", system.PAYLOAD + "/e2e_dynamic_account.py",
-            "prepare-empty",
+            self.operation,
         ], timeout=60)
-        require(result == b"onpc-e2e: stage=empty-account outcome=prepared\n",
+        require(result == self.result,
                 "empty-account:unexpected-result")
         guard()
-        return {"eligible_accounts_removed": 2}
+        return {self.removed: 2}
+
+
+class NoApproverFixture(EmptyAccountFixture):
+    """After a nonempty form, detect/lock eligible parents; VM restoration undoes it."""
+
+    def prepare(self, journey, guard):
+        require(not self.attempted and journey.context is self.context
+                and journey.transport is not None, 'no-approver:controller-state')
+        self.attempted = True
+        run = self.context.lease.state['run']
+        require(isinstance(run, str) and re.fullmatch(r'[0-9a-f]{32}', run),
+                'no-approver:run')
+        ui = journey.ui
+        require(ui is not None and ui.last_operation == 'kiosk-approver-baseline',
+                'no-approver:public-baseline')
+        uids, ui.approver_uids = ui.approver_uids, None
+        require(type(uids) is tuple and bool(uids)
+                and all(type(uid) is int and 1000 <= uid <= (1 << 32) - 1 for uid in uids)
+                and len(uids) == len(set(uids)), 'no-approver:public-baseline')
+        guard()
+        result = journey.transport.call([
+            'env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
+            '/usr/bin/python3', system.PAYLOAD + '/e2e_dynamic_account.py',
+            'prepare-no-approver',
+        ], input=json.dumps(list(uids)).encode(), timeout=60)
+        match = re.fullmatch(rb'onpc-e2e: stage=no-approver outcome=prepared locked=([1-9][0-9]*)\n',
+                             result)
+        require(match is not None and int(match[1]) >= len(uids),
+            'no-approver:unexpected-result')
+        guard()
+        return {'eligible_approvers_removed': int(match[1])}

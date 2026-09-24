@@ -21,6 +21,7 @@ import desktop_session
 import kiosk_entry
 import kiosk_eligible_choices
 import kiosk_no_child
+import kiosk_no_approver
 import request_choices
 import request_exit
 import parent_toggle
@@ -63,11 +64,13 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
                                  desktop_session.SWITCH_PLAN, kiosk_entry.PLAN,
                                  request_exit.PLAN, parent_toggle.PLAN, kiosk_eligible_choices.PLAN,
                                  request_choices.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN,
+                                 kiosk_no_approver.PLAN,
                                  parent_terminal_provider.PLAN, license_viewer_provider.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
                               'kiosk-eligible-choices', 'request-choices', 'kiosk-no-child', 'no-child-case',
+                              'kiosk-no-approver',
                               'terminal-provider', 'license-viewer-provider'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
@@ -157,6 +160,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['request'].update(child=child, approver=approver)
             if operation == 'kiosk-no-child-form':
                 result['request'].update(child='none', message='no-child')
+            if operation == 'kiosk-no-approver-form':
+                result['request'].update(approver='none', message='no-approver')
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
@@ -407,10 +412,11 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
 @pytest.mark.parametrize('plan', [parent_discovery.PLAN, parent_discovery.EMPTY_PLAN, parent_access.PLAN,
                                  parent_about.PLAN, license_viewer_provider.PLAN,
                                  shell_search_results.PLAN, parent_search_launch.PLAN,
-                                 shell_search.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN],
+                                 shell_search.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN,
+                                 kiosk_no_approver.PLAN],
                          ids=['discovery', 'empty', 'standard-access', 'about', 'license-viewer-provider',
                               'shell-search', 'search-launch',
-                              'standard-search', 'kiosk-no-child', 'no-child-case'])
+                              'standard-search', 'kiosk-no-child', 'no-child-case', 'kiosk-no-approver'])
 def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
     details, observations = [], []
     for stage, tag in plan.screen_tags.items():

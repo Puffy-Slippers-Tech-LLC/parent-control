@@ -58,6 +58,22 @@ def test_only_latest_handoff_crosses_into_first_live_then_retry(tmp_path):
     assert 'LATEST REPAIR' in prompt and 'CURRENT HANDOFF' not in prompt
 
 
+def test_blocked_task_restarts_in_recovery_without_manual_checkpoint_reset(tmp_path, monkeypatch):
+    prepare(tmp_path)
+    previous = tmp_path / 'previous-run'
+    previous.mkdir()
+    state = dict(workflow.fresh_state('001'), phase='blocked', live_attempts=1,
+                 handoff='Previous baseline requirement blocked setup.')
+    (previous / 'checkpoint.json').write_text(json.dumps(state))
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
+    restarted = workflow.initial_state(tmp_path, tmp_path)
+    assert restarted == dict(state, phase='recover', recovery_run=str(previous))
+    prompt = workflow.session_prompt(restarted)
+    assert 'current source/evidence' in prompt and workflow.PLAN in prompt
+    assert 'Do not run live VM tests' in prompt
+    assert workflow.queue_state(tmp_path)[0] == '001'
+
+
 @pytest.mark.parametrize('change', [
     {'task_id': '002'}, {'host_validated': False}, {'live_result': 'passed'},
     {'handoff': ''}, {'status': 'made_up'}, {'host_validated': 'yes'},

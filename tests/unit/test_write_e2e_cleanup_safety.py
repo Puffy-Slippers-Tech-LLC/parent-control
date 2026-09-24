@@ -28,6 +28,9 @@ def wait_for(path):
 def checkout(tmp_path, monkeypatch):
     prepare(tmp_path)
     subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
+    (tmp_path / '.git/info/exclude').write_text(
+        'bin/\nscript.json\ncalls.jsonl\nagent-ready-*\nrelease*\n'
+        'nested-ready\ncleanup-started\nnested-cleaned\n')
     (tmp_path / 'bin').mkdir()
     codex = tmp_path / 'bin/codex'
     codex.write_text('#!/usr/bin/python3\nimport runpy\n'
@@ -100,6 +103,24 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert workflow.queue_state(root)[0] == '002'
     staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
     assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
+
+
+def test_completion_stages_changes_from_every_session_despite_omitted_stage_paths(checkout):
+    root, _ = checkout
+    unrelated = root / 'unrelated.txt'
+    unrelated.write_text('pre-existing work')
+    script(root, {'result': reply(), 'writes': {'implementation.py': 'first session\n'}},
+           {'result': reply('task_complete', 'passed'), 'close': True,
+            'writes': {'final-note.md': 'last session\n'}})
+    first, _ = workflow.select(root, ['--sessions', '1'])
+    assert launcher.follow(first, io.StringIO()) == 0
+    second, _ = workflow.select(root, ['--sessions', '1'])
+    assert launcher.follow(second, io.StringIO()) == 0
+    staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
+                            capture_output=True, text=True, check=True).stdout.splitlines()
+    assert set(staged) == {workflow.PLAN, workflow.QUEUE,
+                           'implementation.py', 'final-note.md'}
+    assert unrelated.read_text() == 'pre-existing work'
 
 
 def test_failure_repair_returns_before_retry_and_counts_every_session(checkout):

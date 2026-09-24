@@ -2,6 +2,7 @@
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -40,7 +41,7 @@ def queue_state(root):
 def fresh_state(task):
     return {'task_id': task, 'phase': 'implement', 'live_attempts': 0,
             'summary': 'Implementation and host validation remain.',
-            'handoff': INITIAL_PROMPT, 'in_flight': False}
+            'handoff': INITIAL_PROMPT, 'in_flight': False, 'stage_candidates': []}
 
 
 def session_prompt(state):
@@ -161,6 +162,40 @@ def stage_task(root, paths):
         raise ValueError('task staging failed: ' + result.stderr.strip())
 
 
+def worktree_snapshot(root):
+    """Fingerprint unstaged and untracked files without including existing index work."""
+    result = subprocess.run(
+        ['git', 'ls-files', '--modified', '--deleted', '--others',
+         '--exclude-standard', '-z'], cwd=root, env=launcher.environment(),
+        capture_output=True, check=True)
+    snapshot = {}
+    for raw in result.stdout.split(b'\0'):
+        if not raw:
+            continue
+        name = os.fsdecode(raw)
+        if name.startswith('output/'):
+            continue
+        path = root / name
+        if path.is_symlink():
+            fingerprint = 'link:' + os.readlink(path)
+        elif path.is_file():
+            digest = hashlib.sha256()
+            with path.open('rb') as source:
+                for block in iter(lambda: source.read(1024 * 1024), b''):
+                    digest.update(block)
+            fingerprint = 'file:' + digest.hexdigest()
+        else:
+            fingerprint = 'deleted'
+        snapshot[name] = fingerprint
+    return snapshot
+
+
+def session_changes(root, before):
+    after = worktree_snapshot(root)
+    return [name for name, fingerprint in after.items()
+            if before.get(name) != fingerprint]
+
+
 def save_handoff(run, state, reason, *, display=True):
     prompt = state['handoff']
     if state['in_flight']:
@@ -246,18 +281,31 @@ def worker(root, run, owner, sessions, tasks, state_json):
             effort = 'low' if state['phase'] == 'implement' else 'high'
             prompt = session_prompt(state)
             (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
+            state.setdefault('stage_baseline', worktree_snapshot(root))
+            state['worktree_before'] = worktree_snapshot(root)
             state['in_flight'] = True
             launcher.atomic(run / 'checkpoint.json', state)
             launcher.atomic(run / 'progress.json', {'session': count, 'limit': sessions,
                                                    'task_id': task, 'phase': state['phase']})
             print(f"\nwrite-e2e: session {count}{'/' + str(sessions) if sessions else ''}; "
                   f"task {task}; {MODEL} {effort}", flush=True)
-            result = execute(root, run, owner, effort)
+            try:
+                result = execute(root, run, owner, effort)
+            finally:
+                candidates = set(state['stage_candidates'])
+                candidates.update(session_changes(root, state['worktree_before']))
+                state['stage_candidates'] = sorted(candidates)
+                launcher.atomic(run / 'checkpoint.json', state)
             updated = accept_result(root, state, result, before)
             if updated['phase'] == 'complete':
-                stage_task(root, result['stage_paths'])
+                current = worktree_snapshot(root)
+                changed = [path for path in state['stage_candidates']
+                           if path in current
+                           and current[path] != state['stage_baseline'].get(path)]
+                stage_task(root, [*result['stage_paths'], *changed])
                 completed += 1
             state = updated
+            state.pop('worktree_before', None)
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'complete':
                 show_completion(task)
@@ -292,6 +340,10 @@ def initial_state(root, directory):
         state = json.loads((previous / 'checkpoint.json').read_text())
         if state.get('task_id') == task and state.get('phase') != 'complete':
             if state.get('in_flight') or state.get('phase') == 'blocked':
+                if state.get('worktree_before') is not None:
+                    candidates = set(state.get('stage_candidates', []))
+                    candidates.update(session_changes(root, state['worktree_before']))
+                    state['stage_candidates'] = sorted(candidates)
                 state = dict(state, phase='recover', in_flight=False,
                              recovery_run=str(previous))
             return state

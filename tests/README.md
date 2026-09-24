@@ -301,8 +301,11 @@ owned by their original caller.
 Private output and checkpoints use the shared storage and retention libraries
 under `output/test-runs/host/write-e2e/`. At a successful task boundary, the
 launcher prints a green `Task ID complete` line after acceptance and staging. It
-saves the full summary and next-session prompt in `handoff.txt` without printing
-them. At an incomplete session boundary or safe stop, it still prints and saves
+saves task-session worktree changes across handoffs and stages them with the
+agent's explicit file list, including changes from the final session. Changes
+already present before the task and generated `output/` artifacts are excluded.
+The launcher saves the full summary and next-session prompt in `handoff.txt`
+without printing them. At an incomplete session boundary or safe stop, it still prints and saves
 the handoff. A new invocation after that boundary continues the latest
 handoff with fresh session and task budgets. An interrupted or blocked checkpoint
 starts an Astra High recovery session that rechecks evidence and cleanup,

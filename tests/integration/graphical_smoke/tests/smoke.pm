@@ -29,6 +29,7 @@ use onpc_no_parent ();
 use onpc_disabled_child ();
 use onpc_request_exit ();
 use onpc_parent_toggle ();
+use onpc_app_rows ();
 use onpc_parent_discovery ();
 use onpc_journey ();
 use onpc_flow00 ();
@@ -248,6 +249,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_parent_toggle::run(\&exchange);
+        return;
+    }
+    if ($ready->{app_row_observations}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::run(\&exchange);
         return;
     }
     if ($ready->{parent_terminal}) {

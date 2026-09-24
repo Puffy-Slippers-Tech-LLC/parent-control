@@ -25,6 +25,7 @@ from rich.theme import Theme
 
 
 CONTROL = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))|[\x00-\x08\x0b-\x1f\x7f]')
+HANGING_PREFIX = re.compile(r'^(?: *[•└│✓○] | {2,})')
 
 # Bound both row count and text: a stream need not contain any newlines.
 SCROLLBACK_LINES = 2000
@@ -270,7 +271,19 @@ class LauncherDisplay:
             if self.is_rule(text):
                 rows.append(Text('─' * width, style='dim'))
             else:
-                rows.extend(text.wrap(self.console, width, overflow='fold'))
+                prefix = HANGING_PREFIX.match(text.plain)
+                if prefix is None or text.cell_len <= width:
+                    rows.extend(text.wrap(self.console, width, overflow='fold'))
+                    continue
+                # The retained transcript was formatted for a wider terminal.
+                # Reflow each physical row under its original content column.
+                text.rstrip()
+                indent = min(len(prefix[0]), width - 1)
+                body = text[len(prefix[0]):]
+                for index, part in enumerate(body.wrap(self.console, max(1, width - indent),
+                                                       overflow='fold')):
+                    leader = text[:indent] if index == 0 else Text(' ' * indent)
+                    rows.append(leader + part)
         return rows
 
     @staticmethod
@@ -498,7 +511,7 @@ class TranscriptWriter:
             width = shutil.get_terminal_size().columns
         width = max(1, width)
         text = Text.from_ansi(value)
-        prefix = re.match(r'^(?: *[•└│✓○] | {2,})', text.plain)
+        prefix = HANGING_PREFIX.match(text.plain)
         if prefix is None or text.cell_len <= width:
             self.stream.write(value + end)
             return

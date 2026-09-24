@@ -19,14 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **077a — [Read app rows and initial access choices](E2E-Tasks/077a-app-row-observations.md)**.
+Next task: **008 — [E2E-002: clean](E2E-Tasks/008-case-2.md)**.
 
-Remaining: implement and qualify complete bounded public App Limits row
-observations and initial Allowed choices for the selected child, independently
-re-read the page, and refuse wrong-child/page entry. Reuse the qualified Parent
-entry and guarded installed-attempt envelope. Complete case 2 remains pending;
-its [fresh install/reboot/administrator return](E2E-Building-Blocks.md#customer-reboot-continuity)
-is qualified by task 007 with collection and owned cleanup.
+Remaining: implement and qualify complete case 2 as one fresh product-free
+installation, real reboot, account/station discovery, Parent default-state
+inspection and station entry/Cancel journey. Reuse task 007's qualified
+[fresh install/reboot/administrator return](E2E-Building-Blocks.md#customer-reboot-continuity),
+task 013's request exits and task 077a's complete bounded
+[app-row observations](E2E-Building-Blocks.md#app-row-observations).
+Case 2 remains pending; capability qualifications do not supply its acceptance.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

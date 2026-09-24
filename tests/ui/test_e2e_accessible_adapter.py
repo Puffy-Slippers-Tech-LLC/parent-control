@@ -240,9 +240,21 @@ def test_parent_functional_adapter_at_display_scales(
         selected = ui.run('parent-selected', version)
         assert selected['settings']['child'] == 'fixture-child'
         ui.run('parent-page-wrong-child-refused', version)
+        import hashlib
+        expected_rows = tuple(sorted(
+            ('parent-app-' + hashlib.sha256(identity.encode()).hexdigest()[:16], access, match)
+            for identity, access, match in (
+                ('thunderbird_thunderbird.desktop', 'allowed', 'precise'),
+                ('lunarclient.desktop', 'permanent', 'pattern'),
+                ('com.mojang.Minecraft.desktop', 'conditional', 'precise'),
+                ('steam.desktop', 'conditional', 'precise'))))
         for _ in range(2):
             before = ui.run('parent-selected', version)['settings']
             ui.run('parent-apps-page', version)
+            assert ui.run('parent-app-rows', version)['apps']['rows'] == expected_rows
+            assert ui.run('parent-app-rows-wrong-child', version)['apps'] == {'refusal': 'wrong-child'}
+            assert ui.run('parent-app-rows-wrong-page', version)['apps'] == {'refusal': 'wrong-page'}
+            assert ui.run('parent-app-rows-reopened', version)['apps']['rows'] == expected_rows
             assert ui.run('parent-screen-page', version)['settings'] == before
         opened = ui.run('discovery-child-picker-opened', version)
         assert opened['focused'] is True

@@ -142,7 +142,7 @@ class PackageDeploymentTests(unittest.TestCase):
 
     def test_make_build_keeps_changes_file_artifacts_together(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-        recipe = makefile.split("build: check-release-version\n", 1)[1].split(
+        recipe = makefile.split("_build-package:\n", 1)[1].split(
             "\n\ninstalldeb:", 1
         )[0]
 

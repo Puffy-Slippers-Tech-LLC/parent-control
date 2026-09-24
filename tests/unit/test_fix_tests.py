@@ -296,7 +296,8 @@ def test_transcript_observer_preserves_message_alignment_at_terminal_width(monke
     lines = rendered.plain.splitlines()
     content = [line for line in lines if line.strip()]
     assert content[0].startswith('• The launcher')
-    assert all(line.startswith('  ') for line in content[1:])
+    assert all(line.startswith('  ') and not line.startswith('   ')
+               for line in content[1:])
     assert all(Text(line).cell_len <= width for line in lines)
     assert ' '.join(rendered.plain.split()) == (
         '• ' + ' '.join(' '.join(paragraphs).replace('**', '').split()))

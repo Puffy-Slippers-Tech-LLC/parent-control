@@ -312,6 +312,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, cancel)
     state = json.loads(state_json)
+    total = state.get('total_sessions', state.get('task_sessions', 0))
     count, completed, status, reason = 0, 0, 0, 'session limit reached'
     try:
         while True:
@@ -344,6 +345,8 @@ def worker(root, run, owner, sessions, tasks, state_json):
             if task != state['task_id']:
                 raise ValueError('active task changed outside the workflow; inspect the checkpoint')
             count += 1
+            total += 1
+            state['total_sessions'] = total
             state.setdefault('started_at', time.time())
             state['task_sessions'] = state.get('task_sessions', 0) + 1
             effort = 'low' if state['phase'] == 'implement' else 'high'
@@ -355,7 +358,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             launcher.atomic(run / 'checkpoint.json', state)
             launcher.atomic(run / 'progress.json', {'session': count, 'limit': sessions,
                                                    'task_id': task, 'phase': state['phase']})
-            publish_progress(run, str(count), session_progress(root, state, count))
+            publish_progress(run, str(count), session_progress(root, state, total))
             print(f"\nwrite-e2e: session {count}{'/' + str(sessions) if sessions else ''}; "
                   f"task {task}; {MODEL} {effort}", flush=True)
             try:
@@ -377,7 +380,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state.pop('worktree_before', None)
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'complete':
-                show_completion(task, state['task_sessions'], count,
+                show_completion(task, state['task_sessions'], total,
                                 time.time() - state['started_at'])
             if state['phase'] == 'blocked':
                 status, reason = 1, 'blocked'
@@ -428,6 +431,8 @@ def initial_state(root, directory):
             return state
         if state.get('in_flight'):
             raise ValueError(f'interrupted task changed the queue; inspect the handoff in {previous}')
+        return dict(fresh_state(task),
+                    total_sessions=state.get('total_sessions', state.get('task_sessions', 0)))
     return fresh_state(task)
 
 

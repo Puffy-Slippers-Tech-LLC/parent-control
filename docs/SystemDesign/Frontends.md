@@ -131,6 +131,13 @@ and reacquire the focused ID. Enter commits selection separately;
 Menu and filter identifiers are explicit semantic keys, independent of their
 display labels.
 
+App Limits publishes its row collection as `parent-app-rows`. Each row uses
+`parent-app-<launcher hash>` and its access controls retain their explicit state
+suffixes. The current match value publishes `parent-app-<launcher hash>-match-pattern`
+or `-match-precise` beneath its match button. These public IDs allow complete
+bounded policy observations without inspecting saved preferences. They activate
+with the next Parent process (`none`) and do not change stored policy.
+
 Request account choices use their account UID within separate child and
 approver namespaces, independently of list order. Each selector keeps its ID
 fixed and publishes `kiosk-child-selected-<uid>` or

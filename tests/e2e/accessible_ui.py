@@ -166,7 +166,9 @@ GDM_SESSION_LABELS = {
     'Ubuntu on Xorg': 'ubuntu-xorg', 'Sign In': 'sign-in',
     'Log In': 'sign-in', 'Cancel': 'cancel',
 }
-KIOSK_OPERATIONS = frozenset({'kiosk-request-form'})
+KIOSK_OPERATIONS = frozenset({'kiosk-request-form', 'kiosk-child-choices-closed'})
+KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-child-choices-open'})
+OPERATIONS |= KIOSK_OPERATIONS | KIOSK_CHOICE_OPERATIONS
 KIOSK_ACCOUNT_REQUESTS = {
     'kiosk-child-select': ('fixture-child', 'other-fixture-parent'),
     'kiosk-approver-select': ('fixture-child', 'fixture-parent'),
@@ -180,7 +182,7 @@ KIOSK_ACCOUNT_REFUSALS = frozenset({'kiosk-choice-refusals', 'parent-kiosk-refus
 OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
                                    'kiosk-request-escape-ready'})
-KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS
+KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHOICE_OPERATIONS
                             | frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS)
                             | {'kiosk-choice-refusals'})
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
@@ -2967,10 +2969,11 @@ class AccessibleUI:
                 'ui:kiosk-account-unavailable')
         return selector, form, observation
 
-    def select_kiosk_account(self, field, name, *, expected, enabled=True):
-        """UI15: exact offered fixture set, one public action, fresh readback."""
+    def select_kiosk_account(self, field, name, *, expected, enabled=True, inspect_only=False):
+        """UI15: inspect the exact offered set, optionally select and read back."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
+        require(type(inspect_only) is bool, 'ui:kiosk-inspection-binding')
         require(field in ('child', 'approver'), 'ui:kiosk-account-field')
         accounts = CHILD_ACCOUNTS if field == 'child' else APPROVER_ACCOUNTS
         require(type(expected) is tuple and len(expected) == len(set(expected))
@@ -2984,8 +2987,14 @@ class AccessibleUI:
             identity = f'kiosk-{field}-choice-{uid}'
             require(identity not in bindings, 'ui:duplicate-choice-identity')
             bindings[identity] = label
-        selector, _form, _observation = self.kiosk_account_snapshot(field)
+        selector, form, observation = self.kiosk_account_snapshot(field)
+        if inspect_only:
+            require(self.snapshot_owned_target(
+                f'kiosk-{field}-choices', root=form, observation=observation) is None,
+                'ui:kiosk-choices-already-open')
         self._invoke_target(selector)
+        if inspect_only:
+            self.input_uncertain = True
         self.invalidate_observation()
 
         def offered():
@@ -3011,14 +3020,42 @@ class AccessibleUI:
                         'ui:kiosk-choice-label')
                 found[identity] = node
             require(set(found) == set(bindings), 'ui:kiosk-eligible-set')
+            if inspect_only:
+                return True
             return next(found[identity] for identity in found if bindings[identity] == name)
 
         target = self.wait(offered, 'kiosk-offered-accounts', prompt_in_predicate=True)
+        if inspect_only:
+            self.input_uncertain = False
+            return None
         self._invoke_target(target)
         self.input_uncertain = True
         self.invalidate_observation()
         canonical = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
         result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]))
+        self.input_uncertain = False
+        return result
+
+    def collapse_kiosk_child_choices(self):
+        """Collapse the inline list once and independently read the whole form."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        # GatewayDropDown is an inline list, not a popup. Its public trigger
+        # collapses it; Escape is the whole form's Cancel action.
+        selector, form, observation = self.kiosk_account_snapshot('child')
+        require(self.snapshot_owned_target(
+            'kiosk-child-choices', root=form, observation=observation) is not None,
+            'ui:kiosk-choices-not-open')
+        self._invoke_target(selector)
+        self.input_uncertain = True
+        self.invalidate_observation()
+
+        def closed():
+            _selector, form, observation = self.kiosk_account_snapshot('child')
+            return self.snapshot_owned_target(
+                'kiosk-child-choices', root=form, observation=observation) is None
+
+        self.wait(closed, 'kiosk-choices-closed', prompt_in_predicate=True)
+        result = self.kiosk_request_form()
         self.input_uncertain = False
         return result
 
@@ -3802,6 +3839,11 @@ class AccessibleUI:
                         require(str(error) == 'ui:kiosk-account-choice', 'ui:kiosk-wrong-refusal')
                     else:
                         raise UiError('ui:kiosk-wrong-choice-accepted')
+        elif operation == 'kiosk-child-choices-open':
+            self.select_kiosk_account('child', CHILD, expected=(CHILD, EXISTING_CHILD),
+                                      enabled=False, inspect_only=True)
+        elif operation == 'kiosk-child-choices-closed':
+            result['request'] = self.collapse_kiosk_child_choices()
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-request-cancel':

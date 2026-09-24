@@ -407,21 +407,26 @@ Bindings: request = approved / denied / cancelled.
 
 ### E2E-017
 
-Implementation status: All cases pending. UI17's Parent Screen time limit binding
+Implementation status: Case 57 passed complete live acceptance in run
+`20260924T001910Z-3076f596`, including collection and owned cleanup;
+the other cases remain pending. `disabled_child.PLAN` / `onpc_disabled_child::run`
+keeps limits off, inspects and collapses the exact child choices through the
+same public selector trigger, selects the disabled child, independently reads
+the unavailable form without authentication, and observes Cancel returning to GDM.
+UI17's Parent Screen time limit binding
 and PARENT08's saved/control snapshots have installed slice qualification,
 including wrong-child refusal and owned cleanup. REQUEST04's exact eligible
 kiosk child/approver selection and independent enabled-form readback have installed
 slice qualification. `check_e2e_request_choices` also qualified disabled-child
 selection, explanation, unavailable Request and absence of authentication after
-public Parent disable/save preparation. Complete case 57 remains pending;
-transient saving is not qualified.
+public Parent disable/save preparation. Transient saving is not qualified.
 
 **Kiosk selection and unavailable requests.** Cases 53, 54, 55, 56, 57.
 
 Bindings: accounts = multiple / no-child / no-parent / ineligible-parent / disabled-child.
 
 1. Account profile is the declared setup. Enable available targets with FLOW16 except disabled-child and no-parent. No-parent starts directly at GDM with default limits off: no inaccessible administrator setup or hidden enabled-policy fixture is needed to inspect its empty parent list. G → REQUEST01.
-2. Open each enabled selector: UI04 → UI13(exact eligible set) → UI05(Escape); REQUEST04(each declared choice). Disabled/empty uses UI02/03 without input.
+2. Open each enabled selector: UI04 → UI13(exact eligible set) → UI04(the same selector trigger to collapse the inline list); independently observe the closed list and unchanged selection, then REQUEST04(each declared choice). These are in-form lists, not popovers; Escape closes the request form. Disabled/empty uses UI02/03 without input.
 3. REQUEST03 → REQUEST08. Available: REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11. Unavailable: UI02(disabled) → UI11(prompt). No-parent specifically requires the missing-eligible-parent explanation and empty parent list; it makes no isolated screen-time enforcement claim with its also-disabled child.
 
 ### E2E-018

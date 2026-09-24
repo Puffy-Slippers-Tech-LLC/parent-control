@@ -115,6 +115,8 @@ OPERATION_LABELS.update({
     'gdm-station-returned': 'Checking the usable greeter after leaving the request station',
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
     'kiosk-disabled-child-select': 'Selecting the disabled child in the request station',
+    'kiosk-child-choices-open': 'Inspecting the exact eligible child choices',
+    'kiosk-child-choices-closed': 'Collapsing child choices and checking the unchanged unavailable form',
     'kiosk-disabled-form': 'Reading the disabled child explanation and unavailable Request',
     'kiosk-child-select': 'Checking eligible children and selecting the enabled child',
     'kiosk-approver-select': 'Checking eligible approvers and selecting the parent',

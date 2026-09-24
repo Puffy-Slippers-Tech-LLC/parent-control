@@ -903,7 +903,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off and inspects the missing eligible-parent explanation and empty list; it needs no hidden enabled-policy setup. Enter the station normally."},
+          {"id": "step-1", "operation": "ui", "description": "Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off, observes a listed parent, then discovers and locks all eligible parents through the OS fixture, preserving children and the station. Cancel to GDM and reopen the station; no administrator or hidden enabled-policy setup is needed. Other profiles enter the station normally."},
           {"id": "step-2", "operation": "ui", "description": "Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise."},
           {"id": "step-3", "operation": "ui", "description": "For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control."}
         ],
@@ -934,7 +934,7 @@
       "variants": [
         {"coverage_id": 53, "id": "multiple", "owner": "kiosk-form", "parameters": {"accounts": "multiple"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 54, "id": "no-child", "owner": "kiosk-form", "parameters": {"accounts": "no-child"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_no_child.py", "test_id": "no-child"}},
-        {"coverage_id": 55, "id": "no-parent", "owner": "kiosk-form", "parameters": {"accounts": "no-parent"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 55, "id": "no-parent", "owner": "kiosk-form", "parameters": {"accounts": "no-parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_no_approver.py", "test_id": "no-parent"}},
         {"coverage_id": 56, "id": "ineligible-parent", "owner": "kiosk-form", "parameters": {"accounts": "ineligible-parent"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 57, "id": "disabled-child", "owner": "kiosk-form", "parameters": {"accounts": "disabled-child"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/disabled_child.py", "test_id": "disabled-child"}}
       ]

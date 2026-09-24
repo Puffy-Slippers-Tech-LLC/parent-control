@@ -1,7 +1,7 @@
-"""FIX03 no-approver qualification; complete case 55 remains separate."""
+"""FIX03 qualification and independent case 55 no-parent station journey."""
 
 from account_fixture import NoApproverFixture
-from installed_journey import InstalledJourney, JourneyPlan
+from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
 from journey_blocks import station_entry
 import watch_activity
 
@@ -32,6 +32,31 @@ PLAN = JourneyPlan(
 )
 
 
+CASE_PLAN = JourneyPlan(
+    prefix='no-parent', worker_mode='no_parent',
+    screen_tags={
+        **station_entry(),
+        'baseline-approvers': 'ui:kiosk-approver-baseline',
+        'cancel-action': 'ui:kiosk-request-cancel',
+        'cancel-returned': 'ui:gdm-station-returned',
+        **station_entry('cancel-'),
+        'empty-form': 'ui:kiosk-no-approver-form',
+        'empty-rechecked': 'ui:kiosk-no-approver-form',
+    },
+    phases={
+        'ready': 'setup', 'setup-detached': 'setup', 'station-list': 'start',
+        'station-focused': 'step-1', 'station-branch': 'step-1',
+        'baseline-approvers': 'step-1', 'cancel-action': 'step-1',
+        'cancel-returned': 'step-1', 'cancel-station-list': 'step-1',
+        'cancel-station-focused': 'step-1', 'cancel-station-branch': 'step-1',
+        'empty-form': 'step-2', 'empty-rechecked': 'step-3',
+    },
+    advance_after={'station-list': 'step-1', 'cancel-station-branch': 'step-2',
+                   'empty-form': 'step-3'},
+    stage_actions={'baseline-approvers': 'prepare-no-approver'},
+)
+
+
 def fixture_actions(context):
     fixture = NoApproverFixture(context)
 
@@ -45,3 +70,11 @@ def fixture_actions(context):
 class KioskNoApproverJourney(InstalledJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, PLAN, actions=fixture_actions(context))
+
+
+def execute(recorder, context):
+    record_installed_journey(recorder, context, CASE_PLAN, timeout=1800,
+                             actions=fixture_actions(context))
+
+
+E2E_CASES = {'no-parent': execute}

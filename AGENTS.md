@@ -129,6 +129,15 @@ Read the [VM mandate](docs/Mandates/VM-Mandate.MD) only when doing VM operations
   selectors and explicit UI timeouts; avoid `-x` or positive `--maxfail` for broad
   unit/UI passes because those diagnostic options retain serial execution. See the
   [scheduling contract](tests/README.md#all-established-regressions).
+- Run `make build` when a change that could affect building or packaging the app
+  is ready for validation, and again after further build-affecting edits. This
+  includes product source and assets, package metadata, build/install recipes,
+  and tools or generated inputs used by those recipes. Use `Makefile`'s
+  `PACKAGE_SOURCE_FILES` and build rules to assess the scope, including build-tool
+  dependencies that are not shipped. Run the relevant tests separately; a passing
+  unit or UI suite does not establish that the package builds. Report a failed
+  build or missing build prerequisite as unresolved validation. Changes confined
+  to documentation or tests that cannot affect the build do not need this check.
 - Use `tools/run-tests host` only when all host coverage is justified, and
   `tools/run-tests all` only when the entire established regression set is
   justified. Combine complete categories when each is required, sharing their

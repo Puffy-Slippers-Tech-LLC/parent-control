@@ -33,8 +33,9 @@ def _qualified_absent_prompt_contracts(module):
     return contracts
 
 
-def test_no_child_station_adapter_reads_real_empty_form(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
+@pytest.mark.parametrize('profile', ['no-child', 'no-approver'])
+def test_empty_station_adapter_reads_real_empty_form(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, profile):
     from tests.support.request_form import launch_request, calls
     from gi.repository import Atspi, GLib
 
@@ -45,27 +46,31 @@ def test_no_child_station_adapter_reads_real_empty_form(
     # roles. Installed qualification retains the canonical VM fixture binding.
     module.APPROVER_IDENTITIES = {'Taylor Morgan': 'other-fixture-parent',
                                   'Avery Quinn': 'fixture-parent'}
+    module.CHILD_IDENTITIES = {'Alex Morgan': 'existing-fixture-child'}
     _application, path = launch_request(
-        launch_ui, tmp_path, overlay=False, scenario='no-children')
+        launch_ui, tmp_path, overlay=False,
+        scenario='no-children' if profile == 'no-child' else 'no-approvers')
     wait_for_accessible_state(lambda: automation.showing('kiosk-request-window'),
                               'empty station window')
     ui = module.AccessibleUI(
         Atspi, timeout=20, query_errors=(GLib.Error,),
         application_ids=(module.KIOSK_APPLICATION,),
         application_owners=launch_ui.application_owners,
-        fixture_uids={'Taylor Morgan': 1000, 'Avery Quinn': 1010},
+        fixture_uids={'Taylor Morgan': 1000, 'Avery Quinn': 1010, 'Alex Morgan': 1001},
         provider_contracts=_qualified_absent_prompt_contracts(module),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     for _ in range(2):
-        result = ui.run('kiosk-no-child-form', '')['request']
+        result = ui.run(f'kiosk-{profile}-form', '')['request']
         assert result == {
-            'surface': 'kiosk', 'form_count': 1, 'child': 'none',
-            'approver': 'other-fixture-parent', 'duration_seconds': 1800,
+            'surface': 'kiosk', 'form_count': 1,
+            'child': 'none' if profile == 'no-child' else 'existing-fixture-child',
+            'approver': 'other-fixture-parent' if profile == 'no-child' else 'none',
+            'duration_seconds': 1800,
             'custom_text': None, 'allow_soft': False,
             'child_selector_enabled': True, 'approver_selector_enabled': False,
             'duration_enabled': False, 'soft_choice_enabled': False,
             'request_enabled': False, 'cancel_enabled': True,
-            'message': 'no-child', 'mute': None,
+            'message': profile, 'mute': None,
         }
     assert not calls(path, 'RequestAccess')
 

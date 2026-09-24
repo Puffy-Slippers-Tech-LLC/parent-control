@@ -407,8 +407,9 @@ Bindings: request = approved / denied / cancelled.
 
 ### E2E-017
 
-Implementation status: Cases 57 and 54 passed complete live acceptance in runs
-`20260924T001910Z-3076f596` and `20260924T152534Z-98108590`, respectively,
+Implementation status: Cases 57, 54 and 55 passed complete live acceptance in runs
+`20260924T001910Z-3076f596`, `20260924T152534Z-98108590` and
+`20260924T175340Z-dd93d54f`, respectively,
 including collection, owned cleanup and baseline restoration;
 the other cases remain pending. `disabled_child.PLAN` / `onpc_disabled_child::run`
 keeps limits off, inspects and collapses the exact child choices through the
@@ -445,8 +446,11 @@ readback. Shared station navigation's no-child regression passed in run
 `20260924T173643Z-8d742069`. Both attempts passed collection, owned cleanup and
 baseline restoration. Reuse `NoApproverFixture.prepare`,
 `AccessibleUI.kiosk_approver_baseline` and
-`AccessibleUI.kiosk_request_form(no_approver=True)` for complete case 55, which
-remains pending. Wrong-entry refusal is qualification-only.
+`AccessibleUI.kiosk_request_form(no_approver=True)` for complete case 55.
+Its `kiosk_no_approver.CASE_PLAN` / `onpc_no_parent::run` binding passed
+independent complete-case acceptance in run `20260924T175340Z-dd93d54f`,
+including capture reconciliation, collection, owned cleanup and baseline
+restoration. Wrong-entry refusal is qualification-only.
 
 1. Account profile is the declared setup. Enable available targets with FLOW16 except disabled-child and no-parent. No-parent keeps default limits off: first enter the request station and observe a listed parent, detect all eligible parents through the OS account service, temporarily lock that detected set regardless of names/count, Cancel to GDM and reopen the station. The observed parent must belong to the detected set. Preserve children/station and restore accounts through outer cleanup. No inaccessible administrator setup or hidden enabled-policy fixture is needed. Other profiles use G → REQUEST01.
 2. Open each enabled selector: UI04 → UI13(exact eligible set) → UI04(the same selector trigger to collapse the inline list); independently observe the closed list and unchanged selection, then REQUEST04(each declared choice). These are in-form lists, not popovers; Escape closes the request form. Disabled/empty uses UI02/03 without input.

@@ -64,13 +64,13 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
                                  desktop_session.SWITCH_PLAN, kiosk_entry.PLAN,
                                  request_exit.PLAN, parent_toggle.PLAN, kiosk_eligible_choices.PLAN,
                                  request_choices.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN,
-                                 kiosk_no_approver.PLAN,
+                                 kiosk_no_approver.PLAN, kiosk_no_approver.CASE_PLAN,
                                  parent_terminal_provider.PLAN, license_viewer_provider.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
                               'kiosk-eligible-choices', 'request-choices', 'kiosk-no-child', 'no-child-case',
-                              'kiosk-no-approver',
+                              'kiosk-no-approver', 'no-parent-case',
                               'terminal-provider', 'license-viewer-provider'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
@@ -89,6 +89,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-042/command-help'
     if plan is kiosk_no_child.CASE_PLAN:
         selector = 'E2E-017/no-child'
+    if plan is kiosk_no_approver.CASE_PLAN:
+        selector = 'E2E-017/no-parent'
     scenario_id, variant_id = selector.split('/', 1)
     selected = next(
         variant
@@ -262,6 +264,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             elif plan in (parent_discovery.EMPTY_PLAN, kiosk_no_child.CASE_PLAN):
                 expected_steps.append('step-3')
                 actions['prepare-empty'].assert_called_once()
+            elif plan is kiosk_no_approver.CASE_PLAN:
+                expected_steps.append('step-3')
+                actions['prepare-no-approver'].assert_called_once()
             elif plan is command_help.PLAN:
                 expected_steps.append('step-3')
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
@@ -413,10 +418,11 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
                                  parent_about.PLAN, license_viewer_provider.PLAN,
                                  shell_search_results.PLAN, parent_search_launch.PLAN,
                                  shell_search.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN,
-                                 kiosk_no_approver.PLAN],
+                                 kiosk_no_approver.PLAN, kiosk_no_approver.CASE_PLAN],
                          ids=['discovery', 'empty', 'standard-access', 'about', 'license-viewer-provider',
                               'shell-search', 'search-launch',
-                              'standard-search', 'kiosk-no-child', 'no-child-case', 'kiosk-no-approver'])
+                              'standard-search', 'kiosk-no-child', 'no-child-case',
+                              'kiosk-no-approver', 'no-parent-case'])
 def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
     details, observations = [], []
     for stage, tag in plan.screen_tags.items():

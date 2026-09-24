@@ -25,6 +25,8 @@ from tools.e2e_progress import Progress
 from tools.regression_events import write_event
 
 ROOT = Path(__file__).resolve().parents[2]
+SUITE_INPUT_FIELDS = ('inventory_sha256', 'package_sha256',
+                      'environment_id', 'baseline_sha256')
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 import graphical_backend
 from owned_commands import Commands
@@ -238,9 +240,12 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     report['inputs'] = verified.inputs
                     require(verified.inputs['inventory_sha256'] == plan['inventory_sha256'],
                             'execution:selection-inputs-changed')
-                    require(expected_inputs is None or
-                            {key: value for key, value in verified.inputs.items() if key != 'source_sha256'} ==
-                            {key: value for key, value in expected_inputs.items() if key != 'source_sha256'},
+                    # Source may change between cases. Each staged asset tree is
+                    # independently verified and includes case-specific helpers
+                    # and selection inputs, so its digest is also per attempt.
+                    require(expected_inputs is None or all(
+                            verified.inputs[key] == expected_inputs[key]
+                            for key in SUITE_INPUT_FIELDS),
                             'execution:invocation-inputs-changed')
                     contract = verified.contract(run_id=run_id, selector=case['case_id'])
                     require(contract.plan['cases'] == [case], 'execution:selection-changed')

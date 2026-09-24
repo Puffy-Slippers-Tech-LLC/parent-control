@@ -94,7 +94,7 @@ class TranscriptWriter:
 
 
 class AgentRenderer:
-    def __init__(self, stream, *, width=100, command_log=None):
+    def __init__(self, stream, *, width=100, command_log=None, hide_task_completion=False):
         self.width = width
         # Retained presentation must keep its palette even when the supervisor
         # inherits NO_COLOR from a noninteractive caller.
@@ -109,6 +109,8 @@ class AgentRenderer:
         self.command_log = command_log
         self.last_command = None
         self.exploring = False
+        self.hide_task_completion = hide_task_completion
+        self.task_completion_message = False
 
     def message(self, text, title='Agent', style='default'):
         self.block(title, SessionMarkdown(clean(text)), style)
@@ -305,6 +307,9 @@ class AgentRenderer:
         if kind in ('thread.started', 'turn.started'):
             return
         if kind == 'turn.completed':
+            if self.task_completion_message:
+                self.task_completion_message = False
+                return
             self.heading('Turn complete', 'dim')
             return
         if kind in ('error', 'turn.failed'):
@@ -331,6 +336,10 @@ class AgentRenderer:
                 if (isinstance(result, dict)
                         and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete')
                         and isinstance(result.get('summary'), str)):
+                    if self.hide_task_completion and result['status'] == 'task_complete':
+                        # The workflow reports success only after validation and staging.
+                        self.task_completion_message = True
+                        return
                     title = (result['status'].replace('_', ' ').capitalize()
                              if 'handoff' in result else 'Repair ' + result['status'])
                     style = 'yellow' if result['status'] == 'blocked' else 'green'

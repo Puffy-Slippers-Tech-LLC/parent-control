@@ -74,7 +74,19 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert 'LATEST LIVE HANDOFF' in (first / 'handoff.txt').read_text()
     second, started = workflow.select(root, ['--sessions', '1'])
     assert started and second != first
-    assert launcher.follow(second, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(second, output) == 0
+    from rich.console import Console
+    from rich.text import Text
+    rendered = Text.from_ansi(output.getvalue())
+    assert rendered.plain.rstrip().endswith('Task 001 complete')
+    assert rendered.plain.count('Task 001 complete') == 1
+    assert 'Next session prompt:' not in rendered.plain
+    assert 'Task complete' not in rendered.plain
+    assert 'Turn complete' not in rendered.plain
+    offset = rendered.plain.index('Task 001 complete')
+    assert rendered.get_style_at_offset(Console(), offset).color.get_truecolor().hex == '#008000'
+    assert 'Next session prompt:' in (second / 'handoff.txt').read_text()
     invocations = calls(root)
     assert len({call['pid'] for call in invocations}) == 2
     for call, effort in zip(invocations, ['low', 'high']):

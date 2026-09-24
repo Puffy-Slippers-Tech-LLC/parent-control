@@ -650,11 +650,23 @@ def test_callback_uses_current_checkout_bytes_after_capture(harness):
     assert callable(execution.load_callback(harness.case, verified))
 
 
-def test_later_attempt_accepts_new_source_identity(harness):
+@pytest.mark.parametrize('field', ['source_sha256', 'assets_sha256'])
+def test_later_attempt_accepts_new_per_attempt_identity(harness, field):
     expected = copy.deepcopy(harness.inputs)
-    expected['source_sha256'] = 'b' * 64
+    expected[field] = 'b' * 64
     result = run(harness, expected_inputs=expected)
     assert result['outcome'] == 'passed'
+
+
+@pytest.mark.parametrize('field', execution.SUITE_INPUT_FIELDS)
+def test_later_attempt_refuses_changed_suite_identity(harness, field):
+    expected = copy.deepcopy(harness.inputs)
+    expected[field] = 'b' * 64
+    result = run(harness, expected_inputs=expected)
+    assert result['outcome'] == 'failed'
+    assert result['first_failure'] == {
+        'category': 'infrastructure', 'code': 'execution:attempt-failed'}
+    harness.worker.assert_not_called()
 
 
 def test_independent_connections_share_one_event_loop(monkeypatch):

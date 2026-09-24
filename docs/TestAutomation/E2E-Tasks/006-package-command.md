@@ -21,6 +21,20 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
+Reuse [the qualified package boundary](../E2E-Building-Blocks.md#administrator-package-command-and-output):
+`tests/e2e/package_command.py` (`PackageCommand.validate_input`, `submit`,
+`read_result`, `guest_submit`) and shared `session_control.package_digest`.
+`PackageAuthorityQualification` in `tests/integration/parent_setup_qualification.py`
+and `tests/e2e/package_authority.py` show the existing product-free envelope and
+qualification checkpoints. Task 005's fixed selector is
+`check_e2e_package_authority`; retain its assertions without treating that
+capability run as LIFE04 composition or case 2 acceptance.
+Relevant host coverage is `tests/unit/test_package_authority_cleanup_safety.py`,
+`tests/unit/test_product_free_entry_cleanup_safety.py`,
+`tests/unit/test_vm_transport.py`, `tests/unit/test_installed_journey_cleanup_safety.py`,
+`tests/unit/test_graphical_worker_cleanup_safety.py` and
+`tests/unit/test_graphical_smoke_cleanup_safety.py`.
+
 ## Implementation
 
 Compose shared FILE01/02/06 with AUTH03 administrator command authority and verified artifact checks. Submit one registered package command over guarded SSH, then read bounded completion and the actual notice. Begin with install, verified asset path and final notice; extend update/remove/reinstall/purge profiles only with their consumers.

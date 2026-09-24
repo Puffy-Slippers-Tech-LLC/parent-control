@@ -288,7 +288,7 @@ are unnecessary.
 | --- | --- | --- | --- | --- |
 | AUTH01 | A | Qualify the real approval prompt's selected parent, displayed request/child/duration/app choice and sole empty masked focused field. No password contents or product authorization calls. | New public-UI contract over the actual system agent; preserve the [secret boundary](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary). | pending |
 | AUTH02 | C | Approve, enter a declared wrong fixture password, or cancel authentication. For input, freshly qualify the same challenge twice and submit once. Observe acceptance, explicit rejection or dismissal; REQUEST11 separately reads the form result. | AUTH01 twice → UI19 → UI05, or UI04(Cancel) → UI01 → UI03 → UI11 as appropriate. A rejected prompt may need its normal Cancel action to return; never infer denial from timeout. A later retry needs a new challenge. | pending |
-| AUTH03 | A | Validate the administrator authority, owned VM and verified input for one registered package command. | Shared guarded command/artifact boundary; no Terminal or unrelated administrator-password challenge. Product approval authentication remains AUTH01/02. | pending |
+| AUTH03 | A | Validate the administrator authority, owned VM and verified input for one registered package command. | `PackageCommand.validate_input` and `guest_submit` bind `install-staged-package` to verified FIX04 bytes, the active local Parent administrator and the owned transport attempt; [qualification](#administrator-package-command-and-output). No Terminal or unrelated administrator-password challenge. Product approval authentication remains AUTH01/02. | fixed install binding ready; other package bindings pending |
 | REQUEST01 | C | Enter the dedicated request station from GDM through shared minimal account selection and observe its request form. | `journey_blocks.station_entry` / `onpc_gdm::enter_station` reuse `AccessibleUI.gdm_nonsecret_navigation`, consume one fresh focused-station proof before Enter, then independently require the active station owner and one showing owned window/form. The passwordless destination was qualified on the prepared Ubuntu 26.04/English-GDM/baseline-keyboard image with GNOME Shell `50.1-0ubuntu1.2`. `check_e2e_kiosk_eligible_choices` qualified direct composition after Parent preparation and shared Switch User. Station navigation requires the station row, without a named-parent prerequisite. This route and Cancel/GDM/reentry after locking all eligible parents passed `check_e2e_kiosk_fixtures` in run `20260924T173358Z-94d5db62`; the affected no-child route passed `check_e2e_kiosk_no_child` in run `20260924T173643Z-8d742069`, both with collection and owned restoration. Routine entry never visits another account. | ready |
 | REQUEST02 | C | Open or deliberately reopen the child overlay by direct `oh-no-parent-control-child` invocation as the active child desktop user; observe one usable form and fixed child identity. Mandatory for ordinary overlay entry. | DESK01 → `AccessibleUI.launch_child_command` (`child-command-launch`, fixed command, one submission) → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). The command input has host safety coverage; form observation and installed qualification remain pending. Repetition is deliberate customer input, not retry. | pending |
 | REQUEST03 | C | Read a form's child, approver, duration, custom text, soft-app choice, controls and messages; observe the absence of mute in the current release. Require exactly one showing form and the fixed child in overlay. | UI13(form count=1) → UI01 → UI02 → UI03. `AccessibleUI.kiosk_request_form` retains the installed-qualified disabled-child projection. Its `enabled=True` binding also qualifies default 1800-second duration, selected child/approver IDs, enabled controls and absent disabled notice/mute/custom value. `RequestObservation.from_request` validates immutable operation-specific expectations. `check_e2e_kiosk_eligible_choices` independently reread both selections in run `20260923T204614Z-0601b77a`. Other durations, numeric estimates, account profiles and overlay scope remain pending. | pending; default-duration disabled/enabled kiosk projections ready |
@@ -312,9 +312,9 @@ these blocks, not copies of them.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| FILE01 | A | Bind the guarded SSH channel to the declared fixture user/session for supporting commands. | Shared transport and fixed command registry; INFO02 already uses `command_documentation`. `session_control.observe` / `execute` bind `parent-command-context` to the active local administrator and read the verified staged package; [product-free qualification](#product-free-parent-entry-and-command-context) includes greeter refusal. No graphical Terminal merely to execute commands. | product-free Parent context ready; package-operation authority and additional bindings pending |
-| FILE02 | A | Submit one registered command with finite validated arguments over shared SSH as the declared user. No arbitrary shell strings or replay. | Direct argument arrays; PARENT01/REQUEST02 retain dedicated launch bindings. FILE06 observes the later result. | pending for additional bindings |
-| FILE06 | A | Read bounded stdout/stderr, exit status and required public product notice or launch denial. Command echo or generic failure cannot prove enforcement. | Shared command result adapter; graphical management denial remains PARENT01. No terminal rendering or unrelated password exercise. | pending for additional bindings |
+| FILE01 | A | Bind the guarded SSH channel to the declared fixture user/session for supporting commands. | Shared transport and fixed command registry; INFO02 already uses `command_documentation`. `session_control.observe` / `execute` bind `parent-command-context` to the active local administrator and read the verified staged package; [product-free qualification](#product-free-parent-entry-and-command-context) includes greeter refusal. `PackageCommand` rechecks that context for the [fixed install binding](#administrator-package-command-and-output). No graphical Terminal merely to execute commands. | product-free Parent context and fixed install authority ready; additional bindings pending |
+| FILE02 | A | Submit one registered command with finite validated arguments over shared SSH as the declared user. No arbitrary shell strings or replay. | `PackageCommand.submit` / `guest_submit` execute one fixed APT argument array under the bound administrator context and guarded VM transport; [qualification](#administrator-package-command-and-output). PARENT01/REQUEST02 retain dedicated launch bindings. FILE06 observes the later result. | fixed install binding ready; additional bindings pending |
+| FILE06 | A | Read bounded stdout/stderr, exit status and required public product notice or launch denial. Command echo or generic failure cannot prove enforcement. | `PackageCommand.read_result` independently requires successful exit, actual completion and final reboot notice at the later checkpoint; [qualification](#administrator-package-command-and-output). Graphical management denial remains PARENT01. No terminal rendering or unrelated password exercise. | fixed install completion/notice ready; additional bindings pending |
 | FILE07 | C | Navigate an open file manager/chooser to one declared customer directory. Use its normal Location shortcut, enter the directory and observe the destination. | UI05(Location shortcut) → UI16(location field) → UI05(Enter) → UI01 → UI03(destination). Directory identity comes from prepared synthetic fixtures or the selected save location. | pending |
 | FILE03 | C | Choose files, save a named file, or cancel in an already open chooser. Mode and selected files are explicit. Observe selection/closure; the caller observes its later result separately. | Open: FILE07(directory) → UI14(first file) → UI05 for declared additional modifier/navigation selection → UI13(exact selected set) → UI04(Open) → UI11(chooser). Save: FILE07 → UI16(filename) → UI04(Save) → UI11. Cancel: UI04(Cancel) → UI11. No unmodified second selection that silently drops earlier files. | pending |
 | FILE04 | C | Open the file manager directly at a declared directory only when the case tests that launch route or product file-picker integration. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands. | pending |
@@ -1421,8 +1421,42 @@ collection, owned worker cleanup and baseline restoration. The durable
 after-cleanup result is
 `output/test-runs/privileged/allocations/onpc-e2e-evidence-liy0bxsc/event-000016.json`;
 the report is `output/test-runs/host/reports/20260924T203125Z-f94d7c37/report.md`.
-Package execution/notice and installation composition remain tasks 005/006;
-case 2 remains pending. This qualification supplies no complete-scenario credit.
+Package execution/notice has its separate qualification below; installation
+composition remains task 006 and case 2 remains pending. This qualification
+supplies no complete-scenario credit.
+
+### Administrator package command and output
+
+`check_e2e_package_authority` passed in run `20260924T215601Z-8f5800a9`
+on the product-free Ubuntu 26.04 baseline. `PackageAuthorityQualification`,
+`PackageAuthorityJourney` and `onpc_package_authority::run` reuse the qualified
+product-free entry and FIX04 transfer. The shared leaves are in
+[`package_command.py`](../../tests/e2e/package_command.py):
+
+- `PackageCommand.validate_input` binds the fixed `install-staged-package`
+  command, verified package digest and transport VM/attempt identity.
+- `submit` and `guest_submit` recheck the active unlocked local Parent
+  administrator and immutable staged bytes before one fixed APT invocation.
+  APT may fetch runtime dependencies; an empty baseline need not cache them.
+  Host consumption and an exclusive guest marker prevent replay after uncertain
+  input. The guarded transport supplies system authority; no Terminal or
+  unrelated password prompt is involved.
+- `read_result` runs at a separate checkpoint, rechecks attempt/provenance,
+  and requires exit status zero, the actual package completion line and the
+  actual reboot notice as the last output line. Combined stdout/stderr is
+  bounded to 1 MiB with a 660-second command deadline; raw diagnostics remain
+  private and shared evidence contains only the matched public lines.
+
+The live slice proved greeter refusal, independent valid administrator entry,
+unregistered-command/wrong-artifact/wrong-VM/wrong-attempt/replay refusals,
+successful command completion and the final reboot notice. Capture
+reconciliation, private collection, owned worker shutdown, baseline restoration
+and lease completion passed. The durable after-cleanup result is
+`output/test-runs/privileged/allocations/onpc-e2e-evidence-1kzlp7dr/event-000017.json`;
+the report is `output/test-runs/host/reports/20260924T215601Z-8f5800a9/report.md`.
+This capability qualification records its three assertions; the envelope's
+complete-product result is `not-run`. LIFE04 composition, other package
+operations and complete case 2 remain pending.
 
 ### Reachability and result checks
 

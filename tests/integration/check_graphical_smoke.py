@@ -653,7 +653,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          shell_search=False, parent_terminal_provider=False,
          license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
-         challenges=False, product_free_entry=False):
+         challenges=False, product_free_entry=False, package_authority=False):
+    require(type(package_authority) is bool and not (package_authority and product_free_entry),
+            'smoke:package-authority-prerequisites')
+    # Reuse the exact product-free prerequisite gate, preparation and envelope.
+    product_free_entry = product_free_entry or package_authority
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -960,6 +964,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-challenges-qualification'
         if product_free_entry:
             result['scope'] = 'product-free-entry-qualification'
+        if package_authority:
+            result['scope'] = 'package-authority-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1061,6 +1067,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if product_free_entry:
                     from parent_setup_qualification import ProductFreeEntryQualification
                     qualification_class = ProductFreeEntryQualification
+                if package_authority:
+                    from parent_setup_qualification import PackageAuthorityQualification
+                    qualification_class = PackageAuthorityQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

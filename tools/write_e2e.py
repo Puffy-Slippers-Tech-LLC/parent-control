@@ -10,6 +10,7 @@ import re
 import signal
 import subprocess
 import sys
+import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
@@ -245,12 +246,23 @@ def save_handoff(run, state, reason, *, display=True):
         sys.stdout.flush()
 
 
-def show_completion(task, task_sessions, launcher_sessions):
+def format_duration(seconds):
+    minutes = max(0, int(seconds / 60 + 0.5))
+    if seconds < 3600:
+        return f'{minutes} {"minute" if minutes == 1 else "minutes"}'
+    hours, minutes = divmod(minutes, 60)
+    return (f'{hours} {"hour" if hours == 1 else "hours"} '
+            f'{minutes} {"minute" if minutes == 1 else "minutes"}')
+
+
+def show_completion(task, task_sessions, launcher_sessions, duration):
     from launcher_render import AgentRenderer
     from rich.text import Text
-    AgentRenderer(sys.stdout).console.print(Text(f'Task {task} complete.', style='green'))
+    print('─' * 40)
+    AgentRenderer(sys.stdout).console.print(Text(f'Task {task} complete.', style='bold green'))
     print(f'- Took {task_sessions} sessions.\n'
-          f'- Total launcher sessions: {launcher_sessions}', flush=True)
+          f'- Total launcher sessions: {launcher_sessions}\n'
+          f'- Duration: {format_duration(duration)}', flush=True)
     sys.stdout.flush()
 
 
@@ -331,6 +343,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             if task != state['task_id']:
                 raise ValueError('active task changed outside the workflow; inspect the checkpoint')
             count += 1
+            state.setdefault('started_at', time.time())
             state['task_sessions'] = state.get('task_sessions', 0) + 1
             effort = 'low' if state['phase'] == 'implement' else 'high'
             prompt = session_prompt(state)
@@ -363,7 +376,8 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state.pop('worktree_before', None)
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'complete':
-                show_completion(task, state['task_sessions'], count)
+                show_completion(task, state['task_sessions'], count,
+                                time.time() - state['started_at'])
             if state['phase'] == 'blocked':
                 status, reason = 1, 'blocked'
                 break

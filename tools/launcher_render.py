@@ -26,6 +26,22 @@ from rich.theme import Theme
 
 CONTROL = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))|[\x00-\x08\x0b-\x1f\x7f]')
 
+# Bound both row count and text: a stream need not contain any newlines.
+SCROLLBACK_LINES = 2000
+SCROLLBACK_CHARACTERS = 256 * 1024
+
+
+def retained_tail(lines):
+    """Keep the newest text within the observer's in-memory history budget."""
+    retained = deque()
+    remaining = SCROLLBACK_CHARACTERS
+    for line in reversed(lines):
+        if len(retained) == SCROLLBACK_LINES or remaining == 0:
+            break
+        retained.appendleft(line[-remaining:])
+        remaining -= len(retained[0])
+    return retained
+
 
 def clean(value):
     return CONTROL.sub('', str(value))
@@ -41,11 +57,11 @@ class LauncherDisplay:
     def __init__(self, stream, *, log_path=None):
         self.stream = stream
         self.log_path = log_path
-        self.unsaved = []
+        self.unsaved = deque()
         self.tty = stream.isatty() and os.environ.get('TERM') != 'dumb'
         self.console = Console(file=stream, force_terminal=True, markup=False,
                                highlight=False, color_system='truecolor', no_color=False)
-        self.transcript = deque(maxlen=2000)
+        self.transcript = deque(maxlen=SCROLLBACK_LINES)
         self.pending = ''
         self.steps = []
         self.details = []
@@ -61,6 +77,8 @@ class LauncherDisplay:
         self.input_fd = None
         self.input_attributes = None
         self.input_pending = b''
+        self.scrollbar = None
+        self.scrollbar_grab = None
 
     def __enter__(self):
         if self.tty:
@@ -105,6 +123,7 @@ class LauncherDisplay:
             return
         if not saved:
             self.unsaved.append(value)
+            self.unsaved = retained_tail(self.unsaved)
         lines = (self.pending + value).split('\n')
         if self.offsets['bottom'] and self.size:
             width = max(1, self.size.columns - 1)
@@ -117,6 +136,10 @@ class LauncherDisplay:
         if final and self.pending:
             self.transcript.append(self.pending)
             self.pending = ''
+        retained = retained_tail([*self.transcript, *([self.pending] if self.pending else [])])
+        if self.pending:
+            self.pending = retained.pop()
+        self.transcript = deque(retained, maxlen=SCROLLBACK_LINES)
         self.draw()
 
     def update(self, steps, details):
@@ -128,8 +151,14 @@ class LauncherDisplay:
                 self.stream.write('\n'.join(details) + '\n')
             self.stream.flush()
         for step in steps:
-            self.step_history[step['key']] = list(step['lines'])
-        while len(self.step_history) > 2000:
+            self.step_history[step['key']] = list(retained_tail(step['lines']))
+        history_size = sum(len(line) for lines in self.step_history.values() for line in lines)
+        history_lines = sum(map(len, self.step_history.values()))
+        while (len(self.step_history) > SCROLLBACK_LINES or history_lines > SCROLLBACK_LINES
+               or history_size > SCROLLBACK_CHARACTERS):
+            oldest = self.step_history[next(iter(self.step_history))]
+            history_size -= sum(map(len, oldest))
+            history_lines -= len(oldest)
             del self.step_history[next(iter(self.step_history))]
         self.steps, self.details = steps, details
         self.draw()
@@ -146,8 +175,31 @@ class LauncherDisplay:
             if match:
                 button, column, row = map(int, match.groups()[:3])
                 self.input_pending = self.input_pending[match.end():]
-                if match[4] == b'M':
-                    if (button & ~28) == 0 and self.size and 1 <= column < self.size.columns:
+                if match[4] == b'm':
+                    self.scrollbar_grab = None
+                elif (button & ~28) == 32:
+                    if self.scrollbar_grab is not None and self.scrollbar:
+                        first, start, thumb, travel, limit = self.scrollbar
+                        position = min(travel, max(0, row - first - self.scrollbar_grab))
+                        if travel:
+                            self.offsets['bottom'] = round(limit * (travel - position) / travel)
+                            self.draw()
+                elif match[4] == b'M':
+                    if (button & ~28) == 0 and self.size and column == self.size.columns:
+                        self.scrollbar_grab = None
+                        if self.scrollbar and self.top_height + 1 < row <= self.size.lines:
+                            first, start, thumb, travel, limit = self.scrollbar
+                            position = row - first
+                            self.focus = 'bottom'
+                            if start <= position < start + thumb:
+                                self.scrollbar_grab = position - start
+                                continue
+                            height = self.size.lines - self.top_height - 1
+                            if limit:
+                                self.offsets['bottom'] = round(limit * (height - 1 - position) / max(1, height - 1))
+                                self.draw()
+                    elif (button & ~28) == 0 and self.size and 1 <= column < self.size.columns:
+                        self.scrollbar_grab = None
                         if 1 <= row <= self.top_height:
                             self.focus = 'top'
                         elif self.top_height + 1 < row <= self.size.lines:
@@ -164,10 +216,19 @@ class LauncherDisplay:
 
     def scroll_rows(self, pane, lines, width, height):
         # Quiet observer polls should not repeatedly reflow the scrollback.
+        lines = retained_tail(lines)
         key = (width, tuple(lines))
         cached = self.row_cache.get(pane)
         if cached is None or cached[0] != key:
-            cached = self.row_cache[pane] = (key, self.wrapped(lines, width))
+            rows = deque(maxlen=SCROLLBACK_LINES)
+            # Reflow from the newest end and stop once the visible history is
+            # full; narrow terminals must not multiply the retained row count.
+            for line in reversed(lines):
+                wrapped = self.wrapped([line], width)
+                rows.extendleft(reversed(wrapped[-(SCROLLBACK_LINES - len(rows)):]))
+                if len(rows) == SCROLLBACK_LINES:
+                    break
+            cached = self.row_cache[pane] = (key, list(rows))
         rows = cached[1]
         limit = max(0, len(rows) - height) if height else 0
         self.offsets[pane] = min(self.offsets[pane], limit)
@@ -230,24 +291,36 @@ class LauncherDisplay:
                 break
             log_rows = self.wrapped([line], width)[-(room - len(log_rows)):] + log_rows
         body = log_rows + detail_rows
+        retained = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
+        scrolled_body = self.scroll_rows('bottom', retained, width, available)
         if self.offsets['bottom']:
-            retained = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
-            scrolled_body = self.scroll_rows('bottom', retained, width, available)
-            if self.offsets['bottom']:
-                body = scrolled_body
+            body = scrolled_body
         body += [Text('')] * (available - len(body))
         rows = top + [Text('─' * width, style='dim')] + body
+        total = len(self.row_cache['bottom'][1])
+        self.scrollbar = None
+        if available > 0 and total > available:
+            thumb = max(1, min(available - 1, round(available * available / total)))
+            travel = available - thumb
+            start = round(travel * (total - available - self.offsets['bottom']) / (total - available))
+            self.scrollbar = (len(top) + 2, start, thumb, travel, total - available)
+            for index in range(available):
+                row_index = len(top) + 1 + index
+                row = rows[row_index].copy()
+                row.pad_right(max(0, width - row.cell_len))
+                rows[row_index] = row + Text(
+                    '█' if start <= index < start + thumb else '░', style='dim')
         # Compare physical rows so quiet workers do not repaint either pane.
         encoded = []
         for row in rows:
             with self.console.capture() as capture:
-                self.console.print(row, width=width, end='', soft_wrap=True)
+                self.console.print(row, width=size.columns, end='', soft_wrap=True)
             encoded.append(capture.get())
         if not self.screen:
             self.screen = True
             self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
             if self.input_fd is not None:
-                self.stream.write('\033[?1000h\033[?1006h')
+                self.stream.write('\033[?1002h\033[?1006h')
             self.previous = None
         if size != self.size:
             self.stream.write('\033[H\033[2J')
@@ -259,9 +332,10 @@ class LauncherDisplay:
         self.previous, self.size = encoded, size
 
     def restore_terminal(self):
+        self.scrollbar_grab = None
         if self.input_fd is not None:
             try:
-                self.stream.write('\033[?1000l\033[?1006l')
+                self.stream.write('\033[?1002l\033[?1006l')
                 self.stream.flush()
             finally:
                 termios.tcsetattr(self.input_fd, termios.TCSAFLUSH, self.input_attributes)

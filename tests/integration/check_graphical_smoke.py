@@ -654,13 +654,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, product_free_entry=False, package_authority=False,
-         package_install=False):
+         package_install=False, customer_reboot=False):
+    require(type(customer_reboot) is bool and not (customer_reboot and
+            (package_install or package_authority or product_free_entry)),
+            'smoke:customer-reboot-prerequisites')
     require(type(package_install) is bool and not (package_install and
             (package_authority or product_free_entry)), 'smoke:package-install-prerequisites')
     require(type(package_authority) is bool and not (package_authority and product_free_entry),
             'smoke:package-authority-prerequisites')
     # Reuse the exact product-free prerequisite gate, preparation and envelope.
-    product_free_entry = product_free_entry or package_authority or package_install
+    product_free_entry = product_free_entry or package_authority or package_install or customer_reboot
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -971,6 +974,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'package-authority-qualification'
         if package_install:
             result['scope'] = 'package-install-qualification'
+        if customer_reboot:
+            result['scope'] = 'customer-reboot-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1078,6 +1083,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if package_install:
                     from parent_setup_qualification import PackageInstallQualification
                     qualification_class = PackageInstallQualification
+                if customer_reboot:
+                    from parent_setup_qualification import CustomerRebootQualification
+                    qualification_class = CustomerRebootQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

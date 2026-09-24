@@ -19,15 +19,14 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **007 — [Observe a deliberate customer reboot](E2E-Tasks/007-customer-reboot.md)**.
+Next task: **077a — [Read app rows and initial access choices](E2E-Tasks/077a-app-row-observations.md)**.
 
-Remaining: implement and qualify one planned customer reboot in the same fresh
-installation attempt, independently observe changed boot and usable GDM, then
-sign in to the administrator desktop. Reuse the
-[qualified LIFE04 install composition](E2E-Building-Blocks.md#customer-package-install-composition)
-from task 006, run `20260924T221715Z-9ebb5329`, with its successful final notice,
-private collection and owned cleanup. Unplanned reboot must still fail.
-Complete case 2 and other package operations remain pending.
+Remaining: implement and qualify complete bounded public App Limits row
+observations and initial Allowed choices for the selected child, independently
+re-read the page, and refuse wrong-child/page entry. Reuse the qualified Parent
+entry and guarded installed-attempt envelope. Complete case 2 remains pending;
+its [fresh install/reboot/administrator return](E2E-Building-Blocks.md#customer-reboot-continuity)
+is qualified by task 007 with collection and owned cleanup.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

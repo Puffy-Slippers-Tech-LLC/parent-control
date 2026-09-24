@@ -238,6 +238,20 @@ class Transport:
         # while malformed replies, guard errors and ownership loss still fail.
         self.wait_boot_change(before.decode('ascii').strip())
 
+    @observed('Submitting the planned customer reboot')
+    def request_customer_reboot(self, previous_boot_sha256):
+        """Submit once on the pinned boot; observation belongs to the caller."""
+        require(type(previous_boot_sha256) is str
+                and re.fullmatch(r'[0-9a-f]{64}', previous_boot_sha256),
+                'transport:invalid-previous-boot')
+        program = ('import hashlib,os,pathlib,sys; '
+            'assert hashlib.sha256(pathlib.Path("/proc/sys/kernel/random/boot_id").read_bytes())'
+            '.hexdigest()==sys.argv[1]; '
+            'os.execv("/usr/bin/systemctl", ["systemctl", "--no-ask-password", "reboot"])')
+        self.call(['/usr/bin/python3', '-c', program, previous_boot_sha256],
+                  timeout=180, check=False)
+        require(self.commands.last_returncode in (0, 255), 'transport:reboot-command-failed')
+
     @observed('Transferring VM files')
     def copy(self, up, source, destination):
         require(source.endswith('/') == destination.endswith('/'), 'transport:copy-type')

@@ -43,6 +43,7 @@ class JourneyPlan:
     invocations: tuple = ()
     assertions_after: dict = field(default_factory=dict)
     challenges: dict = field(default_factory=dict)
+    reboot_transition: tuple = ()
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -63,6 +64,16 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
+        require(type(self.reboot_transition) is tuple and
+                (not self.reboot_transition or
+                 len(self.reboot_transition) == 2 and
+                 all(stage in stages for stage in self.reboot_transition) and
+                 stages.index(self.reboot_transition[1]) ==
+                 stages.index(self.reboot_transition[0]) + 1 and
+                 self.screen_tags[self.reboot_transition[0]] == 'system:parent-command-context' and
+                 self.screen_tags[self.reboot_transition[1]] == 'ui:gdm-list' and
+                 self.reboot_transition[0] not in self.stage_actions),
+                self.prefix + ':reboot-plan')
         for identity, binding in self.challenges.items():
             require(type(identity) is str and re.fullmatch(r'[a-z][a-z0-9-]*', identity)
                     and type(binding) is tuple and len(binding) == 3,
@@ -173,6 +184,8 @@ class InstalledJourney:
         self.transport = None
         self.ui = None
         self.boot = None
+        self.reboot_submitted = False
+        self.reboot_observed = False
         self.failed = False
         self.prompt_counts = {}
         self.settings_observations = {}
@@ -221,6 +234,29 @@ class InstalledJourney:
         except BaseException:
             self.failed = True
             raise
+
+    def submit_reboot(self, guard):
+        """Only the declared input stage may consume this attempt's reboot."""
+        require(not self.failed and self.plan.reboot_transition and
+                len(self.steps) < len(self.plan.stages) and
+                self.plan.stages[len(self.steps)] == self.plan.reboot_transition[0],
+                self.plan.prefix + ':reboot-entry')
+        require(not self.reboot_submitted and self.boot is not None,
+                self.plan.prefix + ':reboot-replay')
+        guard()
+        require(self.vm.read('boot')['boot_sha256'] == self.boot,
+                self.plan.prefix + ':boot-changed')
+        # Record intent before any input; an uncertain command is never replayed.
+        self.reboot_submitted = True
+        with (self.context.directory / 'customer-reboot-intent.json').open('x') as stream:
+            json.dump({'stage': self.plan.reboot_transition[0],
+                       'previous_boot_sha256': self.boot}, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        guard()
+        self.transport.request_customer_reboot(self.boot)
+        guard()
+        return {'submitted': True, 'previous_boot_sha256': self.boot}
 
     def _step(self, guard):
         plan, context = self.plan, self.context
@@ -286,6 +322,18 @@ class InstalledJourney:
         else:
             # Harness boot identity is continuity metadata, never a product
             # policy/session probe or customer assertion.
+            if plan.reboot_transition and stage == plan.reboot_transition[1]:
+                require(self.reboot_submitted and not self.reboot_observed,
+                        plan.prefix + ':unplanned-reboot')
+                transition = self.vm.wait_boot_change(self.boot)
+                require(transition['previous_boot_sha256'] == self.boot and
+                        transition['boot_changed'] is True and
+                        transition['boot_sha256'] != self.boot,
+                        plan.prefix + ':reboot-result')
+                self.boot = transition['boot_sha256']
+                self.reboot_observed = True
+                self.ui = None  # Never carry a pre-reboot recipient or UI cache.
+                observed['boot_transition'] = transition
             current = self.vm.read('boot')['boot_sha256']
             require(self.boot is None or self.boot == current, plan.prefix + ':boot-changed')
             self.boot = current
@@ -314,6 +362,8 @@ class InstalledJourney:
                 reply['ui_focused'] = True
         self.check_settings(stage, observed)
         self.check_request(stage, observed)
+        if plan.reboot_transition and stage == plan.reboot_transition[0]:
+            observed['reboot'] = self.submit_reboot(guard)
         if stage in plan.assertions_after:
             require(not self.review, plan.prefix + ':assertion-review')
             observed['assertion'] = {'id': plan.assertions_after[stage],

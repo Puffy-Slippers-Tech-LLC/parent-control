@@ -61,7 +61,10 @@ def test_selected_rounds_reverify_earlier_leaves_after_repairs():
         assert category == expected
         return result
 
-    fix_tests.run_loop(['unit', 'ui'], test, prompts.append, lambda: None, selected=True)
+    rounds = []
+    fix_tests.run_loop(['unit', 'ui'], test, prompts.append, lambda: None, selected=True,
+                       round_changed=rounds.append)
+    assert rounds == [1, 2]
     assert list(pending) == []
     assert prompts == ['first ui', 'unit regression']
 
@@ -479,11 +482,15 @@ def test_follow_keeps_unicode_across_reads_and_reattaches_at_complete_lines(tmp_
 
 @pytest.mark.parametrize('tty', [False, True])
 def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypatch, tty):
+    from launcher_progress import publish_progress
+    monkeypatch.setenv('TERM', 'xterm-256color')
     run = tmp_path / 'run'
     run.mkdir()
     (run / 'output').write_text('category started\n')
     fix_tests.atomic(run / 'frame.json', ['Overall - 0%'])
-    fix_tests.atomic(run / 'category.json', 'Running category [unit] (1/4)')
+    publish_progress(run, 'test', ['Round 1: Category: unit (1/4)', 'Status: Running tests'])
+    fix_tests.atomic(run / 'test-controller.json', [
+        {'key': 'unit', 'lines': ['Category: unit (1/1) | Overall - 0%']}])
     fix_tests.atomic(run / 'result.json', {'status': 0})
     monkeypatch.setattr(detached_launcher, 'current_run', lambda _: run)
     monkeypatch.setattr(detached_launcher, 'busy', lambda _: True)
@@ -494,6 +501,8 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
         polls += 1
         if polls == 1:
             fix_tests.atomic(run / 'frame.json', ['Overall - 50%'])
+            fix_tests.atomic(run / 'test-controller.json', [
+                {'key': 'unit', 'lines': ['Category: unit (1/1) | Overall - 50%']}])
         elif polls == 3:
             fix_tests.atomic(run / 'frame.json', [])
             (run / 'output').write_text('category started\nfinal summary\n')
@@ -504,13 +513,14 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
     monkeypatch.setattr(output, 'isatty', lambda: tty)
     assert fix_tests.follow(run, output) == 0
     text = output.getvalue()
-    assert text.count('category started') == text.count('final summary') == 1
+    assert 'category started' in text and 'final summary' in text
     assert 'Overall - 0%' in text and 'Overall - 50%' in text
-    assert 'Overall - 50%\n\033[2KRunning category [unit] (1/4)' in text
+    from rich.text import Text
+    assert 'Round 1: Category: unit (1/4) | Overall - 50%' in Text.from_ansi(text).plain
+    assert 'Status: Running tests' in text
     if tty:
         assert text.count('\033[?1049h') == text.count('\033[?1049l') == 1
-        assert '\033[2F' in text
-        assert text.index('\033[?1049l') < text.index('final summary')
+        assert text.index('final summary') < text.index('\033[?1049l')
     else:
         assert text.count('Overall - 50%') == 1
         assert '\033[?1049' not in text

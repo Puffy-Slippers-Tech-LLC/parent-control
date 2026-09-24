@@ -27,6 +27,7 @@ class SelectedRun(Run):
                          scope='selected categories only', continue_on_errors=not stop_on_error)
         self.selections = [(kind, args[1:] if args[:1] == ['--unattended'] else args)
                            for kind, args in selections]
+        self.dashboard.controller_category = (self.selections[0][0], 1, len(self.selections))
         self.report.write('\nSelected categories: ' + ', '.join(kind for kind, _ in selections) + '\n')
         self.categories.clear()
         for kind, args in self.selections:
@@ -109,9 +110,10 @@ class SelectedRun(Run):
         # Categories stay ordered; unit/UI use the same buckets as host.
         # Keep a stable work list while collected inventories expand into jobs.
         host_elapsed = 0.0
-        for item, (kind, args) in list(zip(self.categories, self.selections, strict=True)):
+        for index, (item, (kind, args)) in enumerate(list(zip(self.categories, self.selections, strict=True)), 1):
             if self.control.stopped.is_set():
                 break
+            self.dashboard.controller_category = (kind, index, len(self.selections))
             if item.host:
                 if self.dashboard.host_started is None:
                     self.dashboard.host_started = time.monotonic()

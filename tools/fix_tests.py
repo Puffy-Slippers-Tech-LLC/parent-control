@@ -129,7 +129,7 @@ def category_status(category, categories):
             f'({index + 1}/{len(categories)})\033[0m')
 
 
-def run_loop(categories, test, repair, check_stop, *, selected=False):
+def run_loop(categories, test, repair, check_stop, *, selected=False, round_changed=lambda _: None):
     """No session objects or past prompts survive a repair/category iteration."""
     def finish_category(category, failure):
         while failure is not None:
@@ -138,9 +138,11 @@ def run_loop(categories, test, repair, check_stop, *, selected=False):
             check_stop()
             failure = test(category)
 
+    round_changed(1)
     for category in categories:
         check_stop()
         finish_category(category, test(category))
+    round_changed(2)
     if selected:
         # A later repair can break an earlier leaf. Require a whole selected
         # pass without repairs before finishing, never widening to all.
@@ -181,7 +183,25 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
 
 
 def worker(root, run, owner, model, effort, app_model, requested='[]'):
+    from launcher_progress import publish_progress, read_progress, repair_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    round_number = 1
+    operation = 0
+
+    def round_changed(number):
+        nonlocal round_number
+        round_number = number
+
+    def progress(category, status):
+        nonlocal operation
+        operation += 1
+        index = categories.index(category) + 1 if category in categories else 1
+        total = len(categories) if category in categories else 1
+        summary = f'Round {round_number}: Category: {category} ({index}/{total})'
+        previous = repair_progress(run, read_progress(run))
+        if status == 'fixing errors' and previous:
+            summary = previous[-1]['lines'][0]
+        publish_progress(run, str(operation), [summary, 'Status: ' + status])
 
     def cancel(*_):
         (run / 'cancel').touch(mode=0o600)
@@ -226,11 +246,14 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
 
         recovered = False
         while True:
+            atomic(run / 'test-controller.json', [])
+            progress(category, 'Running tests')
             status_line = category_status(category, categories)
-            atomic(run / 'category.json', status_line)
             print(f'\nfix-tests: running {category}', flush=True)
             status = run_requested(category, inventory.get(category, {}).get('args', []),
                                    'the requested category')
+            previous = repair_progress(run, read_progress(run))
+            publish_progress(run, previous[-1]['key'], previous[-1]['lines'])
             if status == 0:
                 if status_line is not None:
                     print(status_line, flush=True)
@@ -253,6 +276,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
             return handoff(run)
 
     def repair(prompt):
+        progress('', 'fixing errors')
         print(f'\nfix-tests: classify and repair ({model}, {effort})', flush=True)
         (run / 'prompt.txt').write_text(repair_prompt(prompt), encoding='utf-8')
         # Truncate only our own last reply; an agent crash cannot reuse it.
@@ -298,7 +322,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
               ('selected leaf passes' if requested else 'complete all passes') +
               ' until success', flush=True)
         print('fix-tests: categories: ' + ', '.join(categories), flush=True)
-        run_loop(categories, test, repair, check_stop, selected=bool(requested))
+        run_loop(categories, test, repair, check_stop, selected=bool(requested),
+                 round_changed=round_changed)
         print('\nfix-tests: ' + ('all selected categories passed.' if requested else
               'all categories and the complete regression passed.'), flush=True)
         status = 0
@@ -308,6 +333,11 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f'\nfix-tests: {error}', file=sys.stderr, flush=True)
     finally:
+        previous = repair_progress(run, read_progress(run))
+        if previous:
+            lines = previous[-1]['lines']
+            lines[-1] = 'Status: ' + {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked')
+            publish_progress(run, previous[-1]['key'], lines)
         atomic(run / 'result.json', {'status': status})
         os.close(owner)
     return status

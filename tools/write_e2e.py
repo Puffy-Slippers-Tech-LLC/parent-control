@@ -45,6 +45,18 @@ def fresh_state(task):
             'handoff': INITIAL_PROMPT, 'in_flight': False, 'stage_candidates': []}
 
 
+def session_progress(root, state, count):
+    task = state['task_id']
+    queue = (root / QUEUE).read_text().split('## Deferred future work', 1)[0]
+    row = re.search(r'^\| \[[ x]\] \| ' + re.escape(task) + r' \| ([^|]+) \|', queue, re.MULTILINE)
+    title = row[1].strip() if row else task
+    title = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', title).replace('`', '').replace('**', '')
+    summary = {'implement': 'Writing task code + host validation',
+               'recover': 'Recovering interrupted work + host validation'}.get(
+                   state['phase'], f"Live VM test {state['live_attempts'] + 1}, fix errors if any + host validation")
+    return [f'Task {task}: {title}', f'Session {count}: {summary}']
+
+
 def session_prompt(state):
     task = state['task_id']
     common = f"""
@@ -245,6 +257,7 @@ def execute(root, run, owner, effort):
 
 
 def worker(root, run, owner, sessions, tasks, state_json):
+    from launcher_progress import publish_progress, read_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
     def cancel(*_):
@@ -291,6 +304,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             launcher.atomic(run / 'checkpoint.json', state)
             launcher.atomic(run / 'progress.json', {'session': count, 'limit': sessions,
                                                    'task_id': task, 'phase': state['phase']})
+            publish_progress(run, str(count), session_progress(root, state, count))
             print(f"\nwrite-e2e: session {count}{'/' + str(sessions) if sessions else ''}; "
                   f"task {task}; {MODEL} {effort}", flush=True)
             try:
@@ -323,6 +337,13 @@ def worker(root, run, owner, sessions, tasks, state_json):
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         status, reason = 1, str(error)
     finally:
+        previous = read_progress(run)
+        if previous:
+            lines = previous[-1]['lines']
+            outcome = ('Stopped' if status == 130 else 'Blocked' if status else
+                       'Complete' if state['phase'] == 'complete' else reason)
+            lines[-1] += ' — ' + outcome
+            publish_progress(run, previous[-1]['key'], lines)
         save_handoff(run, state, reason,
                      display=not (status == 0 and completed and state['phase'] == 'complete'))
         launcher.atomic(run / 'result.json', {'status': status, 'sessions': count,

@@ -148,6 +148,20 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
         assert staged.stdout.count('| [x] |') == completed
 
 
+def test_plain_new_run_stops_after_five_sessions_without_task_completion(checkout):
+    root, _ = checkout
+    script(root, {'result': reply()},
+           *({'result': reply(live='failed')} for _ in range(4)))
+    run, started = workflow.select(root, [])
+    assert started
+    assert json.loads((run / 'limits.json').read_text()) == {
+        'sessions': 5, 'tasks': 1, 'started': 0}
+    assert launcher.follow(run, io.StringIO()) == 0
+    assert json.loads((run / 'result.json').read_text()) == {
+        'status': 0, 'sessions': 5, 'tasks': 0}
+    assert 'session limit reached' in (run / 'handoff.txt').read_text()
+
+
 def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     root, spawned = checkout
     script(root, {'result': reply(), 'wait': True})
@@ -158,6 +172,8 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     wait_for(root / 'agent-ready-1')
     assert len(spawned) == 1 and os.getsid(spawned[0].pid) == spawned[0].pid
     limits = (run / 'limits.json').read_text()
+    assert json.loads(limits)['sessions'] == 5
+    assert json.loads(limits)['tasks'] == 1
     assert workflow.select(root, []) == (run, False)
     assert (run / 'limits.json').read_text() == limits
     with pytest.raises(SystemExit):
@@ -184,8 +200,8 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     (['--tasks', '2', '--sessions', '4'], ['--tasks', '-1', '--sessions', '-3'], 1, 0),
     (['--tasks', '2'], ['--tasks', '-9'], 1, 0),
     ([], ['--sessions', '1'], 2, 1),
-    ([], ['--sessions', '0'], 1, 0),
-    ([], ['--sessions', '-1'], 1, 0),
+    ([], ['--sessions', '0'], 2, 1),
+    ([], ['--sessions', '-5'], 1, 0),
 ])
 def test_attached_adjustments_control_next_boundary(checkout, initial, adjustment, sessions, completed):
     root, spawned = checkout
@@ -221,7 +237,7 @@ def test_concurrent_adjustments_accumulate_without_resetting_completed_work(chec
     assert workflow.queue_state(root) == ('002', {'001': True, '002': False})
 
 
-def test_unlimited_run_stops_at_handoff_without_interrupting_agent(checkout):
+def test_plain_run_stops_at_handoff_without_interrupting_agent(checkout):
     root, spawned = checkout
     script(root, {'result': reply(), 'wait': True})
     run, _ = workflow.select(root, [])

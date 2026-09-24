@@ -82,8 +82,9 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     from rich.console import Console
     from rich.text import Text
     rendered = Text.from_ansi(output.getvalue())
-    assert rendered.plain.rstrip().endswith('Task 001 complete')
-    assert rendered.plain.count('Task 001 complete') == 1
+    assert rendered.plain.rstrip().endswith(
+        'Task 001 complete.\n- Took 2 sessions.\n- Total launcher sessions: 1')
+    assert rendered.plain.count('Task 001 complete.') == 1
     assert 'Next session prompt:' not in rendered.plain
     assert 'Task complete' not in rendered.plain
     assert 'Turn complete' not in rendered.plain
@@ -139,6 +140,22 @@ def test_failure_repair_returns_before_retry_and_counts_every_session(checkout):
     assert invocations[3]['prompt'].startswith(workflow.INITIAL_PROMPT)
     assert 'REPAIRED' not in invocations[3]['prompt']
     assert 'Task 002' in (run / 'handoff.txt').read_text()
+
+
+def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(checkout):
+    root, _ = checkout
+    script(root, {'result': reply()},
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply(task_id='002')},
+           {'result': reply(task_id='002', live='failed')},
+           {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
+    run, _ = workflow.select(root, ['--sessions', '5', '--tasks', '2'])
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0
+    from rich.text import Text
+    rendered = Text.from_ansi(output.getvalue()).plain
+    assert 'Task 001 complete.\n- Took 2 sessions.\n- Total launcher sessions: 2' in rendered
+    assert 'Task 002 complete.\n- Took 3 sessions.\n- Total launcher sessions: 5' in rendered
 
 
 @pytest.mark.parametrize('args, sessions, completed, reason', [

@@ -300,7 +300,9 @@ owned by their original caller.
 
 Private output and checkpoints use the shared storage and retention libraries
 under `output/test-runs/host/write-e2e/`. At a successful task boundary, the
-launcher prints a green `Task ID complete` line after acceptance and staging. It
+launcher prints a green `Task ID complete.` line after acceptance and staging,
+followed by the number of sessions spent on that task (including earlier
+launcher runs) and the cumulative session count for the current launcher. It
 saves task-session worktree changes across handoffs and stages them with the
 agent's explicit file list, including changes from the final session. Changes
 already present before the task and generated `output/` artifacts are excluded.

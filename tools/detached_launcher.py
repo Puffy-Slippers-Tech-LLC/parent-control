@@ -378,6 +378,7 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
         if offset:
             output.readline()  # Reattach at a full line, not midway through UTF-8/ANSI.
         while True:
+            display.poll_input()
             active = (owner_busy or busy)(owner)
             # A new invocation may already own a newer run after this one ends.
             active = active and (test_session or current_run(run.parent) == run)

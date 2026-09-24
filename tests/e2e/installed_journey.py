@@ -42,6 +42,7 @@ class JourneyPlan:
     settings_checks: dict = field(default_factory=dict)
     invocations: tuple = ()
     assertions_after: dict = field(default_factory=dict)
+    challenges: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -60,6 +61,32 @@ class JourneyPlan:
                         for value in self.assertions_after.values())
                 and len(set(self.assertions_after.values())) == len(self.assertions_after),
                 self.prefix + ':assertion-plan')
+        used = set()
+        stages = list(self.screen_tags)
+        for identity, binding in self.challenges.items():
+            require(type(identity) is str and re.fullmatch(r'[a-z][a-z0-9-]*', identity)
+                    and type(binding) is tuple and len(binding) == 3,
+                    self.prefix + ':challenge-plan')
+            role, first, second = binding
+            require(role in ('parent', 'other-child') and first in self.invocations
+                    and second in self.invocations and not {first, second} & used
+                    and stages.index(second) == stages.index(first) + 1,
+                    self.prefix + ':challenge-plan')
+            recipient = 'gdm-parent-recipient' if role == 'parent' else 'gdm-standard-recipient'
+            focus = 'gdm-focused' if role == 'parent' else 'gdm-standard-focused'
+            require(stages.index(first) > 0
+                    and self.screen_tags[stages[stages.index(first) - 1]] == 'ui:' + focus
+                    and self.screen_tags[first] == 'ui:' + recipient
+                    and self.screen_tags[second] == 'ui:' + recipient + '-rechecked',
+                    self.prefix + ':challenge-plan')
+            used.update((first, second))
+
+    def challenge_at(self, stage):
+        for identity, (role, first, second) in self.challenges.items():
+            if stage in (first, second):
+                return {'id': identity, 'role': role, 'surface': 'gdm',
+                        'check': 'qualified' if stage == first else 'rechecked'}
+        return None
 
     @property
     def stages(self):
@@ -95,6 +122,9 @@ def matched_screens(directory, plan, observations=()):
             matches = [item for item in observations if item['stage'] == stage]
             require(len(matches) == 1 and matches[0].get('ui', {}).get('operation') == tag[3:]
                     and matches[0]['ui'].get('outcome') == 'passed', plan.prefix + ':ui-evidence')
+            if plan.challenge_at(stage):
+                require(matches[0].get('challenge') == plan.challenge_at(stage),
+                        plan.prefix + ':challenge-evidence')
             screens.append({'stage': stage, 'detail_index': index, 'ui': matches[0]['ui']})
             last_match = None
             continue
@@ -213,6 +243,8 @@ class InstalledJourney:
             reply = {plan.worker_mode: True}
             if plan.invocations:
                 reply['invocations'] = list(plan.invocations)
+            if plan.challenges:
+                reply['challenge_bindings'] = {key: list(value) for key, value in plan.challenges.items()}
             if self.review:
                 reply[plan.review_mode] = True
         elif stage == 'setup-detached':
@@ -258,12 +290,18 @@ class InstalledJourney:
             if tag.startswith('ui:'):
                 if self.ui is None:
                     self.ui = UiObservations(self.transport, progress=self.watch_progress)
-                observed['ui'] = self.ui.observe(tag[3:])
+                challenge = plan.challenge_at(stage)
+                observed['ui'] = (self.ui.observe_challenge(tag[3:], challenge)
+                                  if challenge else self.ui.observe(tag[3:]))
+                if challenge:
+                    observed['challenge'] = challenge
             elif tag.startswith('command:'):
                 observed['command'] = command_documentation.observe(self.transport, tag[8:])
             elif tag.startswith('system:'):
                 observed['system'] = session_control.observe(self.transport, tag[7:])
             reply = {'observed': stage}
+            if plan.challenge_at(stage):
+                reply['challenge'] = observed['challenge']
             if tag == 'ui:station-entry-branch':
                 reply['station_destination'] = observed['ui']['branch']['destination']
             if tag == 'ui:station-default-entry':

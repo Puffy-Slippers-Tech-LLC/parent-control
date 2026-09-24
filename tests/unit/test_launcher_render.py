@@ -5,6 +5,8 @@ import json
 import os
 import re
 import signal
+import select
+import termios
 
 import pytest
 from rich.cells import get_character_cell_size
@@ -141,6 +143,97 @@ def test_wide_characters_in_child_rows_cannot_scroll_header_off_screen(terminal)
     display.update([{'key': 'live', 'lines': ['Task 024: Live verification']}],
                    ['[Running] ' + '界' * 40] * 30)
     assert terminal.visible().startswith('Task 024: Live verification\n')
+
+
+def test_mouse_scroll_follows_clicked_pane_and_defaults_to_bottom(terminal):
+    terminal.resize(50, 10)
+    display = LauncherDisplay(terminal)
+    for index in range(10):
+        display.update([{'key': str(index), 'lines': [f'Step {index}']}], [])
+    display.write(''.join(f'output {index}\n' for index in range(30)))
+    initial = terminal.visible().splitlines()
+    # Pointer location alone does not change the default bottom focus.
+    display.handle_input(b'\x1b[<64;2;1M')
+    bottom_scrolled = terminal.visible().splitlines()
+    assert bottom_scrolled[0] == initial[0]
+    assert bottom_scrolled[2:] != initial[2:]
+    assert 'output 26' in terminal.visible() and 'output 29' not in terminal.visible()
+    # Click top, then scroll with the pointer over bottom.
+    display.handle_input(b'\x1b[<0;2;1M\x1b[<0;2;1m\x1b[<64;2;8M')
+    top_scrolled = terminal.visible().splitlines()
+    assert top_scrolled[0] == 'Step 6'
+    assert top_scrolled[2:] == bottom_scrolled[2:]
+    display.handle_input(b'\x1b[<0;2;8M\x1b[<65;2;1M')
+    assert terminal.visible().splitlines()[0] == 'Step 6'
+    assert terminal.visible().splitlines()[2:] == initial[2:]
+
+
+def test_scrolled_transcript_stays_put_while_output_arrives(terminal):
+    terminal.resize(50, 10)
+    display = LauncherDisplay(terminal)
+    display.update([{'key': 'task', 'lines': ['Task']}], [])
+    display.write(''.join(f'output {index}\n' for index in range(30)))
+    display.handle_input(b'\x1b[<64;2;8M')
+    visible = terminal.visible()
+    display.write('output 30')
+    assert terminal.visible() == visible
+    display.write('\n')
+    assert terminal.visible() == visible
+
+
+@pytest.mark.parametrize('reason', ['success', 'error', 'interrupt'])
+def test_mouse_input_is_not_echoed_and_terminal_modes_are_restored(terminal, monkeypatch, reason):
+    master, slave = os.openpty()
+    try:
+        original = termios.tcgetattr(slave)
+        with os.fdopen(os.dup(slave), 'r') as source:
+            monkeypatch.setattr('launcher_render.sys.stdin', source)
+            monkeypatch.setattr(terminal, 'fileno', lambda: slave)
+            monkeypatch.setattr('launcher_render.os.get_terminal_size', lambda fd: terminal.size)
+            monkeypatch.setattr('launcher_render.os.tcgetpgrp', lambda fd: os.getpgrp())
+            try:
+                with LauncherDisplay(terminal) as display:
+                    display.update([{'key': 'task', 'lines': ['Task']}], [])
+                    current = termios.tcgetattr(slave)
+                    assert not current[3] & (termios.ECHO | termios.ICANON)
+                    assert current[3] & termios.ISIG == original[3] & termios.ISIG
+                    before = terminal.getvalue()
+                    # Empty top pane scroll and terminal arrow fallback must neither
+                    # repaint content nor echo raw escape sequences into the screen.
+                    os.write(master, b'\x1b[<0;2;1M\x1b[<64;2;1M\x1b[A\x1b[B\x1b[B\x1b')
+                    assert select.select([slave], [], [], 1)[0]
+                    display.poll_input()
+                    assert display.focus == 'top'
+                    assert display.offsets == {'top': 0, 'bottom': 0}
+                    assert terminal.getvalue() == before
+                    assert not select.select([master], [], [], 0)[0]
+                    if reason == 'error':
+                        raise RuntimeError('test exit')
+                    if reason == 'interrupt':
+                        raise KeyboardInterrupt
+            except (RuntimeError, KeyboardInterrupt):
+                if reason == 'success':
+                    raise
+            assert termios.tcgetattr(slave) == original
+            assert '\x1b[?1000h\x1b[?1006h' in terminal.getvalue()
+            assert '\x1b[?1000l\x1b[?1006l' in terminal.getvalue()
+    finally:
+        os.close(master)
+        os.close(slave)
+
+
+def test_mouse_reports_can_arrive_in_fragments_and_scroll_is_bounded(terminal):
+    terminal.resize(50, 10)
+    display = LauncherDisplay(terminal)
+    display.update([{'key': 'task', 'lines': ['Task']}], [])
+    display.write(''.join(f'output {index}\n' for index in range(30)))
+    for byte in b'\x1b[<64;2;8M':
+        display.handle_input(bytes([byte]))
+    assert 'output 26' in terminal.visible() and 'output 29' not in terminal.visible()
+    display.handle_input(b'\x1b[<64;2;8M' * 100)
+    assert 'output 0\n' in terminal.visible()
+    display.handle_input(b'\x1b[<65;2;8M' * 100)
+    assert 'output 29' in terminal.visible()
 
 
 def test_progress_reconnects_with_two_steps_and_coalesces_minor_updates(tmp_path):

@@ -234,6 +234,9 @@ class UiObservations:
         self.transport = transport
         self.progress = progress
         self.last_operation = None
+        self.challenges = set()
+        self.pending_challenge = None
+        self.challenge_failed = False
         self.approver_uids = None
         self.system_prompt = system_prompt
 
@@ -311,10 +314,38 @@ class UiObservations:
             commands.progress = previous
 
     def observe(self, operation):
+        self.pending_challenge = None
         self.approver_uids = None
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
         with watch_activity.operation(OPERATION_LABELS[operation]):
             return self._observe(operation)
+
+    def observe_challenge(self, operation, challenge):
+        """Two fresh same-challenge checks; no intervening operation or replay."""
+        require(not self.challenge_failed, 'ui:challenge-previous-failure')
+        try:
+            require(type(challenge) is dict and set(challenge) == {
+                'id', 'role', 'surface', 'check'} and challenge['surface'] == 'gdm'
+                and challenge['role'] in ('parent', 'other-child')
+                and challenge['check'] in ('qualified', 'rechecked')
+                and type(challenge['id']) is str and bool(challenge['id']), 'ui:challenge')
+            identity = (challenge['id'], challenge['role'], challenge['surface'])
+            first = challenge['check'] == 'qualified'
+            recipient = ('gdm-parent-recipient' if challenge['role'] == 'parent'
+                         else 'gdm-standard-recipient')
+            require(operation == recipient + ('' if first else '-rechecked'), 'ui:challenge')
+            if first:
+                require(challenge['id'] not in self.challenges, 'ui:challenge-replay')
+                self.challenges.add(challenge['id'])
+            else:
+                require(self.pending_challenge == identity, 'ui:challenge-order')
+            result = self.observe(operation)
+            self.pending_challenge = identity if first else None
+            return result
+        except BaseException:
+            self.challenge_failed = True
+            self.pending_challenge = None
+            raise
 
     def _observe(self, operation):
         # Qualifications lack a scenario recorder, but use the same existing

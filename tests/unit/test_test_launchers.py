@@ -78,6 +78,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
 @pytest.mark.parametrize('selector', [
     'check_e2e_gdm_navigation', 'check_e2e_gdm_navigation.py',
     'check_e2e_gdm_recipient', 'check_e2e_gdm_recipient.py',
+    'check_e2e_challenges', 'check_e2e_challenges.py',
     'check_e2e_fresh_desktop', 'check_e2e_fresh_desktop.py',
     'check_e2e_desktop_keyring', 'check_e2e_desktop_keyring.py',
     'check_e2e_shell_search_results', 'check_e2e_shell_search_results.py',

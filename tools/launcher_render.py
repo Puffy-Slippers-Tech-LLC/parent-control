@@ -10,6 +10,9 @@ import re
 import shlex
 import shutil
 import signal
+import select
+import sys
+import termios
 from collections import deque
 from pathlib import PurePath
 
@@ -31,9 +34,8 @@ def clean(value):
 class LauncherDisplay:
     """Two panes owned by the observer, never by its streaming children.
 
-    A VT terminal cannot scroll two independent panes. Its upper pane therefore
-    shows the latest two controller steps. Pipes retain accumulating output.
-    Absolute cursor positioning confines every redraw to its own pane.
+    Mouse reports select a pane on click and scroll its retained rows. The lower
+    pane starts focused. Absolute cursor positioning isolates their redraws.
     """
 
     def __init__(self, stream):
@@ -49,6 +51,14 @@ class LauncherDisplay:
         self.screen = False
         self.previous = None
         self.signal_handlers = {}
+        self.focus = 'bottom'
+        self.offsets = {'top': 0, 'bottom': 0}
+        self.row_cache = {}
+        self.top_height = 0
+        self.step_history = {}
+        self.input_fd = None
+        self.input_attributes = None
+        self.input_pending = b''
 
     def __enter__(self):
         if self.tty:
@@ -59,6 +69,20 @@ class LauncherDisplay:
                 if previous == signal.SIG_DFL:
                     self.signal_handlers[sig] = previous
                     signal.signal(sig, self.terminate)
+            try:
+                fd = sys.stdin.fileno()
+                if (os.isatty(fd) and os.fstat(fd).st_rdev == os.fstat(self.stream.fileno()).st_rdev
+                        and os.tcgetpgrp(fd) == os.getpgrp()):
+                    attributes = termios.tcgetattr(fd)
+                    interactive = attributes[:]
+                    interactive[6] = attributes[6][:]
+                    interactive[3] &= ~(termios.ICANON | termios.ECHO | termios.ECHONL)
+                    interactive[6][termios.VMIN] = 1
+                    interactive[6][termios.VTIME] = 0
+                    self.input_fd, self.input_attributes = fd, attributes
+                    termios.tcsetattr(fd, termios.TCSANOW, interactive)
+            except (OSError, ValueError, termios.error):
+                self.restore_terminal()
         return self
 
     def terminate(self, signum, frame):
@@ -78,6 +102,12 @@ class LauncherDisplay:
             self.stream.flush()
             return
         lines = (self.pending + value).split('\n')
+        if self.offsets['bottom'] and self.size:
+            width = max(1, self.size.columns - 1)
+            incoming = lines[:-1] + ([lines[-1]] if lines[-1] else [])
+            previous = [self.pending] if self.pending else []
+            self.offsets['bottom'] += (len(self.wrapped(incoming, width))
+                                       - len(self.wrapped(previous, width)))
         self.pending = lines.pop()
         self.transcript.extend(lines)
         if final and self.pending:
@@ -93,8 +123,52 @@ class LauncherDisplay:
             if details != self.details and details:
                 self.stream.write('\n'.join(details) + '\n')
             self.stream.flush()
+        for step in steps:
+            self.step_history[step['key']] = list(step['lines'])
+        while len(self.step_history) > 2000:
+            del self.step_history[next(iter(self.step_history))]
         self.steps, self.details = steps, details
         self.draw()
+
+    def poll_input(self):
+        if self.input_fd is not None and select.select([self.input_fd], [], [], 0)[0]:
+            self.handle_input(os.read(self.input_fd, 4096))
+
+    def handle_input(self, data):
+        """Decode SGR mouse reports, including reports split across reads."""
+        self.input_pending += data
+        while self.input_pending:
+            match = re.match(rb'\x1b\[<(\d+);(\d+);(\d+)([Mm])', self.input_pending)
+            if match:
+                button, column, row = map(int, match.groups()[:3])
+                self.input_pending = self.input_pending[match.end():]
+                if match[4] == b'M':
+                    if (button & ~28) == 0 and self.size and 1 <= column < self.size.columns:
+                        if 1 <= row <= self.top_height:
+                            self.focus = 'top'
+                        elif self.top_height + 1 < row <= self.size.lines:
+                            self.focus = 'bottom'
+                    elif (button & ~28) in (64, 65):
+                        delta = 3 if (button & 1) == 0 else -3
+                        self.offsets[self.focus] = max(0, self.offsets[self.focus] + delta)
+                        self.draw()
+            elif re.fullmatch(rb'\x1b(?:\[(?:<(?:\d*(?:;\d*(?:;\d*)?)?)?)?)?',
+                              self.input_pending) and len(self.input_pending) < 64:
+                break
+            else:
+                self.input_pending = self.input_pending[1:]
+
+    def scroll_rows(self, pane, lines, width, height):
+        # Quiet observer polls should not repeatedly reflow the scrollback.
+        key = (width, tuple(lines))
+        cached = self.row_cache.get(pane)
+        if cached is None or cached[0] != key:
+            cached = self.row_cache[pane] = (key, self.wrapped(lines, width))
+        rows = cached[1]
+        limit = max(0, len(rows) - height) if height else 0
+        self.offsets[pane] = min(self.offsets[pane], limit)
+        end = len(rows) - self.offsets[pane]
+        return rows[max(0, end - height):end] if height else []
 
     def wrapped(self, lines, width):
         return [row for line in lines for row in
@@ -117,6 +191,12 @@ class LauncherDisplay:
         top = [row for step in steps for row in step]
         if len(top) + 3 > height:
             top = top[:max(0, height - 2)]
+        self.top_height = len(top)
+        if self.offsets['top']:
+            history = [line for lines in self.step_history.values() for line in lines]
+            scrolled_top = self.scroll_rows('top', history, width, self.top_height)
+            if self.offsets['top']:
+                top = scrolled_top
         available = height - len(top) - 1
         # The lower pane keeps the detailed test dashboard and the newest log
         # rows. Agent sessions have no dashboard, so use the whole lower pane.
@@ -134,6 +214,11 @@ class LauncherDisplay:
                 break
             log_rows = self.wrapped([line], width)[-(room - len(log_rows)):] + log_rows
         body = log_rows + detail_rows
+        if self.offsets['bottom']:
+            retained = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
+            scrolled_body = self.scroll_rows('bottom', retained, width, available)
+            if self.offsets['bottom']:
+                body = scrolled_body
         body += [Text('')] * (available - len(body))
         rows = top + [Text('─' * width, style='dim')] + body
         # Compare physical rows so quiet workers do not repaint either pane.
@@ -145,6 +230,8 @@ class LauncherDisplay:
         if not self.screen:
             self.screen = True
             self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
+            if self.input_fd is not None:
+                self.stream.write('\033[?1000h\033[?1006h')
             self.previous = None
         if size != self.size:
             self.stream.write('\033[H\033[2J')
@@ -156,6 +243,14 @@ class LauncherDisplay:
         self.previous, self.size = encoded, size
 
     def restore_terminal(self):
+        if self.input_fd is not None:
+            try:
+                self.stream.write('\033[?1000l\033[?1006l')
+                self.stream.flush()
+            finally:
+                termios.tcsetattr(self.input_fd, termios.TCSAFLUSH, self.input_attributes)
+                self.input_fd = None
+                self.input_attributes = None
         if self.screen:
             self.stream.write('\033[?25h\033[?1049l')
             self.stream.flush()

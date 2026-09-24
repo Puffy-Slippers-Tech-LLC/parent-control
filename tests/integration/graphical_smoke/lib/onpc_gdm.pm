@@ -4,6 +4,23 @@ use warnings;
 use onpc_progress ();
 use testapi ();
 use onpc_journey ();
+use onpc_password ();
+
+# Declared repeated GDM entry. The controller binds each stage to its public
+# operation; the password leaf separately consumes two same-challenge proofs.
+sub sign_in_challenge {
+    my ($journey, $id, $list_stage, $focused_stage, $desktop_stage) = @_;
+    die 'gdm:challenge-binding' unless @_ == 5 && ref($journey) eq 'onpc_journey'
+        && ref($journey->{challenges}{$id}) eq 'ARRAY';
+    die 'gdm:console' unless testapi::current_console() eq 'sut';
+    my $list = $journey->invoke($list_stage);
+    my $focused = $journey->highlight_choice($list, $list_stage, $focused_stage);
+    $journey->consume_observation($focused_stage, $focused);
+    testapi::send_key('ret');
+    onpc_password::enter_gdm_challenge($journey, $id);
+    testapi::send_key('ret');
+    return $journey->invoke($desktop_stage);
+}
 
 # GDM02's functional credential binding. Prompt qualification is the caller's
 # immediately following GDM03 checkpoint; account focus alone authorizes no secret.

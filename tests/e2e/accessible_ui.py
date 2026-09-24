@@ -95,6 +95,11 @@ SETTINGS_OPERATIONS = {
 }
 OPERATIONS |= frozenset(SETTINGS_OPERATIONS)
 OPERATIONS |= frozenset({'parent-apps-page', 'parent-page-wrong-child-refused'})
+APP_ROW_OPERATIONS = frozenset({
+    'parent-app-rows', 'parent-app-rows-reopened',
+    'parent-app-rows-wrong-child', 'parent-app-rows-wrong-page',
+})
+OPERATIONS |= APP_ROW_OPERATIONS
 TOGGLE_OPERATIONS = {
     'parent-toggle-enabled': {'state': True, 'activated': True},
     'parent-toggle-disabled': {'state': False, 'activated': True},
@@ -1974,6 +1979,113 @@ class AccessibleUI:
         self.reveal_id('parent-filter-access-rule', root=root)
         self.reveal_id('parent-filter-match-rule', root=root)
         print('ui:parent-page=filters-ready', file=sys.stderr, flush=True)
+
+    def app_rows(self, child, *, maximum=256, expected_ids=None):
+        """PARENT12/UI13: complete public row projection, without policy expectations.
+
+        Off-viewport controls remain readable through AT-SPI. Visibility means
+        application visibility, not viewport clipping; no scroll-position inference
+        or catalogue/backend query is used. Return immutable (ID, access, match)
+        tuples only after a complete owned traversal and loaded-page check.
+        """
+        require(child in CHILD_IDENTITIES and type(maximum) is int
+                and 0 <= maximum <= 256, 'ui:app-row-binding')
+        require(expected_ids is None or (type(expected_ids) is tuple
+                and len(set(expected_ids)) == len(expected_ids)
+                and all(type(value) is str and re.fullmatch(
+                    r'parent-app-[0-9a-f]{16}', value) for value in expected_ids)),
+                'ui:app-row-binding')
+        deadline = time.monotonic() + 45
+        def check_deadline():
+            require(time.monotonic() < deadline, 'ui:app-row-deadline')
+        edges, identities, facts = {}, {}, {}
+        nodes = []
+        for node in self.nodes(strict=True, snapshot=edges, identities=identities, facts=facts):
+            check_deadline()
+            nodes.append(node)
+        observation = (nodes, edges, identities, facts)
+        root = self.snapshot_owned_target('parent-window', observation=observation,
+                                          check_prompt=True)
+        require(root is not None, 'ui:app-row-window')
+        def target(identity, scope=root):
+            check_deadline()
+            node = self.snapshot_owned_target(identity, root=scope, showing=False,
+                                              observation=observation)
+            require(node is not None and self.has_state(node, self.api.StateType.VISIBLE)
+                    and not self.has_state(node, self.api.StateType.DEFUNCT),
+                    'ui:app-row-target')
+            return node
+        picker = target('parent-child-selector')
+        uid = (self.fixture_uids[child] if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        selected = self.snapshot_owned_target(
+            'parent-child-selected-' + str(uid), root=picker, observation=observation)
+        require(selected is not None, 'ui:app-row-child')
+        page = self.snapshot_owned_target('parent-app-limits-page', root=root,
+                                         showing=False, observation=observation)
+        require(page is not None and self.has_state(page, self.api.StateType.VISIBLE),
+                'ui:app-row-page')
+        search = target('parent-app-search', page)
+        require(self.has_state(search, self.api.StateType.SENSITIVE), 'ui:app-row-loading')
+        collection = target('parent-app-rows', page)
+        scoped = self.snapshot_scope(nodes, edges, collection)
+        require(all(not self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
+                'ui:app-row-stale')
+        public_ids = [identities[node] for node in scoped
+                      if identities[node].startswith('parent-app-')]
+        require(len(public_ids) == len(set(public_ids)), 'ui:app-row-duplicate')
+        rows = [node for node in scoped
+                if re.fullmatch(r'parent-app-[0-9a-f]{16}', identities[node])]
+        require(len(rows) <= maximum, 'ui:app-row-bound')
+        row_ids = {identities[node] for node in rows}
+        # Orphan policy controls cannot silently disappear from the collection.
+        require(all(value.rsplit('-access-', 1)[0] in row_ids
+                    for value in public_ids if '-access-' in value
+                    and value.startswith('parent-app-')), 'ui:app-row-orphan')
+        result = []
+        for row in rows:
+            identity = identities[row]
+            if not self.has_state(row, self.api.StateType.VISIBLE):
+                continue  # Explicitly filtered out, not clipped by the viewport.
+            choices = []
+            for access in ('allowed', 'conditional', 'permanent'):
+                control = target(identity + '-access-' + access, row)
+                require(self.has_state(control, self.api.StateType.SENSITIVE),
+                        'ui:app-row-loading')
+                if self.has_state(control, self.api.StateType.PRESSED):
+                    choices.append(access)
+            require(len(choices) == 1, 'ui:app-row-access')
+            match_control = target(identity + '-match-rule', row)
+            matches = [value for value in ('pattern', 'precise')
+                       if self.snapshot_owned_target(identity + '-match-' + value,
+                           root=match_control, showing=False, observation=observation) is not None]
+            require(len(matches) == 1, 'ui:app-row-match')
+            target(identity + '-match-' + matches[0], match_control)
+            result.append((identity, choices[0], matches[0]))
+        result = tuple(sorted(result))
+        require(expected_ids is None or {row[0] for row in result} == set(expected_ids),
+                'ui:app-row-set')
+        check_deadline()
+        return result
+
+    def app_row_operation(self, operation):
+        require(operation in APP_ROW_OPERATIONS, 'ui:app-row-operation')
+        if operation == 'parent-app-rows-reopened':
+            self.parent_page(CHILD, 'Screen Limits')
+            self.parent_page(CHILD, 'App Limits')
+        if operation in ('parent-app-rows-wrong-child', 'parent-app-rows-wrong-page'):
+            wrong_child = operation == 'parent-app-rows-wrong-child'
+            if not wrong_child:
+                self.parent_page(CHILD, 'Screen Limits')
+            try:
+                self.app_rows(EXISTING_CHILD if wrong_child else CHILD)
+            except UiError as error:
+                require(str(error) == ('ui:app-row-child' if wrong_child else 'ui:app-row-page'),
+                        'ui:app-row-wrong-refusal')
+            else:
+                raise UiError('ui:app-row-wrong-accepted')
+            return {'refusal': 'wrong-child' if wrong_child else 'wrong-page'}
+        return {'rows': self.app_rows(CHILD)}
 
     def launchable_result(self, product):
         """SEARCH04's owned Shell launcher branch, without input."""
@@ -3863,6 +3975,8 @@ class AccessibleUI:
             self.parent_empty()
         elif operation in TOGGLE_OPERATIONS:
             result['toggle'] = self.parent_toggle_operation(operation)
+        elif operation in APP_ROW_OPERATIONS:
+            result['apps'] = self.app_row_operation(operation)
         elif operation in PARENT_SAVE_OPERATIONS:
             result['save'] = self.parent_save_operation(operation)
         elif operation in PICKER_OPERATIONS:

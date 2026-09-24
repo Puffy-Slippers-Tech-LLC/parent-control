@@ -750,6 +750,7 @@ class ParentWindow(Adw.ApplicationWindow):
         apps_section.append(search_row)
 
         apps = Adw.PreferencesGroup(css_classes=["apps-panel"])
+        set_automation_id(apps, "parent-app-rows")
         self._apps_group = apps
         # PreferencesGroup places non-row widgets after its list. Keep the
         # headings in an ActionRow so they remain directly above app rows.
@@ -1939,7 +1940,11 @@ class ParentWindow(Adw.ApplicationWindow):
         row.match_rule_button.set_css_classes(
             ["match-rule-button", "policy-choice", match["css"]]
         )
-        row.match_rule_button.set_child(self._match_rule_image(match))
+        value = self._match_rule_image(match)
+        set_automation_id(
+            value, f"parent-app-{_app_automation_key(row.app['id'])}-match-{match['id']}",
+        )
+        row.match_rule_button.set_child(value)
         row.match_rule_button.set_tooltip_text(match["label"])
 
     @staticmethod

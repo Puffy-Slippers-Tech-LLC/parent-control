@@ -11,7 +11,7 @@ import termios
 import pytest
 from rich.cells import get_character_cell_size
 
-from launcher_render import LauncherDisplay
+from launcher_render import AgentRenderer, LauncherDisplay
 from launcher_progress import publish_progress, read_progress, repair_progress
 import regression
 import regression_session
@@ -116,6 +116,47 @@ def test_completion_rule_follows_terminal_width_on_resize(terminal):
     assert '─' * 46 in replay and '─' * 47 not in replay
 
 
+@pytest.mark.parametrize('width', [50, 80])
+def test_observer_reflow_keeps_message_continuations_under_first_word(terminal, width):
+    terminal.resize(width, 24)
+    source = io.StringIO()
+    renderer = AgentRenderer(source, width=100)
+    renderer.message('Snapshot preparation is still running through the maintained '
+                     'launcher. I am waiting for it to finish before starting the live attempt.')
+    renderer.message('The preparation launcher detected changed installed inputs and '
+                     'is refreshing the app snapshot. Its package build and cleanup-safety '
+                     'checks passed. The live qualification will use the refreshed snapshot '
+                     'once preparation completes.')
+    display = LauncherDisplay(terminal)
+    display.write(source.getvalue())
+    lines = [line for line in terminal.visible().splitlines() if line.strip()]
+    message_lines = [line for line in lines if not line.startswith('─')]
+    assert sum(line.startswith('• ') for line in message_lines) == 2
+    assert all(line.startswith(('• ', '  ')) for line in message_lines)
+    assert 'waiting for it to finish' in ' '.join(' '.join(message_lines).split())
+    assert 'refreshing the app snapshot' in ' '.join(' '.join(message_lines).split())
+
+
+@pytest.mark.parametrize('width', [50, 80])
+def test_observer_reflow_keeps_explored_tree_continuations_indented(terminal, width):
+    terminal.resize(width, 24)
+    source = io.StringIO()
+    renderer = AgentRenderer(source, width=100)
+    renderer.command_heading({'id': 'search', 'command':
+                              "rg -n '^(evidence_directory|worker_evidence|outcome|scope):' "
+                              "'category-001.log'"})
+    renderer.command_heading({'id': 'next', 'command':
+                              "rg -n 'check-system:|stage:(complete|restored-baseline-verification)' "
+                              "'category-001.log'"})
+    display = LauncherDisplay(terminal)
+    display.write(source.getvalue())
+    lines = [line for line in terminal.visible().splitlines() if line.strip()]
+    tree = [line for line in lines if not line.startswith(('─', '• Explored'))]
+    assert any(line.startswith('  └ Search') for line in tree)
+    assert all(line.startswith(('  └ ', '    ')) for line in tree)
+    assert 'category-001.log' in ' '.join(' '.join(tree).split())
+
+
 def test_latest_two_steps_wrap_and_survive_resize_without_ellipsis(terminal):
     display = LauncherDisplay(terminal)
     steps = [{'key': str(index), 'lines': [f'Task {index}: A long customer task title that must stay visible',
@@ -192,6 +233,7 @@ def test_wide_characters_in_child_rows_cannot_scroll_header_off_screen(terminal)
 def test_mouse_scroll_follows_clicked_pane_and_defaults_to_bottom(terminal):
     terminal.resize(50, 10)
     display = LauncherDisplay(terminal)
+    display.handle_input(b'm')
     for index in range(10):
         display.update([{'key': str(index), 'lines': [f'Step {index}']}], [])
     display.write(''.join(f'output {index}\n' for index in range(30)))
@@ -215,6 +257,7 @@ def test_mouse_scroll_follows_clicked_pane_and_defaults_to_bottom(terminal):
 def test_bottom_scrollbar_shows_position_and_accepts_track_clicks(terminal):
     terminal.resize(50, 10)
     display = LauncherDisplay(terminal)
+    display.handle_input(b'm')
     display.update([{'key': 'task', 'lines': ['Task']}], [])
     display.write(''.join(f'output {index}\n' for index in range(30)))
     assert terminal.cells[-1][-1] == '█'
@@ -234,6 +277,7 @@ def test_bottom_scrollbar_shows_position_and_accepts_track_clicks(terminal):
 def test_bottom_scrollbar_stays_at_right_edge_for_different_line_lengths(terminal, width):
     terminal.resize(width, 10)
     display = LauncherDisplay(terminal)
+    display.handle_input(b'm')
     display.update([{'key': 'task', 'lines': ['Task']}], [])
     display.write(('short\n\n界界\n' + 'wrapped output ' * 8 + '\n') * 5)
     for row in terminal.cells[2:]:
@@ -244,8 +288,12 @@ def test_bottom_scrollbar_stays_at_right_edge_for_different_line_lengths(termina
 def test_scrollbar_thumb_drags_without_jumping_and_stops_on_release(terminal):
     terminal.resize(50, 10)
     display = LauncherDisplay(terminal)
+    display.input_fd = 123  # Mode output only; no terminal attribute operations.
+    display.handle_input(b'm')
     display.update([{'key': 'task', 'lines': ['Task']}], [])
     display.write(''.join(f'output {index}\n' for index in range(30)))
+    # A real terminal sends drag reports only after the display requests them.
+    assert '\x1b[?1002h\x1b[?1006h' in terminal.getvalue()
     initial = terminal.visible()
     # Grab the lower cell of the two-cell thumb without moving the viewport.
     display.handle_input(b'\x1b[<0;50;10M')
@@ -272,6 +320,7 @@ def test_scrollbar_thumb_drags_without_jumping_and_stops_on_release(terminal):
 def test_scrolled_transcript_stays_put_while_output_arrives(terminal):
     terminal.resize(50, 10)
     display = LauncherDisplay(terminal)
+    display.handle_input(b'm')
     display.update([{'key': 'task', 'lines': ['Task']}], [])
     display.write(''.join(f'output {index}\n' for index in range(30)))
     display.handle_input(b'\x1b[<64;2;8M')
@@ -382,6 +431,7 @@ def test_mouse_input_is_not_echoed_and_terminal_modes_are_restored(terminal, mon
 def test_mouse_reports_can_arrive_in_fragments_and_scroll_is_bounded(terminal):
     terminal.resize(50, 10)
     display = LauncherDisplay(terminal)
+    display.handle_input(b'm')
     display.update([{'key': 'task', 'lines': ['Task']}], [])
     display.write(''.join(f'output {index}\n' for index in range(30)))
     for byte in b'\x1b[<64;2;8M':
@@ -415,16 +465,48 @@ def test_keyboard_scrolling_keeps_native_mouse_available(terminal):
     assert '\x1b[?1002h' not in terminal.getvalue()
 
 
-def test_mouse_capture_can_be_returned_to_terminal(terminal):
+@pytest.mark.parametrize('width', [12, 50])
+def test_native_selection_and_scrollbar_modes_have_matching_controls(terminal, width):
+    terminal.resize(width, 10)
     display = LauncherDisplay(terminal)
     display.input_fd = 123  # Mode output only; no terminal attribute operations.
+    display.update([{'key': 'task', 'lines': ['Task']}], [])
+    display.write(''.join(f'output {index}\n' for index in range(30)))
+    assert not display.mouse_capture
+    assert '\x1b[?1002h' not in terminal.getvalue()
+    assert '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l' in terminal.getvalue()
+    assert 'm: scroll' in terminal.visible()
+    assert display.scrollbar is None
+    assert all(row[-1] == ' ' for row in terminal.cells[2:])
+
     display.handle_input(b'm')
     assert '\x1b[?1002h\x1b[?1006h' in terminal.getvalue()
-    display.scrollbar_grab = 2
+    assert 'm: select' in terminal.visible()
+    assert display.scrollbar is not None
+    assert terminal.cells[-1][-1] == '█'
+    # Start a real thumb drag, then release mouse ownership mid-drag.
+    display.handle_input(f'\x1b[<0;{width};10M'.encode())
+    assert display.scrollbar_grab is not None
+    before = len(terminal.getvalue())
     display.handle_input(b'm')
     assert not display.mouse_capture
     assert display.scrollbar_grab is None
-    assert terminal.getvalue().endswith('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l')
+    assert display.scrollbar is None
+    assert all(row[-1] == ' ' for row in terminal.cells[2:])
+    assert 'm: scroll' in terminal.visible()
+    assert '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l' in terminal.getvalue()[before:]
+    assert '\x1b[?1002h' not in terminal.getvalue()[before:]
+    # Disabling reports cannot retract reports that the terminal already sent.
+    before = terminal.getvalue()
+    display.handle_input(f'\x1b[<32;{width};3M\x1b[<64;2;8M\x1b[<0;2;1M'.encode())
+    assert display.offsets['bottom'] == 0
+    assert display.focus == 'bottom'
+    assert terminal.getvalue() == before
+    before = len(terminal.getvalue())
+    display.handle_input(b'm')
+    assert display.mouse_capture
+    assert '\x1b[?1002h\x1b[?1006h' in terminal.getvalue()[before:]
+    assert terminal.cells[-1][-1] == '█'
 
 
 def test_progress_reconnects_with_two_steps_and_coalesces_minor_updates(tmp_path):

@@ -98,7 +98,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     rendered = Text.from_ansi(output.getvalue())
     assert re.search(
         r'Task 001 complete\.\n- Took 2 sessions\.\n'
-        r'- Total launcher sessions: 1\n- Duration: \d+ minutes$',
+        r'- Total launcher sessions: 2\n- Duration: \d+ minutes$',
         rendered.plain.rstrip())
     assert rendered.plain.count('Task 001 complete.') == 1
     assert re.search(r'─+\nTask 001 complete\.', rendered.plain)
@@ -122,6 +122,25 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert workflow.queue_state(root)[0] == '002'
     staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
     assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
+    from launcher_progress import read_progress
+    assert 'Session [2/2]' in Text.from_ansi(read_progress(second)[-1]['lines'][-1]).plain
+    assert json.loads((second / 'result.json').read_text())['sessions'] == 1
+
+
+def test_cumulative_sessions_survive_task_change_and_restart(checkout):
+    from launcher_progress import read_progress
+    from rich.text import Text
+    root, _ = checkout
+    script(root, {'result': reply()},
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply(task_id='002')},
+           {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
+    for expected in ('2/2', '1/3', '2/4'):
+        run, started = workflow.select(root, ['--sessions', '2' if expected == '2/2' else '1'])
+        assert started
+        assert launcher.follow(run, io.StringIO()) == 0
+        line = Text.from_ansi(read_progress(run)[-1]['lines'][-1]).plain
+        assert f'Session [{expected}]' in line
 
 
 def test_completion_stages_changes_from_every_session_despite_omitted_stage_paths(checkout):

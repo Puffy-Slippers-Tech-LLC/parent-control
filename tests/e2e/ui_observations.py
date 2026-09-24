@@ -10,9 +10,22 @@ from private_artifacts import require
 import system_runner as system
 
 
+# Collection replies need room for their full bounded semantic projection.
+# App rows still validate at most 256 fixed-format ID/access/match triples.
+RESPONSE_BYTE_LIMITS = {
+    'kiosk-approver-baseline': 65536,
+    'parent-app-rows': 32768,
+    'parent-app-rows-reopened': 32768,
+}
+
+
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'parent-app-rows': 'Reading the complete App Limits row set',
+    'parent-app-rows-reopened': 'Reopening App Limits and independently reading its rows',
+    'parent-app-rows-wrong-child': 'Refusing app rows for a different child',
+    'parent-app-rows-wrong-page': 'Refusing app rows outside App Limits',
     'gdm-list': 'Reading the greeter account list',
     'gdm-focused': 'Checking the intended greeter account is focused',
     'gdm-select-parent': 'Checking the Parent password prompt',
@@ -138,6 +151,25 @@ OPERATION_LABELS.update({
     'station-entry-branch': 'Observing the offered station session branch without input',
     'station-default-entry': 'Reading back the passwordless default request-station session',
 })
+
+
+@dataclass(frozen=True)
+class AppRowsObservation:
+    """Immutable public ID/access/match values; expectations belong to callers."""
+
+    rows: tuple
+
+    @classmethod
+    def from_rows(cls, rows):
+        import re
+        require(type(rows) is list and len(rows) <= 256, 'ui:app-rows')
+        require(all(type(row) is list and len(row) == 3
+                    and all(type(value) is str for value in row)
+                    and re.fullmatch(r'parent-app-[0-9a-f]{16}', row[0])
+                    and row[1] in ('allowed', 'conditional', 'permanent')
+                    and row[2] in ('pattern', 'precise') for row in rows), 'ui:app-rows')
+        require(len({row[0] for row in rows}) == len(rows), 'ui:app-rows')
+        return cls(tuple(tuple(row) for row in rows))
 
 
 @dataclass(frozen=True)
@@ -290,7 +322,10 @@ class UiObservations:
         def output(data):
             nonlocal received, diagnostic_count
             received += len(data)
-            require(received <= (131072 if kiosk else 8192), 'ui:response-size')
+            limit = 131072 if kiosk else 8192
+            if operation in accessible_ui.APP_ROW_OPERATIONS:
+                limit = max(limit, RESPONSE_BYTE_LIMITS.get(operation, 2048))
+            require(received <= limit, 'ui:response-size')
             pending.extend(data)
             while b'\n' in pending:
                 line, _, rest = pending.partition(b'\n')
@@ -366,8 +401,8 @@ class UiObservations:
         except BaseException:
             watch_activity.event('SSH UI observation failed: ' + operation)
             raise
-        require(isinstance(raw, bytes) and 0 < len(raw) <= (
-            65536 if operation == 'kiosk-approver-baseline' else 2048), 'ui:response-size')
+        require(isinstance(raw, bytes) and 0 < len(raw) <=
+                RESPONSE_BYTE_LIMITS.get(operation, 2048), 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation == 'kiosk-approver-baseline':
@@ -437,6 +472,16 @@ class UiObservations:
                     and result['toggle'] == accessible_ui.TOGGLE_OPERATIONS[operation],
                     'ui:toggle-response')
             expected['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
+        if operation in accessible_ui.APP_ROW_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'apps'}, 'ui:response')
+            apps = result['apps']
+            if operation.endswith(('wrong-child', 'wrong-page')):
+                require(apps == {'refusal': 'wrong-child' if operation.endswith('wrong-child')
+                                  else 'wrong-page'}, 'ui:app-row-refusal')
+            else:
+                require(type(apps) is dict and set(apps) == {'rows'}, 'ui:app-rows')
+                AppRowsObservation.from_rows(apps['rows'])
+            expected['apps'] = apps
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'save'}
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],

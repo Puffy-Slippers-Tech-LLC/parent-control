@@ -40,6 +40,7 @@ def queue_state(root):
 
 def fresh_state(task):
     return {'task_id': task, 'phase': 'implement', 'live_attempts': 0,
+            'task_sessions': 0,
             'summary': 'Implementation and host validation remain.',
             'handoff': INITIAL_PROMPT, 'in_flight': False, 'stage_candidates': []}
 
@@ -213,10 +214,12 @@ def save_handoff(run, state, reason, *, display=True):
         sys.stdout.flush()
 
 
-def show_completion(task):
+def show_completion(task, task_sessions, launcher_sessions):
     from launcher_render import AgentRenderer
     from rich.text import Text
-    AgentRenderer(sys.stdout).console.print(Text(f'Task {task} complete', style='green'))
+    AgentRenderer(sys.stdout).console.print(Text(f'Task {task} complete.', style='green'))
+    print(f'- Took {task_sessions} sessions.\n'
+          f'- Total launcher sessions: {launcher_sessions}', flush=True)
     sys.stdout.flush()
 
 
@@ -278,6 +281,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             if task != state['task_id']:
                 raise ValueError('active task changed outside the workflow; inspect the checkpoint')
             count += 1
+            state['task_sessions'] = state.get('task_sessions', 0) + 1
             effort = 'low' if state['phase'] == 'implement' else 'high'
             prompt = session_prompt(state)
             (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
@@ -308,7 +312,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state.pop('worktree_before', None)
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'complete':
-                show_completion(task)
+                show_completion(task, state['task_sessions'], count)
             if state['phase'] == 'blocked':
                 status, reason = 1, 'blocked'
                 break

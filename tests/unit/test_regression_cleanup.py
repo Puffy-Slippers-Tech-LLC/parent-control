@@ -77,6 +77,21 @@ def test_private_process_and_vm_double_cleanup_modules_have_no_serial_tail():
         assert sum(path in bucket.paths for bucket in plan) == 1
 
 
+def test_reviewed_storage_and_owner_cleanup_modules_have_no_serial_tail():
+    names = ('e2e_keyring_fixture', 'e2e_startup_cache', 'qualification_storage',
+             'storage_migration', 'test_storage', 'vm_watch_session', 'write_e2e')
+    nodes = [f'tests/unit/test_{name}_cleanup_safety.py::test_case[{variant}]'
+             for name in names for variant in ('a', 'b')]
+    plan = buckets(nodes)
+    assert len(plan) == HOST_WORKERS
+    assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+    assert all(bucket.kind == 'cleanup' for bucket in plan)
+    assert all(compatible(first.kind, second.kind) for first in plan for second in plan)
+    for name in names:
+        path = f'tests/unit/test_{name}_cleanup_safety.py'
+        assert sum(path in bucket.paths for bucket in plan) == 1
+
+
 def test_unknown_only_scope_is_included_without_parallel_admission():
     nodes = ['tests/unit/test_future_cleanup_safety.py::test_case']
     plan = buckets(nodes)

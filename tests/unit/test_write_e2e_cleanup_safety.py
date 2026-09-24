@@ -14,7 +14,7 @@ import pytest
 import detached_launcher as launcher
 import write_e2e as workflow
 from tests.support.paths import ROOT
-from tests.unit.test_write_e2e import prepare, reply
+from tests.support.write_e2e_fixtures import prepare, reply
 
 
 def wait_for(path):

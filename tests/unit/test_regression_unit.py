@@ -8,6 +8,22 @@ from regression_resources import compatible
 from regression_unit import REVIEWED, buckets
 
 
+def test_isolated_e2e_and_storage_contracts_share_unit_branches():
+    reviewed = '''accessible_observation e2e_case_composition e2e_desktop_keyring
+e2e_disabled_child e2e_fresh_desktop e2e_gdm_navigation e2e_gdm_product_free
+e2e_gdm_recipient e2e_keyring_fixture_cleanup_safety e2e_kiosk_eligible_choices
+e2e_kiosk_no_child e2e_license_viewer e2e_parent_search_launch e2e_plan
+e2e_request_choices e2e_shell_search e2e_shell_search_results
+e2e_startup_cache_cleanup_safety e2e_terminal_provider guest_inputs
+storage_migration_cleanup_safety test_storage_cleanup_safety write_e2e
+write_e2e_cleanup_safety'''.split()
+    nodes = [f'tests/unit/test_{name}.py::test_case' for name in reviewed]
+    plan = buckets(nodes)
+    assert len(plan) == 4
+    assert all(bucket.kind == 'unit' for bucket in plan)
+    assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+
+
 def test_balanced_buckets_keep_every_module_and_case_together_once():
     nodes = [f'tests/unit/test_{name}.py::test_case[{variant}]'
              for name in sorted(REVIEWED) for variant in ('first', 'second')]

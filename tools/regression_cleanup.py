@@ -15,13 +15,14 @@ from regression_resources import HOST_WORKERS
 REVIEWED = frozenset('''
 appsnapshot backing_verification baseline_guest child_preview dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_fixture_credentials
-e2e_leased_recording e2e_recording e2e_suite e2e_watch e2e_worker execution_probe fixture fix_tests
+e2e_keyring_fixture e2e_leased_recording e2e_recording e2e_startup_cache e2e_suite
+e2e_watch e2e_worker execution_probe fixture fix_tests
 graphical_attachment graphical_serial graphical_smoke graphical_transport
 graphical_worker installed_journey desktop_session parent_about parent_setup prepare_baseline
-probe_bus_client probe_channel probe_generation
+probe_bus_client probe_channel probe_generation qualification_storage
 regression screen_preview screenshot session_expiry system_accounts system_agent
-system_caller system_enforcement system_probe_sandbox system_runner terminal
-test_retention ui ui_artifacts ui_watch vm_control
+system_caller system_enforcement system_probe_sandbox system_runner storage_migration terminal
+test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session write_e2e
 '''.split())
 
 # Installed journey/setup/About tests write only beneath tmp_path and replace
@@ -31,7 +32,10 @@ test_retention ui ui_artifacts ui_watch vm_control
 # App-snapshot and suite tests use private locks with mocked libvirt sources;
 # baseline-guest uses an in-memory guestfs double. Fix-tests owns every child it
 # starts beneath a private checkout, and UI-watch uses recorded process doubles
-# plus unique private sockets. They do not share mutable state across workers.
+# plus unique private sockets. Keyring/VM watcher safety uses process-local
+# doubles and socket pairs. Storage, migration and startup-cache checks use
+# private trees and journals; write-E2E owns its children in a private checkout.
+# They do not share mutable state across workers.
 
 # Measured costs guide packing and dispatch only; never reuse passing results.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 11,

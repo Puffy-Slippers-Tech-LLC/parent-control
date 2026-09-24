@@ -384,6 +384,7 @@ def test_compact_command_colors_and_wrapping():
 
 def test_consecutive_exploration_is_grouped_and_messages_break_the_group():
     from launcher_render import AgentRenderer
+    from rich.color import Color
     from rich.text import Text
     stream = io.StringIO()
     renderer = AgentRenderer(stream, width=50)
@@ -395,12 +396,21 @@ def test_consecutive_exploration_is_grouped_and_messages_break_the_group():
         renderer.event({'type': 'item.started', 'item': item})
         renderer.event({'type': 'item.completed', 'item': {
             **item, 'exit_code': 0, 'aggregated_output': 'hidden contents'}})
-    text = Text.from_ansi(stream.getvalue()).plain
+    rendered = Text.from_ansi(stream.getvalue())
+    text = rendered.plain
     assert text.count('• Explored') == 1
     assert 'Search ^## |^### in Approval-Tools.md' in text
     assert 'Read launcher_render.py, test_fix_tests.py' in text
     assert '    Read README.md' in text
     assert 'hidden contents' not in text and 'tools/' not in text
+    for word, color in [('└', 'bright_black'), ('Search', '#0066ff'),
+                        ('^## |^###', '#24292f'), (' in ', 'bright_black'),
+                        ('Approval-Tools.md', '#24292f'),
+                        ('launcher_render.py', '#24292f'), ('README.md', '#24292f')]:
+        start = text.index(word)
+        expected = Color.parse(color).get_truecolor()
+        assert all(rendered.get_style_at_offset(renderer.console, offset).color.get_truecolor()
+                   == expected for offset in range(start, start + len(word)))
     renderer.event({'type': 'item.completed', 'item': {
         'type': 'agent_message', 'text': 'Checking.'}})
     renderer.event({'type': 'item.completed', 'item': {

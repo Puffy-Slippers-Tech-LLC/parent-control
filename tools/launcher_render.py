@@ -153,7 +153,8 @@ class AgentRenderer:
         value = value if isinstance(value, Text) else Text(clean(value), style=style)
         lines = value.wrap(self.console, max(1, self.width - 4))
         for index, line in enumerate(lines):
-            self.console.print(Text('  └ ' if index == 0 and branch else '    ', style='bright_black') + line)
+            self.console.print(Text('  └ ' if index == 0 and branch else '    ', style='bright_black'),
+                               line, sep='')
 
     def command_display(self, item):
         command = clean(item['command'])

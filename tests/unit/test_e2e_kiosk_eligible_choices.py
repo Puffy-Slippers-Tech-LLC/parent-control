@@ -1,6 +1,7 @@
 """Owned account input, exact eligibility, and independent result guards."""
 
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -117,7 +118,7 @@ def test_qualification_uses_shared_snapshot_and_guarded_envelope(tmp_path):
     assert journey.plan is PLAN
     assert context.installed_snapshot == 'onpc-v1.1'
     assert KioskEligibleChoicesQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
-    assert str(check.ASSETS) == '/tmp/onpc-parent-setup-input'
+    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
 
 
 @pytest.mark.parametrize('conflict', ['parent_toggle', 'kiosk_entry', 'license_viewer_provider'])

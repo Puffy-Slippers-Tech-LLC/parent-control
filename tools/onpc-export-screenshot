@@ -7,10 +7,12 @@ import pwd
 import re
 import stat
 import sys
+from pathlib import Path
 
 
 MAX_BYTES = 32 * 1024 * 1024
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
 
 
 def caller():
@@ -27,8 +29,14 @@ def caller():
 
 
 def export(source, destination, uid, gid):
+    base = '/tmp'
+    if CHECKOUT is not None:
+        for owner in ('host', 'privileged'):
+            candidate = Path(CHECKOUT) / 'output/test-runs' / owner / 'allocations'
+            if source.startswith(str(candidate) + '/'):
+                base = str(candidate)
     match = re.fullmatch(
-        r"/tmp/(onpc-graphical-smoke-[A-Za-z0-9_-]+)/testresults/([A-Za-z0-9][A-Za-z0-9_.-]*\.png)",
+        re.escape(base) + r"/(onpc-graphical-smoke-[A-Za-z0-9_-]+)/testresults/([A-Za-z0-9][A-Za-z0-9_.-]*\.png)",
         source,
     )
     if match is None or re.fullmatch(r"/tmp/onpc-[A-Za-z0-9][A-Za-z0-9_.-]*\.png", destination) is None:
@@ -40,7 +48,9 @@ def export(source, destination, uid, gid):
             return descriptor
 
         temporary = open_fd("/tmp", os.O_RDONLY | os.O_DIRECTORY)
-        parent = temporary
+        parent = open_fd('/', os.O_RDONLY | os.O_DIRECTORY)
+        for component in Path(base).parts[1:]:
+            parent = open_fd(component, os.O_RDONLY | os.O_DIRECTORY, parent)
         for name in (match[1], "testresults"):
             parent = open_fd(name, os.O_RDONLY | os.O_DIRECTORY, parent)
             info = os.fstat(parent)

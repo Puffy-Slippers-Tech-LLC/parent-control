@@ -15,7 +15,7 @@ import test_commands as commands
 
 def test_named_artifact_build_uses_existing_builder_without_creating_output(monkeypatch):
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    output = '/tmp/onpc-parent-setup-input'
+    output = str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input')
     planned, safety = commands.plan(ROOT, 'artifacts', ['build', '--output', output])
     assert planned == [commands.python_file(
         ROOT, 'tools/build_test_artifacts.py', '--output', output)]
@@ -62,7 +62,7 @@ def test_named_artifact_allocation_is_exclusive_private_and_retained(tmp_path, m
 def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, monkeypatch):
     import regression_process
 
-    output = '/tmp/onpc-parent-setup-input'
+    output = str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input')
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
@@ -94,7 +94,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
 def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(monkeypatch, selector):
     import regression_process
 
-    output = '/tmp/onpc-parent-setup-input'
+    output = str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input')
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
@@ -117,7 +117,7 @@ def test_toggle_qualification_reuses_existing_inputs_without_overwriting(monkeyp
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     assert commands.qualification_artifact_command(
         ROOT, 'integration', ['check_e2e_toggle']) is None
-    validate.assert_called_once_with('/tmp/onpc-parent-setup-input')
+    validate.assert_called_once_with(str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input'))
 
 
 def test_unrelated_integration_does_not_build_toggle_assets(monkeypatch):
@@ -132,13 +132,14 @@ def test_retention_permission_failure_identifies_allocation_without_starting_tes
     import regression
     import test_retention
 
-    store = test_retention.Store(tmp_path / 'artifacts/test-retention')
-    with store.session():
-        scratch = tmp_path / 'sbuild-scratch'
-        scratch.mkdir(mode=0o711)
-        test_retention.retain(scratch, mode=0o711)
-        private = scratch / 'private-chroot'
-        private.mkdir(mode=0)
+    store = test_retention.Store(tmp_path / 'output/test-runs/host/state/retention')
+    with pytest.raises(PermissionError):
+        with store.session():
+            scratch = tmp_path / 'sbuild-scratch'
+            scratch.mkdir(mode=0o711)
+            test_retention.retain(scratch, mode=0o711)
+            private = scratch / 'private-chroot'
+            private.mkdir(mode=0)
     journal = store.path / 'current.json'
     original = journal.read_bytes()
     monkeypatch.setattr(commands, '__file__', str(tmp_path / 'tools/test_commands.py'))
@@ -286,28 +287,28 @@ def test_pytest_storage_does_not_inherit_ramdisk_or_caller_override(checkout, mo
     for key in ('TMPDIR', 'TMP', 'TEMP'):
         monkeypatch.setenv(key, '/tmp/untrusted')
     env = host.test_environment(checkout)
-    assert env['TMPDIR'] == '/var/tmp'
+    from pathlib import Path
+    assert Path(env['TMPDIR']).is_relative_to(ROOT / 'output/test-runs/host/scratch')
     assert 'TMP' not in env and 'TEMP' not in env
     probe = checkout / 'storage_probe.py'
     probe.write_text('''import os, pathlib, tempfile
 with tempfile.TemporaryDirectory(prefix='onpc-storage-probe-') as directory:
-    assert pathlib.Path(directory).parent == pathlib.Path('/var/tmp')
+    assert pathlib.Path(directory).parent == pathlib.Path(os.environ['TMPDIR'])
     with tempfile.TemporaryFile() as capture:
-        assert os.readlink('/proc/self/fd/' + str(capture.fileno())).startswith('/var/tmp/')
+        assert os.readlink('/proc/self/fd/' + str(capture.fileno())).startswith(os.environ['TMPDIR'] + '/')
         capture.write(b'captured output')
         capture.seek(0)
         assert capture.read() == b'captured output'
 ''')
     subprocess.run([sys.executable, '-B', str(probe)], env=env, check=True, timeout=10)
-    # Keep build/controller environments separate from the host pytest policy.
-    assert 'TMPDIR' not in host.environment(checkout)
+    assert host.environment(checkout)['TMPDIR'] == env['TMPDIR']
 
 
 def test_failed_cleanup_gates_component(checkout, monkeypatch):
     prerequisite = Mock(side_effect=ValueError('failed prerequisites'))
-    execute = Mock()
+    execute = Mock(return_value=subprocess.CompletedProcess([], 0))
     monkeypatch.setattr(host, 'prerequisites', prerequisite)
-    monkeypatch.setattr(host.os, 'execve', execute)
+    monkeypatch.setattr(host.subprocess, 'run', execute)
     with pytest.raises(ValueError):
         host.run_host(checkout, 'component', [])
     prerequisite.assert_called_once_with(checkout)
@@ -320,9 +321,9 @@ def test_collect_only_never_starts_cleanup(checkout, monkeypatch, category):
     python.parent.mkdir(parents=True)
     python.symlink_to('/usr/bin/python3')
     prerequisite = Mock()
-    execute = Mock()
+    execute = Mock(return_value=subprocess.CompletedProcess([], 0))
     monkeypatch.setattr(host, 'prerequisites', prerequisite)
-    monkeypatch.setattr(host.os, 'execve', execute)
+    monkeypatch.setattr(host.subprocess, 'run', execute)
     monkeypatch.chdir(checkout)
     host.run_host(checkout, category, ['--collect-only'])
     prerequisite.assert_not_called()

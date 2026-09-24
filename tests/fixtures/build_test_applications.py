@@ -60,8 +60,9 @@ def _log(stage: str, outcome: str) -> None:
 
 
 def _run(command: list[str], *, environment: Mapping[str, str] | None = None) -> None:
+    from tools.test_storage import scratch_descriptors
     try:
-        subprocess.run(command, check=True, env=environment)
+        subprocess.run(command, check=True, env=environment, pass_fds=scratch_descriptors())
     except (OSError, subprocess.CalledProcessError) as error:
         raise FixtureError(f"fixture command failed during {command[0]!r}") from error
 
@@ -69,7 +70,8 @@ def _run(command: list[str], *, environment: Mapping[str, str] | None = None) ->
 def _require_empty_output(output: Path) -> Path:
     resolved = output.resolve(strict=False)
     temporary_root = Path(tempfile.gettempdir()).resolve()
-    if resolved == ROOT or ROOT in resolved.parents or temporary_root not in resolved.parents:
+    managed = resolved.is_relative_to(ROOT / 'output/test-runs')
+    if not managed and (resolved == ROOT or ROOT in resolved.parents or temporary_root not in resolved.parents):
         raise FixtureError("fixture output must be below the system temporary directory")
     if resolved.exists():
         if not resolved.is_dir() or any(resolved.iterdir()):
@@ -366,10 +368,23 @@ def build(output: Path) -> None:
     except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
         raise FixtureError(f'GUI fixture runtime build failed: {error}; '
                            'missing prerequisites are provided by ./setup.sh --dependencies-only') from error
+    # Build-only trees are not runtime inputs. The exported repository and Snap
+    # contain the attested runtime; never duplicate unpacked copies per attempt.
+    for name in ('flatpak-runtime-build', 'flatpak-app-build', 'snap-build', 'flatpak-home'):
+        shutil.rmtree(output / name)
     _set_reproducible_times(output)
     _write_manifest(output)
     verify(output)
     _log("build", "passed")
+
+
+def unpack_snap(output: Path, destination: Path) -> Path:
+    """Exercise packaged bytes in caller-owned scratch without installing Snap."""
+    if destination.exists():
+        raise FixtureError('Snap extraction destination must be new')
+    _run(['unsquashfs', '-no-progress', '-d', str(destination),
+          str(output / 'onpc-test-application.snap')])
+    return destination
 
 
 def _preexec_for_uid(uid: int):

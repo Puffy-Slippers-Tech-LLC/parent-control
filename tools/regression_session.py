@@ -56,8 +56,8 @@ def busy(fd):
 
 
 def prepare(root, *, host_only=False):
-    directory = root / ('artifacts/test-sessions-host' if host_only
-                        else 'artifacts/test-sessions')
+    from test_storage import directory as storage_directory
+    directory = storage_directory('sessions-host' if host_only else 'sessions', root=root)
     for parent in (directory, *directory.parents):
         if parent.is_symlink():
             raise ValueError('aggregate session path contains a symlink')
@@ -106,6 +106,9 @@ def select(root, argv):
         with test_activity.activity(root, host_only=host_only):
             run = directory / uuid.uuid4().hex
             run.mkdir(mode=0o700)
+            import test_retention
+            with test_retention.Store(directory / 'retention').session():
+                test_retention.retain(run)
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:
                 fcntl.flock(owner, fcntl.LOCK_EX)
                 command = ['/usr/bin/python3', '-u', '-B', str(Path(__file__).resolve()),
@@ -115,10 +118,12 @@ def select(root, argv):
                 temporary = directory / 'current.tmp'
                 temporary.write_text(json.dumps({'run': run.name, 'argv': requested}))
                 temporary.replace(current)
-                subprocess.Popen(command, cwd=root, env=test_launcher.environment(root),
+                from test_storage import scratch_descriptors
+                environment = test_launcher.environment(root)
+                subprocess.Popen(command, cwd=root, env=environment,
                                  stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
                                  start_new_session=True,
-                                 pass_fds=(*test_activity.descriptors(), owner))
+                                 pass_fds=(*test_activity.descriptors(), owner, *scratch_descriptors()))
         return run, True
 
 

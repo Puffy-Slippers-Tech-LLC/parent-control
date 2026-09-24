@@ -222,7 +222,16 @@ class CallbackServer:
         require(self.directory.resolve() == self.directory,
                 'graphics:directory-symlink')
         self.identity = (metadata.st_dev, metadata.st_ino)
-        self.path = self.directory / 'generalhw.sock'
+        # AF_UNIX paths are limited to 107 bytes. Keep only the socket in a
+        # short runtime directory; evidence and payloads stay on disk.
+        import tempfile
+        from tools import test_retention
+        from tools.test_storage import runtime_allocation
+        runtime = Path(runtime_allocation(tempfile.mkdtemp, prefix='onpc-rpc-'))
+        info = runtime.stat()
+        self.runtime_record = dict(path=str(runtime), device=info.st_dev,
+                                   inode=info.st_ino, mode=0o700)
+        self.path = runtime / 'generalhw.sock'
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         try:
             self.listener.bind(str(self.path))
@@ -231,6 +240,7 @@ class CallbackServer:
             self.listener.settimeout(0.25)
         except BaseException:
             self.listener.close()
+            test_retention.remove(self.runtime_record)
             raise
 
     def serve_once(self):
@@ -288,6 +298,8 @@ class CallbackServer:
                     self.adapter.close_observer()
                 finally:
                     self.listener.close()
+                    from tools.test_retention import remove
+                    remove(self.runtime_record)
 
 
 def callback(path, run, action):

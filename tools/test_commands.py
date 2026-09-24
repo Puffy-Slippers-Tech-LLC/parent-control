@@ -157,7 +157,8 @@ Aggregate aliases (no suite selectors)
   The granular inventory supplies both host's suites and fix-tests round 1.
   Bare artifacts runs two builds and their reproducibility comparison.
   artifacts prepare reuses matching verified inputs or builds on a miss.
-  artifacts build --output '/tmp/onpc-NAME' builds into a new named directory
+  artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-NAME'
+  builds into a new named directory
   for fixed integration consumers; existing paths are never overwritten.
   Pending E2E variants remain excluded.
 
@@ -243,7 +244,8 @@ def aggregate_arguments(category, args):
 
 def artifact_path(value):
     path = Path(value)
-    roots = (Path('/tmp'), Path('/var/tmp'))
+    from test_storage import BASE
+    roots = (Path('/tmp'), Path('/var/tmp'), BASE / 'host/allocations', BASE / 'privileged/allocations')
     if (not path.is_absolute() or '..' in path.parts or
             not any(path.is_relative_to(root) and len(path.parts) > len(root.parts) and
                     re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', path.parts[len(root.parts)])
@@ -259,12 +261,13 @@ def python_file(root, path, *options):
 
 
 def artifact_output(value):
-    """Accept only a new direct project directory in /tmp; never replace inputs."""
+    """Accept a new direct managed allocation; never replace inputs."""
     path = Path(value)
-    if (str(path) != value or path.parent != Path('/tmp') or
+    from test_storage import allocation_parent
+    if (str(path) != value or path.parent != allocation_parent() or
             not re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', path.name) or
             os.path.lexists(path)):
-        raise ValueError('artifact output must be a new /tmp/onpc-* directory')
+        raise ValueError('artifact output must be a new output/test-runs/host/allocations/onpc-* directory')
     return str(path)
 
 
@@ -297,7 +300,8 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_request_choices'], ['check_e2e_request_choices.py'],
             ['check_e2e_parent_save'], ['check_e2e_parent_save.py']):
         return None
-    output = '/tmp/onpc-parent-setup-input'
+    from test_storage import named_input
+    output = str(named_input())
     if os.path.lexists(output):
         artifact_path(output)
         return None  # The privileged consumer verifies the frozen manifest.
@@ -471,7 +475,8 @@ def _main(argv=None, *, detached=False):
             options = args[1:] if args[:1] == ['--unattended'] else args
             planned, _ = plan(root, category, options)
             if not any(value.startswith('--artifacts=') for value in planned[0]):
-                directory = tempfile.mkdtemp(prefix='onpc-test-artifacts-', dir='/tmp')
+                from test_retention import allocate
+                directory = allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
                 print('run-tests: output=' + directory, flush=True)
                 status = subprocess.run(
                     python_file(root, 'tools/build_test_artifacts.py', '--reuse', '--output', directory),
@@ -487,14 +492,15 @@ def _main(argv=None, *, detached=False):
                 raise ValueError('unsupported unattended category')
             return category_run(root, category, args[1:])
         if category in ('unit', 'component'):
-            host.run_host(root, category, args)
-            return 0
+            return host.run_host(root, category, args)
         if category == 'ui':
             # Preserve the one documented UI environment and timeout entry point.
             host.pytest_command(root, args, 'ui')
             command = [host.confined_file(root, 'tools/run-ui-tests'), *args]
-            os.execve(command[0], command, host.environment(root))
-            return 0
+            from test_storage import scratch_descriptors
+            environment = host.environment(root)
+            return subprocess.run(command, env=environment, pass_fds=scratch_descriptors(),
+                                  check=False).returncode
         commands, safety = plan(root, category, args)
         if safety:
             host.prerequisites(root)
@@ -502,20 +508,23 @@ def _main(argv=None, *, detached=False):
         if category in ('fixture-runtime', 'coverage'):
             env = host.test_environment(root)
         if category in ('fixtures', 'artifacts') and (not args or args in (['build'], ['prepare'])):
-            directory = tempfile.mkdtemp(prefix=f'onpc-test-{category}-', dir='/tmp')
+            from test_retention import allocate
+            directory = allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-')
             commands[0] += ['--output', directory]
             print('run-tests: output=' + directory, flush=True)
         elif category == 'artifacts' and args[:2] == ['build', '--output']:
             directory = allocate_artifact_output(args[2])
             print('run-tests: output=' + directory, flush=True)
         if category == 'coverage':
-            directory = tempfile.mkdtemp(prefix='onpc-coverage-', dir='/tmp')
+            from test_retention import allocate
+            directory = allocate(tempfile.mkdtemp, prefix='onpc-coverage-')
             command = commands[0]
             command.insert(command.index('--'), '--cov-report=xml:' + directory + '/coverage.xml')
             env['COVERAGE_FILE'] = directory + '/.coverage'
             print('run-tests: output=' + directory, flush=True)
         if category == 'child-gjs':
-            directory = tempfile.mkdtemp(prefix='onpc-gjs-coverage-', dir='/tmp')
+            from test_retention import allocate
+            directory = allocate(tempfile.mkdtemp, prefix='onpc-gjs-coverage-')
             for command in commands:
                 command[1:1] = ['--coverage-prefix=' + str(root / 'child'),
                                 '--coverage-output=' + directory]
@@ -532,7 +541,9 @@ def _main(argv=None, *, detached=False):
             from dev_privileges import check
             check(commands[-1][1])
         print('run-tests: validated category starting', file=sys.stderr, flush=True)
-        os.execve(commands[-1][0], commands[-1], env)
+        from test_storage import scratch_descriptors
+        return subprocess.run(commands[-1], env=env, pass_fds=scratch_descriptors(),
+                              check=False).returncode
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
         if isinstance(error, OSError) and getattr(error, '__notes__', None):

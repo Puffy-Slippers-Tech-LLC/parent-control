@@ -131,7 +131,7 @@ def workers(tmp_path, monkeypatch):
 def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     run, started = session.select(tmp_path, [])
     assert started
-    current = json.loads((tmp_path / 'artifacts/test-sessions/current.json').read_text())
+    current = json.loads((tmp_path / 'output/test-runs/host/sessions/current.json').read_text())
     assert current['argv'] == ['all']
     wait_for(tmp_path / 'arguments')
     assert (tmp_path / 'arguments').read_text() == 'all'
@@ -147,8 +147,8 @@ def test_host_and_vm_sessions_start_and_reconnect_independently(tmp_path, worker
     vm_run, vm_started = session.select(tmp_path, ['e2e'])
 
     assert host_started and vm_started
-    assert host_run.parent == tmp_path / 'artifacts/test-sessions-host'
-    assert vm_run.parent == tmp_path / 'artifacts/test-sessions'
+    assert host_run.parent == tmp_path / 'output/test-runs/host/sessions-host'
+    assert vm_run.parent == tmp_path / 'output/test-runs/host/sessions'
     assert session.select(tmp_path, ['ui']) == (host_run, False)
     assert session.select(tmp_path, ['e2e']) == (vm_run, False)
     assert len(workers) == 2
@@ -210,7 +210,7 @@ def test_snapshot_probe_can_overlap_only_host_session(tmp_path, workers, monkeyp
 def test_inspection_prints_without_starting_a_session(tmp_path, workers, capsys, argv):
     assert session.select(tmp_path, argv) == (None, False)
     assert workers == []
-    assert not (tmp_path / 'artifacts/test-sessions/current.json').exists()
+    assert not (tmp_path / 'output/test-runs/host/sessions/current.json').exists()
     assert session.main(tmp_path, argv) == 0
     output = capsys.readouterr().out
     if argv == ['--list']:
@@ -232,7 +232,7 @@ def test_inspection_preserves_existing_session(
         (tmp_path / 'release').touch()
         assert workers[0].wait(timeout=10) == 7
         (run / 'result').write_text('0')
-    current = tmp_path / 'artifacts/test-sessions/current.json'
+    current = tmp_path / 'output/test-runs/host/sessions/current.json'
     before = current.read_bytes()
 
     def refuse(*args, **kwargs):

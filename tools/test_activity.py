@@ -18,8 +18,8 @@ _host_only = False
 
 
 def retention_path(root):
-    return Path(root) / ('artifacts/test-retention-host' if _host_only
-                         else 'artifacts/test-retention')
+    from test_storage import directory
+    return directory('state', root=root) / ('retention-host' if _host_only else 'retention')
 
 
 def descriptors():

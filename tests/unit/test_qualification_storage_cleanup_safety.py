@@ -14,6 +14,8 @@ from tools import test_retention as retention
 
 
 def test_standalone_qualifications_rotate_both_work_and_collector(tmp_path, monkeypatch):
+    from tools import test_storage
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'registry')
     store = retention.Store(tmp_path / 'registry')
     monkeypatch.setattr(storage.test_retention, 'Store', lambda path: store)
     monkeypatch.setenv('PKEXEC_UID', '1000')
@@ -57,6 +59,39 @@ def test_nested_qualification_joins_existing_run(tmp_path, monkeypatch):
         path = qualify()
     state = json.loads((tmp_path / 'registry/current.json').read_text())
     assert [record['path'] for record in state['paths']] == [path]
+
+
+def test_recovery_diagnostics_rotate_without_changing_unfinished_vm_journal(tmp_path, monkeypatch):
+    import check_graphical_recovery as recovery
+    from tools import test_storage
+    monkeypatch.setattr(test_storage, 'ROOT', tmp_path)
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'vm-state')
+    monkeypatch.setenv('PKEXEC_UID', '1000')
+    monkeypatch.setattr(storage, 'os', SimpleNamespace(geteuid=lambda: 0, environ=os.environ))
+    monkeypatch.setattr(recovery, 'os', SimpleNamespace(umask=lambda _: None))
+    def missing_runtime(_):
+        raise RuntimeError('injected recovery failure')
+    monkeypatch.setattr(recovery, 'importlib', SimpleNamespace(import_module=missing_runtime))
+    vm_store = retention.Store(tmp_path / 'vm-state')
+    with vm_store.session():
+        retention.preserve_for_recovery()
+    original = (vm_store.path / 'current.json').read_bytes()
+    journal = tmp_path / 'recovery-diagnostics-1000/current.json'
+    paths = []
+    for index in range(5):
+        with storage.recovery_session():
+            assert recovery.recover('vnc') == 1
+        state = json.loads(journal.read_text())
+        paths.append(Path(state['paths'][0]['path']))
+        assert all((path / 'result.json').is_file() for path in paths[-3:])
+        assert all(not path.exists() for path in paths[:-3])
+        assert (vm_store.path / 'current.json').read_bytes() == original
+        assert (vm_store.path / 'recovery-required').exists()
+        if index == 0:
+            # Abrupt termination of the diagnostic writer is independently
+            # recoverable; it never clears the VM's recovery obligation.
+            state['finished'] = False
+            journal.write_text(json.dumps(state))
 
 
 @pytest.mark.parametrize('fault', ['path', 'identity', 'duplicate', 'mode', 'active', 'mount'])

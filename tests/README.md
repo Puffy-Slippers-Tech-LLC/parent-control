@@ -208,7 +208,7 @@ If automatic recovery's cleanup-safety run produces a normal failure handoff,
 `fix-tests` repairs that failure and retries recovery before starting the requested
 category. Recovery still fails closed when no actionable handoff is available.
 
-Logs and small control files are private under `artifacts/fix-tests/`. They are
+Logs and small control files are private under `output/test-runs/host/fix-tests/`. They are
 not agent conversation history. Existing test evidence remains under the runner's
 retention policy. Machine-readable `failure.json` accompanies the printed prompt
 and supplies stable retry category IDs. A missing handoff, unresolved prerequisite,
@@ -253,8 +253,8 @@ execution refuses pending VM recovery.
 Invoke without arguments to replay any unread VM-side result. After delivery,
 or when no VM session exists, an invocation without arguments starts the `all`
 aggregate. VM session output and ownership records live under
-`artifacts/test-sessions/`; host-only records live under
-`artifacts/test-sessions-host/`. Reconnect to a host-only run with a host
+`output/test-runs/host/sessions/`; host-only records live under
+`output/test-runs/host/sessions-host/`. Reconnect to a host-only run with a host
 category such as `host`, `ui`, or `unit`.
 Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
@@ -446,6 +446,32 @@ This is development/test tooling only; package update activation is **none**.
 
 ### Aggregate output retention
 
+The [test storage mandate](../docs/Mandates/Test-Storage-Mandate.md) specifies the
+required shared helpers and forbids producer-selected temporary storage roots.
+
+All new bulk test output lives in the gitignored, disk-backed
+`output/test-runs/` tree. `host/` and `privileged/` separate caller and root
+ownership. Storage refuses tmpfs/ramfs and symlinked ancestors. Allocation roots
+are private; reports, reconnect sessions, repair logs, exports, cache receipts
+and journals have separate subdirectories. Small AF_UNIX runtime sockets remain
+in short `/tmp` directories because Linux limits socket paths to 107 bytes;
+their owners remove them on close. Explicit screenshot exports retain the
+existing caller-owned `/tmp/onpc-*.png` contract.
+
+Each retention journal keeps at most three runs and 4 GiB of allocated blocks,
+checked at session boundaries. Older completed runs expire first; an oversized
+current run is preserved and reported as an error, and blocks a new run until
+its evidence is explicitly reduced or removed. These are per-journal limits,
+not a filesystem quota on an active build. Recovery receipts expire with their
+run. Reconnect and repair directories also rotate; repair transcripts retain
+a bounded tail (32 MiB threshold) between operations. Process-owned temporary
+scratch uses an inherited owner lock and recorded directory identity: the next
+launcher reclaims idle scratch, while active owners remain protected. Build
+subprocesses forward inherited scratch leases through the fixture builder too.
+Scratch initialization publishes a complete owner atomically from a recorded
+staging slot; interrupted initialization and deletion can resume without
+adopting unknown payloads or losing the directory identity.
+
 `make test-all`, `make test-all-verify`, `tools/run-tests host` and
 `tools/run-tests host-builds` share **last-three-runs** retention. The runner
 records each newly allocated report, publishing snapshot (including Lintian scratch), sbuild output,
@@ -463,15 +489,15 @@ rotation validate the latest recorded identity, ownership and mount boundaries;
 an unregistered replacement still refuses. The recreated output expires with
 its latest owner.
 
-Host-only runs use `artifacts/test-retention-host/`; VM-containing runs and
-snapshot preparation keep `artifacts/test-retention/`. Each journal retains
+Host-only runs use `output/test-runs/host/state/retention-host/`; VM-containing runs and
+snapshot preparation keep `output/test-runs/host/state/retention/`. Each journal retains
 its own last three runs, so active host evidence cannot block VM preparation
 or be rotated by it. Existing records stay in their original journal.
 Privileged system/E2E
 outputs have a separate root-owned journal under
-`/var/tmp/onpc-test-retention-root-<uid>-<checkout-id>/`; all VM categories in
+`output/test-runs/privileged/state/retention-<uid>/`; all VM categories in
 one aggregate share its run token. Privileged outputs older than its three-run
-window rotate at the next aggregate's first privileged category, after cleanup prerequisites
+window rotate during preflight, before VM memory admission, after cleanup prerequisites
 pass and the shared VM lease/journal show no unfinished recovery. A host-only
 run or a failure before VM execution does not discard the last VM diagnostics.
 Refresh the installed dispatcher with `./setup.sh --test-tools-only` after this
@@ -486,6 +512,12 @@ validation precedes storage allocation, and unfinished VM recovery still blocks
 rotation. These checkout-side changes activate on the next invocation without
 an installed-helper refresh.
 
+Transport, attachment and worker diagnostic reports are registered evidence,
+separate from disposable scratch. Recovery diagnostics use their own bounded
+`output/test-runs/privileged/state/recovery-diagnostics-<uid>/` journal, so a
+failed or interrupted recovery keeps its logs without rotating or clearing the
+unfinished VM journal. The existing VM lease still controls recovery itself.
+
 For older unregistered qualification directories, `tools/run-tests integration
 check_tmp_storage` prints a read-only inventory with sizes and directory
 identities. After reviewing the inventory, put only explicitly selected records
@@ -498,14 +530,19 @@ Keep needed recent diagnostics out of the manifest. Both commands use the
 existing integration dispatcher and its cleanup-safety gate.
 
 System evidence keeps its registered allocation root at mode 0700; use the
-installed artifact reader for privileged results. Older system exporters changed
-that root to 0755 after registering 0700. On the next privileged aggregate, a
-completed journal with this specific mismatch is archived as
-`preserved-<run>.json` outside rotation. Every recorded allocation must still
-pass identity, ownership and mount checks, with only that system-root mode
-exception. The VM recovery guard must pass; unfinished or recovery-marked
-journals are not migrated. Existing evidence and its original records remain
-untouched, and subsequent runs use a fresh journal.
+installed artifact reader for privileged results. Legacy journals with mismatched
+system-root modes require explicit migration; they cannot create an unbounded
+archive outside rotation.
+
+For the storage relocation, `tools/run-tests integration check_storage_migration`
+prints a read-only legacy inventory when `output/test-runs/storage-migration.json` is
+absent. A reviewed manifest contains exact `path`, `device`, `inode`, `mode` and
+`uid` records. With the manifest present, the same command locks legacy owners,
+checks VM recovery and live process references, copies and verifies diagnostic
+files into bounded disk storage, then removes the exact audited originals.
+Legacy reconnect, repair and generated report directories can be explicitly
+migrated by the same manifest. Frozen package inputs and stale sockets are disposable. Unknown identities,
+mounts or copy failures refuse deletion; unrelated `/tmp` files are not swept.
 
 Storage leases exclude active owners; deletion uses recorded directory identities
 and pinned descriptors, refusing replacements, symlink ancestors and mounts.
@@ -524,8 +561,9 @@ Recovery runs its mandatory cleanup-safety prerequisites, not product suites.
 After VM recovery succeeds, unfinished retention journals and recovery markers
 are archived as `recovered-<run>.json` and `recovered-<run>.marker`. Every registered
 allocation must pass ownership, identity and mount validation before its blocker
-is cleared. Evidence remains in the normal three-run rotation; recovery itself
-does not delete logs or scan temporary-directory prefixes. Recovery is retryable.
+is cleared. Evidence remains in the normal rotation. After recovery succeeds,
+older runs may expire under the count and byte limits; the recovered current run
+remains. Recovery does not scan temporary-directory prefixes and is retryable.
 Changed identities, an active lease, unsupported VM interruption phases, or a failed
 baseline audit still refuse a new run and preserve evidence with a diagnostic.
 Ordinary test failures and cooperative Ctrl+C finish their storage ownership.
@@ -533,7 +571,7 @@ Fixture setup/teardown or pytest infrastructure failures pin host evidence with
 `recovery-required` instead of assuming every fixture exited successfully.
 Deletion failures also stop the next run instead of silently accumulating output.
 Sbuild scratch uses its supported `unshare_tmpdir_template` inside a registered
-`/var/tmp/onpc-sbuild-scratch-*` parent with mode 0711 (traversable by the
+`output/test-runs/host/sbuild/onpc-sbuild-scratch-*` parent with mode 0711 (traversable by the
 subordinate build user, not publicly listable). Sbuild normally cleans its chroot.
 Retention inspects registered scratch and removes expired scratch in a user
 namespace mapping the caller and its configured subordinate IDs, so interrupted
@@ -652,7 +690,8 @@ explicit caller-owned `/tmp/onpc-*.png` filenames. Privileged graphical smoke
 exports still use
 `pkexec /usr/local/libexec/onpc-export-screenshot SOURCE /tmp/onpc-new.png`;
 the source must be a regular PNG directly inside an
-`/tmp/onpc-graphical-smoke-*/testresults/` directory. See the helper's validation
+`output/test-runs/{host,privileged}/allocations/onpc-graphical-smoke-*/testresults/`
+directory (legacy `/tmp` sources are still readable). See the helper's validation
 tests for ownership, size/signature and no-overwrite guarantees.
 
 Full `./setup.sh` and `--test-tools-only` both maintain graphical AppArmor policy. Classic VS Code
@@ -677,7 +716,8 @@ pkexec /usr/local/libexec/onpc-test-artifacts export /tmp/onpc-future-run/result
 
 `read` also accepts `--offset` for paging through large files. `list` returns
 JSON names; `stat` returns JSON type, size, mode, and modification time. `export`
-prints a new `/tmp/onpc-artifact-export-*/<original-name>` path. Its directory is
+prints a new `output/test-runs/host/exports/onpc-artifact-export-*/<original-name>`
+path, subject to bounded export retention. Its directory is
 mode `700` and file mode `600`, both owned by the invoking account. Ordinary
 readers can then inspect the copy without privilege. Existing graphical smoke
 PNG exports continue to use `onpc-export-screenshot` above.
@@ -821,7 +861,8 @@ directories, printed by the fixture, so later pytest categories cannot rotate
 away the first failure's diagnostics. These directories are disk-backed on the
 development host; logs and existing failure evidence are never removed by tests.
 
-Host pytest launchers fix `TMPDIR=/var/tmp` for capture and temporary fixtures.
+Host pytest launchers fix `TMPDIR` to owner-locked scratch beneath
+`output/test-runs/host/scratch/` for capture and temporary fixtures.
 The three 100-run retention repetition tests explicitly use private `/tmp`
 trees and check their peak footprint each iteration: fewer than 64 entries and
 256 KiB of file contents per case. Their fixture removes only its own tree on

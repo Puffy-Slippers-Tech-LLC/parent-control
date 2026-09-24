@@ -28,6 +28,7 @@ def checkout(tmp_path):
     shutil.copy2(LAUNCHER.with_name('test_launcher.py'), root / 'tools/test_launcher.py')
     shutil.copy2(LAUNCHER.with_name('test_retention.py'), root / 'tools/test_retention.py')
     shutil.copy2(LAUNCHER.with_name('test_activity.py'), root / 'tools/test_activity.py')
+    shutil.copy2(LAUNCHER.with_name('test_storage.py'), root / 'tools/test_storage.py')
     return root
 
 

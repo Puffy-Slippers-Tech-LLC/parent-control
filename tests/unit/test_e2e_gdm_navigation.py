@@ -25,7 +25,7 @@ def test_gdm_navigation_qualification_reuses_the_prepared_app_snapshot():
     import check_e2e_gdm_navigation as check
     from parent_setup_qualification import GdmNavigationQualification
 
-    assert check.ASSETS == Path('/tmp/onpc-parent-setup-input')
+    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     context = type('Context', (), {})()
     journey = GdmNavigationQualification.journey(context, lambda *_: None)
     assert context.installed_snapshot == 'onpc-v1.1'
@@ -37,6 +37,6 @@ def test_gdm_navigation_qualification_reuses_the_prepared_app_snapshot():
 
 def test_gdm_navigation_is_the_fixed_argument_free_integration_selector():
     source = (ROOT / 'tests/integration/check_e2e_gdm_navigation.py').read_text()
-    assert "ASSETS = Path('/tmp/onpc-parent-setup-input')" in source
+    assert "ASSETS = named_input()" in source
     assert 'gdm_navigation=True' in source
     assert 'sys.argv' not in source

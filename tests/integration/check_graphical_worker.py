@@ -82,7 +82,8 @@ def attempt(directory, mode):
     server = CallbackServer(adapter, directory)
     server.listener.settimeout(0.01)
     proof = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-    proof.bind(str(directory / 'proof.sock'))
+    proof_path = server.path.with_name('proof.sock')
+    proof.bind(str(proof_path))
     proof.listen(1)
     proof.setblocking(False)
     handle = None
@@ -91,7 +92,7 @@ def attempt(directory, mode):
     started = time.monotonic()
     try:
         handle = Worker(directory, server.path, RUN,
-                        ['/usr/bin/python3', '-B', str(Path(__file__).with_name('graphical_worker_fixture.py').resolve()), str(directory / 'proof.sock'), mode])
+                        ['/usr/bin/python3', '-B', str(Path(__file__).with_name('graphical_worker_fixture.py').resolve()), str(proof_path), mode])
         deadline = started + 30
         while peer is None and time.monotonic() < deadline:
             require(handle.poll() is None, 'qualification:fixture-exited-early')
@@ -138,7 +139,8 @@ def main():
     require(os.geteuid() == 0, 'qualification:root-required')
     require(len(sys.argv) == 1, 'qualification:invalid-arguments')
     os.umask(0o077)
-    directory = Path(tempfile.mkdtemp(prefix='onpc-graphical-worker-'))
+    from tools.test_retention import allocate
+    directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-graphical-worker-'))
     results = []
     try:
         for mode in ('success', 'disconnect', 'interrupt'):

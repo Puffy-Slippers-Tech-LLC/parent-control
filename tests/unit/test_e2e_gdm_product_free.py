@@ -31,7 +31,7 @@ def test_product_free_gdm_uses_a_distinct_baseline_journey_binding():
         GdmProductFreeQualification, ParentJourneyQualification,
     )
 
-    assert check.ASSETS == Path('/tmp/onpc-parent-setup-input')
+    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     assert GdmProductFreeQualification.__bases__ == (ParentJourneyQualification,)
     assert GdmProductFreeQualification.observation_only is True
     context = type('Context', (), {})()
@@ -49,6 +49,6 @@ def test_product_free_gdm_uses_a_distinct_baseline_journey_binding():
 
 def test_product_free_gdm_is_the_fixed_argument_free_integration_selector():
     source = (ROOT / 'tests/integration/check_e2e_gdm_product_free.py').read_text()
-    assert "ASSETS = Path('/tmp/onpc-parent-setup-input')" in source
+    assert "ASSETS = named_input()" in source
     assert 'gdm_product_free=True' in source
     assert 'sys.argv' not in source

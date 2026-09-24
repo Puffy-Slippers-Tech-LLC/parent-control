@@ -18,7 +18,12 @@ def stage(directory, assets, selection, *, bundle=None):
     """Bind the existing installed payload and fixed helper bytes before bootstrap."""
     destination = directory / 'input'
     require(not destination.exists(), 'setup:input-exists')
-    shutil.copytree(assets, destination)
+    if assets == directory / 'assets':
+        # This is the attempt's already frozen private copy. Transfer ownership
+        # to its input directory instead of retaining a second complete bundle.
+        assets.rename(destination)
+    else:
+        shutil.copytree(assets, destination)
     bundle = bundle if bundle is not None else inputs(system.ROOT)
     files = bundle.stage(destination)
     identity = {'schema_version': 1, 'scope': 'e2e-installed-setup',

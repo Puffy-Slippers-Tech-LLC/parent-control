@@ -42,6 +42,8 @@ def test_invalid_options_refused_before_any_work(argv, monkeypatch):
 
 @pytest.fixture
 def launch(tmp_path, monkeypatch):
+    import test_storage
+    monkeypatch.setattr(test_storage, 'scratch_directory', lambda: tmp_path)
     monkeypatch.setattr(launcher, '__file__', str(tmp_path / 'tools/prepare_appsnapshot.py'))
     monkeypatch.setattr(launcher.os, 'geteuid', lambda: 1000)
     monkeypatch.setattr(launcher.test_activity, 'activity', lambda _: nullcontext())
@@ -135,18 +137,18 @@ def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypat
     monkeypatch.setattr(cleanup_e2e, '__file__', str(tmp_path / 'tools/cleanup_e2e.py'))
     monkeypatch.setattr(cleanup_e2e.os, 'geteuid', lambda: 1000)
     retention = cleanup_e2e.test_retention
-    store = retention.Store(tmp_path / 'artifacts/test-retention-host')
+    store = retention.Store(tmp_path / 'output/test-runs/host/state/retention-host')
     with store.session() as run:
         retention.preserve_for_recovery()
     paths = []
     def cleanup(root):
         assert cleanup_e2e.test_activity.descriptors()
         paths.append(cleanup_e2e.test_activity.retention_path(root))
-        assert paths == [tmp_path / 'artifacts/test-retention']
+        assert paths == [tmp_path / 'output/test-runs/host/state/retention']
         return status
     monkeypatch.setattr(cleanup_e2e, 'cleanup', cleanup)
     assert cleanup_e2e.main([]) == status
-    assert paths == [tmp_path / 'artifacts/test-retention']
+    assert paths == [tmp_path / 'output/test-runs/host/state/retention']
     assert (store.path / 'recovery-required').exists() == bool(status)
     assert (store.path / f'recovered-{run}.json').exists() == (status == 0)
     if not status:

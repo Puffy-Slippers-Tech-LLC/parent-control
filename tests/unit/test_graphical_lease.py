@@ -434,9 +434,15 @@ def test_disconnected_callback_revokes_display_and_retains_original_failure(rpc)
     server.adapter.close_display.assert_called_once()
 
 
-def test_server_close_revokes_display_without_signalling_processes(rpc):
+def test_server_close_revokes_display_without_signalling_processes(rpc, tmp_path):
     server, _, _ = rpc
+    runtime = tmp_path / 'socket-runtime'
+    runtime.mkdir(mode=0o700)
+    info = runtime.stat()
+    server.runtime_record = dict(path=str(runtime), device=info.st_dev,
+                                 inode=info.st_ino, mode=0o700)
     server.close()
+    assert not runtime.exists()
     server.adapter.close_display.assert_called_once()
     server.listener.close.assert_called_once()
 

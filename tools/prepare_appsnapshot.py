@@ -38,7 +38,7 @@ def main(argv=None):
             cleanup(root)
             if control.stopped.is_set():
                 return 130
-            with test_retention.Store(root / 'artifacts/test-retention').session() as run:
+            with test_retention.Store(test_activity.retention_path(root)).session() as run:
                 directory = test_retention.allocate(tempfile.mkdtemp,
                     prefix='onpc-test-artifacts-', dir='/tmp')
                 print('prepare-appsnapshot: artifacts=' + directory, flush=True)

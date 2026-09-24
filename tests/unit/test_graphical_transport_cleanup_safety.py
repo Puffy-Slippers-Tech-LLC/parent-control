@@ -1,8 +1,10 @@
 """FD transport diagnostic cannot start a guest or attach a usable display."""
 
 import sys
+import os
 import array
 import socket
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -51,22 +53,41 @@ def test_invalid_entrypoint_refuses_before_libvirt(args, uid):
 
 @pytest.mark.parametrize('send_fd', [False, True])
 def test_receive_probe_detects_missing_rights_and_closes_received_socket(tmp_path, send_fd):
+    evidence = tmp_path / ('long-evidence-' * 12)
+    evidence.mkdir()
+    paths = []
     local, remote = socket.socketpair()
     with local, remote:
         def fixture(args, **kwargs):
             assert args[:3] == ['/usr/bin/aa-exec', '--profile=libvirtd', '--']
             assert kwargs['timeout'] == 15
+            paths.append(Path(args[-1]))
+            assert len(os.fsencode(paths[-1])) < 108
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
-                peer.connect(str(tmp_path / 'receive.sock'))
+                peer.connect(args[-1])
                 remote.sendall(b'graphics-fd-fixture')
                 peer.sendmsg([b'F'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
                     array.array('i', [local.fileno()]))] if send_fd else [])
-        result = transport.receive_probe(tmp_path, Mock(run=fixture))
+        result = transport.receive_probe(evidence, Mock(run=fixture))
         assert result['outcome'] == ('passed' if send_fd else 'failed')
         assert result['descriptor_count'] == int(send_fd)
+        assert not paths[0].parent.exists()
+        assert evidence.is_dir()
         local.close()
         remote.settimeout(1)
         try:
             assert remote.recv(1) == b''
         except ConnectionResetError:
             assert not send_fd  # Unread fixture bytes when no FD was exported.
+
+
+def test_receive_probe_removes_runtime_socket_on_fixture_failure(tmp_path):
+    paths = []
+
+    def fail(args, **kwargs):
+        paths.append(Path(args[-1]))
+        raise RuntimeError('fixture failure')
+
+    with pytest.raises(RuntimeError, match='fixture failure'):
+        transport.receive_probe(tmp_path, Mock(run=fail))
+    assert not paths[0].parent.exists()

@@ -257,7 +257,7 @@ the checkout activity lock.
 | App fixtures | `tools/run-tests fixtures build` / `verify /tmp/onpc-...` | Fixed builder; builds generate an empty private output directory |
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
 | Reusable package/fixture preparation | `tools/run-tests artifacts prepare` | Content-qualified reuse or a fresh build; new private output registered in bounded run retention. No VM or installed product changes. |
-| Named qualification inputs | `tools/run-tests artifacts build --output '/tmp/onpc-parent-setup-input'` | Same unprivileged builder and retention; a new direct `/tmp/onpc-*` directory only, exclusive creation, no overwrite. `integration check_e2e_toggle` prepares this input automatically when absent. |
+| Named qualification inputs | `tools/run-tests artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-parent-setup-input'` | Replace `/REPO` with this checkout's absolute path. Same unprivileged builder and retention; a new direct managed `onpc-*` allocation only, exclusive creation, no overwrite. `integration check_e2e_toggle` prepares this input automatically when absent. |
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
 | Graphical journeys and harness scenarios | `tools/run-tests e2e` / `tools/run-tests e2e --id 1,3,4` / `tools/run-tests e2e --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Guarded cleanup-safety prerequisites remain mandatory. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
@@ -333,6 +333,14 @@ cross-controller VM lease remains authoritative. A host run and a VM run can
 therefore proceed and be reattached independently. Existing processes keep
 their original locks until they exit.
 
+Bulk output, scratch, reconnect state and retained exports use gitignored,
+disk-backed `output/test-runs/`, with separate host and privileged ownership.
+Legacy `/tmp/onpc-*` paths remain readable inputs, not new bulk output targets.
+The [storage contract](../tests/README.md#aggregate-output-retention) defines
+three-run/4-GiB per-journal rotation, owner-locked scratch reclamation, short
+runtime-socket exceptions and explicit identity-audited legacy migration through
+`tools/run-tests integration check_storage_migration`.
+
 When starting a new run, system and E2E listings run as the ordinary user without safety tests, privilege
 or VM mutation. `fast --list` forwards `LIST=1` once its target exists. `all`
 accepts no narrowing arguments. Reserved entry points do not claim that the
@@ -347,8 +355,10 @@ collection, warnings, `-k`, `-m`, maxfail, durations and traceback style. A scop
 `--ignore=tests/<category>/...` accepts validated file/directory patterns.
 Configuration, plugins, arbitrary output paths and response files are refused.
 Interpreter/plugin/loader/compiler/Make environment overrides are removed.
-Coverage and build outputs are generated under `/tmp/onpc-*`; keep future test
-artifacts under the [shared storage roots](../tests/README.md#prompt-free-test-artifact-access).
+Coverage and build outputs use the shared disk-backed storage helpers; follow
+the [test storage mandate](Mandates/Test-Storage-Mandate.md) for allocation and
+the [artifact access contract](../tests/README.md#prompt-free-test-artifact-access)
+for reading retained output.
 
 Host-integrated categories run all `test_*cleanup_safety.py` and
 `test_graphical_lease.py` in isolation before the protected operation. The

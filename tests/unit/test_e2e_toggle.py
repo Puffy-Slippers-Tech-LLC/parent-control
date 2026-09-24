@@ -14,7 +14,7 @@ def test_toggle_qualification_uses_the_fixed_installed_snapshot_and_selector(tmp
     import check_e2e_toggle as check
     import check_e2e_parent_save as save_check
 
-    assert check.ASSETS == Path('/tmp/onpc-parent-setup-input')
+    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     assert save_check.ASSETS == check.ASSETS
     context = SimpleNamespace(directory=tmp_path)
     journey = ParentToggleQualification.journey(context, lambda *_: None)
@@ -114,7 +114,7 @@ def test_parent_save_is_the_fixed_argument_free_integration_selector():
     from tests.support.paths import ROOT
 
     source = (ROOT / 'tests/integration/check_e2e_parent_save.py').read_text()
-    assert "ASSETS = Path('/tmp/onpc-parent-setup-input')" in source
+    assert "ASSETS = named_input()" in source
     assert 'parent_toggle=True' in source
     assert 'sys.argv' not in source
 

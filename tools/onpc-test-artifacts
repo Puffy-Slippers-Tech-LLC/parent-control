@@ -76,18 +76,27 @@ def copy_bytes(fd, output, count):
 
 def export(fd, info, source, uid, gid):
     """Create a new private caller-owned copy; no caller-selected write target."""
-    directory = Path(tempfile.mkdtemp(prefix='onpc-artifact-export-', dir='/tmp'))
-    # The new root-private directory cannot be replaced by an unprivileged peer.
-    destination = directory / Path(source).name
-    with destination.open('xb') as output:
-        os.fchmod(output.fileno(), 0o600)
-        copy_bytes(fd, output, info.st_size)
-        output.flush()
-        os.fsync(output.fileno())
-        os.fchown(output.fileno(), uid, gid)
-    os.chown(directory, uid, gid)
-    # Failure retains the newly created private partial export; never delete sources.
-    return str(destination)
+    sys.path.insert(0, str(Path(CHECKOUT) / 'tools'))
+    import test_retention
+    from test_storage import directory as storage_directory
+    previous_uid, previous_gid = os.geteuid(), os.getegid()
+    try:
+        os.setegid(gid)
+        os.seteuid(uid)
+        parent = storage_directory('exports')
+        with test_retention.Store(parent / 'retention').session():
+            directory = Path(test_retention.allocate(tempfile.mkdtemp,
+                prefix='onpc-artifact-export-', dir=parent))
+            destination = directory / Path(source).name
+            with destination.open('xb') as output:
+                os.fchmod(output.fileno(), 0o600)
+                copy_bytes(fd, output, info.st_size)
+                output.flush()
+                os.fsync(output.fileno())
+            return str(destination)
+    finally:
+        os.seteuid(previous_uid)
+        os.setegid(previous_gid)
 
 
 def nonnegative(value):

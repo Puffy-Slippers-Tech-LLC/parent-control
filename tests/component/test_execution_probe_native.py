@@ -16,6 +16,7 @@ import pytest
 from oh_no_parent_control import probe_channel, probe_generation
 from tests.support.paths import ROOT
 from tests.support.terminal import capture
+from tools.test_storage import runtime_directory
 
 
 TOKEN = "1" * 32
@@ -38,11 +39,11 @@ def receive_to_eof(peer):
 
 @pytest.fixture(scope="module")
 def native_probe():
-    # Keep sockaddr_un paths short; TemporaryDirectory removes only this fixture.
-    with tempfile.TemporaryDirectory(prefix="onpc-admit-") as temporary:
+    # Build on disk; only the short-lived native socket/witness runtime needs
+    # a path short enough for sockaddr_un.
+    with tempfile.TemporaryDirectory(prefix="onpc-admit-") as temporary, \
+            runtime_directory(prefix="onpc-admit-") as runtime:
         root = Path(temporary)
-        runtime = root / "runtime"
-        runtime.mkdir(mode=0o700)
         for kind in ("gate", "witness"):
             result, output = capture([
                 "/usr/bin/cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2",
@@ -55,6 +56,12 @@ def native_probe():
             # Match installed payload permissions, independent of host umask.
             (root / kind).chmod(0o755)
         yield root, runtime
+
+
+@pytest.fixture
+def tmp_path(short_runtime):
+    """These protocol cases allocate only local socket runtime files."""
+    return short_runtime
 
 
 @contextmanager

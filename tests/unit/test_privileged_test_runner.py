@@ -1,6 +1,8 @@
 """The category dispatcher must not become an arbitrary root command runner."""
 
 from pathlib import Path
+from contextlib import nullcontext
+import json
 import runpy
 import shutil
 import subprocess
@@ -93,6 +95,9 @@ def test_system_rejects_invalid_options(checkout, arguments):
 
 @pytest.mark.parametrize('safety_status', [0, 1])
 def test_prerequisites_drop_privileges_and_gate_root_test(checkout, monkeypatch, safety_status):
+    import test_storage
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: checkout / 'retention')
+    monkeypatch.setitem(runner['run'].__globals__, 'retention_guard', lambda root: None)
     execute = Mock(side_effect=[SimpleNamespace(returncode=safety_status),
                                SimpleNamespace(returncode=0)])
     monkeypatch.setattr(runner['subprocess'], 'run', execute)
@@ -122,7 +127,7 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     root = Path(__file__).resolve().parents[2]
     tools = checkout / 'tools'
     for name in ('onpc-test-runner', 'regression_process.py', 'test_launcher.py', 'test_activity.py',
-                 'test_retention.py'):
+                 'test_retention.py', 'test_storage.py'):
         shutil.copy2(root / 'tools' / name, tools / name)
     installer = runpy.run_path(str(root / 'tools/install_test_runner.py'))
     rendered = installer['render_helper'](checkout, 'onpc-test-runner', None)
@@ -144,6 +149,10 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
 
         load = runpy.run_path
         dispatcher = load(sys.argv[1])
+        sys.path.insert(0, str(Path(dispatcher['CHECKOUT']) / 'tools'))
+        import test_storage
+        test_storage.privileged_state = lambda uid: Path(dispatcher['CHECKOUT']) / 'retention'
+        dispatcher['run'].__globals__['retention_guard'] = lambda root: None
         calls = []
         safety_status = int(sys.argv[2])
 
@@ -197,3 +206,36 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
         for cache in caches:
             if cache.exists():
                 cache.chmod(0o755)
+
+
+@pytest.mark.parametrize('unattended', [False, True])
+@pytest.mark.parametrize('name', ['check_test_recovery', 'check_graphical_recovery',
+                                  'check_system_recovery'])
+def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch, name, unattended):
+    import test_storage
+    (checkout / 'tests/integration' / (name + '.py')).touch()
+    state = checkout / 'retention'
+    state.mkdir(mode=0o700)
+    journal = state / 'current.json'
+    journal.write_text(json.dumps(dict(run='1' * 32, finished=False, paths=[], history=[])))
+    journal.chmod(0o600)
+    before = journal.read_bytes()
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: state)
+    guard = Mock(side_effect=ValueError('unfinished VM recovery'))
+    monkeypatch.setitem(runner['run'].__globals__, 'retention_guard', guard)
+    execute = Mock(return_value=SimpleNamespace(returncode=0))
+    monkeypatch.setattr(runner['subprocess'], 'run', execute)
+    monkeypatch.setattr(runner['os'], 'getgrouplist', lambda *args: [1000])
+    control = SimpleNamespace(run=Mock(return_value=0))
+    control.installed = lambda **kwargs: nullcontext(control)
+    monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: {
+        'Control': lambda: control, 'safety_command': lambda root: ['cleanup-prerequisites']})
+    caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
+    arguments = ['integration', name]
+    assert runner['run'](checkout, (['--unattended'] if unattended else []) + arguments, caller) == 0
+    calls = (control.run if unattended else execute).call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs['user'] == 1000
+    assert calls[1].args[0][-1] == str(checkout / 'tests/integration' / (name + '.py'))
+    guard.assert_not_called()
+    assert journal.read_bytes() == before

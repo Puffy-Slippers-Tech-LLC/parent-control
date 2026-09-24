@@ -152,15 +152,16 @@ def runtime_identity(root):
         executable = shutil.which(name)
         values[name] = [executable, file_digest(Path(executable).resolve())] if executable else None
     from test_launcher import environment
-    env = environment(root)
+    env = environment(root, scratch=False)
     env.pop('ONPC_TEST_ACTIVITY_FD', None)
     env.pop('ONPC_TEST_RETENTION', None)
+    env.pop('TMPDIR', None)
     return digest([sys.version, sys.path, os.uname(), os.getuid(), os.getgroups(), env, values])
 
 
 def cache_path(root):
-    checkout = hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:16]
-    return Path('/tmp') / f'onpc-startup-cache-{os.getuid()}-{checkout}'
+    from test_storage import directory
+    return directory('cache', root=root)
 
 
 @contextmanager
@@ -259,7 +260,8 @@ def prepare_artifacts(builder, output):
                 if record.get('identity') != digest(previous):
                     raise ValueError('startup cache: invalid input receipt')
                 source = Path(record['path'])
-                if (source.parent != Path('/tmp') or not source.name.startswith('onpc-test-')
+                from test_storage import contains
+                if ((source.parent != Path('/tmp') and not contains(source)) or not source.name.startswith('onpc-test-')
                         or source.resolve() != source or source == output):
                     raise ValueError('startup cache: invalid retained path')
                 test_retention.private(source.stat())

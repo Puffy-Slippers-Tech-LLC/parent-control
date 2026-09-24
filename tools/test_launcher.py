@@ -114,7 +114,7 @@ def selection(root, selectors, category='unit'):
     return list(selected)
 
 
-def environment(root):
+def environment(root, *, scratch=True):
     # Do not inherit interpreter/plugin, loader, compiler, or make injection.
     allowed = ('HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'TERM', 'COLORTERM',
                'DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS',
@@ -127,6 +127,9 @@ def environment(root):
     result.update(test_activity.environment())
     import test_retention
     result.update(test_retention.environment())
+    if scratch:
+        from test_storage import scratch_directory
+        result['TMPDIR'] = str(scratch_directory())
     return result
 
 
@@ -141,7 +144,6 @@ def test_environment(root):
     # screenshots for the per-user quota of a RAM-backed /tmp. tempfile and
     # pytest still create/lock their own private names for concurrent workers.
     # This fixed value cannot be replaced by a caller's TMPDIR/TEMP/TMP.
-    result['TMPDIR'] = '/var/tmp'
     return result
 
 
@@ -153,7 +155,8 @@ def cleanup_environment():
     The coordinator enters through isolated Python and passes locks explicitly.
     """
     caller = pwd.getpwuid(os.getuid())
-    return dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C.UTF-8',
+    from test_storage import scratch_directory
+    return dict(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C.UTF-8', TMPDIR=str(scratch_directory()),
                 HOME=caller.pw_dir, USER=caller.pw_name, LOGNAME=caller.pw_name,
                 PYTHONDONTWRITEBYTECODE='1', PYTHONUNBUFFERED='1')
 
@@ -172,10 +175,11 @@ def confined_file(root, relative):
 
 def prerequisites(root):
     from regression_process import safety_command
+    from test_storage import scratch_descriptors
     print('run-tests: isolated cleanup prerequisites starting', file=sys.stderr, flush=True)
     status = subprocess.run(safety_command(root),
                             cwd=root, env=test_environment(root), check=False,
-                            pass_fds=test_activity.descriptors()).returncode
+                            pass_fds=(*test_activity.descriptors(), *scratch_descriptors())).returncode
     if status:
         raise ValueError('cleanup prerequisites failed; selected operation refused')
 
@@ -232,7 +236,9 @@ def run_host(root, category, argv):
     count = len(command) - command.index('--') - 1
     print(f'run-{category}-tests: starting pytest with {count} validated selection(s)',
           file=sys.stderr, flush=True)
-    os.execve(command[0], command, test_environment(root))
+    from test_storage import scratch_descriptors
+    return subprocess.run(command, env=test_environment(root),
+                          pass_fds=scratch_descriptors(), check=False).returncode
 
 
 def main(argv=None, *, category='unit'):
@@ -248,7 +254,7 @@ def main(argv=None, *, category='unit'):
             if argv[:1] == ['--unattended']:
                 from regression_process import host_run
                 return host_run(root, category, argv[1:])
-            run_host(root, category, argv)
+            return run_host(root, category, argv)
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
         print(f'run-tests: {detail}', file=sys.stderr)

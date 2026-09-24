@@ -89,7 +89,7 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
     assets.mkdir()
     # A generated /tmp/onpc-* parent meets the same public artifact boundary.
     import tempfile
-    with tempfile.TemporaryDirectory(prefix='onpc-transfer-test-') as directory:
+    with tempfile.TemporaryDirectory(prefix='onpc-transfer-test-', dir='/tmp') as directory:
         options = [option, '--artifacts=' + directory]
         plan = runner['preflight'](options)
         assert plan == {'mode': mode, 'artifacts': directory}
@@ -122,7 +122,7 @@ def test_dispatcher_preserves_execution_verification_policy(skip, checkout):
         executable={'path': 'tests/e2e/synthetic.py', 'test_id': 'synthetic-smoke'})
     path.write_text(json.dumps(document))
     import tempfile
-    with tempfile.TemporaryDirectory(prefix='onpc-verification-test-') as directory:
+    with tempfile.TemporaryDirectory(prefix='onpc-verification-test-', dir='/tmp') as directory:
         options = ['--scenario=E2E-001', '--artifacts=' + directory]
         if skip:
             options.append('--skip-backing-verification')
@@ -260,7 +260,7 @@ def test_public_ready_listing_and_installed_dispatcher_share_selection(cli_check
         'E2E-030/parent', 'E2E-042/command-help']
     assert len(listing['excluded_pending_cases']) == 234
     import tempfile
-    with tempfile.TemporaryDirectory(prefix='onpc-ready-test-') as directory:
+    with tempfile.TemporaryDirectory(prefix='onpc-ready-test-', dir='/tmp') as directory:
         command = dispatcher['selection'](ROOT, ['e2e', '--ready', '--artifacts=' + directory])
         plan = runner['preflight'](command[3:])
         assert plan['cases'] == listing['cases']
@@ -304,7 +304,7 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
     # from acquiring the enclosing test run's retention lock.
     aggregate = Mock(side_effect=AssertionError('unexpected aggregate dispatch'))
     monkeypatch.setattr(regression, 'main', aggregate)
-    with tempfile.TemporaryDirectory(prefix='onpc-e2e-command-test-') as directory:
+    with tempfile.TemporaryDirectory(prefix='onpc-e2e-command-test-', dir='/tmp') as directory:
         build = Mock(return_value=SimpleNamespace(returncode=status))
         execute = Mock()
         monkeypatch.setattr(commands.tempfile, 'mkdtemp', lambda **kwargs: directory)
@@ -313,16 +313,16 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
         monkeypatch.setattr(dev_privileges, 'check', Mock())
         result = commands._main(['e2e', '--ready'])
         aggregate.assert_not_called()
-        build.assert_called_once()
-        assert build.call_args.args[0] == [
+        assert build.call_count == (1 if status else 2)
+        assert build.call_args_list[0].args[0] == [
             '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
             '--reuse', '--output', directory]
         if status:
             assert result == status
             execute.assert_not_called()
         else:
-            execute.assert_called_once()
-            assert execute.call_args.args[1] == [
+            execute.assert_not_called()
+            assert build.call_args.args[0] == [
                 '/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
                 'e2e', '--ready', '--artifacts=' + directory]
 

@@ -1110,10 +1110,11 @@ def test_greeter_collection_order_path_is_retired_before_tree_access():
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'symlink', 'regular', 'wrong-owner'])
-def test_public_bus_discovery_is_owned_and_bounded(tmp_path, fault, monkeypatch):
+def test_public_bus_discovery_is_owned_and_bounded(short_runtime, fault, monkeypatch):
     import os
     import socket
     from pathlib import Path
+    tmp_path = short_runtime
     account = SimpleNamespace(pw_uid=os.getuid())
     runtime = tmp_path / str(account.pw_uid)
     directory = runtime

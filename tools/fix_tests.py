@@ -29,12 +29,35 @@ from test_commands import suite_inventory
 DEFAULT_EFFORT = 'high'
 APP_EFFORT = 'high'
 TAIL_BYTES = 128 * 1024
+MAX_LOG_BYTES = 32 * 1024 * 1024
 AGENT_GRACE = 3.0
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
 class Stopped(Exception):
     pass
+
+
+def compact_log(path, *, writer_fd=None):
+    """Bound the repair transcript between owned operations; keep the latest tail."""
+    descriptor = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
+    with os.fdopen(descriptor, 'r+b') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+            raise ValueError('unsafe repair transcript')
+        if info.st_size <= MAX_LOG_BYTES:
+            return
+        stream.seek(-MAX_LOG_BYTES // 2, os.SEEK_END)
+        stream.readline()
+        tail = stream.read()
+        stream.seek(0)
+        stream.write(b'[Earlier transcript expired under the storage limit.]\n' + tail)
+        stream.truncate()
+        stream.flush()
+        if writer_fd is not None:
+            writer = os.fstat(writer_fd)
+            if (writer.st_dev, writer.st_ino) == (info.st_dev, info.st_ino):
+                os.lseek(writer_fd, 0, os.SEEK_END)
 
 
 def atomic(path, value):
@@ -383,6 +406,10 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
         with subprocess.Popen(command, cwd=root, env=environment(), stdin=subprocess.PIPE,
                               pass_fds=(owner,), start_new_session=True) as child:
             status = child.wait()
+        sys.stdout.flush()
+        compact_log(run / 'output', writer_fd=1)
+        if (run / 'last-test.log').exists():
+            compact_log(run / 'last-test.log')
         check_stop()
         return status
 
@@ -489,7 +516,18 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
 
 
 def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()):
-    directory = private_directory(root / 'artifacts/fix-tests')
+    legacy = root / 'artifacts/fix-tests'
+    if (legacy / 'owner').exists():
+        with lock(legacy / 'owner') as owner:
+            if busy(owner):
+                run = current_run(legacy)
+                if run is None:
+                    raise ValueError('active legacy fix-tests owner has no readable run record')
+                if stop:
+                    (run / 'cancel').touch(mode=0o600)
+                return run, False
+    from test_storage import directory as storage_directory
+    directory = storage_directory('fix-tests', root=root)
     with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner:
         fcntl.flock(gate, fcntl.LOCK_EX)
         if busy(owner):
@@ -506,6 +544,9 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
         # Completed, cancelled and abruptly killed runs never block a new run.
         # Keep their logs; neither PID files nor cancel markers grant ownership.
         run = private_directory(directory / uuid.uuid4().hex)
+        import test_retention
+        with test_retention.Store(directory / 'retention').session():
+            test_retention.retain(run)
         fcntl.flock(owner, fcntl.LOCK_EX)
         atomic(directory / 'current.json', {'run': run.name})
         with (run / 'output').open('xb') as output:
@@ -541,6 +582,9 @@ def follow_output(run, stream, dashboard):
             active = busy(owner)
             # A new invocation may already own a newer run after this one ends.
             active = active and current_run(run.parent) == run
+            if output.tell() > os.fstat(output.fileno()).st_size:
+                output.seek(0)
+                decoder.reset()
             data = output.read(65536)
             if data:
                 dashboard.restore_terminal()

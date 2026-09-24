@@ -37,7 +37,8 @@ def main():
     require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT,
             'attachment:checkout')
     os.umask(0o077)
-    directory = Path(tempfile.mkdtemp(prefix='onpc-graphical-attachment-'))
+    from tools.test_retention import allocate
+    directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-graphical-attachment-'))
     commands, ledger = Commands(), runner.RunLedger()
     commands.directory = directory
     source = lease = host_before = None

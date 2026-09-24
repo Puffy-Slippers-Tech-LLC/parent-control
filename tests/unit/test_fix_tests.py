@@ -329,7 +329,7 @@ def test_new_category_failure_has_a_runnable_handoff(tmp_path, monkeypatch):
     monkeypatch.setattr(regression, 'source_identity', lambda _: 'fixed')
     monkeypatch.setattr(regression.Control, 'run', lambda *_args, **_kwargs: 1)
     assert regression.retained_main(tmp_path, selections=[('future-suite', [])]) == 1
-    report, = (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').iterdir()
+    report, = (tmp_path / 'output/test-runs/host/reports').iterdir()
     assert json.loads((report / 'failure.json').read_text())['categories'] == ['future-suite']
 
 
@@ -361,7 +361,7 @@ def test_selected_fail_fast_persists_failure_before_cancelling(tmp_path, monkeyp
     status = regression.retained_main(tmp_path, selections=[('unit', [])], stop_on_error=enabled)
     assert status == (130 if enabled else 1)
     assert observed == [enabled]
-    report, = (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').iterdir()
+    report, = (tmp_path / 'output/test-runs/host/reports').iterdir()
     handoff = json.loads((report / 'failure.json').read_text())
     assert handoff['categories'] == ['unit']
     assert str(report / 'report.md') in handoff['prompt']

@@ -155,6 +155,27 @@ def destination(current, source, uid, action):
     return greeter and original is None
 
 
+def package_digest():
+    """Read the immutable FIX04 package, retaining descriptor/path identity."""
+    path = Path('/var/lib/onpc-e2e-assets/package.deb')
+    require(path.parent.resolve() == path.parent, 'package-parent')
+    parent = path.parent.stat()
+    require(parent.st_uid == 0 and not parent.st_mode & 0o022, 'package-parent')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        before = os.fstat(stream.fileno())
+        require(stat.S_ISREG(before.st_mode) and before.st_uid == 0
+                and before.st_nlink == 1 and not before.st_mode & 0o022,
+                'package-owner')
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        def identity(info):
+            return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
+                    info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        require(identity(os.fstat(stream.fileno())) == identity(before)
+                and identity(path.lstat()) == identity(before), 'package-changed')
+    return digest
+
+
 def execute(binding):
     require(binding in BINDINGS and os.geteuid() == 0, 'binding')
     role, action = BINDINGS[binding]
@@ -188,23 +209,7 @@ def execute(binding):
                 'administrator-authority')
         # Read the FIX04 package as the bound desktop administrator, without
         # installing it or invoking a privileged product helper.
-        path = Path('/var/lib/onpc-e2e-assets/package.deb')
-        require(path.parent.resolve() == path.parent, 'package-parent')
-        parent = path.parent.stat()
-        require(parent.st_uid == 0 and not parent.st_mode & 0o022, 'package-parent')
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-        with os.fdopen(fd, 'rb') as stream:
-            before = os.fstat(stream.fileno())
-            require(stat.S_ISREG(before.st_mode) and before.st_uid == 0
-                    and before.st_nlink == 1 and not before.st_mode & 0o022,
-                    'package-owner')
-            digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-            def identity(info):
-                return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
-                        info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
-            require(identity(os.fstat(stream.fileno())) == identity(before)
-                    and identity(path.lstat()) == identity(before),
-                    'package-changed')
+        digest = package_digest()
         require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
                 'administrator': True, 'package_sha256': digest}

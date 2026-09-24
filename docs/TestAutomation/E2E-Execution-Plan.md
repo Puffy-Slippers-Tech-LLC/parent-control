@@ -19,13 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **005 — [Qualify the shared package command boundary](E2E-Tasks/005-terminal-auth.md)**.
+Next task: **006 — [Perform a customer package operation](E2E-Tasks/006-package-command.md)**.
 
-Remaining: bind and live-qualify the fixed administrator package command and
-bounded completion/notice readback. Reuse 005a's qualified product-free entry,
-verified package staging and administrator session binding; preserve ownership,
-recipient guards, input digests and single-use submission. Installation
-composition remains task 006; case 2 remains pending.
+Remaining: compose and qualify LIFE04's install-only operation using the shared
+administrator command boundary and independent completion/notice readback.
+Task 005 qualified `install-staged-package` in run
+`20260924T215601Z-8f5800a9`, including input refusals, actual final reboot notice,
+private collection, owned cleanup and baseline restoration. Reuse the
+[qualified callables](E2E-Building-Blocks.md#administrator-package-command-and-output)
+from a fresh product-free attempt. Case 2 and update/removal/purge remain pending.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

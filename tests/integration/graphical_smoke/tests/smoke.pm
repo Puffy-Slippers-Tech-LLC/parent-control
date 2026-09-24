@@ -35,6 +35,7 @@ use onpc_flow00 ();
 use onpc_repeated_operations ();
 use onpc_challenges ();
 use onpc_product_free_entry ();
+use onpc_package_authority ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -44,7 +45,8 @@ sub exchange {
     print {$request} encode_json({stage => $stage, screenshot => $shot});
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
-    my $deadline = time + ($stage eq 'setup-detached' ? 1500 : 420);
+    my $deadline = time + ($stage eq 'setup-detached' ? 1500
+        : $stage eq 'package-submitted' ? 780 : 420);
     while (!-f "$stage.reply.json") {
         die 'smoke:controller-timeout' if time >= $deadline;
         sleep 0.1;
@@ -60,6 +62,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{package_authority}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_package_authority::run(\&exchange);
+        return;
+    }
     if ($ready->{product_free_entry}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

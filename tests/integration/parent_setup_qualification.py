@@ -444,6 +444,15 @@ class ProductFreeEntryQualification(ParentJourneyQualification):
             self.checkpoint('phase-started')
 
 
+class PackageAuthorityQualification(ProductFreeEntryQualification):
+    """Same empty-baseline entry, followed by one guarded package operation."""
+
+    @staticmethod
+    def journey(context, progress):
+        from package_authority import PackageAuthorityJourney
+        return PackageAuthorityJourney(context, progress)
+
+
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

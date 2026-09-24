@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import subprocess
 import time
+import re
 
 import pytest
 
@@ -95,14 +96,18 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     from rich.console import Console
     from rich.text import Text
     rendered = Text.from_ansi(output.getvalue())
-    assert rendered.plain.rstrip().endswith(
-        'Task 001 complete.\n- Took 2 sessions.\n- Total launcher sessions: 1')
+    assert re.search(
+        r'Task 001 complete\.\n- Took 2 sessions\.\n'
+        r'- Total launcher sessions: 1\n- Duration: \d+ minutes$',
+        rendered.plain.rstrip())
     assert rendered.plain.count('Task 001 complete.') == 1
+    assert '─' * 40 + '\nTask 001 complete.' in rendered.plain
     assert 'Next session prompt:' not in rendered.plain
     assert 'Task complete' not in rendered.plain
     assert 'Turn complete' not in rendered.plain
     offset = rendered.plain.index('Task 001 complete')
-    assert rendered.get_style_at_offset(Console(), offset).color.get_truecolor().hex == '#008000'
+    style = rendered.get_style_at_offset(Console(), offset)
+    assert style.bold and style.color.get_truecolor().hex == '#008000'
     assert 'Next session prompt:' in (second / 'handoff.txt').read_text()
     invocations = calls(root)
     assert len({call['pid'] for call in invocations}) == 2
@@ -169,6 +174,8 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     rendered = Text.from_ansi(output.getvalue()).plain
     assert 'Task 001 complete.\n- Took 2 sessions.\n- Total launcher sessions: 2' in rendered
     assert 'Task 002 complete.\n- Took 3 sessions.\n- Total launcher sessions: 5' in rendered
+    assert rendered.count('- Duration: ') == 2
+    assert rendered.count('─' * 40 + '\nTask ') == 2
 
 
 @pytest.mark.parametrize('args, sessions, completed, reason', [

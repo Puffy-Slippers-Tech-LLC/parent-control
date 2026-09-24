@@ -9,6 +9,18 @@ import write_e2e as workflow
 from tests.support.write_e2e_fixtures import prepare, reply
 
 
+@pytest.mark.parametrize(('seconds', 'expected'), [
+    (29, '0 minutes'),
+    (30, '1 minute'),
+    (3599, '60 minutes'),
+    (3600, '1 hour 0 minutes'),
+    (5430, '1 hour 31 minutes'),
+    (7200, '2 hours 0 minutes'),
+])
+def test_duration_format(seconds, expected):
+    assert workflow.format_duration(seconds) == expected
+
+
 @pytest.mark.parametrize(('phase', 'attempts', 'summary'), [
     ('implement', 0, 'Writing task code + host validation + first live VM test; close on success, hand off on failure'),
     ('recover', 0, 'Recovering interrupted work + host validation'),

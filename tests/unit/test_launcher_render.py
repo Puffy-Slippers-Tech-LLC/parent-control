@@ -26,6 +26,8 @@ class Terminal(io.StringIO):
         self.resize(width, height)
 
     def resize(self, width, height):
+        if getattr(self, 'size', None) == os.terminal_size((width, height)):
+            return
         self.size = os.terminal_size((width, height))
         self.cells = [[' '] * width for _ in range(height)]
         self.row = self.column = 0
@@ -81,7 +83,7 @@ class Terminal(io.StringIO):
 def terminal(monkeypatch):
     terminal = Terminal()
     monkeypatch.setenv('TERM', 'xterm-256color')
-    monkeypatch.setattr('launcher_render.shutil.get_terminal_size', lambda: terminal.size)
+    monkeypatch.setattr('launcher_render.shutil.get_terminal_size', lambda **kwargs: terminal.size)
     return terminal
 
 
@@ -197,17 +199,125 @@ def test_mouse_scroll_follows_clicked_pane_and_defaults_to_bottom(terminal):
     assert terminal.visible().splitlines()[2:] == initial[2:]
 
 
+def test_bottom_scrollbar_shows_position_and_accepts_track_clicks(terminal):
+    terminal.resize(50, 10)
+    display = LauncherDisplay(terminal)
+    display.update([{'key': 'task', 'lines': ['Task']}], [])
+    display.write(''.join(f'output {index}\n' for index in range(30)))
+    assert terminal.cells[-1][-1] == '█'
+    assert terminal.cells[2][-1] == '░'
+
+    display.handle_input(b'\x1b[<0;50;3M')
+    assert 'output 0' in terminal.visible()
+    assert terminal.cells[2][-1] == '█'
+    assert terminal.cells[-1][-1] == '░'
+
+    display.handle_input(b'\x1b[<0;50;10M')
+    assert 'output 29' in terminal.visible()
+    assert terminal.cells[-1][-1] == '█'
+
+
+@pytest.mark.parametrize('width', [12, 50])
+def test_bottom_scrollbar_stays_at_right_edge_for_different_line_lengths(terminal, width):
+    terminal.resize(width, 10)
+    display = LauncherDisplay(terminal)
+    display.update([{'key': 'task', 'lines': ['Task']}], [])
+    display.write(('short\n\n界界\n' + 'wrapped output ' * 8 + '\n') * 5)
+    for row in terminal.cells[2:]:
+        assert row[-1] in ('░', '█')
+        assert not {'░', '█'}.intersection(row[:-1])
+
+
+def test_scrollbar_thumb_drags_without_jumping_and_stops_on_release(terminal):
+    terminal.resize(50, 10)
+    display = LauncherDisplay(terminal)
+    display.update([{'key': 'task', 'lines': ['Task']}], [])
+    display.write(''.join(f'output {index}\n' for index in range(30)))
+    initial = terminal.visible()
+    # Grab the lower cell of the two-cell thumb without moving the viewport.
+    display.handle_input(b'\x1b[<0;50;10M')
+    assert terminal.visible() == initial
+    # Motion remains captured when the pointer leaves the scrollbar column.
+    for byte in b'\x1b[<32;25;1M':
+        display.handle_input(bytes([byte]))
+    assert ''.join(terminal.cells[2][:-1]).rstrip() == 'output 0'
+    display.handle_input(b'\x1b[<32;25;6M')
+    assert 0 < display.offsets['bottom'] < 22
+    display.handle_input(b'\x1b[<0;25;6m')
+    released = terminal.visible()
+    display.handle_input(b'\x1b[<32;50;10M')
+    assert terminal.visible() == released
+
+    thumb_row = next(index + 1 for index, row in enumerate(terminal.cells) if row[-1] == '█')
+    display.handle_input(f'\x1b[<0;50;{thumb_row}M'.encode())
+    display.handle_input(b'\x1b[<32;50;15M\x1b[<0;50;15m')
+    assert display.offsets['bottom'] == 0
+    display.write('output 30\n')
+    assert 'output 30' in terminal.visible()
+
+
 def test_scrolled_transcript_stays_put_while_output_arrives(terminal):
     terminal.resize(50, 10)
     display = LauncherDisplay(terminal)
     display.update([{'key': 'task', 'lines': ['Task']}], [])
     display.write(''.join(f'output {index}\n' for index in range(30)))
     display.handle_input(b'\x1b[<64;2;8M')
-    visible = terminal.visible()
+    visible = [''.join(row[:-1]) for row in terminal.cells]
     display.write('output 30')
-    assert terminal.visible() == visible
+    assert [''.join(row[:-1]) for row in terminal.cells] == visible
     display.write('\n')
-    assert terminal.visible() == visible
+    assert [''.join(row[:-1]) for row in terminal.cells] == visible
+
+
+def test_scrollback_evicts_old_output_and_clamps_scrolled_view(terminal, monkeypatch):
+    monkeypatch.setattr('launcher_render.SCROLLBACK_LINES', 20)
+    terminal.resize(50, 10)
+    display = LauncherDisplay(terminal)
+    display.write(''.join(f'output {index}\n' for index in range(20)))
+    display.offsets['bottom'] = 1000
+    display.draw()
+    display.write(''.join(f'output {index}\n' for index in range(20, 50)))
+    assert list(display.transcript) == [f'output {index}' for index in range(30, 50)]
+    assert 'output 30' in terminal.visible()
+    assert display.offsets['bottom'] == 11
+    display.offsets['bottom'] = 0
+    display.draw()
+    assert 'output 49' in terminal.visible()
+
+
+def test_partial_and_unsaved_output_have_a_text_budget(terminal, monkeypatch):
+    monkeypatch.setattr('launcher_render.SCROLLBACK_CHARACTERS', 128)
+    display = LauncherDisplay(terminal)
+    for _ in range(30):
+        display.write('old text ' * 4, saved=False)
+        assert len(display.pending) + sum(map(len, display.transcript)) <= 128
+        assert sum(map(len, display.unsaved)) <= 128
+    display.write('newest text', final=True, saved=False)
+    assert not display.pending
+    assert ''.join(display.transcript).endswith('newest text')
+    assert ''.join(display.unsaved).endswith('newest text')
+    assert sum(map(len, display.transcript)) <= 128
+
+
+def test_wrapped_history_is_bounded_after_resize(terminal, monkeypatch):
+    monkeypatch.setattr('launcher_render.SCROLLBACK_LINES', 20)
+    display = LauncherDisplay(terminal)
+    display.write(('long output ' * 12 + '\n') * 20 + 'newest\n')
+    terminal.resize(12, 10)
+    display.draw()
+    rows = display.row_cache['bottom'][1]
+    assert len(rows) == 20
+    assert rows[-1].plain == 'newest'
+    assert 'newest' in terminal.visible()
+
+
+def test_step_history_has_a_text_budget(terminal, monkeypatch):
+    monkeypatch.setattr('launcher_render.SCROLLBACK_CHARACTERS', 128)
+    display = LauncherDisplay(terminal)
+    for index in range(30):
+        display.update([{'key': str(index), 'lines': ['step ' + str(index)] * 10}], [])
+        assert sum(len(line) for lines in display.step_history.values() for line in lines) <= 128
+    assert list(display.step_history)[-1] == '29'
 
 
 @pytest.mark.parametrize('reason', ['success', 'error', 'interrupt'])
@@ -244,8 +354,8 @@ def test_mouse_input_is_not_echoed_and_terminal_modes_are_restored(terminal, mon
                 if reason == 'success':
                     raise
             assert termios.tcgetattr(slave) == original
-            assert '\x1b[?1000h\x1b[?1006h' in terminal.getvalue()
-            assert '\x1b[?1000l\x1b[?1006l' in terminal.getvalue()
+            assert '\x1b[?1002h\x1b[?1006h' in terminal.getvalue()
+            assert '\x1b[?1002l\x1b[?1006l' in terminal.getvalue()
     finally:
         os.close(master)
         os.close(slave)
@@ -260,7 +370,7 @@ def test_mouse_reports_can_arrive_in_fragments_and_scroll_is_bounded(terminal):
         display.handle_input(bytes([byte]))
     assert 'output 26' in terminal.visible() and 'output 29' not in terminal.visible()
     display.handle_input(b'\x1b[<64;2;8M' * 100)
-    assert 'output 0\n' in terminal.visible()
+    assert ''.join(terminal.cells[2][:-1]).rstrip() == 'output 0'
     display.handle_input(b'\x1b[<65;2;8M' * 100)
     assert 'output 29' in terminal.visible()
 

@@ -6,10 +6,15 @@ Tests own scenarios and assertions; helpers own repeated setup, transport and
 cleanup. [Architecture regressions](../unit/test_support_architecture.py) prevent
 helpers and test cases from importing collected case modules.
 
+Temporary storage follows the
+[test storage mandate](../../docs/Mandates/Test-Storage-Mandate.md): use the
+shared allocation helpers, never a producer-selected `/tmp` or custom root.
+
 ## Find an existing helper
 
 | Need | Reuse | Contract |
 | --- | --- | --- |
+| Temporary storage and retained evidence | [test_storage.py](../../tools/test_storage.py), [test_retention.py](../../tools/test_retention.py) | Launchers configure disk scratch for pytest fixtures. Retained evidence uses a registered allocation in its owning journal; short sockets use `short_runtime` or `runtime_directory`. |
 | Checkout paths and script imports | [paths.py](paths.py), [modules.py](modules.py) | Normal imports use `pyproject.toml`'s `pythonpath`. `load_module(name, path)` loads a fresh standalone script with a unique test-only name; failures restore the registry. |
 | Broker configuration and recording adapters | [configuration.py](configuration.py), [broker.py](broker.py) | Fresh mutable state, explicit clocks/callbacks/failures and no OS calls. |
 | Unit orchestration without GTK construction | [objects.py](objects.py) | Bind actual class methods to explicit state instead of copying method source. |

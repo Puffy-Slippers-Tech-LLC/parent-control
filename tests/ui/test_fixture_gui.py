@@ -6,12 +6,13 @@ import subprocess
 from unittest import mock
 
 import pytest
-from dbusmock.testcase import BusType, PrivateDBus
+from dbusmock.testcase import BusType
 
 from tests.e2e.accessible_ui import AccessibleUI, public_automation_id
 from tests.e2e.fixture_ui import FixtureUI
 from tests.fixtures import build_test_applications as fixtures
 from tests.support.automation_ids import audit_owned_controls
+from tests.support.private_dbus import private_bus
 
 pytestmark = pytest.mark.ui
 
@@ -34,7 +35,7 @@ def test_payload_gui_preserves_independent_activity(hermetic_ui_session, gui_pay
     protected = [Path.home() / '.local/share/flatpak', Path('/var/lib/flatpak')]
     before = [path.exists() for path in protected]
     processes = []
-    with mock.patch.dict(os.environ), PrivateDBus(BusType.SYSTEM) as bus:
+    with mock.patch.dict(os.environ), private_bus(BusType.SYSTEM) as bus:
         environment = dict(hermetic_ui_session.environment)
         if kind == 'flatpak':
             environment = fixtures.prepare_flatpak(gui_payload, os.geteuid(), system_bus_address=bus.address)
@@ -48,8 +49,9 @@ def test_payload_gui_preserves_independent_activity(hermetic_ui_session, gui_pay
         if kind == 'snap':
             # Exercise the exact packaged launcher/runtime without a host Snap
             # installation. This does not qualify snapd confinement or launch.
-            environment['SNAP'] = str(gui_payload / 'snap-build')
-            command = [str(gui_payload / 'snap-build/bin/gui')]
+            unpacked = fixtures.unpack_snap(gui_payload, tmp_path / 'snap')
+            environment['SNAP'] = str(unpacked)
+            command = [str(unpacked / 'bin/gui')]
         environment['DBUS_SYSTEM_BUS_ADDRESS'] = bus.address
         environment['NO_AT_BRIDGE'] = '0'
         environment['GTK_A11Y'] = 'atspi'

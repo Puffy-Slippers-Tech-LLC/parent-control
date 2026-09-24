@@ -210,11 +210,14 @@ def test_public_ready_plan_executes_real_callback_and_finalizes_after_lease_exit
 @pytest.mark.parametrize('preparation_fails', [False, True])
 def test_retained_attempt_screens_support_guarded_export(harness, monkeypatch, preparation_fails):
     helper = runpy.run_path(str(ROOT / 'tools/onpc-export-screenshot'))
+    from tools import test_retention
+    monkeypatch.setitem(helper['export'].__globals__, 'CHECKOUT', str(ROOT))
     with ExitStack() as owned:
+        owned.enter_context(test_retention.Store(harness.root / 'retention').session())
         def allocate(**kwargs):
             return owned.enter_context(tempfile.TemporaryDirectory(**kwargs))
         monkeypatch.setattr(execution, 'tempfile', SimpleNamespace(mkdtemp=allocate))
-        # Export has a fixed /tmp scope, independent of the process temp default.
+        # Stored evidence uses the checkout; exported PNGs have explicit /tmp names.
         monkeypatch.setattr(tempfile, 'tempdir', str(harness.root))
         if preparation_fails:
             execution.graphical_backend.check.side_effect = RuntimeError('private-canary')

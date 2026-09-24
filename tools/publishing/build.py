@@ -92,6 +92,9 @@ def check_build(root):
     # of ancestors; keep listing private. Retention audits any leftovers in a
     # user namespace with the caller's subordinate IDs and rotates expired trees.
     scratch = Path(allocate(tempfile.mkdtemp, prefix='onpc-sbuild-scratch-', dir='/var/tmp', mode=0o711))
+    scratch_info = scratch.stat()
+    scratch_record = dict(path=str(scratch), device=scratch_info.st_dev,
+                          inode=scratch_info.st_ino, mode=0o711)
     source = attempt / 'input'
     output = attempt / 'output'
     config_dir = attempt / 'config/sbuild'
@@ -142,4 +145,6 @@ def check_build(root):
     finally:
         report_path.write_text(json.dumps(report, indent=2) + '\n')
         print(f'test-publish: clean build {report["status"]}; evidence: {attempt}', flush=True)
+        from tools.test_retention import remove
+        remove(scratch_record)
     return report

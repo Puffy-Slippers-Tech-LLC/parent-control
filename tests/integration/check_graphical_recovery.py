@@ -12,6 +12,7 @@ import time
 import xml.etree.ElementTree as ET
 
 import system_runner as runner
+from qualification_storage import allocate, recovery_session
 
 
 def recorded_graphics_type(xml):
@@ -28,9 +29,14 @@ def main(*, graphics_type='vnc'):
     runner.require(os.geteuid() == os.getegid() == 0, 'recovery:root-required')
     runner.require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT,
                    'recovery:checkout')
+    with recovery_session():
+        return recover(graphics_type)
+
+
+def recover(graphics_type):
     os.umask(0o077)
     kind = 'graphical' if graphics_type == 'vnc' else 'system'
-    directory = Path(tempfile.mkdtemp(prefix=f'onpc-{kind}-recovery-'))
+    directory = Path(allocate(tempfile.mkdtemp, prefix=f'onpc-{kind}-recovery-'))
     commands = runner.Commands()
     commands.directory = directory
     source = None

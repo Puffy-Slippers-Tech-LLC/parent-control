@@ -4,9 +4,10 @@ import os
 from pathlib import Path
 from unittest import mock
 
-from dbusmock.testcase import BusType, PrivateDBus
+from dbusmock.testcase import BusType
 
 from tests.fixtures import build_test_applications as fixtures
+from tests.support.private_dbus import private_bus
 
 
 def test_flatpak_fixture_installs_launches_and_terminates_with_private_services(tmp_path):
@@ -20,7 +21,7 @@ def test_flatpak_fixture_installs_launches_and_terminates_with_private_services(
     fixtures.build(output)
     fixtures.verify(output)
     # No host services are activated. Restore the address exported by dbusmock.
-    with mock.patch.dict(os.environ), PrivateDBus(BusType.SYSTEM) as bus:
+    with mock.patch.dict(os.environ), private_bus(BusType.SYSTEM) as bus:
         process = fixtures.launch_flatpak(
             output, os.geteuid(), system_bus_address=bus.address)
         try:

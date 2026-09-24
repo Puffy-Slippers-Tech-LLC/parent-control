@@ -26,6 +26,19 @@ settings.load_profile("onpc")
 
 
 @pytest.fixture
+def short_runtime():
+    """Short, promptly removed socket paths within Linux's AF_UNIX limit."""
+    from tools.test_storage import runtime_directory
+
+    with runtime_directory() as path:
+        # Refusal tests may chmod or replace their working directory. Keep the
+        # recorded allocation root private and stable for identity-based cleanup.
+        working = path / 'case'
+        working.mkdir(mode=0o700)
+        yield working
+
+
+@pytest.fixture
 def render_artifacts(request):
     """Allocate images whose lifetime includes test and fixture teardown."""
     from tests.support.ui_artifacts import RenderArtifacts

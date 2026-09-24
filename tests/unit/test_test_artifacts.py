@@ -26,8 +26,11 @@ def artifact(tmp_path):
 
 @pytest.mark.parametrize('name', ['selected-inputs.json', 'test_future.py', 'results.xml',
     'raw.log', 'image.png', 'image.webp', 'recording.webm', 'unknown-format', 'file with spaces'])
-def test_reads_and_exports_any_format_without_changing_source(artifact, name):
+def test_reads_and_exports_any_format_without_changing_source(artifact, name, monkeypatch):
     checkout, original = artifact
+    import test_storage
+    monkeypatch.setattr(test_storage, 'ROOT', checkout)
+    monkeypatch.setitem(HELPER['export'].__globals__, 'CHECKOUT', str(ROOT))
     source = original.with_name(name)
     original.rename(source)
     before = source.stat()
@@ -44,6 +47,7 @@ def test_reads_and_exports_any_format_without_changing_source(artifact, name):
         assert exported.stat().st_uid == exported.parent.stat().st_uid == os.getuid()
         assert exported.stat().st_gid == exported.parent.stat().st_gid == os.getgid()
         assert exported.name == name
+        assert exported.is_relative_to(checkout / 'output/test-runs/host/exports')
         assert source.stat().st_mode == before.st_mode
         assert source.stat().st_mtime_ns == before.st_mtime_ns
     finally:

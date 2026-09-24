@@ -325,7 +325,8 @@ class Dashboard:
 
 class Report:
     def __init__(self, root):
-        parent = root / 'docs/TestAutomation/Evidence/test-all-runs'
+        from test_storage import directory
+        parent = directory('reports', root=root)
         for path in (parent, *parent.parents):
             if path.is_symlink():
                 raise ValueError('report path contains a symlink')
@@ -333,8 +334,16 @@ class Report:
         name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex[:8]
         self.directory = parent / name
         self.directory.mkdir(mode=0o700)
-        from test_retention import retain
-        retain(self.directory)
+        from test_retention import retain, token, Store
+        if token() is None:
+            # Cleanup-gate reports have no aggregate owner. Their controller
+            # already holds checkout activity ownership for the report's life.
+            # Give these reports their own bounded ring, just like reconnect
+            # transcripts, without adopting fixture recovery authority.
+            with Store(directory('state', root=root) / 'standalone-reports').session():
+                retain(self.directory)
+        else:
+            retain(self.directory)
         self.stream = (self.directory / 'report.md').open('x', encoding='utf-8')
         os.chmod(self.directory / 'report.md', 0o600)
         self.dirty = set()
@@ -712,7 +721,7 @@ class Run:
     def complete_host(self, job, result):
         status, output = result
         if job.key in ('build-a', 'build-b') and status == 0:
-            matches = re.findall(r'^run-tests: output=(/tmp/onpc-test-artifacts-[A-Za-z0-9_-]+)$', output, re.M)
+            matches = re.findall(r'^run-tests: output=(/[^\n]+/onpc-test-artifacts-[A-Za-z0-9_-]+)$', output, re.M)
             if (len(matches) != 1 or job.key in self.artifacts
                     or matches[0] in self.artifacts.values()):
                 job.item.state = 'Failed'
@@ -951,7 +960,8 @@ def recover_initial_checks(root, state):
         return False
     record = state['paths'][0]
     report = Path(record['path'])
-    if report.parent != root / 'docs/TestAutomation/Evidence/test-all-runs':
+    if report.parent not in (root / 'docs/TestAutomation/Evidence/test-all-runs',
+                             root / 'output/test-runs/host/reports'):
         return False
     try:
         # Verify the registered identity without removing anything. Missing or

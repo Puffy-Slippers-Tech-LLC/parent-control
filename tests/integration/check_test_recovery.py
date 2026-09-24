@@ -33,10 +33,15 @@ def main():
     uid = int(os.environ.get('PKEXEC_UID', '0'))
     if uid <= 0:
         raise ValueError('retention: authenticated caller required')
-    checkout_id = hashlib.sha256(str(ROOT).encode()).hexdigest()[:16]
-    store = test_retention.Store(Path('/var/tmp') /
-                                f'onpc-test-retention-root-{uid}-{checkout_id}')
+    from test_storage import privileged_state
+    store = test_retention.Store(privileged_state(uid))
     store.reconcile(lambda: reconcile_vm(ROOT))
+    # Rotate eligible completed evidence before the aggregate's RAM admission.
+    with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+        with store.locked(fd, 'writer.lock'):
+            state = store.read(fd)
+            if state is not None and state['finished']:
+                store.prune(fd, state, keep=2)
     print('Test recovery: VM and privileged storage are ready.', flush=True)
     return 0
 

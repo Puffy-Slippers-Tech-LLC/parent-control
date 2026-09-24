@@ -611,8 +611,8 @@ def test_report_initialization_failure_exposes_cause(tmp_path, monkeypatch, caps
 def test_report_rejects_symlinked_parent(tmp_path):
     outside = tmp_path / 'outside'
     outside.mkdir()
-    (tmp_path / 'docs').symlink_to(outside, target_is_directory=True)
-    with pytest.raises(ValueError, match='report path contains a symlink'):
+    (tmp_path / 'output').symlink_to(outside, target_is_directory=True)
+    with pytest.raises(OSError):
         regression.Report(tmp_path)
     assert not list(outside.iterdir())
 

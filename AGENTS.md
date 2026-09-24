@@ -113,6 +113,9 @@ Read the [VM mandate](docs/Mandates/VM-Mandate.MD) only when doing VM operations
 
 ## Tests and artifacts
 
+- Read the [test storage mandate](docs/Mandates/Test-Storage-Mandate.md) when
+  creating or changing test storage. Use its shared allocation helpers; tests
+  must not choose `/tmp` or hardcode their own temporary storage root.
 - Discover suites and their exact routes with `tools/run-tests --list` and
   `tools/run-tests --help`. Choose coverage from the change and its regression
   risk first, then use `tools/run-tests` for the selected scope: `ui` for UI-only

@@ -5,7 +5,8 @@ from pathlib import Path
 import sys
 from check_graphical_smoke import main as smoke
 
-ASSETS = Path('/tmp/onpc-parent-setup-input')
+from tools.test_storage import named_input
+ASSETS = named_input()
 
 
 def main():

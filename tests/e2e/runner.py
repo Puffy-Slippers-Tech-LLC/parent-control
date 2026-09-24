@@ -87,12 +87,14 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
 
 
 def validate_artifact_path(path):
+    storage = ROOT / 'output/test-runs'
     if path is None:
         raise ValueError('e2e:artifacts-required')
     if (not path.is_absolute() or '..' in path.parts
             or not any(path.is_relative_to(base) and len(path.parts) > len(base.parts)
                        and re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', path.parts[len(base.parts)])
-                       for base in (Path('/tmp'), Path('/var/tmp')))
+                       for base in (Path('/tmp'), Path('/var/tmp'), storage / 'host/allocations',
+                                    storage / 'privileged/allocations'))
             or any(part.is_symlink() for part in (path, *path.parents))):
         raise ValueError('e2e:invalid-artifact-directory')
 

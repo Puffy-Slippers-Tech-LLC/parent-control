@@ -98,7 +98,7 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path):
     import check_e2e_kiosk_entry as check
     from parent_setup_qualification import KioskEntryQualification
 
-    assert check.ASSETS == Path('/tmp/onpc-parent-setup-input')
+    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     context = SimpleNamespace(directory=tmp_path)
     KioskEntryQualification.journey(context, lambda *_: None)
     assert context.installed_snapshot == 'onpc-v1.1'

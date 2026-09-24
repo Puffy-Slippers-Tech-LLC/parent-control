@@ -165,7 +165,9 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         parts = artifact.parts
         if ('..' in parts or not any(artifact.is_relative_to(base) and
                 len(parts) > len(base.parts) and re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', parts[len(base.parts)])
-                for base in (Path('/tmp'), Path('/var/tmp'))) or
+                for base in (Path('/tmp'), Path('/var/tmp'),
+                             root / 'output/test-runs/host/allocations',
+                             root / 'output/test-runs/privileged/allocations')) or
                 any(p.is_symlink() for p in (artifact, *artifact.parents))):
             raise ValueError('test-runner:invalid-artifact-directory')
         command += ['--' + option.replace('_', '-'), str(artifact)]
@@ -219,12 +221,15 @@ def run(root, argv, caller):
             print('test-runner: cleanup prerequisites passed; selected operation starting', flush=True)
             environment.update(PKEXEC_UID=str(caller.pw_uid), HOME='/root')
             import test_retention
-            checkout_id = hashlib.sha256(str(root).encode()).hexdigest()[:16]
-            store = test_retention.Store(Path('/var/tmp') /
-                f'onpc-test-retention-root-{caller.pw_uid}-{checkout_id}')
+            from test_storage import privileged_state, scratch_directory
+            store = test_retention.Store(privileged_state(caller.pw_uid))
+            environment['TMPDIR'] = str(scratch_directory())
+            recovery = argv[0] == 'integration' and argv[1].removesuffix('.py') in (
+                'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery', 'check_tmp_storage',
+                'check_tmp_storage_cleanup', 'check_storage_migration')
             context = (store.session(run=retention_run, guard=lambda: retention_guard(root),
                                      preserve_completed=test_retention.legacy_system_evidence)
-                       if retention_run else nullcontext())
+                       if not recovery else nullcontext())
             with context:
                 environment.update(test_retention.environment())
                 return control.run(command, cwd=root, env=environment)
@@ -257,7 +262,20 @@ def run(root, argv, caller):
     # Preserve pkexec's authenticated graphical-caller identity for the VM runner.
     environment['PKEXEC_UID'] = str(caller.pw_uid)
     environment['HOME'] = '/root'
-    result = subprocess.run(command, cwd=root, env=environment, check=False)
+    from test_storage import scratch_directory, scratch_descriptors, privileged_state
+    import test_retention
+    environment['TMPDIR'] = str(scratch_directory())
+    recovery = argv[0] == 'integration' and argv[1].removesuffix('.py') in (
+        'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery', 'check_tmp_storage',
+        'check_tmp_storage_cleanup', 'check_storage_migration')
+    context = (test_retention.Store(privileged_state(caller.pw_uid)).session(
+        guard=lambda: retention_guard(root))
+        if argv[0] in ('integration', 'system', 'e2e', 'appsnapshot') and not recovery
+        else nullcontext())
+    with context:
+        environment.update(test_retention.environment())
+        result = subprocess.run(command, cwd=root, env=environment,
+                                pass_fds=scratch_descriptors(), check=False)
     print(f'test-runner: selected test finished (status={result.returncode})', flush=True)
     return result.returncode
 

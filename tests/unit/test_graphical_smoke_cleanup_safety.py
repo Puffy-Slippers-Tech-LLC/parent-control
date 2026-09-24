@@ -252,6 +252,7 @@ def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
             patch.object(smoke.runner.baseline.guest_contract, 'CHECKOUT', smoke.ROOT), \
             patch.object(smoke.os, 'umask'), patch.object(smoke.signal, 'signal'), \
             patch.object(smoke.tempfile, 'mkdtemp', return_value=str(tmp_path)), \
+            patch.object(smoke, 'allocate', side_effect=lambda factory, **kw: factory(**kw)), \
             patch.object(smoke, 'inputs', return_value={}), \
             patch.object(smoke.graphical_backend, 'check', return_value={}), \
             patch.object(smoke, 'schedule_preflight'), \

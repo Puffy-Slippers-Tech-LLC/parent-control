@@ -160,7 +160,8 @@ def application(feeds=None):
 
 def run_viewer():
     """Keep native GTK diagnostics out of the launching terminal's live UI."""
-    directory = Path(tempfile.mkdtemp(prefix='onpc-ui-viewer-', dir='/var/tmp'))
+    from test_retention import allocate
+    directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-ui-viewer-'))
     log_path = directory / 'viewer.log'
     print(f'UI viewer diagnostics: {log_path}', flush=True)
     # GTK writes directly to fd 2; redirecting Python's sys.stderr is insufficient.

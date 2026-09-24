@@ -69,7 +69,9 @@ class TestApplicationFixtures(unittest.TestCase):
             self.assertIn('confinement: strict', metadata)
             self.assertIn('base: core26', metadata)
             self.assertIn('desktop-legacy', metadata)
-            runtime = output / 'flatpak-runtime-build/usr'
+            for name in ('flatpak-runtime-build', 'flatpak-app-build', 'snap-build'):
+                self.assertFalse((output / name).exists())
+            runtime = fixtures.unpack_snap(output, Path(temporary) / 'snap') / 'usr'
             self.assertTrue((runtime / 'bin/python3').is_file())
             self.assertTrue((runtime / 'share/X11/xkb/rules/evdev').is_file())
             self.assertTrue(list(runtime.rglob('Gtk-4.0.typelib')))

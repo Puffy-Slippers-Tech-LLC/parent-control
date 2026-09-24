@@ -915,6 +915,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or kiosk_eligible_choices or request_choices):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
+                    staged = directory / 'input'
                 else:
                     (directory / 'input').mkdir(mode=0o700)
                     (directory / 'input/selected-inputs.json').write_text(json.dumps(result['inputs_sha256'], sort_keys=True))

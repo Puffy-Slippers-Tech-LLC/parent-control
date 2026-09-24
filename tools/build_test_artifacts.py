@@ -40,9 +40,11 @@ def _log(stage: str, outcome: str, **fields: str) -> None:
 
 
 def _run(command: list[str], *, cwd: Path | None = None, environment: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    from tools.test_storage import scratch_descriptors
     try:
         return subprocess.run(command, cwd=cwd, env=environment, check=True, text=True,
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              pass_fds=scratch_descriptors())
     except (OSError, subprocess.CalledProcessError) as error:
         if isinstance(error, subprocess.CalledProcessError):
             diagnostic = ((error.stdout or "") + "\n" + (error.stderr or "")).strip().splitlines()
@@ -61,7 +63,8 @@ def _sha256(path: Path) -> str:
 
 def _require_empty_output(output: Path) -> Path:
     resolved = output.resolve(strict=False)
-    if resolved == REPOSITORY or REPOSITORY in resolved.parents:
+    if ((resolved == REPOSITORY or REPOSITORY in resolved.parents)
+            and not resolved.is_relative_to(REPOSITORY / 'output/test-runs')):
         raise ArtifactError("artifact output must be outside the source checkout")
     if resolved.exists():
         if not resolved.is_dir() or any(resolved.iterdir()):
@@ -163,7 +166,8 @@ def build(output: Path, *, reuse: dict[str, Path] | None = None) -> Path:
     source_digest = package_inputs.digest(REPOSITORY, source_paths)
     metadata = _metadata(source_paths, source_digest)
     _log("build", "started", revision=metadata["source"]["revision"][:12])
-    with tempfile.TemporaryDirectory(prefix="onpc-package-build-") as temporary_name:
+    from tools.test_storage import scratch_directory
+    with tempfile.TemporaryDirectory(prefix="onpc-package-build-", dir=scratch_directory()) as temporary_name:
         temporary = Path(temporary_name)
         # Stable, private build settings; caller desktop/terminal/home settings
         # cannot affect either artifacts or their reuse identity.

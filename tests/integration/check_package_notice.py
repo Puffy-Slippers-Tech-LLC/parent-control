@@ -138,9 +138,8 @@ def main():
     require(os.geteuid() == os.getegid() == 0, 'package-notice:root-required')
     require(Path.cwd() == ROOT, 'package-notice:checkout')
     os.umask(0o077)
-    # /tmp is commonly nodev; a real chroot needs a working /dev/null.
-    # /var/tmp/onpc-* is also a documented private test-artifact root.
-    directory = Path(tempfile.mkdtemp(prefix='onpc-package-notice-', dir='/var/tmp'))
+    from tools.test_retention import allocate
+    directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-package-notice-'))
     commands = Commands()
     commands.directory = directory
     result = {'outcome': 'failed', 'evidence_directory': str(directory), 'checks': []}

@@ -112,7 +112,7 @@ def test_selected_serial_summary_counts_timing_evidence_and_failure(tmp_path, mo
     assert 'Ready E2E scenarios' not in terminal
     assert 'raw child diagnostic' not in terminal
     assert commands[0][1:] == ['unit', '--unattended', '-k', 'chosen', '-x']
-    report_dir, = (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').iterdir()
+    report_dir, = (tmp_path / 'output/test-runs/host/reports').iterdir()
     progress = json.loads((report_dir / 'progress.json').read_text())
     assert [item['name'] for item in progress] == ['Unit and contracts', 'Static checks']
     assert progress[0]['total'] == progress[0]['done'] == 2
@@ -205,7 +205,7 @@ def test_vm_only_summary_counts_scenarios(tmp_path, monkeypatch, capsys, source_
     if failure is None:
         assert f'Ready E2E scenarios - 100% ({count}/{count})' in output
         assert f'Overall - 100% ({count}/{count})' in output
-    report_dir, = (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').iterdir()
+    report_dir, = (tmp_path / 'output/test-runs/host/reports').iterdir()
     item, = json.loads((report_dir / 'progress.json').read_text())
     assert item['total'] == count
     assert item['done'] == len(completed)
@@ -255,7 +255,7 @@ def test_focused_system_report_counts_real_controller_inventory_and_completion(
     terminal = regression.Dashboard.ANSI.sub('', capsys.readouterr().out)
     assert 'Installed-system tests - 100% (1/1)' in terminal
     assert '(1/?)' not in terminal
-    report_dir, = (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').iterdir()
+    report_dir, = (tmp_path / 'output/test-runs/host/reports').iterdir()
     item, = json.loads((report_dir / 'progress.json').read_text())
     assert item['total'] == item['done'] == 1
     assert item['state'] == ('Passed' if status == 0 else 'Failed')

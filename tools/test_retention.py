@@ -16,9 +16,11 @@ import stat
 import subprocess
 import sys
 import uuid
+import tempfile
 
 VARIABLE = 'ONPC_TEST_RETENTION'
 RUNS_TO_KEEP = 3
+MAX_RETAINED_BYTES = 4 * 1024 ** 3
 _locks = set()
 
 
@@ -114,6 +116,7 @@ class Store:
                     os.fsync(fd)
                 state['finished'] = True
                 self.save(fd, state)
+                self.prune(fd, state)
                 print('Recovered idle test retention; previous evidence retained.', flush=True)
                 return True
 
@@ -182,6 +185,39 @@ class Store:
         os.replace('current.tmp', name, src_dir_fd=fd, dst_dir_fd=fd)
         os.fsync(fd)
 
+    def prune(self, fd, state, *, keep=RUNS_TO_KEEP):
+        """Bound completed evidence by count and allocated bytes, under ownership.
+
+        Never evict the current run. A single oversized current run refuses new
+        work until explicitly addressed, instead of silently losing evidence.
+        """
+        entries = [*state['history'], state]
+        allocations = latest_allocations(entries)
+        sizes = [0] * len(entries)
+        for index, record in allocations:
+            remove(record, validate_only=True)
+            sizes[index] += allocation_bytes(record)
+        expire = max(0, len(entries) - keep)
+        while sum(sizes[expire:]) > MAX_RETAINED_BYTES and expire < len(entries) - 1:
+            expire += 1
+        for index, record in allocations:
+            if index < expire:
+                remove(record)
+        state['history'] = state['history'][expire:]
+        self.save(fd, state)
+        # Archives are small recovery receipts, not a second retention queue.
+        live = {entry['run'] for entry in [*state['history'], state]}
+        for name in os.listdir(fd):
+            import re
+            match = re.fullmatch(r'(?:recovered|interrupted)-([0-9a-f]{32})\.(json|marker)', name)
+            if match and match[1] not in live:
+                info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                private(info, regular=True)
+                os.unlink(name, dir_fd=fd)
+        if sizes[-1] > MAX_RETAINED_BYTES:
+            raise ValueError('retention: current run exceeds 4 GiB storage budget; '
+                             'evidence preserved; cleanup required before new work')
+
     @contextmanager
     def session(self, *, run=None, guard=None, recover=None, preserve_completed=None):
         if not self.path.is_absolute() or '..' in self.path.parts:
@@ -199,28 +235,26 @@ class Store:
                 if (state and state['finished'] and preserve_completed is not None
                         and 'recovery-required' not in os.listdir(fd)
                         and preserve_completed(state)):
-                    # Preserve legacy evidence outside rotation. Never rewrite
-                    # its ownership records or delete a mismatched allocation.
-                    self.save(fd, state, name=f'preserved-{uuid.UUID(hex=state["run"]).hex}.json')
-                    state = None
+                    raise ValueError('retention: legacy evidence requires explicit storage migration')
                 if state and not state['finished']:
                     if ('recovery-required' in os.listdir(fd) or recover is None
                             or not recover(state)):
                         raise ValueError('retention: previous owner did not finish; preserve evidence for recovery')
-                    # Recovery never calls deletion or labels the old owner
-                    # finished. Pin its entire journal, including older evidence,
-                    # outside normal rotation before committing a fresh owner.
+                    # The caller qualified recovery. Keep its receipt and
+                    # evidence in the same bounded rotation as completed runs.
                     self.save(fd, state, name=f'interrupted-{uuid.UUID(hex=state["run"]).hex}.json')
-                    state = None
+                    state['finished'] = True
                 if state and state['run'] != run:
                     if any(entry['run'] == run for entry in state['history']):
                         raise ValueError('retention: an older run cannot resume after a newer owner')
+                    # Check the previous current run before making it eligible
+                    # for eviction. An oversized run must remain the owner until
+                    # its evidence has been explicitly reduced or removed.
+                    self.prune(fd, state)
                     history = state['history'] + [dict(run=state['run'], paths=state['paths'])]
-                    # A late refusal (for example an inaccessible sbuild
-                    # chroot) must preserve its earlier report and build log.
+                    # prune audited all identities before any eviction, including
+                    # inaccessible sbuild trees and their earlier reports/logs.
                     allocations = latest_allocations(history)
-                    for _, record in allocations:
-                        remove(record, validate_only=True)
                     for index, record in allocations:
                         if index < len(history) - (RUNS_TO_KEEP - 1):
                             remove(record)
@@ -230,6 +264,7 @@ class Store:
                     state = dict(run=run, finished=False, paths=[], history=[])
                 state['finished'] = False
                 self.save(fd, state)
+                self.prune(fd, state)
             os.environ[VARIABLE] = json.dumps([str(self.path), run])
             try:
                 yield run
@@ -244,6 +279,8 @@ class Store:
                     state = self.read(fd)
                     state['finished'] = 'recovery-required' not in os.listdir(fd)
                     self.save(fd, state)
+                    if state['finished']:
+                        self.prune(fd, state)
 
 
 def environment():
@@ -294,7 +331,7 @@ def token():
     return None if value is None else json.loads(value)[1]
 
 
-def allocate(factory, *, mode=0o700, **options):
+def allocate(factory, *, mode=0o700, runtime=False, **options):
     """Keep cooperative interruption outside allocation + registration.
 
     The factory is the producer's tempfile.mkdtemp, injectable by its tests.
@@ -302,6 +339,22 @@ def allocate(factory, *, mode=0o700, **options):
     """
     if mode not in (0o700, 0o711):
         raise ValueError('retention: invalid allocation mode')
+    if runtime and (options.get('dir') != '/tmp' or mode != 0o700):
+        raise ValueError('retention: runtime allocation requires private /tmp socket storage')
+    parent = options.get('dir')
+    if (not runtime and str(options.get('prefix', '')).startswith('onpc-')
+            and (parent is None or os.fspath(parent) in ('/tmp', '/var/tmp'))):
+        if __package__:
+            from .test_storage import directory as storage_directory
+        else:
+            from test_storage import directory as storage_directory
+        options['dir'] = str(storage_directory('sbuild' if mode == 0o711 else 'allocations'))
+        if VARIABLE not in os.environ and mode == 0o700:
+            if __package__:
+                from .test_storage import scratch_directory
+            else:
+                from test_storage import scratch_directory
+            options['dir'] = str(scratch_directory())
     if VARIABLE not in os.environ:
         path = factory(**options)
         if mode != 0o700:
@@ -414,12 +467,43 @@ def remove(record, *, validate_only=False):
 
 def sbuild_scratch(record):
     path = Path(record['path'])
-    return (path.parent == Path('/var/tmp')
+    return ((path.parent == Path('/var/tmp') or
+             path.parent == Path(__file__).resolve().parents[1] / 'output/test-runs/host/sbuild')
             and path.name.startswith('onpc-sbuild-scratch-')
             and record.get('mode') == 0o711)
 
 
-def namespace_remove(record, *, validate_only):
+def allocation_bytes(record):
+    """Allocated blocks, with the same pinned-directory/mount boundary as removal."""
+    try:
+        fd = directory(record['path'])
+    except FileNotFoundError:
+        return 0
+    def size(parent):
+        total = 0
+        for name in os.listdir(parent):
+            info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            total += info.st_blocks * 512
+            if stat.S_ISDIR(info.st_mode):
+                child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                try:
+                    if mount_id(child) != mount_id(parent):
+                        raise ValueError('retention: mounted storage is not disposable')
+                    total += size(child)
+                finally:
+                    os.close(child)
+        return total
+    try:
+        return os.fstat(fd).st_blocks * 512 + size(fd)
+    except PermissionError:
+        if not sbuild_scratch(record):
+            raise
+        return namespace_remove(record, validate_only=True, measure=True)
+    finally:
+        os.close(fd)
+
+
+def namespace_remove(record, *, validate_only, measure=False):
     # Map only the caller and its configured subordinate IDs, never host root.
     # Identity mapping keeps the complete subordinate range (map-auto plus
     # map-root-user drops one ID). No mount namespace: bind mounts remain visible
@@ -427,22 +511,26 @@ def namespace_remove(record, *, validate_only):
     command = ['/usr/bin/unshare', '--user', '--map-users=subids',
                '--map-groups=subids', '--map-root-user', '--',
                '/usr/bin/python3', '-I', '-B', str(Path(__file__).resolve()),
-               '--sbuild-retention', 'inspect' if validate_only else 'remove']
+               '--sbuild-retention', 'measure' if measure else 'inspect' if validate_only else 'remove']
     try:
         result = subprocess.run(command, input=json.dumps(record), text=True,
                                 cwd='/', env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
                                               'LANG': 'C.UTF-8'},
-                                pass_fds=tuple(_locks), timeout=300, check=False)
+                                pass_fds=tuple(_locks), timeout=300, check=False,
+                                **({'capture_output': True} if measure else {}))
     except subprocess.TimeoutExpired as error:
         raise ValueError(f'retention: sbuild namespace operation timed out for {record["path"]!r}; '
                          'preserve the journal and evidence') from error
     if result.returncode:
         raise ValueError(f'retention: sbuild namespace operation failed for {record["path"]!r} '
                          f'(status={result.returncode}); preserve the journal and evidence')
+    if measure:
+        return int(result.stdout.strip())
 
 
 def namespace_main(argv):
-    if (argv not in (['--sbuild-retention', 'inspect'], ['--sbuild-retention', 'remove'])
+    if (argv not in (['--sbuild-retention', 'inspect'], ['--sbuild-retention', 'remove'],
+                    ['--sbuild-retention', 'measure'])
             or os.geteuid() != 0):
         raise ValueError('retention: invalid sbuild namespace invocation')
     # Refuse invocation as real host root; this worker is only for caller-owned
@@ -454,7 +542,9 @@ def namespace_main(argv):
     record = json.load(sys.stdin)
     if not sbuild_scratch(record):
         raise ValueError('retention: invalid sbuild scratch record')
-    remove(record, validate_only=argv[1] == 'inspect')
+    remove(record, validate_only=argv[1] != 'remove')
+    if argv[1] == 'measure':
+        print(allocation_bytes(record))
 
 
 def check_tree(fd, device):

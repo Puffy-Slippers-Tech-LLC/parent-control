@@ -86,6 +86,8 @@ def test_idle_reconciliation_preserves_evidence_and_refuses_unsafe_recovery(tmp_
 
 @pytest.mark.parametrize('status', [0, 1])
 def test_unattended_integration_runs_safety_before_recovery(tmp_path, monkeypatch, capsys, status):
+    import test_storage
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'privileged-state')
     dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
     dispatcher['run'].__globals__['selection'] = lambda *args: ['recovery']
     commands = []
@@ -145,7 +147,7 @@ def test_launcher_reconciles_only_idle_pending_storage(tmp_path, monkeypatch, fa
     import test_retention as live_retention
     import regression_process
     monkeypatch.setattr(test_recovery.test_activity, 'descriptors', lambda: (123,))
-    store = live_retention.Store(tmp_path / 'artifacts/test-retention')
+    store = live_retention.Store(tmp_path / 'output/test-runs/host/state/retention')
     with store.session():
         live_retention.preserve_for_recovery()
     calls = []
@@ -216,7 +218,7 @@ def test_host_leaves_pending_vm_recovery_untouched(tmp_path, monkeypatch, catego
     import test_recovery
     import test_retention as live_retention
     monkeypatch.setattr(test_recovery.test_activity, 'descriptors', lambda: (123,))
-    store = live_retention.Store(tmp_path / 'artifacts/test-retention')
+    store = live_retention.Store(tmp_path / 'output/test-runs/host/state/retention')
     with store.session():
         live_retention.preserve_for_recovery()
     original = (store.path / 'current.json').read_bytes()
@@ -420,7 +422,7 @@ def test_unfinished_journal_stops_repetition_before_allocating(tmp_path):
     assert len(list(tmp_path.iterdir())) == 2
 
 
-def test_recovery_pins_entire_unfinished_journal_outside_rotation(tmp_path):
+def test_successful_recovery_returns_entire_journal_to_bounded_rotation(tmp_path):
     store = retention.Store(tmp_path / 'state')
     with store.session():
         older = allocated(tmp_path, 'older')
@@ -434,8 +436,8 @@ def test_recovery_pins_entire_unfinished_journal_outside_rotation(tmp_path):
         with store.session(recover=lambda candidate: candidate == state):
             pass
     archived = store.path / f'interrupted-{state["run"]}.json'
-    assert json.loads(archived.read_text()) == state
-    assert older.exists() and interrupted.exists()
+    assert not archived.exists()
+    assert not older.exists() and not interrupted.exists()
 
 
 def test_recovery_callback_cannot_override_cleanup_failure(tmp_path):
@@ -693,11 +695,12 @@ def test_namespace_worker_refuses_unmapped_root_and_out_of_scope_records(
 
 def test_inaccessible_sbuild_scratch_stops_growth(tmp_path):
     store = retention.Store(tmp_path / 'state')
-    with store.session():
-        evidence = allocated(tmp_path, 'build-evidence')
-        path = Path(retention.allocate(tempfile.mkdtemp, dir=tmp_path, mode=0o711))
-        child = path / 'unproven-chroot-cleanup'
-        child.mkdir(mode=0)
+    with pytest.raises(PermissionError):
+        with store.session():
+            evidence = allocated(tmp_path, 'build-evidence')
+            path = Path(retention.allocate(tempfile.mkdtemp, dir=tmp_path, mode=0o711))
+            child = path / 'unproven-chroot-cleanup'
+            child.mkdir(mode=0)
     try:
         for _ in range(3):
             with pytest.raises(PermissionError):
@@ -787,6 +790,8 @@ def test_root_replacement_during_deletion_never_erases_replacement(tmp_path, mon
 
 
 def test_dispatcher_groups_privileged_categories_by_aggregate(tmp_path, monkeypatch):
+    import test_storage
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'root-state')
     import test_retention as dispatcher_retention
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
@@ -861,12 +866,12 @@ def test_legacy_system_export_is_preserved_only_after_identity_audit(tmp_path, f
                     pytest.fail('unsafe legacy journal accepted')
             assert json.loads(journal.read_text()) == old
         else:
-            with store.session(preserve_completed=retention.legacy_system_evidence):
-                assert json.loads(journal.read_text())['history'] == []
-            assert json.loads((store.path / f'preserved-{old_run}.json').read_text()) == old
             for _ in range(4):
-                with store.session(preserve_completed=retention.legacy_system_evidence):
-                    pass
+                with pytest.raises(ValueError, match='explicit storage migration'):
+                    with store.session(preserve_completed=retention.legacy_system_evidence):
+                        pytest.fail('unbounded legacy archive accepted')
+                assert json.loads(journal.read_text()) == old
+                assert not list(store.path.glob('preserved-*.json'))
         assert (path / 'result.log').read_text() == 'retained evidence'
 
 

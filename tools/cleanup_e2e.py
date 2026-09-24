@@ -19,8 +19,8 @@ def main(argv=None):
             status = cleanup(root)
         if status:
             return status
-        if (root / 'artifacts/test-retention-host').exists():
-            with test_activity.activity(root, host_only=True):
+        with test_activity.activity(root, host_only=True):
+            if test_activity.retention_path(root).exists():
                 # VM recovery and its cleanup gate passed above. Repeating that
                 # gate under host ownership would contend with this very lock.
                 test_retention.Store(test_activity.retention_path(root)).reconcile(lambda: None)

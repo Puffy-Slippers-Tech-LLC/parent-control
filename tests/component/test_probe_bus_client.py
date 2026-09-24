@@ -196,11 +196,11 @@ def test_connection_refusal_finishes_without_exposing_address(tmp_path, caplog):
         finish_close(client)
 
 
-def test_stalled_authentication_is_cancelled_and_socket_is_closed(tmp_path, monkeypatch):
+def test_stalled_authentication_is_cancelled_and_socket_is_closed(short_runtime, monkeypatch):
     # Explicitly own the listening/accepted sockets; never discover a process.
     from oh_no_parent_control import execution_probe
     monkeypatch.setattr(execution_probe, "CLEANUP_SECONDS", 0.15)
-    address = tmp_path / "silent.sock"
+    address = short_runtime / "silent.sock"
     client = ProbeBusClient()
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
         listener.bind(str(address))

@@ -67,7 +67,7 @@ def test_fixed_selector_uses_separate_fresh_attempts_and_owned_cleanup_route():
         assert len(calls) == 1
     finally:
         check.smoke = original
-    assert check.ASSETS == Path('/tmp/onpc-parent-setup-input')
+    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
 
 
 @pytest.mark.parametrize('role,expected', [

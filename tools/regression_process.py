@@ -140,7 +140,8 @@ class Control:
             def output(data):
                 sys.stdout.buffer.write(data)
                 sys.stdout.buffer.flush()
-        kwargs.setdefault('pass_fds', test_activity.descriptors())
+        from test_storage import scratch_descriptors
+        kwargs.setdefault('pass_fds', (*test_activity.descriptors(), *scratch_descriptors()))
         child = subprocess.Popen(command, cwd=cwd, env=env,
                                  stdin=subprocess.PIPE if cooperative else subprocess.DEVNULL,
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

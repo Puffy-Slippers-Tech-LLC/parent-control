@@ -16,8 +16,15 @@ import prepare_baseline as host
 
 def receive_probe(directory, commands):
     """Real SCM_RIGHTS from a confined owned fixture; no daemon or VM mutation."""
+    # Evidence paths under the checkout can exceed AF_UNIX's 107-byte limit.
+    # Only this socket needs short runtime storage; register it for recovery too.
+    from tools.test_storage import runtime_directory
+    with runtime_directory(prefix='onpc-fd-') as runtime:
+        return receive_socket(runtime / 'receive.sock', commands)
+
+
+def receive_socket(path, commands):
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
-        path = directory / 'receive.sock'
         listener.bind(str(path))
         listener.listen(1)
         listener.settimeout(5)
@@ -81,7 +88,8 @@ def main():
     require(os.geteuid() == os.getegid() == 0, 'graphics-probe:root-required')
     require(Path.cwd() == host.guest_contract.CHECKOUT, 'graphics-probe:checkout')
     os.umask(0o077)
-    directory = Path(tempfile.mkdtemp(prefix='onpc-graphics-transport-'))
+    from tools.test_retention import allocate
+    directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-graphics-transport-'))
     commands = Commands()
     commands.directory = directory
     result = probe(importlib.import_module('libvirt'))

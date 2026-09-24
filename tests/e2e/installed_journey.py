@@ -394,7 +394,8 @@ class InstalledJourney:
         return matched_screens(self.context.directory, self.plan, self.steps)
 
 
-def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=None):
+def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=None,
+                             journey_type=InstalledJourney):
     """Run a strict customer plan through the existing recorder and worker gate.
 
     Phases describe when each observation belongs; advance_after describes when
@@ -444,7 +445,7 @@ def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=N
         context.credentials.provision(context.lease, context.verified, context.directory,
                                       context.guestfs, context.commands)
         artifact('inputs', 'input-provenance', context.verified.inputs)
-        journey = InstalledJourney(context, progress, plan, actions=actions)
+        journey = journey_type(context, progress, plan, actions=actions)
         worker = context.run_worker(observe=lambda: None, guarded_observe=journey.step,
                                     validate=journey.validate, authenticate=True, timeout=timeout)
         require(worker['shutdown_verified'] is True, plan.prefix + ':shutdown-unverified')

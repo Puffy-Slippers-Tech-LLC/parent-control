@@ -39,6 +39,7 @@ use onpc_product_free_entry ();
 use onpc_package_authority ();
 use onpc_package_install ();
 use onpc_customer_reboot ();
+use onpc_clean_install ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -66,6 +67,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{clean_install}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_clean_install::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{customer_reboot}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

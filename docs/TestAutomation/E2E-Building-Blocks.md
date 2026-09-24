@@ -195,7 +195,7 @@ the affected entry block; that connection metadata supplies no product evidence.
 | --- | --- | --- | --- | --- |
 | GDM08 | A | Observe the selected account label, focused showing password role and hidden account list. This is a nonsecret prompt observation only; it cannot authorize password input and never reads password contents. | `AccessibleUI.greeter_prompt()` uses the scoped semantic GDM adapter to resolve the sole greeter, exact prepared recipient and protected password node while rejecting visible account rows. `check_e2e_gdm_recipient` installed-qualifies the Parent prompt; `GdmProductFreeJourney` / `check_e2e_gdm_product_free` qualifies the same protected Parent prompt on the declared product-free baseline. Focused tests reject wrong/duplicate recipients, missing/duplicate/unfocused/nonempty/unmasked fields and list overlap without traversing or reading password text. | pending; prepared installed and product-free Parent prompts qualified |
 | GDM03 | A | Read the intended GDM recipient's identity and sole showing, enabled, focused, empty masked field with the account list hidden. Read character count only, never password content. | `AccessibleUI.password_recipient(name)` uses the same protected semantic snapshot and reads only `Text` character count. `onpc_gdm::recipient_qualification` obtains two fresh Parent proofs for one challenge; the installed qualification also proves the prepared other-parent recipient and refuses it as Parent. Other accounts and prompt surfaces remain unqualified. | pending; prepared Parent/other-parent bindings qualified |
-| GDM01 | C | Observe the usable greeter and its account list, with no active password prompt. | `AccessibleUI.gdm_nonsecret_account(name)` retains the installed Parent/station cardinality contract for ordinary-account entry. Station entry and `kiosk_gdm_returned` require only the usable station row; locked, absent or differently named parents do not gate station access. Task 024 retains live requalification for that revised station scope. `gdm_product_free_account()` separately requires the declared Parent row and excludes the station from one complete product-free list. `GdmProductFreeJourney` / `check_e2e_gdm_product_free` qualifies two independent product-free list/return cycles; wrong fixture shape, owner, duplicate, stale and list/prompt overlap paths refuse. Other ordinary accounts and surfaces remain unqualified. | pending; prepared installed and product-free Parent list bindings qualified |
+| GDM01 | C | Observe the usable greeter and its account list, with no active password prompt. | `AccessibleUI.gdm_nonsecret_account(name)` retains the installed Parent/station cardinality contract for ordinary-account entry. Station entry and `kiosk_gdm_returned` require only the usable station row; locked, absent or differently named parents do not gate station access. Task 024 retains live requalification for that revised station scope. `gdm_product_free_account()` separately requires the declared Parent row and excludes the station from one complete product-free list. `GdmProductFreeJourney` / `check_e2e_gdm_product_free` qualifies two independent product-free list/return cycles; wrong fixture shape, owner, duplicate, stale and list/prompt overlap paths refuse. Case 2 additionally qualifies the complete fixed personal-account/station read after reboot through `gdm-installed-accounts`; [scope](#clean-installation-journey). Other bindings remain unqualified. | pending; prepared installed/product-free Parent list and case 2 account-set bindings qualified |
 | GDM02 | C | Select a named user on the logon screen. Use UI14's qualified provider navigation, verify focus before Enter, then observe the declared password prompt, retained lock or passwordless station. Do not type a password. | `AccessibleUI.gdm_nonsecret_navigation(name)` retains the installed account/station route. `gdm_product_free_navigation()` separately focuses and freshly verifies Parent on the declared station-free fixture before `onpc_gdm::product_free_qualification` sends one Enter. `check_e2e_gdm_product_free` qualifies two independent Parent entries; installed Parent/other-parent/station bindings remain separately qualified. Other accounts, retained locks and session choices remain unqualified; positional Home/Down calculation stays retired. | pending; prepared installed and product-free Parent bindings qualified |
 | GDM09 | C | Dismiss an already observed GDM password prompt with one Escape and independently observe the account list again. No secret is typed. | `onpc_gdm::product_free_qualification` consumes each scoped prompt proof before one Escape and obtains a fresh `gdm_product_free_account()` returned-list proof; `check_e2e_gdm_product_free` qualifies both independent cycles. The installed qualification separately covers the prepared other-parent and Parent prompts. Retained locks and other prompt surfaces remain unqualified. | pending; prepared installed and product-free Parent bindings qualified |
 | GDM04 | C | Harness safety qualification only: prove that another recipient cannot authorize an intended fixture secret. Never compose this negative exercise into customer sign-in. | `onpc_gdm::recipient_qualification`; wrong-recipient unit regressions. | ready; harness only |
@@ -258,7 +258,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | SEARCH04 | C | Observe the declared search result after scoped provider resolution: a launchable app, or the exact query-specific web suggestion with stable absence of the app launcher and management window. Repository-owned windows retain their IDs. | `AccessibleUI.launchable_result` qualified the unique showing, sensitive Parent result and unrelated-binding refusal in `check_e2e_shell_search_results`. `AccessibleUI.search_absence` qualified the standard-account exact web description and two-second complete launcher/window absence in `check_e2e_shell_search`. [Qualified scope](#search-and-standard-sign-in-contracts). Other apps remain pending. | pending; Parent launchable and standard unavailable branches ready |
 | SEARCH06 | C | Open Overview, resolve the empty search field by a qualified provider adapter, semantically focus it and independently observe focus before typing the registered app name once. Read back the complete query, then resolve and focus its launchable result. Independently observe result focus and stop before Enter. | `onpc_shell_search::run` and `AccessibleUI.focus_search_result` qualified fresh Parent split-query entry through observed result focus, then dismissal without activation, in `check_e2e_shell_search_results`. The whole-query route passed in case 3 (run `20260922T212944Z-ad23b979`, subject to runner retention). [Qualified scope](#search-and-standard-sign-in-contracts). Other entries and queries remain pending. | pending; fresh Parent whole/split-query branches ready |
 | SEARCH05 | C | Launch a named app from the app grid and observe its expected opening window. The search route is an explicit argument. | `onpc_parent::open_from_app_grid` composes SEARCH06 and `launch_search_result(journey, proof, expected)`. Both the composed administrator launch and independently supplied `app-grid` management entry passed `check_e2e_parent_search_launch`, with owned window readback, normal close and wrong-entry refusal. Host checks cover wrong/stale proofs, wrong owner/result and uncertain-input non-replay. FIX02's `fixture-requested`→empty commit remains host-checked pending live validation. [Qualified scope](#search-and-standard-sign-in-contracts). | pending; administrator management bindings ready |
-| PARENT01 | C | Invoke `oh-no-parent-control-parent` directly as the active desktop user and independently observe the declared management window or access denial. Mandatory for ordinary Parent setup/reopening; no child is selected implicitly. App-grid discovery tests explicitly use SEARCH05/06. | `onpc_parent::launch` consumes the desktop proof, submits the fixed command through `AccessibleUI.launch_parent_command`, then observes `parent-window` or `management-denied`. `check_e2e_terminal_provider` qualified the fresh standard denial/return binding; complete case 6 requalified that binding, specific denial, management exclusion and desktop return in run `20260923T193956Z-9e1b6eac`. The fresh Parent desktop binding also passed in case 151. No terminal/search input. [Qualified scope](#about-block-contracts). | ready for fresh Parent/standard bindings; other entries pending |
+| PARENT01 | C | Invoke `oh-no-parent-control-parent` directly as the active desktop user and independently observe the declared management window or access denial. Mandatory for ordinary Parent setup/reopening; no child is selected implicitly. App-grid discovery tests explicitly use SEARCH05/06. | `onpc_parent::launch` consumes the desktop proof, submits the fixed command through `AccessibleUI.launch_parent_command`, then observes `parent-window` or `management-denied`. Case 2 qualifies its fresh `reboot-desktop` proof; case 6 requalified the default fresh standard denial/return binding in run `20260924T234847Z-41112953`. The fresh Parent desktop binding also passed in case 151. No terminal/search input. [About scope](#about-block-contracts) and [clean installation](#clean-installation-journey). | ready for fresh Parent/standard and post-reboot Parent bindings; other entries pending |
 | PARENT02 | C | Select a child from Parent's dropdown, verify the intended selected identity and wait for that child's controls. | `onpc_parent::select_child` accepts an explicit opened-list reply and registered child/stage binding, uses UI14, consumes fresh highlight evidence, sends Enter and observes `AccessibleUI.selected_child`. Child/existing/new/returned bindings only. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | PARENT03 | C | Read the current selected child's identity, screen-limit switch, allowance and remaining-time section as a sanitized observation. Do not change selection; disabled allowance controls remain readable. | `AccessibleUI.settings(child)` reads the explicit child, switch and duration-label projection and reveals the remaining-time section. Scenario expectations remain in `parent_discovery.PLAN`, not the adapter. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | PARENT04 | C | Select Screen Limits or App Limits and require that page's named usable controls. | `AccessibleUI.parent_page(child, page)` checks the displayed child, selects one named page, then observes its controls. Reacquire the window after transition and reuse that local root for search/filter reads. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
@@ -302,8 +302,8 @@ reread after navigating away and reopening App Limits.
 in run `20260924T232402Z-75f99b74`: 46 initial Allowed rows and the identical
 independent reread passed, as did both refusals, private collection, owned
 cleanup and baseline restoration. This supplies PARENT12/UI13 capability scope;
-complete E2E-002 case 2, search/filter inputs and policy-edit journeys remain
-pending under their own tasks.
+complete E2E-002 case 2 is qualified [below](#clean-installation-journey).
+Search/filter inputs and policy-edit journeys remain pending under their own tasks.
 
 ### Kiosk, child overlay and the shared request form
 
@@ -1454,7 +1454,7 @@ after-cleanup result is
 `output/test-runs/privileged/allocations/onpc-e2e-evidence-liy0bxsc/event-000016.json`;
 the report is `output/test-runs/host/reports/20260924T203125Z-f94d7c37/report.md`.
 Package execution/notice and installation composition have their separate
-qualifications below; case 2 remains pending. This qualification
+qualifications below; complete case 2 is qualified [separately](#clean-installation-journey). This qualification
 supplies no complete-scenario credit.
 
 ### Administrator package command and output
@@ -1488,7 +1488,8 @@ and lease completion passed. The durable after-cleanup result is
 the report is `output/test-runs/host/reports/20260924T215601Z-8f5800a9/report.md`.
 This capability qualification records its three assertions; the envelope's
 complete-product result is `not-run`. LIFE04 installation composition is qualified
-separately below; other package operations and complete case 2 remain pending.
+separately below; other package operations remain pending. Complete case 2 uses
+the [continuous customer journey](#clean-installation-journey).
 
 ### Customer package install composition
 
@@ -1509,7 +1510,7 @@ restoration. The durable after-cleanup record is
 the report is `output/test-runs/host/reports/20260924T221715Z-9ebb5329/report.md`.
 Its three capability assertions passed; the complete-product result remains
 `not-run`. Reboot continuity is qualified below; update/remove/reinstall/purge
-and complete case 2 remain unfinished.
+remain unfinished; complete case 2 is qualified [below](#clean-installation-journey).
 
 ### Customer reboot continuity
 
@@ -1541,8 +1542,32 @@ the report is `output/test-runs/host/reports/20260924T223309Z-4d98a4b2/report.md
 Host coverage is in `test_customer_reboot_cleanup_safety.py`,
 `test_installed_journey_cleanup_safety.py`, `test_vm_transport.py` and the shared
 observation/authentication/worker safety suites. This qualifies the fresh
-install/reboot/administrator-return slice; complete case 2 and other lifecycle
-bindings remain pending, and the complete-product result is `not-run`.
+install/reboot/administrator-return slice; other lifecycle bindings remain
+pending, and this capability's complete-product result is `not-run`.
+
+### Clean installation journey
+
+`tests/e2e/clean_install.py::clean` and `onpc_clean_install::run` compose LIFE04,
+LIFE02, fresh Parent defaults, complete Allowed app rows and station entry/Cancel
+in one product-free attempt. `record_installed_journey` accepts the case's
+`CleanInstallJourney` controller while retaining the shared recorder and cleanup.
+`gdm-installed-accounts` uses the scoped GDM semantic snapshot to require all four
+fixture personal accounts and the station, without unrelated navigation. It
+rejects missing, duplicate, disabled, wrong-owner and incomplete observations.
+`onpc_parent::launch` can consume the fresh `reboot-desktop` proof; its default
+fresh-desktop binding is unchanged. No in-journey snapshot restore occurs.
+
+Complete case 2 passed `tools/run-tests e2e --id '2'` in run
+`20260924T234059Z-27bb3ecf`, including both customer assertions, capture
+reconciliation, collection, owned cleanup and baseline restoration. The attempt
+evidence is `output/test-runs/privileged/allocations/onpc-e2e-evidence-u9fyjec4`.
+The affected case 6 Parent-launch regression passed in
+`20260924T234847Z-41112953` with the same terminal gates. Coverage was regenerated
+after each case. Host refusal/composition coverage is in
+`test_clean_install_cleanup_safety.py`, alongside the shared controller, reboot,
+public accessibility, app-row, inventory and worker tests. This qualifies the
+pinned Ubuntu 26.04 English-GDM fixture route; other lifecycle/provider bindings
+retain their own acceptance requirements.
 
 ### Reachability and result checks
 

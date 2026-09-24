@@ -225,7 +225,8 @@ No step calls a product API, reads private state or invokes a fault control.
 
 ### E2E-002
 
-Implementation status: All cases pending.
+Implementation status: Case 2 passed through `CleanInstallJourney` /
+`onpc_clean_install::run`; see the [qualified composition](E2E-Building-Blocks.md#clean-installation-journey).
 
 **Install the app and begin managing a child.** Cases 2.
 

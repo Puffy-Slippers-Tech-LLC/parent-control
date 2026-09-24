@@ -7,6 +7,7 @@ use onpc_parent ();
 use onpc_gdm ();
 
 sub run {
+    onpc_progress::operation('Installing the product before the planned customer reboot');
     my ($exchange, $declared, $challenges) = @_;
     my @stages = qw(reboot-installed-greeter reboot-parent-focused
         reboot-recipient-qualified reboot-recipient-rechecked reboot-desktop);
@@ -16,7 +17,6 @@ sub run {
         && ref($challenges->{'after-reboot'}) eq 'ARRAY'
         && join('/', @{$challenges->{'after-reboot'}}) eq
             'parent/reboot-recipient-qualified/reboot-recipient-rechecked';
-    onpc_progress::operation('Installing the product before the planned customer reboot');
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'customer-reboot', review => 0);
     $journey->declare_invocations($declared);

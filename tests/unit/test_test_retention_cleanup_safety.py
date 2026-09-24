@@ -20,6 +20,14 @@ import pytest
 from tools import test_retention as retention
 
 
+class SimulatedFailure(ValueError):
+    """Distinguish the fixture's failure from a retention error."""
+
+
+class SimulatedInterrupt(KeyboardInterrupt):
+    """Distinguish the fixture's interrupt from a real test-run interruption."""
+
+
 def allocated(parent, name):
     path = parent / name
     path.mkdir(mode=0o700)
@@ -252,10 +260,10 @@ def test_one_hundred_runs_have_constant_retained_size(repetition_tree, outcome):
                 assert sum(p.stat().st_size for p in entries if p.is_file()) < 256 * 1024
                 shutil.rmtree(disposable)
                 if outcome == 'failure':
-                    raise ValueError('assertion failed')
+                    raise SimulatedFailure('assertion failed')
                 if outcome == 'interrupt':
-                    raise KeyboardInterrupt
-        except (ValueError, KeyboardInterrupt):
+                    raise SimulatedInterrupt
+        except (SimulatedFailure, SimulatedInterrupt):
             if outcome == 'pass':
                 raise
         sizes.append(sum(p.stat().st_size for group in previous for path in group for p in path.iterdir()))

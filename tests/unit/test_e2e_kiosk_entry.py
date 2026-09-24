@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from accessible_ui import EXTERNAL_PROVIDER_CONTRACTS, PRODUCT, UiError
+from accessible_ui import EXTERNAL_PROVIDER_CONTRACTS, UiError
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
+from tests.support.e2e_kiosk import request_form
 from tests.support.paths import ROOT
 from tests.support.perl import run_perl
 from ui_observations import RequestObservation
@@ -120,73 +121,6 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path):
     lease.source.domain.revertToSnapshot.assert_called_once_with(snap, 4)
     lease.source.connection.defineXML.assert_called_once_with('<domain/>')
     lease.guard.assert_called_once_with(off=True)
-
-
-def request_form(*, fault=None):
-    child = Node(
-        'Child account', 'push button', identity='kiosk-child-selector',
-        description='Selected child account: Jordan (Child).',
-        children=[Node('Jordan (Child)', 'label', identity='kiosk-child-selected-1002')],
-    )
-    approver = Node(
-        'Approving parent', 'push button', states=('showing', 'visible'),
-        identity='kiosk-approver-selector',
-        description='Selected approving parent: Casey (Parent).',
-        children=[Node('Casey (Parent)', 'label', identity='kiosk-approver-selected-1010')],
-    )
-    durations = []
-    duration_values = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')
-    for label, value in zip(
-            ('5 minutes', '15 minutes', '30 minutes', '1 hour', '2 hours',
-             '4 hours', 'Rest of the day', 'Custom value'), duration_values):
-        states = ['showing', 'visible']
-        if label == '30 minutes':
-            states.append('pressed')
-        durations.append(Node(
-            'Request ' + label, 'toggle button', states=states,
-            identity=f'kiosk-duration-{value}',
-        ))
-    allow_soft = Node(
-        'Allow soft blocked apps', 'switch', states=('showing', 'visible'),
-        identity='kiosk-soft-apps-toggle',
-    )
-    request = Node(
-        'Request access', 'push button', states=('showing', 'visible'),
-        identity='kiosk-request-submit',
-    )
-    cancel = Node('Cancel request', 'push button', identity='kiosk-request-cancel')
-    notice = Node(
-        'Screen limit is not enabled in Parent App', 'label',
-        identity='kiosk-screen-limit-notice',
-    )
-    children = [child, approver, *durations, allow_soft, request, cancel, notice]
-    if fault == 'wrong-duration':
-        durations[2].states.remove('pressed')
-        durations[1].states.add('pressed')
-    elif fault == 'multiple-durations':
-        durations[1].states.add('pressed')
-    elif fault == 'checked-not-pressed':
-        durations[2].states.remove('pressed')
-        durations[2].states.add('checked')
-    elif fault == 'duration-enabled':
-        durations[2].states.add('sensitive')
-    elif fault == 'request-enabled':
-        request.states.add('sensitive')
-    elif fault == 'custom-visible':
-        children.append(Node(
-            'Custom duration in minutes', 'entry',
-            identity='kiosk-custom-duration',
-        ))
-    elif fault == 'missing-message':
-        children.remove(notice)
-    elif fault == 'mute-present':
-        children.append(Node(
-            'Mute request sounds', 'switch', identity='kiosk-mute-button',
-        ))
-    elif fault == 'duplicate-form':
-        children.append(Node(identity='kiosk-request-form'))
-    form = Node(PRODUCT, 'frame', children=children, identity='kiosk-request-form')
-    return ui_for(Node(identity='kiosk-request-window', children=[form])), tuple(durations)
 
 
 def test_kiosk_request_form_returns_only_the_fixed_public_projection():

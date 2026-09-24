@@ -359,7 +359,7 @@ def test_startup_reservation_requires_fresh_sample_and_restarts_for_next_launch(
 
 @pytest.mark.parametrize('kind', ['system', 'e2e'])
 @pytest.mark.parametrize('total_gib', [24, 32, 64, 128])
-def test_vm_keeps_full_guest_overhead_and_fixed_desktop_reserve(kind, total_gib):
+def test_vm_keeps_demand_and_fixed_desktop_reserve(kind, total_gib):
     state, admission = gate()
     admission.demands[kind] = Demand(7, 13 * GIB)
     state.sample = replace(healthy(), total_memory=total_gib * GIB, available_memory=15 * GIB - 1)
@@ -447,9 +447,42 @@ def test_vm_reservation_uses_configured_ram_and_cpu_through_pinned_reader(tmp_pa
     monkeypatch.setattr('subprocess.run', read)
     demand = vm_demand(tmp_path)
     assert demand.cpu == 7
-    assert demand.memory == 12000 * 1024 ** 2 * 11 // 10
+    assert demand.memory == 7200 * 1024 ** 2
     assert calls[0][0] == [str(tmp_path / 'tools/test-vm'), 'xml']
     assert calls[0][1]['timeout'] == 15 and calls[0][1]['check']
+
+
+@pytest.mark.parametrize('kind', ['system', 'e2e'])
+@pytest.mark.parametrize('guest_gib,required_gib', [(4, 5), (12, 9.2), (20, 14)])
+def test_vm_working_set_admission_boundary(tmp_path, monkeypatch, kind, guest_gib, required_gib):
+    monkeypatch.setattr('subprocess.run', lambda *args, **kwargs: SimpleNamespace(
+        stdout=f"<domain><vcpu>6</vcpu><memory unit='GiB'>{guest_gib}</memory></domain>"))
+    state, admission = gate()
+    admission.demands[kind] = vm_demand(tmp_path)
+    required = int(required_gib * GIB)
+    state.sample = replace(healthy(), available_memory=required - 1)
+    assert not admission.allows(kind, [])
+    assert 'memory headroom' in admission.reason
+    state.now += 2
+    state.sample = replace(state.sample, available_memory=required)
+    assert admission.allows(kind, [])
+    assert not admission.allows(kind, ['unit'])
+
+
+@pytest.mark.parametrize('kind', ['system', 'e2e'])
+@pytest.mark.parametrize('field,value,allowed', [
+    ('memory_pressure', 0, True), ('memory_pressure', 1, False),
+    ('swapping', True, False), ('cpu_pressure', 10, False),
+    ('io_pressure', 2, False),
+])
+def test_reported_vm_headroom_admits_without_bypassing_pressure(
+        tmp_path, monkeypatch, kind, field, value, allowed):
+    monkeypatch.setattr('subprocess.run', lambda *args, **kwargs: SimpleNamespace(
+        stdout="<domain><vcpu>6</vcpu><memory unit='MiB'>12000</memory></domain>"))
+    state, admission = gate()
+    admission.demands[kind] = vm_demand(tmp_path)
+    state.sample = replace(healthy(), available_memory=int(10.1 * GIB), **{field: value})
+    assert admission.allows(kind, []) is allowed
 
 
 @pytest.mark.parametrize('field,value', [('cpu_pressure', 7), ('memory_pressure', .5)])

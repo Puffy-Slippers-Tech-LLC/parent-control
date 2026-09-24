@@ -8,23 +8,9 @@ import pytest
 
 from accessible_ui import CHILD, UiError
 from private_artifacts import EvidenceError
-from test_e2e_kiosk_eligible_choices import accounts_form, WORKER
+from tests.support.e2e_kiosk import WORKER, accounts_form, disabled_accounts_form
 from tests.support.perl import run_perl
 from ui_observations import RequestObservation, UiObservations
-
-
-def disabled_accounts_form():
-    ui, selector, choices, expected = accounts_form()
-
-    def commit(_):
-        selector.children[0].identity = 'kiosk-child-selected-1001'
-        selector.children[0].name = CHILD
-        selector.description = f'Selected child account: {CHILD}.'
-        choices.states.discard('showing')
-        return True
-
-    choices.children[0].action.do_action.side_effect = commit
-    return ui, selector, choices, expected
 
 
 def test_disabled_selection_and_independent_read_never_activate_disabled_controls():

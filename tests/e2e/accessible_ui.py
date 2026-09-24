@@ -2879,8 +2879,12 @@ class AccessibleUI:
                         selected.append((name, canonical))
                 require(len(selected) == 1, 'ui:' + code)
                 name, canonical = selected[0]
+                control.clear_cache_single()
                 description = ' '.join(control.get_description().split())
-                require(description == f'Selected {label.casefold()}: {name}.', 'ui:' + code)
+                if description != f'Selected {label.casefold()}: {name}.':
+                    # The selected label ID and the trigger description are
+                    # published separately. Read both again after the update.
+                    return None
                 return canonical
 
             duration_ids = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')
@@ -2934,6 +2938,8 @@ class AccessibleUI:
                 'cancel_enabled': self.has_state(cancel, self.api.StateType.SENSITIVE),
                 'message': '' if enabled else 'screen-limit-disabled', 'mute': None,
             }
+            if projection['child'] is None or projection['approver'] is None:
+                return None
             if expected_selection is not None and projection[expected_selection[0]] != expected_selection[1]:
                 return None
             return projection

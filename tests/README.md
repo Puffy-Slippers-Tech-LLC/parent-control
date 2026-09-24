@@ -305,6 +305,13 @@ may overlap units, components, request behavior, screen fidelity and artifacts.
 Artifact operations may overlap known parallel host categories and each other.
 Every VM attempt remains exclusive after the host/build join. Resource shortages
 defer launches, and already-running tests finish normally when load rises.
+VM memory admission budgets 50% of configured guest RAM, plus QEMU/controller
+overhead (10% of configured RAM, at least 1 GiB) and the 2 GiB host reserve.
+This deliberately allows memory overcommit instead of requiring all guest RAM
+to be available before launch. Pressure and swap admission checks still apply;
+the estimate is not a peak-memory guarantee and does not resize the guest.
+Scheduler changes take effect in new runner processes, not an already-waiting
+coordinator.
 
 Private `resources.jsonl` and
 `schedule.jsonl` retain sampled host load, dependencies, admitted companions and

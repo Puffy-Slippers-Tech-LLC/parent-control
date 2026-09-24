@@ -653,7 +653,19 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          shell_search=False, parent_terminal_provider=False,
          license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
-         challenges=False):
+         challenges=False, product_free_entry=False):
+    require(type(product_free_entry) is bool and (not product_free_entry or (
+            assets is not None and provision_credentials and fresh_desktop is None
+            and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
+                         parent_setup, parent_input, parent_standard_input,
+                         parent_about, parent_access, desktop_session_logout,
+                         desktop_session_switch, gdm_navigation, gdm_recipient,
+                         gdm_product_free, kiosk_entry, request_exit, parent_toggle,
+                         shell_search_results, parent_search_launch, shell_search,
+                         parent_terminal_provider, license_viewer_provider,
+                         kiosk_eligible_choices, request_choices, kiosk_no_child,
+                         kiosk_no_approver, repeated_operations, challenges)))),
+            'smoke:product-free-entry-prerequisites')
     require(type(challenges) is bool and (not challenges or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -946,6 +958,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-repeated-operations-qualification'
         if challenges:
             result['scope'] = 'installed-challenges-qualification'
+        if product_free_entry:
+            result['scope'] = 'product-free-entry-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1044,6 +1058,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification
+                if product_free_entry:
+                    from parent_setup_qualification import ProductFreeEntryQualification
+                    qualification_class = ProductFreeEntryQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

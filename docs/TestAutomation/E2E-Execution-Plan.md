@@ -19,11 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **005a — [Start a graphical journey before product installation](E2E-Tasks/005a-product-free-entry.md)**.
+Next task: **005 — [Qualify the shared package command boundary](E2E-Tasks/005-terminal-auth.md)**.
 
-Remaining: implement and qualify product-free graphical entry and verified
-package staging through the shared guarded journey, preserving declared setup
-mode, administrator authority, recipient guards, input digests and owned cleanup.
+Remaining: bind and live-qualify the fixed administrator package command and
+bounded completion/notice readback. Reuse 005a's qualified product-free entry,
+verified package staging and administrator session binding; preserve ownership,
+recipient guards, input digests and single-use submission. Installation
+composition remains task 006; case 2 remains pending.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -362,7 +362,7 @@ def finish_nested(root, run):
 def follow(run, stream=None, *, label='launcher'):
     from launcher_render import LauncherDisplay
     stream = stream or sys.stdout
-    with LauncherDisplay(stream) as display:
+    with LauncherDisplay(stream, log_path=run / 'output') as display:
         return follow_output(run, stream, display, label=label)
 
 
@@ -414,12 +414,12 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
                     result = run / 'result'
                     status = int(result.read_text()) if result.exists() else 1
                     if not result.exists():
-                        display.write('\nTest owner stopped without a final result; run is incomplete.\n')
+                        display.write('\nTest owner stopped without a final result; run is incomplete.\n', saved=False)
                     (run / 'delivered').touch(mode=0o600)
                     return status
                 result = run / 'result.json'
                 if not result.exists():
-                    display.write(f'\n{label}: worker ended without a result; inspect the saved handoff before restarting.\n')
+                    display.write(f'\n{label}: worker ended without a result; inspect the saved handoff before restarting.\n', saved=False)
                     return 1
                 return json.loads(result.read_text())['status']
             time.sleep(.1)

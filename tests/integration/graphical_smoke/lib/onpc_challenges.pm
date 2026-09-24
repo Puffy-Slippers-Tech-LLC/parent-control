@@ -1,12 +1,14 @@
 package onpc_challenges;
 use strict;
 use warnings;
+use onpc_progress ();
 use testapi ();
 use onpc_journey ();
 use onpc_gdm ();
 use onpc_desktop_session ();
 
 sub run {
+    onpc_progress::operation('Qualifying distinct graphical authentication challenges');
     my ($exchange, $declared, $challenges) = @_;
     my @stages = qw(wrong-list wrong-focused wrong-refused wrong-returned
         installed-greeter parent-focused recipient-qualified recipient-rechecked desktop

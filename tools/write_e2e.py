@@ -1,4 +1,4 @@
-"""Implement one queued task at a time, handing off before each live VM attempt."""
+"""Implement one queued task at a time, handing off after a failed live VM test."""
 
 import argparse
 import fcntl
@@ -20,7 +20,8 @@ QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
 MODEL = 'gpt-6-astra'
 MAX_TASK_SESSIONS = 5
 INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
-through host validation, then hand off before live VM testing.
+through host validation and the first live VM test. Close the task if it passes;
+if it fails, hand off the failure to the next session.
 """
 
 
@@ -42,7 +43,7 @@ def queue_state(root):
 def fresh_state(task):
     return {'task_id': task, 'phase': 'implement', 'live_attempts': 0,
             'task_sessions': 0,
-            'summary': 'Implementation and host validation remain.',
+            'summary': 'Implementation, host validation and the first live VM test remain.',
             'handoff': INITIAL_PROMPT, 'in_flight': False, 'stage_candidates': []}
 
 
@@ -58,7 +59,7 @@ def session_progress(root, state, count):
     link = target.resolve().as_uri()
     task_label = f'\033]8;;{link}\033\\\033[1mTask {task}\033[22m\033]8;;\033\\'
     title = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', title).replace('`', '').replace('**', '')
-    summary = {'implement': 'Writing task code + host validation',
+    summary = {'implement': 'Writing task code + host validation + first live VM test; close on success, hand off on failure',
                'recover': 'Recovering interrupted work + host validation'}.get(
                    state['phase'], f"Live VM test {state['live_attempts'] + 1}, fix errors if any + host validation")
     return [f'{task_label}: {title}',
@@ -91,10 +92,15 @@ files, excluding unrelated work. Otherwise return stage_paths empty.
 """
     if state['phase'] == 'implement':
         return INITIAL_PROMPT + common + """
-Do not run live VM tests or close the task/advance the pointer in this session.
-After host checks pass, return ready_for_vm with live_result not_run and a
-handoff for GPT-6-Astra High. Task 192 may instead return task_complete after
-the plan's host-only acceptance and close-out.
+After host checks pass, run this task's first live VM acceptance, including
+required regressions, under the plan. If it fails, preserve failure evidence,
+wait for owned cleanup and return ready_for_vm with live_result failed and a
+handoff for GPT-6-Astra High. Leave failure review and repairs to the next
+session; do not retry live acceptance or advance the pointer in this session.
+After all acceptance and cleanup pass, complete the plan's close-out and return
+task_complete with live_result passed and the next-task handoff. Leave the next
+task's implementation to a fresh session. Task 192 may instead return
+task_complete with live_result not_run after its host-only acceptance and close-out.
 """
     if state['phase'] == 'recover':
         return common + f"""
@@ -113,6 +119,10 @@ Last operation evidence: {state.get('recovery_run', 'see handoff')}/output and p
         'This is the first live VM attempt for this task. If it fails, review the '
         'unstaged code (including new files) before fixing it.'
         if state['live_attempts'] == 0 else
+        'The first live attempt failed. Before another live attempt, review the '
+        'unstaged code (including new files) and failure evidence, apply the '
+        'repository failure contract, repair authorized defects and host-validate.'
+        if state['live_attempts'] == 1 else
         'The first live attempt has already happened; use its failure evidence and current source.'
     )
     return common + f"""
@@ -150,16 +160,17 @@ def accept_result(root, state, result, before):
         raise ValueError('incomplete task requested staging')
     if status == 'task_complete':
         if (not after.get(task) or current == task or not result['host_validated']
-                or (task != '192' and (state['phase'] != 'live' or result['live_result'] != 'passed'))):
+                or (task != '192' and (state['phase'] not in ('implement', 'live')
+                                      or result['live_result'] != 'passed'))):
             raise ValueError('task completion lacks acceptance or queue close-out')
     elif current != task or after.get(task):
         raise ValueError('incomplete task advanced the queue pointer')
     if status == 'ready_for_vm':
-        expected_live = 'not_run' if state['phase'] in ('implement', 'recover') else 'failed'
+        expected_live = 'not_run' if state['phase'] == 'recover' else 'failed'
         if not result['host_validated'] or result['live_result'] != expected_live:
             raise ValueError('VM handoff lacks host validation or a matching live outcome')
     updated = dict(state, summary=result['summary'], handoff=result['handoff'], in_flight=False)
-    if state['phase'] == 'live' and result['live_result'] != 'not_run':
+    if state['phase'] in ('implement', 'live') and result['live_result'] != 'not_run':
         updated['live_attempts'] += 1
     updated['phase'] = 'complete' if status == 'task_complete' else 'live' if status == 'ready_for_vm' else 'blocked'
     return updated

@@ -409,6 +409,41 @@ class GdmProductFreeQualification(ParentJourneyQualification):
         return GdmProductFreeJourney(context, progress)
 
 
+class ProductFreeEntryQualification(ParentJourneyQualification):
+    """FIX04 and fresh administrator entry on the accepted empty baseline."""
+
+    observation_only = True
+
+    def prepare_context(self, context):
+        self.transfer = smoke.AssetTransfer(self.verified)
+        self.result['asset_transfer'] = self.transfer.provision(context.lease, self.guestfs)
+        context.product_free = True
+        context.asset_transfer = self.transfer
+
+    def execute(self, lease, guestfs):
+        self.guestfs = guestfs
+        super().execute(lease, guestfs)
+
+    @staticmethod
+    def journey(context, progress):
+        from product_free_entry import ProductFreeEntryJourney
+        return ProductFreeEntryJourney(context, progress)
+
+    def record_progress(self, journey, stage, observed):
+        plan = journey.plan
+        self.result['active_phase'] = plan.phases[stage]
+        super().record_progress(journey, stage, observed)
+        if stage in plan.assertions_after:
+            smoke.require(observed.get('ui', observed.get('system', {})).get('outcome') == 'passed',
+                          'product-free-entry:result-required')
+            self.result.setdefault('assertions', []).append({
+                'stage': stage, **observed['assertion'], 'outcome': 'passed'})
+            self.checkpoint('assertion')
+        if stage in plan.advance_after:
+            self.result['active_phase'] = plan.advance_after[stage]
+            self.checkpoint('phase-started')
+
+
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

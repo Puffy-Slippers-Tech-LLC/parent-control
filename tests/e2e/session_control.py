@@ -5,6 +5,8 @@ operation names only. It never observes or changes private product state.
 """
 
 import json
+import grp
+import hashlib
 import os
 from pathlib import Path
 import pwd
@@ -18,9 +20,13 @@ import time
 ACCOUNTS = {'parent': 'onpc-parent-jamie', 'standard': 'onpc-child-jordan'}
 BINDINGS = {role + '-' + action: (role, action)
             for role in ACCOUNTS for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
+BINDINGS.update({'parent-command-context': ('parent', 'command-context'),
+                 'parent-command-refused': ('parent', 'command-refused')})
 LABELS = {'switch-user': 'Switching to the greeter',
           'logout': 'Logging out the fixture desktop', 'lock': 'Locking the fixture desktop',
           'return-greeter': 'Returning from the locked fixture session to the greeter'}
+LABELS.update({'command-context': 'Verifying the administrator package command context',
+               'command-refused': 'Checking command refusal outside the fixture desktop'})
 
 
 class SessionError(RuntimeError):
@@ -154,9 +160,22 @@ def execute(binding):
     role, action = BINDINGS[binding]
     account = pwd.getpwnam(ACCOUNTS[role])
     require(account.pw_uid >= 1000, 'fixture-identity')
+    if action == 'command-refused':
+        current = sessions()
+        active = [props for props in current.values()
+                  if local_graphical(props) and props['Active'] == 'yes']
+        require(len(active) == 1 and active[0]['Class'] == 'greeter', 'expected-greeter')
+        try:
+            source_session(current, account.pw_uid)
+        except SessionError as error:
+            require(str(error) == 'session:source-owner', 'unexpected-refusal')
+            return {'operation': binding, 'outcome': 'passed',
+                    'interface': 'system session', 'wrong_entry_refused': True}
+        require(False, 'wrong-entry-accepted')
     locked = action == 'return-greeter'
     source = source_session(sessions(), account.pw_uid, locked=locked)
     env = environment(account)
+    administrator_gid = grp.getgrnam('sudo').gr_gid if action == 'command-context' else None
     os.initgroups(account.pw_name, account.pw_gid)
     os.setgid(account.pw_gid)
     os.setuid(account.pw_uid)
@@ -164,6 +183,31 @@ def execute(binding):
     os.environ.update(env)
     # Recheck after changing identity, immediately before the single submission.
     require(source_session(sessions(), account.pw_uid, locked=locked) == source, 'source-changed')
+    if action == 'command-context':
+        require(os.geteuid() == account.pw_uid and administrator_gid in os.getgroups(),
+                'administrator-authority')
+        # Read the FIX04 package as the bound desktop administrator, without
+        # installing it or invoking a privileged product helper.
+        path = Path('/var/lib/onpc-e2e-assets/package.deb')
+        require(path.parent.resolve() == path.parent, 'package-parent')
+        parent = path.parent.stat()
+        require(parent.st_uid == 0 and not parent.st_mode & 0o022, 'package-parent')
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            before = os.fstat(stream.fileno())
+            require(stat.S_ISREG(before.st_mode) and before.st_uid == 0
+                    and before.st_nlink == 1 and not before.st_mode & 0o022,
+                    'package-owner')
+            digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+            def identity(info):
+                return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
+                        info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            require(identity(os.fstat(stream.fileno())) == identity(before)
+                    and identity(path.lstat()) == identity(before),
+                    'package-changed')
+        require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                'administrator': True, 'package_sha256': digest}
     submit(action)
     deadline = time.monotonic() + 45
     while not destination(sessions(), source, account.pw_uid, action):
@@ -184,6 +228,18 @@ def observe(transport, binding):
                              input=Path(__file__).read_bytes(), timeout=90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
+    if action == 'command-refused':
+        require(result == {'operation': binding, 'outcome': 'passed',
+                           'interface': 'system session', 'wrong_entry_refused': True}, 'response')
+        return result
+    if action == 'command-context':
+        require(type(result) is dict and set(result) == {
+            'operation', 'outcome', 'interface', 'administrator', 'package_sha256'}
+            and result['operation'] == binding and result['outcome'] == 'passed'
+            and result['interface'] == 'system session' and result['administrator'] is True
+            and type(result['package_sha256']) is str
+            and re.fullmatch('[0-9a-f]{64}', result['package_sha256']), 'response')
+        return result
     require(result == {'operation': binding, 'outcome': 'passed',
                        'interface': 'system session', 'source_retained': action != 'logout',
                        'destination': 'locked' if action == 'lock' else 'greeter'}, 'response')

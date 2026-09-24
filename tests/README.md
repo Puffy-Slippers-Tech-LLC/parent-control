@@ -271,12 +271,15 @@ commands and their results remain visually separate, including without color.
 task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
 
-The first session for each task uses GPT-6-Astra Low to implement and host-validate,
-then hands off before live VM testing. The installed `codex exec` transport has
-no in-session model-switch control, so live/repair sessions use the requested
-GPT-6-Astra High fallback. On a first live failure the agent reviews unstaged
-code, preserves evidence, repairs authorized defects, host-validates and hands
-off before another live attempt. Further failures repeat that boundary. A
+The first session for each task uses GPT-6-Astra Low to implement, host-validate
+and run the first live VM test. Success completes acceptance and close-out in
+that session; failure preserves evidence and hands off after cleanup, leaving
+review and repairs to the next session. The installed `codex exec` transport has
+no in-session model-switch control, so subsequent live/repair sessions use
+GPT-6-Astra High. After a first-session failure, the next session reviews unstaged
+code and failure evidence, repairs authorized defects and host-validates before
+retrying live acceptance. Further failures are repaired and host-validated, then
+handed off before another live attempt. A
 passing live session completes the plan's acceptance, checks the row and advances
 its sole pointer. It returns an explicit list of task-related code, test and
 close-out files; the launcher stages those files without committing before
@@ -302,16 +305,21 @@ once every five seconds, while detailed test progress and agent output continue
 in the lower pane. Child output cannot move the cursor into the upper pane.
 
 Ordinary VT terminals have no independent pane scrollback, so the upper pane
-keeps the latest two major steps, with the newest always visible. Header text
+keeps the latest two major steps, with the newest always visible. Consecutive
+steps share an identical leading heading once, retaining their distinct session
+lines; hiding the older step restores the newest step's full heading. Header text
 wraps to the observer's current width; older steps yield space first when the
 terminal shrinks. A terminal too small for even the newest step plus an output
 row clips the header until enlarged, staying on the alternate screen. Pipes and dumb
 terminals accumulate plain output. Reconnection restores the latest controller
 steps separately from the output tail. The live terminal retains a bounded
-transcript only on the alternate screen and restores the original screen and
-cursor on exit, including cancellation, exceptions and default termination
-signals (HUP, TERM and QUIT). SIGKILL cannot run terminal cleanup. Full output
-remains in the existing run log. `run-tests` preserves its detailed dashboards when observed
+transcript on the alternate screen. On exit it restores the original screen,
+cursor and input modes, then appends the latest controller steps and retained run
+log to ordinary terminal scrollback. This includes cancellation, exceptions and
+default termination signals (HUP, TERM and QUIT); SIGKILL cannot run terminal
+cleanup. Replay uses the run log rather than the bounded live pane, and leaves
+existing shell history intact. Full output remains in the existing run log,
+subject to its storage limits. `run-tests` preserves its detailed dashboards when observed
 through a workflow launcher, below that workflow's controller summary.
 The shared [detached launcher module](../tools/detached_launcher.py) owns
 workflow attachment, process supervision, fresh Codex transport, log rotation

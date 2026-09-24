@@ -18,6 +18,7 @@ OPERATION_LABELS = {
     'gdm-select-parent': 'Checking the Parent password prompt',
     'gdm-navigation-returned': 'Checking the greeter list after dismissing the password prompt',
     'gdm-product-free-list': 'Reading the product-free greeter account list',
+    'gdm-product-free-provider': 'Recording the product-free greeter provider tuple',
     'gdm-product-free-focused': 'Checking the product-free Parent account is focused',
     'gdm-product-free-select-parent': 'Checking the product-free Parent password prompt',
     'gdm-product-free-returned': 'Checking the product-free greeter list after dismissal',
@@ -35,6 +36,7 @@ OPERATION_LABELS = {
     'gdm-standard-recipient-rechecked': 'Freshly rechecking the standard-account password recipient',
     'desktop': 'Waiting for the Parent desktop',
     'fresh-parent-desktop': 'Checking the fresh Parent desktop without a prompt',
+    'parent-desktop-provider': 'Recording the Parent desktop provider tuple',
     'fresh-standard-desktop': 'Checking the fresh standard desktop without a prompt',
     'keyring-cancel-standard': 'Cancelling the standard login-keyring prompt',
     'parent-search-ready': 'Reading the empty Parent app search field',
@@ -379,9 +381,12 @@ class UiObservations:
             # private; journey records and worker replies receive only presence.
             expected['approver_uids'] = uids
         if operation in ('parent-search-close-ready', 'standard-search-qualified',
-                         'license-provider-refusals'):
+                         'license-provider-refusals', 'parent-desktop-provider'):
             require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
             expected['provider'] = accessible_ui.validate_shell_metadata(result['provider'])
+        if operation == 'gdm-product-free-provider':
+            require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
+            expected['provider'] = accessible_ui.validate_gdm_metadata(result['provider'])
         if operation == 'station-entry-branch':
             require(type(result) is dict and set(result) == {*expected, 'branch'}, 'ui:response')
             branch = result['branch']
@@ -447,7 +452,7 @@ class UiObservations:
         if operation == 'gdm-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
         elif operation == 'gdm-parent-recipient':
-            require(self.last_operation == 'gdm-focused',
+            require(self.last_operation in ('gdm-focused', 'gdm-product-free-focused'),
                     'ui:recipient-order')
         elif operation == 'gdm-parent-recipient-rechecked':
             require(self.last_operation == 'gdm-parent-recipient', 'ui:recipient-order')

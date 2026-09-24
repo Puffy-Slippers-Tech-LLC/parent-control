@@ -21,6 +21,7 @@ class Terminal(io.StringIO):
     def __init__(self, width=80, height=24):
         super().__init__()
         self.normal_screen = None
+        self.scrollback = []
         self.cursor_visible = True
         self.resize(width, height)
 
@@ -62,6 +63,8 @@ class Terminal(io.StringIO):
                     self.row += 1
                     self.column = 0
                 if self.row >= self.size.lines:
+                    if self.normal_screen is None:
+                        self.scrollback.append(''.join(self.cells[0]).rstrip())
                     self.cells.pop(0)
                     self.cells.append([' '] * self.size.columns)
                     self.row = self.size.lines - 1
@@ -117,6 +120,32 @@ def test_latest_two_steps_wrap_and_survive_resize_without_ellipsis(terminal):
                 assert line in normalized
         assert 'latest detailed output' in visible
         assert '…' not in visible
+
+
+def test_shared_task_heading_appears_once_and_survives_small_terminal(terminal):
+    display = LauncherDisplay(terminal)
+    heading = '\033[1mTask 005a\033[22m: Start a graphical journey before product installation'
+    steps = [
+        {'key': str(index), 'lines': [heading, f'Session [{index}/{index}]: Live VM test {index - 1}']}
+        for index in (2, 3)
+    ]
+    display.update(steps[:1], [])
+    display.update(steps, [])
+    for width, height in [(80, 24), (35, 20), (110, 30)]:
+        terminal.resize(width, height)
+        display.draw()
+        visible = ' '.join(terminal.visible().split())
+        assert visible.count('Task 005a:') == 1
+        assert 'Start a graphical journey before product installation' in visible
+        assert 'Session [2/2]: Live VM test 1' in visible
+        assert 'Session [3/3]: Live VM test 2' in visible
+    terminal.resize(80, 5)
+    display.draw()
+    visible = terminal.visible()
+    assert visible.startswith('Task 005a:')
+    assert 'Session [2/2]' not in visible
+    assert 'Session [3/3]: Live VM test 2' in visible
+    assert list(display.step_history.values()) == [step['lines'] for step in steps]
 
 
 def test_test_tree_updates_stay_below_controller_and_quiet_frames_do_not_repaint(terminal):
@@ -291,12 +320,13 @@ def test_plain_output_accumulates_without_cursor_escapes():
 @pytest.mark.parametrize('height', [1, 3, 24])
 @pytest.mark.parametrize('reason', ['success', 'interrupt', 'error', 'hup', 'term', 'quit'])
 @pytest.mark.parametrize('observer', ['workflow', 'tests'])
-def test_observer_restores_original_screen_on_every_exit(terminal, monkeypatch, height, reason, observer):
+def test_observer_preserves_output_on_every_exit(terminal, monkeypatch, tmp_path, height, reason, observer):
     import detached_launcher
 
     terminal.resize(80, height)
     terminal.write('original shell prompt> ')
-    original = terminal.visible(), terminal.row, terminal.column
+    (tmp_path / 'output').write_text('earliest output\n' + 'old output\n' * 2100
+                                    + 'agent transcript\nunfinished output')
     signals = {'hup': signal.SIGHUP, 'term': signal.SIGTERM, 'quit': signal.SIGQUIT}
     handlers = {sig: signal.SIG_DFL for sig in signals.values()}
     monkeypatch.setattr(signal, 'getsignal', lambda sig: handlers[sig])
@@ -319,17 +349,80 @@ def test_observer_restores_original_screen_on_every_exit(terminal, monkeypatch, 
     monkeypatch.setattr(detached_launcher, 'follow_output', output)
     follow = detached_launcher.follow if observer == 'workflow' else regression_session.follow
     if reason == 'success':
-        assert follow(None, terminal) == 0
+        assert follow(tmp_path, terminal) == 0
     else:
         exception = KeyboardInterrupt if reason == 'interrupt' else RuntimeError if reason == 'error' else SystemExit
         with pytest.raises(exception) as caught:
-            follow(None, terminal)
+            follow(tmp_path, terminal)
         if reason in signals:
             assert caught.value.code == 128 + signals[reason]
-    assert (terminal.visible(), terminal.row, terminal.column) == original
+    restored = terminal.getvalue().split('\033[?1049l', 1)[1]
+    assert 'earliest output\n' in restored
+    assert restored.count('old output\n') == 2100
+    assert 'controller header' in restored and 'session status' in restored
+    assert restored.endswith('agent transcript\nunfinished output\n')
+    assert '\033[2J' not in restored and '\033[H' not in restored
+    assert '[Running] test details' not in restored
+    assert '─' not in restored
+    assert '\033[?1049h' not in restored
+    assert terminal.normal_screen is None
     assert terminal.cursor_visible
-    assert terminal.getvalue().endswith('\033[?25h\033[?1049l')
+    assert 'original shell prompt> ' in terminal.getvalue().split('\033[?1049h', 1)[0]
+    assert 'original shell prompt>' in terminal.scrollback
     assert all(handler == signal.SIG_DFL for handler in handlers.values())
+
+
+def test_exit_replay_filters_cursor_controls_preserves_color_and_runs_once(terminal, tmp_path):
+    log = tmp_path / 'output'
+    log.write_text('\033[2J\033[Hfirst output\n\033[31mfinal warning\033[0m\n')
+    display = LauncherDisplay(terminal, log_path=log)
+    display.write('final warning\n')
+    display.close()
+    restored = terminal.getvalue().split('\033[?1049l', 1)[1]
+    assert 'first output' in restored and 'final warning' in restored
+    assert '\033[2J' not in restored and '\033[H' not in restored
+    assert '\033[31m' in restored
+    before = terminal.getvalue()
+    display.close()
+    assert terminal.getvalue() == before
+
+
+def test_exit_without_readable_log_preserves_live_transcript(terminal, tmp_path):
+    with LauncherDisplay(terminal, log_path=tmp_path / 'missing') as display:
+        display.write('observed output\npartial line')
+    assert terminal.getvalue().split('\033[?1049l', 1)[1].endswith(
+        'observed output\npartial line\n')
+
+
+@pytest.mark.parametrize('observer', ['workflow', 'tests'])
+@pytest.mark.parametrize('finished', [True, False])
+def test_real_output_follow_replays_log_and_missing_result_notice(terminal, tmp_path, monkeypatch,
+                                                                 observer, finished):
+    import detached_launcher
+
+    run = tmp_path / 'run'
+    run.mkdir()
+    (run / 'output').write_text('first result\nlast result\n')
+    publish_progress(run, 'task', ['Task complete' if finished else 'Task running'])
+    if finished:
+        (run / 'result').write_text('0')
+        (run / 'result.json').write_text('{"status": 0}')
+    monkeypatch.delenv(regression_session.FRAME_DIRECTORY, raising=False)
+    follow = detached_launcher.follow if observer == 'workflow' else regression_session.follow
+    assert follow(run, terminal) == (0 if finished else 1)
+    restored = terminal.getvalue().split('\033[?1049l', 1)[1]
+    assert restored.count('first result\nlast result\n') == 1
+    if not finished:
+        assert ('run is incomplete' if observer == 'tests' else 'worker ended without a result') in restored
+
+
+def test_pipe_does_not_replay_saved_log(tmp_path):
+    log = tmp_path / 'output'
+    log.write_text('old output\nnew output\n')
+    stream = io.StringIO()
+    with LauncherDisplay(stream, log_path=log) as display:
+        display.write('new output\n')
+    assert stream.getvalue() == 'new output\n'
 
 
 def test_display_preserves_custom_and_ignored_signal_handlers(terminal, monkeypatch):

@@ -11,7 +11,7 @@ def prepare(root):
         '## Deferred future work\n| [ ] | 999 | Deferred |\n')
 
 
-def reply(status='ready_for_vm', live='not_run', **values):
+def reply(status='ready_for_vm', live='failed', **values):
     return {'status': status, 'task_id': '001', 'summary': 'Host checks passed.',
             'handoff': 'Continue task 001; run its exact live selector with Astra High.',
             'host_validated': True, 'live_result': live,

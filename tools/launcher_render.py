@@ -38,8 +38,10 @@ class LauncherDisplay:
     pane starts focused. Absolute cursor positioning isolates their redraws.
     """
 
-    def __init__(self, stream):
+    def __init__(self, stream, *, log_path=None):
         self.stream = stream
+        self.log_path = log_path
+        self.unsaved = []
         self.tty = stream.isatty() and os.environ.get('TERM') != 'dumb'
         self.console = Console(file=stream, force_terminal=True, markup=False,
                                highlight=False, color_system='truecolor', no_color=False)
@@ -96,11 +98,13 @@ class LauncherDisplay:
                 signal.signal(sig, previous)
             self.signal_handlers.clear()
 
-    def write(self, value, *, final=False):
+    def write(self, value, *, final=False, saved=True):
         if not self.tty:
             self.stream.write(value)
             self.stream.flush()
             return
+        if not saved:
+            self.unsaved.append(value)
         lines = (self.pending + value).split('\n')
         if self.offsets['bottom'] and self.size:
             width = max(1, self.size.columns - 1)
@@ -182,12 +186,24 @@ class LauncherDisplay:
         except (OSError, ValueError):
             size = shutil.get_terminal_size()
         width, height = max(1, size.columns - 1), max(1, size.lines)
-        steps = [self.wrapped(step['lines'], width) for step in self.steps[-2:]]
+        recent = self.steps[-2:]
+        steps = []
+        previous_lines = []
+        for step in recent:
+            lines = step['lines']
+            shared = 0
+            for previous, current in zip(previous_lines, lines):
+                if previous != current:
+                    break
+                shared += 1
+            steps.append(self.wrapped(lines[shared:], width))
+            previous_lines = lines
         # Reflow the entire newest step before spending space on its predecessor.
         # Keep even extremely small terminals on the alternate screen: falling
         # back to ordinary output would permanently leak panes into scrollback.
         while len(steps) > 1 and sum(map(len, steps)) + 3 > height:
-            steps.pop(0)
+            # Once the predecessor is hidden, restore the newest step's context.
+            steps = [self.wrapped(recent[-1]['lines'], width)]
         top = [row for step in steps for row in step]
         if len(top) + 3 > height:
             top = top[:max(0, height - 2)]
@@ -258,7 +274,39 @@ class LauncherDisplay:
             self.previous = None
 
     def close(self):
+        replay = self.screen
         self.restore_terminal()
+        if not replay:
+            return
+        # Alternate-screen rows vanish when the terminal restores the shell.
+        # Append the retained log to ordinary scrollback after restoring modes;
+        # the live pane's bounded deque may have lost most of a long session.
+        self.stream.write('\n')
+        for step in self.steps:
+            for line in step['lines']:
+                self.console.print(Text.from_ansi(line), soft_wrap=True)
+        try:
+            source = self.log_path.open('rb') if self.log_path is not None else None
+        except OSError:
+            source = None
+        if source is None:
+            for line in [*self.transcript, *([self.pending] if self.pending else [])]:
+                self.console.print(Text.from_ansi(line), soft_wrap=True)
+        else:
+            with source:
+                # A detached worker can still be appending: replay only the
+                # snapshot present at exit, without waiting for that worker.
+                remaining = os.fstat(source.fileno()).st_size
+                while remaining:
+                    line = source.readline(remaining)
+                    if not line:
+                        break
+                    remaining -= len(line)
+                    self.console.print(Text.from_ansi(line.decode('utf-8', errors='replace').rstrip('\n')),
+                                       soft_wrap=True)
+            for value in self.unsaved:
+                self.console.print(Text.from_ansi(value.rstrip('\n')), soft_wrap=True)
+        self.stream.flush()
 
 
 class SessionCodeBlock(CodeBlock):

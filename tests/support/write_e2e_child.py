@@ -55,6 +55,10 @@ def agent(root):
             time.sleep(.02)
     if step.get('crash'):
         return 9
+    for name, content in step.get('writes', {}).items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
     result = step['result']
     if step.get('close'):
         queue = root / 'docs/TestAutomation/E2E-Task-Queue.md'

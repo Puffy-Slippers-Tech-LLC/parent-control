@@ -87,19 +87,25 @@ def test_only_latest_handoff_crosses_into_first_live_then_retry(tmp_path):
     assert 'LATEST REPAIR' in prompt and 'CURRENT HANDOFF' not in prompt
 
 
-def test_blocked_task_restarts_in_recovery_without_manual_checkpoint_reset(tmp_path, monkeypatch):
+@pytest.mark.parametrize('phase, in_flight', [('blocked', False), ('live', True), ('live', False)])
+def test_task_restart_inherits_only_its_own_consumed_sessions(tmp_path, monkeypatch, phase, in_flight):
     prepare(tmp_path)
     previous = tmp_path / 'previous-run'
     previous.mkdir()
-    state = dict(workflow.fresh_state('001'), phase='blocked', live_attempts=1,
+    state = dict(workflow.fresh_state('001'), phase=phase, in_flight=in_flight,
+                 live_attempts=1, task_sessions=2, total_sessions=6,
                  handoff='Previous baseline requirement blocked setup.')
     (previous / 'checkpoint.json').write_text(json.dumps(state))
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
     restarted = workflow.initial_state(tmp_path, tmp_path)
-    assert restarted == dict(state, phase='recover', recovery_run=str(previous))
+    expected = dict(state, total_sessions=2)
+    if phase == 'blocked' or in_flight:
+        expected.update(phase='recover', in_flight=False, recovery_run=str(previous))
+    assert restarted == expected
     prompt = workflow.session_prompt(restarted)
-    assert 'current source/evidence' in prompt and workflow.PLAN in prompt
-    assert 'Do not run live VM tests' in prompt
+    if expected['phase'] == 'recover':
+        assert 'current source/evidence' in prompt and workflow.PLAN in prompt
+        assert 'Do not run live VM tests' in prompt
     assert workflow.queue_state(tmp_path)[0] == '001'
 
 

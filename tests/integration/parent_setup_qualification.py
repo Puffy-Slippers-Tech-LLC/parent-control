@@ -462,6 +462,15 @@ class PackageInstallQualification(ProductFreeEntryQualification):
         return PackageInstallJourney(context, progress)
 
 
+class CustomerRebootQualification(ProductFreeEntryQualification):
+    """Fresh install and one planned reboot in the same owned attempt."""
+
+    @staticmethod
+    def journey(context, progress):
+        from customer_reboot import CustomerRebootJourney
+        return CustomerRebootJourney(context, progress)
+
+
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

@@ -301,6 +301,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_product_free_entry'], ['check_e2e_product_free_entry.py'],
             ['check_e2e_package_authority'], ['check_e2e_package_authority.py'],
             ['check_e2e_package_command'], ['check_e2e_package_command.py'],
+            ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],
             ['check_e2e_toggle'], ['check_e2e_toggle.py'],
             ['check_e2e_kiosk_eligible_choices'], ['check_e2e_kiosk_eligible_choices.py'],
             ['check_e2e_request_choices'], ['check_e2e_request_choices.py'],

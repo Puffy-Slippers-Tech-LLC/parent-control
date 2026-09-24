@@ -337,7 +337,7 @@ these blocks, not copies of them.
 | TIME03 | A | Let a declared bounded real interval elapse while retaining the runner guard and deadline. Return elapsed time only; this does not prove a lock or grant expiry. | Extract a guarded monotonic wait with finite progress checkpoints for E2E-010/022. | pending |
 | TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | Bounded APP03 → TIME03 repetitions, with TIME02 only while the countdown is showing → UI01(lock) → UI05(harmless normal input) → UI01(lock challenge)/UI02. Do not require a visible countdown during fullscreen play or inspect the game underneath the lock. | pending |
 | LIFE01 | C | Close and reopen one named ordinary app through a shared direct command, unless the case explicitly tests its graphical launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | Parent: UI18 → PARENT01. Other ordinary apps use APP01 with the declared route; SEARCH05 is limited to explicit app-grid checks. Caller reads/compares the relevant fields afterward. Overlay/kiosk reopening uses their explicit exit/entry blocks. | pending |
-| LIFE02 | C | Reboot through a fixed supported system command in the owned guest, then observe a new boot and fresh GDM in the same attempt. | Shared guarded transport reboot/boot-transition recorder. No Shell power menu or confirmation; product persistence and activation notices remain required. | pending |
+| LIFE02 | C | Reboot through a fixed supported system command in the owned guest, then observe a new boot and fresh GDM in the same attempt. | `JourneyPlan.reboot_transition`, `InstalledJourney.submit_reboot` and `Transport.request_customer_reboot`; independent `ReadOnlyObservations.wait_boot_change` then fresh GDM. [Qualified install/reboot composition](#customer-reboot-continuity). No Shell power menu; product persistence and activation notices remain required. | fresh install/reboot/administrator return ready; other bindings pending |
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
 | LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | `package_install.submit_install` / `observe_install` compose FILE01/02/06 and AUTH03 with verified artifact identity, one submission and independent completion/final notice. `PackageInstallJourney` qualifies the fresh product-free install entry; [qualification](#customer-package-install-composition). No Terminal, sudo-prompt exercise or private product-state assertion. | install ready; update/remove/reinstall/purge pending |
 | LIFE05 | C | Follow the displayed activation requirement for the explicit finite list of affected apps/users: none, process reopen, session renewal, or reboot/login. | None: UI03(notice). Process: LIFE01 for each app. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | pending |
@@ -1035,10 +1035,14 @@ Further capabilities remain outside these seven recipes:
   worker input. Extend the existing rendezvous for its named transition
   consumer, retaining durable readiness/input/result ordering, single input and
   the terminal failure latch. Post-action polling cannot replace this trace.
-- `InstalledJourney` currently rejects any customer-phase boot change.
-  LIFE02/05 still need explicit planned boot transitions. Reconnect
-  only after the recorded customer reboot; unexpected boot changes must still
-  fail. Keep the current path for the established customer cases.
+- `InstalledJourney` rejects customer-phase boot changes except for one explicit
+  adjacent `JourneyPlan.reboot_transition` pair. The command stage requires the
+  administrator command context, records intent before one guarded submission,
+  and the next stage independently verifies the changed boot before fresh GDM.
+  Its [qualified scope](#customer-reboot-continuity) is fresh install/reboot and
+  administrator return. Unexpected or additional boot changes still fail;
+  existing plans retain their unchanged single-boot path. LIFE05's product
+  activation/persistence assertions remain with their consumers.
 
 Do this incrementally, retaining old registered operation adapters while each
 consumer migrates. A new block's output shape and event sequence must be checked
@@ -1476,8 +1480,41 @@ restoration. The durable after-cleanup record is
 `output/test-runs/privileged/allocations/onpc-e2e-evidence-8xqbpjt2/event-000017.json`;
 the report is `output/test-runs/host/reports/20260924T221715Z-9ebb5329/report.md`.
 Its three capability assertions passed; the complete-product result remains
-`not-run`. Reboot continuity, update/remove/reinstall/purge and complete case 2
-are separate unfinished scopes.
+`not-run`. Reboot continuity is qualified below; update/remove/reinstall/purge
+and complete case 2 remain unfinished.
+
+### Customer reboot continuity
+
+`check_e2e_customer_reboot` passed in run `20260924T223309Z-4d98a4b2`.
+[`CustomerRebootJourney`](../../tests/e2e/customer_reboot.py),
+`CustomerRebootQualification` and `onpc_customer_reboot::run` reuse the fresh
+LIFE04 install composition, completion and final reboot notice in one attempt.
+The slice refused reboot outside its declared entry, submitted one fixed
+`systemctl --no-ask-password reboot` through guarded SSH on the pinned old boot,
+independently observed a changed boot and fresh usable GDM, then reached the
+administrator desktop using the shared `after-reboot` graphical challenge and
+two fresh recipient proofs. No in-journey baseline restore occurs.
+
+`JourneyPlan.reboot_transition` names adjacent command-context and `ui:gdm-list`
+checkpoints. `InstalledJourney.submit_reboot` records a durable intent before
+submission and consumes the action even if its result is uncertain. The result
+checkpoint uses `ReadOnlyObservations.wait_boot_change`, retains the same VM and
+transport identity, and discards pre-reboot UI state. Unexpected, repeated or
+additional boot changes refuse; command success alone cannot satisfy the result.
+The shared wait remains bounded at 330 seconds, followed by the existing GDM
+observation budget, within the worker's 780-second reboot-result checkpoint.
+
+Qualification used Ubuntu 26.04, GDM `50.1-0ubuntu0.1`, Shell
+`50.1-0ubuntu1.2`, provider locale `en_US.UTF-8` and `xkb/us`. All five capability
+assertions, capture reconciliation, private collection, owned worker shutdown
+and baseline restoration passed. The after-cleanup record is
+`output/test-runs/privileged/allocations/onpc-e2e-evidence-hjzm4rb7/event-000025.json`;
+the report is `output/test-runs/host/reports/20260924T223309Z-4d98a4b2/report.md`.
+Host coverage is in `test_customer_reboot_cleanup_safety.py`,
+`test_installed_journey_cleanup_safety.py`, `test_vm_transport.py` and the shared
+observation/authentication/worker safety suites. This qualifies the fresh
+install/reboot/administrator-return slice; complete case 2 and other lifecycle
+bindings remain pending, and the complete-product result is `not-run`.
 
 ### Reachability and result checks
 

@@ -37,6 +37,7 @@ use onpc_challenges ();
 use onpc_product_free_entry ();
 use onpc_package_authority ();
 use onpc_package_install ();
+use onpc_customer_reboot ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -47,7 +48,8 @@ sub exchange {
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage eq 'setup-detached' ? 1500
-        : $stage eq 'package-submitted' ? 780 : 420);
+        : $stage eq 'package-submitted' ? 780
+        : $stage eq 'reboot-installed-greeter' ? 780 : 420);
     while (!-f "$stage.reply.json") {
         die 'smoke:controller-timeout' if time >= $deadline;
         sleep 0.1;
@@ -63,6 +65,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{customer_reboot}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_customer_reboot::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{package_install}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

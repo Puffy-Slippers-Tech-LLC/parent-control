@@ -24,6 +24,32 @@ def client():
     return transport.Transport(config(), commands, guard=Mock())
 
 
+@pytest.mark.parametrize('status', [0, 255, 1])
+def test_customer_reboot_is_one_guarded_boot_bound_command(status):
+    value = client()
+    value.commands.last_returncode = status
+    if status == 1:
+        with pytest.raises(transport.Error, match='reboot-command-failed'):
+            value.request_customer_reboot('a' * 64)
+    else:
+        value.request_customer_reboot('a' * 64)
+    value.guard.assert_called_once_with(value.config)
+    assert value.commands.run.call_count == 1
+    remote = value.commands.run.call_args.args[0][-1]
+    assert 'systemctl' in remote and '--no-ask-password' in remote
+    assert 'boot_id' in remote and 'a' * 64 in remote
+
+
+def test_customer_reboot_refuses_bad_boot_and_lost_ownership_without_input():
+    value = client()
+    with pytest.raises(transport.Error, match='invalid-previous-boot'):
+        value.request_customer_reboot('bad')
+    value.guard.side_effect = transport.Error('lost-owner')
+    with pytest.raises(transport.Error, match='lost-owner'):
+        value.request_customer_reboot('a' * 64)
+    value.commands.run.assert_not_called()
+
+
 @pytest.mark.parametrize('failure', [None, 'guard', 'command'])
 def test_ui_stream_parser_is_scoped_after_ownership_guard_and_always_restored(failure):
     value = client()

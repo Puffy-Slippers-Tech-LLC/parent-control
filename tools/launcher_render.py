@@ -9,6 +9,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 from collections import deque
 from pathlib import PurePath
 
@@ -47,6 +48,29 @@ class LauncherDisplay:
         self.size = None
         self.screen = False
         self.previous = None
+        self.signal_handlers = {}
+
+    def __enter__(self):
+        if self.tty:
+            # Ctrl+C already has launcher-specific guarded cancellation. Only
+            # replace default termination actions, which bypass finally blocks.
+            for sig in (signal.SIGHUP, signal.SIGTERM, signal.SIGQUIT):
+                previous = signal.getsignal(sig)
+                if previous == signal.SIG_DFL:
+                    self.signal_handlers[sig] = previous
+                    signal.signal(sig, self.terminate)
+        return self
+
+    def terminate(self, signum, frame):
+        raise SystemExit(128 + signum)
+
+    def __exit__(self, *_):
+        try:
+            self.close()
+        finally:
+            for sig, previous in self.signal_handlers.items():
+                signal.signal(sig, previous)
+            self.signal_handlers.clear()
 
     def write(self, value, *, final=False):
         if not self.tty:
@@ -86,25 +110,18 @@ class LauncherDisplay:
         width, height = max(1, size.columns - 1), max(1, size.lines)
         steps = [self.wrapped(step['lines'], width) for step in self.steps[-2:]]
         # Reflow the entire newest step before spending space on its predecessor.
-        # Extremely small terminals use ordinary wrapped output until enlarged.
+        # Keep even extremely small terminals on the alternate screen: falling
+        # back to ordinary output would permanently leak panes into scrollback.
         while len(steps) > 1 and sum(map(len, steps)) + 3 > height:
             steps.pop(0)
         top = [row for step in steps for row in step]
         if len(top) + 3 > height:
-            if self.screen:
-                self.restore_terminal()
-            current = (self.steps, list(self.transcript), self.pending, self.details, size)
-            if current != self.previous:
-                self.stream.write('\n'.join(row.plain for row in top) + '\n')
-                self.stream.write('\n'.join(self.details or list(self.transcript)[-2:]) + '\n')
-                self.stream.flush()
-                self.previous = current
-            return
+            top = top[:max(0, height - 2)]
         available = height - len(top) - 1
         # The lower pane keeps the detailed test dashboard and the newest log
         # rows. Agent sessions have no dashboard, so use the whole lower pane.
         from regression import Dashboard
-        details = Dashboard.fit_height(self.details, available) if self.details else []
+        details = Dashboard.fit_height(self.details, available) if self.details and available > 0 else []
         detail_rows = []
         for line in details:
             row = Text.from_ansi(line)
@@ -126,8 +143,8 @@ class LauncherDisplay:
                 self.console.print(row, width=width, end='', soft_wrap=True)
             encoded.append(capture.get())
         if not self.screen:
-            self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
             self.screen = True
+            self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
             self.previous = None
         if size != self.size:
             self.stream.write('\033[H\033[2J')
@@ -147,14 +164,6 @@ class LauncherDisplay:
 
     def close(self):
         self.restore_terminal()
-        if self.tty:
-            # Leave a useful final transcript in normal terminal scrollback.
-            writer = TranscriptWriter(self.stream)
-            writer.write('\n'.join(self.transcript) + ('\n' if self.transcript else '')
-                         + self.pending, final=True)
-            for step in self.steps:
-                writer.write('\n'.join(step['lines']) + '\n', final=True)
-            self.stream.flush()
 
 
 class SessionCodeBlock(CodeBlock):

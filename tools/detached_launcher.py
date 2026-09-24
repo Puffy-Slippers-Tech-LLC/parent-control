@@ -362,11 +362,8 @@ def finish_nested(root, run):
 def follow(run, stream=None, *, label='launcher'):
     from launcher_render import LauncherDisplay
     stream = stream or sys.stdout
-    display = LauncherDisplay(stream)
-    try:
+    with LauncherDisplay(stream) as display:
         return follow_output(run, stream, display, label=label)
-    finally:
-        display.close()
 
 
 def follow_output(run, stream, display, *, label='launcher', test_session=False,

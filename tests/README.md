@@ -305,11 +305,13 @@ Ordinary VT terminals have no independent pane scrollback, so the upper pane
 keeps the latest two major steps, with the newest always visible. Header text
 wraps to the observer's current width; older steps yield space first when the
 terminal shrinks. A terminal too small for even the newest step plus an output
-row falls back to ordinary wrapped output until enlarged. Pipes and dumb
+row clips the header until enlarged, staying on the alternate screen. Pipes and dumb
 terminals accumulate plain output. Reconnection restores the latest controller
 steps separately from the output tail. The live terminal retains a bounded
-transcript and leaves it in normal scrollback on exit; full output remains in
-the existing run log. `run-tests` preserves its detailed dashboards when observed
+transcript only on the alternate screen and restores the original screen and
+cursor on exit, including cancellation, exceptions and default termination
+signals (HUP, TERM and QUIT). SIGKILL cannot run terminal cleanup. Full output
+remains in the existing run log. `run-tests` preserves its detailed dashboards when observed
 through a workflow launcher, below that workflow's controller summary.
 The shared [detached launcher module](../tools/detached_launcher.py) owns
 workflow attachment, process supervision, fresh Codex transport, log rotation

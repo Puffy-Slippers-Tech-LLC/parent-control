@@ -287,12 +287,30 @@ by the launcher's regression tests.
 
 The shared [session renderer](../tools/launcher_render.py) applies these display
 rules to every supervised agent; launchers do not format agent events themselves.
-`run-tests` produces test dashboards rather than agent events and preserves
-those dashboards when observed through either workflow launcher.
+All three launchers use its two-pane terminal display and the same output-following
+loop. The upper pane pins the controller journey: `run-tests` shows the selected
+category and position with overall progress; `fix-tests` adds round 1 or 2 and
+the running-tests/fixing-errors status; `write-e2e` shows the task ID/title and
+the session's implementation, recovery or numbered live-test phase. Category and
+session transitions update immediately. Routine overall counts refresh at most
+once every five seconds, while detailed test progress and agent output continue
+in the lower pane. Child output cannot move the cursor into the upper pane.
+
+Ordinary VT terminals have no independent pane scrollback, so the upper pane
+keeps the latest two major steps, with the newest always visible. Header text
+wraps to the observer's current width; older steps yield space first when the
+terminal shrinks. A terminal too small for even the newest step plus an output
+row falls back to ordinary wrapped output until enlarged. Pipes and dumb
+terminals accumulate plain output. Reconnection restores the latest controller
+steps separately from the output tail. The live terminal retains a bounded
+transcript and leaves it in normal scrollback on exit; full output remains in
+the existing run log. `run-tests` preserves its detailed dashboards when observed
+through a workflow launcher, below that workflow's controller summary.
 The shared [detached launcher module](../tools/detached_launcher.py) owns
 workflow attachment, process supervision, fresh Codex transport, log rotation
 and output following for `fix-tests` and `write-e2e`; `run-tests` shares its lock
-primitives and registers test owners started inside an E2E agent session.
+primitives, output following and terminal display, and registers test owners
+started inside an E2E agent session.
 Cancellation or worker death cancels only those recorded test runs, validates
 their directory identities and waits for guarded cleanup before releasing the
 workflow lock. Already-running tests that the agent merely attaches to remain
@@ -369,8 +387,9 @@ Queued categories with a known reason display `[Waiting]` and that reason,
 including observed and required RAM for memory admission. These rows remain
 visible ahead of completed work when the terminal is short.
 Completed categories remain under the branch that ran them, in launch order.
-Long rows are clipped to terminal width to keep cursor redraws aligned; the
-live frame also fits the terminal height, using the output terminal's actual
+Detailed dashboard rows are clipped to terminal width to keep cursor redraws
+aligned; controller headers wrap without clipping. The lower frame fits the
+space beneath the header, using the output terminal's actual
 dimensions instead of potentially stale `LINES`/`COLUMNS` environment values.
 The saved final summary retains the full text of all rows. Full output is continuously
 appended and flushed to `docs/TestAutomation/Evidence/test-all-runs/<run>/report.md`.

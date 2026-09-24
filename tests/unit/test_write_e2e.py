@@ -9,6 +9,19 @@ import write_e2e as workflow
 from tests.support.write_e2e_fixtures import prepare, reply
 
 
+@pytest.mark.parametrize(('phase', 'attempts', 'summary'), [
+    ('implement', 0, 'Writing task code + host validation'),
+    ('recover', 0, 'Recovering interrupted work + host validation'),
+    ('live', 0, 'Live VM test 1, fix errors if any + host validation'),
+    ('live', 2, 'Live VM test 3, fix errors if any + host validation'),
+])
+def test_session_controller_reports_task_title_and_phase(tmp_path, phase, attempts, summary):
+    prepare(tmp_path)
+    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts)
+    assert workflow.session_progress(tmp_path, state, 4) == [
+        'Task 001: First', f'Session 4: {summary}']
+
+
 def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, capsys):
     from rich.console import Console
     from rich.text import Text

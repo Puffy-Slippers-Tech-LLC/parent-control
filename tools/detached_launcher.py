@@ -360,61 +360,68 @@ def finish_nested(root, run):
 
 
 def follow(run, stream=None, *, label='launcher'):
-    from regression import Dashboard
+    from launcher_render import LauncherDisplay
     stream = stream or sys.stdout
-    dashboard = Dashboard([], stream=stream)
+    display = LauncherDisplay(stream)
     try:
-        return follow_output(run, stream, dashboard, label=label)
+        return follow_output(run, stream, display, label=label)
     finally:
-        dashboard.restore_terminal()
+        display.close()
 
 
-def follow_output(run, stream, dashboard, *, label='launcher'):
-    from launcher_render import TranscriptWriter
-    transcript = TranscriptWriter(stream)
-    last_frame = None
+def follow_output(run, stream, display, *, label='launcher', test_session=False,
+                  destination=None, owner_busy=None):
+    from launcher_progress import read_progress, repair_progress
+    from launcher_render import clean
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
-    with lock(run.parent / 'owner') as owner, (run / 'output').open('rb') as output:
-        offset = max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES)
+    forwarded = None
+    with lock((run if test_session else run.parent) / 'owner') as owner, (run / 'output').open('rb') as output:
+        offset = 0 if test_session else max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES)
         output.seek(offset)
         if offset:
             output.readline()  # Reattach at a full line, not midway through UTF-8/ANSI.
         while True:
-            active = busy(owner)
+            active = (owner_busy or busy)(owner)
             # A new invocation may already own a newer run after this one ends.
-            active = active and current_run(run.parent) == run
+            active = active and (test_session or current_run(run.parent) == run)
             if output.tell() > os.fstat(output.fileno()).st_size:
                 output.seek(0)
                 decoder.reset()
-                transcript.pending = ''
+                display.pending = ''
+            steps = read_progress(run)
+            frame = run / 'frame.json'
+            lines = json.loads(frame.read_text()) if frame.exists() else []
+            if destination is not None:
+                if (steps, lines) != forwarded:
+                    atomic(destination / 'frame.json', lines)
+                    atomic(destination / 'test-controller.json', steps)
+                    forwarded = (steps, lines)
+            else:
+                if label == 'fix-tests':
+                    steps = repair_progress(run, steps)
+                # Overall progress belongs to the controller pane, not the
+                # rapidly refreshed detailed test tree. Legacy frames still work.
+                if steps:
+                    lines = [line for line in lines if not clean(line).startswith('Overall - ')]
+                if not active:
+                    lines = []
+                display.update(steps, lines)
             data = output.read(65536)
             if data:
-                dashboard.restore_terminal()
-                transcript.write(decoder.decode(data))
-                stream.flush()
+                display.write(decoder.decode(data))
                 continue
             if not active:
-                dashboard.restore_terminal()
-                transcript.write(decoder.decode(b'', final=True), final=True)
+                display.write(decoder.decode(b'', final=True), final=True)
+                if test_session:
+                    result = run / 'result'
+                    status = int(result.read_text()) if result.exists() else 1
+                    if not result.exists():
+                        display.write('\nTest owner stopped without a final result; run is incomplete.\n')
+                    (run / 'delivered').touch(mode=0o600)
+                    return status
                 result = run / 'result.json'
                 if not result.exists():
-                    stream.write(f'\n{label}: worker ended without a result; inspect the saved handoff before restarting.\n')
-                    stream.flush()
+                    display.write(f'\n{label}: worker ended without a result; inspect the saved handoff before restarting.\n')
                     return 1
                 return json.loads(result.read_text())['status']
-            frame = run / 'frame.json'
-            if frame.exists():
-                lines = json.loads(frame.read_text())
-                if lines:
-                    try:
-                        category_status = json.loads((run / 'category.json').read_text())
-                    except (OSError, ValueError):
-                        category_status = None
-                    if isinstance(category_status, str):
-                        lines.append(category_status)
-                if not lines:
-                    dashboard.restore_terminal()
-                elif stream.isatty() or lines != last_frame:
-                    dashboard.draw_lines(lines)
-                last_frame = lines
             time.sleep(.1)

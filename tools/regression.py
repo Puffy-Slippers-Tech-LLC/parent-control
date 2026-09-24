@@ -93,6 +93,28 @@ class Dashboard:
         self.cleanup_elapsed = None
         self.control = None
         self.cleanup_finished = False
+        self.controller_category = ('tests', 1, 1)
+        self.controller_last = 0.0
+        self.controller_key = None
+
+    def controller(self, now, lines, *, force=False):
+        if not hasattr(self.stream, 'controller'):
+            return
+        name, index, total = self.controller_category
+        interrupted = self.control is not None and (
+            self.control.interrupted or self.control.stopped.is_set())
+        key = (name, index, total, interrupted)
+        if not force and key == self.controller_key and now - self.controller_last < 5:
+            return
+        overall = next((self.ANSI.sub('', line) for line in lines
+                        if self.ANSI.sub('', line).startswith('Overall - ')), '')
+        summary = f'Category: {name} ({index}/{total}) | {overall}'
+        if interrupted:
+            summary += ' | ' + ('Shutdown finished' if self.cleanup_finished else 'Shutting down safely')
+        elif self.finished:
+            summary += ' | ' + ('Passed' if all(item.state == 'Passed' for item in self.categories) else 'Failed')
+        self.stream.controller(str(key), [summary])
+        self.controller_key, self.controller_last = key, now
 
     @staticmethod
     def counts(done, failures, total):
@@ -263,6 +285,7 @@ class Dashboard:
             return
         self.last = now
         lines = self.render(now)
+        self.controller(now, lines)
         if hasattr(self.stream, 'frame'):
             self.stream.frame(lines)
             return
@@ -319,6 +342,7 @@ class Dashboard:
         self.restore_terminal()
         if not self.finished:
             self.finished = True
+            self.controller(time.monotonic(), self.render(time.monotonic()), force=True)
             self.stream.write('\n'.join(self.render(time.monotonic())) + '\n')
             self.stream.flush()
 
@@ -578,6 +602,7 @@ class Run:
         self.report.write('\nVM backing verification: ' + self.verification_mode + '\n')
         self.categories = [Category('Discovery and prerequisites', 1)]
         self.dashboard = Dashboard(self.categories)
+        self.dashboard.controller_category = (self.phases[0], 1, len(self.phases))
         self.dashboard.control = control
         self.artifacts = {}
         self.sequence = 0
@@ -931,12 +956,14 @@ class Run:
 
     def vm_tests(self, system, graphical, ready):
         if system is not None:
+            self.dashboard.controller_category = ('system', self.phases.index('system') + 1, len(self.phases))
             status, _ = self.execute(system, self.command('system', '--artifacts', self.artifacts['build-a']), events=True)
             if self.control.stopped.is_set():
                 return
             if status:
                 raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
         if graphical is not None and ready:
+            self.dashboard.controller_category = ('e2e', self.phases.index('e2e') + 1, len(self.phases))
             # One dispatcher invocation keeps prerequisite checks and the VM
             # lease at suite scope. The controller reports each case and stops
             # on case/transition failure; its final status includes suite cleanup.

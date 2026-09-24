@@ -31,6 +31,10 @@ class SessionOutput:
         temporary.write_text(json.dumps(lines))
         temporary.replace(self.run / 'frame.json')
 
+    def controller(self, key, lines):
+        from launcher_progress import publish_progress
+        publish_progress(self.run, key, lines)
+
 
 def prepare(root, *, host_only=False):
     from test_storage import directory as storage_directory
@@ -110,45 +114,21 @@ def select(root, argv):
 
 
 def follow(run, stream=None):
-    from regression import Dashboard
+    from detached_launcher import follow_output, atomic
+    from launcher_render import LauncherDisplay
     stream = stream or sys.stdout
     # A supervising fix-tests process retains frames separately from its log.
     # Only the final observer knows whether (and how large) its terminal is.
     destination = os.environ.get(FRAME_DIRECTORY)
-    if destination:
-        stream = SessionOutput(Path(destination), stream)
-    dashboard = Dashboard([], stream=stream)
-    last_frame = None
+    display = LauncherDisplay(stream)
     try:
-        with (run / 'output').open(encoding='utf-8', errors='replace') as output:
-            with lock(run / 'owner') as owner:
-                while True:
-                    active = busy(owner)
-                    text = output.read()
-                    if text:
-                        dashboard.restore_terminal()
-                        stream.write(text)
-                        stream.flush()
-                    if not active:
-                        dashboard.restore_terminal()
-                        result = run / 'result'
-                        status = int(result.read_text()) if result.exists() else 1
-                        if not result.exists():
-                            stream.write('\nTest owner stopped without a final result; run is incomplete.\n')
-                        stream.flush()
-                        (run / 'delivered').touch(mode=0o600)
-                        return status
-                    frame = run / 'frame.json'
-                    if frame.exists():
-                        lines = json.loads(frame.read_text())
-                        if stream.isatty() or lines != last_frame:
-                            dashboard.draw_lines(lines)
-                            last_frame = lines
-                    time.sleep(0.2)
+        return follow_output(run, stream, display, label='run-tests',
+                             test_session=True, destination=Path(destination) if destination else None,
+                             owner_busy=lambda owner: busy(owner))
     finally:
-        dashboard.restore_terminal()
+        display.close()
         if destination:
-            stream.frame([])
+            atomic(Path(destination) / 'frame.json', [])
 
 
 def main(root, argv):
@@ -205,6 +185,8 @@ def worker(root, argv, run, owner):
         with test_activity.activity(root):
             from test_recovery import before_run
             categories = [kind for kind, _ in selections(root, argv)] if argv else []
+            sys.stdout.controller('preparing', [
+                f'Category: {categories[0] if categories else "all"} (1/{len(categories) or 1}) | Preparing tests'])
             before_run(root, argv, categories=categories)
             status = _main(argv, detached=True)
     finally:

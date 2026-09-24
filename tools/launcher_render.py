@@ -1,7 +1,7 @@
-"""Shared session presentation of noninteractive Codex JSONL events.
+"""Shared launcher panes and presentation of noninteractive Codex JSONL events.
 
 Render once in the detached supervisor, so reconnecting observers see the same
-transcript without a live display, input handling or dependence on a terminal.
+agent transcript. Only the observer owns the terminal and its two-pane display.
 """
 
 import json
@@ -9,6 +9,7 @@ import os
 import re
 import shlex
 import shutil
+from collections import deque
 from pathlib import PurePath
 
 from rich.console import Console
@@ -24,6 +25,136 @@ CONTROL = re.compile(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))
 
 def clean(value):
     return CONTROL.sub('', str(value))
+
+
+class LauncherDisplay:
+    """Two panes owned by the observer, never by its streaming children.
+
+    A VT terminal cannot scroll two independent panes. Its upper pane therefore
+    shows the latest two controller steps. Pipes retain accumulating output.
+    Absolute cursor positioning confines every redraw to its own pane.
+    """
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.tty = stream.isatty() and os.environ.get('TERM') != 'dumb'
+        self.console = Console(file=stream, force_terminal=True, markup=False,
+                               highlight=False, color_system='truecolor', no_color=False)
+        self.transcript = deque(maxlen=2000)
+        self.pending = ''
+        self.steps = []
+        self.details = []
+        self.size = None
+        self.screen = False
+        self.previous = None
+
+    def write(self, value, *, final=False):
+        if not self.tty:
+            self.stream.write(value)
+            self.stream.flush()
+            return
+        lines = (self.pending + value).split('\n')
+        self.pending = lines.pop()
+        self.transcript.extend(lines)
+        if final and self.pending:
+            self.transcript.append(self.pending)
+            self.pending = ''
+        self.draw()
+
+    def update(self, steps, details):
+        if not self.tty:
+            for step in steps:
+                if step not in self.steps:
+                    self.stream.write('\n'.join(step['lines']) + '\n')
+            if details != self.details and details:
+                self.stream.write('\n'.join(details) + '\n')
+            self.stream.flush()
+        self.steps, self.details = steps, details
+        self.draw()
+
+    def wrapped(self, lines, width):
+        return [row for line in lines for row in
+                Text.from_ansi(line).wrap(self.console, width, overflow='fold')]
+
+    def draw(self):
+        if not self.tty:
+            return
+        try:
+            size = os.get_terminal_size(self.stream.fileno())
+        except (OSError, ValueError):
+            size = shutil.get_terminal_size()
+        width, height = max(1, size.columns - 1), max(1, size.lines)
+        steps = [self.wrapped(step['lines'], width) for step in self.steps[-2:]]
+        # Reflow the entire newest step before spending space on its predecessor.
+        # Extremely small terminals use ordinary wrapped output until enlarged.
+        while len(steps) > 1 and sum(map(len, steps)) + 3 > height:
+            steps.pop(0)
+        top = [row for step in steps for row in step]
+        if len(top) + 3 > height:
+            if self.screen:
+                self.restore_terminal()
+            current = (self.steps, list(self.transcript), self.pending, self.details, size)
+            if current != self.previous:
+                self.stream.write('\n'.join(row.plain for row in top) + '\n')
+                self.stream.write('\n'.join(self.details or list(self.transcript)[-2:]) + '\n')
+                self.stream.flush()
+                self.previous = current
+            return
+        available = height - len(top) - 1
+        # The lower pane keeps the detailed test dashboard and the newest log
+        # rows. Agent sessions have no dashboard, so use the whole lower pane.
+        from regression import Dashboard
+        details = Dashboard.fit_height(self.details, available) if self.details else []
+        detail_rows = []
+        for line in details:
+            row = Text.from_ansi(line)
+            row.truncate(width, overflow='ellipsis')
+            detail_rows.append(row)
+        room = available - len(detail_rows)
+        log_rows = []
+        for line in reversed([*self.transcript, *([self.pending] if self.pending else [])]):
+            if len(log_rows) >= room:
+                break
+            log_rows = self.wrapped([line], width)[-(room - len(log_rows)):] + log_rows
+        body = log_rows + detail_rows
+        body += [Text('')] * (available - len(body))
+        rows = top + [Text('─' * width, style='dim')] + body
+        # Compare physical rows so quiet workers do not repaint either pane.
+        encoded = []
+        for row in rows:
+            with self.console.capture() as capture:
+                self.console.print(row, width=width, end='', soft_wrap=True)
+            encoded.append(capture.get())
+        if not self.screen:
+            self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
+            self.screen = True
+            self.previous = None
+        if size != self.size:
+            self.stream.write('\033[H\033[2J')
+            self.previous = None
+        for index, row in enumerate(encoded):
+            if self.previous is None or index >= len(self.previous) or row != self.previous[index]:
+                self.stream.write(f'\033[{index + 1};1H\033[2K' + row)
+        self.stream.flush()
+        self.previous, self.size = encoded, size
+
+    def restore_terminal(self):
+        if self.screen:
+            self.stream.write('\033[?25h\033[?1049l')
+            self.stream.flush()
+            self.screen = False
+            self.previous = None
+
+    def close(self):
+        self.restore_terminal()
+        if self.tty:
+            # Leave a useful final transcript in normal terminal scrollback.
+            writer = TranscriptWriter(self.stream)
+            writer.write('\n'.join(self.transcript) + ('\n' if self.transcript else '')
+                         + self.pending, final=True)
+            for step in self.steps:
+                writer.write('\n'.join(step['lines']) + '\n', final=True)
+            self.stream.flush()
 
 
 class SessionCodeBlock(CodeBlock):

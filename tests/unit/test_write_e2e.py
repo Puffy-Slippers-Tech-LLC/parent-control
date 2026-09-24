@@ -1,6 +1,7 @@
 """Task selection, handoff boundaries and fail-closed completion."""
 
 import subprocess
+import json
 
 import pytest
 
@@ -8,10 +9,34 @@ import write_e2e as workflow
 from tests.support.write_e2e_fixtures import prepare, reply
 
 
+def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, capsys):
+    from rich.console import Console
+    from rich.text import Text
+    state = dict(workflow.fresh_state('024'),
+                 summary='Checked `tools/watchvm`.',
+                 handoff='Read [the guide](https://example.com/guide).\n\n'
+                         '```bash\ntools/write-e2e --sessions 3\n```')
+    workflow.save_handoff(tmp_path, state, 'stopped')
+    output = capsys.readouterr().out
+    rendered = Text.from_ansi(output)
+    assert '• Task 024: stopped.' in rendered.plain
+    assert 'Next session prompt:' in rendered.plain
+    assert '```' not in rendered.plain and '`tools/watchvm`' not in rendered.plain
+    for token, color in [('tools/watchvm', '#008000'), ('the guide', '#0066ff'),
+                         ('tools/write-e2e', '#0066ff'), ('--sessions', '#ff0000')]:
+        offset = rendered.plain.index(token)
+        style = rendered.get_style_at_offset(Console(), offset)
+        assert style.color.get_truecolor().hex == color
+    saved = (tmp_path / 'handoff.txt').read_text()
+    assert state['handoff'] in saved and '\x1b' not in saved
+    assert json.loads((tmp_path / 'checkpoint.json').read_text()) == state
+
+
 def test_implementation_prompt_preserves_requested_boundary():
     prompt = workflow.session_prompt(workflow.fresh_state('001'))
     assert prompt.startswith(workflow.INITIAL_PROMPT)
-    assert 'Do not run live VM tests, stage changes' in prompt
+    assert 'Do not run live VM tests or close the task/advance the pointer' in prompt
+    assert 'The launcher owns staging' in prompt
     assert 'Do not analyze staged' in prompt
     assert 'Do not commit' in prompt
     assert 'tools/run-tests' in prompt

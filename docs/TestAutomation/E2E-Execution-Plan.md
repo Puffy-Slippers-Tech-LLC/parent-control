@@ -19,15 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **006 — [Perform a customer package operation](E2E-Tasks/006-package-command.md)**.
+Next task: **007 — [Observe a deliberate customer reboot](E2E-Tasks/007-customer-reboot.md)**.
 
-Remaining: compose and qualify LIFE04's install-only operation using the shared
-administrator command boundary and independent completion/notice readback.
-Task 005 qualified `install-staged-package` in run
-`20260924T215601Z-8f5800a9`, including input refusals, actual final reboot notice,
-private collection, owned cleanup and baseline restoration. Reuse the
-[qualified callables](E2E-Building-Blocks.md#administrator-package-command-and-output)
-from a fresh product-free attempt. Case 2 and update/removal/purge remain pending.
+Remaining: implement and qualify one planned customer reboot in the same fresh
+installation attempt, independently observe changed boot and usable GDM, then
+sign in to the administrator desktop. Reuse the
+[qualified LIFE04 install composition](E2E-Building-Blocks.md#customer-package-install-composition)
+from task 006, run `20260924T221715Z-9ebb5329`, with its successful final notice,
+private collection and owned cleanup. Unplanned reboot must still fail.
+Complete case 2 and other package operations remain pending.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

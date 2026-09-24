@@ -23,6 +23,16 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
+Reuse [the qualified install composition](../E2E-Building-Blocks.md#customer-package-install-composition):
+`tests/e2e/package_install.py` (`submit_install`, `observe_install`,
+`PackageInstallJourney`) and `PackageInstallQualification` in
+`tests/integration/parent_setup_qualification.py`. Its fixed selector is
+`check_e2e_package_command`; its host regression is
+`tests/unit/test_package_install_cleanup_safety.py`. Extend the shared
+`InstalledJourney` boot-continuity boundary for the planned transition; preserve
+the existing unplanned-boot refusal coverage in
+`tests/unit/test_installed_journey_cleanup_safety.py`.
+
 ## Implementation
 
 Add one explicitly planned customer boot transition to InstalledJourney, reusing the qualified product-free installation start. Reboot through the shared guarded SSH system command, bind the changed boot only as harness continuity, and reacquire fresh GDM. Unplanned reboot still fails. This task does not introduce another setup route.

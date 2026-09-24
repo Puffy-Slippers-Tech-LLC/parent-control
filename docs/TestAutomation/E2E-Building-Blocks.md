@@ -339,7 +339,7 @@ these blocks, not copies of them.
 | LIFE01 | C | Close and reopen one named ordinary app through a shared direct command, unless the case explicitly tests its graphical launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | Parent: UI18 → PARENT01. Other ordinary apps use APP01 with the declared route; SEARCH05 is limited to explicit app-grid checks. Caller reads/compares the relevant fields afterward. Overlay/kiosk reopening uses their explicit exit/entry blocks. | pending |
 | LIFE02 | C | Reboot through a fixed supported system command in the owned guest, then observe a new boot and fresh GDM in the same attempt. | Shared guarded transport reboot/boot-transition recorder. No Shell power menu or confirmation; product persistence and activation notices remain required. | pending |
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
-| LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | Shared FILE01/02/06 with validated artifact identity, administrator authority and bounded output. No Terminal, sudo-prompt exercise or private product-state assertion. | pending |
+| LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | `package_install.submit_install` / `observe_install` compose FILE01/02/06 and AUTH03 with verified artifact identity, one submission and independent completion/final notice. `PackageInstallJourney` qualifies the fresh product-free install entry; [qualification](#customer-package-install-composition). No Terminal, sudo-prompt exercise or private product-state assertion. | install ready; update/remove/reinstall/purge pending |
 | LIFE05 | C | Follow the displayed activation requirement for the explicit finite list of affected apps/users: none, process reopen, session renewal, or reboot/login. | None: UI03(notice). Process: LIFE01 for each app. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | pending |
 | LIFE06 | C | Change real guest connectivity through the shared system harness and independently observe offline/reconnected state and required product results. | Registered NetworkManager/nmcli operation on the test connection, preserving management/observation and cleanup. No Settings/Quick Settings navigation, mock transport or injected product/provider fault. | pending |
 
@@ -1421,8 +1421,8 @@ collection, owned worker cleanup and baseline restoration. The durable
 after-cleanup result is
 `output/test-runs/privileged/allocations/onpc-e2e-evidence-liy0bxsc/event-000016.json`;
 the report is `output/test-runs/host/reports/20260924T203125Z-f94d7c37/report.md`.
-Package execution/notice has its separate qualification below; installation
-composition remains task 006 and case 2 remains pending. This qualification
+Package execution/notice and installation composition have their separate
+qualifications below; case 2 remains pending. This qualification
 supplies no complete-scenario credit.
 
 ### Administrator package command and output
@@ -1455,8 +1455,29 @@ and lease completion passed. The durable after-cleanup result is
 `output/test-runs/privileged/allocations/onpc-e2e-evidence-1kzlp7dr/event-000017.json`;
 the report is `output/test-runs/host/reports/20260924T215601Z-8f5800a9/report.md`.
 This capability qualification records its three assertions; the envelope's
-complete-product result is `not-run`. LIFE04 composition, other package
-operations and complete case 2 remain pending.
+complete-product result is `not-run`. LIFE04 installation composition is qualified
+separately below; other package operations and complete case 2 remain pending.
+
+### Customer package install composition
+
+`check_e2e_package_command` passed in run `20260924T221715Z-9ebb5329` on a
+fresh product-free Ubuntu 26.04 attempt. `PackageInstallQualification`,
+[`PackageInstallJourney`](../../tests/e2e/package_install.py) and
+`onpc_package_install::run` compose the qualified entry and command leaves.
+Reusable `submit_install` binds the verified package to one administrator
+submission and retains the consumed command on uncertain failure;
+`observe_install` independently reads successful completion and the actual final
+reboot-required line at a later checkpoint, before durable acknowledgement.
+
+The slice passed greeter refusal, fresh Parent login and desktop readback,
+administrator authority, one real installation, completion/final notice,
+capture reconciliation, private collection, owned worker shutdown and baseline
+restoration. The durable after-cleanup record is
+`output/test-runs/privileged/allocations/onpc-e2e-evidence-8xqbpjt2/event-000017.json`;
+the report is `output/test-runs/host/reports/20260924T221715Z-9ebb5329/report.md`.
+Its three capability assertions passed; the complete-product result remains
+`not-run`. Reboot continuity, update/remove/reinstall/purge and complete case 2
+are separate unfinished scopes.
 
 ### Reachability and result checks
 

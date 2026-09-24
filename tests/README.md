@@ -321,6 +321,12 @@ cleanup. Replay uses the run log rather than the bounded live pane, and leaves
 existing shell history intact. Full output remains in the existing run log,
 subject to its storage limits. `run-tests` preserves its detailed dashboards when observed
 through a workflow launcher, below that workflow's controller summary.
+Mouse capture is off by default: drag to select text and use the host terminal's
+copy action and configured right-click behavior. Standalone terminals and VS Code
+keep their own menus and preferences. Use Up/Down or Page Up/Page Down to scroll,
+Tab to switch panes (initially the lower pane), and End to return to the newest
+rows. Press `m` to toggle mouse capture for pane clicks, wheel scrolling and
+scrollbar dragging; press `m` again to restore native selection and menus.
 The shared [detached launcher module](../tools/detached_launcher.py) owns
 workflow attachment, process supervision, fresh Codex transport, log rotation
 and output following for `fix-tests` and `write-e2e`; `run-tests` shares its lock

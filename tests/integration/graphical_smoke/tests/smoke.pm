@@ -36,6 +36,7 @@ use onpc_repeated_operations ();
 use onpc_challenges ();
 use onpc_product_free_entry ();
 use onpc_package_authority ();
+use onpc_package_install ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
@@ -62,6 +63,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{package_install}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_package_install::run(\&exchange);
+        return;
+    }
     if ($ready->{package_authority}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

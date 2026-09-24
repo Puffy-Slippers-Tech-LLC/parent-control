@@ -653,11 +653,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          shell_search=False, parent_terminal_provider=False,
          license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
-         challenges=False, product_free_entry=False, package_authority=False):
+         challenges=False, product_free_entry=False, package_authority=False,
+         package_install=False):
+    require(type(package_install) is bool and not (package_install and
+            (package_authority or product_free_entry)), 'smoke:package-install-prerequisites')
     require(type(package_authority) is bool and not (package_authority and product_free_entry),
             'smoke:package-authority-prerequisites')
     # Reuse the exact product-free prerequisite gate, preparation and envelope.
-    product_free_entry = product_free_entry or package_authority
+    product_free_entry = product_free_entry or package_authority or package_install
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -966,6 +969,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'product-free-entry-qualification'
         if package_authority:
             result['scope'] = 'package-authority-qualification'
+        if package_install:
+            result['scope'] = 'package-install-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1070,6 +1075,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if package_authority:
                     from parent_setup_qualification import PackageAuthorityQualification
                     qualification_class = PackageAuthorityQualification
+                if package_install:
+                    from parent_setup_qualification import PackageInstallQualification
+                    qualification_class = PackageInstallQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

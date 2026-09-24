@@ -453,6 +453,15 @@ class PackageAuthorityQualification(ProductFreeEntryQualification):
         return PackageAuthorityJourney(context, progress)
 
 
+class PackageInstallQualification(ProductFreeEntryQualification):
+    """LIFE04 composition, with fresh entry and separate completion readback."""
+
+    @staticmethod
+    def journey(context, progress):
+        from package_install import PackageInstallJourney
+        return PackageInstallJourney(context, progress)
+
+
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

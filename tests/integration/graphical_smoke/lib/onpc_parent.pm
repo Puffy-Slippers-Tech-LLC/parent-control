@@ -116,10 +116,12 @@ sub launch_search_result {
 # PARENT01: fixed public command, then independent owned-window observation.
 sub launch {
     onpc_progress::operation('Opening Parent');
-    my ($journey, $desktop, $expected) = @_;
-    die 'parent:launch-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+    my ($journey, $desktop, $expected, $desktop_stage) = @_;
+    $desktop_stage //= 'desktop';
+    die 'parent:launch-binding' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
+        && ($desktop_stage eq 'desktop' || $desktop_stage eq 'reboot-desktop')
         && ($expected eq 'management' || $expected eq 'denied');
-    $journey->consume_observation('desktop', $desktop);
+    $journey->consume_observation($desktop_stage, $desktop);
     # The controller executes the installed command once as this desktop user.
     # A transport failure is uncertain input; no terminal/search fallback.
     $journey->seen('parent-command');

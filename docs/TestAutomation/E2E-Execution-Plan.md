@@ -19,15 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **008 — [E2E-002: clean](E2E-Tasks/008-case-2.md)**.
+Next task: **029 — [Open feedback and read synthetic drafts](E2E-Tasks/029-feedback-read.md)**.
 
-Remaining: implement and qualify complete case 2 as one fresh product-free
-installation, real reboot, account/station discovery, Parent default-state
-inspection and station entry/Cancel journey. Reuse task 007's qualified
-[fresh install/reboot/administrator return](E2E-Building-Blocks.md#customer-reboot-continuity),
-task 013's request exits and task 077a's complete bounded
-[app-row observations](E2E-Building-Blocks.md#app-row-observations).
-Case 2 remains pending; capability qualifications do not supply its acceptance.
+Remaining: implement and qualify FEED01 entry and FEED03 bounded synthetic
+feedback observations in installed Parent, including independent dialog entry,
+wrong-entry refusal and owned cleanup. Keep Send untouched; complete feedback
+scenarios remain separate tasks.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

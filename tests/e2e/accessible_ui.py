@@ -19,6 +19,7 @@ import warnings
 
 
 OPERATIONS = frozenset({
+    'gdm-installed-accounts',
     'gdm-no-approver-refused',
     'gdm-no-child-refused',
     'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-navigation-returned',
@@ -154,7 +155,7 @@ GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
     'gdm-station-returned'})
 GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list',
                                 'gdm-station-list', 'gdm-product-free-list'})
-GREETER_OPERATIONS |= frozenset({'gdm-product-free-provider'})
+GREETER_OPERATIONS |= frozenset({'gdm-product-free-provider', 'gdm-installed-accounts'})
 GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-other-list', 'gdm-other-focused',
     'gdm-standard-list', 'gdm-standard-focused',
@@ -2547,7 +2548,7 @@ class AccessibleUI:
         """Return declared fixture rows from one complete account-list snapshot."""
         require(type(expected) is tuple and expected
                 and len(set(expected)) == len(expected)
-                and set(expected) <= {PARENT, OTHER_PARENT, EXISTING_CHILD, KIOSK}
+                and set(expected) <= {PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK}
                 and type(excluded) is tuple
                 and len(set(excluded)) == len(excluded)
                 and set(excluded) <= {PARENT, OTHER_PARENT, EXISTING_CHILD, KIOSK}
@@ -2562,6 +2563,7 @@ class AccessibleUI:
             PARENT: (PARENT,),
             OTHER_PARENT: (OTHER_PARENT,),
             EXISTING_CHILD: (EXISTING_CHILD,),
+            CHILD: (CHILD,),
             KIOSK: (KIOSK, KIOSK_USERNAME),
         }
         identities = (*expected, *excluded)
@@ -3843,7 +3845,9 @@ class AccessibleUI:
         elif operation == 'station-default-entry':
             result['entry'] = self.station_default_entry(self.branch_owner)
         elif operation in GREETER_OPERATIONS:
-            if operation == 'gdm-product-free-provider':
+            if operation == 'gdm-installed-accounts':
+                self.gdm_semantic_rows((PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK))
+            elif operation == 'gdm-product-free-provider':
                 result['provider'] = self.gdm_provider_metadata()
             elif operation in ('gdm-no-child-refused', 'gdm-no-approver-refused'):
                 self.gdm_nonsecret_account(KIOSK)

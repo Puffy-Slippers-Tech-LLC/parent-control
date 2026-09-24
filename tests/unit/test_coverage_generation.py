@@ -112,7 +112,7 @@ def test_invalid_numeric_selection_refuses_before_privileges(options, monkeypatc
 
 def test_pending_number_refuses_execution_before_artifact_or_privilege_checks():
     with pytest.raises(ValueError, match='selection:pending'):
-        coverage.test_commands.plan(ROOT, 'e2e', ['--id', '2'])
+        coverage.test_commands.plan(ROOT, 'e2e', ['--id', '7'])
 
 
 def test_numeric_execution_forwards_exact_case_to_existing_installed_dispatcher():

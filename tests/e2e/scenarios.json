@@ -111,7 +111,7 @@
         "rationale": "Owns first usable Parent and station entry after installation. Package contents, ownership and startup ordering remain separate engineering qualification."
       },
       "variants": [
-        {"coverage_id": 2, "id": "clean", "owner": "installation", "parameters": {"installation": "clean"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 2, "id": "clean", "owner": "installation", "parameters": {"installation": "clean"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/clean_install.py", "test_id": "clean"}}
       ]
     },
     {

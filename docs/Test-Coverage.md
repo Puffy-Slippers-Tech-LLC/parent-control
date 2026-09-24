@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">11949</span>/<span style="color: gray">0</span>/11949 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">12383</span>/<span style="color: gray">0</span>/12383 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">40</span>/<span style="color: gray">0</span>/40 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">10</span>/<span style="color: gray">232</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">12535</span>/<span style="color: gray">232</span>/12767** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">47</span>/<span style="color: gray">0</span>/47 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">11</span>/<span style="color: gray">231</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">12977</span>/<span style="color: gray">231</span>/13208** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">9</span>/<span style="color: gray">232</span>/241 |
+| customer-journey | <span style="color: green">10</span>/<span style="color: gray">231</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -35,6 +35,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | ID | Scenario | Variant | Status |
 | ---: | --- | --- | --- |
 | [1](#scenario-1) | Fresh boot and graphical/observation transport | `E2E-001/gdm-observation` | ready |
+| [2](#scenario-2) | Install the app and begin managing a child | `E2E-002/clean` | ready |
 | [3](#scenario-3) | Parent discovery and navigation (children: existing and new) | `E2E-003/existing-and-new` | ready |
 | [4](#scenario-4) | Parent discovery and navigation (children: none) | `E2E-003/none` | ready |
 | [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
@@ -44,7 +45,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [57](#scenario-57) | Kiosk selection and unavailable requests (accounts: disabled child) | `E2E-017/disabled-child` | ready |
 | [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
-| <span style="color: gray">[2](#scenario-2)</span> | <span style="color: gray">Install the app and begin managing a child</span> | <span style="color: gray">`E2E-002/clean`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -291,6 +291,20 @@ Variant: transport: gdm observation
 - Select the supported serial console, verify the real fixture login prompt and disabled echo, authenticate through the secret-safe API, require actual harmless command output, and perform real logout.
 - Select graphics after serial logout, independently acknowledge the session-free greeter and fresh public account-list UI, and reconcile ordered functional UI checkpoints and the command result before accepting shutdown.
 
+### Scenario 2
+
+**Install the app and begin managing a child**
+
+Case: `E2E-002/clean` · Category: customer-journey · Status: **ready**
+
+Variant: installation: clean
+
+**Steps:**
+
+- On a supported computer without the app, use the shared guarded SSH administrator helper to install the verified supplied release with the documented package command. Read the actual completion and reboot notice.
+- Restart using the shared LIFE02 system command. At sign-in, check that personal accounts remain available and the Oh No! Parent Control request station is offered.
+- Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in.
+
 ### Scenario 3
 
 **Parent discovery and navigation (children: existing and new)**
@@ -413,26 +427,6 @@ Variant: surface: command help
 - For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop.
 - For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
 - Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
-
-<div style="color: gray">
-
-### Scenario 2
-
-**Install the app and begin managing a child**
-
-Case: `E2E-002/clean` · Category: customer-journey · Status: **pending**
-
-Variant: installation: clean
-
-**Steps:**
-
-- On a supported computer without the app, use the shared guarded SSH administrator helper to install the verified supplied release with the documented package command. Read the actual completion and reboot notice.
-- Restart using the shared LIFE02 system command. At sign-in, check that personal accounts remain available and the Oh No! Parent Control request station is offered.
-- Sign in as the parent, open Oh No! Parent Control, select a child and read fresh Screen Limits and App Limits settings. Switch User, enter the request station, read its form, and Cancel back to sign-in.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
 
 <div style="color: gray">
 

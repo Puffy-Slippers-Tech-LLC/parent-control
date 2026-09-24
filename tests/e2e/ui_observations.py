@@ -22,6 +22,7 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'gdm-installed-accounts': 'Checking preserved personal accounts and the installed request station',
     'parent-app-rows': 'Reading the complete App Limits row set',
     'parent-app-rows-reopened': 'Reopening App Limits and independently reading its rows',
     'parent-app-rows-wrong-child': 'Refusing app rows for a different child',

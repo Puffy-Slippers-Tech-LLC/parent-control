@@ -51,7 +51,7 @@ class LauncherDisplay:
     """Two panes owned by the observer, never by its streaming children.
 
     Native terminal selection and context menus own the mouse by default.
-    Keyboard navigation (or opt-in mouse reports) scrolls the focused pane.
+    Press m to enable pane scrolling and show the draggable scrollbar.
     The lower pane starts focused. Absolute positioning isolates redraws.
     """
 
@@ -182,6 +182,7 @@ class LauncherDisplay:
                     self.mouse_capture = not self.mouse_capture
                     self.scrollbar_grab = None
                     self.set_mouse_mode()
+                    self.draw()
                 elif key == b'\t':
                     self.focus = 'top' if self.focus == 'bottom' else 'bottom'
                 else:
@@ -198,6 +199,10 @@ class LauncherDisplay:
             if match:
                 button, column, row = map(int, match.groups()[:3])
                 self.input_pending = self.input_pending[match.end():]
+                if not self.mouse_capture:
+                    # Reports already queued before releasing the mouse must
+                    # not scroll or start a drag in native selection mode.
+                    continue
                 if match[4] == b'm':
                     self.scrollbar_grab = None
                 elif (button & ~28) == 32:
@@ -329,10 +334,16 @@ class LauncherDisplay:
         if self.offsets['bottom']:
             body = scrolled_body
         body += [Text('')] * (available - len(body))
-        rows = top + [Text('─' * width, style='dim')] + body
+        divider = Text('─' * width, style='dim')
+        if self.input_fd is not None:
+            divider = Text(' m: select text ' if self.mouse_capture else ' m: scroll ',
+                           style='dim')
+            divider.truncate(width, overflow='crop')
+            divider.append('─' * max(0, width - divider.cell_len))
+        rows = top + [divider] + body
         total = len(self.row_cache['bottom'][1])
         self.scrollbar = None
-        if available > 0 and total > available:
+        if self.mouse_capture and available > 0 and total > available:
             thumb = max(1, min(available - 1, round(available * available / total)))
             travel = available - thumb
             start = round(travel * (total - available - self.offsets['bottom']) / (total - available))

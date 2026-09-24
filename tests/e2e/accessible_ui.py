@@ -19,6 +19,7 @@ import warnings
 
 
 OPERATIONS = frozenset({
+    'gdm-no-approver-refused',
     'gdm-no-child-refused',
     'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-navigation-returned',
     'gdm-product-free-list', 'gdm-product-free-focused',
@@ -132,6 +133,7 @@ GDM_PROVIDER_CONTROLS = (
     'session-choice::<provider-session-id>',
 )
 GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
+    'gdm-no-approver-refused',
     'gdm-no-child-refused',
     'gdm-navigation-returned', 'gdm-dismissed', 'gdm-returned',
     'gdm-product-free-list', 'gdm-product-free-focused',
@@ -169,8 +171,8 @@ GDM_SESSION_LABELS = {
     'Log In': 'sign-in', 'Cancel': 'cancel',
 }
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form', 'kiosk-child-choices-closed',
-                              'kiosk-no-child-form'})
-KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-child-choices-open'})
+                              'kiosk-no-child-form', 'kiosk-no-approver-form'})
+KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-child-choices-open', 'kiosk-approver-baseline'})
 OPERATIONS |= KIOSK_OPERATIONS | KIOSK_CHOICE_OPERATIONS
 KIOSK_ACCOUNT_REQUESTS = {
     'kiosk-child-select': ('fixture-child', 'other-fixture-parent'),
@@ -2455,7 +2457,9 @@ class AccessibleUI:
                 'ui:gdm-nonsecret-binding')
         if self.gdm_nonsecret_has_id_route():
             return self.greeter_list(name)
-        expected = tuple(dict.fromkeys((PARENT, KIOSK, name)))
+        # Station entry must also work when every parent is locked, hidden or
+        # differently named. Its own usable row is the required destination.
+        expected = (KIOSK,) if name == KIOSK else tuple(dict.fromkeys((PARENT, KIOSK, name)))
         _owner, rows = self.gdm_semantic_rows(expected)
         return rows[name]
 
@@ -2510,7 +2514,7 @@ class AccessibleUI:
 
     def kiosk_gdm_returned(self):
         """Observe the exited station's usable greeter and absent owned UI."""
-        self.gdm_semantic_rows((PARENT, KIOSK))
+        self.gdm_semantic_rows((KIOSK,))
         nodes = list(self.nodes(strict=True))
         require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
                                   for node in nodes), 'ui:gdm-stale-tree')
@@ -2745,11 +2749,15 @@ class AccessibleUI:
                 and self.has_state(field, self.api.StateType.FOCUSED),
                 'ui:gdm-password-focus')
 
-    def kiosk_request_form(self, *, enabled=False, expected_selection=None, no_child=False):
+    def kiosk_request_form(self, *, enabled=False, expected_selection=None, no_child=False,
+                           no_approver=False):
         """Read REQUEST03's default-duration station state after accounts load."""
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
         require(type(no_child) is bool and (not no_child or (
                 not enabled and expected_selection is None)), 'ui:kiosk-profile-binding')
+        require(type(no_approver) is bool and (not no_approver or (
+                not no_child and not enabled and expected_selection is None)),
+                'ui:kiosk-profile-binding')
         require(expected_selection is None or (type(expected_selection) is tuple and len(expected_selection) == 2
                 and expected_selection[0] in ('child', 'approver')
                 and expected_selection[1] in (CHILD_IDENTITIES if expected_selection[0] == 'child'
@@ -2914,26 +2922,31 @@ class AccessibleUI:
             notice = lookup('kiosk-screen-limit-notice', form_nodes, identity_by_node)
             if enabled and notice is not None:
                 return None
-            if not enabled and not no_child and notice is None:
+            if not enabled and not no_child and not no_approver and notice is None:
                 return None
             diagnostic.emit('message')
-            if no_child:
+            if no_child or no_approver:
+                field = 'child' if no_child else 'approver'
                 status = lookup('kiosk-request-status', form_nodes, identity_by_node, emit=False)
                 if status is None or ' '.join(status.get_name().split()) in (
                         'Loading accounts…', 'Loading request details…'):
                     return None
-                require(' '.join(status.get_name().split()) ==
-                        'No local standard accounts are available. Create one, then reopen this screen.',
-                        'ui:kiosk-no-child-message')
+                expected_message = (
+                    'No local standard accounts are available. Create one, then reopen this screen.'
+                    if no_child else 'No local interactive administrator accounts are available.')
+                require(' '.join(status.get_name().split()) == expected_message,
+                        f'ui:kiosk-no-{field}-message')
                 # Include hidden choices: an empty selection alone does not
                 # prove the form's complete offered child set is empty.
-                require(not any(identity_by_node[node].startswith('kiosk-child-choice-')
-                                for node in form_nodes), 'ui:kiosk-no-child-choices')
-                control_nodes = self.snapshot_scope(public_nodes, snapshot, child)
+                require(not any(identity_by_node[node].startswith(f'kiosk-{field}-choice-')
+                                for node in form_nodes), f'ui:kiosk-no-{field}-choices')
+                control_nodes = self.snapshot_scope(public_nodes, snapshot,
+                                                    child if no_child else approver)
                 selected = [node for node in control_nodes if identity_by_node[node].startswith(
-                    'kiosk-child-selected-')]
+                    f'kiosk-{field}-selected-')]
                 require(len(selected) == 1 and identity_by_node[selected[0]] ==
-                        'kiosk-child-selected-none', 'ui:kiosk-no-child-selection')
+                        f'kiosk-{field}-selected-none' and self.showing(selected[0]),
+                        f'ui:kiosk-no-{field}-selection')
             elif not enabled:
                 message = ' '.join(notice.get_name().split())
                 require(message == 'Screen limit is not enabled in Parent App',
@@ -2946,7 +2959,7 @@ class AccessibleUI:
                 'surface': 'kiosk', 'form_count': 1,
                 'child': 'none' if no_child else selected_identity(
                     child, 'Child account', CHILD_IDENTITIES, 'kiosk-child'),
-                'approver': selected_identity(
+                'approver': 'none' if no_approver else selected_identity(
                     approver, 'Approving parent', APPROVER_IDENTITIES,
                     'kiosk-approver'),
                 'duration_seconds': 1800,
@@ -2958,7 +2971,7 @@ class AccessibleUI:
                 'soft_choice_enabled': self.has_state(allow_soft, self.api.StateType.SENSITIVE),
                 'request_enabled': self.has_state(request, self.api.StateType.SENSITIVE),
                 'cancel_enabled': self.has_state(cancel, self.api.StateType.SENSITIVE),
-                'message': 'no-child' if no_child else (
+                'message': 'no-child' if no_child else 'no-approver' if no_approver else (
                     '' if enabled else 'screen-limit-disabled'), 'mute': None,
             }
             if projection['child'] is None or projection['approver'] is None:
@@ -2976,7 +2989,33 @@ class AccessibleUI:
         finally:
             self.kiosk_diagnostic = None
 
-    def kiosk_account_snapshot(self, field):
+    def kiosk_approver_baseline(self):
+        """Prove at least one parent is listed, without using a disabled selector.
+
+        GTK omits collapsed options from AT-SPI. The showing selected parent
+        proves the nonempty starting state; OS fixture setup discovers all
+        eligible accounts before locking. Its UID binds that setup to this form.
+        """
+        def observe():
+            selector, _form, observation = self.kiosk_account_snapshot(
+                'approver', require_enabled=False)
+            nodes, snapshot, identities, _facts = observation
+            selected = [node for node in self.snapshot_scope(nodes, snapshot, selector)
+                        if identities[node].startswith('kiosk-approver-selected-')]
+            require(len(selected) == 1, 'ui:kiosk-approver-selection')
+            if identities[selected[0]] == 'kiosk-approver-selected-none':
+                return None
+            match = re.fullmatch(r'kiosk-approver-selected-([1-9][0-9]*)',
+                                 identities[selected[0]])
+            require(self.showing(selected[0]) and match is not None,
+                    'ui:kiosk-approver-selection')
+            uid = int(match[1])
+            require(1000 <= uid <= (1 << 32) - 1, 'ui:kiosk-approver-identity')
+            return [uid]
+
+        return self.wait(observe, 'kiosk-approver-baseline', prompt_in_predicate=True)
+
+    def kiosk_account_snapshot(self, field, *, require_enabled=True):
         """One complete owned snapshot for a station account input boundary."""
         require(field in ('child', 'approver'), 'ui:kiosk-account-field')
         snapshot, facts = {}, {}
@@ -2994,7 +3033,7 @@ class AccessibleUI:
         selector = self.snapshot_owned_target(
             f'kiosk-{field}-selector', root=form, showing=False, observation=observation)
         require(selector is not None and self.has_state(selector, self.api.StateType.VISIBLE)
-                and self.has_state(selector, self.api.StateType.SENSITIVE),
+                and (not require_enabled or self.has_state(selector, self.api.StateType.SENSITIVE)),
                 'ui:kiosk-account-unavailable')
         return selector, form, observation
 
@@ -3672,10 +3711,11 @@ class AccessibleUI:
         elif operation == 'station-default-entry':
             result['entry'] = self.station_default_entry(self.branch_owner)
         elif operation in GREETER_OPERATIONS:
-            if operation == 'gdm-no-child-refused':
+            if operation in ('gdm-no-child-refused', 'gdm-no-approver-refused'):
                 self.gdm_nonsecret_account(KIOSK)
                 try:
-                    self.kiosk_account_snapshot('child')
+                    self.kiosk_account_snapshot(
+                        'child' if operation == 'gdm-no-child-refused' else 'approver')
                 except UiError as error:
                     require(str(error) == 'ui:kiosk-account-surface', 'ui:kiosk-wrong-refusal')
                 else:
@@ -3885,6 +3925,10 @@ class AccessibleUI:
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-no-child-form':
             result['request'] = self.kiosk_request_form(no_child=True)
+        elif operation == 'kiosk-no-approver-form':
+            result['request'] = self.kiosk_request_form(no_approver=True)
+        elif operation == 'kiosk-approver-baseline':
+            result['approver_uids'] = self.kiosk_approver_baseline()
         elif operation == 'kiosk-request-cancel':
             self.cancel_kiosk_request()
         elif operation == 'kiosk-request-escape-ready':

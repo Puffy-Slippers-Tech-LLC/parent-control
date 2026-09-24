@@ -652,7 +652,18 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          fresh_desktop=None, shell_search_results=False, parent_search_launch=False,
          shell_search=False, parent_terminal_provider=False,
          license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False,
-         kiosk_no_child=False):
+         kiosk_no_child=False, kiosk_no_approver=False):
+    require(type(kiosk_no_approver) is bool and (not kiosk_no_approver or (
+            assets is not None and provision_credentials and fresh_desktop is None
+            and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
+                         parent_setup, parent_input, parent_standard_input,
+                         parent_about, parent_access, desktop_session_logout,
+                         desktop_session_switch, gdm_navigation, gdm_recipient,
+                         gdm_product_free, kiosk_entry, request_exit, parent_toggle,
+                         shell_search_results, parent_search_launch, shell_search,
+                         parent_terminal_provider, license_viewer_provider,
+                         kiosk_eligible_choices, request_choices, kiosk_no_child)))),
+            'smoke:kiosk-no-approver-prerequisites')
     require(type(kiosk_no_child) is bool and (not kiosk_no_child or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -902,6 +913,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-request-choices-qualification'
         if kiosk_no_child:
             result['scope'] = 'installed-kiosk-no-child-qualification'
+        if kiosk_no_approver:
+            result['scope'] = 'installed-kiosk-no-approver-qualification'
         if request_exit:
             result['scope'] = 'installed-request-exit-qualification'
         if parent_toggle:
@@ -928,7 +941,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or fresh_desktop is not None or shell_search_results or parent_search_launch
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or kiosk_eligible_choices or request_choices
-                        or kiosk_no_child):
+                        or kiosk_no_child or kiosk_no_approver):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                     staged = directory / 'input'
                 else:
@@ -1010,6 +1023,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_no_child:
                     from parent_setup_qualification import KioskNoChildQualification
                     qualification_class = KioskNoChildQualification
+                if kiosk_no_approver:
+                    from parent_setup_qualification import KioskNoApproverQualification
+                    qualification_class = KioskNoApproverQualification
                 if request_exit:
                     from parent_setup_qualification import RequestExitQualification
                     qualification_class = RequestExitQualification

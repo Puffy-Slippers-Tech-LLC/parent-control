@@ -19,7 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **024 — [Prepare the no-approver kiosk profile](E2E-Tasks/024-kiosk-fixtures.md)**.
+Next task: **026b — [E2E-017: no-parent](E2E-Tasks/026b-case-55.md)**.
+
+Remaining: compose, register and independently validate complete case 55 using
+the qualified FIX03 no-approver profile and shared station entry/return.
+The profile observes a starting parent, discovers and locks all eligible parents
+without fixed names/counts, then reopens the form and requires the empty parent
+list. Capability qualification does not supply complete-case acceptance.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

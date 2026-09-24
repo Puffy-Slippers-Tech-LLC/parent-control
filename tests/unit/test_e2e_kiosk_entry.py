@@ -463,6 +463,27 @@ def test_station_display_name_and_username_on_one_row_are_one_target():
     assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
 
 
+def test_station_entry_and_return_do_not_require_a_named_parent():
+    station = Node('Oh No! Parent Control', 'push button')
+    ui = station_greeter(station)
+    assert ui.run('gdm-station-list', '')['focused'] is True
+    assert ui.run('gdm-station-focused', '')['outcome'] == 'passed'
+    assert ui.run('gdm-station-returned', '')['outcome'] == 'passed'
+
+
+@pytest.mark.parametrize('fault', ['missing', 'duplicate', 'disabled', 'hidden', 'prompt'])
+def test_station_only_greeter_still_rejects_unusable_entry(fault):
+    station = Node('Oh No! Parent Control', 'push button')
+    rows = [] if fault == 'missing' else [station]
+    if fault == 'duplicate': rows.append(Node('Oh No! Parent Control', 'push button'))
+    if fault == 'disabled': station.states.discard('sensitive')
+    if fault == 'hidden': station.states.clear()
+    if fault == 'prompt': rows.append(Node('Password', 'password text'))
+    with pytest.raises(UiError):
+        station_greeter(*rows).run('gdm-station-list', '')
+    station.component.grab_focus.assert_not_called()
+
+
 def test_unnamed_station_row_uses_exact_nested_labels_only_to_bind_its_button():
     parent = Node('Jamie (Parent)', 'push button')
     labels = [Node('Oh No! Parent Control', 'label'),

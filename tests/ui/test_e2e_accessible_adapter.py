@@ -70,6 +70,28 @@ def test_no_child_station_adapter_reads_real_empty_form(
     assert not calls(path, 'RequestAccess')
 
 
+def test_approver_baseline_reads_real_disabled_form(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from tests.support.request_form import launch_request, calls
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+
+    _application, path = launch_request(
+        launch_ui, tmp_path, overlay=False, scenario='control-disabled')
+    wait_for_accessible_state(lambda: automation.showing('kiosk-screen-limit-notice'),
+                              'disabled station loaded')
+    assert not automation.state('kiosk-approver-selector', Atspi.StateType.SENSITIVE)
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.KIOSK_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    result = ui.run('kiosk-approver-baseline', '')
+    assert result['approver_uids'] == [1000]
+    assert not calls(path, 'RequestAccess')
+
+
 def _record_parent_public_state(ui, module, log_path):
     """Keep bounded public failure evidence without retrying customer input."""
     evidence = {'incomplete_reads': [], 'discarded_observations': ui.incomplete_observations}

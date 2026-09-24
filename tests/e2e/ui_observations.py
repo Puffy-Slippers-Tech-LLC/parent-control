@@ -124,6 +124,9 @@ OPERATION_LABELS.update({
     'kiosk-choice-refusals': 'Refusing wrong and absent station account choices',
     'parent-kiosk-refused': 'Refusing station selection on the Parent surface',
     'gdm-no-child-refused': 'Refusing the station form on the greeter',
+    'gdm-no-approver-refused': 'Refusing the approver form on the greeter',
+    'kiosk-no-approver-form': 'Reading the exact empty approver set and unavailable request',
+    'kiosk-approver-baseline': 'Reading the available approvers before temporary locking',
     'kiosk-no-child-form': 'Reading the exact empty child set and unavailable request',
     'kiosk-request-cancel': 'Cancelling the request station through its public control',
     'kiosk-request-escape-ready': 'Checking the request station recipient before Escape',
@@ -196,15 +199,18 @@ class RequestObservation:
                            **accessible_ui.KIOSK_DISABLED_REQUESTS}.get(
             operation, ('existing-fixture-child', 'other-fixture-parent'))
         no_child = operation == 'kiosk-no-child-form'
+        no_approver = operation == 'kiosk-no-approver-form'
         if no_child:
             child = 'none'
+        if no_approver:
+            approver = 'none'
         require(observation == cls(
             surface='kiosk', form_count=1, child=child,
             approver=approver, duration_seconds=1800, custom_text=None,
             allow_soft=False, child_selector_enabled=True,
             approver_selector_enabled=enabled, duration_enabled=enabled,
             soft_choice_enabled=enabled, request_enabled=enabled, cancel_enabled=True,
-            message='no-child' if no_child else (
+            message='no-child' if no_child else 'no-approver' if no_approver else (
                 '' if enabled else 'screen-limit-disabled'), mute=None,
         ), 'ui:request')
         return observation
@@ -225,6 +231,7 @@ class UiObservations:
         self.transport = transport
         self.progress = progress
         self.last_operation = None
+        self.approver_uids = None
         self.system_prompt = system_prompt
 
     @staticmethod
@@ -301,6 +308,7 @@ class UiObservations:
             commands.progress = previous
 
     def observe(self, operation):
+        self.approver_uids = None
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
         with watch_activity.operation(OPERATION_LABELS[operation]):
             return self._observe(operation)
@@ -322,9 +330,20 @@ class UiObservations:
         except BaseException:
             watch_activity.event('SSH UI observation failed: ' + operation)
             raise
-        require(isinstance(raw, bytes) and 0 < len(raw) <= 2048, 'ui:response-size')
+        require(isinstance(raw, bytes) and 0 < len(raw) <= (
+            65536 if operation == 'kiosk-approver-baseline' else 2048), 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'kiosk-approver-baseline':
+            require(type(result) is dict and set(result) == {*expected, 'approver_uids'},
+                    'ui:approver-baseline')
+            uids = result['approver_uids']
+            require(type(uids) is list and bool(uids)
+                    and all(type(uid) is int and 1000 <= uid <= (1 << 32) - 1 for uid in uids)
+                    and len(uids) == len(set(uids)), 'ui:approver-baseline')
+            # Bind the immediate fixture action in memory. Raw transport stays
+            # private; journey records and worker replies receive only presence.
+            expected['approver_uids'] = uids
         if operation in ('parent-search-close-ready', 'standard-search-qualified',
                          'license-provider-refusals'):
             require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
@@ -406,6 +425,9 @@ class UiObservations:
         elif operation == 'gdm-standard-recipient-rechecked':
             require(self.last_operation == 'gdm-standard-recipient', 'ui:recipient-order')
         self.last_operation = operation
+        if operation == 'kiosk-approver-baseline':
+            self.approver_uids = tuple(result.pop('approver_uids'))
+            result['approver_present'] = True
         watch_activity.event('SSH UI observation passed: ' + operation)
         if prompts:
             result['system_prompts'] = prompts

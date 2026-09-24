@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from accessible_ui import UiError
-from kiosk_no_approver import PLAN
+from kiosk_no_approver import CASE_PLAN, PLAN
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node
 from tests.support.e2e_kiosk import WORKER, request_form
@@ -182,6 +182,53 @@ def baseline_form(uids):
     # GTK omits collapsed choices. The showing selection proves a nonempty form.
     selector.children[0].identity = f'kiosk-approver-selected-{uids[0] if uids else "none"}'
     return ui, selector
+
+
+@pytest.mark.parametrize('refusal', [None, *CASE_PLAN.screen_tags])
+def test_complete_case_stops_at_each_failed_result(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    result = json.loads(run_perl(WORKER.replace(
+        'onpc_kiosk_eligible_choices', 'onpc_no_parent').replace(
+            "$stage eq 'station-branch'", "$stage =~ /station-branch\\z/")).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(CASE_PLAN.screen_tags)
+    assert 'wrong-entry' not in stages
+    assert not any(event[0] == 'secret' for event in result['events'])
+    if refusal:
+        assert not result['ok']
+        assert stages == expected[:expected.index(refusal) + 1]
+        assert ['power', 'off'] not in result['events']
+    else:
+        assert result['ok'], result['error']
+        assert stages == expected
+        assert result['events'][-1] == ['power', 'off']
+
+
+def test_complete_callback_owns_fresh_observed_fixture_and_deadline(monkeypatch):
+    import kiosk_no_approver
+    record = Mock()
+    monkeypatch.setattr(kiosk_no_approver, 'record_installed_journey', record)
+    recorder, context = object(), SimpleNamespace(
+        lease=SimpleNamespace(state={'run': 'a' * 32}))
+    for _ in range(2):
+        kiosk_no_approver.E2E_CASES['no-parent'](recorder, context)
+        args, kwargs = record.call_args
+        assert args == (recorder, context, CASE_PLAN)
+        assert kwargs['timeout'] == 1800
+        journey = SimpleNamespace(context=context, transport=Mock(), ui=SimpleNamespace(
+            last_operation='kiosk-approver-baseline', approver_uids=(3210, 4321)))
+        journey.transport.call.return_value = b'onpc-e2e: stage=no-approver outcome=prepared locked=3\n'
+        prepare = kwargs['actions']['prepare-no-approver']
+        assert prepare(journey, Mock()) == {'eligible_approvers_removed': 3}
+        assert json.loads(journey.transport.call.call_args.kwargs['input']) == [3210, 4321]
+        with pytest.raises(EvidenceError, match='controller-state'):
+            prepare(journey, Mock())
+        journey.transport.call.assert_called_once()
+    assert set(CASE_PLAN.phases) == set(CASE_PLAN.stages)
+    assert CASE_PLAN.advance_after == {
+        'station-list': 'step-1', 'cancel-station-branch': 'step-2', 'empty-form': 'step-3'}
+    assert CASE_PLAN.stage_actions == {'baseline-approvers': 'prepare-no-approver'}
 
 
 @pytest.mark.parametrize('uids', [[5432], [5432, 6543], list(range(3000, 3017))])

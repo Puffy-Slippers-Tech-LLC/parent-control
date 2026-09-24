@@ -25,6 +25,7 @@ use onpc_request_choices ();
 use onpc_kiosk_no_child ();
 use onpc_kiosk_no_approver ();
 use onpc_no_child ();
+use onpc_no_parent ();
 use onpc_disabled_child ();
 use onpc_request_exit ();
 use onpc_parent_toggle ();
@@ -155,6 +156,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_no_child::run(\&exchange);
+        return;
+    }
+    if ($ready->{no_parent}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_no_parent::run(\&exchange);
         return;
     }
     if ($ready->{kiosk_no_approver}) {

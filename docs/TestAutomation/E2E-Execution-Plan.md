@@ -19,13 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **026b — [E2E-017: no-parent](E2E-Tasks/026b-case-55.md)**.
+Next task: **004a — [Give repeated public operations distinct stages](E2E-Tasks/004a-give-repeated-public-operations-distinct-stages.md)**.
 
-Remaining: compose, register and independently validate complete case 55 using
-the qualified FIX03 no-approver profile and shared station entry/return.
-The profile observes a starting parent, discovers and locks all eligible parents
-without fixed names/counts, then reopens the form and requires the empty parent
-list. Capability qualification does not supply complete-case acceptance.
+Remaining: implement and qualify JourneyPlan repeated invocation IDs and
+assertion placement, preserving fresh observations, durable acknowledgement
+ordering and the terminal failure latch.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

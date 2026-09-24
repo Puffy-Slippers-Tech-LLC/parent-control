@@ -236,8 +236,18 @@ class LauncherDisplay:
         return rows[max(0, end - height):end] if height else []
 
     def wrapped(self, lines, width):
-        return [row for line in lines for row in
-                Text.from_ansi(line).wrap(self.console, width, overflow='fold')]
+        rows = []
+        for line in lines:
+            text = Text.from_ansi(line)
+            if self.is_rule(text):
+                rows.append(Text('─' * width, style='dim'))
+            else:
+                rows.extend(text.wrap(self.console, width, overflow='fold'))
+        return rows
+
+    @staticmethod
+    def is_rule(text):
+        return bool(text.plain) and set(text.plain) == {'─'}
 
     def draw(self):
         if not self.tty:
@@ -355,17 +365,28 @@ class LauncherDisplay:
         # Alternate-screen rows vanish when the terminal restores the shell.
         # Append the retained log to ordinary scrollback after restoring modes;
         # the live pane's bounded deque may have lost most of a long session.
+        try:
+            width = os.get_terminal_size(self.stream.fileno()).columns
+        except (OSError, ValueError):
+            width = shutil.get_terminal_size().columns
+
+        def replay_line(line):
+            text = Text.from_ansi(line)
+            if self.is_rule(text):
+                text = Text('─' * max(1, width - 1), style='dim')
+            self.console.print(text, soft_wrap=True)
+
         self.stream.write('\n')
         for step in self.steps:
             for line in step['lines']:
-                self.console.print(Text.from_ansi(line), soft_wrap=True)
+                replay_line(line)
         try:
             source = self.log_path.open('rb') if self.log_path is not None else None
         except OSError:
             source = None
         if source is None:
             for line in [*self.transcript, *([self.pending] if self.pending else [])]:
-                self.console.print(Text.from_ansi(line), soft_wrap=True)
+                replay_line(line)
         else:
             with source:
                 # A detached worker can still be appending: replay only the
@@ -376,10 +397,9 @@ class LauncherDisplay:
                     if not line:
                         break
                     remaining -= len(line)
-                    self.console.print(Text.from_ansi(line.decode('utf-8', errors='replace').rstrip('\n')),
-                                       soft_wrap=True)
+                    replay_line(line.decode('utf-8', errors='replace').rstrip('\n'))
             for value in self.unsaved:
-                self.console.print(Text.from_ansi(value.rstrip('\n')), soft_wrap=True)
+                replay_line(value.rstrip('\n'))
         self.stream.flush()
 
 

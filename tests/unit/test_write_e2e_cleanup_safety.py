@@ -101,7 +101,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
         r'- Total launcher sessions: 1\n- Duration: \d+ minutes$',
         rendered.plain.rstrip())
     assert rendered.plain.count('Task 001 complete.') == 1
-    assert '─' * 40 + '\nTask 001 complete.' in rendered.plain
+    assert re.search(r'─+\nTask 001 complete\.', rendered.plain)
     assert 'Next session prompt:' not in rendered.plain
     assert 'Task complete' not in rendered.plain
     assert 'Turn complete' not in rendered.plain
@@ -175,7 +175,7 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     assert 'Task 001 complete.\n- Took 2 sessions.\n- Total launcher sessions: 2' in rendered
     assert 'Task 002 complete.\n- Took 3 sessions.\n- Total launcher sessions: 5' in rendered
     assert rendered.count('- Duration: ') == 2
-    assert rendered.count('─' * 40 + '\nTask ') == 2
+    assert len(re.findall(r'─+\nTask \d+ complete\.', rendered)) == 2
 
 
 @pytest.mark.parametrize('args, sessions, completed, reason', [

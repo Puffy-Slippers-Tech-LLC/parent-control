@@ -103,6 +103,19 @@ def test_streaming_output_and_cursor_controls_cannot_cover_controller(terminal):
     assert terminal.getvalue().count('\033[?1049l') == 1
 
 
+def test_completion_rule_follows_terminal_width_on_resize(terminal):
+    display = LauncherDisplay(terminal)
+    display.write('─' * 100 + '\nTask 001 complete.\n')
+    assert '─' * 79 in terminal.visible()
+    terminal.resize(47, 24)
+    display.draw()
+    assert '─' * 46 in terminal.visible()
+    assert '─' * 47 not in terminal.visible()
+    display.close()
+    replay = terminal.getvalue().split('\033[?1049l')[-1]
+    assert '─' * 46 in replay and '─' * 47 not in replay
+
+
 def test_latest_two_steps_wrap_and_survive_resize_without_ellipsis(terminal):
     display = LauncherDisplay(terminal)
     steps = [{'key': str(index), 'lines': [f'Task {index}: A long customer task title that must stay visible',

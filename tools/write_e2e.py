@@ -258,8 +258,9 @@ def format_duration(seconds):
 def show_completion(task, task_sessions, launcher_sessions, duration):
     from launcher_render import AgentRenderer
     from rich.text import Text
-    print('─' * 40)
-    AgentRenderer(sys.stdout).console.print(Text(f'Task {task} complete.', style='bold green'))
+    console = AgentRenderer(sys.stdout).console
+    console.rule(style='dim')
+    console.print(Text(f'Task {task} complete.', style='bold green'))
     print(f'- Took {task_sessions} sessions.\n'
           f'- Total launcher sessions: {launcher_sessions}\n'
           f'- Duration: {format_duration(duration)}', flush=True)

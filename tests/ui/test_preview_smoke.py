@@ -403,10 +403,20 @@ def test_parent_remaining_time_explanation(
         reader.time_explanation(EXISTING_CHILD)
     first = reader.time_explanation(CHILD)
     second = reader.time_explanation(CHILD)
+    ui.activate("parent-time-calculation-collapse")
+    wait_for_accessible_state(lambda: not ui.showing("parent-time-explanation"),
+                              "PARENT09 starts independently collapsed")
+    with pytest.raises(UiError, match='ui:wrong-child'):
+        reader.reach_time_explanation(EXISTING_CHILD)
+    assert not ui.showing("parent-time-explanation")
+    reached = reader.reach_time_explanation(CHILD)
+    repeated = reader.reach_time_explanation(CHILD)
     balances = {'normal': [2820, 900, 2820], 'grant-only': [0, 900, 900],
                 'exact-hours': [0, 7200, 7200], 'daily-exhausted': [0, 900, 900]}
-    for result in (first, second):
+    for result in (first, second, reached, repeated):
         assert [result[key]['seconds'] for key in ('daily', 'one_time', 'total')] == balances[scenario]
         assert result['expanded'] is True
     assert second['observed_monotonic_ns'] > first['observed_monotonic_ns']
+    assert repeated['observed_monotonic_ns'] > reached['observed_monotonic_ns']
+    assert ui.showing("parent-time-explanation")
     assert ui.text("parent-time-explanation") == expected

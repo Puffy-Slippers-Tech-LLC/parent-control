@@ -22,7 +22,7 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
-    **{operation: 'Qualifying read-only expanded remaining-time balances'
+    **{operation: 'Qualifying saved time controls and non-collapsing balance reads'
        for operation in accessible_ui.TIME_EXPLANATION_OPERATIONS},
     **{operation: 'Qualifying custom daily allowance commits and saved readback'
        for operation in accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS},

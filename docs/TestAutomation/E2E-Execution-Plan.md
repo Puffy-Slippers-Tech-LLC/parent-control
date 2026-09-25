@@ -19,12 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **041 — [Read remaining time and configure time controls](E2E-Tasks/041-time-explanation.md)**.
+Next task: **180 — [Set an allowance for a named child](E2E-Tasks/180-set-an-allowance-for-a-named-child.md)**.
 
-Implement PARENT09's conditional expansion and repeated non-collapsing reads
-using qualified `AccessibleUI.time_explanation(child)` (PARENT20). Compose
-FLOW02's conditional enable, allowance commit/save and explicit final enablement.
-The planned `check_e2e_time_explanation` selector must be implemented and
+Qualify FLOW01's same-user Parent entry, then compose FLOW16's fresh/same-user
+allowance setup using the qualified FLOW02 0/15-minute preset scope. Keep the
+parent, child, source and window entry explicit. The planned
+`check_e2e_set_an_allowance_for_a_named_child` selector must be implemented and
 registered before use; complete scenarios remain separate.
 
 This pointer must name the first unchecked active queue row. After completion,

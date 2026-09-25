@@ -703,7 +703,7 @@ def test_pipe_does_not_replay_saved_log(tmp_path):
     assert stream.getvalue() == 'new output\n'
 
 
-def test_blocker_menu_requires_selection_and_preserves_editing_across_redraws(terminal):
+def test_blocker_menu_defaults_to_recommendation_and_preserves_editing_across_redraws(terminal):
     from tests.support.write_e2e_fixtures import reply
     question = dict(reply('blocked')['blocker'], id='first', answer=None)
     answers = []
@@ -712,8 +712,19 @@ def test_blocker_menu_requires_selection_and_preserves_editing_across_redraws(te
     assert '(recommended)' in terminal.visible()
     assert '4. Other' in terminal.visible()
     assert '\033[90m' in terminal.getvalue()
-    display.handle_input(b'\r')
+    assert display.question.selected == 0
     assert not answers
+    for key, selected in [(b'', 0), (b'\x1b[B', 1), (b'4', 3), (b'\x1b[B', 0)]:
+        display.handle_input(key)
+        options = display.wrapped(display.question.lines()[1:5], 200)
+        for index, option in enumerate(options):
+            assert all(bool(option.get_style_at_offset(display.console, offset).bold)
+                       == (index == selected) for offset in range(len(option)))
+    display.handle_input(b'\r')
+    assert answers == [('first', 0, '')]
+    answers.clear()
+    question = dict(question, id='second')
+    display.update_question(question, lambda *answer: answers.append(answer))
     display.handle_input(b'4')
     for part in ['Keep ', 'café'.encode()[:4], 'café'.encode()[4:]]:
         display.handle_input(part.encode() if isinstance(part, str) else part)
@@ -722,7 +733,71 @@ def test_blocker_menu_requires_selection_and_preserves_editing_across_redraws(te
     display.handle_input(b'\x7f')
     display.handle_input('é'.encode())
     display.handle_input(b'\r\r')
-    assert answers == [('first', 3, 'Keep café')]
+    assert answers == [('second', 3, 'Keep café')]
+    display.close()
+
+
+def test_paused_linked_task_is_quiet_until_input_or_resize(terminal, monkeypatch):
+    # Real task headings contain OSC 8 links. Recreating their generated IDs on
+    # every observer poll must not flood the terminal while a decision waits.
+    stream = io.StringIO()
+    stream.isatty = lambda: True
+    display = LauncherDisplay(stream)
+    heading = '\033]8;;file:///task.md\033\\Task 040a\033]8;;\033\\: Allowance boundaries'
+    steps = [{'key': 'task', 'lines': [heading, 'Paused — waiting for your answer']}]
+    question = {'id': 'q', 'question': 'How should we continue?',
+                'explanation': 'Review the [evidence](file:///evidence.md) before continuing.',
+                'options': ['Repair', 'Review']}
+    answers = []
+    display.update(steps, [])
+    display.update_question(question, lambda *answer: answers.append(answer))
+    before = stream.getvalue()
+
+    def unexpected_layout(*_):
+        pytest.fail('an idle decision prompt must not repeat layout')
+
+    with monkeypatch.context() as idle:
+        idle.setattr(display, 'wrapped', unexpected_layout)
+        for _ in range(20):
+            display.update_question(dict(question), lambda *answer: answers.append(answer))
+            display.update(steps, [])
+    assert stream.getvalue() == before
+    assert answers == []
+
+    display.handle_input(b'2')
+    assert stream.getvalue() != before
+    assert '\033]8;' not in stream.getvalue()[len(before):]
+    before = stream.getvalue()
+    terminal.resize(45, 16)
+    display.update(steps, [])
+    assert stream.getvalue() != before
+    before = stream.getvalue()
+    display.update(steps, [])
+    assert stream.getvalue() == before
+    display.handle_input(b'\r')
+    assert answers == [('q', 1, '')]
+    display.update_question(None, None)
+    display.write('Answer received. Continuing this task.\n')
+    assert 'Answer received. Continuing this task.' in stream.getvalue()
+    display.close()
+
+
+def test_linked_controller_does_not_repaint_with_changing_output(terminal):
+    stream = io.StringIO()
+    stream.isatty = lambda: True
+    display = LauncherDisplay(stream)
+    heading = '\033]8;;file:///task.md\033\\Task 001\033]8;;\033\\'
+    steps = [{'key': 'task', 'lines': [heading]}]
+    display.update(steps, [])
+    before = stream.getvalue()
+    display.write('New output\n')
+    assert 'New output' in stream.getvalue()[len(before):]
+    assert '\033]8;' not in stream.getvalue()[len(before):]
+    # In-place caller edits, including link-only changes, still invalidate the
+    # display even if the visible label stays the same.
+    steps[0]['lines'][0] = heading.replace('task.md', 'next.md')
+    display.update(steps, [])
+    assert 'file:///next.md' in stream.getvalue()[len(before):]
     display.close()
 
 
@@ -747,7 +822,7 @@ def test_blocker_menu_handles_resize_and_arrow_selection(terminal, width, height
     display.update_question({'id': 'q', 'question': 'What should we do?', 'options': ['Repair', 'Review']},
                             lambda *answer: answers.append(answer))
     display.handle_input(b'\x1b[')
-    display.handle_input(b'B\x1b[B\r')
+    display.handle_input(b'B\r')
     assert answers == [('q', 1, '')]
     display.close()
     assert terminal.cursor_visible

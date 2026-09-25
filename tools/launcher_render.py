@@ -70,6 +70,7 @@ class LauncherDisplay:
         self.size = None
         self.screen = False
         self.previous = None
+        self.draw_state = None
         self.signal_handlers = {}
         self.focus = 'bottom'
         self.offsets = {'top': 0, 'bottom': 0}
@@ -319,6 +320,18 @@ class LauncherDisplay:
             size = os.get_terminal_size(self.stream.fileno())
         except (OSError, ValueError):
             size = shutil.get_terminal_size()
+        # The observer polls while its worker is paused. Snapshot values (not
+        # mutable caller lists) so idle polls do no layout or terminal I/O, but
+        # resizing and every visible input/content change still redraw.
+        question = self.question
+        state = (size, tuple(tuple(step['lines']) for step in self.steps),
+                 tuple(bool(step.get('replaces')) for step in self.steps),
+                 tuple(tuple(lines) for lines in self.step_history.values()),
+                 tuple(self.details), tuple(self.transcript), self.pending,
+                 tuple(self.offsets.items()), self.mouse_capture, self.input_fd is not None,
+                 (question.question['id'], question.selected, question.text) if question else None)
+        if self.screen and state == self.draw_state:
+            return
         width, height = max(1, size.columns - 1), max(1, size.lines)
         active = [step for step in self.steps if not step.get('replaces')][-2:]
         if (len(active) == 2 and active[0]['lines'] and active[1]['lines']
@@ -404,12 +417,9 @@ class LauncherDisplay:
                 row.pad_right(max(0, width - row.cell_len))
                 rows[row_index] = row + Text(
                     '█' if start <= index < start + thumb else '░', style='dim')
-        # Compare physical rows so quiet workers do not repaint either pane.
-        encoded = []
-        for row in rows:
-            with self.console.capture() as capture:
-                self.console.print(row, width=size.columns, end='', soft_wrap=True)
-            encoded.append(capture.get())
+        # Compare styled text before encoding. Rich creates fresh OSC 8 link IDs
+        # during reflow; comparing encoded bytes repaints unchanged linked rows
+        # on every poll and accumulates terminal hyperlink registrations.
         if not self.screen:
             self.screen = True
             self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
@@ -419,11 +429,15 @@ class LauncherDisplay:
         if size != self.size:
             self.stream.write('\033[H\033[2J')
             self.previous = None
-        for index, row in enumerate(encoded):
-            if self.previous is None or index >= len(self.previous) or row != self.previous[index]:
-                self.stream.write(f'\033[{index + 1};1H\033[2K' + row)
+        for index, row in enumerate(rows):
+            if (self.previous is None or index >= len(self.previous)
+                    or row != self.previous[index] or row.style != self.previous[index].style):
+                with self.console.capture() as capture:
+                    self.console.print(row, width=size.columns, end='', soft_wrap=True)
+                self.stream.write(f'\033[{index + 1};1H\033[2K' + capture.get())
         self.stream.flush()
-        self.previous, self.size = encoded, size
+        self.previous, self.size = rows, size
+        self.draw_state = state
 
     def set_mouse_mode(self):
         if self.input_fd is not None:

@@ -10,6 +10,20 @@ Read only the named block rows/callables, this recipe's selected cases and
 applicable finite-data rows. Prerequisite IDs are completion checks; do not open
 their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
+Reuse `tests/e2e/accessible_ui.py::AccessibleUI.configure_time_controls` for
+FLOW02's qualified 0/15-minute presets and explicit initial/final enablement.
+It returns PARENT09's explanation after saved-settings validation;
+`reach_time_explanation(child)` conditionally expands, while
+`time_explanation(child)` remains the read-only PARENT20 observer.
+The existing qualification is `tests/e2e/time_explanation.py::PLAN` with
+`tests/integration/graphical_smoke/lib/onpc_time_explanation.pm::run` and
+`tests/integration/parent_setup_qualification.py::TimeExplanationQualification`.
+Adapter/controller checks are in `tests/unit/test_accessible_e2e_ui.py` and
+`tests/unit/test_e2e_toggle.py`; real GTK expansion checks are in
+`tests/ui/test_preview_smoke.py::test_parent_remaining_time_explanation`.
+These do not yet qualify FLOW01 same-user entry or FLOW16. The live selector
+below is planned and must be implemented and registered before use.
+
 ## Scope and prerequisites
 
 Deliver **FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup**. First scheduled consumer: [E2E-036, case 161](../E2E-Scenario-Recipes.md#e2e-036).

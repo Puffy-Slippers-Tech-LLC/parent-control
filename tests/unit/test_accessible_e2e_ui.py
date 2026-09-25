@@ -226,6 +226,83 @@ def test_time_explanation_reads_public_balances_twice_without_input(monkeypatch)
         node.component.scroll_to.assert_not_called()
 
 
+@pytest.mark.parametrize('collapsed', [False, True])
+def test_reach_time_explanation_expands_once_and_repeated_reads_never_collapse(collapsed):
+    ui, root, _picker, section, explanation, collapse = time_explanation_ui()
+    if collapsed:
+        explanation.states.clear()
+        collapse.states.clear()
+
+    def expand(identity, **kwargs):
+        assert identity == 'parent-time-status' and kwargs == {'action_name': 'row.activate'}
+        explanation.states.update({'showing', 'visible'})
+        collapse.states.update({'showing', 'visible'})
+
+    ui.activate_id = Mock(side_effect=expand)
+    for _ in range(2):
+        assert ui.reach_time_explanation(accessible_ui.CHILD)['daily']['seconds'] == 900
+    assert ui.activate_id.call_count == int(collapsed)
+
+
+@pytest.mark.parametrize('fault', ['child', 'malformed', 'duplicate'])
+def test_reach_time_explanation_refuses_without_expanding(fault):
+    ui, _root, picker, section, explanation, _collapse = time_explanation_ui()
+    if fault == 'child':
+        picker.children[0].identity = 'parent-child-selected-1002'
+    elif fault == 'malformed':
+        explanation.name = 'Loading…'
+    else:
+        section.children.append(Node(explanation.name, 'label', identity='parent-time-explanation'))
+    ui.activate_id = Mock()
+    with pytest.raises(UiError):
+        ui.reach_time_explanation(accessible_ui.CHILD)
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('initial', [False, True])
+@pytest.mark.parametrize('final', [False, True])
+@pytest.mark.parametrize('minutes', [0, 15])
+def test_configure_time_controls_conditional_enable_save_and_final_state(initial, final, minutes):
+    ui, *_ = time_explanation_ui()
+    events = []
+    ui.activate_id = Mock(side_effect=lambda identity: events.append(('page', identity)))
+    ui.settings = Mock(side_effect=[{'limit_enabled': initial}, {
+        'child': 'fixture-child', 'limit_enabled': final,
+        'allowance': [str(minutes) + ' minutes']}])
+    ui.set_toggle = Mock(side_effect=lambda _id, state, **_kw: events.append(('toggle', state)))
+    ui.parent_save_snapshot = Mock(side_effect=lambda _child, state: events.append(('save', state)))
+    ui.allowance_preset = Mock(side_effect=lambda _child, value, **_kw: events.append(('allowance', value)))
+    ui.reach_time_explanation = Mock(return_value={'expanded': True})
+    assert ui.configure_time_controls(accessible_ui.CHILD, initial_enabled=initial,
+                                     minutes=minutes, final_enabled=final) == {'expanded': True}
+    assert events == [('page', 'parent-page-screen-limits')] + (
+        [('toggle', True), ('save', True)] if not initial else []) + [
+        ('allowance', minutes), ('save', True), ('toggle', final), ('save', final)]
+    ui.reach_time_explanation.assert_called_once_with(accessible_ui.CHILD)
+
+
+@pytest.mark.parametrize('fault', ['child', 'initial', 'save', 'settings'])
+def test_configure_time_controls_refuses_wrong_entry_and_failed_save(fault):
+    ui, *_ = time_explanation_ui()
+    ui.activate_id = Mock()
+    ui.settings = Mock(side_effect=[{'limit_enabled': fault != 'initial'}, {
+        'child': 'fixture-child', 'limit_enabled': True,
+        'allowance': ['15 minutes' if fault == 'settings' else '0 minutes']}])
+    ui.set_toggle = Mock()
+    ui.allowance_preset = Mock()
+    ui.parent_save_snapshot = Mock(side_effect=UiError('ui:save') if fault == 'save' else None)
+    ui.reach_time_explanation = Mock()
+    with pytest.raises(UiError):
+        ui.configure_time_controls(
+            accessible_ui.EXISTING_CHILD if fault == 'child' else accessible_ui.CHILD,
+            initial_enabled=True, minutes=0, final_enabled=True)
+    if fault in ('child', 'initial'):
+        ui.allowance_preset.assert_not_called()
+    if fault in ('child', 'initial', 'save'):
+        ui.set_toggle.assert_not_called()
+    ui.reach_time_explanation.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['collapsed', 'wrong-child', 'duplicate', 'hidden', 'malformed'])
 def test_time_explanation_refuses_bad_entry_without_navigation(fault):
     ui, root, picker, section, explanation, collapse = time_explanation_ui()
@@ -254,8 +331,10 @@ def test_time_duration_preserves_seconds_and_display_precision(text, seconds):
         'text': text, 'seconds': seconds, 'precision_seconds': 1}
 
 
+@pytest.mark.parametrize('operation', [op for op in accessible_ui.TIME_EXPLANATION_OPERATIONS
+                                      if op.endswith(('read', 'reread'))])
 @pytest.mark.parametrize('fault', [None, 'seconds', 'precision', 'clock', 'private-text', 'child'])
-def test_time_explanation_controller_decodes_and_validates_real_projection(fault):
+def test_time_explanation_controller_decodes_and_validates_real_projection(fault, operation):
     ui, *_ = time_explanation_ui()
     projection = ui.time_explanation(accessible_ui.CHILD)
     if fault == 'seconds': projection['daily']['seconds'] = 42
@@ -263,15 +342,15 @@ def test_time_explanation_controller_decodes_and_validates_real_projection(fault
     if fault == 'clock': projection['observed_monotonic_ns'] = -1
     if fault == 'private-text': projection['daily']['text'] = 'unreviewed private text'
     if fault == 'child': projection['child'] = 'other-child'
-    result = {'operation': 'time-explanation-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
               'time_explanation': projection}
     transport = Mock()
     transport.call.return_value = json.dumps(result).encode()
     if fault:
         with pytest.raises(EvidenceError, match='ui:time-response'):
-            UiObservations(transport).observe('time-explanation-read')
+            UiObservations(transport).observe(operation)
     else:
-        assert UiObservations(transport).observe('time-explanation-read') == result
+        assert UiObservations(transport).observe(operation) == result
 
 
 def test_owned_lookup_reads_each_subtree_once_and_reacquires_after_transition():

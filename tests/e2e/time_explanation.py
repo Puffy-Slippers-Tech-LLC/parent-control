@@ -1,4 +1,4 @@
-"""PARENT20 qualification; ordinary allowance setup and independent public reads."""
+"""PARENT09/PARENT20 and FLOW02 qualification with ordinary saved allowances."""
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop
@@ -10,6 +10,12 @@ STAGES = (
     'time-explanation-collapse', 'time-explanation-collapsed',
     'time-explanation-expand', 'time-explanation-wrong-child',
     'time-explanation-read', 'time-explanation-reread',
+    'time-explanation-reach-wrong-child', 'time-explanation-config-wrong-child',
+    'time-explanation-config-wrong-state',
+    'time-explanation-collapse-again',
+    'time-explanation-reach-read', 'time-explanation-reach-reread',
+    'time-explanation-off-read', 'time-explanation-positive-read',
+    'time-explanation-zero-read', 'time-explanation-zero-reread',
 )
 SCREENS = {
     **fresh_desktop('parent'),
@@ -18,12 +24,17 @@ SCREENS = {
         'parent-window', 'child-picker-opened', 'child-choice-highlighted',
         'parent-selected', *STAGES)},
 }
+SCREENS['time-explanation-collapse-again'] = 'ui:time-explanation-collapse'
 
 
-def check_balances(journey, observed):
+def check_balances(journey, observed, expected_seconds=900):
     value = observed['ui']['time_explanation']
-    require([value[key]['seconds'] for key in ('daily', 'one_time', 'total')]
-            == [900, 0, 900], 'time-explanation:ordinary-balances')
+    # The fresh child has never signed in: no daily usage or one-time grant.
+    # One-second display precision bounds apply independently to each operand.
+    require(all(abs(value[key]['seconds'] - expected) < value[key]['precision_seconds']
+                for key, expected in zip(('daily', 'one_time', 'total'),
+                                         (expected_seconds, 0, expected_seconds))),
+            'time-explanation:ordinary-balances')
     earlier = getattr(journey, 'earlier_time_observation', None)
     if earlier is not None:
         require(value['observed_monotonic_ns'] > earlier, 'time-explanation:observation-order')
@@ -51,3 +62,8 @@ class TimeExplanationJourney(InstalledJourney):
                     (getattr(self, 'earlier_time_observation', None) is None),
                     'time-explanation:read-order')
             check_balances(self, observed)
+        elif stage in ('time-explanation-reach-read', 'time-explanation-reach-reread',
+                       'time-explanation-positive-read'):
+            check_balances(self, observed)
+        elif stage in ('time-explanation-zero-read', 'time-explanation-zero-reread'):
+            check_balances(self, observed, 0)

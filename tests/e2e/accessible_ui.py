@@ -103,6 +103,11 @@ TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-collapse', 'time-explanation-collapsed',
     'time-explanation-expand', 'time-explanation-wrong-child',
     'time-explanation-read', 'time-explanation-reread',
+    'time-explanation-reach-read', 'time-explanation-reach-reread',
+    'time-explanation-reach-wrong-child', 'time-explanation-config-wrong-child',
+    'time-explanation-config-wrong-state',
+    'time-explanation-off-read', 'time-explanation-positive-read',
+    'time-explanation-zero-read', 'time-explanation-zero-reread',
 })
 OPERATIONS |= TIME_EXPLANATION_OPERATIONS
 
@@ -2061,6 +2066,34 @@ class AccessibleUI:
 
     def time_explanation_operation(self, operation):
         require(operation in TIME_EXPLANATION_OPERATIONS, 'ui:time-operation')
+        configurations = {
+            'time-explanation-off-read': (True, 15, False),
+            'time-explanation-positive-read': (False, 15, True),
+            'time-explanation-zero-read': (True, 0, True),
+        }
+        if operation in configurations:
+            initial, minutes, final = configurations[operation]
+            return self.configure_time_controls(
+                CHILD, initial_enabled=initial, minutes=minutes, final_enabled=final)
+        if operation in ('time-explanation-reach-read', 'time-explanation-reach-reread',
+                         'time-explanation-zero-reread'):
+            return self.reach_time_explanation(CHILD)
+        if operation in ('time-explanation-reach-wrong-child',
+                         'time-explanation-config-wrong-child',
+                         'time-explanation-config-wrong-state'):
+            wrong_state = operation.endswith('wrong-state')
+            try:
+                if operation == 'time-explanation-reach-wrong-child':
+                    self.reach_time_explanation(EXISTING_CHILD)
+                else:
+                    self.configure_time_controls(
+                        CHILD if wrong_state else EXISTING_CHILD,
+                        initial_enabled=False, minutes=15, final_enabled=True)
+            except UiError as error:
+                require(str(error) == ('ui:time-initial-state' if wrong_state else
+                                       'ui:wrong-child'), 'ui:time-refusal')
+                return {'refusal': operation.removeprefix('time-explanation-')}
+            raise UiError('ui:time-refusal-missing')
         if operation in ('time-explanation-read', 'time-explanation-reread'):
             return self.time_explanation(CHILD)
         if operation.endswith(('wrong-child', 'collapsed')):
@@ -2084,6 +2117,42 @@ class AccessibleUI:
         self.activate_id('parent-time-status', action_name='row.activate')
         self.id_target('parent-time-explanation')
         return {'expanded': True}
+
+    def reach_time_explanation(self, child):
+        """PARENT09: expand only a proven collapsed section, then use PARENT20."""
+        self.time_explanation_entry(child)
+        try:
+            return self.time_explanation(child)
+        except UiError as error:
+            if str(error) != 'ui:time-collapsed':
+                raise
+        self.activate_id('parent-time-status', action_name='row.activate')
+        self.id_target('parent-time-explanation')
+        return self.time_explanation(child)
+
+    def configure_time_controls(self, child, *, initial_enabled, minutes, final_enabled):
+        """FLOW02: finite preset inputs, real saves and explicit final enablement.
+
+        Enter Screen Limits for the selected child. Refuse mismatched declared
+        state before edits; disabling is an intentional grant reset.
+        """
+        require(type(initial_enabled) is bool and type(final_enabled) is bool
+                and type(minutes) is int and minutes in (0, 15), 'ui:time-binding')
+        self.time_explanation_entry(child)
+        self.activate_id('parent-page-screen-limits')
+        initial = self.settings(child)
+        require(initial['limit_enabled'] == initial_enabled, 'ui:time-initial-state')
+        if not initial_enabled:
+            self.set_toggle('parent-screen-limit-toggle', True, root=self.parent())
+            self.parent_save_snapshot(child, True)
+        self.allowance_preset(child, minutes, action='select')
+        self.parent_save_snapshot(child, True)
+        self.set_toggle('parent-screen-limit-toggle', final_enabled, root=self.parent())
+        self.parent_save_snapshot(child, final_enabled)
+        require(self.settings(child) == {
+            'child': CHILD_IDENTITIES[child], 'limit_enabled': final_enabled,
+            'allowance': [str(minutes) + ' minutes']}, 'ui:time-saved-settings')
+        return self.reach_time_explanation(child)
 
     def allowance_entry(self, child):
         require(child in CHILD_IDENTITIES, 'ui:allowance-binding')

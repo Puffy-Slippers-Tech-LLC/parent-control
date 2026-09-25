@@ -564,7 +564,9 @@ class AgentRenderer:
         self.width = width
         # Retained presentation must keep its palette even when the supervisor
         # inherits NO_COLOR from a noninteractive caller.
-        self.console = Console(file=stream, width=width, force_terminal=True,
+        # Rich needs both dimensions to honor an explicit width with TERM=dumb;
+        # a second wrap at its 80-column fallback would lose hanging indentation.
+        self.console = Console(file=stream, width=width, height=25, force_terminal=True,
                                color_system='truecolor', no_color=False, style='#24292f',
                                theme=Theme({'markdown.code': '#008000 not bold',
                                             'markdown.link': '#0066ff underline',

@@ -271,9 +271,11 @@ def test_agent_transcript_renders_empty_completed_command_without_start_event():
 
 
 @pytest.mark.parametrize('width', [40, 60, 100])
-def test_transcript_observer_preserves_message_alignment_at_terminal_width(monkeypatch, width):
+@pytest.mark.parametrize('term', ['dumb', 'unknown', 'xterm-256color'])
+def test_transcript_observer_preserves_message_alignment_at_terminal_width(monkeypatch, width, term):
     from launcher_render import AgentRenderer, TranscriptWriter
     from rich.text import Text
+    monkeypatch.setenv('TERM', term)
     source = io.StringIO()
     paragraphs = [
         'The **launcher** output keeps wrapped text aligned beneath the first word '
@@ -297,7 +299,7 @@ def test_transcript_observer_preserves_message_alignment_at_terminal_width(monke
     content = [line for line in lines if line.strip()]
     assert content[0].startswith('• The launcher')
     assert all(line.startswith('  ') and not line.startswith('   ')
-               for line in content[1:])
+               for line in content[1:]), repr(rendered.plain)
     assert all(Text(line).cell_len <= width for line in lines)
     assert ' '.join(rendered.plain.split()) == (
         '• ' + ' '.join(' '.join(paragraphs).replace('**', '').split()))

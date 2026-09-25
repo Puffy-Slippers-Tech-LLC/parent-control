@@ -40,6 +40,34 @@ def station_entry(prefix=''):
     }
 
 
+def parent_management():
+    """PARENT01/02: direct command, owned window and fixture-child selection."""
+    return {
+        'parent-command': 'ui:parent-command-launch',
+        'parent-window': 'ui:parent-window',
+        'child-picker-opened': 'ui:child-picker-opened',
+        'child-choice-highlighted': 'ui:child-choice-highlighted',
+        'parent-selected': 'ui:parent-selected',
+    }
+
+
+def product_free_desktop():
+    """Fresh administrator login and command context before installing the app."""
+    stages = fresh_desktop('parent')
+    stages.update({
+        'installed-greeter': 'ui:gdm-product-free-list',
+        'parent-focused': 'ui:gdm-product-free-focused',
+        'desktop': 'ui:fresh-parent-desktop',
+        'command-context': 'system:parent-command-context',
+    })
+    return stages
+
+
+def reboot_desktop():
+    """Fresh administrator observations for the declared post-reboot challenge."""
+    return {'reboot-' + stage: tag for stage, tag in fresh_desktop('parent').items()}
+
+
 def parent_search():
     """SEARCH06: whole query, ending at the focused result before launch."""
     return {

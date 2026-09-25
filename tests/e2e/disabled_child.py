@@ -1,17 +1,13 @@
 """Case 57: inspect unavailable station requests with limits off throughout."""
 
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import fresh_desktop, station_entry
+from journey_blocks import fresh_desktop, parent_management, station_entry
 from ui_observations import SettingsObservation
 
 
 ENTRY = {
     **fresh_desktop('parent'),
-    'parent-command': 'ui:parent-command-launch',
-    'parent-window': 'ui:parent-window',
-    'child-picker-opened': 'ui:child-picker-opened',
-    'child-choice-highlighted': 'ui:child-choice-highlighted',
-    'parent-selected': 'ui:parent-selected',
+    **parent_management(),
     'save-disabled': 'ui:parent-save-disabled',
     'switch-user': 'system:parent-switch-user',
     'gdm-switched': 'ui:gdm-returned',

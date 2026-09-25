@@ -1,19 +1,15 @@
 """005a: product-free graphical entry and a verified administrator command context."""
 
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import product_free_desktop
 from private_artifacts import require
 import session_control
 
 
 SCREENS = {
     'wrong-entry': 'ui:gdm-product-free-list',
-    **fresh_desktop('parent'),
-    'command-context': 'system:parent-command-context',
+    **product_free_desktop(),
 }
-SCREENS['installed-greeter'] = 'ui:gdm-product-free-list'
-SCREENS['parent-focused'] = 'ui:gdm-product-free-focused'
-SCREENS['desktop'] = 'ui:fresh-parent-desktop'
 PLAN = JourneyPlan(
     prefix='product-free-entry', worker_mode='product_free_entry', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',

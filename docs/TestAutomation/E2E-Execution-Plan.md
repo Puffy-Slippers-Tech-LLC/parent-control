@@ -79,6 +79,8 @@ obligations under their maintained owners.
    route and branch in maintained
    callables; a ready block ID does not qualify every binding.
 4. Implement that slice, its meaningful supporting checks and stated acceptance.
+   Use the [composition preflight](E2E-Building-Blocks.md#composition-preflight)
+   to catch integration mistakes before spending a live attempt.
    Implement leaves before composites, including within a small task. Bind
    entry, finite inputs, expected public results, precision and deadlines first.
    Apply the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) and

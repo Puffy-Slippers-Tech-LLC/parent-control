@@ -1,10 +1,30 @@
-"""Controller side of the fixed E2E-003 account fixture events."""
+"""Shared single-use account fixtures for discovery and request-station journeys."""
 
 import json
 import re
 
 from private_artifacts import require
 import system_runner as system
+import watch_activity
+
+
+def station_fixture_actions(context, profile):
+    """Bind fresh single-use FIX03 state and intent for each station attempt."""
+    require(profile in ('no-child', 'no-approver'), 'station-fixture:profile')
+    if profile == 'no-child':
+        fixture = EmptyAccountFixture(context)
+        action = 'prepare-empty'
+        label = 'Preparing the fixed no-child station profile'
+    else:
+        fixture = NoApproverFixture(context)
+        action = 'prepare-no-approver'
+        label = 'Temporarily locking the observed approver accounts'
+
+    def prepare(journey, guard):
+        with watch_activity.operation(label):
+            return fixture.prepare(journey, guard)
+
+    return {action: prepare}
 
 
 class DynamicAccountFixture:

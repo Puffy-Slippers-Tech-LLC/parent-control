@@ -179,7 +179,7 @@ row's ownership, ambiguity, focus, input and independent-result guards.
 | UI15 | C | Select one ID-addressed value from an ID-addressed dropdown, menu or visible choice group. The registered control kind and commit route are explicit; independently verify the resulting selected value. | Existing child-picker paths require public IDs for the picker, each choice and selected-value projection; labels remain result data only. REQUEST04's `AccessibleUI.select_kiosk_account` qualifies station child/approver selectors through direct public button actions and exact offered sets. Other dropdowns/groups remain pending. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI21 | C | Focus one showing, enabled nonsecret field through public semantic focus or qualified keyboard navigation; independently require the same field to be focused. Repository-owned fields use `automation-id`; external fields use their qualified provider adapter. | `AccessibleUI.focus_search_field` and `search_ready(focused=True)` qualified fresh Parent SEARCH02 in `check_e2e_shell_search_results`. `focus_text` / `text_recipient` qualify Parent feedback editor focus through public Component.GrabFocus; native reply focus uses that ID-resolved editor anchor, one Ctrl-Tab and independent reply focus proof. Both passed `check_e2e_text` in run `20260925T030015Z-4c7d9b02`. Other bindings require their own scoped resolution and fresh focus readback; ambiguous routes refuse. [Search contracts](#search-and-standard-sign-in-contracts). | pending; fresh Parent search and Parent feedback body/reply focus ready |
 | UI16 | C | Replace text in one named nonsecret field: focus, select all, type once, then read the exact result. Empty input explicitly means clear. | `onpc_text::replace_text` composes `AccessibleUI.focus_text` / `text_recipient` → UI05(Ctrl-A) → fresh focused proof → UI06(value, max_interval=20), or UI05(Backspace) for empty → `read_synthetic_text` exact bounded comparison. Native reply uses the qualified UI21 editor-anchor/Ctrl-Tab route before its focus proof. `TEXT_VALUES` registers six body/reply projections, allowing only the rich editor's terminal paragraph newline. `text_qualification.PLAN` / `check_e2e_text` qualified replacement twice and clear for both fields, exact independent readback, independent reopen and wrong/disabled-target refusal in run `20260925T030015Z-4c7d9b02`, with collection, owned cleanup and baseline restoration; Send untouched. Selecting all alone does not clear a field. Other bindings and complete feedback scenarios remain pending. | ready for declared Parent feedback body/reply values; other bindings pending |
-| UI17 | C | Set one named toggle to an explicit boolean. Read first, activate once only when different, then independently require the desired state. | `AccessibleUI.set_toggle` through `ParentToggleJourney` / `onpc_parent_toggle::run`. `tools/run-tests integration check_e2e_toggle` qualified Parent's `parent-screen-limit-toggle`: explicit child selection, enable/disable, already-current without activation, wrong/hidden-control refusal and disabled-settings read, with owned cleanup. Hidden controls may be retained or omitted from the complete public tree. First complete consumer E2E-017 case 57 and all other toggle bindings remain pending. | pending; Parent binding qualified |
+| UI17 | C | Set one named toggle to an explicit boolean. Read first, activate once only when different, then independently require the desired state. | `AccessibleUI.set_toggle` through `ParentToggleJourney` / `onpc_parent_toggle::run`. `tools/run-tests integration check_e2e_toggle` qualified Parent's `parent-screen-limit-toggle`: explicit child selection, enable/disable, already-current without activation, wrong/hidden-control refusal and disabled-settings read, with owned cleanup. Hidden controls may be retained or omitted from the complete public tree. Case 57 observes the limits-off state without toggling it; other toggle bindings remain pending. | pending; Parent binding qualified |
 | UI18 | C | Close a qualified window with its public Close action or Alt-F4. Repository-owned windows and controls use `automation-id`; external windows use their qualified provider adapter. For keyboard close, first verify that same window is active. Observe its disappearance and the qualified underlying surface. | `onpc_window::close(journey, window, proof)` consumes a fresh registered proof, sends Alt-F4 once and independently observes the destination. Parent→desktop passed `check_e2e_parent_search_launch` with an active owned `parent-window` proof and complete absence/desktop readback. License→About, About→Parent and management denial→standard desktop retain their consumer evidence and extracted-helper host checks. [About contracts](#about-block-contracts). | pending; Parent→desktop binding ready, other extracted bindings await live validation |
 
 | UI22 | C | Bracket a declared caller-owned input with public-state observation. Start before input and finish at the supplied result/deadline; do not infer a transient from the final state. | UI25 → caller's explicitly listed input → UI26. `watch` is this composition, not a hidden callback that performs extra actions. | pending |
@@ -264,7 +264,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | PARENT04 | C | Select Screen Limits or App Limits and require that page's named usable controls. | `AccessibleUI.parent_page(child, page)` checks the displayed child, selects one named page, then observes its controls. Reacquire the window after transition and reuse that local root for search/filter reads. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | PARENT05 | C | Open the daily-allowance picker and, when requested, its Custom amount editor. | UI01 → UI04 → optional UI04(Custom amount) → UI01. | pending |
 | PARENT06 | C | Choose a daily preset or type a custom allowance and commit through the normal UI. Return the displayed value/validation; saving is observed separately. | Preset: PARENT05(picker) → UI04(preset) → UI03. Custom: PARENT05(custom editor) → UI16(value); `commit=pause` adds no input, `enter` uses UI05(Enter), `focus-leave` uses UI05(Tab); then UI03(value/validation). PARENT08 independently observes saving. | pending |
-| PARENT08 | C | Observe loading, saving, saved, validation or unavailable state and availability of conflicting controls. Snapshot mode waits for the named result; transition mode surrounds the triggering input with a bounded trace. | `AccessibleUI.parent_save_snapshot` through `ParentToggleJourney` / `onpc_parent_toggle::run`. `tools/run-tests integration check_e2e_parent_save` qualified enabled/disabled saved snapshots, a fresh independent Parent observation, wrong-child refusal and owned cleanup. Each complete snapshot verifies the selected UID and its nested public label, rejects visible error reports, and requires the expected switch and selector availability. First complete consumer E2E-017 case 57, other result states and UI22 transition tracing remain pending; a terminal snapshot makes no transient-saving claim. | pending; saved/control snapshot binding qualified |
+| PARENT08 | C | Observe loading, saving, saved, validation or unavailable state and availability of conflicting controls. Snapshot mode waits for the named result; transition mode surrounds the triggering input with a bounded trace. | `AccessibleUI.parent_save_snapshot` through `ParentToggleJourney` / `onpc_parent_toggle::run`. `tools/run-tests integration check_e2e_parent_save` qualified enabled/disabled saved snapshots, a fresh independent Parent observation, wrong-child refusal and owned cleanup. Each complete snapshot verifies the selected UID and its nested public label, rejects visible error reports, and requires the expected switch and selector availability. Case 57 observes the saved limits-off state; other result states and UI22 transition tracing remain pending. A terminal snapshot makes no transient-saving claim. | pending; saved/control snapshot binding qualified |
 | PARENT20 | C | Read an already expanded, showing remaining-time explanation for the explicitly selected child. Return daily, one-time and total values, public display precision and observation time. Perform no navigation or expansion. | UI01(child and explanation) → UI03(each declared balance). UI12 owns arithmetic/elapsed comparisons. Split from PARENT09; first consumers E2E-005/048. | pending |
 | PARENT09 | C | Reach the selected child's remaining-time explanation, expanding it only if currently collapsed, then read its balances. | UI01 → UI02(expanded) → UI04 only if collapsed → UI09 → PARENT20. Repeated reads must not collapse the section. Use PARENT20 when an observer must be read-only; neither block visits another user's desktop implicitly. | pending |
 | PARENT12 | C | Read a displayed app row's identity, access choice and match choice. | `AccessibleUI.app_rows(child, maximum=256, expected_ids=None)` returns immutable public ID/access/match triples; `AppRowsObservation.from_rows` validates the controller projection. UI01 → UI02 → UI03, without installed-catalogue or executable probes. Fresh selected-child defaults, independent App Limits reread and wrong-child/page refusals qualified by `check_e2e_app_row_observations`; [scope](#app-row-observations). Search, filtering and policy edits remain their own pending consumers. | ready for selected-child row observations |
@@ -320,10 +320,10 @@ are unnecessary.
 | REQUEST01 | C | Enter the dedicated request station from GDM through shared minimal account selection and observe its request form. | `journey_blocks.station_entry` / `onpc_gdm::enter_station` reuse `AccessibleUI.gdm_nonsecret_navigation`, consume one fresh focused-station proof before Enter, then independently require the active station owner and one showing owned window/form. The passwordless destination was qualified on the prepared Ubuntu 26.04/English-GDM/baseline-keyboard image with GNOME Shell `50.1-0ubuntu1.2`. `check_e2e_kiosk_eligible_choices` qualified direct composition after Parent preparation and shared Switch User. Station navigation requires the station row, without a named-parent prerequisite. This route and Cancel/GDM/reentry after locking all eligible parents passed `check_e2e_kiosk_fixtures` in run `20260924T173358Z-94d5db62`; the affected no-child route passed `check_e2e_kiosk_no_child` in run `20260924T173643Z-8d742069`, both with collection and owned restoration. Routine entry never visits another account. | ready |
 | REQUEST02 | C | Open or deliberately reopen the child overlay by direct `oh-no-parent-control-child` invocation as the active child desktop user; observe one usable form and fixed child identity. Mandatory for ordinary overlay entry. | DESK01 → `AccessibleUI.launch_child_command` (`child-command-launch`, fixed command, one submission) → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). The command input has host safety coverage; form observation and installed qualification remain pending. Repetition is deliberate customer input, not retry. | pending |
 | REQUEST03 | C | Read a form's child, approver, duration, custom text, soft-app choice, controls and messages; observe the absence of mute in the current release. Require exactly one showing form and the fixed child in overlay. | UI13(form count=1) → UI01 → UI02 → UI03. `AccessibleUI.kiosk_request_form` retains the installed-qualified disabled-child projection. Its `enabled=True` binding also qualifies default 1800-second duration, selected child/approver IDs, enabled controls and absent disabled notice/mute/custom value. `RequestObservation.from_request` validates immutable operation-specific expectations. `check_e2e_kiosk_eligible_choices` independently reread both selections in run `20260923T204614Z-0601b77a`. Other durations, numeric estimates, account profiles and overlay scope remain pending. | pending; default-duration disabled/enabled kiosk projections ready |
-| REQUEST04 | C | Select a named form field: child, approver or duration choice. Observe loaded selection and control availability. Reject child selection on the fixed-child overlay. | `AccessibleUI.select_kiosk_account(field, name, expected=..., enabled=...)` opens the owned selector, checks the exact offered UID set and labels, invokes the chosen public action once, then waits for fresh REQUEST03 selected-value readback without replay. `kiosk_eligible_choices.PLAN` / `onpc_kiosk_eligible_choices::run` qualified the enabled child/approver branch through `check_e2e_kiosk_eligible_choices` in run `20260923T204614Z-0601b77a`; that unchanged branch evidence is retained. `request_choices.PLAN` / `onpc_request_choices::run` qualified `enabled=False` child selection after separate public Parent enable/save/disable/save and Switch User through `check_e2e_request_choices` in run `20260923T235007Z-9d21bba1`. Both require wrong-entry/choice refusals, independent form readback, private collection and owned cleanup. Complete case 57 (`disabled_child.PLAN` / `onpc_disabled_child::run`) passed in run `20260924T001910Z-3076f596` with limits off throughout; `inspect_only=True` and `collapse_kiosk_child_choices` qualify exact child-list inspection, collapse through the same public trigger, and independent unchanged-selection readback before selection. Other account profiles, duration editing and installed overlay refusal remain pending. | pending; enabled kiosk child/approver, disabled-child selection and child-list inspection/collapse ready |
+| REQUEST04 | C | Select a named form field: child, approver or duration choice. Observe loaded selection and control availability. Reject child selection on the fixed-child overlay. | `AccessibleUI.select_kiosk_account(field, name, expected=..., enabled=...)` opens the owned selector, checks the exact offered UID set and labels, invokes the chosen public action once, then waits for fresh REQUEST03 selected-value readback without replay. `kiosk_eligible_choices.PLAN` / `onpc_kiosk_eligible_choices::run` qualified the enabled child/approver branch through `check_e2e_kiosk_eligible_choices` in run `20260923T204614Z-0601b77a`; that unchanged branch evidence is retained. `request_choices.PLAN` / `onpc_request_choices::run` qualified `enabled=False` child selection after separate public Parent enable/save/disable/save and Switch User through `check_e2e_request_choices` in run `20260923T235007Z-9d21bba1`. Both require wrong-entry/choice refusals, independent form readback, private collection and owned cleanup. Complete case 57 (`disabled_child.PLAN` / `onpc_disabled_child::run`) passed in run `20260925T035647Z-9242c8fd` with limits off throughout; `inspect_only=True` and `collapse_kiosk_child_choices` qualify exact child-list inspection, collapse through the same public trigger, and independent unchanged-selection readback before selection. Other account profiles, duration editing and installed overlay refusal remain pending. | pending; enabled kiosk child/approver, disabled-child selection and child-list inspection/collapse ready |
 | REQUEST05 | C | Type a custom duration, including deliberately invalid text, and observe validation/request availability. | UI16 → REQUEST03. Do not coerce or repair the customer's value. | pending |
 | REQUEST06 | C | Set the request form's soft-app choice to an explicit boolean and observe it. The surface and child are explicit. | UI17 → REQUEST03. Reuse UI17; interactive mute is deferred future-feature scope, not a prerequisite for current choices. | pending |
-| REQUEST08 | C | Read the visible estimate/footer for the chosen duration, including rest-of-day meaning, loading or unavailable estimates. | UI01 → UI03. `AccessibleUI.kiosk_request_form(enabled=False, expected_selection=...)` and `RequestObservation.from_request` bind `kiosk-disabled-form` to the selected child, retained nonempty approver, exact disabled-screen-limit explanation and unavailable Request/duration/soft-app/approver controls. Complete fresh prompt checks refuse authentication; disabled controls receive no input. `check_e2e_request_choices` qualified selection and independent readback in run `20260923T235007Z-9d21bba1`, with collection and owned cleanup. Complete case 57 also passed these public results with limits off throughout in run `20260924T001910Z-3076f596`, including Cancel-to-GDM, collection and owned cleanup. Numeric, loading, rest-of-day and overlay estimates remain pending; expected time must come from prior visible observations and elapsed time. | pending; kiosk disabled-child explanation and unavailable Request ready |
+| REQUEST08 | C | Read the visible estimate/footer for the chosen duration, including rest-of-day meaning, loading or unavailable estimates. | UI01 → UI03. `AccessibleUI.kiosk_request_form(enabled=False, expected_selection=...)` and `RequestObservation.from_request` bind `kiosk-disabled-form` to the selected child, retained nonempty approver, exact disabled-screen-limit explanation and unavailable Request/duration/soft-app/approver controls. Complete fresh prompt checks refuse authentication; disabled controls receive no input. `check_e2e_request_choices` qualified selection and independent readback in run `20260923T235007Z-9d21bba1`, with collection and owned cleanup. Complete case 57 also passed these public results with limits off throughout in run `20260925T035647Z-9242c8fd`, including Cancel-to-GDM, collection and owned cleanup. Numeric, loading, rest-of-day and overlay estimates remain pending; expected time must come from prior visible observations and elapsed time. | pending; kiosk disabled-child explanation and unavailable Request ready |
 | REQUEST09 | C | Activate an enabled Request once and observe the declared result: authentication for valid input or validation for invalid custom input. | UI01 → UI02(enabled) → UI04; valid then AUTH01, invalid then REQUEST03 → UI11(no prompt). Missing accounts, unloaded preferences or disabled limits instead require the disabled state and no activation. | pending |
 | REQUEST10 | C | Double-click an enabled Request control and observe exactly one in-progress prompt/form. | UI01 → UI02 → UI20, surrounded by UI22 tracking registered prompt/form counts and Request availability; UI13 independently confirms final counts. No second approval input or internal exactly-once claim. | pending |
 | REQUEST11 | C | Observe success confirmation, rejection, cancellation without an error, or validation feedback, with the explicitly expected preserved choices. | UI01 → UI03 → REQUEST03 where the form remains → UI12. Capture brief success before waiting for automatic exit. `AccessibleUI.kiosk_gdm_returned` is installed-qualified through `check_e2e_request_exit` for Cancel/Escape from the fixed disabled-child kiosk form: usable GDM and absent request/error UI. Case 54 also validates Cancel from the no-child form through `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`. Authentication outcomes, preserved choices on a remaining form, validation and overlay results remain pending. | pending; kiosk form Cancel/Escape result ready |
@@ -544,7 +544,8 @@ empty-state observations, collection, owned cleanup and baseline restoration
 passed. This developer-authorized scope replaces the two-canonical-parent setup
 rule. Complete case 55 independently passed through
 `kiosk_no_approver.CASE_PLAN` / `onpc_no_parent::run` and
-`tools/run-tests e2e --id '55'` in run `20260924T175340Z-dd93d54f`: public
+`tools/run-tests e2e --id '55'` in run `20260925T035302Z-c89cac03` after the
+shared-fixture extraction: public
 nonempty-parent baseline, discovered eligible-parent locking, Cancel/GDM return,
 fresh station entry, repeated exact empty-parent explanation/list, disabled
 submission and absent prompt. Capture reconciliation, collection, owned cleanup
@@ -977,16 +978,15 @@ entry state; they must not depend on case 1 having run first.
 
 ## Refactoring the established cases
 
-Cases 1, 3, 4, 5, 6, 151 and 193 use six Python recipe modules and their Perl
-workers. Each recipe now composes the catalogue and shared harness. Python
-recipes own expected values, ordered checkpoints, fixture bindings and phases;
-Perl recipes invoke shared blocks and checkpoint operations. Shared entry
+Ready cases are discovered from the executable inventory, including installation
+and unavailable-request variants. Each recipe composes the catalogue and shared
+harness. Python recipes own expected values, ordered checkpoints, fixture
+bindings and phases; Perl recipes invoke shared blocks and checkpoint operations. Shared entry
 declarations come from `journey_blocks`, with no case-to-case plan imports.
 
-This extraction is validated on the host only. Existing ready inventory
-bindings and earlier installed evidence are retained; no new VM pass or broader
-provider qualification is claimed. Validate the seven cases on the installed
-system separately before treating these extracted routes as newly qualified.
+Qualification belongs to each route's catalogue entry and retained runner
+result; the [execution plan](E2E-Execution-Plan.md#current-scope) records the
+completed initial migration. Composition checks alone supply no live credit.
 
 | Established code | Shared composition | Preserved behavior |
 | --- | --- | --- |
@@ -996,18 +996,23 @@ system separately before treating these extracted routes as newly qualified.
 | [parent_terminal.py](../../tests/e2e/parent_terminal.py), [onpc_parent_terminal.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_terminal.pm) | GDM07(standard) → PARENT01(denied) → `onpc_window::close` (UI18). | Direct command once, management denial and exclusion, fresh active-window proof before close, desktop return with management absent. The legacy variant ID remains `terminal`. |
 | [parent_about.py](../../tests/e2e/parent_about.py), [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) | FLOW01(GDM07, direct-command PARENT01), ABOUT01/02/04/03 and explicit settings observation. | Functional GDM goes straight to the intended account and retains two fresh recipient checks. Read actual installed version/license/footer, close the real viewer, and return to the same child/switch/allowance. Open step-2 before the acknowledgement that permits closing the license. |
 | [command_help.py](../../tests/e2e/command_help.py), [onpc_command_help.pm](../../tests/integration/graphical_smoke/lib/onpc_command_help.pm) | GDM07(Parent) → four explicit INFO02 bindings → final desktop-clear observation. | Parent/station help and manuals use bounded command stdout with identity/content checks, followed by independent desktop checks. No terminal or arbitrary command API. |
+| [clean_install.py](../../tests/e2e/clean_install.py) | `package_journey.record_package_journey`, `journey_checks`, LIFE04/02 and shared Parent/station blocks. | The recipe declares result-check placement; the envelope stages assets and submits once. Independent completion, account preservation and nonempty Allowed rows must pass before the durable reply. |
+| [kiosk_no_child.py](../../tests/e2e/kiosk_no_child.py), [kiosk_no_approver.py](../../tests/e2e/kiosk_no_approver.py), [disabled_child.py](../../tests/e2e/disabled_child.py) | FIX03 `account_fixture.station_fixture_actions` for the two empty-account cases, `journey_blocks.parent_management` for disabled-child, `station_entry` and shared request operations. | Each empty-account attempt receives a fresh single-use fixture. No-child preparation remains at setup; no-approver preparation remains after its public baseline. Disabled-child never enables limits. |
 
 The extracted helpers are [onpc_about.pm](../../tests/integration/graphical_smoke/lib/onpc_about.pm),
 [onpc_window.pm](../../tests/integration/graphical_smoke/lib/onpc_window.pm),
 [onpc_documentation.pm](../../tests/integration/graphical_smoke/lib/onpc_documentation.pm),
-`onpc_parent::launch_search_result`, [journey_blocks.py](../../tests/e2e/journey_blocks.py)
-and [serial_harness.py](../../tests/e2e/serial_harness.py).
+`onpc_parent::launch_search_result`, [journey_blocks.py](../../tests/e2e/journey_blocks.py),
+[journey_checks.py](../../tests/e2e/journey_checks.py),
+[package_journey.py](../../tests/e2e/package_journey.py),
+[account_fixture.py](../../tests/e2e/account_fixture.py) and
+[serial_harness.py](../../tests/e2e/serial_harness.py).
 UI18 shares one close implementation across About and denial. SEARCH05 shares
 one result-commit implementation across normal and empty-account discovery;
 FIX02 still completes before its proof permits Enter. Recorder and serial
 protocol mechanics stay in the harness, without adding a second runtime.
 
-Further capabilities remain outside these seven recipes:
+Shared capabilities and remaining extension boundaries:
 
 - The discovery `AccessibleUI.run` bindings delegate to registered picker,
   settings, page, search and desktop callables. Continue extracting the other
@@ -1087,12 +1092,16 @@ Relevant retained checks are [public UI adapter tests](../../tests/unit/test_acc
 [controller/phase/fixture safety](../../tests/unit/test_installed_journey_cleanup_safety.py),
 [About cleanup and reconciliation](../../tests/unit/test_parent_about_cleanup_safety.py),
 and [real GTK/Shell adapter qualification](../../tests/ui/test_e2e_accessible_adapter.py).
-The [composition guard](../../tests/unit/test_e2e_case_composition.py) prevents
-direct mechanics and case-plan imports returning to these recipes. Independent
+The [composition guard](../../tests/unit/test_e2e_case_composition.py) discovers
+every ready executable and its registered worker, checking all Python definitions
+for local mechanics and case dependencies, and reconciling phases/assertions with
+the inventory. Its reviewed API list contains shared callables, never a fixed
+list of cases. Independent
 window-close and search-commit regressions reject stale/missing proofs, uncertain
 input, missing results and replay; real worker tests preserve exact stage order.
-Run affected host checks for extraction; this audit explicitly defers live
-consumer validation to a separate session. Changes to shared GDM, secret input, stage
+Run affected host checks and the applicable live acceptance in the
+[execution contract](E2E-Execution-Contracts.md#live-verification-contract).
+Changes to shared GDM, secret input, stage
 reconciliation or public-UI routing also require their affected safety/harness
 qualification; do not run the whole future matrix merely for an extraction.
 ## About block contracts
@@ -1549,8 +1558,12 @@ pending, and this capability's complete-product result is `not-run`.
 
 `tests/e2e/clean_install.py::clean` and `onpc_clean_install::run` compose LIFE04,
 LIFE02, fresh Parent defaults, complete Allowed app rows and station entry/Cancel
-in one product-free attempt. `record_installed_journey` accepts the case's
-`CleanInstallJourney` controller while retaining the shared recorder and cleanup.
+in one product-free attempt. The shared
+[`record_package_journey`](../../tests/e2e/package_journey.py) binds asset staging
+and LIFE04 input to `record_installed_journey`; the case contains only its plan,
+checks and callback. [`journey_checks`](../../tests/e2e/journey_checks.py) supplies
+the independent account read and Allowed-row comparison, also reused by app-row
+qualification. Package completion uses `package_install.check_install_result`.
 `gdm-installed-accounts` uses the scoped GDM semantic snapshot to require all four
 fixture personal accounts and the station, without unrelated navigation. It
 rejects missing, duplicate, disabled, wrong-owner and incomplete observations.
@@ -1558,9 +1571,9 @@ rejects missing, duplicate, disabled, wrong-owner and incomplete observations.
 fresh-desktop binding is unchanged. No in-journey snapshot restore occurs.
 
 Complete case 2 passed `tools/run-tests e2e --id '2'` in run
-`20260924T234059Z-27bb3ecf`, including both customer assertions, capture
+`20260925T033902Z-25077d1e` after the shared-envelope extraction, including both customer assertions, capture
 reconciliation, collection, owned cleanup and baseline restoration. The attempt
-evidence is `output/test-runs/privileged/allocations/onpc-e2e-evidence-u9fyjec4`.
+evidence is `output/test-runs/privileged/allocations/onpc-e2e-evidence-tt8yep8a`.
 The affected case 6 Parent-launch regression passed in
 `20260924T234847Z-41112953` with the same terminal gates. Coverage was regenerated
 after each case. Host refusal/composition coverage is in
@@ -1736,7 +1749,8 @@ and the fixed disabled-child kiosk projection: one form, disabled approver,
 duration, soft-app and Request controls, enabled Cancel, 30-minute selection,
 screen-limit-disabled notice, and absent mute/custom value. It completed in two
 fresh tree reads with no incomplete reads or query errors; enabled choices,
-overlay scope, authentication and case 57 remain pending.
+overlay scope and authentication remained pending at that qualification; later
+case 57 acceptance is recorded under REQUEST04/08 above.
 
 ### Search and standard sign-in contracts
 
@@ -1963,12 +1977,14 @@ Viewing cannot authorize input or change scenario acceptance.
    The controller retains sanitized immutable values, compares before fixture
    actions/storage/reply, and refuses missing earlier evidence or replay.
 4. Have the callback call `record_installed_journey(recorder, context, PLAN)`
-   and register it in `E2E_CASES`. This composition currently supports one
-   authenticated installed journey with unchanged customer boot and a terminal
-   `visible-result` assertion. Its fixed account-fixture stage actions are
-   already supported. Repeated authentication, customer reboot or additional
-   assertion needs require the scoped extensions identified above; do not force
-   them into the current path or bypass its failure latch. Ordinary feature
+   and register it in `E2E_CASES`. Reuse `invocations` for repeated operations,
+   `challenges` for separately bound authentication, `assertions_after` for
+   intermediate results and `reboot_transition` for the qualified single reboot;
+   their scopes are maintained under [shared capabilities](#refactoring-the-established-cases).
+   Product-free install recipes use `record_package_journey` with declared
+   public-result checks. Fixed account-fixture stage actions are supported.
+   Extend only a missing binding; do not recreate these mechanisms in a case.
+   Ordinary feature
    installation/reboot belongs only to suite snapshot preparation. Tested package
    installation/reboot in E2E-002/026/027 remains a real customer action.
 5. Reconcile that variant's inventory declaration, requirements, visible
@@ -1984,8 +2000,8 @@ Viewing cannot authorize input or change scenario acceptance.
    `fixture-credentials-via-secret-api` when using authenticated input. A ready
    callback must exist, and all required steps must have real implementations.
    Registration enables execution; only complete acceptance earns coverage.
-6. Test changed shared boundaries with the actual Perl helper and Python
-   recorder. Then finish edits, build fresh artifacts and run the exact variant
+6. Complete the [composition preflight](#composition-preflight), then use
+   verified inputs containing the intended product changes and run the exact variant
    through the [public E2E command](../../tests/e2e/README.md#run-e2e-scenarios).
    Preserve staged inputs, evidence and owned cleanup. Concurrent checkout edits
    follow the documentation map and do not invalidate the attempt.
@@ -2015,6 +2031,42 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | A stale observation appears to prove returning to the same child | Reconcile one fresh semantic result per ordered stage. Compare the returned child, switch state and allowance with the initial displayed settings. Missing, reused or reordered evidence refuses. Worker exit zero alone cannot pass. |
 | Choosing package inputs | Build artifacts when the installed product needs to include current changes. Runs use the supplied artifacts and allow concurrent checkout edits; private staged artifacts remain integrity-checked. |
 | VM is off but baseline acquisition reports `guard:source-changed` | Inspect the saved run phase and inactive configuration through the approved readers. An interrupted `isolated` setup can retain the test configuration. Use recorded graphical cleanup; do not edit the journal, recreate the baseline or treat powered-off status alone as restored state. |
+| A small fake collection passes but the installed app's reply exceeds the transport limit | Test the complete observation through serialization and both buffered/streamed transport at realistic and maximum declared sizes. Keep byte, item-count and schema bounds consistent. [App-row regressions](../../tests/unit/test_e2e_app_rows.py) exercise the installed-sized collection and reject oversized/partial results. |
+| Widget doubles omit behavior seen through the real toolkit | Exercise the new projection with the real public adapter before VM qualification. Capture supported representation in the shared leaf and its regression, such as collapsed selectors or rich-editor paragraph endings; link the existing binding contract rather than teaching every consumer to normalize it. |
+| Adding a qualification breaks an older conflict test even though both routes refuse safely | Assert refusal before credentials, storage and VM work. Do not couple a multi-invalid-input test to whichever validator happens to run first. Keep exact diagnostic checks for a single invalid condition. |
+| Later cases escape an earlier composition audit | Discover cases and workers from ready inventory bindings. Review helper methods and subclasses as well as callbacks; moving I/O into a case-local helper is still case-owned mechanics. The [composition guard](../../tests/unit/test_e2e_case_composition.py) enforces this boundary. |
+
+### Composition preflight
+
+Before the first live attempt, check the changed boundary end to end on the host:
+
+1. Bind recipe stages to the actual shared callable, operation registration,
+   worker dispatch, observation schema and recorder assertion. Run
+   `tools/run-tests unit 'tests/unit/test_e2e_case_composition.py' 'tests/unit/test_e2e_progress.py'`
+   after registering or changing a case; it discovers new ready bindings
+   automatically. Keep scenario values, order and expected outcomes in the recipe;
+   put transport, fixture lifetime, provider input and reusable comparisons in
+   their owning libraries. A new shared API gets a meaningful success/refusal
+   regression and review of the guard's shared API list, never a case exemption.
+2. Exercise the actual worker sequence against the plan and inject refusal at
+   the changed boundary. Check that no later input or successful reply occurs.
+   For a new observation shape, carry realistic-sized output through the real
+   controller decoder; an adapter-only mock cannot qualify that boundary. The
+   [lessons above](#lessons-to-preserve) identify the recurring representation
+   and transport traps.
+3. On failure, use the earliest failed boundary and retained evidence to state
+   one cause or a diagnostic that distinguishes remaining explanations before
+   another live attempt. Reproduce a mechanical defect in the smallest
+   appropriate host regression before fixing it.
+   Preserve behavior decisions under the existing
+   [failure contract](../../tests/README.md#handling-test-failures); wider retries
+   and longer timeouts are not explanations.
+
+At close-out, fold a newly demonstrated recurring trap into its existing helper,
+regression and owning contract. Correct obsolete capability limits and the next
+consumer's callable references as part of that change. Do not append a second
+history, copy mandates into briefs, or infer time savings from queue estimates;
+use retained attempt/session records if comparing completion time or retry rate.
 
 ## Retained image artifacts and migration
 

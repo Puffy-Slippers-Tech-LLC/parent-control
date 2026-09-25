@@ -17,10 +17,10 @@ my %values = (
 # UI16: every keyboard input consumes a new focused-recipient proof. An
 # exception stops this composite; no input retry or repair is permitted.
 sub replace_text {
+    onpc_progress::operation('Replacing one declared synthetic feedback value');
     my ($journey, $binding) = @_;
     die 'text:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && defined($binding) && exists($values{$binding});
-    onpc_progress::operation('Replacing one declared synthetic feedback value');
     if ($binding =~ /^reply-/) {
         # GTK's native entry has no Component.GrabFocus implementation. Use
         # the declared keyboard route, then independently prove reply focus.
@@ -45,9 +45,9 @@ sub replace_text {
 }
 
 sub run {
+    onpc_progress::operation('Qualifying synthetic text replacement without sending');
     my ($exchange) = @_;
     die 'text:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
-    onpc_progress::operation('Qualifying synthetic text replacement without sending');
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'text', review => 0);
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');

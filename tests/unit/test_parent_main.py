@@ -857,10 +857,12 @@ class ParentWindowTests(unittest.TestCase):
     def _assert_updated_launcher_policy(self, duplicate_default):
         from types import SimpleNamespace
 
+        match_images = {match['id']: mock.Mock() for match in MATCH_RULES}
+
         class Harness:
             _default_match_rule = ParentWindow._default_match_rule
             _is_pattern = staticmethod(ParentWindow._is_pattern)
-            _match_rule_image = staticmethod(lambda match: match['id'])
+            _match_rule_image = staticmethod(lambda match: match_images[match['id']])
             _update_match_rule_icon = ParentWindow._update_match_rule_icon
 
         row = SimpleNamespace(
@@ -890,11 +892,15 @@ class ParentWindowTests(unittest.TestCase):
         window._loading = False
         window._daily_limit_minutes = lambda: 30
 
-        ParentWindow._apply_app_policies(window)
+        with mock.patch('parent.oh_no_parent_control_parent.main.set_automation_id') as set_automation_id:
+            ParentWindow._apply_app_policies(window)
 
         row.policy_buttons['conditional'].set_active.assert_called_once_with(True)
         row.match_rule_button.set_tooltip_text.assert_called_once_with('Pattern Match')
-        row.match_rule_button.set_child.assert_called_once_with('pattern')
+        row.match_rule_button.set_child.assert_called_once_with(match_images['pattern'])
+        set_automation_id.assert_called_once_with(
+            match_images['pattern'], 'parent-app-05aaf42b0b4804d4-match-pattern',
+        )
         self.assertEqual(row.match_rule, '/apps/Lunar Client-*.AppImage')
         saved = ParentWindow._app_policy_value(window)
         self.assertNotIn('old-lunar.desktop', saved['apps'])

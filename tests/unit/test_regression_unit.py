@@ -1,11 +1,60 @@
 """Unit partitions preserve exact coverage, module fixtures and isolation."""
 
 from collections import Counter
+from dataclasses import replace
 
 import pytest
 
 from regression_resources import compatible
 from regression_unit import REVIEWED, buckets
+from tests.support.paths import ROOT
+
+
+@pytest.mark.parametrize('category', ['unit', 'cleanup', 'ui'])
+def test_host_module_inventory_has_no_unreviewed_fallback(category):
+    from regression_cleanup import buckets as cleanup_buckets
+    from regression_ui import buckets as ui_buckets
+
+    directory = ROOT / 'tests' / ('ui' if category == 'ui' else 'unit')
+    paths = sorted(directory.rglob('test_*.py'))
+    if category == 'cleanup':
+        paths = [path for path in paths if path.name.endswith('_cleanup_safety.py')
+                 or path.name == 'test_graphical_lease.py']
+    partition = {'unit': buckets, 'cleanup': cleanup_buckets, 'ui': ui_buckets}[category]
+    nodes = [path.relative_to(ROOT).as_posix() + '::inventory_review' for path in paths]
+    plan = partition(nodes)
+    # A necessary exclusive module must be explicitly recorded here with its
+    # concrete shared-resource reason after review. Unknown execution remains
+    # safely exclusive, but is never a completed classification.
+    reviewed_exclusive = {}
+    exclusive = {path for bucket in plan if bucket.kind.endswith('-exclusive')
+                 for path in bucket.paths}
+    assert exclusive == set(reviewed_exclusive), 'Review new host modules for parallelism'
+    assert all(reviewed_exclusive.values())
+    assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+
+
+def test_full_fixture_builder_keeps_artifact_admission_and_unit_coverage():
+    from regression_resources import Admission, GIB, Sample
+    from types import SimpleNamespace
+
+    nodes = ['tests/unit/test_test_applications.py::test_build',
+             'tests/unit/test_core.py::test_case']
+    plan = buckets(nodes)
+    build, = [bucket for bucket in plan if bucket.kind == 'artifacts']
+    assert build.nodeids == (nodes[0],)
+    assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+    assert compatible(build.kind, 'unit') and compatible('unit', build.kind)
+    sample = Sample(20, 0, 32 * GIB, 24 * GIB, 0, 0, 0, False)
+    now = [0]
+    admission = Admission(SimpleNamespace(sample=lambda: sample), lambda: now[0])
+    admission.update()
+    now[0] = 20
+    assert admission.allows(build.kind, ['unit'])
+    sample = replace(sample, io_pressure=3)
+    now[0] = 22
+    assert not admission.allows(build.kind, ['unit'])
+    assert admission.reason == 'waiting for I/O pressure to recover'
 
 
 def test_isolated_e2e_and_storage_contracts_share_unit_branches():
@@ -22,6 +71,20 @@ write_e2e_cleanup_safety'''.split()
     assert len(plan) == 4
     assert all(bucket.kind == 'unit' for bucket in plan)
     assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+
+
+def test_private_build_rendering_and_journey_contracts_share_unit_branches():
+    names = '''build_package challenges_cleanup_safety clean_install_cleanup_safety
+customer_reboot_cleanup_safety e2e_app_rows e2e_feedback_read e2e_kiosk_no_approver
+launcher_render package_authority_cleanup_safety package_install_cleanup_safety
+product_free_entry_cleanup_safety repeated_operations_cleanup_safety'''.split()
+    nodes = [f'tests/unit/test_{name}.py::test_case[{variant}]'
+             for name in names for variant in ('success', 'refusal')]
+    plan = buckets(nodes)
+    assert len(plan) == 4
+    assert all(bucket.kind == 'unit' for bucket in plan)
+    assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+    assert len({path for bucket in plan for path in bucket.paths}) == len(names)
 
 
 def test_balanced_buckets_keep_every_module_and_case_together_once():

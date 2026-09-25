@@ -231,8 +231,10 @@ serial invocation so its failure limit remains selection-wide. Inspection is
 unchanged. No marker exclusions are added implicitly. Other categories stay
 ordered. `tools/run-tests unit` uses the same four balanced unit buckets as
 `host`, keeps module fixtures together and preserves exact selectors/options.
-It adds no cleanup prerequisite inventory or other categories. New/unreviewed
-modules and full application-fixture construction remain exclusive; `-x` or
+It adds no cleanup prerequisite inventory or other categories. Unknown modules
+retain exclusive fallback; reviewed full application-fixture tests use artifact
+resource admission and compatible overlap. New host modules require the
+[parallelism review](../tests/README.md#host-test-parallelism-review); `-x` or
 positive `--maxfail` keeps one serial invocation. Direct `tools/run-unit-tests`
 remains serial for narrow iteration. See the
 [scheduling contract](../tests/README.md#all-established-regressions).

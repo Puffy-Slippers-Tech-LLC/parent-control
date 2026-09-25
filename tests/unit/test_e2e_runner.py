@@ -72,7 +72,7 @@ def cli_checkout(checkout):
 def test_full_listing_keeps_pending_cases_and_exact_digest():
     plan = runner['preflight'](['--list'])
     assert len(plan['cases']) == 242
-    assert len(plan['pending_cases']) == 234
+    assert len(plan['pending_cases']) == 231
     assert plan['scope'] == 'full'
     assert plan['mode'] == 'list-only'
     assert plan['inventory_sha256'] == hashlib.sha256(
@@ -134,7 +134,7 @@ def test_dispatcher_preserves_execution_verification_policy(skip, checkout):
 
 @pytest.mark.parametrize('options,code', [
     (['--ready', '--scenario=E2E-030/parent'], 'invalid-arguments'),
-    (['--scenario=E2E-002'], 'selection:pending'),
+    (['--scenario=E2E-023/fullscreen'], 'selection:pending'),
     (['--scenario=E2E-028/startup-enforcement'], 'selection:unknown'),
     (['--scenario=E2E-029/failed-save'], 'selection:unknown'),
     (['--scenario=E2E-023/fullscreen', '--artifacts=/tmp/onpc-absent'], 'selection:pending'),
@@ -171,7 +171,7 @@ def test_installed_dispatcher_refuses_pending_before_safety_or_root_execution(mo
     execute = Mock(side_effect=AssertionError('must not execute'))
     monkeypatch.setattr(dispatcher['subprocess'], 'run', execute)
     with pytest.raises(ValueError, match='selection:pending'):
-        dispatcher['run'](ROOT, ['e2e', '--scenario=E2E-002', '--artifacts=/tmp/onpc-absent'], None)
+        dispatcher['run'](ROOT, ['e2e', '--scenario=E2E-023/fullscreen', '--artifacts=/tmp/onpc-absent'], None)
     execute.assert_not_called()
 
 
@@ -228,7 +228,7 @@ def test_ready_declaration_still_requires_valid_artifacts(checkout, artifact, co
     (['LIST=0'], 'LIST-must-be-1'),
     (['LIST=1', 'VM_IMAGE=unused'], 'VM_IMAGE-refused'),
     (['LIST=1', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'listing-does-not-use-artifacts'),
-    (['SCENARIO=E2E-002', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'selection:pending'),
+    (['SCENARIO=E2E-023/fullscreen', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'selection:pending'),
 ])
 def test_make_target_refusals(cli_checkout, assignments, code):
     result = subprocess.run(['/usr/bin/make', '--no-print-directory', 'check-e2e', *assignments],
@@ -255,10 +255,12 @@ def test_public_ready_listing_and_installed_dispatcher_share_selection(cli_check
     assert listing == runner['preflight'](['--list', '--ready'])
     assert listing['scope'] == 'partial' and listing['ready_only'] is True
     assert [c['case_id'] for c in listing['cases']] == [
-        'E2E-001/gdm-observation', 'E2E-003/existing-and-new', 'E2E-003/none',
-        'E2E-004/app-grid', 'E2E-004/terminal', 'E2E-017/disabled-child',
+        'E2E-001/gdm-observation', 'E2E-002/clean',
+        'E2E-003/existing-and-new', 'E2E-003/none',
+        'E2E-004/app-grid', 'E2E-004/terminal', 'E2E-017/no-child',
+        'E2E-017/no-parent', 'E2E-017/disabled-child',
         'E2E-030/parent', 'E2E-042/command-help']
-    assert len(listing['excluded_pending_cases']) == 234
+    assert len(listing['excluded_pending_cases']) == 231
     import tempfile
     with tempfile.TemporaryDirectory(prefix='onpc-ready-test-', dir='/tmp') as directory:
         command = dispatcher['selection'](ROOT, ['e2e', '--ready', '--artifacts=' + directory])

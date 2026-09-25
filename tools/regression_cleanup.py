@@ -13,14 +13,14 @@ from regression_resources import HOST_WORKERS
 
 
 REVIEWED = frozenset('''
-appsnapshot backing_verification baseline_guest child_preview dbus_harness e2e_asset_transfer
+appsnapshot backing_verification baseline_guest challenges child_preview clean_install customer_reboot dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_fixture_credentials
 e2e_keyring_fixture e2e_leased_recording e2e_recording e2e_startup_cache e2e_suite
 e2e_watch e2e_worker execution_probe fixture fix_tests
 graphical_attachment graphical_serial graphical_smoke graphical_transport
-graphical_worker installed_journey desktop_session parent_about parent_setup prepare_baseline
+graphical_worker installed_journey desktop_session package_authority package_install parent_about parent_setup prepare_baseline product_free_entry
 probe_bus_client probe_channel probe_generation qualification_storage
-regression screen_preview screenshot session_expiry system_accounts system_agent
+regression repeated_operations screen_preview screenshot session_expiry system_accounts system_agent
 system_caller system_enforcement system_probe_sandbox system_runner storage_migration terminal
 test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session write_e2e
 '''.split())
@@ -36,6 +36,10 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # doubles and socket pairs. Storage, migration and startup-cache checks use
 # private trees and journals; write-E2E owns its children in a private checkout.
 # They do not share mutable state across workers.
+# Challenge/repeated-operation contracts use isolated Perl API doubles. Clean
+# install, package authority/install, product-free entry and reboot contracts
+# mock all system/guest mutations and write evidence only into pytest-private
+# trees. Their unit classification applies to the cleanup phase too.
 
 # Measured costs guide packing and dispatch only; never reuse passing results.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 11,

@@ -106,7 +106,10 @@ reviewed modules across up to four branches. The [unit buckets](../tools/regress
 are shared with `host`; each module and its fixtures stay in one worker. Workers
 use private pytest temporary trees, disabled shared caches and process-local
 doubles. Package/native fixtures build into private staging directories.
-New/unreviewed modules and full application-fixture construction run exclusively.
+Unknown modules run exclusively as a runtime safeguard. Reviewed full
+application-fixture construction runs as a separate unit-test job using artifact
+build resource admission and compatible companions, rather than ordinary unit
+packing.
 This selection adds no other categories or cleanup prerequisite inventory.
 
 Unit file/case selectors, `-k`, `-m` and scoped ignores preserve the exact
@@ -115,7 +118,32 @@ collected IDs, and each worker must account for every assigned case once.
 failure limit remains selection-wide. `tools/run-unit-tests` remains the direct
 serial route for narrow iteration or diagnosis. Inspection/collection-only
 commands keep their existing behavior. Unit buckets use the same CPU, memory,
-swap and compatibility limits as other host work; I/O pressure is advisory.
+swap and compatibility limits as other host work; I/O pressure is advisory for
+ordinary units, while full fixture construction retains artifact I/O limits.
+
+### Host test parallelism review
+
+Every added host test module and every change to its resource ownership must
+receive a parallelism review in the same task. Review mutable paths and caches,
+owned subprocesses and cleanup, sockets/buses/displays, shared fixtures, external
+services and CPU/memory/I/O demand. Private state qualifies for compatible
+overlap; expensive work needs appropriate resource admission, not automatic
+exclusivity. Keep module fixtures together and preserve exact selected cases.
+
+Update the applicable [unit](../tools/regression_unit.py),
+[cleanup](../tools/regression_cleanup.py) and [UI](../tools/regression_ui.py)
+classifications with the isolation rationale. Cleanup modules participate in
+both unit and prerequisite inventories and need both classifications. For other
+host categories, review the [resource and compatibility policy](../tools/regression_resources.py).
+Record the specific conflicting shared resource for any required exclusivity.
+Do not declare work complete with a module merely left in the unreviewed fallback.
+
+The [host inventory regression](unit/test_regression_unit.py) detects modules
+left unreviewed across all three inventories; a reviewed exclusive exception
+requires an explicit path and concrete reason. Unknown modules still execute
+exclusively at runtime so incomplete checkouts fail safely. Validate partition
+coverage and compatible overlap for the changed scope using the maintained
+launcher, without expanding validation to unrelated host categories.
 
 `system` and `e2e` remain sequential VM categories. A combined run shares one
 report and reuses host's qualified package. Without `host`, the runner builds one

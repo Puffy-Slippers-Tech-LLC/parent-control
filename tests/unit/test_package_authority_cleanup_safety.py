@@ -13,20 +13,9 @@ import package_command as command
 from package_authority import PLAN, submit_package
 from private_artifacts import EvidenceError
 from owned_commands import CommandError
+from tests.support.desktop_session import RUN_PROBE, props
+from tests.support.package_command import DIGEST, boundary
 from tests.support.perl import run_perl
-from tests.unit.test_e2e_desktop_session import RUN_PROBE, props
-
-DIGEST = 'a' * 64
-
-
-def boundary(monkeypatch):
-    transport = SimpleNamespace(config={'run': 'attempt', 'domain_uuid': 'vm'},
-        commands=SimpleNamespace(last_returncode=0), guard=Mock(),
-        call=Mock(return_value=(command.COMPLETE + '\n' + command.NOTICE + '\n').encode()))
-    verified = SimpleNamespace(inputs={'package_sha256': DIGEST}, recheck=Mock())
-    monkeypatch.setattr(command.session_control, 'observe',
-                        Mock(return_value={'package_sha256': DIGEST}))
-    return command.PackageCommand(transport, verified)
 
 
 def test_fixed_launcher(monkeypatch):

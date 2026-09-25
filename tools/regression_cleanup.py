@@ -30,7 +30,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # fixtures in its own Perl child; watcher sockets, processes and signals are
 # mocked. These modules therefore share the same isolation as cleanup buckets.
 # App-snapshot and suite tests use private locks with mocked libvirt sources;
-# baseline-guest uses an in-memory guestfs double. Fix-tests owns every child it
+# baseline-guest uses an in-memory guestfs double; update/reboot checks mock all
+# package/VM operations and use tmp_path for guest entry records. Fix-tests owns every child it
 # starts beneath a private checkout, and UI-watch uses recorded process doubles
 # plus unique private sockets. Keyring/VM watcher safety uses process-local
 # doubles and socket pairs. Storage, migration and startup-cache checks use

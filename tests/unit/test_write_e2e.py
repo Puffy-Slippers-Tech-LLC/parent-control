@@ -160,6 +160,38 @@ def test_simultaneous_observers_accept_exactly_one_answer(tmp_path):
     assert sorted(answers) == [False, True]
 
 
+@pytest.mark.parametrize('choice', [0, 1, 2])
+def test_answer_transcript_preserves_selection_and_custom_text(tmp_path, monkeypatch, capsys, choice):
+    from launcher_question import QuestionInput, submit
+    from rich.text import Text
+
+    state = dict(workflow.fresh_state('001'), blocker_id='q', blocker={
+        'explanation': 'A decision is needed.', 'question': 'How should we continue?',
+        'options': ['Repair', 'Review']})
+    custom = 'Keep café and review the checks.'
+
+    def answer(_delay):
+        waiting = Text.from_ansi(capsys.readouterr().out).plain
+        assert '1. Repair' in waiting
+        assert '›' not in waiting
+        assert submit(tmp_path, 'q', choice, custom)
+
+    monkeypatch.setattr(workflow.time, 'sleep', answer)
+    assert workflow.wait_for_answer(tmp_path, state, 'task')
+    output = Text.from_ansi(capsys.readouterr().out).plain
+    expected = custom if choice == 2 else ['Repair', 'Review'][choice]
+    assert f'› {choice + 1}. {expected}' in output
+    assert 'Answer submitted.' in output
+    assert 'Waiting for your answer.' not in output
+    assert state['user_answer']['answer'] == expected
+    saved = json.loads((tmp_path / 'question.json').read_text())
+    restored = QuestionInput(saved, lambda *_: pytest.fail('answered menu resubmitted'))
+    assert restored.selected == choice
+    assert restored.text == (custom if choice == 2 else '')
+    restored.feed(b'1\r')
+    assert restored.selected == choice
+
+
 def test_restart_preserves_an_answer_before_owner_checkpoint(tmp_path, monkeypatch):
     prepare(tmp_path)
     previous = tmp_path / 'previous'

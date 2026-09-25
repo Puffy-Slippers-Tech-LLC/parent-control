@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from pathlib import Path
+import re
 import stat
 import time
 import xml.etree.ElementTree as ET
@@ -17,7 +18,7 @@ SERVICE = f'''[Unit]
 Description=Prepare the ONPC test baseline
 Wants=network-online.target accounts-daemon.service
 After=network-online.target accounts-daemon.service
-Before=display-manager.service
+Before=display-manager.service apt-daily.service apt-daily-upgrade.service
 ConditionPathExists={STAGE}/password
 SuccessAction=poweroff
 FailureAction=poweroff
@@ -27,7 +28,7 @@ Type=oneshot
 UMask=0077
 WorkingDirectory={STAGE}/checkout
 ExecStart=/usr/bin/python3 -B {STAGE}/checkout/tests/integration/baseline_guest_entry.py
-TimeoutStartSec=2400
+TimeoutStartSec=7200
 StandardOutput=append:{STAGE}/preparation.log
 StandardError=append:{STAGE}/preparation.log
 '''
@@ -87,8 +88,9 @@ def write(g, path, content):
 
 
 @observed('Preparing the baseline VM; waiting for guest setup and shutdown')
-def prepare(capture, guestfs, password):
-    """Operate only on the off, journal-bound source. Never restore a baseline."""
+def prepare(capture, guestfs, password, *, mode='manual'):
+    """Operate only on the off, journal-bound source selected by the controller."""
+    require(mode in ('auto', 'manual'), 'guest:preparation-mode')
     with mounted(guestfs, capture) as g:
         directory(g, STAGE)
         require(g.lstatns(STAGE)['st_mode'] & 0o077 == 0, 'guest:preparation-private')
@@ -100,10 +102,11 @@ def prepare(capture, guestfs, password):
         for relative in sorted(files):
             write(g, STAGE + '/checkout/' + relative,
                   (prepare_vm.CHECKOUT / relative).read_bytes())
-        for name in ('success',):
+        for name in ('success', 'reboot-required'):
             if g.exists(STAGE + '/' + name) or g.is_symlink(STAGE + '/' + name):
                 write(g, STAGE + '/' + name, b'')
         write(g, STAGE + '/password', password.encode('ascii'))
+        write(g, STAGE + '/mode', mode.encode('ascii'))
         write(g, UNIT, SERVICE.encode('ascii'))
         directory(g, str(Path(LINK).parent))
         if g.exists(LINK) or g.is_symlink(LINK):
@@ -111,6 +114,48 @@ def prepare(capture, guestfs, password):
                     'guest:preparation-unit')
         else:
             g.ln_s(UNIT, LINK)
+    from watch_activity import operation
+    with operation('Running no-app setup and Ubuntu system updates' if mode == 'auto'
+                   else 'Running no-app prerequisite setup'):
+        boot_and_wait(capture)
+    with mounted(guestfs, capture) as g:
+        reboot = g.exists(STAGE + '/reboot-required') and bool(g.read_file(STAGE + '/reboot-required'))
+        if reboot:
+            require(mode == 'auto', 'guest:unexpected-reboot')
+            # A full power cycle provides a fresh kernel and boot identity. The
+            # second one-shot validates that identity before powering off again.
+            service = SERVICE.replace('/password', '/reboot-required').replace(
+                'baseline_guest_entry.py\n', 'baseline_guest_entry.py --verify-reboot\n')
+            write(g, UNIT, service.encode('ascii'))
+    if reboot:
+        with operation('Rebooting updated Ubuntu and verifying the new boot'):
+            boot_and_wait(capture)
+    with mounted(guestfs, capture) as g:
+        success = g.exists(STAGE + '/success') and g.read_file(STAGE + '/success') == b'success\n'
+        if not success:
+            # Emit only fixed diagnostic tokens, never package output or secrets.
+            path = STAGE + '/preparation.log'
+            diagnostics = 'no-log'
+            if g.exists(path):
+                size = g.filesize(path)
+                tail = g.pread(path, min(size, 16384), max(0, size - 16384)).decode('utf-8', 'replace')
+                tokens = re.findall(r'(?:prepare-vm|baseline): \[([a-z][a-z0-9:-]*)\]', tail)
+                exceptions = re.findall(r'^([A-Za-z]+Error):', tail, re.MULTILINE)
+                diagnostics = ','.join((tokens + exceptions)[-12:]) or 'no-stage'
+            require(False, 'guest:preparation-failed; diagnostics:' + diagnostics
+                    + '; inspect guest preparation.log')
+        require(not g.exists(STAGE + '/password'), 'guest:preparation-secret-retained')
+        hashes = [line.split(':') for line in g.read_file('/etc/shadow').decode('ascii').splitlines()]
+        for account in prepare_vm.IDENTITIES:
+            rows = [row for row in hashes if row[0] == account.username]
+            require(len(rows) == 1 and len(rows[0]) == 9
+                    and matches(password, rows[0][1]), 'guest:prepared-password-mismatch')
+        require(g.is_symlink(LINK) and g.readlink(LINK) == UNIT, 'guest:preparation-unit')
+        g.rm(LINK)
+        g.rm(UNIT)
+
+
+def boot_and_wait(capture):
     capture.revalidate(off=True)
     source = capture.source
     # Baseline preparation explicitly maintains this guest's configuration.
@@ -133,7 +178,7 @@ def prepare(capture, guestfs, password):
                     and configuration_digest(source.domain.XMLDesc(0)) == xml_digest,
                     'guest:preparation-display-changed')
         observer = start(DisplayAdapter(source, instance, guard_display, capture.state['operation']))
-        deadline = time.monotonic() + 2700
+        deadline = time.monotonic() + 7500
         while not source.snapshot()[1]:
             require(source.domain.ID() == instance, 'guest:preparation-instance-changed')
             require(time.monotonic() < deadline, 'guest:preparation-timeout')
@@ -147,16 +192,3 @@ def prepare(capture, guestfs, password):
         if observer is not None:
             observer.close()
     capture.revalidate(off=True)
-    with mounted(guestfs, capture) as g:
-        require(g.exists(STAGE + '/success')
-                and g.read_file(STAGE + '/success') == b'success\n',
-                'guest:preparation-failed; inspect guest preparation.log')
-        require(not g.exists(STAGE + '/password'), 'guest:preparation-secret-retained')
-        hashes = [line.split(':') for line in g.read_file('/etc/shadow').decode('ascii').splitlines()]
-        for account in prepare_vm.IDENTITIES:
-            rows = [row for row in hashes if row[0] == account.username]
-            require(len(rows) == 1 and len(rows[0]) == 9
-                    and matches(password, rows[0][1]), 'guest:prepared-password-mismatch')
-        require(g.is_symlink(LINK) and g.readlink(LINK) == UNIT, 'guest:preparation-unit')
-        g.rm(LINK)
-        g.rm(UNIT)

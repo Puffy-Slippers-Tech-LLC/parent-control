@@ -109,7 +109,7 @@ tools/run-tests system --list --area authorization --test 'test_real_selected_pa
 Bare `tools/run-tests system` builds its required package input automatically;
 combinations including `host` reuse host's qualified input.
 
-Installation/reboot package checks start from `onpc-baseline`. Authorization,
+Installation/reboot package checks start from `onpc_baseline`. Authorization,
 enforcement and session checks restore the retained `onpc-v<release>` app snapshot
 before each area, using the same shared preparation as
 `tools/prepare-appsnapshot --overwrite false` and E2E. A missing version snapshot

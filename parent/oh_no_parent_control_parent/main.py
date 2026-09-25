@@ -313,6 +313,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._rows = []
         self._loading = False
         self._save_in_progress = False
+        self._active_save = None
         self._pending_saves = []
         self._restore_preferences_uid = None
         self._custom_daily_limit_save_id = 0
@@ -1655,13 +1656,21 @@ class ParentWindow(Adw.ApplicationWindow):
             self._remaining_time_seconds > 0
         )
         self._enabled.set_sensitive(idle and self._selected_uid() is not None)
+        active_save = getattr(self, "_active_save", None)
+        custom_save = (active_save is not None and
+                       active_save[:2] == ("custom-allowance", self._selected_uid()))
+        # Focus leave can commit the custom draft during a menu-button click.
+        # Keep the picker enabled so that click can finish opening its popover;
+        # a subsequent preset selection uses the same serialized save queue.
         self._daily_limit.set_sensitive(
-            idle and self._selected_uid() is not None and
+            not self._loading and (idle or custom_save) and
+            self._selected_uid() is not None and
             self._enabled.get_active()
         )
         if hasattr(self, "_custom_daily_limit"):
             self._custom_daily_limit.set_sensitive(
-                idle and self._selected_uid() is not None and
+                not self._loading and (idle or custom_save) and
+                self._selected_uid() is not None and
                 self._enabled.get_active()
             )
         table_ready = getattr(self, "_apps_table_ready", True)
@@ -1844,18 +1853,28 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _custom_daily_limit_changed(self, *_args):
         self._cancel_custom_daily_limit_save()
-        if self._loading or self._selected_uid() is None:
+        if (self._loading or self._selected_uid() is None or
+                self._daily_limit_selected != CUSTOM_DAILY_LIMIT_INDEX or
+                not self._enabled.get_active()):
             return False
         text = self._custom_daily_limit_entry.get_text().strip()
         if not text.isdecimal() or not 0 <= int(text) <= MAX_CUSTOM_DAILY_LIMIT_MINUTES:
             self._custom_daily_limit_entry.add_css_class("error")
+            self._custom_daily_limit_entry.update_property(
+                [Gtk.AccessibleProperty.DESCRIPTION],
+                ["Invalid daily allowance. Enter a whole number from 0 to 1439."],
+            )
             self._custom_daily_limit.set_subtitle(
                 "Enter a whole number from 0 to 1439."
             )
             return False
         self._custom_daily_limit_entry.remove_css_class("error")
+        self._custom_daily_limit_entry.update_property(
+            [Gtk.AccessibleProperty.DESCRIPTION],
+            ["Enter a whole number of minutes from zero through 1439."],
+        )
         self._custom_daily_limit.set_subtitle("Enter a whole number from 0 to 1439.")
-        self._save_parent_control(self._enabled.get_active())
+        self._save_parent_control(self._enabled.get_active(), custom=True)
         return False
 
     def _custom_daily_limit_text_changed(self, *_args):
@@ -1896,10 +1915,24 @@ class ParentWindow(Adw.ApplicationWindow):
         # Invalid custom input is never saved; retain the last valid value.
         return self._preferences.get("daily_time_limit_minutes", 30)
 
-    def _save_parent_control(self, enabled):
+    def _save_parent_control(self, enabled, *, custom=False):
         uid = self._selected_uid()
         daily_limit_minutes = self._daily_limit_minutes()
-        self._queue_save("parent-control", uid, enabled, daily_limit_minutes)
+        kind = "custom-allowance" if custom else "parent-control"
+        if custom:
+            # Enter, focus leave and debounce can all commit the same draft.
+            # Compare against the last outstanding write, not an older saved
+            # value: typing back to that older value must still be queued.
+            outstanding = (self._pending_saves[-1] if self._pending_saves
+                           else self._active_save)
+            if outstanding is not None:
+                if outstanding == (kind, uid, (enabled, daily_limit_minutes)):
+                    return
+            elif (self._preferences is not None and
+                  self._preferences["parent_control_enabled"] == enabled and
+                  self._preferences["daily_time_limit_minutes"] == daily_limit_minutes):
+                return
+        self._queue_save(kind, uid, enabled, daily_limit_minutes)
 
     def _start_parent_control_save(self, uid, enabled, daily_limit_minutes):
         LOG.info("parent.015", enabled=enabled, daily_limit_minutes=daily_limit_minutes)
@@ -2081,9 +2114,9 @@ class ParentWindow(Adw.ApplicationWindow):
     def _start_save(self, save):
         kind, uid, arguments = save
         self._save_in_progress = True
-        # A preference document is written as one record.  Freeze controls
-        # that can change it until this write has an authoritative outcome.
-        # This prevents a second click from racing the saved snapshot.
+        self._active_save = save
+        # Freeze conflicting controls while writing the shared record. Custom
+        # typing keeps its editor and caret; later commits use this same queue.
         self._set_apps_sensitive(False)
         if kind == "app-policy":
             self._start_app_policy_save(uid, *arguments)
@@ -2092,6 +2125,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _save_succeeded(self, uid, preferences, *, refresh_time_status=False):
         self._save_in_progress = False
+        self._active_save = None
         if uid == self._selected_uid():
             # The controls already show this policy. Updating them again makes
             # every row animate, which is perceived as a flash.
@@ -2106,6 +2140,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _save_failed(self, uid, setting, error):
         self._save_in_progress = False
+        self._active_save = None
         LOG.warning("parent.018", setting=setting, error_type=error_code(error))
         self._show_error(error, f"Could not save {setting}. Please try again later.")
         if uid == self._selected_uid():

@@ -599,7 +599,7 @@ lease. Suite preparation runs once, before the first case, reusing an existing
 `onpc-v[version]` snapshot (the app release without package revisions, for example
 `onpc-v1.1`). Reuse requires matching package bytes, baseline identity and the
 installation recipe recorded in snapshot metadata. Missing, legacy or changed
-snapshots automatically restore `onpc-baseline`, install the package, reboot,
+snapshots automatically restore `onpc_baseline`, install the package, reboot,
 verify installation, shut down and capture the version snapshot. This installation
 belongs to suite preparation.
 
@@ -628,10 +628,10 @@ Each case then starts from the snapshot required by its purpose:
   setup. This covers E2E-003's two ready variants, both E2E-004 launch routes,
   E2E-030/parent and E2E-042/command-help.
 - Cases testing installation, removal or package behavior may declare
-  `declared-package-lifecycle-fixture` and start from `onpc-baseline`, with
+  `declared-package-lifecycle-fixture` and start from `onpc_baseline`, with
   installation performed as part of the tested package behavior.
 - Runner-only product-free harness checks, including retained case E2E-001, start
-  from `onpc-baseline` without installing the app.
+  from `onpc_baseline` without installing the app.
 
 Inventory validation enforces these declarations for existing and future cases;
 the installed-app and package-lifecycle prerequisites are mutually exclusive.
@@ -645,7 +645,7 @@ directly force-restores the next case's required off snapshot; it does not wait
 for ACPI. The next case provisions its declared inputs on that snapshot, removes
 host sharing and boots, without a second restore. Live ownership, disk identity,
 snapshot metadata and isolation checks still apply; transitions add no package
-validation, installation or reboot. Suite cleanup restores `onpc-baseline` and
+validation, installation or reboot. Suite cleanup restores `onpc_baseline` and
 preserves the version snapshot through the final audit. The journal records its
 exact name during creation for interrupted-preparation cleanup; successful creation
 clears that deletion obligation so completed snapshots survive interrupted runs.
@@ -664,7 +664,7 @@ The same preparation is available independently:
 - `./tools/prepare-appsnapshot [--overwrite true|false]` builds and installs the
   current Debian version and retains its `onpc-[version]` snapshot. It leaves the
   VM powered off in that installed state after auditing the outer baseline.
-  Preparation restores `onpc-baseline`, boots, installs and verifies the package,
+  Preparation restores `onpc_baseline`, boots, installs and verifies the package,
   then shuts down and takes the disk-only snapshot without an intervening reboot.
   Booting the restored snapshot supplies the clean restart required after
   installation; installed-system readiness checks still run after that boot.
@@ -1993,7 +1993,7 @@ Viewing cannot authorize input or change scenario acceptance.
    installed snapshot and package-bound bootstrap, without a case-ID branch in
    the executor. Package lifecycle scenarios omit it, explicitly declare
    `declared-package-lifecycle-fixture`, and provision their declared initial
-   package from `onpc-baseline` as part of the tested package behavior. A feature
+   package from `onpc_baseline` as part of the tested package behavior. A feature
    case cannot omit its installed prerequisite or fall back to installation.
    Runner-only product-free harness checks may use baseline without installing.
    Declare

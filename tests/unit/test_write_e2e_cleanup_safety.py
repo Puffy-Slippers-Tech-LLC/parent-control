@@ -520,6 +520,10 @@ def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, cu
     assert 'ENGINEERING DETAILS ONLY IN SAVED HANDOFF' not in rendered
     assert 'Turn complete' not in rendered.split('Answer received.')[0]
     assert 'recommended' in rendered and 'Other' in rendered
+    selected = '› 4. Keep 0m. Review only the two checks.' if custom else f"› 1. {question['options'][0]}"
+    assert selected in rendered
+    if custom:
+        assert f"› 1. {question['options'][0]}" not in rendered
     assert len(calls(root)) == 3
     assert workflow.queue_state(root)[0] == '002'
 

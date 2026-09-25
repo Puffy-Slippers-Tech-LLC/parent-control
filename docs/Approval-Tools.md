@@ -63,7 +63,7 @@ changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
 checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
 dependencies and host policies. Explicit baseline preparation is
-`tools/prepare-baseline`; see
+`tools/prepare-baseline --mode auto|manual`; see
 [VM prerequisites](../tests/integration/Environment.md).
 The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
 plugin and GTK 4 VTE viewer packages without requesting package upgrades; ordinary test commands
@@ -188,12 +188,18 @@ matches literal argument prefixes; the strictest decision wins.
 
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
-`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools` or `prepare-baseline`, with no extra
-paths or arguments. Its
+`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`,
+`replace-missing-baseline` or `prepare-baseline`. Only `prepare-baseline`
+requires the fixed arguments `--mode auto` or `--mode manual`; arbitrary paths
+and other arguments are refused. Its
 dedicated Polkit action defaults to denial and grants only active local members
 of `sudo`. `setup.sh` and `tools/prepare-baseline` check this authorization without
 requesting interaction before invoking the helper, and never fall back to generic
-`pkexec` on denial. The public baseline-replacement entry is `tools/prepare-baseline`.
+`pkexec` on denial. The public baseline-replacement entry is
+`tools/prepare-baseline --mode auto|manual`. Both modes require the VM off and
+explicit confirmation of the selected preparation and deletion of all versioned
+app snapshots. Auto restores the accepted baseline and updates Ubuntu; manual
+prepares the current disk state. Both capture `onpc_baseline` after validation.
 The dispatcher uses fixed modules from its pinned trusted checkout and a clean
 environment; trust includes edits to that checkout's setup code. The dependency
 operation runs only the fixed host-package module with noninteractive package

@@ -40,12 +40,13 @@ class QuestionInput:
     def __init__(self, question, send):
         self.question = question
         self.send = send
-        self.selected = 0
-        self.text = ''
+        answered = question.get('answer') is not None
+        self.selected = question['choice'] if answered else 0
+        self.text = question['answer'] if answered and self.selected == len(question['options']) else ''
         self.buffer = ''
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
         self.pasting = False
-        self.sent = False
+        self.sent = answered
         self.explanation_cache = None
 
     def feed(self, data):
@@ -104,7 +105,8 @@ class QuestionInput:
         value = value or '\033[90mOther\033[39m'
         line = f'{marker} {len(options) + 1}. {value}'
         lines.append(f'\033[1m{line}\033[22m' if self.selected == len(options) else line)
-        lines.append('Choose a number or ↑/↓; type for Other; Enter to send. Waiting for your answer.')
+        lines.append('Answer submitted.' if self.sent else
+                     'Choose a number or ↑/↓; type for Other; Enter to send. Waiting for your answer.')
         return lines
 
     def explanation(self, console, width):

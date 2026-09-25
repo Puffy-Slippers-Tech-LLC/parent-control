@@ -48,6 +48,7 @@ class Source:
         self.baseline_xml = None
         self.creations = []
         self.deletions = []
+        self.app_deletions = []
         self.after_create = lambda: None
 
     def snapshot(self):
@@ -62,6 +63,10 @@ class Source:
 
     def baseline(self):
         return self.baseline_xml
+
+    def delete_app_snapshots(self, layout):
+        assert self.off and layout == self.layout
+        self.app_deletions.append(layout)
 
     def delete_baseline(self, layout):
         assert self.off

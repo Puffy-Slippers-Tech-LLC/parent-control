@@ -92,7 +92,7 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
             return False
         preparation('Refreshing snapshot ' + name + ': ' + reason)
     system.log('stage:suite-installation')
-    preparation('Restoring onpc-baseline')
+    preparation('Restoring ' + system.baseline.SNAPSHOT)
     lease.prepare()
     lease.installed_name = name
     lease.installed_inputs = expected

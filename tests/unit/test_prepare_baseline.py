@@ -22,6 +22,164 @@ def state(rig):
     return json.loads((rig.directory / "phase.json").read_text())
 
 
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+def test_modes_refuse_running_vm_before_inventory_or_confirmation(rig, mode):
+    capture = rig.capture()
+    capture.inventory = Mock(side_effect=AssertionError('disk access'))
+    confirm = Mock(side_effect=AssertionError('prompt'))
+    with pytest.raises(host.CaptureError, match='source-running'):
+        capture.run(mode=mode, confirm=confirm)
+    assert not rig.directory.exists()
+
+
+def test_auto_requires_baseline_before_confirmation(rig):
+    rig.source.off = True
+    confirm = Mock(side_effect=AssertionError('prompt'))
+    with pytest.raises(host.CaptureError, match='metadata-missing'):
+        rig.capture().run(mode='auto', confirm=confirm)
+    assert not rig.directory.exists()
+
+
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+def test_declining_modes_preserves_snapshot_disk_and_journal(rig, mode):
+    rig.capture().run()
+    saved = (rig.directory / 'phase.json').read_bytes()
+    disk = rig.top.read_bytes()
+    capture = rig.capture()
+    capture.prepare_guest = Mock(side_effect=AssertionError('guest accessed'))
+    rig.source.restore_baseline = Mock(side_effect=AssertionError('restore'))
+    assert capture.run(mode=mode, confirm=lambda *_: False) is False
+    assert (rig.directory / 'phase.json').read_bytes() == saved
+    assert rig.top.read_bytes() == disk
+    assert not rig.source.deletions
+    assert not rig.source.app_deletions
+
+
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+@pytest.mark.parametrize('failure', [None, 'setup', 'inspection'])
+def test_modes_keep_old_snapshot_until_preparation_and_inspection_succeed(rig, mode, failure):
+    rig.capture().run()
+    saved = (rig.directory / 'phase.json').read_bytes()
+    existing = rig.source.baseline_xml
+    events = []
+    def restore(layout, expected):
+        assert expected == existing and layout == rig.source.layout
+        events.append('restore')
+    rig.source.restore_baseline = restore
+    def prepare(capture):
+        assert rig.source.baseline_xml == existing
+        assert len(rig.source.app_deletions) == 1
+        assert events == (['restore'] if mode == 'auto' else [])
+        events.append('setup')
+        if failure == 'setup':
+            raise host.CaptureError('setup failed')
+    capture = rig.capture()
+    capture.prepare_guest = prepare
+    if failure == 'inspection':
+        rig.inspect.side_effect = host.CaptureError('inspection failed')
+    if failure:
+        with pytest.raises(host.CaptureError, match='failed'):
+            capture.run(mode=mode, confirm=lambda *_: True)
+        assert (rig.directory / 'phase.json').read_bytes() == saved
+        assert rig.source.baseline_xml == existing
+        assert not rig.source.deletions
+    else:
+        assert capture.run(mode=mode, confirm=lambda *_: True)
+        assert len(rig.source.creations) == 2
+        assert len(rig.source.deletions) == 1
+        assert state(rig)['proof']['name'] == 'onpc_baseline'
+        assert rig.source.off
+
+
+def test_manual_creates_first_baseline_and_never_restores(rig):
+    rig.source.off = True
+    capture = rig.capture()
+    capture.prepare_guest = Mock()
+    rig.source.restore_baseline = Mock(side_effect=AssertionError('restore'))
+    assert capture.run(mode='manual', confirm=lambda mode, existing: not existing)
+    capture.prepare_guest.assert_called_once_with(capture)
+    assert state(rig)['phase'] == 'finalized'
+
+
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+def test_every_rerun_performs_full_selected_workflow(rig, mode):
+    rig.capture().run()
+    prepare, restore = Mock(), Mock()
+    rig.source.restore_baseline = restore
+    operations = set()
+    for _ in range(3):
+        capture = rig.capture()
+        capture.prepare_guest = prepare
+        assert capture.run(mode=mode, confirm=lambda *_: True)
+        operations.add(state(rig)['operation'])
+    assert prepare.call_count == 3
+    assert restore.call_count == (3 if mode == 'auto' else 0)
+    assert len(rig.source.app_deletions) == 3
+    assert len(rig.source.creations) == 4
+    assert len(operations) == 3
+
+
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+def test_retry_after_guest_failure_repeats_preparation(rig, mode):
+    rig.capture().run()
+    rig.source.restore_baseline = Mock()
+    prepare = Mock(side_effect=host.CaptureError('setup interrupted'))
+    capture = rig.capture()
+    capture.prepare_guest = prepare
+    with pytest.raises(host.CaptureError, match='setup interrupted'):
+        capture.run(mode=mode, confirm=lambda *_: True)
+    prepare.side_effect = None
+    capture = rig.capture()
+    capture.prepare_guest = prepare
+    assert capture.run(mode=mode, confirm=lambda *_: True)
+    assert prepare.call_count == 2
+    assert state(rig)['phase'] == 'finalized'
+
+
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+def test_retry_after_snapshot_creation_interruption_runs_full_workflow(rig, mode):
+    rig.capture().run()
+    saved = state(rig)
+    saved['phase'] = 'snapshot-requested'
+    saved['proof'] = None
+    (rig.directory / 'phase.json').write_bytes(host.encode(saved))
+    rig.source.restore_baseline = Mock()
+    capture = rig.capture()
+    capture.prepare_guest = Mock()
+    assert capture.run(mode=mode, confirm=lambda *_: True)
+    capture.prepare_guest.assert_called_once_with(capture)
+    assert state(rig)['phase'] == 'finalized'
+    assert state(rig)['operation'] != saved['operation']
+
+
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+def test_modes_recheck_vm_after_confirmation(rig, mode):
+    rig.capture().run()
+    def confirm(*_):
+        rig.source.off = False
+        return True
+    with pytest.raises(host.CaptureError, match='source-changed'):
+        rig.capture().run(mode=mode, confirm=confirm)
+    assert not rig.source.deletions
+
+
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+def test_warning_is_red_and_requires_y_or_n(monkeypatch, capsys, mode):
+    answers = iter(['yes', '', 'n'])
+    monkeypatch.setattr('builtins.input', lambda _: next(answers))
+    assert not host.confirm_preparation(mode, True)
+    output = capsys.readouterr().out
+    assert '\033[31mWARNING:' in output and 'onpc_baseline' in output
+    assert 'Delete all onpc-[version] app snapshots' in output
+    assert host.mode_message(mode) in output
+    assert all('  - ' + step in output for step in __import__('baseline_messages').MODE_STEPS[mode])
+    assert ('updates' in output) == (mode == 'auto')
+    monkeypatch.setattr('builtins.input', Mock(side_effect=EOFError))
+    assert not host.confirm_preparation(mode, True)
+    monkeypatch.setattr('builtins.input', lambda _: 'Y')
+    assert host.confirm_preparation(mode, True)
+
+
 def test_simulated_baseline_hashes_source_archive_without_pinned_checkout(rig, monkeypatch):
     read_bytes = Path.read_bytes
 
@@ -58,10 +216,11 @@ def test_capture_creates_named_internal_snapshot_without_copy(rig):
 
 
 @pytest.mark.parametrize('mismatch', [False, True])
-def test_retained_previous_snapshot_name_preserves_verified_baseline(rig, monkeypatch, mismatch):
+@pytest.mark.parametrize('previous_name', ['onpc-baseline', host.PREVIOUS_SNAPSHOT])
+def test_retained_previous_snapshot_name_preserves_verified_baseline(rig, monkeypatch, mismatch, previous_name):
     # Simulate a baseline captured by the previous release, including its journal.
     with monkeypatch.context() as previous:
-        previous.setattr(host, 'SNAPSHOT', host.PREVIOUS_SNAPSHOT)
+        previous.setattr(host, 'SNAPSHOT', previous_name)
         rig.capture().run()
     saved = (rig.directory / 'phase.json').read_bytes()
     disk = rig.top.read_bytes()
@@ -695,6 +854,41 @@ def test_libvirt_deletes_only_baseline_without_reverting(rig, running):
     domain.shutdown.assert_not_called()
 
 
+@pytest.mark.parametrize('running', [False, True])
+def test_app_snapshot_deletion_selects_all_versions_only(rig, running):
+    api, domain = libvirt_fixture(rig)
+    domain.state.return_value = (1 if running else 5, 0)
+    names = ['onpc-v1.1', 'onpc-v1.12.3', 'onpc-0.9', 'onpc_baseline',
+             'onpc-baseline', host.PREVIOUS_SNAPSHOT, '1 - Clean', 'onpc-v1.1-backup']
+    snapshots = [Mock() for _ in names]
+    for snapshot, name in zip(snapshots, names):
+        snapshot.getName.return_value = name
+    domain.listAllSnapshots.return_value = snapshots
+    source = host.LibvirtSource(api)
+    if running:
+        with pytest.raises(host.CaptureError, match='source-changed'):
+            source.delete_app_snapshots(rig.source.layout)
+    else:
+        source.delete_app_snapshots(rig.source.layout)
+    for index, snapshot in enumerate(snapshots):
+        if index < 3 and not running:
+            snapshot.delete.assert_called_once_with(0)
+        else:
+            snapshot.delete.assert_not_called()
+
+
+def test_auto_restore_uses_only_verified_offline_snapshot(rig):
+    api, domain = libvirt_fixture(rig)
+    domain.state.return_value = (5, 0)
+    expected = snapshot_xml(rig.top, 'record')
+    domain.listAllSnapshots.return_value[0].getXMLDesc.return_value = expected
+    source = host.LibvirtSource(api)
+    source.restore_baseline(rig.source.layout, expected)
+    domain.snapshotLookupByName.assert_called_once_with(host.SNAPSHOT, 0)
+    domain.revertToSnapshot.assert_called_once_with(domain.snapshotLookupByName.return_value, 0)
+    domain.create.assert_not_called()
+
+
 def test_libvirt_creates_offline_internal_snapshot_with_metadata(rig):
     api, domain = libvirt_fixture(rig)
     domain.state.return_value = (5, 0)
@@ -821,7 +1015,8 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
     connect.assert_not_called()
 
 
-def test_capture_accepts_installed_product_on_host(monkeypatch):
+@pytest.mark.parametrize('missing_baseline', [False, True])
+def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_baseline):
     monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
     monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     monkeypatch.setattr(host, 'prepare_state_root', Mock())
@@ -837,12 +1032,23 @@ def test_capture_accepts_installed_product_on_host(monkeypatch):
     source.snapshot.return_value = ({}, True)
     monkeypatch.setattr(host, "LibvirtSource", Mock(return_value=source))
     capture = Mock()
-    capture.run.side_effect = lambda **kwargs: worker.start.assert_called_once_with()
+    def completed_capture(**kwargs):
+        worker.start.assert_called_once_with()
+        if missing_baseline:
+            raise host.MissingAutoBaseline('snapshot:metadata-missing')
+        return True
+    capture.run.side_effect = completed_capture
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
 
-    assert host.main([]) == 0
+    mode = 'auto' if missing_baseline else 'manual'
+    assert host.main(['--mode', mode]) == (1 if missing_baseline else 0)
+    if missing_baseline:
+        output = capsys.readouterr()
+        assert output.out == ''
+        assert output.err == ('\033[31maudo mode requires onpc_baseline snapshot. '
+                              'You may use manual mode to create it if this is a new VM\033[0m\n')
     residue.assert_not_called()
-    capture.run.assert_called_once_with(refresh=True)
+    capture.run.assert_called_once_with(mode=mode)
     source.close.assert_called_once_with()
 
 
@@ -888,10 +1094,11 @@ def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
     def blocked_capture(**kwargs):
         request.set()
         assert answered.wait(5), "libvirt dispatch stopped during capture"
+        return True
     capture.run.side_effect = blocked_capture
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
     try:
-        assert host.main([]) == 0
+        assert host.main(['--mode', 'manual']) == 0
     finally:
         finished.set()
         for thread in threads:

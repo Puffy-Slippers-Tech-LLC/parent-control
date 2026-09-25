@@ -644,17 +644,17 @@ def prepare_test_dependencies(*, runner, root=Path('/')):
     except ValueError as error:
         if str(error) == 'guest-tools:ambiguous-package-status':
             raise PreparationError('guest-tools:package-status', 'package database is ambiguous') from error
-        print('prepare-vm: [stage:dependencies] installing pinned guest test tools', file=sys.stderr)
+        print('prepare-vm: [stage:dependencies] installing guest test tools', file=sys.stderr)
         runner.run(['debconf-set-selections'], input_text=
                    'slapd slapd/no_configuration boolean true\n')
         runner.run(['apt-get', '-o', 'APT::Update::Error-Mode=any', 'update'], timeout=600)
         runner.run(['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get',
                     '-o', 'DPkg::Lock::Timeout=120', '--no-remove', 'install',
-                    '--no-install-recommends', '-y', *guest_tools.PACKAGES], timeout=1800)
+                    '--no-install-recommends', '-y', *guest_tools.VERSIONS], timeout=1800)
     try:
         guest_tools.verify_packages(status.read_text())
     except ValueError as error:
-        raise PreparationError('guest-tools:verification', 'pinned test packages are not configured') from error
+        raise PreparationError('guest-tools:verification', 'required test packages are not configured') from error
     for path in guest_tools.DORMANT_PATHS:
         candidate = _rooted(root, path)
         if candidate.exists() or candidate.is_symlink():

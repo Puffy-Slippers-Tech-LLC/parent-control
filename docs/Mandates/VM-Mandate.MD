@@ -37,6 +37,11 @@
   retryable, preserve unrelated configuration and fail on missing prerequisites.
   Tests and builds report missing prerequisites; they do not install them.
 - Baseline preparation is an explicit destructive operation through
-  `tools/prepare-baseline`; ordinary setup and E2E never prepare or replace it.
+  `tools/prepare-baseline --mode auto` (restore and update) or
+  `tools/prepare-baseline --mode manual` (prepare the current state). Both require
+  the VM off and confirmation before deleting all versioned app snapshots and
+  creating or replacing `onpc_baseline`; see
+  [VM prerequisites](../../tests/integration/Environment.md).
+  Ordinary setup and E2E never prepare or replace it.
   Baseline preparation and E2E require the literal `TEST_ACCOUNT_PASSWORD` in the
   host's private `.envrc`; E2E never changes passwords.

@@ -18,9 +18,15 @@ OPERATIONS = {
 
 
 def command(root, argv):
-    if len(argv) != 1 or argv[0] not in OPERATIONS:
+    mode_args = []
+    if argv and argv[0] == 'prepare-baseline':
+        if len(argv) != 3 or argv[1] != '--mode' or argv[2] not in ('auto', 'manual'):
+            raise ValueError('setup-helper: prepare-baseline requires --mode auto or --mode manual')
+        mode_args = argv[1:]
+    elif len(argv) != 1 or argv[0] not in OPERATIONS:
         raise ValueError('setup-helper: expected one supported setup operation')
     relative, *args = OPERATIONS[argv[0]]
+    args.extend(mode_args)
     target = root / relative
     if not root.is_absolute() or any(path.is_symlink() for path in (target, *target.parents)):
         raise ValueError('setup-helper: unsafe checkout path')
@@ -39,14 +45,17 @@ def main():
             raise ValueError('setup-helper: use the installed helper through setup.sh')
         root = Path(CHECKOUT)
         selected = command(root, sys.argv[1:])
-        print(f'setup-helper: starting {sys.argv[1]}', flush=True)
+        report_status = sys.argv[1] != 'prepare-baseline'
+        if report_status:
+            print(f'setup-helper: starting {sys.argv[1]}', flush=True)
         result = subprocess.run(selected, cwd=root, check=False,
                                 env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
                                      'LANG': 'C.UTF-8', 'HOME': '/root',
                                      'PKEXEC_UID': str(int(os.environ['PKEXEC_UID'])),
                                      'DEBIAN_FRONTEND': 'noninteractive',
                                      'PYTHONDONTWRITEBYTECODE': '1'})
-        print(f'setup-helper: finished (status={result.returncode})', flush=True)
+        if report_status:
+            print(f'setup-helper: finished (status={result.returncode})', flush=True)
         return result.returncode
     except (ValueError, OSError) as error:
         print(str(error) if isinstance(error, ValueError) else 'setup-helper: filesystem or execution failure',

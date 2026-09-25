@@ -3,6 +3,7 @@
 import signal
 import subprocess
 import threading
+import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -11,6 +12,24 @@ import pytest
 import e2e_watch as watch
 from tests.support.vm_baseline import rig
 from tests.support.vm_runner import lease_rig
+
+
+def test_shared_display_disables_incompatible_gl_and_is_repeatable():
+    root = ET.fromstring('''<domain><devices>
+      <graphics type="spice"><listen type="none"/>
+        <gl enable="yes" rendernode="/dev/dri/renderD128"/></graphics>
+      <video><model type="virtio"><acceleration accel3d="yes" accel2d="no"/></model></video>
+      <disk type="file"/>
+    </devices></domain>''')
+    watch.display_endpoint(root)
+    first = ET.tostring(root)
+    assert root.find('devices/graphics/gl').attrib == {'enable': 'no'}
+    assert root.find('devices/video/model/acceleration').get('accel3d') == 'no'
+    assert root.find('devices/graphics/listen').get('type') == 'none'
+    assert root.find('devices/disk').get('type') == 'file'
+    assert len(root.findall('devices/graphics')) == 2
+    watch.display_endpoint(root)
+    assert ET.tostring(root) == first
 
 
 def handle():

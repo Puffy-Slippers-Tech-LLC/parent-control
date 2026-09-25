@@ -73,6 +73,10 @@ vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety
 write_e2e write_e2e_cleanup_safety
 """.split())
 
+# Baseline mode/update/reboot tests mock every VM/package
+# mutation. Version checks spawn only bounded read-only dpkg comparisons with
+# no shared mutable files, sockets, displays, package locks or heavy fixtures.
+# These modules remain compatible in both unit and cleanup scheduling.
 # Snapshot/suite/maintenance cleanup tests use the
 # private VM doubles; qualification storage uses private retention trees. Repair
 # loop and write-E2E tests use private checkouts and recorded child identities;

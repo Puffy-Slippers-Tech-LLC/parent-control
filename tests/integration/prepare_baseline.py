@@ -4,7 +4,7 @@
 
 Only main() selects real resources. Injectable adapters are for host-safe tests.
 The journal binds the named libvirt snapshot to the inspected guest. Explicit
-preparation replaces the baseline from the powered-off guest without restoring it.
+preparation selects either the restored baseline or the powered-off current guest.
 Internal verification callers continue to preserve accepted baselines.
 """
 
@@ -25,6 +25,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -32,25 +33,32 @@ from pathlib import Path
 # Direct root invocation must also leave checkout imports free of root-owned caches.
 if __name__ == '__main__':
     sys.dont_write_bytecode = True
+    # Guest adapters import this module for the shared error type. Keep one
+    # module instance when the installed dispatcher executes this file directly.
+    sys.modules['prepare_baseline'] = sys.modules[__name__]
 
 import prepare_vm as guest_contract
 from watch_activity import observed
+from baseline_messages import SNAPSHOT, help_message, mode_message
 
 
 URI = guest_contract.vm_config.URI
 DOMAIN = guest_contract.VM.name
 ANCHOR = guest_contract.VM.disk_anchor
 BASELINES = guest_contract.VM.baseline_directory
-# Shared by snapshot creation, validation, VM runners and test fixtures.
-SNAPSHOT = "onpc-baseline"
+# Shared by snapshot creation, validation, VM runners, messages and test fixtures.
 # Retained baselines keep their original internal QCOW2 snapshot identity.
 PREVIOUS_SNAPSHOT = "oh-no-parent-control-baseline"
-SNAPSHOT_NAMES = (SNAPSHOT, PREVIOUS_SNAPSHOT)
+SNAPSHOT_NAMES = (SNAPSHOT, 'onpc-baseline', PREVIOUS_SNAPSHOT)
 PHASES = ("validation", "shutdown-requested", "source-off", "snapshot-requested", "finalized")
 
 
 class CaptureError(RuntimeError):
     """Category-only errors deliberately exclude command output and guest data."""
+
+
+class MissingAutoBaseline(CaptureError):
+    """Auto preparation needs a baseline created in manual mode first."""
 
 
 def require(condition, category):
@@ -62,6 +70,19 @@ def log(stage):
     from watch_activity import event
     event(stage)
     print(f"prepare-baseline: [{stage}]", file=sys.stderr, flush=True)
+
+
+def confirm_preparation(mode, existing):
+    detected = ' Existing baseline detected.' if existing else ''
+    print('\033[31mWARNING:' + detected + '\n' + mode_message(mode) + '\033[0m', flush=True)
+    while True:
+        try:
+            answer = input('Proceed (y/n)? ').strip().lower()
+        except EOFError:
+            return False
+        if answer in ('y', 'n'):
+            return answer == 'y'
+        print('Please enter y to proceed or n to exit.', flush=True)
 
 
 def canonical(path):
@@ -280,6 +301,17 @@ class LibvirtSource:
         require(len(matches) <= 1, "snapshot:ambiguous-baseline")
         return matches[0].getXMLDesc(0) if matches else None
 
+    @observed('Restoring the VM baseline before automatic preparation')
+    def restore_baseline(self, layout, expected_xml):
+        current, off = self.snapshot()
+        require(off and current == layout, 'snapshot:source-changed')
+        require(self.baseline() == expected_xml, 'snapshot:changed')
+        name = ET.fromstring(expected_xml).findtext('name')
+        snapshot = self.domain.snapshotLookupByName(name, 0)
+        self.domain.revertToSnapshot(snapshot, 0)
+        current, off = self.snapshot()
+        require(off and current == layout, 'snapshot:source-changed')
+
     @observed('Creating the VM baseline snapshot')
     def create_baseline(self, layout, description):
         current, off = self.snapshot()
@@ -295,6 +327,17 @@ class LibvirtSource:
         # disk state inside the current QCOW2, with no conversion or overlay.
         self.domain.snapshotCreateXML(ET.tostring(root, encoding="unicode"),
                                       self.api.VIR_DOMAIN_SNAPSHOT_CREATE_ATOMIC)
+
+    @observed('Deleting all versioned app snapshots')
+    def delete_app_snapshots(self, layout):
+        # Current releases use onpc-v1.2; retain recognition of onpc-1.2.
+        # Do not match baseline names or arbitrary manually named snapshots.
+        for snapshot in self.domain.listAllSnapshots(0):
+            if re.fullmatch(r'onpc-v?[0-9]+(?:\.[0-9]+)*', snapshot.getName()) is None:
+                continue
+            current, off = self.snapshot()
+            require(off and current == layout, 'snapshot:source-changed')
+            snapshot.delete(0)  # Delete this snapshot only, never its children.
 
     @observed('Deleting the VM baseline snapshot')
     def delete_baseline(self, layout):
@@ -641,9 +684,16 @@ class Capture:
         log('replacement:retired-record-preserved')
 
     @observed('Preparing and validating the VM baseline')
-    def run(self, *, replace_missing=False, refresh=False):
+    def run(self, *, replace_missing=False, refresh=False, mode=None, confirm=confirm_preparation):
         # Resolve the existing disk and chain before filesystem writes/shutdown.
+        if mode is not None:
+            require(mode in ('auto', 'manual'), 'guard:preparation-mode')
+            require(self.source.snapshot()[1], 'guard:source-running; shut down the VM first')
         inventory, _off = self.inventory()
+        if mode == 'auto':
+            if self.source.baseline() is None:
+                raise MissingAutoBaseline('snapshot:metadata-missing; auto mode requires onpc_baseline')
+        refresh = refresh or mode is not None
         if refresh:
             require(_off, "guard:source-running")
         self.directory_identity = self.prepare_private_directory(refresh=refresh)
@@ -655,6 +705,8 @@ class Capture:
             except BlockingIOError as error:
                 raise CaptureError("state:busy-controller") from error
             self.commands.lock_fd = fd
+            if mode is not None:
+                return self.prepare_mode(inventory, mode, confirm)
             if os.path.lexists(self.directory / "phase.json"):
                 self.state = self.read_state()
             else:
@@ -682,6 +734,68 @@ class Capture:
         finally:
             self.commands.lock_fd = None
             os.close(fd)
+
+    def prepare_mode(self, inventory, mode, confirm):
+        """Hold the shared lease from confirmation through offline replacement.
+
+        Keep the accepted snapshot and provenance until guest work and independent
+        inspection succeed. Failures before replacement leave auto retry possible.
+        """
+        existing = self.source.baseline()
+        recorded = os.path.lexists(self.directory / 'phase.json')
+        if recorded:
+            self.state = self.read_state()
+            require(inventory['layout']['uuid'] == self.state['source']['layout']['uuid'],
+                    'guard:source-changed')
+            if self.state['phase'] != 'finalized':
+                require(inventory == self.state['source'], 'guard:source-changed')
+            if existing is not None:
+                require(self.state['phase'] in ('snapshot-requested', 'finalized'),
+                        'state:unfinished-preparation')
+                proof = snapshot_proof(existing, self.state['source']['layout'], self.description())
+                if self.state['phase'] == 'finalized':
+                    require(all(self.state['proof'].get(key) == value for key, value in proof.items()),
+                            'snapshot:changed')
+                else:
+                    # A prior create may have completed before its final journal
+                    # write. Verify that operation's snapshot, then do this run's
+                    # full workflow instead of treating recovery as completion.
+                    self.verify_snapshot()
+        self.require_idle_attempt()
+        if mode == 'auto':
+            require(recorded and existing is not None, 'snapshot:unowned-baseline')
+            self.revalidate(off=True)
+            self.verify_snapshot()
+        require(self.inventory() == (inventory, True), 'guard:source-changed')
+        if not confirm(mode, existing is not None):
+            return False
+        require(self.inventory() == (inventory, True), 'guard:source-changed')
+        require(self.source.baseline() == existing, 'snapshot:changed')
+        self.source.delete_app_snapshots(inventory['layout'])
+        if mode == 'auto':
+            self.source.restore_baseline(inventory['layout'], existing)
+        previous = self.state if recorded else None
+        # Guest staging and watchvm bind to this operation and the current disks.
+        self.state = {'schema_version': 2, 'phase': 'validation', 'directory': self.directory_identity,
+                      'source': inventory, 'source_digests': None, 'guest': None,
+                      'operation': uuid.uuid4().hex, 'proof': None, 'script_digest': self.script_digest}
+        require(self.prepare_guest is not None, 'guest:preparation-unavailable')
+        self.prepare_guest(self)
+        self.revalidate(off=True)
+        observed_guest = self.inspect(Path(inventory['layout']['disk']), self.script_digest)
+        self.revalidate(off=True)
+        require(self.source.baseline() == existing, 'snapshot:changed')
+        prepared = self.state
+        if previous is not None:
+            self.state = previous
+            self.archive_state()
+            self.state = prepared
+        self.source.delete_baseline(inventory['layout'])
+        self.refuse_existing_snapshot()
+        self.state['guest'] = observed_guest
+        self.save('snapshot-requested')
+        self.execute(require_off=True)
+        return True
 
     @observed('Checking snapshot metadata')
     def verify_snapshot(self, *, boundary='checkpoint'):
@@ -797,11 +911,18 @@ def prepare_state_root(directory=guest_contract.vm_config.STATE_ROOT):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     epilog=help_message())
     parser.add_argument("--check-tools", action="store_true", help="check dependencies only; no VM connection or writes")
     parser.add_argument("--replace-missing", action="store_true",
                         help="explicitly retire a deleted baseline and capture the prepared, powered-off guest")
+    parser.add_argument('--mode', choices=('auto', 'manual'))
     args = parser.parse_args(argv)
+    if not (args.check_tools or args.replace_missing or args.mode):
+        parser.error('please choose --mode auto or --mode manual')
+    if sum((args.check_tools, args.replace_missing, args.mode is not None)) != 1:
+        parser.error('choose exactly one operation')
     source = None
     capture = None
     try:
@@ -841,14 +962,28 @@ def main(argv=None):
         prepare_state_root()
         from baseline_guest import prepare
         capture = Capture(source, Commands(), lambda disk, sha: inspect_guest(modules["guestfs"], disk, sha),
-                          prepare_guest=lambda held: prepare(held, modules['guestfs'], password))
+                          prepare_guest=lambda held: prepare(held, modules['guestfs'], password,
+                                                             mode=args.mode or 'manual'))
         if args.replace_missing:
             capture.run(replace_missing=True)
         else:
-            capture.run(refresh=True)
+            if not capture.run(mode=args.mode):
+                return 3
         return 0
+    except MissingAutoBaseline:
+        print('\033[31maudo mode requires onpc_baseline snapshot. '
+              'You may use manual mode to create it if this is a new VM\033[0m',
+              file=sys.stderr)
+        return 1
     except (Exception, KeyboardInterrupt) as error:
         category = str(error) if isinstance(error, CaptureError) else "operation:failed-or-interrupted"
+        if not isinstance(error, (CaptureError, KeyboardInterrupt)):
+            # Report code locations, never exception text, source lines or locals:
+            # guestfs/command errors can contain guest data or staged secrets.
+            frames = traceback.extract_tb(error.__traceback__)
+            locations = ','.join(f'{Path(frame.filename).name}:{frame.lineno}:{frame.name}'
+                                 for frame in frames)
+            log(f'unexpected:{type(error).__name__}; locations:{locations}')
         phase = capture.state["phase"] if capture and capture.state else "before-validation"
         log(f"{category}; recovery-phase:{phase}")
         if category == "snapshot:metadata-missing":

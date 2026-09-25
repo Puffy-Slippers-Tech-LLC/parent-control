@@ -35,6 +35,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # plus unique private sockets. Keyring/VM watcher safety uses process-local
 # doubles and socket pairs. Storage, migration and startup-cache checks use
 # private trees and journals; write-E2E owns its children in a private checkout.
+# Its paused-question tests keep decisions and observer locks in that checkout,
+# and fixture teardown cancels/reaps only those recorded workflow children.
 # They do not share mutable state across workers.
 # Challenge/repeated-operation contracts use isolated Perl API doubles. Clean
 # install, package authority/install, product-free entry and reboot contracts

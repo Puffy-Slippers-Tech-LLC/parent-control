@@ -701,6 +701,86 @@ def test_pipe_does_not_replay_saved_log(tmp_path):
     assert stream.getvalue() == 'new output\n'
 
 
+def test_blocker_menu_requires_selection_and_preserves_editing_across_redraws(terminal):
+    from tests.support.write_e2e_fixtures import reply
+    question = dict(reply('blocked')['blocker'], id='first', answer=None)
+    answers = []
+    display = LauncherDisplay(terminal)
+    display.update_question(question, lambda *answer: answers.append(answer))
+    assert '(recommended)' in terminal.visible()
+    assert '4. Other' in terminal.visible()
+    assert '\033[90m' in terminal.getvalue()
+    display.handle_input(b'\r')
+    assert not answers
+    display.handle_input(b'4')
+    for part in ['Keep ', 'café'.encode()[:4], 'café'.encode()[4:]]:
+        display.handle_input(part.encode() if isinstance(part, str) else part)
+    display.update_question(question, lambda *answer: answers.append(answer))
+    assert '4. Keep café' in terminal.visible()
+    display.handle_input(b'\x7f')
+    display.handle_input('é'.encode())
+    display.handle_input(b'\r\r')
+    assert answers == [('first', 3, 'Keep café')]
+    display.close()
+
+
+def test_pasted_newlines_do_not_submit_other_automatically(terminal):
+    question = {'id': 'q', 'question': 'What should we do?', 'options': ['Repair', 'Review']}
+    answers = []
+    display = LauncherDisplay(terminal)
+    display.update_question(question, lambda *answer: answers.append(answer))
+    display.handle_input(b'3\x1b[200~Review\nfirst\r\n\x1b[201~')
+    assert not answers
+    display.handle_input(b'\r')
+    assert answers == [('q', 2, 'Review first  ')]
+    display.close()
+
+
+@pytest.mark.parametrize('width,height', [(80, 24), (35, 12), (20, 3), (10, 1)])
+def test_blocker_menu_handles_resize_and_arrow_selection(terminal, width, height):
+    terminal.resize(width, height)
+    answers = []
+    display = LauncherDisplay(terminal)
+    display.update([{'key': 'task', 'lines': ['Task 001', 'Waiting for your answer']}], [])
+    display.update_question({'id': 'q', 'question': 'What should we do?', 'options': ['Repair', 'Review']},
+                            lambda *answer: answers.append(answer))
+    display.handle_input(b'\x1b[')
+    display.handle_input(b'B\x1b[B\r')
+    assert answers == [('q', 1, '')]
+    display.close()
+    assert terminal.cursor_visible
+
+
+def test_blocked_structured_result_is_displayed_only_by_workflow():
+    from tests.support.write_e2e_fixtures import reply
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream, hide_task_completion=True)
+    renderer.event({'type': 'item.completed', 'item': {'type': 'agent_message',
+                                                     'text': json.dumps(reply('blocked'))}})
+    renderer.event({'type': 'turn.completed'})
+    assert stream.getvalue() == ''
+
+
+def test_write_e2e_observer_routes_keyboard_answer_to_persisted_question(terminal, tmp_path, monkeypatch):
+    import detached_launcher
+    from launcher_question import pending
+    run = tmp_path / 'run'
+    run.mkdir()
+    (run / 'output').write_text('A prerequisite is waiting.\n')
+    detached_launcher.atomic(run / 'question.json', {
+        'id': 'q', 'question': 'What should we do?', 'options': ['Repair', 'Review'], 'answer': None})
+    detached_launcher.atomic(run / 'result.json', {'status': 0})
+
+    def answer(display):
+        if display.question is not None:
+            display.handle_input(b'2\r')
+
+    monkeypatch.setattr(LauncherDisplay, 'poll_input', answer)
+    assert detached_launcher.follow(run, terminal, label='write-e2e') == 0
+    assert pending(run) is None
+    assert json.loads((run / 'question.json').read_text())['answer'] == 'Review'
+
+
 def test_display_preserves_custom_and_ignored_signal_handlers(terminal, monkeypatch):
     handlers = {signal.SIGHUP: signal.SIG_IGN, signal.SIGTERM: lambda *_: None,
                 signal.SIGQUIT: signal.SIG_DFL}

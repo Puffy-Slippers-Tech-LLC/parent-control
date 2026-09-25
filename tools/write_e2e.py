@@ -11,6 +11,7 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
@@ -81,16 +82,36 @@ Run tests through tools/run-tests for owned cancellation; preserve
 ONPC_WORKFLOW_DIRECTORY. Use maintained launchers/viewers for background work
 and wait for tests and owned cleanup before returning.
 
-Return the required structured result; unresolved blockers return blocked and
-stop the loop. Keep summary under 600 characters and handoff under 16000.
+Return the required structured result; unresolved blockers return blocked so the
+launcher pauses for the user's answer. Keep summary under 600 characters and
+handoff under 16000.
+For blocked, supply blocker with explanation, question and options. Write the
+explanation in concise, user-friendly, scenario-oriented language (at most 200
+words and 2000 characters): what is finished, what the user/test tries to do,
+what actually prevents progress and the practical steps to unblock. Distinguish
+test/tooling failures from established product defects. Keep technical evidence,
+long commands and continuation prompts in handoff only; do not repeat them in
+the explanation or commentary. Ask one concrete question (under 240 characters)
+that resolves the blocker. Provide 2 or 3 specific, distinct suggestions (under
+300 characters each), with the recommended action first. The launcher adds the
+recommended label and an editable Other option; do not include those yourself.
+Never propose bypassing a denied grant or weakening acceptance to make it pass.
+For other statuses set blocker to null. Do not print a separate final summary;
+the launcher displays the explanation once and waits without a timeout.
 The handoff is a standalone prompt with only remaining work, task ID, exact next
 commands/selectors, evidence paths, blockers and recommended model/effort.
+Carry forward user decisions that still apply to that remaining work.
 Format summary and handoff as Markdown: backticks for inline paths, selectors
 and identifiers; fenced bash blocks for commands; Markdown links for references.
 For task_complete, list every task-related code, test and close-out file in
 stage_paths, including deletions, plan and queue. Use explicit checkout-relative
 files, excluding unrelated work. Otherwise return stage_paths empty.
 """
+    if state.get('user_answer'):
+        common += ('\nThe user answered the blocker question below. Apply these instructions '
+                   'to the current task while preserving its baseline and unrelated work. '
+                   'Recheck the prerequisite before continuing; an answer alone is not '
+                   'evidence that it passed.\n' + json.dumps(state['user_answer'], ensure_ascii=False) + '\n')
     if state['phase'] == 'implement':
         return INITIAL_PROMPT + common + """
 After host checks pass, run this task's first live VM acceptance, including
@@ -152,6 +173,11 @@ def accept_result(root, state, result, before):
                    for key in ('summary', 'handoff'))
             or len(result['summary']) > 600 or len(result['handoff']) > 16000):
         raise ValueError('agent returned an invalid or wrong-task handoff')
+    blocker = result.get('blocker')
+    if result['status'] == 'blocked':
+        validate_blocker(blocker)
+    elif blocker is not None:
+        raise ValueError('only a blocked result may ask a question')
     current, after = queue_state(root)
     task = state['task_id']
     if any(after.get(key) != complete for key, complete in before.items() if key != task):
@@ -171,10 +197,69 @@ def accept_result(root, state, result, before):
         if not result['host_validated'] or result['live_result'] != expected_live:
             raise ValueError('VM handoff lacks host validation or a matching live outcome')
     updated = dict(state, summary=result['summary'], handoff=result['handoff'], in_flight=False)
+    updated.pop('blocker_id', None)
+    updated['blocker'] = blocker
     if state['phase'] in ('implement', 'live') and result['live_result'] != 'not_run':
         updated['live_attempts'] += 1
     updated['phase'] = 'complete' if status == 'task_complete' else 'live' if status == 'ready_for_vm' else 'blocked'
     return updated
+
+
+def validate_blocker(blocker):
+    if (not isinstance(blocker, dict)
+            or any(not isinstance(blocker.get(key), str) or not blocker[key].strip()
+                   or len(blocker[key]) > limit
+                   for key, limit in (('explanation', 2000), ('question', 240)))
+            or not isinstance(blocker.get('options'), list)
+            or not 2 <= len(blocker['options']) <= 3
+            or any(not isinstance(option, str) or not option.strip() or len(option) > 300
+                   for option in blocker['options'])
+            or len(set(blocker['options'])) != len(blocker['options'])):
+        raise ValueError('blocked result needs a concise explanation, question and 2–3 distinct suggestions')
+
+
+def wait_for_answer(run, state, progress_key):
+    """The detached owner waits; terminals may come and go without answering."""
+    from launcher_progress import publish_progress, read_progress
+    from launcher_question import QuestionInput
+    from launcher_render import AgentRenderer
+    blocker = state.get('blocker') or {
+        'explanation': state['summary'],
+        'question': 'How should we unblock this task?',
+        'options': ['Recheck the blocker and resolve work already authorized.',
+                    'Inspect the evidence and explain the decision needed before making changes.']}
+    validate_blocker(blocker)
+    state.setdefault('blocker_id', uuid.uuid4().hex)
+    question = dict(blocker, id=state['blocker_id'], answer=None)
+    with launcher.lock(run / 'question-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        path = run / 'question.json'
+        previous = json.loads(path.read_text()) if path.exists() else None
+        if previous is None or previous['id'] != question['id']:
+            launcher.atomic(path, question)
+    save_handoff(run, state, 'waiting for your answer', display=False)
+    steps = read_progress(run)
+    heading = steps[-1]['lines'][0] if steps else f"Task {state['task_id']}"
+    publish_progress(run, progress_key, [heading, 'Paused — waiting for your answer'])
+    renderer = AgentRenderer(sys.stdout)
+    renderer.message(blocker['explanation'])
+    renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)
+    print('No timeout. Reattach with tools/write-e2e to answer after a disconnect.', flush=True)
+    while True:
+        if (run / 'cancel').exists():
+            raise launcher.Stopped()
+        if (run / 'stop').exists():
+            return False
+        question = json.loads(path.read_text())
+        if question['answer'] is not None:
+            state.update(phase='recover', recovery_run=str(run),
+                         user_answer={'question': question['question'], 'answer': question['answer']})
+            state.pop('blocker_id', None)
+            state.pop('blocker', None)
+            launcher.atomic(run / 'checkpoint.json', state)
+            print('Answer received. Continuing this task.', flush=True)
+            return True
+        time.sleep(.1)
 
 
 def stage_task(root, paths):
@@ -242,6 +327,10 @@ def save_handoff(run, state, reason, *, display=True):
     launcher.atomic(run / 'checkpoint.json', state)
     if display:
         from launcher_render import AgentRenderer
+        if state['phase'] == 'blocked':
+            # The decision was already shown when the workflow paused. Keep the
+            # engineering continuation in the file, including on stop/cancel.
+            text = f"Task {state['task_id']} is paused. Run tools/write-e2e to answer and continue."
         AgentRenderer(sys.stdout).message(text)
         sys.stdout.flush()
 
@@ -272,7 +361,7 @@ def show_completion(task, task_sessions, launcher_sessions, duration):
 
 def task_session_limit_reached(state):
     return (state['phase'] != 'complete'
-            and state.get('task_sessions', 0) >= MAX_TASK_SESSIONS)
+            and state.get('task_sessions', 0) >= state.get('task_session_limit', MAX_TASK_SESSIONS))
 
 
 def show_session_limit(state):
@@ -328,6 +417,22 @@ def worker(root, run, owner, sessions, tasks, state_json):
 
     try:
         while True:
+            if state['phase'] == 'blocked':
+                if not wait_for_answer(run, state, str(count)):
+                    reason = 'paused at your request'
+                    break
+                # An explicit answer authorizes a recovery session even when
+                # the automatic-work budget ended at the blocker. Waiting itself
+                # consumes no model session and never renews a budget.
+                state['task_session_limit'] = max(state.get('task_session_limit', MAX_TASK_SESSIONS),
+                                                  state['task_sessions'] + 1)
+                with launcher.lock(run / 'limits-gate') as gate:
+                    fcntl.flock(gate, fcntl.LOCK_EX)
+                    limits = json.loads((run / 'limits.json').read_text())
+                    if limits['sessions'] is not None:
+                        limits['sessions'] = max(limits['sessions'], count + 1)
+                    launcher.atomic(run / 'limits.json', limits)
+                launcher.atomic(run / 'checkpoint.json', state)
             with launcher.lock(run / 'limits-gate') as gate:
                 fcntl.flock(gate, fcntl.LOCK_EX)
                 limits = json.loads((run / 'limits.json').read_text())
@@ -400,9 +505,6 @@ def worker(root, run, owner, sessions, tasks, state_json):
                                     time.time() - state['started_at'], keys, progress_lines[0]))
                 if tasks > 1 or completed > 1:
                     compact_completions()
-            if state['phase'] == 'blocked':
-                status, reason = 1, 'blocked'
-                break
         if (run / 'stop').exists():
             reason = 'stopped at a session boundary'
     except launcher.Stopped:
@@ -421,7 +523,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             show_completion(task, task_sessions, launcher_sessions, duration)
         save_handoff(run, state, reason,
                      display=not (status == 0 and completed and state['phase'] == 'complete'))
-        if task_session_limit_reached(state):
+        if task_session_limit_reached(state) and state['phase'] != 'blocked':
             show_session_limit(state)
         launcher.atomic(run / 'result.json', {'status': status, 'sessions': count,
                                              'tasks': completed})
@@ -441,7 +543,19 @@ def initial_state(root, directory):
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
         if state.get('task_id') == task and state.get('phase') != 'complete':
-            if state.get('in_flight') or state.get('phase') == 'blocked':
+            question_path = previous / 'question.json'
+            if state.get('phase') == 'blocked' and question_path.exists():
+                question = json.loads(question_path.read_text())
+                if question['id'] == state.get('blocker_id') and question.get('answer') is not None:
+                    # Preserve an answer submitted just before stop/worker death,
+                    # even if the owner had not checkpointed its recovery yet.
+                    state.update(phase='recover', recovery_run=str(previous),
+                                 user_answer={'question': question['question'], 'answer': question['answer']},
+                                 task_session_limit=max(state.get('task_session_limit', MAX_TASK_SESSIONS),
+                                                        state.get('task_sessions', 0) + 1))
+                    state.pop('blocker_id', None)
+                    state.pop('blocker', None)
+            if state.get('in_flight'):
                 if state.get('worktree_before') is not None:
                     candidates = set(state.get('stage_candidates', []))
                     candidates.update(session_changes(root, state['worktree_before']))

@@ -27,6 +27,7 @@ import request_exit
 import parent_toggle
 import app_row_observations
 import feedback_read
+import text_qualification
 import parent_discovery
 import shell_search_results
 import parent_search_launch
@@ -71,14 +72,14 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
                                  kiosk_no_approver.PLAN, kiosk_no_approver.CASE_PLAN,
                                  parent_terminal_provider.PLAN, license_viewer_provider.PLAN,
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
-                                 feedback_read.PLAN],
+                                 feedback_read.PLAN, text_qualification.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
                               'kiosk-eligible-choices', 'request-choices', 'kiosk-no-child', 'no-child-case',
                               'kiosk-no-approver', 'no-parent-case',
                               'terminal-provider', 'license-viewer-provider', 'repeated-operations',
-                              'challenges', 'app-rows', 'feedback-read'])
+                              'challenges', 'app-rows', 'feedback-read', 'text'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):

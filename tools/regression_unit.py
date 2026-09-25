@@ -81,8 +81,12 @@ write_e2e write_e2e_cleanup_safety
 # trees and retention journals. None operates the installed product or test VM.
 # Package-build cleanup uses a synthetic checkout and private scratch directory;
 # launcher rendering uses in-memory terminals, private PTYs and temporary logs.
+# Blocker decisions use checkout-private question locks/files and bounded threads;
+# pause/reconnect tests own all fake agent children. No live Codex/VM is used.
 # Challenge, install, reboot and package-authority contracts mock host/guest
 # mutations; app-row, feedback and no-approver reads use accessibility doubles.
+# Feedback replacement also runs short, isolated Perl API-double children with
+# captured pipes and a timeout; it writes no shared files or caches.
 
 # Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
 # trees, reads installed runtime inputs and owns its native child. Keep it out

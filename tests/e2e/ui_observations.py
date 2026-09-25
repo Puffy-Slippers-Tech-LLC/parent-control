@@ -165,6 +165,13 @@ OPERATION_LABELS.update({
 })
 
 
+OPERATION_LABELS.update({operation: 'Qualifying synthetic feedback text replacement'
+                         for operation in accessible_ui.TEXT_OPERATIONS})
+OPERATION_LABELS.update({
+    'text-wrong-entry': 'Refusing text input outside feedback',
+    'text-disabled': 'Refusing text input to a disabled control',
+})
+
 @dataclass(frozen=True)
 class FeedbackObservation:
     draft: str
@@ -516,6 +523,13 @@ class UiObservations:
                     'ui:feedback-response')
             FeedbackObservation.from_value(result['feedback'])
             expected['feedback'] = result['feedback']
+        if operation in accessible_ui.TEXT_OPERATIONS and operation.endswith('-read'):
+            binding, _ = accessible_ui.TEXT_OPERATIONS[operation]
+            projection = {'binding': binding, 'exact': True,
+                          'length': len(accessible_ui.TEXT_VALUES[binding][1])}
+            require(type(result) is dict and set(result) == {*expected, 'text'}
+                    and result['text'] == projection, 'ui:text-response')
+            expected['text'] = projection
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'save'}
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],

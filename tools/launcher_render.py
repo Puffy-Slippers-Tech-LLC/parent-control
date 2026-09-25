@@ -82,6 +82,22 @@ class LauncherDisplay:
         self.scrollbar = None
         self.scrollbar_grab = None
         self.mouse_capture = False
+        self.question = None
+
+    def update_question(self, question, send):
+        from launcher_question import QuestionInput
+        identity = self.question.question['id'] if self.question else None
+        if (question['id'] if question else None) == identity:
+            return
+        self.question = QuestionInput(question, send) if question else None
+        self.input_pending = b''
+        if question:
+            self.mouse_capture = False
+            self.set_mouse_mode()
+        if self.input_fd is not None:
+            self.stream.write('\033[?2004h' if question else '\033[?2004l')
+        self.offsets['bottom'] = 0
+        self.draw()
 
     def __enter__(self):
         if self.tty:
@@ -174,6 +190,10 @@ class LauncherDisplay:
 
     def handle_input(self, data):
         """Decode navigation keys and SGR reports, including fragmented reads."""
+        if self.question is not None and data not in (b'\x1b[5~', b'\x1b[6~'):
+            self.question.feed(data)
+            self.draw()
+            return
         self.input_pending += data
         while self.input_pending:
             keys = (b'\x1b[A', b'\x1b[B', b'\x1b[5~', b'\x1b[6~',
@@ -331,6 +351,10 @@ class LauncherDisplay:
             if self.offsets['top']:
                 top = scrolled_top
         available = height - len(top) - 1
+        question_rows = []
+        if self.question is not None and available > 0:
+            question_rows = self.wrapped(self.question.lines(width), width)[-available:]
+            available -= len(question_rows)
         # The lower pane keeps the detailed test dashboard and the newest log
         # rows. Agent sessions have no dashboard, so use the whole lower pane.
         from regression import Dashboard
@@ -342,23 +366,26 @@ class LauncherDisplay:
             detail_rows.append(row)
         room = available - len(detail_rows)
         log_rows = []
-        for line in reversed([*self.transcript, *([self.pending] if self.pending else [])]):
+        log_lines = (self.question.explanation(self.console, width) if self.question else
+                     [*self.transcript, *([self.pending] if self.pending else [])])
+        for line in reversed(log_lines):
             if len(log_rows) >= room:
                 break
             log_rows = self.wrapped([line], width)[-(room - len(log_rows)):] + log_rows
         body = log_rows + detail_rows
-        retained = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
+        retained = [*log_lines, *self.details]
         scrolled_body = self.scroll_rows('bottom', retained, width, available)
         if self.offsets['bottom']:
             body = scrolled_body
         body += [Text('')] * (available - len(body))
         divider = Text('─' * width, style='dim')
         if self.input_fd is not None:
-            divider = Text(' m: select text ' if self.mouse_capture else ' m: scroll ',
+            divider = Text(' Paused · PgUp/PgDn: explanation ' if self.question else
+                           ' m: select text ' if self.mouse_capture else ' m: scroll ',
                            style='dim')
             divider.truncate(width, overflow='crop')
             divider.append('─' * max(0, width - divider.cell_len))
-        rows = top + [divider] + body
+        rows = top + [divider] + body + question_rows
         total = len(self.row_cache['bottom'][1])
         self.scrollbar = None
         if self.mouse_capture and available > 0 and total > available:
@@ -407,7 +434,7 @@ class LauncherDisplay:
         self.mouse_capture = False
         if self.input_fd is not None:
             try:
-                self.stream.write('\033[?1002l\033[?1006l')
+                self.stream.write('\033[?1002l\033[?1006l\033[?2004l')
                 self.stream.flush()
             finally:
                 termios.tcsetattr(self.input_fd, termios.TCSAFLUSH, self.input_attributes)
@@ -775,8 +802,8 @@ class AgentRenderer:
                 if (isinstance(result, dict)
                         and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete')
                         and isinstance(result.get('summary'), str)):
-                    if self.hide_task_completion and result['status'] == 'task_complete':
-                        # The workflow reports success only after validation and staging.
+                    if self.hide_task_completion and result['status'] in ('task_complete', 'blocked'):
+                        # The workflow validates success and owns blocked questions.
                         self.task_completion_message = True
                         return
                     title = (result['status'].replace('_', ' ').capitalize()

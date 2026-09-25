@@ -68,6 +68,12 @@ def calls(root):
     return [json.loads(line) for line in (root / 'calls.jsonl').read_text().splitlines()]
 
 
+def finish_answered_run(run, spawned, output=None):
+    # A broken resume must fail this regression instead of hanging the suite.
+    spawned[-1].wait(timeout=20)
+    return launcher.follow(run, output or io.StringIO())
+
+
 def test_first_session_success_closes_and_stages_without_another_session(checkout):
     root, _ = checkout
     script(root, {'result': reply('task_complete', 'passed'), 'close': True})
@@ -469,12 +475,10 @@ def test_cancellation_awaits_only_registered_test_cleanup(checkout, monkeypatch,
         assert not launcher.busy(owner)
 
 
-@pytest.mark.parametrize('kind', ['blocked', 'invalid', 'crash'])
+@pytest.mark.parametrize('kind', ['invalid', 'crash'])
 def test_bad_agent_outcome_stops_without_advancing_or_reusing_a_reply(checkout, kind):
     root, _ = checkout
-    step = {'result': reply('blocked') if kind == 'blocked' else reply()}
-    if kind != 'blocked':
-        step[kind] = True
+    step = {'result': reply(), kind: True}
     script(root, step)
     run, _ = workflow.select(root, [])
     output = io.StringIO()
@@ -482,6 +486,79 @@ def test_bad_agent_outcome_stops_without_advancing_or_reusing_a_reply(checkout, 
     assert len(calls(root)) == 1
     assert workflow.queue_state(root)[0] == '001'
     assert 'Next session prompt:' in (run / 'handoff.txt').read_text()
+
+
+@pytest.mark.parametrize('custom', [False, True])
+def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, custom):
+    from launcher_question import submit
+    from rich.text import Text
+    root, spawned = checkout
+    script(root, {'result': reply('blocked', handoff='ENGINEERING DETAILS ONLY IN SAVED HANDOFF')},
+           {'result': reply(live='not_run'), 'wait': True},
+           {'result': reply('task_complete', 'passed'), 'close': True})
+    run, _ = workflow.select(root, [])
+    wait_for(run / 'question.json')
+    wait_for(run / 'handoff.txt')
+    time.sleep(.3)
+    assert len(calls(root)) == 1 and not (run / 'result.json').exists()
+    assert json.loads((run / 'checkpoint.json').read_text())['phase'] == 'blocked'
+    assert workflow.queue_state(root)[0] == '001'
+    assert workflow.select(root, []) == (run, False)
+    assert len(calls(root)) == 1
+    question = json.loads((run / 'question.json').read_text())
+    assert submit(run, question['id'], 3 if custom else 0, 'Keep 0m. Review only the two checks.')
+    wait_for(root / 'agent-ready-2')
+    prompt = calls(root)[1]['prompt']
+    assert ('Keep 0m.' if custom else question['options'][0]) in prompt
+    assert 'ENGINEERING DETAILS ONLY IN SAVED HANDOFF' in prompt
+    assert 'Do not run live VM tests' in prompt
+    (root / 'release').touch()
+    output = io.StringIO()
+    assert finish_answered_run(run, spawned, output) == 0
+    rendered = Text.from_ansi(output.getvalue()).plain
+    assert rendered.count(question['explanation']) == 1
+    assert 'ENGINEERING DETAILS ONLY IN SAVED HANDOFF' not in rendered
+    assert 'Turn complete' not in rendered.split('Answer received.')[0]
+    assert 'recommended' in rendered and 'Other' in rendered
+    assert len(calls(root)) == 3
+    assert workflow.queue_state(root)[0] == '002'
+
+
+@pytest.mark.parametrize('action', ['stop', 'cancel'])
+def test_waiting_can_stop_or_cancel_and_restart_still_requires_an_answer(checkout, action):
+    from launcher_question import submit
+    root, spawned = checkout
+    script(root, {'result': reply('blocked')}, {'result': reply(live='not_run')})
+    run, _ = workflow.select(root, [])
+    wait_for(run / 'handoff.txt')
+    (run / action).touch()
+    output = io.StringIO()
+    assert finish_answered_run(run, spawned, output) == (130 if action == 'cancel' else 0)
+    assert 'Next session prompt:' not in output.getvalue()
+    assert 'Next session prompt:' in (run / 'handoff.txt').read_text()
+    resumed, started = workflow.select(root, ['--sessions', '1'])
+    assert started and resumed != run
+    wait_for(resumed / 'question.json')
+    assert len(calls(root)) == 1
+    question = json.loads((resumed / 'question.json').read_text())
+    assert submit(resumed, question['id'], 0)
+    assert finish_answered_run(resumed, spawned) == 0
+    assert len(calls(root)) == 2
+
+
+def test_answer_permits_recovery_when_blocker_used_the_last_session(checkout):
+    from launcher_question import submit
+    root, spawned = checkout
+    script(root, *[{'result': reply()} for _ in range(4)],
+           {'result': reply('blocked')}, {'result': reply(live='not_run')})
+    run, _ = workflow.select(root, [])
+    wait_for(run / 'question.json')
+    assert len(calls(root)) == 5 and not (run / 'result.json').exists()
+    question = json.loads((run / 'question.json').read_text())
+    assert submit(run, question['id'], 0)
+    assert finish_answered_run(run, spawned) == 1  # recovery used the explicitly extended task cap
+    assert len(calls(root)) == 6
+    assert json.loads((run / 'result.json').read_text())['sessions'] == 6
 
 
 def test_nested_registration_refuses_dead_parent_and_replaced_identity(tmp_path, monkeypatch):

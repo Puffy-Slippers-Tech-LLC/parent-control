@@ -74,6 +74,23 @@ FEEDBACK_READ_OPERATIONS = frozenset({
     'feedback-wrong-entry', 'feedback-reopen', 'feedback-reread', 'feedback-finished',
 })
 OPERATIONS |= FEEDBACK_READ_OPERATIONS
+TEXT_VALUES = {
+    'body-first': ('feedback-editor-input', 'Synthetic feedback first'),
+    'body-second': ('feedback-editor-input', 'Synthetic feedback replacement'),
+    'body-clear': ('feedback-editor-input', ''),
+    'reply-first': ('feedback-reply-email', 'first@example.invalid'),
+    'reply-second': ('feedback-reply-email', 'second@example.invalid'),
+    'reply-clear': ('feedback-reply-email', ''),
+}
+TEXT_OPERATIONS = {
+    'text-' + binding + '-' + action: (binding, action)
+    # The qualification controller consumes this order. Each native-entry
+    # anchor must precede its focus proof, matching the worker's keyboard route.
+    for binding in TEXT_VALUES
+    for action in (('anchor', 'focus', 'selected', 'read')
+                   if binding.startswith('reply-') else ('focus', 'selected', 'read'))
+}
+OPERATIONS |= frozenset(TEXT_OPERATIONS) | {'text-wrong-entry', 'text-disabled'}
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
 CHILD = 'Riley (Child)'
@@ -1325,6 +1342,93 @@ class AccessibleUI:
                     'ui:feedback-control')
         return {'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
                 'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+
+    def text_recipient(self, identity, *, focused=False):
+        """Fresh UI16 recipient proof; refuse before focus, keys or Text access."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        node = self.snapshot_owned_target(identity, showing=False, check_prompt=True)
+        require(node is not None, 'ui:text-entry')
+        require(self.has_state(node, self.api.StateType.VISIBLE)
+                and self.has_state(node, self.api.StateType.SENSITIVE)
+                and not self.has_state(node, self.api.StateType.DEFUNCT),
+                'ui:text-disabled')
+        require(identity in {item[0] for item in TEXT_VALUES.values()}, 'ui:text-binding')
+        require(node.get_role_name() != 'password text'
+                and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
+        root = self.snapshot_owned_target('feedback-dialog', check_prompt=True)
+        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+                'ui:text-entry')
+        require(not focused or self.has_state(node, self.api.StateType.FOCUSED),
+                'ui:text-focus')
+        return node
+
+    def focus_text(self, identity):
+        node = self.text_recipient(identity)
+        # Native GTK entries do not implement Component.GrabFocus. Their
+        # composite uses Ctrl-Tab from this ID-resolved WebKit editor instead.
+        require(identity == 'feedback-editor-input', 'ui:text-focus-route')
+        component = node.get_component_iface()
+        require(component is not None, 'ui:text-focus-unavailable')
+        self.input_uncertain = True
+        require(component.grab_focus(), 'ui:text-focus-refused')
+        def focused():
+            current = self.snapshot_owned_target(identity, check_prompt=True)
+            return current is not None and self.has_state(current, self.api.StateType.FOCUSED)
+        self.wait(focused, 'text-focus')
+        self.input_uncertain = False
+        self.text_recipient(identity, focused=True)
+
+    def read_synthetic_text(self, binding):
+        """Bounded exact public comparison; mismatching/private text never leaves."""
+        require(binding in TEXT_VALUES, 'ui:text-binding')
+        identity, expected = TEXT_VALUES[binding]
+        node = self.text_recipient(identity)
+        text = node.get_text_iface()
+        require(text is not None, 'ui:text-editor')
+        count = self.api.Text.get_character_count(text)
+        allowed = (expected, expected + '\n') if identity == 'feedback-editor-input' else (expected,)
+        require(count in {len(value) for value in allowed}, 'ui:text-value')
+        actual = self.api.Text.get_text(text, 0, count) if count else ''
+        require(actual in allowed, 'ui:text-value')
+        return {'binding': binding, 'exact': True, 'length': len(expected)}
+
+    def text_operation(self, operation):
+        if operation in ('text-wrong-entry', 'text-disabled'):
+            identity = ('feedback-editor-input' if operation == 'text-wrong-entry'
+                        else 'parent-daily-limit-selector')
+            expected = 'ui:text-entry' if operation == 'text-wrong-entry' else 'ui:text-disabled'
+            try:
+                self.focus_text(identity)
+            except UiError as error:
+                require(str(error) == expected, 'ui:text-refusal')
+            else:
+                raise UiError('ui:text-refusal-missing')
+            return None
+        require(operation in TEXT_OPERATIONS, 'ui:text-operation')
+        binding, action = TEXT_OPERATIONS[operation]
+        identity, _ = TEXT_VALUES[binding]
+        if action == 'anchor':
+            self.text_recipient(identity)
+            self.focus_text('feedback-editor-input')
+        elif action == 'focus' and identity == 'feedback-reply-email':
+            def focused():
+                node = self.text_recipient(identity)
+                return self.has_state(node, self.api.StateType.FOCUSED)
+            self.wait(focused, 'text-focus')
+        elif action == 'focus':
+            self.focus_text(identity)
+        elif action == 'selected':
+            self.text_recipient(identity, focused=True)
+        else:
+            def ready():
+                try:
+                    return self.read_synthetic_text(binding)
+                except UiError as error:
+                    if str(error) == 'ui:text-value':
+                        return None
+                    raise
+            return self.wait(ready, 'text-exact-value')
+        return None
 
     def open_feedback(self):
         """FEED01: ordinary Parent entry, with an independently observed result."""
@@ -4121,6 +4225,10 @@ class AccessibleUI:
                 result['settings'] = self.selected_child(child)
         elif operation == 'about':
             self.open_about(version)
+        elif operation in TEXT_OPERATIONS or operation in ('text-wrong-entry', 'text-disabled'):
+            text = self.text_operation(operation)
+            if text is not None:
+                result['text'] = text
         elif operation in FEEDBACK_READ_OPERATIONS:
             feedback = self.feedback_read_operation(operation)
             if feedback is not None:

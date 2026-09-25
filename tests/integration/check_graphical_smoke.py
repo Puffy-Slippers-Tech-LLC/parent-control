@@ -656,6 +656,20 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          challenges=False, product_free_entry=False, package_authority=False,
          package_install=False, customer_reboot=False, app_row_observations=False,
          feedback_read=False):
+    require(type(kiosk_no_approver) is bool and (not kiosk_no_approver or (
+            assets is not None and provision_credentials and fresh_desktop is None
+            and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
+                         parent_setup, parent_input, parent_standard_input,
+                         parent_about, parent_access, desktop_session_logout,
+                         desktop_session_switch, gdm_navigation, gdm_recipient,
+                         gdm_product_free, kiosk_entry, request_exit, parent_toggle,
+                         shell_search_results, parent_search_launch, shell_search,
+                         parent_terminal_provider, license_viewer_provider,
+                         kiosk_eligible_choices, request_choices, kiosk_no_child,
+                         repeated_operations, challenges, product_free_entry,
+                         package_authority, package_install, customer_reboot,
+                         app_row_observations, feedback_read)))),
+            'smoke:kiosk-no-approver-prerequisites')
     require(type(feedback_read) is bool and (not feedback_read or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -722,17 +736,6 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          parent_terminal_provider, license_viewer_provider,
                          kiosk_eligible_choices, request_choices, kiosk_no_child,
                          kiosk_no_approver)))), 'smoke:repeated-operations-prerequisites')
-    require(type(kiosk_no_approver) is bool and (not kiosk_no_approver or (
-            assets is not None and provision_credentials and fresh_desktop is None
-            and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
-                         parent_setup, parent_input, parent_standard_input,
-                         parent_about, parent_access, desktop_session_logout,
-                         desktop_session_switch, gdm_navigation, gdm_recipient,
-                         gdm_product_free, kiosk_entry, request_exit, parent_toggle,
-                         shell_search_results, parent_search_launch, shell_search,
-                         parent_terminal_provider, license_viewer_provider,
-                         kiosk_eligible_choices, request_choices, kiosk_no_child)))),
-            'smoke:kiosk-no-approver-prerequisites')
     require(type(kiosk_no_child) is bool and (not kiosk_no_child or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,

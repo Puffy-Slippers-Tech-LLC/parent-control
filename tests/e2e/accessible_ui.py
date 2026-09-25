@@ -111,7 +111,14 @@ TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-setup-zero-read', 'time-explanation-setup-positive-read',
 })
 OPERATIONS |= TIME_EXPLANATION_OPERATIONS
+REVOKE_DISABLED_OPERATIONS = {
+    'parent-revoke-disabled-on': True,
+    'parent-revoke-disabled-off': False,
+}
+OPERATIONS |= REVOKE_DISABLED_OPERATIONS.keys()
 OPERATIONS |= frozenset({'parent-new-window-absent', 'parent-new-window-refused'})
+OPERATIONS |= frozenset({'parent-restart-ready', 'parent-restart-closed-refused',
+                         'parent-restart-wrong-refused', 'parent-initial-selection'})
 
 
 def duration_projection(text):
@@ -2013,6 +2020,18 @@ class AccessibleUI:
 
         return self.wait(saved, 'parent-save', prompt_in_predicate=True)
 
+    def revoke_disabled(self, child, enabled):
+        """Read idle Revoke availability and zero balances without button input."""
+        self.parent_save_snapshot(child, enabled)
+        root = self.time_explanation_entry(child)
+        button = self.id_target('parent-revoke-button', root=root)
+        sensitive = self.has_state(button, self.api.StateType.SENSITIVE)
+        balances = self.time_explanation(child)
+        return {'child': CHILD_IDENTITIES[child], 'limit_enabled': enabled,
+                'idle': True, 'sensitive': sensitive,
+                **{key + '_seconds': balances[key]['seconds']
+                   for key in ('daily', 'one_time', 'total')}}
+
     def time_explanation_entry(self, child):
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
         root = self.parent()
@@ -2705,6 +2724,31 @@ class AccessibleUI:
         """Refuse a new-window declaration while an owned Parent window exists."""
         self.desktop_result(PARENT, 'success')
         require(self.parent_search_closed(), 'ui:parent-window-exists')
+
+    def parent_restart_entry(self, window, destination):
+        """LIFE01 entry is observation only; never launch or focus to repair it."""
+        require(window == 'parent' and destination == 'management', 'ui:restart-binding')
+        root = self.snapshot_owned_target('parent-window', check_prompt=True)
+        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+                'ui:restart-window')
+
+    def parent_initial_selection(self):
+        """Read the unopened child selector before any selection or edit."""
+        root = self.parent()
+        picker = self.id_target('parent-child-selector', root=root, sensitive=True)
+        nodes = list(self.nodes(picker, strict=True))
+        require(all(not self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes),
+                'ui:stale-picker')
+        selected = [node for node in nodes if self.showing(node)
+                    and public_automation_id(node).startswith('parent-child-selected-')]
+        require(len(selected) == 1, 'ui:initial-selection')
+        for child in (CHILD, EXISTING_CHILD):
+            uid = (self.fixture_uids.get(child) if self.fixture_uids is not None
+                   else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+            if public_automation_id(selected[0]) == 'parent-child-selected-' + str(uid):
+                self.read_label(selected[0], 'child', expected=child, maximum=80)
+                return CHILD_IDENTITIES[child]
+        raise UiError('ui:initial-selection')
 
     def parent_search_closed(self):
         """Independent complete window absence on the qualified Parent desktop."""
@@ -4523,6 +4567,28 @@ class AccessibleUI:
             self.wait(self.parent_search_closed, 'parent-search-closed')
         elif operation == 'parent-window':
             self.parent()
+        elif operation == 'parent-restart-ready':
+            self.parent_restart_entry('parent', 'management')
+        elif operation == 'parent-restart-closed-refused':
+            self.new_parent_window_entry()
+            try:
+                self.parent_restart_entry('parent', 'management')
+            except UiError as error:
+                require(str(error) == 'ui:restart-window', 'ui:restart-refusal')
+            else:
+                raise UiError('ui:restart-refusal-missing')
+            self.new_parent_window_entry()
+        elif operation == 'parent-restart-wrong-refused':
+            self.parent_restart_entry('parent', 'management')
+            try:
+                self.parent_restart_entry('about', 'management')
+            except UiError as error:
+                require(str(error) == 'ui:restart-binding', 'ui:restart-refusal')
+            else:
+                raise UiError('ui:restart-refusal-missing')
+            self.parent_restart_entry('parent', 'management')
+        elif operation == 'parent-initial-selection':
+            result['selection'] = self.parent_initial_selection()
         elif operation == 'parent-new-window-absent':
             self.new_parent_window_entry()
         elif operation == 'parent-new-window-refused':
@@ -4573,6 +4639,8 @@ class AccessibleUI:
             result['allowance'] = self.allowance_operation(operation)
         elif operation in TIME_EXPLANATION_OPERATIONS:
             result['time_explanation'] = self.time_explanation_operation(operation)
+        elif operation in REVOKE_DISABLED_OPERATIONS:
+            result['revoke'] = self.revoke_disabled(CHILD, REVOKE_DISABLED_OPERATIONS[operation])
         elif operation in CUSTOM_ALLOWANCE_OPERATIONS:
             result['custom_allowance'] = self.custom_allowance_operation(operation)
         elif operation in TEXT_OPERATIONS or operation in ('text-wrong-entry', 'text-disabled'):

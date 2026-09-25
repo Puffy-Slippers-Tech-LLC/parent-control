@@ -19,13 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **203 — [E2E-036: zero-total](E2E-Tasks/203-case-161.md)**.
+Next task: **040a — [Qualify daily-allowance boundaries](E2E-Tasks/040a-allowance-boundaries.md)**.
 
-Implement complete case 161 from fresh limits-off/zero defaults using FLOW16's
-qualified fresh-zero binding. Observe zero balances and disabled Revoke while
-idle, turn limits off, then verify Revoke remains disabled and the saved zero
-allowance remains. Register and validate the complete independent scenario;
-Task 180's capability qualification does not supply its acceptance.
+Qualify PARENT06 boundary/invalid custom values and PARENT08 validation.
+Accept custom 0, 1, 15 and 1439; reject every invalid recipe value and read
+the saved 15 unchanged after reopening the editor. Complete its guarded live
+slice; case 158 retains all-preset enumeration and the independent scenario.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

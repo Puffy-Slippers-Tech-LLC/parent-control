@@ -241,6 +241,59 @@ def test_new_parent_window_entry_refuses_existing_window_without_input(present):
     ui.launch_parent_command.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'closed', 'inactive', 'wrong-name', 'destination', 'duplicate'])
+def test_restart_entry_refuses_without_focus_close_or_launch(fault):
+    ui, root, *_ = parent_save_ui()
+    root.states.add('active')
+    if fault == 'closed':
+        root.identity = 'about-dialog'
+    elif fault == 'inactive':
+        root.states.discard('active')
+    elif fault == 'duplicate':
+        duplicate = Node(identity='parent-window')
+        root.children.append(duplicate)
+        duplicate.parent = root
+    launch = ui.launch_parent_command = Mock()
+    args = ('about' if fault == 'wrong-name' else 'parent',
+            'denied' if fault == 'destination' else 'management')
+    if fault:
+        with pytest.raises(UiError):
+            ui.parent_restart_entry(*args)
+    else:
+        ui.parent_restart_entry(*args)
+    launch.assert_not_called()
+    for node in ui.nodes(root, strict=True):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'duplicate', 'unknown'])
+def test_reopened_initial_selection_is_read_without_edit_and_decoded(fault):
+    ui, root, picker, *_ = parent_save_ui()
+    if fault == 'missing':
+        picker.children.clear()
+    elif fault == 'duplicate':
+        duplicate = Node(identity=picker.children[0].identity)
+        duplicate.parent = picker
+        picker.children.append(duplicate)
+    elif fault == 'unknown':
+        picker.children[0].identity = 'parent-child-selected-99999'
+    if fault:
+        with pytest.raises(UiError):
+            ui.parent_initial_selection()
+    else:
+        result = ui.run('parent-initial-selection', '')
+        assert result['selection'] == 'fixture-child'
+        transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+        assert UiObservations(transport).observe('parent-initial-selection') == result
+        result['selection'] = 'unregistered child'
+        transport.call.return_value = json.dumps(result).encode()
+        with pytest.raises(EvidenceError, match='initial-selection'):
+            UiObservations(transport).observe('parent-initial-selection')
+    for node in ui.nodes(root, strict=True):
+        node.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('collapsed', [False, True])
 def test_reach_time_explanation_expands_once_and_repeated_reads_never_collapse(collapsed):
     ui, root, _picker, section, explanation, collapse = time_explanation_ui()
@@ -366,6 +419,55 @@ def test_time_explanation_controller_decodes_and_validates_real_projection(fault
             UiObservations(transport).observe(operation)
     else:
         assert UiObservations(transport).observe(operation) == result
+
+
+@pytest.mark.parametrize('enabled', [True, False])
+@pytest.mark.parametrize('fault', [None, 'sensitive', 'daily', 'grant', 'total',
+                                  'missing', 'duplicate', 'hidden', 'wrong-child', 'busy'])
+def test_idle_revoke_observation_and_controller_refuse_bad_results_without_input(enabled, fault):
+    ui, root, picker, _section, explanation, _collapse = time_explanation_ui()
+    toggle, allowance = root.children[1:3]
+    if not enabled:
+        toggle.states.discard('checked')
+        allowance.states.discard('sensitive')
+    explanation.name = ('Daily allowance remaining: ' + ('1m' if fault == 'daily' else '0m')
+                        + '\nOne-time grant remaining: ' + ('1m' if fault == 'grant' else '0m')
+                        + '\nRemaining time: ' + ('1m' if fault == 'total' else '0m')
+                        + ' — the larger of the two amounts.')
+    button = Node(identity='parent-revoke-button')
+    if fault != 'sensitive':
+        button.states.discard('sensitive')
+    if fault == 'hidden':
+        button.states.discard('visible')
+    if fault != 'missing':
+        root.children.append(button)
+        button.parent = root
+    if fault == 'duplicate':
+        duplicate = Node(identity='parent-revoke-button')
+        root.children.append(duplicate)
+        duplicate.parent = root
+    if fault == 'wrong-child':
+        picker.children[0].identity = 'parent-child-selected-9999'
+    if fault == 'busy':
+        toggle.states.discard('sensitive')
+    if fault in ('missing', 'duplicate', 'hidden', 'wrong-child', 'busy'):
+        with pytest.raises(UiError):
+            ui.revoke_disabled(accessible_ui.CHILD, enabled)
+    else:
+        projection = ui.revoke_disabled(accessible_ui.CHILD, enabled)
+        operation = 'parent-revoke-disabled-' + ('on' if enabled else 'off')
+        result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                  'revoke': projection}
+        transport = Mock()
+        transport.call.return_value = json.dumps(result).encode()
+        if fault:
+            with pytest.raises(EvidenceError, match='ui:revoke-disabled-response'):
+                UiObservations(transport).observe(operation)
+        else:
+            assert UiObservations(transport).observe(operation) == result
+    for node in ui.nodes(root, strict=True):
+        node.action.do_action.assert_not_called()
+        node.component.scroll_to.assert_not_called()
 
 
 def test_owned_lookup_reads_each_subtree_once_and_reacquires_after_transition():

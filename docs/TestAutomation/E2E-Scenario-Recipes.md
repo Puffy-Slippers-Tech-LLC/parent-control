@@ -634,6 +634,11 @@ Bindings: delivery = retry.
 
 Implementation status: All cases pending.
 
+Parent reopening uses `onpc_lifecycle::reopen(journey, 'parent', prior_window,
+'management')` with a fresh `prior-window` observation. Bind the stages in
+`app_restart.PLAN`, including `initial-selection`, before selecting each child
+to compare saved values. Task 028 qualifies only this LIFE01 slice.
+
 **Choose allowances and save edits.** Cases 158, 159.
 
 Bindings: flow = boundaries / save-order.
@@ -644,7 +649,11 @@ Bindings: flow = boundaries / save-order.
 
 ### E2E-036
 
-Implementation status: All cases pending.
+Implementation context: Case 161 composes `zero_total.PLAN` and
+`onpc_zero_total::run`, using FLOW16's fresh-zero binding and
+`AccessibleUI.revoke_disabled` for read-only idle availability/zero balances.
+It observes the saved off state and retained zero allowance; case 160 remains
+separate. Runtime status and executable bindings are owned by the inventory.
 
 **Revoke when there is no active grant.** Cases 160, 161.
 

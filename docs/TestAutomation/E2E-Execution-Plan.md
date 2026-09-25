@@ -19,12 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **040a — [Qualify daily-allowance boundaries](E2E-Tasks/040a-allowance-boundaries.md)**.
+Next task: **200 — [E2E-035: boundaries](E2E-Tasks/200-case-158.md)**.
 
-Qualify PARENT06 boundary/invalid custom values and PARENT08 validation.
-Accept custom 0, 1, 15 and 1439; reject every invalid recipe value and read
-the saved 15 unchanged after reopening the editor. Complete its guarded live
-slice; case 158 retains all-preset enumeration and the independent scenario.
+Implement the complete independent case 158: enumerate all 50 daily presets,
+exercise every accepted/invalid custom value, and verify persistence after
+closing and reopening Parent. Reuse the qualified allowance, validation and
+Parent-reopen slices; their capability qualification does not complete this case.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

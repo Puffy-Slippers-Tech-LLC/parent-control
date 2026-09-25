@@ -96,7 +96,12 @@ write_e2e write_e2e_cleanup_safety
 # with mocked VM operations; neither needs build admission or exclusive state.
 # LIFE01 checks in e2e_toggle use the same bounded Perl children and private
 # tmp_path contexts; accessible_e2e_ui uses in-memory trees and mocked transport.
+# Its standalone observer check runs one bounded isolated Python child with
+# captured pipes in tmp_path; invalid arguments stop before UI/account access.
+# It needs no display, bus, shared cache, process cleanup or build admission.
 # Their existing compatible unit classifications remain applicable.
+# Parent custom-save ordering tests hold callbacks in memory and use mocked
+# widgets only; they add no timers, threads, filesystem or display resources.
 
 # Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
 # trees, reads installed runtime inputs and owns its native child. Keep it out

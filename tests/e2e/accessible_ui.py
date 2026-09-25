@@ -17,6 +17,11 @@ import sys
 import time
 import warnings
 
+# This file is sent alone over guarded stdin to isolated guest Python. Keep its
+# finite public-input data here; controller modules may import these constants.
+INVALID = {'empty': '', 'letters': 'abc', 'negative': '-1',
+           'fraction': '0.5', 'maximum': '1440', 'over': '1441'}
+INVALID_DESCRIPTION = 'Invalid daily allowance. Enter a whole number from 0 to 1439.'
 
 OPERATIONS = frozenset({
     'gdm-installed-accounts',
@@ -82,8 +87,10 @@ TEXT_VALUES = {
     'reply-second': ('feedback-reply-email', 'second@example.invalid'),
     'reply-clear': ('feedback-reply-email', ''),
     **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
-       for value in (1, 2, 3)},
+       for value in (0, 1, 2, 3, 15, 1439)},
 }
+TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
+                    for key, value in INVALID.items()})
 TEXT_OPERATIONS = {
     'text-' + binding + '-' + action: (binding, action)
     # The qualification controller consumes this order. Each native-entry
@@ -133,7 +140,7 @@ def duration_projection(text):
 
 CUSTOM_ALLOWANCE_OPERATIONS = {
     'custom-' + str(value) + '-' + action: (value, action)
-    for value in (1, 2, 3)
+    for value in (0, 1, 2, 3, 15, 1439)
     for action in ('open', 'saved', 'reopen')
 }
 CUSTOM_ALLOWANCE_OPERATIONS.update({
@@ -141,6 +148,8 @@ CUSTOM_ALLOWANCE_OPERATIONS.update({
     'custom-disabled': (1, 'disabled'),
 })
 OPERATIONS |= frozenset(CUSTOM_ALLOWANCE_OPERATIONS)
+INVALID_ALLOWANCE_OPERATIONS = {'custom-invalid-' + key: key for key in INVALID}
+OPERATIONS |= frozenset(INVALID_ALLOWANCE_OPERATIONS)
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
 CHILD = 'Riley (Child)'
@@ -2187,7 +2196,7 @@ class AccessibleUI:
 
     def custom_allowance(self, child, minutes, *, action):
         """Ordinary custom editor; save and reopened public readback are separate."""
-        require(type(minutes) is int and minutes in (1, 2, 3)
+        require(type(minutes) is int and minutes in (0, 1, 2, 3, 15, 1439)
                 and action in ('open', 'saved', 'reopen'),
                 'ui:allowance-binding')
         self.allowance_entry(child)
@@ -2195,15 +2204,16 @@ class AccessibleUI:
             editor = self.snapshot_owned_target('parent-custom-daily-limit', showing=False)
             if editor is not None and self.has_state(editor, self.api.StateType.VISIBLE):
                 # The previous reopen may already have returned this editor.
-                # Do not disturb its focus just to reopen the same picker:
-                # focus leave saves asynchronously and disables that popup.
+                # Reuse that visible editor without an unnecessary picker action.
                 self.text_recipient('parent-custom-daily-limit')
                 return {'minutes': minutes, 'action': action}
         if action in ('open', 'reopen'):
             self.parent_save_snapshot(child, True)
+            if action == 'reopen' and minutes in (0, 15):
+                self.allowance_preset(child, minutes, action='read')
             self.activate_id('parent-daily-limit-selector')
             choice = self.id_target('parent-daily-limit-custom', sensitive=True)
-            if action == 'reopen':
+            if action == 'reopen' and minutes not in (0, 15):
                 require(choice.get_description() == 'Selected daily allowance: Custom amount',
                         'ui:allowance-selection')
             self.activate_id('parent-daily-limit-custom')
@@ -2212,8 +2222,8 @@ class AccessibleUI:
             self.text_recipient('parent-custom-daily-limit')
         if action in ('saved', 'reopen'):
             if action == 'saved' and minutes == 1:
-                # No navigation/input before this pause. Saving disables the
-                # editor and may clear focus, so focus retention is not a result.
+                # No navigation/input before this pause. Observe the save
+                # independently of the editor's retained typing focus.
                 started = time.monotonic()
                 self.wait(lambda: time.monotonic() - started >= 0.5, 'custom-pause')
             if action == 'saved' and minutes == 3:
@@ -2236,6 +2246,16 @@ class AccessibleUI:
                 return {'refusal': action}
             raise UiError('ui:allowance-refusal-missing')
         return self.custom_allowance(CHILD, minutes, action=action)
+
+    def invalid_allowance(self, binding):
+        """PARENT08 validation: exact rejected draft and public error description."""
+        require(binding in INVALID, 'ui:allowance-binding')
+        self.allowance_entry(CHILD)
+        self.parent_save_snapshot(CHILD, True)
+        self.read_synthetic_text('daily-invalid-' + binding)
+        self.wait(lambda: self.text_recipient('parent-custom-daily-limit').get_description()
+                  == INVALID_DESCRIPTION, 'allowance-validation')
+        return {'binding': binding, 'validation': 'rejected'}
 
     def allowance_preset(self, child, minutes, *, action):
         """PARENT05: saved preset readback; reopen returns the picker open."""
@@ -4641,6 +4661,9 @@ class AccessibleUI:
             result['time_explanation'] = self.time_explanation_operation(operation)
         elif operation in REVOKE_DISABLED_OPERATIONS:
             result['revoke'] = self.revoke_disabled(CHILD, REVOKE_DISABLED_OPERATIONS[operation])
+        elif operation in INVALID_ALLOWANCE_OPERATIONS:
+            result['allowance_validation'] = self.invalid_allowance(
+                INVALID_ALLOWANCE_OPERATIONS[operation])
         elif operation in CUSTOM_ALLOWANCE_OPERATIONS:
             result['custom_allowance'] = self.custom_allowance_operation(operation)
         elif operation in TEXT_OPERATIONS or operation in ('text-wrong-entry', 'text-disabled'):

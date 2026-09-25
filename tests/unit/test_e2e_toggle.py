@@ -312,6 +312,48 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
 '''
 
 
+def test_allowance_boundaries_worker_and_every_refusal(monkeypatch):
+    from allowance_boundaries import PLAN
+    from allowance_values import ACCEPTED, INVALID, PRESETS
+    assert ACCEPTED == (0, 1, 15, 1439)
+    assert list(INVALID.values()) == ['', 'abc', '-1', '0.5', '1440', '1441']
+    assert PRESETS == (0, 15, 30, 45, *range(60, 1411, 30)) and len(PRESETS) == 50
+    script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_allowance_boundaries')
+    script = script.replace('sub record_info { }',
+                            "sub record_info { }\nsub type_string { push @main::events, ['text', @_]; }")
+    monkeypatch.setenv('ONPC_TEST_REFUSE', '')
+    success = json.loads(run_perl(script).stdout)
+    assert success['ok'], success['error']
+    stages = list(PLAN.screen_tags)
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    for stage in stages:
+        monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
+        result = json.loads(run_perl(script).stdout)
+        assert not result['ok'] and 'fixture:refused' in result['error']
+        boundary = success['events'].index(['stage', stage])
+        assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_allowance_boundaries_uses_guarded_installed_envelope(monkeypatch, tmp_path):
+    import check_e2e_allowance_boundaries as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import AllowanceBoundariesQualification, KioskEntryQualification
+    from allowance_boundaries import PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['allowance_boundaries'] is True
+    with pytest.raises(CommandError, match='allowance-boundaries-prerequisites'):
+        smoke.main(allowance_boundaries=True)
+    with pytest.raises(CommandError, match='allowance-boundaries-prerequisites'):
+        smoke.main(assets=tmp_path, provision_credentials=True,
+                   allowance_boundaries=True, allowance=True)
+    assert AllowanceBoundariesQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is PLAN
+    assert AllowanceBoundariesQualification.finalize is KioskEntryQualification.finalize
+    assert AllowanceBoundariesQualification.prepare_context is KioskEntryQualification.prepare_context
+
+
 def test_set_allowance_actual_worker_stops_before_later_input_at_every_boundary(monkeypatch):
     from set_allowance import PLAN
     stages = list(PLAN.screen_tags)

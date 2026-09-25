@@ -52,6 +52,11 @@ broker's kiosk method has a broader contract; see
 
 ## Public automation identities
 
+The custom daily allowance entry publishes validation rejection in its public
+accessible description, alongside the existing visual error. Accepted custom
+input restores the ordinary instruction description. This metadata changes with
+the next Parent process and changes neither validation bounds nor saved values.
+
 The shared GTK `set_automation_id`/`describe_control` helpers assign a
 GtkBuilder object ID as well as the widget's CSS name. GTK 4.22 publishes the
 Builder ID through the public AT-SPI `AccessibleId` property. The child
@@ -198,8 +203,17 @@ activation); it changes no saved data or child/kiosk behavior.
 Screen Limits offers presets 0, 15, 30 and 45 minutes, then half-hour increments
 from 60 through 1410, and custom whole minutes 0–1439. The broker/schema also
 accept 1440, but that is not an offered Parent UI value. Custom edits debounce
-for 350 ms and also commit on Enter or focus leave. Invalid edits retain the
-last saved value. The allowance picker and custom editor are insensitive while
+for 350 ms and also commit on Enter or focus leave. Unchanged custom commits do
+not start another save. During a custom save the textbox keeps focus and its
+caret, allowing more digits; the allowance picker also stays usable so a click
+from the textbox opens it immediately. Subsequent custom and preset commits
+remain serialized in interaction order. Conflicting controls stay disabled until
+the queue drains.
+Invalid edits retain the last saved value. Reloading a child's preferences also
+restores that value in the custom editor and clears the rejected-draft error,
+including when the saved allowance is a preset. Successful autosaves preserve
+the active draft, focus and caret. This takes effect on the next Parent process
+and requires no saved-data migration. The allowance picker and custom editor are insensitive while
 screen-time control is off; the saved value remains displayed. Time status uses
 `GetTimeStatus` with no direct cross-account AccountsService read, and retries
 temporary failures before showing unavailable.

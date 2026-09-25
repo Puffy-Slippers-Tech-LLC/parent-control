@@ -13,6 +13,14 @@ sub run {
     my ($exchange) = @_;
     die 'allowance:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'allowance', review => 0);
+    qualify($journey);
+    $journey->finish();
+}
+
+sub qualify {
+    onpc_progress::operation('Qualifying ordinary custom allowance commits and reloads');
+    my ($journey) = @_;
+    die 'allowance:journey' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
@@ -39,6 +47,5 @@ sub run {
         }
         $journey->consume_observation("$prefix-reopen", $journey->seen("$prefix-reopen"));
     }
-    $journey->finish();
 }
 1;

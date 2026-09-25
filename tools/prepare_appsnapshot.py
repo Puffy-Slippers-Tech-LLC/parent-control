@@ -18,8 +18,8 @@ def arguments(argv=None):
     parser.add_argument('--overwrite', nargs='?', const='true', default='true',
                         choices=('true', 'false'),
                         help='rebuild the current source before installing and replacing '
-                             'a matching version snapshot (default: true); false reuses '
-                             'matching content and automatically refreshes stale snapshots')
+                             'a matching version snapshot (default: true); false keeps '
+                             'an existing version snapshot without building, or creates it if missing')
     return parser.parse_args(argv)
 
 
@@ -33,8 +33,13 @@ def main(argv=None):
         with test_activity.activity(root), Control().installed() as control:
             check(helper)
             environment = test_launcher.environment(root)
-            # A name-only probe cannot establish freshness. Build verified
-            # artifacts, then let the shared lease compare installed inputs.
+            if args.overwrite == 'false':
+                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent',
+                    helper, 'appsnapshot', '--probe'], cwd=root, env=environment)
+                # Only the guarded probe's missing-snapshot result permits a
+                # build. Existing snapshots and errors both finish immediately.
+                if status != 3:
+                    return status
             cleanup(root)
             if control.stopped.is_set():
                 return 130

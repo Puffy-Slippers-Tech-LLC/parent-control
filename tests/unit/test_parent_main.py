@@ -82,6 +82,163 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def custom_save_window(self):
+        class Window:
+            _custom_daily_limit_changed = ParentWindow._custom_daily_limit_changed
+            _daily_limit_minutes = ParentWindow._daily_limit_minutes
+            _save_parent_control = ParentWindow._save_parent_control
+            _queue_save = ParentWindow._queue_save
+            _start_save = ParentWindow._start_save
+            _start_next_save = ParentWindow._start_next_save
+            _save_succeeded = ParentWindow._save_succeeded
+            _save_failed = ParentWindow._save_failed
+            _set_apps_sensitive = ParentWindow._set_apps_sensitive
+
+        window = Window()
+        window._loading = False
+        window._save_in_progress = False
+        window._active_save = None
+        window._pending_saves = []
+        window._restore_preferences_uid = None
+        window._selected_uid = lambda: 1001
+        window._preferences = {
+            "parent_control_enabled": True, "daily_time_limit_minutes": 15,
+        }
+        window._daily_limit_selected = CUSTOM_DAILY_LIMIT_INDEX
+        for name in ("_account", "_revoke", "_daily_limit", "_apps_group",
+                     "_custom_daily_limit"):
+            setattr(window, name, mock.Mock())
+        window._enabled = FakeSensitiveWidget(active=True)
+        window._custom_daily_limit_entry = mock.Mock()
+        window._custom_daily_limit_entry.get_text.return_value = "15"
+        for name in ("_cancel_custom_daily_limit_save", "_start_parent_control_save",
+                     "_start_app_policy_save", "_load_policy_warnings",
+                     "_load_time_status", "_show_error", "_preferences_loaded"):
+            setattr(window, name, mock.Mock())
+        return window
+
+    def test_unchanged_custom_focus_leave_does_not_start_save(self):
+        window = self.custom_save_window()
+        window._custom_daily_limit_changed()
+        window._start_parent_control_save.assert_not_called()
+        window._daily_limit.set_sensitive.assert_not_called()
+        self.assertFalse(window._save_in_progress)
+
+    def test_loading_saved_allowance_restores_editor_after_rejected_draft(self):
+        for minutes in (0, 15, 73, 1439):
+            for draft in ("", "abc", "-1", "0.5", "1440", "1441"):
+                with self.subTest(minutes=minutes, draft=draft):
+                    window = self.custom_save_window()
+                    window._custom_daily_limit_entry.get_text.return_value = draft
+                    window._custom_daily_limit_changed()
+                    window._custom_daily_limit_entry.add_css_class.assert_called_with("error")
+                    window._start_parent_control_save.assert_not_called()
+                    window._update_daily_limit_choice_styles = mock.Mock()
+                    window._loading = True
+                    ParentWindow._set_daily_limit_value(window, minutes)
+                    window._custom_daily_limit_entry.set_text.assert_called_once_with(str(minutes))
+                    window._custom_daily_limit_entry.remove_css_class.assert_called_with("error")
+                    self.assertEqual(
+                        window._custom_daily_limit_entry.update_property.call_args.args[1],
+                        ["Enter a whole number of minutes from zero through 1439."],
+                    )
+                    selected, is_custom = _daily_limit_selection(minutes)
+                    self.assertEqual(window._daily_limit_selected, selected)
+                    window._custom_daily_limit.set_visible.assert_called_with(is_custom)
+                    window._start_parent_control_save.assert_not_called()
+
+    def test_custom_typing_remains_editable_and_saves_in_order(self):
+        window = self.custom_save_window()
+        # Repeated commit signals must not repeat a write; returning to the
+        # original saved value must still follow the outstanding newer values.
+        for text in ("1", "1", "14", "14", "15", "15"):
+            window._custom_daily_limit_entry.get_text.return_value = text
+            window._custom_daily_limit_changed()
+        window._start_parent_control_save.assert_called_once_with(1001, True, 1)
+        self.assertEqual([save[2] for save in window._pending_saves],
+                         [(True, 14), (True, 15)])
+        window._custom_daily_limit.set_sensitive.assert_called_with(True)
+        window._daily_limit.set_sensitive.assert_called_with(True)
+        window._account.set_sensitive.assert_called_with(False)
+        self.assertFalse(window._enabled.sensitive)
+        for minutes in (1, 14, 15):
+            window._save_succeeded(1001, {
+                "parent_control_enabled": True, "daily_time_limit_minutes": minutes,
+            })
+            window._custom_daily_limit.set_sensitive.assert_called_with(True)
+            window._custom_daily_limit_entry.set_text.assert_not_called()
+        self.assertEqual(window._start_parent_control_save.call_args_list,
+                         [mock.call(1001, True, value) for value in (1, 14, 15)])
+        self.assertFalse(window._save_in_progress)
+        self.assertIsNone(window._active_save)
+        self.assertEqual(window._preferences["daily_time_limit_minutes"], 15)
+
+    def test_preset_selected_during_custom_save_is_committed_after_it(self):
+        window = self.custom_save_window()
+        window._custom_daily_limit_entry.get_text.return_value = "30"
+        window._custom_daily_limit_changed()
+        window._daily_limit.set_sensitive.assert_called_with(True)
+        window._update_daily_limit_choice_styles = mock.Mock()
+        ParentWindow._daily_limit_changed(window, None, DAILY_LIMIT_PRESETS.index(45))
+        self.assertEqual(window._pending_saves, [("parent-control", 1001, (True, 45))])
+        window._save_succeeded(1001, {
+            "parent_control_enabled": True, "daily_time_limit_minutes": 30,
+        })
+        window._start_parent_control_save.assert_called_with(1001, True, 45)
+        window._save_succeeded(1001, {
+            "parent_control_enabled": True, "daily_time_limit_minutes": 45,
+        })
+        self.assertEqual(window._preferences["daily_time_limit_minutes"], 45)
+        self.assertFalse(window._save_in_progress)
+
+    def test_invalid_draft_during_custom_save_is_not_queued_or_overwritten(self):
+        window = self.custom_save_window()
+        window._custom_daily_limit_entry.get_text.return_value = "1"
+        window._custom_daily_limit_changed()
+        for text in ("", "abc", "-1", "0.5", "1440", "1441"):
+            window._custom_daily_limit_entry.get_text.return_value = text
+            window._custom_daily_limit_changed()
+        self.assertEqual(window._pending_saves, [])
+        window._save_succeeded(1001, {
+            "parent_control_enabled": True, "daily_time_limit_minutes": 1,
+        })
+        window._custom_daily_limit_entry.set_text.assert_not_called()
+        window._custom_daily_limit_entry.add_css_class.assert_called_with("error")
+        self.assertEqual(window._preferences["daily_time_limit_minutes"], 1)
+
+    def test_custom_save_failure_drains_later_edits_before_restoring(self):
+        window = self.custom_save_window()
+        for text in ("1", "14"):
+            window._custom_daily_limit_entry.get_text.return_value = text
+            window._custom_daily_limit_changed()
+        window._save_failed(1001, "screen-time settings", RuntimeError("failed"))
+        window._show_error.assert_called_once()
+        window._preferences_loaded.assert_not_called()
+        window._start_parent_control_save.assert_called_with(1001, True, 14)
+        preferences = {"parent_control_enabled": True, "daily_time_limit_minutes": 14}
+        window._save_succeeded(1001, preferences)
+        window._preferences_loaded.assert_called_once_with(preferences)
+        self.assertFalse(window._save_in_progress)
+        self.assertIsNone(window._active_save)
+
+    def test_other_save_and_loading_states_keep_custom_editor_disabled(self):
+        for kind in ("app-policy", "parent-control"):
+            window = self.custom_save_window()
+            window._start_save((kind, 1001, (True, 15)))
+            window._custom_daily_limit.set_sensitive.assert_called_with(False)
+            window._daily_limit.set_sensitive.assert_called_with(False)
+        for loading, uid, enabled in ((True, 1001, True), (False, None, True),
+                                      (False, 1001, False)):
+            window = self.custom_save_window()
+            window._loading = loading
+            window._selected_uid = lambda: uid
+            window._enabled.active = enabled
+            window._active_save = ("custom-allowance", 1001, (True, 1))
+            window._save_in_progress = True
+            window._set_apps_sensitive(True)
+            window._custom_daily_limit.set_sensitive.assert_called_with(False)
+            window._daily_limit.set_sensitive.assert_called_with(False)
+
     def test_policy_warning_is_visible_without_repeated_dialogs_and_recovers(self):
         window = mock.Mock()
         window._selected_uid.return_value = 1001

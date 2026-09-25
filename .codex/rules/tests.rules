@@ -102,7 +102,10 @@ prefix_rule(
         "/Data/Code/PST/parent-control/tools/watch-ui",
         "tools/watchvm",
         "./tools/watchvm",
-        "/Data/Code/PST/parent-control/tools/watchvm"
+        "/Data/Code/PST/parent-control/tools/watchvm",
+        "tools/write-e2e",
+        "./tools/write-e2e",
+        "/Data/Code/PST/parent-control/tools/write-e2e"
     ]],
     decision = "allow",
     justification = "The user preapproves direct execution of this project's tools, without repeated command approval.",

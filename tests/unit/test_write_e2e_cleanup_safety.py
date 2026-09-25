@@ -298,7 +298,7 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
 def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     root, _ = checkout
     script(root, {'result': reply()},
-           *({'result': reply(live='failed')} for _ in range(4)))
+           *({'result': reply(live='failed')} for _ in range(9)))
     run, started = workflow.select(root, args)
     assert started
     output = io.StringIO()
@@ -319,20 +319,46 @@ def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     restarted, started = workflow.select(root, ['--tasks', '2'])
     assert started
     assert launcher.follow(restarted, io.StringIO()) == 1
-    assert len(calls(root)) == 5
+    assert len(calls(root)) == 10
+    assert json.loads((restarted / 'result.json').read_text()) == {
+        'status': 1, 'sessions': 5, 'tasks': 0}
+    assert json.loads((restarted / 'checkpoint.json').read_text())['task_session_limit'] == 10
 
 
-def test_task_cap_counts_sessions_before_restart(checkout):
+def test_task_cap_renews_without_resetting_task_sessions(checkout):
     root, _ = checkout
     script(root, {'result': reply()},
-           *({'result': reply(live='failed')} for _ in range(4)))
+           *({'result': reply(live='failed')} for _ in range(7)))
     first, _ = workflow.select(root, ['--sessions', '3'])
     assert launcher.follow(first, io.StringIO()) == 0
     second, _ = workflow.select(root, ['--tasks', '2'])
     assert launcher.follow(second, io.StringIO()) == 1
-    assert len(calls(root)) == 5
+    assert len(calls(root)) == 8
     assert json.loads((second / 'result.json').read_text()) == {
-        'status': 1, 'sessions': 2, 'tasks': 0}
+        'status': 1, 'sessions': 5, 'tasks': 0}
+    assert json.loads((second / 'checkpoint.json').read_text())['task_sessions'] == 8
+
+
+def test_six_prior_sessions_get_five_more_in_plain_new_launcher(checkout):
+    from rich.text import Text
+    root, _ = checkout
+    script(root, {'result': reply()},
+           *({'result': reply(live='failed')} for _ in range(10)))
+    first, _ = workflow.select(root, [])
+    assert launcher.follow(first, io.StringIO()) == 1
+    second, _ = workflow.select(root, ['--sessions', '1'])
+    assert launcher.follow(second, io.StringIO()) == 0
+    assert json.loads((second / 'checkpoint.json').read_text())['task_sessions'] == 6
+    third, started = workflow.select(root, [])
+    assert started
+    output = io.StringIO()
+    assert launcher.follow(third, output) == 1
+    assert len(calls(root)) == 11
+    assert json.loads((third / 'result.json').read_text()) == {
+        'status': 1, 'sessions': 5, 'tasks': 0}
+    assert json.loads((third / 'checkpoint.json').read_text())['task_session_limit'] == 11
+    assert 'Task 001' in calls(root)[6]['prompt']
+    assert 'Task 001 is not complete in 11 sessions. Launcher exited early.' in Text.from_ansi(output.getvalue()).plain
 
 
 def test_completion_on_fifth_session_resets_cap_for_next_task(checkout):

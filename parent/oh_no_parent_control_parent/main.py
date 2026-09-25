@@ -1897,14 +1897,21 @@ class ParentWindow(Adw.ApplicationWindow):
             self._custom_daily_limit_save_id = 0
 
     def _set_daily_limit_value(self, minutes):
-        """Load a saved value into either a preset or the Custom value row."""
+        """Restore the selected child's saved allowance, including its editor."""
         selected, is_custom = _daily_limit_selection(minutes)
         self._daily_limit_selected = selected
         self._daily_limit.set_label("Custom value" if is_custom else _daily_limit_label(minutes))
         self._update_daily_limit_choice_styles()
         self._custom_daily_limit.set_visible(is_custom)
-        if is_custom:
-            self._custom_daily_limit_entry.set_text(str(minutes))
+        # Preference loads replace abandoned drafts even when the saved value
+        # selects a preset. Successful autosaves do not use this load path, so
+        # ongoing typing keeps its text, focus and caret.
+        self._custom_daily_limit_entry.set_text(str(minutes))
+        self._custom_daily_limit_entry.remove_css_class("error")
+        self._custom_daily_limit_entry.update_property(
+            [Gtk.AccessibleProperty.DESCRIPTION],
+            ["Enter a whole number of minutes from zero through 1439."],
+        )
 
     def _daily_limit_minutes(self):
         if self._daily_limit_selected != CUSTOM_DAILY_LIMIT_INDEX:

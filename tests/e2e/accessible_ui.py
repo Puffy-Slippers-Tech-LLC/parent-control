@@ -81,6 +81,8 @@ TEXT_VALUES = {
     'reply-first': ('feedback-reply-email', 'first@example.invalid'),
     'reply-second': ('feedback-reply-email', 'second@example.invalid'),
     'reply-clear': ('feedback-reply-email', ''),
+    **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
+       for value in (1, 2, 3)},
 }
 TEXT_OPERATIONS = {
     'text-' + binding + '-' + action: (binding, action)
@@ -97,6 +99,16 @@ ALLOWANCE_OPERATIONS = frozenset({
     'allowance-15-select', 'allowance-15-read', 'allowance-15-reopen',
 })
 OPERATIONS |= ALLOWANCE_OPERATIONS
+CUSTOM_ALLOWANCE_OPERATIONS = {
+    'custom-' + str(value) + '-' + action: (value, action)
+    for value in (1, 2, 3)
+    for action in ('open', 'saved', 'reopen')
+}
+CUSTOM_ALLOWANCE_OPERATIONS.update({
+    'custom-wrong-child': (1, 'wrong-child'),
+    'custom-disabled': (1, 'disabled'),
+})
+OPERATIONS |= frozenset(CUSTOM_ALLOWANCE_OPERATIONS)
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
 CHILD = 'Riley (Child)'
@@ -1361,15 +1373,27 @@ class AccessibleUI:
         require(identity in {item[0] for item in TEXT_VALUES.values()}, 'ui:text-binding')
         require(node.get_role_name() != 'password text'
                 and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
-        root = self.snapshot_owned_target('feedback-dialog', check_prompt=True)
+        surface = ('parent-window' if identity == 'parent-custom-daily-limit'
+                   else 'feedback-dialog')
+        root = self.snapshot_owned_target(surface, check_prompt=True)
         require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
                 'ui:text-entry')
+        require(self.snapshot_owned_target(identity, root=root, showing=False) is not None,
+                'ui:text-entry')
+        if identity == 'parent-custom-daily-limit':
+            self.allowance_entry(CHILD)
         require(not focused or self.has_state(node, self.api.StateType.FOCUSED),
                 'ui:text-focus')
         return node
 
     def focus_text(self, identity):
         node = self.text_recipient(identity)
+        if identity == 'parent-custom-daily-limit':
+            self.activate_id('parent-window', action_name='focus.' + identity)
+            self.wait(lambda: self.has_state(self.text_recipient(identity),
+                                            self.api.StateType.FOCUSED), 'text-focus')
+            self.text_recipient(identity, focused=True)
+            return
         # Native GTK entries do not implement Component.GrabFocus. Their
         # composite uses Ctrl-Tab from this ID-resolved WebKit editor instead.
         require(identity == 'feedback-editor-input', 'ui:text-focus-route')
@@ -1426,6 +1450,10 @@ class AccessibleUI:
         elif action == 'selected':
             self.text_recipient(identity, focused=True)
         else:
+            if identity == 'parent-custom-daily-limit':
+                # Debounce/Return/Tab may already have started an asynchronous
+                # save. Read only after its public controls are usable again.
+                self.parent_save_snapshot(CHILD, True)
             def ready():
                 try:
                     return self.read_synthetic_text(binding)
@@ -1802,6 +1830,20 @@ class AccessibleUI:
         toggle = self.id_target('parent-screen-limit-toggle', root=root, sensitive=True)
         allowance = self.id_target('parent-daily-limit-selector', root=root)
         labels = self.read_label(allowance, 'allowance', maximum=80)
+        if labels == ['Custom value']:
+            # The selector names the mode; the identified editor exposes the
+            # numeric value. Keep settings snapshots value-bearing so changing
+            # one custom amount to another cannot compare equal.
+            editor = self.id_target('parent-custom-daily-limit', root=root)
+            require(editor.get_role_name() != 'password text', 'ui:masked-text')
+            text = editor.get_text_iface()
+            count = self.api.Text.get_character_count(text) if text is not None else -1
+            require(1 <= count <= 4, 'ui:allowance-value')
+            value = self.api.Text.get_text(text, 0, count)
+            import re
+            require(type(value) is str and re.fullmatch(r'[0-9]{1,4}', value)
+                    and int(value) <= 1439, 'ui:allowance-value')
+            labels = [value + ' minutes']
         if child in (EXISTING_CHILD, NEW_CHILD):
             self.reveal_id('parent-time-status', root=root)
         return {'child': CHILD_IDENTITIES[child],
@@ -1945,6 +1987,66 @@ class AccessibleUI:
             return value if value == expected else False
 
         return self.wait(saved, 'parent-save', prompt_in_predicate=True)
+
+    def allowance_entry(self, child):
+        require(child in CHILD_IDENTITIES, 'ui:allowance-binding')
+        root = self.parent()
+        picker = self.id_target('parent-child-selector', root=root, sensitive=True)
+        require(self.child_id_control(child, 'parent-child-selected-', root=picker,
+                                      showing=True) is not None, 'ui:wrong-child')
+        self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
+
+    def custom_allowance(self, child, minutes, *, action):
+        """Ordinary custom editor; save and reopened public readback are separate."""
+        require(type(minutes) is int and minutes in (1, 2, 3)
+                and action in ('open', 'saved', 'reopen'),
+                'ui:allowance-binding')
+        self.allowance_entry(child)
+        if action == 'open':
+            editor = self.snapshot_owned_target('parent-custom-daily-limit', showing=False)
+            if editor is not None and self.has_state(editor, self.api.StateType.VISIBLE):
+                # The previous reopen may already have returned this editor.
+                # Do not disturb its focus just to reopen the same picker:
+                # focus leave saves asynchronously and disables that popup.
+                self.text_recipient('parent-custom-daily-limit')
+                return {'minutes': minutes, 'action': action}
+        if action in ('open', 'reopen'):
+            self.parent_save_snapshot(child, True)
+            self.activate_id('parent-daily-limit-selector')
+            choice = self.id_target('parent-daily-limit-custom', sensitive=True)
+            if action == 'reopen':
+                require(choice.get_description() == 'Selected daily allowance: Custom amount',
+                        'ui:allowance-selection')
+            self.activate_id('parent-daily-limit-custom')
+            self.wait(lambda: self.absent_id('parent-daily-limit-choices',
+                                            within='parent-window'), 'allowance-picker-close')
+            self.text_recipient('parent-custom-daily-limit')
+        if action in ('saved', 'reopen'):
+            if action == 'saved' and minutes == 1:
+                # No navigation/input before this pause. Saving disables the
+                # editor and may clear focus, so focus retention is not a result.
+                started = time.monotonic()
+                self.wait(lambda: time.monotonic() - started >= 0.5, 'custom-pause')
+            if action == 'saved' and minutes == 3:
+                require(not self.has_state(self.text_recipient('parent-custom-daily-limit'),
+                                           self.api.StateType.FOCUSED), 'ui:custom-focus-leave')
+            self.parent_save_snapshot(child, True)
+            self.read_synthetic_text('daily-' + str(minutes))
+        return {'minutes': minutes, 'action': action}
+
+    def custom_allowance_operation(self, operation):
+        require(operation in CUSTOM_ALLOWANCE_OPERATIONS, 'ui:allowance-operation')
+        minutes, action = CUSTOM_ALLOWANCE_OPERATIONS[operation]
+        if action in ('wrong-child', 'disabled'):
+            child = EXISTING_CHILD if action == 'wrong-child' else CHILD
+            expected = 'ui:wrong-child' if action == 'wrong-child' else 'ui:unusable-target'
+            try:
+                self.custom_allowance(child, minutes, action='open')
+            except UiError as error:
+                require(str(error) == expected, 'ui:allowance-refusal')
+                return {'refusal': action}
+            raise UiError('ui:allowance-refusal-missing')
+        return self.custom_allowance(CHILD, minutes, action=action)
 
     def allowance_preset(self, child, minutes, *, action):
         """PARENT05: saved preset readback; reopen returns the picker open."""
@@ -2090,6 +2192,9 @@ class AccessibleUI:
         import re
         labels = sorted({node.get_name() for node in self.nodes(root, strict=True)
                          if node.get_role_name() == 'label' and self.showing(node)})
+        if labels == ['Custom value']:
+            require(len(labels[0]) <= maximum, 'ui:text-bound')
+            return labels
         require(1 <= len(labels) <= 2 and all(len(text) <= maximum and re.fullmatch(
             r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', text) for text in labels),
             'ui:allowance-label')
@@ -4281,6 +4386,8 @@ class AccessibleUI:
             self.open_about(version)
         elif operation in ALLOWANCE_OPERATIONS:
             result['allowance'] = self.allowance_operation(operation)
+        elif operation in CUSTOM_ALLOWANCE_OPERATIONS:
+            result['custom_allowance'] = self.custom_allowance_operation(operation)
         elif operation in TEXT_OPERATIONS or operation in ('text-wrong-entry', 'text-disabled'):
             text = self.text_operation(operation)
             if text is not None:

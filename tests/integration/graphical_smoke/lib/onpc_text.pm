@@ -12,12 +12,13 @@ my %values = (
     'body-second' => 'Synthetic feedback replacement', 'body-clear' => '',
     'reply-first' => 'first@example.invalid',
     'reply-second' => 'second@example.invalid', 'reply-clear' => '',
+    'daily-1' => '1', 'daily-2' => '2', 'daily-3' => '3',
 );
 
-# UI16: every keyboard input consumes a new focused-recipient proof. An
+# UI16: every keyboard batch consumes a new focused-recipient proof. An
 # exception stops this composite; no input retry or repair is permitted.
 sub replace_text {
-    onpc_progress::operation('Replacing one declared synthetic feedback value');
+    onpc_progress::operation('Replacing one declared nonsecret field value');
     my ($journey, $binding) = @_;
     die 'text:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && defined($binding) && exists($values{$binding});
@@ -34,7 +35,12 @@ sub replace_text {
     $stage = "text-$binding-selected";
     $journey->consume_observation($stage, $journey->seen($stage));
     if (length($values{$binding})) {
-        testapi::type_string($values{$binding}, max_interval => 20);
+        # A declared custom commit is part of this single bounded keyboard
+        # batch. An intervening controller round trip would let debounce save
+        # and disable the editor before Return/Tab can reach it. os-autoinst
+        # maps newline and tab to ordinary Return and Tab key events.
+        my $suffix = $binding eq 'daily-2' ? "\n" : $binding eq 'daily-3' ? "\t" : '';
+        testapi::type_string($values{$binding} . $suffix, max_interval => 20);
     } else {
         testapi::send_key('backspace');
     }

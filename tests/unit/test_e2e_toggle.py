@@ -185,3 +185,70 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, error => "$@"});
         assert result['stages'] == expected
         assert bool(result['ok']) == (not refused), result['error']
         assert all(stage in PLAN.screen_tags for stage in expected)
+
+
+def test_custom_allowance_selector_and_prerequisites(monkeypatch, tmp_path):
+    import check_e2e_allowance as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import AllowanceQualification
+    from allowance import PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['allowance'] is True
+    with pytest.raises(CommandError, match='allowance-prerequisites'):
+        smoke.main(allowance=True)
+    with pytest.raises(CommandError, match='allowance-prerequisites'):
+        smoke.main(assets=tmp_path, provision_credentials=True,
+                   allowance=True, allowance_presets=True)
+    assert AllowanceQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is PLAN
+
+
+def test_custom_worker_composes_all_routes_and_stops_before_refused_input(monkeypatch):
+    from allowance import PLAN
+    script = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; $INC{'onpc_gdm.pm'} = 1; $INC{'onpc_parent.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, ['key', @_]; }
+sub type_string { push @main::events, ['text', @_]; }
+sub console { bless {}, 'Console' }
+sub power { }
+sub check_shutdown { 1 }
+package Console;
+sub disable { }
+package onpc_gdm;
+sub reattach_functional { }
+package onpc_parent;
+sub open_for_child { return $_[0]->seen('parent-selected'); }
+package main;
+require onpc_allowance;
+my $exchange = sub {
+    push @events, ['stage', $_[0]];
+    die 'fixture:refused' if $_[0] eq $ENV{ONPC_TEST_REFUSE};
+    return {observed => $_[0]};
+};
+my $ok = eval { onpc_allowance::run($exchange); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
+'''
+    stages = list(PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    for refused in ('', 'text-daily-2-selected', 'text-daily-3-selected'):
+        monkeypatch.setenv('ONPC_TEST_REFUSE', refused)
+        result = json.loads(run_perl(script).stdout)
+        expected = stages[:stages.index(refused) + 1] if refused else stages
+        assert [event[1] for event in result['events'] if event[0] == 'stage'] == expected
+        assert bool(result['ok']) == (not refused), result['error']
+        if refused:
+            assert result['events'][-1] == ['stage', refused]
+        else:
+            for value, suffix in ((1, ''), (2, '\n'), (3, '\t')):
+                index = result['events'].index(['stage', f'text-daily-{value}-selected'])
+                assert result['events'][index + 1] == [
+                    'text', str(value) + suffix, 'max_interval', 20]
+                assert result['events'][index + 2] == ['stage', f'text-daily-{value}-read']

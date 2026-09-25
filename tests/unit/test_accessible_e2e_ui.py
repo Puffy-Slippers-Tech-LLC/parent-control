@@ -440,6 +440,94 @@ def test_allowance_refuses_wrong_child_and_disabled_before_input(disabled):
     ui.activate_id.assert_not_called()
 
 
+@pytest.mark.parametrize('value', ['1', '2', '3'])
+def test_settings_reads_custom_editor_value_through_controller(value):
+    ui, root, _picker, _toggle, allowance = parent_save_ui()
+    allowance.children = [Node('Custom value', 'label')]
+    entry = Node(identity='parent-custom-daily-limit', role='text')
+    entry.get_text_iface = lambda: entry
+    root.children.append(entry)
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value),
+                                 get_text=Mock(return_value=value))
+    settings = ui.settings()
+    assert settings == {'child': 'fixture-child', 'limit_enabled': True,
+                        'allowance': [value + ' minutes']}
+    result = {'operation': 'parent-selected', 'outcome': 'passed',
+              'interface': 'AT-SPI', 'settings': settings}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    assert UiObservations(transport).observe('parent-selected')['settings'] == settings
+    ui.api.Text.get_text.return_value = 'x' * len(value)
+    with pytest.raises(UiError, match='ui:allowance-value'):
+        ui.settings()
+
+
+@pytest.mark.parametrize('value', [1, 2, 3])
+def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch):
+    ui, root, *_ = parent_save_ui()
+    root.states.add('active')
+    entry = Node(identity='parent-custom-daily-limit', role='text',
+                 states=('showing', 'visible', 'sensitive', 'editable', 'focused'))
+    entry.get_text_iface = lambda: entry
+    root.children.append(entry)
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 1,
+                                 get_text=Mock(return_value=str(value)))
+    ui.activate_id = Mock()
+    assert ui.custom_allowance(accessible_ui.CHILD, value, action='open') == {
+        'minutes': value, 'action': 'open'}
+    ui.activate_id.assert_not_called()
+    # The pause sends no input; the Tab route must leave the editor.
+    if value == 1:
+        from itertools import count
+        clock = count()
+        monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: next(clock))
+    if value == 3:
+        entry.states.remove('focused')
+    assert ui.custom_allowance(accessible_ui.CHILD, value, action='saved') == {
+        'minutes': value, 'action': 'saved'}
+    ui.api.Text.get_text.return_value = '9'
+    with pytest.raises(UiError, match='ui:text-value'):
+        ui.custom_allowance(accessible_ui.CHILD, value, action='saved')
+
+
+@pytest.mark.parametrize('disabled', [False, True])
+def test_custom_allowance_wrong_entry_refuses_before_any_input(disabled):
+    ui, *_ = parent_save_ui(enabled=not disabled)
+    ui.activate_id = Mock()
+    action = 'disabled' if disabled else 'wrong-child'
+    assert ui.custom_allowance_operation('custom-' + action) == {'refusal': action}
+    ui.activate_id.assert_not_called()
+
+
+def test_custom_text_read_waits_for_save_before_reading_disabled_editor():
+    ui, root, *_ = parent_save_ui()
+    root.states.add('active')
+    entry = Node(identity='parent-custom-daily-limit', role='text',
+                 states=('showing', 'visible', 'editable'))
+    entry.get_text_iface = lambda: entry
+    root.children.append(entry)
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 1,
+                                 get_text=Mock(return_value='2'))
+    ui.parent_save_snapshot = Mock(side_effect=lambda *_: entry.states.add('sensitive'))
+    assert ui.text_operation('text-daily-2-read') == {
+        'binding': 'daily-2', 'exact': True, 'length': 1}
+    ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
+
+
+@pytest.mark.parametrize('operation', accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS)
+def test_custom_allowance_controller_preserves_exact_action_and_value(operation):
+    value, action = accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS[operation]
+    projection = ({'refusal': action} if action in ('wrong-child', 'disabled')
+                  else {'minutes': value, 'action': action})
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'custom_allowance': projection}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    assert UiObservations(transport).observe(operation)['custom_allowance'] == projection
+    result['custom_allowance'] = {'minutes': 9, 'action': action}
+    transport.call.return_value = json.dumps(result).encode()
+    with pytest.raises(EvidenceError, match='ui:custom-allowance-response'):
+        UiObservations(transport).observe(operation)
+
+
 def test_allowance_selection_waits_for_popup_labels_to_disappear(monkeypatch):
     ui, _root, _picker, _toggle, allowance = parent_save_ui()
     label = Node('0 minutes', 'label')

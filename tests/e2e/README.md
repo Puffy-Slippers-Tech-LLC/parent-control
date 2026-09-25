@@ -409,8 +409,19 @@ tools/run-tests e2e --id '5'
 ```
 
 Suite preparation reuses the powered-off `onpc-v[version]` snapshot only when its
-recorded package digest, baseline identity and installation recipe match. Missing,
-legacy or changed snapshots are installed, rebooted, verified and captured once.
+recorded package-content fingerprint, baseline identity and installation recipe
+match. The fingerprint covers both data and control archives: file bytes, paths,
+types, permissions, ownership, links, package metadata and maintainer scripts.
+Archive timestamps, compression and member ordering are ignored. Rebuilding
+identical contents with `make build` or committing already-built changes therefore
+does not require reinstalling. Exact `.deb` SHA-256 checks still protect artifact
+provenance and transfers; they are separate from installed-content equivalence.
+Legacy snapshot metadata is upgraded without installation when its exact archive,
+baseline and recipe hashes match. Otherwise a missing fingerprint cannot prove
+equivalence and requires one refresh. Missing or changed snapshots are installed,
+verified and captured once; their next boot activates the package.
+`--overwrite true` still forces replacement. Refresh messages identify the changed
+input. Content comparison reads the host package only and needs no guest boot.
 Test code, helper logging and transferred fixtures do not trigger snapshot refresh;
 their independently verified payload is refreshed before each attempt. Local
 Python helper dependencies are discovered automatically from declared entry points

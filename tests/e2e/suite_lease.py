@@ -59,23 +59,34 @@ class SuiteLease(system.Lease):
             # Publish freshness only after libvirt acknowledges snapshot creation.
             # Interrupted creation leaves an unmarked snapshot that cannot be reused.
             self.guard(off=True)
-            root = ET.fromstring(self.installed_xml)
-            system.require(root.findtext('name') == self.installed_name,
-                           'suite:snapshot-name-changed')
-            description = root.find('description')
-            if description is None:
-                description = ET.SubElement(root, 'description')
-            description.text = self.installed_inputs
-            with self.snapshot_status('Recording inputs for', self.installed_name):
-                snap = self.source.domain.snapshotCreateXML(
-                    ET.tostring(root, encoding='unicode'),
-                    self.source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE)
-            self.installed_xml = snap.getXMLDesc(0)
-            system.require(ET.fromstring(self.installed_xml).findtext('description') ==
-                           self.installed_inputs, 'suite:snapshot-inputs-not-recorded')
+            self.installed_xml = self.record_installed_inputs(
+                self.installed_name, self.installed_xml, self.installed_inputs)
         self.source.connection.defineXML(self.test_xml)
         self.view.run = self.state['run']
         self.save('isolated')
+
+    def record_installed_inputs(self, name, xml, inputs):
+        """Publish only metadata, also allowing exact-archive legacy migration."""
+        self.capture.vm_ownership.check_owner()
+        self.capture.revalidate()
+        root = ET.fromstring(xml)
+        system.require(root.findtext('name') == name
+                       and name != self.capture.state['proof']['name'],
+                       'suite:snapshot-name-changed')
+        current = self.source.domain.snapshotLookupByName(name, 0)
+        system.require(current.getXMLDesc(0) == xml, 'suite:snapshot-metadata-changed')
+        description = root.find('description')
+        if description is None:
+            description = ET.SubElement(root, 'description')
+        description.text = inputs
+        with self.snapshot_status('Recording inputs for', name):
+            snap = self.source.domain.snapshotCreateXML(
+                ET.tostring(root, encoding='unicode'),
+                self.source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE)
+        result = snap.getXMLDesc(0)
+        system.require(ET.fromstring(result).findtext('description') == inputs,
+                       'suite:snapshot-inputs-not-recorded')
+        return result
 
     @property
     def attempt_released(self):

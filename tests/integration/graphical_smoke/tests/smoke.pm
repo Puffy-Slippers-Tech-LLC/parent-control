@@ -30,6 +30,7 @@ use onpc_disabled_child ();
 use onpc_request_exit ();
 use onpc_parent_toggle ();
 use onpc_allowance_presets ();
+use onpc_allowance ();
 use onpc_app_rows ();
 use onpc_feedback_read ();
 use onpc_text ();
@@ -265,6 +266,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_app_rows::run(\&exchange);
+        return;
+    }
+    if ($ready->{allowance}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_allowance::run(\&exchange);
         return;
     }
     if ($ready->{allowance_presets}) {

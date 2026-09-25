@@ -311,7 +311,8 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_kiosk_no_child'], ['check_e2e_kiosk_no_child.py'],
             ['check_e2e_kiosk_fixtures'], ['check_e2e_kiosk_fixtures.py'],
             ['check_e2e_parent_save'], ['check_e2e_parent_save.py'],
-            ['check_e2e_allowance_presets'], ['check_e2e_allowance_presets.py']):
+            ['check_e2e_allowance_presets'], ['check_e2e_allowance_presets.py'],
+            ['check_e2e_allowance'], ['check_e2e_allowance.py']):
         return None
     from test_storage import named_input
     output = str(named_input())

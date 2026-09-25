@@ -19,17 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **029 — [Open feedback and read synthetic drafts](E2E-Tasks/029-feedback-read.md)**.
+Next task: **009 — [Replace a nonsecret field value](E2E-Tasks/009-text.md)**.
 
-Remaining: implement and qualify FEED01 entry and FEED03 bounded synthetic
-feedback observations in installed Parent, including independent dialog entry,
-wrong-entry refusal and owned cleanup. Keep Send untouched; complete feedback
-scenarios remain separate tasks.
-
-Blocker: app-snapshot preparation is stopped by two `write-e2e` cleanup
-prerequisite failures in run `20260925T002355Z-61aea90d` (duration rendering
-expects `N minutes`, receives `0m`); resume when those unrelated launcher
-expectations and implementation are reconciled and the prerequisites pass.
+Remaining: implement and qualify UI16 in installed Parent feedback: replace a
+declared synthetic value, replace it again and clear it, with exact independent
+readback and wrong/disabled-target refusal. Reuse the qualified FEED01 entry and
+FEED03 initial-empty projection; add the bounded nonempty projections needed by
+this task. Keep Send untouched; complete feedback scenarios remain separate tasks.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

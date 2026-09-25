@@ -187,6 +187,81 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, error => "$@"});
         assert all(stage in PLAN.screen_tags for stage in expected)
 
 
+def test_time_explanation_selector_and_prerequisites(monkeypatch, tmp_path):
+    import check_e2e_read_an_expanded_time_explanation as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import TimeExplanationQualification
+    from time_explanation import PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['time_explanation'] is True
+    with pytest.raises(CommandError, match='time-explanation-prerequisites'):
+        smoke.main(time_explanation=True)
+    with pytest.raises(CommandError, match='time-explanation-prerequisites'):
+        smoke.main(assets=tmp_path, provision_credentials=True,
+                   time_explanation=True, allowance=True)
+    assert TimeExplanationQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is PLAN
+
+
+def test_time_explanation_checks_all_balances_and_monotonic_order():
+    from time_explanation import TimeExplanationJourney
+    from private_artifacts import EvidenceError
+    journey = TimeExplanationJourney(SimpleNamespace(), Mock())
+    value = {'daily': {'seconds': 900}, 'one_time': {'seconds': 0},
+             'total': {'seconds': 900}, 'observed_monotonic_ns': 10}
+    observation = {'ui': {'time_explanation': value}}
+    journey.check_settings('time-explanation-read', observation)
+    with pytest.raises(EvidenceError, match='observation-order'):
+        journey.check_settings('time-explanation-reread', observation)
+    value['observed_monotonic_ns'] = 11
+    value['one_time']['seconds'] = 1
+    with pytest.raises(EvidenceError, match='ordinary-balances'):
+        journey.check_settings('time-explanation-reread', observation)
+    value['one_time']['seconds'] = 0
+    journey.check_settings('time-explanation-reread', observation)
+
+
+def test_time_explanation_worker_stops_at_each_refused_boundary(monkeypatch):
+    from time_explanation import PLAN, STAGES
+    script = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; $INC{'onpc_gdm.pm'} = 1; $INC{'onpc_parent.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { die 'unexpected input'; }
+sub console { bless {}, 'Console' }
+sub power { }
+sub check_shutdown { 1 }
+package Console;
+sub disable { }
+package onpc_gdm;
+sub reattach_functional { }
+package onpc_parent;
+sub open_for_child { return $_[0]->seen('parent-selected'); }
+package main;
+require onpc_time_explanation;
+my $exchange = sub {
+    push @events, $_[0];
+    die 'fixture:refused' if $_[0] eq $ENV{ONPC_TEST_REFUSE};
+    return {observed => $_[0]};
+};
+my $ok = eval { onpc_time_explanation::run($exchange); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
+'''
+    stages = list(PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    for refused in ('', *STAGES):
+        monkeypatch.setenv('ONPC_TEST_REFUSE', refused)
+        result = json.loads(run_perl(script).stdout)
+        assert result['events'] == (stages[:stages.index(refused) + 1] if refused else stages)
+        assert bool(result['ok']) == (not refused), result['error']
+
+
 def test_custom_allowance_selector_and_prerequisites(monkeypatch, tmp_path):
     import check_e2e_allowance as check
     import check_graphical_smoke as smoke

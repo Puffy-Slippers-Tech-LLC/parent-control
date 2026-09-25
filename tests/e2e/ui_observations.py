@@ -22,6 +22,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Qualifying read-only expanded remaining-time balances'
+       for operation in accessible_ui.TIME_EXPLANATION_OPERATIONS},
     **{operation: 'Qualifying custom daily allowance commits and saved readback'
        for operation in accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS},
     **{operation: 'Qualifying daily allowance presets and saved readback'
@@ -548,6 +550,32 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'allowance'}
                     and result['allowance'] == projection, 'ui:allowance-response')
             expected['allowance'] = projection
+        if operation in accessible_ui.TIME_EXPLANATION_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'time_explanation'},
+                    'ui:time-response')
+            value = result['time_explanation']
+            if operation.endswith(('read', 'reread')):
+                require(type(value) is dict and set(value) == {
+                    'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns'}
+                    and value['child'] == 'fixture-child' and value['expanded'] is True
+                    and type(value['observed_monotonic_ns']) is int
+                    and 0 < value['observed_monotonic_ns'] < 10**20, 'ui:time-response')
+                for key in ('daily', 'one_time', 'total'):
+                    item = value[key]
+                    require(type(item) is dict and set(item) == {'text', 'seconds', 'precision_seconds'},
+                            'ui:time-response')
+                    try:
+                        parsed = accessible_ui.duration_projection(item['text'])
+                    except accessible_ui.UiError:
+                        require(False, 'ui:time-response')
+                    require(type(item['seconds']) is int and type(item['precision_seconds']) is int
+                            and item == parsed, 'ui:time-response')
+            else:
+                projection = ({'expanded': operation.endswith('-expand')}
+                              if operation.endswith(('-expand', '-collapse')) else
+                              {'refusal': operation.removeprefix('time-explanation-')})
+                require(value == projection, 'ui:time-response')
+            expected['time_explanation'] = value
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'save'}
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],

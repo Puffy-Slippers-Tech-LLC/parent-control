@@ -55,6 +55,8 @@ GROUPS = (
 # builds its payload and Flatpak installation below its private pytest root;
 # both use the worker's private compositor, accessibility bus and runtime.
 # Keep pairing identities separate even when buckets have the same reservation.
+# Feedback replacement uses the adapter bucket's private preview, compositor and
+# accessibility bus; keyboard input and app cleanup stay inside that fixture.
 # A qualified build companion must never implicitly authorize other UI fixtures.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')

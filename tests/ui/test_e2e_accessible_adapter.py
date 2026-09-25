@@ -180,6 +180,39 @@ def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
         raise
 
 
+def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+    from tests.support.keyboard import key_combo, press_key, type_text
+
+    launch_ui('parent_component_preview', wait_for_application=False)
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.PARENT_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    ui.run('feedback-open', '')
+    for binding, (identity, value) in module.TEXT_VALUES.items():
+        if binding == 'reply-first':
+            ui.run('feedback-close', '')
+            ui.run('feedback-reopen', '')
+        if binding.startswith('reply-'):
+            ui.run(f'text-{binding}-anchor', '')
+            key_combo(ui, 'feedback-editor-input', '<Control>Tab',
+                      state=Atspi.StateType.FOCUSED)
+        ui.run(f'text-{binding}-focus', '')
+        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
+        ui.run(f'text-{binding}-selected', '')
+        if value:
+            type_text(ui, identity, value)
+        else:
+            press_key(ui, identity, 'BackSpace', state=Atspi.StateType.FOCUSED)
+        assert ui.run(f'text-{binding}-read', '')['text'] == {
+            'binding': binding, 'exact': True, 'length': len(value)}
+    ui.run('feedback-finished', '')
+
+
 @pytest.mark.parametrize('dismissal', ['close', 'window-manager'])
 def test_standard_user_startup_denial_has_specific_public_result(launch_ui, automation,
                                                                wait_for_accessible_state, dismissal):

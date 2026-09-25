@@ -282,7 +282,8 @@ Completing on session 5 permits the next task to start with its own cap.
 to `1`. Both limits accept positive integers for a new run; the launcher stops
 when either limit is reached. A task counts only after acceptance, queue
 close-out and successful staging. An empty active
-queue or a blocker still stops the workflow. With a live run, an invocation without
+queue stops the workflow. A task blocker pauses for your answer as described below.
+With a live run, an invocation without
 parameters attaches without changing limits. Explicit `--tasks` and `--sessions`
 values are signed adjustments to the existing maxima: `--tasks 2` changes a
 maximum of 1 to 3; `--tasks -1` changes 2 to 1. Omitted limits stay unchanged,
@@ -318,8 +319,29 @@ Staged code is the baseline; agents do not analyze staged diffs.
 Each session is a new `exec --ephemeral` process with history and memories
 disabled. Only the latest standalone handoff crosses sessions. Existing CLI
 authentication, sandbox and command grants apply; missing grants or unresolved
-behavior decisions stop with a blocker. No live Codex or VM work is performed
+behavior decisions pause with a blocker. No live Codex or VM work is performed
 by the launcher's regression tests.
+
+When a task is blocked, the launcher shows one concise, scenario-oriented
+explanation: what is finished, what prevents progress and how to unblock it.
+It asks one concrete question with two or three suggestions, the recommended
+action first, and a gray **Other** placeholder for your instructions. Choose a
+number or use Up/Down, then press Enter to submit. Selecting Other lets you type
+your own instructions; Backspace edits and Ctrl+U clears them. Page Up/Page Down
+still scroll the explanation. Blank input never chooses an answer, and pasting
+multiple lines does not submit automatically.
+
+The workflow waits indefinitely without starting another model session or
+consuming session allowance. Closing the terminal leaves it paused; rerun
+`tools/write-e2e` in an interactive terminal to answer. Piped output remains an
+observer and never invents an answer. With multiple attached terminals, the first
+submitted answer wins. Your answer continues the same task through a fresh Astra
+High recovery session with the saved handoff and your instructions. It does not
+count as passing the blocked prerequisite. If a session limit was exhausted at
+the blocker, answering grants one recovery session beyond that limit; automatic
+work remains subject to the limits afterward. `--stop` saves the pending question
+and exits cleanly; Ctrl+C retains its cancellation behavior. Restarting a paused
+task asks for its answer before doing more work.
 
 The shared [session renderer](../tools/launcher_render.py) applies these display
 rules to every supervised agent; launchers do not format agent events themselves.
@@ -390,10 +412,12 @@ already present before the task and generated `output/` artifacts are excluded.
 The launcher saves the full summary and next-session prompt in `handoff.txt`
 without printing them. At an incomplete session boundary or safe stop, it still prints and saves
 the handoff. A new invocation after that boundary continues the latest
-handoff with fresh session and task budgets. An interrupted or blocked checkpoint
+handoff with fresh session and task budgets. An interrupted checkpoint
 starts an Astra High recovery session that rechecks evidence and cleanup,
 resolves authorized remaining host work, then hands off before live testing.
-Unresolved blockers stop again; an interrupted session that changed the queue
+Blocked checkpoints retain their pending question and pause again until answered.
+The full engineering handoff remains in `handoff.txt`, without being repeated in
+the blocked display. An interrupted session that changed the queue
 requires inspecting its saved handoff. The launcher never assumes an interrupted
 live test passed. Lifecycle qualification lives in
 [test_write_e2e_cleanup_safety.py](unit/test_write_e2e_cleanup_safety.py).

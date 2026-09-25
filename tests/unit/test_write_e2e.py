@@ -107,7 +107,7 @@ def test_task_restart_inherits_only_its_own_consumed_sessions(tmp_path, monkeypa
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
     restarted = workflow.initial_state(tmp_path, tmp_path)
     expected = dict(state, total_sessions=2)
-    if phase == 'blocked' or in_flight:
+    if in_flight:
         expected.update(phase='recover', in_flight=False, recovery_run=str(previous))
     assert restarted == expected
     prompt = workflow.session_prompt(restarted)
@@ -115,6 +115,64 @@ def test_task_restart_inherits_only_its_own_consumed_sessions(tmp_path, monkeypa
         assert 'current source/evidence' in prompt and workflow.PLAN in prompt
         assert 'Do not run live VM tests' in prompt
     assert workflow.queue_state(tmp_path)[0] == '001'
+
+
+@pytest.mark.parametrize('blocker', [None, {}, {'explanation': 'x', 'question': 'q', 'options': ['a']},
+                                    {'explanation': 'x', 'question': 'q', 'options': ['a', 'a']},
+                                    {'explanation': 'x' * 2001, 'question': 'q', 'options': ['a', 'b']}])
+def test_blocked_result_requires_a_bounded_actionable_question(tmp_path, blocker):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    with pytest.raises(ValueError, match='concise explanation'):
+        workflow.accept_result(tmp_path, workflow.fresh_state('001'), reply('blocked', blocker=blocker), before)
+
+
+def test_user_answer_is_given_to_recovery_without_losing_handoff():
+    state = dict(workflow.fresh_state('001'), phase='recover', handoff='Exact retained evidence.',
+                 user_answer={'question': 'Which duration?', 'answer': 'Keep compact durations.'})
+    prompt = workflow.session_prompt(state)
+    assert 'Keep compact durations.' in prompt
+    assert 'Exact retained evidence.' in prompt
+    assert 'an answer alone is not evidence that it passed' in prompt
+
+
+def test_only_first_current_question_answer_is_accepted(tmp_path):
+    from launcher_question import submit
+    question = dict(reply('blocked')['blocker'], id='current', answer=None)
+    workflow.launcher.atomic(tmp_path / 'question.json', question)
+    assert not submit(tmp_path, 'stale', 0)
+    with pytest.raises(ValueError):
+        submit(tmp_path, 'current', 3, ' ')
+    with pytest.raises(ValueError):
+        submit(tmp_path, 'current', -1)
+    assert submit(tmp_path, 'current', 3, 'Keep the current format; review its checks.')
+    assert not submit(tmp_path, 'current', 1)
+    saved = json.loads((tmp_path / 'question.json').read_text())
+    assert saved['answer'] == 'Keep the current format; review its checks.'
+
+
+def test_simultaneous_observers_accept_exactly_one_answer(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from launcher_question import submit
+    workflow.launcher.atomic(tmp_path / 'question.json', dict(reply('blocked')['blocker'], id='q', answer=None))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        answers = list(pool.map(lambda option: submit(tmp_path, 'q', option), [0, 1]))
+    assert sorted(answers) == [False, True]
+
+
+def test_restart_preserves_an_answer_before_owner_checkpoint(tmp_path, monkeypatch):
+    prepare(tmp_path)
+    previous = tmp_path / 'previous'
+    previous.mkdir()
+    state = dict(workflow.fresh_state('001'), phase='blocked', task_sessions=5, blocker_id='q')
+    workflow.launcher.atomic(previous / 'checkpoint.json', state)
+    workflow.launcher.atomic(previous / 'question.json', {
+        'id': 'q', 'question': 'Which duration?', 'answer': 'Keep compact durations.'})
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    resumed = workflow.initial_state(tmp_path, tmp_path)
+    assert resumed['phase'] == 'recover'
+    assert resumed['user_answer']['answer'] == 'Keep compact durations.'
+    assert not workflow.task_session_limit_reached(resumed)
 
 
 @pytest.mark.parametrize('change', [

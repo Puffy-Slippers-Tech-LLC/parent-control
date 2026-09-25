@@ -19,13 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **009 — [Replace a nonsecret field value](E2E-Tasks/009-text.md)**.
+Next task: **040b — [Select and read ordinary daily presets](E2E-Tasks/040b-allowance-presets.md)**.
 
-Remaining: implement and qualify UI16 in installed Parent feedback: replace a
-declared synthetic value, replace it again and clear it, with exact independent
-readback and wrong/disabled-target refusal. Reuse the qualified FEED01 entry and
-FEED03 initial-empty projection; add the bounded nonempty projections needed by
-this task. Keep Send untouched; complete feedback scenarios remain separate tasks.
+Remaining: implement and qualify PARENT05 preset 0/15 selection and saved
+readback. Enable limits, save each preset, independently observe each save and
+reopen the picker to read its selected value. Require independent valid entry,
+wrong-child and disabled-control refusal, collection and owned cleanup through
+the planned `tools/run-tests integration check_e2e_allowance_presets` selector.
+Implement and register that selector before invocation. Custom input remains
+in task 040.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

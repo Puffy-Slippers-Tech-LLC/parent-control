@@ -31,6 +31,7 @@ use onpc_request_exit ();
 use onpc_parent_toggle ();
 use onpc_app_rows ();
 use onpc_feedback_read ();
+use onpc_text ();
 use onpc_parent_discovery ();
 use onpc_journey ();
 use onpc_flow00 ();
@@ -263,6 +264,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_app_rows::run(\&exchange);
+        return;
+    }
+    if ($ready->{text_qualification}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_text::run(\&exchange);
         return;
     }
     if ($ready->{feedback_read}) {

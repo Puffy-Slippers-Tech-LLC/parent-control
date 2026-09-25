@@ -377,7 +377,36 @@ def test_shared_request_preview_smoke(
 ))
 def test_parent_remaining_time_explanation(
         launch_ui, automation, wait_for_accessible_state, scenario, expected):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, UiError
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario=scenario)
     wait_for_accessible_state(lambda: ui.text("parent-time-explanation") == expected,
                               "remaining-time explanation is public")
+    reader = AccessibleUI(
+        ui.api, timeout=10, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False),
+    )
+    ui.activate("parent-time-calculation-collapse")
+    wait_for_accessible_state(lambda: not ui.showing("parent-time-explanation"),
+                              "collapsed explanation is not showing")
+    with pytest.raises(UiError, match='ui:time-collapsed'):
+        reader.time_explanation(CHILD)
+    ui.activate("parent-time-status", action_name="row.activate")
+    wait_for_accessible_state(lambda: ui.showing("parent-time-explanation"),
+                              "explicit expansion shows the explanation")
+    with pytest.raises(UiError, match='ui:wrong-child'):
+        reader.time_explanation(EXISTING_CHILD)
+    first = reader.time_explanation(CHILD)
+    second = reader.time_explanation(CHILD)
+    balances = {'normal': [2820, 900, 2820], 'grant-only': [0, 900, 900],
+                'exact-hours': [0, 7200, 7200], 'daily-exhausted': [0, 900, 900]}
+    for result in (first, second):
+        assert [result[key]['seconds'] for key in ('daily', 'one_time', 'total')] == balances[scenario]
+        assert result['expanded'] is True
+    assert second['observed_monotonic_ns'] > first['observed_monotonic_ns']
+    assert ui.text("parent-time-explanation") == expected

@@ -199,6 +199,81 @@ def parent_save_ui(*, enabled=True, controls_enabled=True, child_uid=1001):
     return ui_for(root), root, picker, toggle, allowance
 
 
+def time_explanation_ui():
+    ui, root, picker, _toggle, _allowance = parent_save_ui()
+    explanation = Node('Daily allowance remaining: 15m\nOne-time grant remaining: 0m\n'
+                       'Remaining time: 15m — the larger of the two amounts.', 'label',
+                       identity='parent-time-explanation')
+    collapse = Node(identity='parent-time-calculation-collapse')
+    section = Node(identity='parent-time-status', children=[explanation, collapse])
+    root.children.append(section)
+    section.parent = root
+    return ui, root, picker, section, explanation, collapse
+
+
+def test_time_explanation_reads_public_balances_twice_without_input(monkeypatch):
+    ui, root, _picker, _section, _explanation, _collapse = time_explanation_ui()
+    monkeypatch.setattr(accessible_ui.time, 'monotonic_ns', Mock(side_effect=[123, 456]))
+    values = [ui.time_explanation(accessible_ui.CHILD) for _ in range(2)]
+    assert [value['observed_monotonic_ns'] for value in values] == [123, 456]
+    for value in values:
+        assert value['child'] == 'fixture-child' and value['expanded'] is True
+        assert [value[key] for key in ('daily', 'one_time', 'total')] == [
+            {'text': text, 'seconds': seconds, 'precision_seconds': 1}
+            for text, seconds in [('15m', 900), ('0m', 0), ('15m', 900)]]
+    for node in ui.nodes(root, strict=True):
+        node.action.do_action.assert_not_called()
+        node.component.scroll_to.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['collapsed', 'wrong-child', 'duplicate', 'hidden', 'malformed'])
+def test_time_explanation_refuses_bad_entry_without_navigation(fault):
+    ui, root, picker, section, explanation, collapse = time_explanation_ui()
+    if fault == 'collapsed':
+        explanation.states.clear()
+        collapse.states.clear()
+    if fault == 'wrong-child':
+        picker.children[0].identity = 'parent-child-selected-1002'
+    if fault == 'duplicate':
+        section.children.append(Node(explanation.name, 'label', identity='parent-time-explanation'))
+    if fault == 'hidden':
+        section.states.clear()
+    if fault == 'malformed':
+        explanation.name = 'Loading…'
+    with pytest.raises(UiError):
+        ui.time_explanation(accessible_ui.CHILD)
+    for node in ui.nodes(root, strict=True):
+        node.action.do_action.assert_not_called()
+        node.component.scroll_to.assert_not_called()
+
+
+@pytest.mark.parametrize('text,seconds', [('0m', 0), ('0m 1s', 1), ('59m 59s', 3599),
+                                       ('2h', 7200), ('1h 17m 3s', 4623)])
+def test_time_duration_preserves_seconds_and_display_precision(text, seconds):
+    assert accessible_ui.duration_projection(text) == {
+        'text': text, 'seconds': seconds, 'precision_seconds': 1}
+
+
+@pytest.mark.parametrize('fault', [None, 'seconds', 'precision', 'clock', 'private-text', 'child'])
+def test_time_explanation_controller_decodes_and_validates_real_projection(fault):
+    ui, *_ = time_explanation_ui()
+    projection = ui.time_explanation(accessible_ui.CHILD)
+    if fault == 'seconds': projection['daily']['seconds'] = 42
+    if fault == 'precision': projection['daily']['precision_seconds'] = 60
+    if fault == 'clock': projection['observed_monotonic_ns'] = -1
+    if fault == 'private-text': projection['daily']['text'] = 'unreviewed private text'
+    if fault == 'child': projection['child'] = 'other-child'
+    result = {'operation': 'time-explanation-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+              'time_explanation': projection}
+    transport = Mock()
+    transport.call.return_value = json.dumps(result).encode()
+    if fault:
+        with pytest.raises(EvidenceError, match='ui:time-response'):
+            UiObservations(transport).observe('time-explanation-read')
+    else:
+        assert UiObservations(transport).observe('time-explanation-read') == result
+
+
 def test_owned_lookup_reads_each_subtree_once_and_reacquires_after_transition():
     ui, root, toggle = parent_toggle_ui()
     toggle.get_attributes = Mock(wraps=toggle.get_attributes)

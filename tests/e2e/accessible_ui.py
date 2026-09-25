@@ -99,6 +99,24 @@ ALLOWANCE_OPERATIONS = frozenset({
     'allowance-15-select', 'allowance-15-read', 'allowance-15-reopen',
 })
 OPERATIONS |= ALLOWANCE_OPERATIONS
+TIME_EXPLANATION_OPERATIONS = frozenset({
+    'time-explanation-collapse', 'time-explanation-collapsed',
+    'time-explanation-expand', 'time-explanation-wrong-child',
+    'time-explanation-read', 'time-explanation-reread',
+})
+OPERATIONS |= TIME_EXPLANATION_OPERATIONS
+
+
+def duration_projection(text):
+    """Registered compact public duration, at the formatter's second precision."""
+    require(type(text) is str and len(text) <= 32, 'ui:time-duration')
+    match = re.fullmatch(r'(?:(\d{1,6})h(?: ([1-5]?\d)m)?|([0-5]?\d)m)(?: ([1-5]?\d)s)?', text)
+    require(match is not None, 'ui:time-duration')
+    hours, minutes, only_minutes, seconds = (int(value or 0) for value in match.groups())
+    return {'text': text, 'seconds': hours * 3600 + (minutes + only_minutes) * 60 + seconds,
+            'precision_seconds': 1}
+
+
 CUSTOM_ALLOWANCE_OPERATIONS = {
     'custom-' + str(value) + '-' + action: (value, action)
     for value in (1, 2, 3)
@@ -1987,6 +2005,85 @@ class AccessibleUI:
             return value if value == expected else False
 
         return self.wait(saved, 'parent-save', prompt_in_predicate=True)
+
+    def time_explanation_entry(self, child):
+        require(child in CHILD_IDENTITIES, 'ui:child-binding')
+        root = self.parent()
+        picker = self.id_target('parent-child-selector', root=root)
+        require(self.child_id_control(child, 'parent-child-selected-', root=picker,
+                                      showing=True) is not None, 'ui:wrong-child')
+        return root
+
+    def time_explanation(self, child):
+        """PARENT20: one read-only showing explanation; never reveal or expand."""
+        require(child in CHILD_IDENTITIES, 'ui:child-binding')
+        edges, identities, facts = {}, {}, {}
+        nodes = list(self.nodes(strict=True, snapshot=edges, identities=identities, facts=facts))
+        observation = (nodes, edges, identities, facts)
+        root = self.snapshot_owned_target('parent-window', observation=observation,
+                                          check_prompt=True)
+        require(root is not None, 'ui:time-entry')
+        scoped = self.snapshot_scope(nodes, edges, root)
+        picker = self.snapshot_matches('parent-child-selector', scoped,
+                                       showing=True, show=self.showing)
+        require(picker is not None, 'ui:time-entry')
+        uid = (self.fixture_uids.get(child) if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        require(type(uid) is int and uid >= 1000, 'ui:fixture-child-uid')
+        selected = [node for node in self.snapshot_scope(nodes, edges, picker)
+                    if re.fullmatch(r'parent-child-selected-[0-9]+', identities[node])
+                    and self.showing(node)]
+        require(len(selected) == 1 and identities[selected[0]] ==
+                'parent-child-selected-' + str(uid), 'ui:wrong-child')
+        labels = [node.get_name() for node in self.snapshot_scope(nodes, edges, selected[0])
+                  if node.get_role_name() == 'label' and self.showing(node)]
+        require(labels == [child], 'ui:wrong-child')
+        section = self.snapshot_matches('parent-time-status', scoped,
+                                        showing=True, show=self.showing)
+        require(section is not None, 'ui:time-entry')
+        section_nodes = self.snapshot_scope(nodes, edges, section)
+        explanation = self.snapshot_matches('parent-time-explanation', section_nodes,
+                                             showing=True, show=self.showing)
+        collapse = self.snapshot_matches('parent-time-calculation-collapse', section_nodes,
+                                         showing=True, show=self.showing)
+        require(explanation is not None and collapse is not None, 'ui:time-collapsed')
+        require(explanation.get_role_name() == 'label', 'ui:time-label')
+        text = explanation.get_name()
+        require(type(text) is str and len(text) <= 256, 'ui:time-label')
+        match = re.fullmatch(
+            r'Daily allowance remaining: ([^\n]+)\nOne-time grant remaining: ([^\n]+)\n'
+            r'Remaining time: ([^\n]+) — the larger of the two amounts\.', text)
+        require(match is not None, 'ui:time-label')
+        return {'child': CHILD_IDENTITIES[child], 'expanded': True,
+                **{key: duration_projection(value) for key, value in
+                   zip(('daily', 'one_time', 'total'), match.groups())},
+                'observed_monotonic_ns': time.monotonic_ns()}
+
+    def time_explanation_operation(self, operation):
+        require(operation in TIME_EXPLANATION_OPERATIONS, 'ui:time-operation')
+        if operation in ('time-explanation-read', 'time-explanation-reread'):
+            return self.time_explanation(CHILD)
+        if operation.endswith(('wrong-child', 'collapsed')):
+            child = EXISTING_CHILD if operation.endswith('wrong-child') else CHILD
+            expected = 'ui:wrong-child' if child == EXISTING_CHILD else 'ui:time-collapsed'
+            try:
+                self.time_explanation(child)
+            except UiError as error:
+                require(str(error) == expected, 'ui:time-refusal')
+                return {'refusal': operation.removeprefix('time-explanation-')}
+            raise UiError('ui:time-refusal-missing')
+        # Explicit preparation is separate from the observer. No input in PARENT20.
+        self.time_explanation_entry(CHILD)
+        if operation == 'time-explanation-collapse':
+            self.activate_id('parent-time-calculation-collapse')
+            self.wait(lambda: self.find_id('parent-time-explanation', showing=True) is None,
+                      'time-collapsed')
+            return {'expanded': False}
+        require(self.find_id('parent-time-explanation', showing=True) is None,
+                'ui:time-already-expanded')
+        self.activate_id('parent-time-status', action_name='row.activate')
+        self.id_target('parent-time-explanation')
+        return {'expanded': True}
 
     def allowance_entry(self, child):
         require(child in CHILD_IDENTITIES, 'ui:allowance-binding')
@@ -4386,6 +4483,8 @@ class AccessibleUI:
             self.open_about(version)
         elif operation in ALLOWANCE_OPERATIONS:
             result['allowance'] = self.allowance_operation(operation)
+        elif operation in TIME_EXPLANATION_OPERATIONS:
+            result['time_explanation'] = self.time_explanation_operation(operation)
         elif operation in CUSTOM_ALLOWANCE_OPERATIONS:
             result['custom_allowance'] = self.custom_allowance_operation(operation)
         elif operation in TEXT_OPERATIONS or operation in ('text-wrong-entry', 'text-disabled'):

@@ -1,18 +1,14 @@
 """PARENT12/UI13 qualification; complete case 2 remains separate."""
 
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
+from journey_checks import allowed_app_rows
 from private_artifacts import require
-from ui_observations import AppRowsObservation
 
 
 SCREENS = {
     **fresh_desktop('parent'),
-    'parent-command': 'ui:parent-command-launch',
-    'parent-window': 'ui:parent-window',
-    'child-picker-opened': 'ui:child-picker-opened',
-    'child-choice-highlighted': 'ui:child-choice-highlighted',
-    'parent-selected': 'ui:parent-selected',
+    **parent_management(),
     'apps-page': 'ui:parent-apps-page',
     'app-rows': 'ui:parent-app-rows',
     'wrong-child': 'ui:parent-app-rows-wrong-child',
@@ -38,13 +34,10 @@ class AppRowJourney(InstalledJourney):
         super().check_settings(stage, observed)
         if stage not in ('app-rows', 'reopened-rows'):
             return
-        rows = AppRowsObservation.from_rows(observed['ui']['apps']['rows'])
-        require(bool(rows.rows) and all(row[1] == 'allowed' for row in rows.rows),
-                'app-rows:initial-allowed')
+        rows = allowed_app_rows(self, observed)
         if stage == 'app-rows':
             require(self.initial_rows is None, 'app-rows:replay')
             self.initial_rows = rows
         else:
             require(self.initial_rows is not None and rows == self.initial_rows,
                     'app-rows:independent-read')
-        observed['comparison'] = {'initial_allowed': True, 'row_count': len(rows.rows)}

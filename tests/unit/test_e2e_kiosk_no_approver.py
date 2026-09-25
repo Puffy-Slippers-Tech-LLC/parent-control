@@ -145,15 +145,23 @@ def test_qualification_reuses_snapshot_observed_fixture_and_outer_cleanup(tmp_pa
     journey.transport.call.assert_called_once()
 
 
-def test_every_conflicting_mode_refuses_before_vm_access():
+def test_every_conflicting_mode_refuses_before_vm_access(monkeypatch):
     import check_graphical_smoke as smoke
     from owned_commands import CommandError
+    credentials = Mock(side_effect=AssertionError('conflict reached credential preparation'))
+    storage = Mock(side_effect=AssertionError('conflict reached VM run allocation'))
+    monkeypatch.setattr(smoke, 'FixtureCredentials', credentials)
+    monkeypatch.setattr(smoke, 'storage_session', storage)
     for name in inspect.signature(smoke.main).parameters:
         if name in ('assets', 'provision_credentials', 'kiosk_no_approver'):
             continue
-        with pytest.raises(CommandError, match='kiosk-no-approver-prerequisites'):
+        # Either conflicting mode may be validated first. The safety contract
+        # is refusal before preparation, independent of validator source order.
+        with pytest.raises(CommandError, match=r'^smoke:[a-z-]+-prerequisites$'):
             smoke.main(assets='/unused', provision_credentials=True,
                        kiosk_no_approver=True, **{name: 'parent' if name == 'fresh_desktop' else True})
+    credentials.assert_not_called()
+    storage.assert_not_called()
 
 
 @pytest.mark.parametrize('refusal', [None, *PLAN.screen_tags])

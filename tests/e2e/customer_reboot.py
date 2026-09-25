@@ -3,13 +3,13 @@
 from dataclasses import replace
 
 from installed_journey import InstalledJourney
-from journey_blocks import fresh_desktop
+from journey_blocks import reboot_desktop
 from package_install import PLAN as INSTALL_PLAN, PackageInstallJourney, submit_install
 from private_artifacts import EvidenceError, require
 from product_free_entry import refuse_command
 
 
-RETURN = {'reboot-' + stage: tag for stage, tag in fresh_desktop('parent').items()}
+RETURN = reboot_desktop()
 PLAN = replace(INSTALL_PLAN, prefix='customer-reboot', worker_mode='customer_reboot',
     screen_tags={**INSTALL_PLAN.screen_tags,
                  'reboot-requested': 'system:parent-command-context', **RETURN},

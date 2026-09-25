@@ -239,9 +239,9 @@ the runtime inventory. No Codex, network service or VM is needed; use the
 development dependencies installed by `./setup.sh`.
 
 Each documented number is one exact variant's persistent `coverage_id`:
-`tools/run-tests e2e --list --id 1` inspects it, and
-`tools/run-tests e2e --id 1 --artifacts /tmp/onpc-test-artifacts-REPLACE`
-executes it using an existing verified package-artifact directory. Pending
+`tools/run-tests e2e --list --id '1'` inspects it, and
+`tools/run-tests e2e --id '1'` executes it with automatically prepared verified
+package artifacts. Pending
 cases still refuse execution. `--id 1,3,4` selects a comma-separated list of
 one or more numeric IDs. Empty entries, malformed IDs and unknown IDs refuse
 the entire selection; repeated IDs run once. `--id`, `--scenario` and `--ready`
@@ -285,11 +285,10 @@ ready cases are discovered automatically on the next invocation. The current
 ready set is reported by `tools/run-tests e2e --list --ready`; external-provider
 qualification gaps do not imply that the set is empty.
 
-`tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-002` and
-`make check-e2e ARTIFACT_DIR=/tmp/onpc-... SCENARIO=E2E-002` fail with
-`selection:pending`, before artifact access, privilege checks, cleanup tests,
-worker imports or VM operations. Omitting the selector lists the entire
-inventory in listing mode and executes all ready cases in execution mode.
+An explicit selector containing a pending variant fails with `selection:pending`
+before artifact access, privilege checks, cleanup tests, worker imports or VM
+operations. Omitting the selector lists the entire inventory in listing mode
+and executes all ready cases in execution mode.
 `LIST=1` rejects artifact arguments; other nonempty `LIST` values and
 all nonempty `VM_IMAGE` values fail. Make forwards selector values through the
 environment, so they cannot become recipe shell commands.
@@ -383,39 +382,30 @@ shared qualification for foreground VM commands. No product update is required.
 
 ## Run E2E scenarios
 
-Task 010's fixed `tools/run-tests integration check_e2e_toggle` qualification
-automatically builds `/tmp/onpc-parent-setup-input` when absent, including after
-retention removes old inputs. It uses the same unprivileged builder before
-privileged dispatch and stops on build failure. Existing inputs are preserved
-and their frozen manifest is verified by the consumer. For explicit preparation,
-use `tools/run-tests artifacts build --output '/tmp/onpc-parent-setup-input'`;
-named outputs must be new direct `/tmp/onpc-*` directories. These test-tool
-changes activate on invocation and require no product update.
-
-Build the product version you want the installed tests to exercise:
-
-```sh
-tools/run-tests artifacts build
-```
-
-The builder prints `run-tests: output=/tmp/onpc-test-artifacts-...`. Substitute
-that exact directory for `REPLACE` below. Checkout edits are allowed during runs.
+`tools/run-tests e2e` prepares verified package/fixture inputs automatically,
+using the [startup cache](#reusable-startup-preparation). Fixed qualifications
+such as `check_e2e_toggle` similarly prepare their managed named input when
+absent. For explicit input preparation, use `tools/run-tests artifacts prepare`
+and pass its printed directory with `--artifacts`. Use the
+[managed allocation route](../../docs/Approval-Tools.md#category-coverage-and-future-additions)
+for a qualification requiring a named input; do not create new bulk inputs in
+legacy `/tmp` locations. These test-only changes activate on invocation.
 
 ```sh
 # All currently implemented E2E variants:
-tools/run-tests e2e --ready --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+tools/run-tests e2e
 
 # Only the installed Parent About/license customer journey:
-tools/run-tests e2e --scenario 'E2E-030/parent' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+tools/run-tests e2e --id '151'
 
 # Only dynamic Parent child discovery and selection:
-tools/run-tests e2e --scenario 'E2E-003/existing-and-new' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+tools/run-tests e2e --id '3'
 
 # Only Parent's no-eligible-children explanation:
-tools/run-tests e2e --scenario 'E2E-003/none' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+tools/run-tests e2e --id '4'
 
 # Only standard-user denial through the normal app grid:
-tools/run-tests e2e --scenario 'E2E-004/app-grid' --artifacts '/tmp/onpc-test-artifacts-REPLACE'
+tools/run-tests e2e --id '5'
 ```
 
 Suite preparation reuses the powered-off `onpc-v[version]` snapshot only when its
@@ -440,11 +430,9 @@ for exactly one active local graphical greeter, then retains the owned session-b
 and accessibility checks. Ambiguous identities and failed reads stop immediately.
 The controller allows 390 seconds for that observation, within the worker's
 420-second checkpoint deadline; no input is replayed or product probe substituted.
-The current ready set contains the E2E-001 harness smoke,
-E2E-003/existing-and-new, E2E-003/none, E2E-004/app-grid, E2E-004/terminal,
-E2E-030/parent and E2E-042/command-help.
-Current totals come from [generated coverage](../../docs/Test-Coverage.md) and
-`scenarios.json`; do not maintain a second count here. Retained bindings do not
+The current ready set comes from `tools/run-tests e2e --list` and
+`scenarios.json`, with totals in [generated coverage](../../docs/Test-Coverage.md);
+do not maintain a second list here. Retained bindings do not
 qualify their provider routes or certify a current installed pass. Implement
 work in the [execution plan's fixed task order](../../docs/TestAutomation/E2E-Execution-Plan.md).
 
@@ -493,8 +481,8 @@ both installed `--help` commands and both manuals through the guarded VM SSH
 transport. It checks the public desktop after each read and requires no product
 window. This stream route passed complete case 193, including collection and
 cleanup, in run `20260922T225544Z-f49bdf46` (subject to runner retention).
-Omitting both `--ready` and `--scenario` requests the whole inventory and still
-refuses while any variant is pending. A ready-suite pass is partial coverage.
+The public `tools/run-tests e2e` route selects the ready set; a ready-suite pass
+is partial coverage while variants remain pending.
 
 `make test-all` and `make test-all-verify` both discover every ready E2E variant
 through the same selector, after required host/package and installed-system
@@ -522,9 +510,8 @@ reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-recon
 Completed inventory-test compatibility work is recorded as task 192 in the
 [canonical queue](../../docs/TestAutomation/E2E-Task-Queue.md#ordered-task-queue).
 
-Run the canonical smoke with
-`tools/run-tests e2e --artifacts /tmp/onpc-... --scenario E2E-001` using fresh
-verified build artifacts. Its callback reuses the qualified serial worker and
+Run the canonical smoke with `tools/run-tests e2e --id '1'` using verified
+build artifacts. Its callback reuses the qualified serial worker and
 records nine acknowledgments before the next guest action: readiness, initial
 GDM, selected empty prompt, Escape return, serial password boundary,
 authenticated serial session, command output, logout, and graphical return.

@@ -3,15 +3,11 @@
 from installed_journey import (
     InstalledJourney, JourneyPlan, matched_screens as reconcile_screens, record_installed_journey,
 )
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
 
 SCREEN_TAGS = {
     **fresh_desktop('parent'),
-    'parent-command': 'ui:parent-command-launch',
-    'parent-window': 'ui:parent-window',
-    'child-picker-opened': 'ui:child-picker-opened',
-    'child-choice-highlighted': 'ui:child-choice-highlighted',
-    'parent-selected': 'ui:parent-selected', 'about': 'ui:about',
+    **parent_management(), 'about': 'ui:about',
     'license': 'ui:license', 'license-closed': 'ui:license-closed',
     'about-returned': 'ui:about-returned',
     'parent-returned': 'ui:parent-returned',

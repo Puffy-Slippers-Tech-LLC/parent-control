@@ -1,9 +1,8 @@
 """FIX03 qualification and independent case 54 no-child station journey."""
 
-from account_fixture import EmptyAccountFixture
+from account_fixture import station_fixture_actions
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
 from journey_blocks import station_entry
-import watch_activity
 
 
 PLAN = JourneyPlan(
@@ -46,24 +45,15 @@ CASE_PLAN = JourneyPlan(
 )
 
 
-def fixture_actions(context):
-    fixture = EmptyAccountFixture(context)
-
-    def prepare(journey, guard):
-        with watch_activity.operation('Preparing the fixed no-child station profile'):
-            return fixture.prepare(journey, guard)
-
-    return {'prepare-empty': prepare}
-
-
 class KioskNoChildJourney(InstalledJourney):
     def __init__(self, context, progress):
-        super().__init__(context, progress, PLAN, actions=fixture_actions(context))
+        super().__init__(context, progress, PLAN,
+                         actions=station_fixture_actions(context, 'no-child'))
 
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, CASE_PLAN, timeout=1800,
-                             actions=fixture_actions(context))
+                             actions=station_fixture_actions(context, 'no-child'))
 
 
 E2E_CASES = {'no-child': execute}

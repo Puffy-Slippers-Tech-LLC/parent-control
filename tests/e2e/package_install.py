@@ -35,6 +35,11 @@ def observe_install(journey):
     return journey.package.read_result()
 
 
+def check_install_result(journey, observed):
+    """Attach independent public completion evidence before acknowledging a stage."""
+    observed['package'] = observe_install(journey)
+
+
 class PackageInstallJourney(ProductFreeEntryJourney):
     def __init__(self, context, progress):
         require(getattr(context, 'product_free', False) is True
@@ -47,4 +52,4 @@ class PackageInstallJourney(ProductFreeEntryJourney):
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
         if stage == 'package-result':
-            observed['package'] = observe_install(self)
+            check_install_result(self, observed)

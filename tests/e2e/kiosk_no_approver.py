@@ -1,9 +1,8 @@
 """FIX03 qualification and independent case 55 no-parent station journey."""
 
-from account_fixture import NoApproverFixture
+from account_fixture import station_fixture_actions
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
 from journey_blocks import station_entry
-import watch_activity
 
 
 PLAN = JourneyPlan(
@@ -57,24 +56,15 @@ CASE_PLAN = JourneyPlan(
 )
 
 
-def fixture_actions(context):
-    fixture = NoApproverFixture(context)
-
-    def prepare(journey, guard):
-        with watch_activity.operation('Temporarily locking the observed approver accounts'):
-            return fixture.prepare(journey, guard)
-
-    return {'prepare-no-approver': prepare}
-
-
 class KioskNoApproverJourney(InstalledJourney):
     def __init__(self, context, progress):
-        super().__init__(context, progress, PLAN, actions=fixture_actions(context))
+        super().__init__(context, progress, PLAN,
+                         actions=station_fixture_actions(context, 'no-approver'))
 
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, CASE_PLAN, timeout=1800,
-                             actions=fixture_actions(context))
+                             actions=station_fixture_actions(context, 'no-approver'))
 
 
 E2E_CASES = {'no-parent': execute}

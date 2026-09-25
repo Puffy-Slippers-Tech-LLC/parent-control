@@ -90,6 +90,9 @@ write_e2e write_e2e_cleanup_safety
 # Package-content tests build small archives in tmp_path and run only bounded,
 # read-only dpkg-deb children. Suite tests use the same private archive fixtures
 # with mocked VM operations; neither needs build admission or exclusive state.
+# LIFE01 checks in e2e_toggle use the same bounded Perl children and private
+# tmp_path contexts; accessible_e2e_ui uses in-memory trees and mocked transport.
+# Their existing compatible unit classifications remain applicable.
 
 # Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
 # trees, reads installed runtime inputs and owns its native child. Keep it out

@@ -1823,7 +1823,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "For daily-positive, approve soft-app access, open the soft app, then toggle limits off and on with a positive allowance; read zero one-time time. For zero-total, set zero daily time with no grant."},
           {"id": "step-2", "operation": "ui", "description": "Read Revoke availability in Parent. Daily-positive opens the warning, cancels and checks unchanged activity, then confirms. Zero-total observes the unavailable action with limits on and off."},
-          {"id": "step-3", "operation": "ui", "description": "With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged."}
+          {"id": "step-3", "operation": "ui", "description": "With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged. For zero-total, read the saved zero allowance retained with limits off."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1851,7 +1851,7 @@
       },
       "variants": [
         {"coverage_id": 160, "id": "daily-positive", "owner": "continuous-journeys", "parameters": {"balance": "daily-positive"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 161, "id": "zero-total", "owner": "continuous-journeys", "parameters": {"balance": "zero-total"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 161, "id": "zero-total", "owner": "continuous-journeys", "parameters": {"balance": "zero-total"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/zero_total.py", "test_id": "zero-total"}}
       ]
     },
     {

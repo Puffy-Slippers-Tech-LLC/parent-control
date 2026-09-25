@@ -33,6 +33,8 @@ use onpc_allowance_presets ();
 use onpc_allowance ();
 use onpc_time_explanation ();
 use onpc_set_allowance ();
+use onpc_app_restart ();
+use onpc_zero_total ();
 use onpc_app_rows ();
 use onpc_feedback_read ();
 use onpc_text ();
@@ -270,10 +272,22 @@ sub run {
         onpc_app_rows::run(\&exchange);
         return;
     }
+    if ($ready->{zero_total}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_zero_total::run(\&exchange);
+        return;
+    }
     if ($ready->{set_allowance}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_set_allowance::run(\&exchange);
+        return;
+    }
+    if ($ready->{app_restart}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_restart::run(\&exchange);
         return;
     }
     if ($ready->{time_explanation}) {

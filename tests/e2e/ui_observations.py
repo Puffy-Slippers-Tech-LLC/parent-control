@@ -22,6 +22,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Reading idle Revoke availability and zero remaining balances'
+       for operation in accessible_ui.REVOKE_DISABLED_OPERATIONS},
     **{operation: 'Qualifying saved time controls and non-collapsing balance reads'
        for operation in accessible_ui.TIME_EXPLANATION_OPERATIONS},
     **{operation: 'Qualifying custom daily allowance commits and saved readback'
@@ -72,6 +74,10 @@ OPERATION_LABELS = {
     'parent-window': 'Waiting for the Parent window',
     'parent-new-window-absent': 'Checking a new Parent window can be opened',
     'parent-new-window-refused': 'Refusing new-window entry while Parent remains open',
+    'parent-restart-ready': 'Checking the active Parent window for normal closure',
+    'parent-restart-closed-refused': 'Refusing restart when Parent is already closed',
+    'parent-restart-wrong-refused': 'Refusing a different named window for Parent restart',
+    'parent-initial-selection': 'Reading the reopened Parent initial child selection',
     'parent-command-launch': 'Invoking the Parent command as [Parent user]',
     'standard-parent-command-launch': 'Invoking the Parent command as [Standard user]',
     'child-command-launch': 'Invoking the child overlay command as [Child user]',
@@ -449,6 +455,11 @@ class UiObservations:
                 RESPONSE_BYTE_LIMITS.get(operation, 2048), 'ui:response-size')
         result = json.loads(raw)
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'parent-initial-selection':
+            require(type(result) is dict and set(result) == {*expected, 'selection'}
+                    and result['selection'] in ('fixture-child', 'existing-fixture-child'),
+                    'ui:initial-selection')
+            expected['selection'] = result['selection']
         if operation == 'kiosk-approver-baseline':
             require(type(result) is dict and set(result) == {*expected, 'approver_uids'},
                     'ui:approver-baseline')
@@ -578,6 +589,17 @@ class UiObservations:
                               {'refusal': operation.removeprefix('time-explanation-')})
                 require(value == projection, 'ui:time-response')
             expected['time_explanation'] = value
+        if operation in accessible_ui.REVOKE_DISABLED_OPERATIONS:
+            projection = {'child': 'fixture-child',
+                          'limit_enabled': accessible_ui.REVOKE_DISABLED_OPERATIONS[operation],
+                          'idle': True, 'sensitive': False,
+                          'daily_seconds': 0, 'one_time_seconds': 0, 'total_seconds': 0}
+            require(type(result) is dict and set(result) == {*expected, 'revoke'}
+                    and type(result['revoke']) is dict
+                    and result['revoke'] == projection
+                    and all(type(result['revoke'][key]) is type(value)
+                            for key, value in projection.items()), 'ui:revoke-disabled-response')
+            expected['revoke'] = projection
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'save'}
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],

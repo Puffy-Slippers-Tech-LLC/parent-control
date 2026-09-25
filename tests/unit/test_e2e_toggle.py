@@ -256,6 +256,28 @@ def test_set_allowance_selector_and_guarded_preparation(monkeypatch, tmp_path):
     assert SetAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
 
 
+def test_app_restart_selector_uses_owned_snapshot_and_cleanup(monkeypatch, tmp_path):
+    import check_e2e_app_restart as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import AppRestartQualification, KioskEntryQualification
+    from app_restart import PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['app_restart'] is True
+    with pytest.raises(CommandError, match='app-restart-prerequisites'):
+        smoke.main(app_restart=True)
+    with pytest.raises(CommandError, match='app-restart-prerequisites'):
+        smoke.main(assets=tmp_path, provision_credentials=True,
+                   app_restart=True, set_allowance=True)
+    context = SimpleNamespace(directory=tmp_path)
+    assert AppRestartQualification.journey(context, Mock()).plan is PLAN
+    assert context.installed_snapshot == 'onpc-v1.1'
+    assert AppRestartQualification.finalize is KioskEntryQualification.finalize
+    assert AppRestartQualification.prepare_context is KioskEntryQualification.prepare_context
+
+
 # Isolated, bounded Perl children with captured pipes; no VM or shared resources.
 ALLOWANCE_WORKER = r'''
 use strict;
@@ -305,6 +327,61 @@ def test_set_allowance_actual_worker_stops_before_later_input_at_every_boundary(
         assert not result['ok'] and 'fixture:refused' in result['error']
         boundary = success['events'].index(['stage', stage])
         assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_zero_total_actual_worker_stops_at_each_refused_observation(monkeypatch):
+    from zero_total import PLAN
+    script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_zero_total')
+    monkeypatch.setenv('ONPC_TEST_REFUSE', '')
+    success = json.loads(run_perl(script).stdout)
+    assert success['ok'], success['error']
+    stages = list(PLAN.screen_tags)
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    assert [event for event in success['events'] if event[0] == 'key'] == [
+        ['key', 'ret'], ['key', 'ret']]
+    for stage in stages:
+        monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
+        result = json.loads(run_perl(script).stdout)
+        assert not result['ok'] and 'fixture:refused' in result['error']
+        boundary = success['events'].index(['stage', stage])
+        assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_app_restart_worker_refusal_never_closes_or_relaunches_after_failure(monkeypatch):
+    from app_restart import PLAN
+    script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_app_restart')
+    monkeypatch.setenv('ONPC_TEST_REFUSE', '')
+    success = json.loads(run_perl(script).stdout)
+    assert success['ok'], success['error']
+    stages = list(PLAN.screen_tags)
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    assert [event for event in success['events'] if event[0] == 'key'] == [
+        ['key', 'ret'], ['key', 'alt-f4']]
+    for stage in stages:
+        monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
+        result = json.loads(run_perl(script).stdout)
+        assert not result['ok'] and 'fixture:refused' in result['error']
+        boundary = success['events'].index(['stage', stage])
+        assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_lifecycle_requires_named_entry_destination_and_fresh_proof():
+    script = ALLOWANCE_WORKER[:ALLOWANCE_WORKER.index('my $ok = eval')]
+    script += r'''
+require onpc_lifecycle;
+my @errors;
+for my $args (['about', {}, 'management'], ['parent', {}, 'denied'],
+              ['parent', {}, 'management']) {
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'app-restart', review => 0);
+    eval { onpc_lifecycle::reopen($journey, @$args); };
+    push @errors, "$@";
+}
+print encode_json({errors => \@errors, events => \@events});
+'''
+    result = json.loads(run_perl(script).stdout)
+    assert not result['events']
+    assert all('lifecycle:binding' in error for error in result['errors'][:2])
+    assert 'journey:stale-observation' in result['errors'][2]
 
 
 def test_set_allowance_refuses_wrong_declared_bindings_before_any_input():

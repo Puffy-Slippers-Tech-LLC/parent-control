@@ -47,15 +47,15 @@ def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     assert len(plan['cases']) == 242
     assert sorted(v['coverage_id'] for item in document['scenarios']
                   for v in item['variants']) == [*range(1, 140), *range(151, 254)]
-    assert len(plan['pending_cases']) == 231
+    assert len(plan['pending_cases']) == 230
     assert [v['coverage_id'] for item in document['scenarios']
-            for v in item['variants'] if v['status'] == 'ready'] == [1, 2, 3, 4, 5, 6, 54, 55, 57, 151, 193]
+            for v in item['variants'] if v['status'] == 'ready'] == [1, 2, 3, 4, 5, 6, 54, 55, 57, 151, 161, 193]
     assert plan['scope'] == 'full'
     assert [case['case_id'] for case in plan['cases'] if case['executable'] is not None] == [
         'E2E-001/gdm-observation', 'E2E-002/clean', 'E2E-003/existing-and-new', 'E2E-003/none',
         'E2E-004/app-grid', 'E2E-004/terminal', 'E2E-017/no-child', 'E2E-017/no-parent',
         'E2E-017/disabled-child',
-        'E2E-030/parent', 'E2E-042/command-help']
+        'E2E-030/parent', 'E2E-036/zero-total', 'E2E-042/command-help']
     assert all(case['assertions'] and case['expected_evidence'] for case in plan['cases'])
     assert plan['evidence_contract']['outcomes'] == ['product', 'infrastructure', 'collection', 'cleanup']
 

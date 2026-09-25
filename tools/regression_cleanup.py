@@ -38,6 +38,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Its paused-question tests keep decisions and observer locks in that checkout,
 # and fixture teardown cancels/reaps only those recorded workflow children.
 # They do not share mutable state across workers.
+# Suite package-identity fixtures also use tiny private Debian archives and
+# bounded, read-only dpkg-deb children; no compiler, package install or VM.
 # Challenge/repeated-operation contracts use isolated Perl API doubles. Clean
 # install, package authority/install, product-free entry and reboot contracts
 # mock all system/guest mutations and write evidence only into pytest-private

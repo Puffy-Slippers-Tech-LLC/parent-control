@@ -46,7 +46,7 @@ graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs
 installed_journey_cleanup_safety installer integration_harness kiosk_model kiosk_rendering
 launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
-package_install_cleanup_safety
+package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap
 parent_about_cleanup_safety parent_about_worker parent_access_worker parent_client
 parent_discovery_worker parent_grid_pixels parent_main parent_needles
@@ -87,6 +87,9 @@ write_e2e write_e2e_cleanup_safety
 # mutations; app-row, feedback and no-approver reads use accessibility doubles.
 # Feedback replacement also runs short, isolated Perl API-double children with
 # captured pipes and a timeout; it writes no shared files or caches.
+# Package-content tests build small archives in tmp_path and run only bounded,
+# read-only dpkg-deb children. Suite tests use the same private archive fixtures
+# with mocked VM operations; neither needs build admission or exclusive state.
 
 # Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
 # trees, reads installed runtime inputs and owns its native child. Keep it out

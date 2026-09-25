@@ -10,6 +10,18 @@ Read only the named block rows/callables, this recipe's selected cases and
 applicable finite-data rows. Prerequisite IDs are completion checks; do not open
 their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
+Reuse the ordinary allowance callables in `tests/e2e/accessible_ui.py`:
+`allowance_preset`, `custom_allowance`, `settings` and `parent_save_snapshot`.
+The qualification composition is `tests/e2e/allowance.py::PLAN` and
+`tests/integration/graphical_smoke/lib/onpc_allowance.pm::run`; its guarded
+entry is `tests/integration/parent_setup_qualification.py::AllowanceQualification`.
+PARENT03 reads custom numbers from `parent-custom-daily-limit`; the selector
+itself displays only `Custom value`. Keep PARENT20 read-only and separate from
+the explicit expansion used to prepare its entry. Adapter regressions live in
+`tests/unit/test_accessible_e2e_ui.py`; the maintained real GTK allowance setup
+is `tests/ui/test_preview_smoke.py::test_parent_daily_preset_and_custom_limit_autosave`.
+The live selector below remains planned until implemented and registered.
+
 ## Scope and prerequisites
 
 Deliver **PARENT20**. First scheduled consumer: [E2E-036, case 161](../E2E-Scenario-Recipes.md#e2e-036).

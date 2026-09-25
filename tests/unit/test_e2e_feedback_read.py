@@ -125,7 +125,8 @@ def test_wrong_entry_live_operation_is_read_only():
     assert ui.feedback_read_operation('feedback-wrong-entry') is None
 
 
-@pytest.mark.parametrize('binding', accessible_ui.TEXT_VALUES)
+@pytest.mark.parametrize('binding', [binding for binding in accessible_ui.TEXT_VALUES
+                                     if binding.startswith(('body-', 'reply-'))])
 def test_synthetic_text_exact_bounded_readback(binding):
     ui, _, _, controls = feedback_ui()
     identity, value = accessible_ui.TEXT_VALUES[binding]

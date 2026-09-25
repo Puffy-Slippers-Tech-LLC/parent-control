@@ -2,7 +2,9 @@
 
 import fcntl
 import hashlib
+import json
 import os
+import subprocess
 import xml.etree.ElementTree as ET
 from contextlib import nullcontext
 from unittest.mock import MagicMock, Mock
@@ -17,6 +19,7 @@ from e2e_watch_viewer import progress_text
 from tools.e2e_progress import Progress
 from tests.support.vm_baseline import rig
 from tests.support.vm_runner import lease_rig
+from tests.support.deb_archive import write_package
 
 
 @pytest.fixture
@@ -283,9 +286,13 @@ def prepared_suite(snapshots, tmp_path, monkeypatch):
     owner.lease = lease
     owner.guestfs = Mock()
     owner.commands = Mock()
-    owner.commands.run.return_value = b'1.1+test~26.04\n'
+    def command(args, **kwargs):
+        if args[1] in ('--ctrl-tarfile', '--fsys-tarfile'):
+            return subprocess.run(args, check=True, capture_output=True, timeout=10).stdout
+        return b'1.1+test~26.04\n'
+    owner.commands.run.side_effect = command
     owner._input_bundle = installed_setup.inputs(system.ROOT)
-    (tmp_path / 'package.deb').write_bytes(b'fixture package')
+    write_package(tmp_path / 'package.deb')
     monkeypatch.setattr(installed_setup, 'stage', Mock())
     monkeypatch.setattr(system, 'bootstrap', Mock(return_value='ssh-ed25519 fixture'))
     monkeypatch.setattr(system, 'address', Mock(return_value='fixture-host'))
@@ -301,8 +308,10 @@ def current_xml(owner, directory):
     state = {'baseline_sha256': hashlib.sha256(
         system.baseline.encode(owner.lease.capture.read_state())).hexdigest()}
     root = ET.Element('domainsnapshot')
+    ET.SubElement(root, 'name').text = 'onpc-v1.1'
+    ET.SubElement(root, 'memory', snapshot='no')
     ET.SubElement(root, 'description').text = app_snapshot.input_identity(
-        Mock(state=state), directory, owner._input_bundle)
+        Mock(state=state), directory, owner._input_bundle, owner.commands)
     return ET.tostring(root, encoding='unicode')
 
 
@@ -453,6 +462,87 @@ def test_overwrite_false_existing_snapshot_is_a_logged_noop(prepared_suite, caps
     assert 'Reusing current snapshot ' + name in capsys.readouterr().err
 
 
+@pytest.mark.parametrize('legacy', [False, True])
+def test_identical_rebuild_reuses_snapshot_and_legacy_metadata_migrates(prepared_suite, legacy):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    name = 'onpc-v1.1'
+    root = ET.fromstring(current_xml(owner, directory))
+    if legacy:
+        identity = json.loads(root.findtext('description'))
+        identity['schema_version'] = 1
+        identity.pop('package_content_sha256')
+        root.find('description').text = json.dumps(identity)
+    existing = add(name, ET.tostring(root, encoding='unicode'))
+    with lease:
+        if legacy:
+            # Exact bytes establish the legacy snapshot's content fingerprint
+            # without creating, deleting, restoring or booting anything.
+            assert owner.prepare_installed(directory, directory, {}, root=directory,
+                                           overwrite=False) is False
+            metadata = json.loads(ET.fromstring(existing.getXMLDesc(0)).findtext('description'))
+            assert metadata['schema_version'] == 2 and metadata['package_content_sha256']
+        old_package = system.baseline.digest(directory / 'package.deb')
+        write_package(directory / 'package.deb', mtime=1000, compression='xz', reverse=True)
+        assert system.baseline.digest(directory / 'package.deb') != old_package
+        assert owner.prepare_installed(directory, directory, {}, root=directory,
+                                       overwrite=False) is False
+    lease.audit(retain_installed=True)
+    assert names[name] is existing and baseline_name in names
+    assert events == []
+    setup.run.assert_not_called()
+
+
+def test_legacy_different_archive_cannot_guess_equivalence(prepared_suite, capsys):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    root = ET.fromstring(current_xml(owner, directory))
+    identity = json.loads(root.findtext('description'))
+    identity['schema_version'] = 1
+    identity.pop('package_content_sha256')
+    root.find('description').text = json.dumps(identity)
+    add('onpc-v1.1', ET.tostring(root, encoding='unicode'))
+    write_package(directory / 'package.deb', mtime=100)
+    with lease:
+        assert owner.prepare_installed(directory, directory, {}, root=directory,
+                                       overwrite=False) is True
+    lease.audit()
+    setup.run.assert_called_once()
+    assert 'legacy snapshot has no content fingerprint' in capsys.readouterr().err
+
+
+def test_force_overwrite_still_replaces_matching_contents(prepared_suite):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    add('onpc-v1.1', current_xml(owner, directory))
+    with lease:
+        assert owner.prepare_installed(directory, directory, {}, root=directory,
+                                       overwrite=True) is True
+    lease.audit()
+    setup.run.assert_called_once()
+    assert ('delete', 'onpc-v1.1') in events
+
+
+@pytest.mark.parametrize('fault', ['metadata-replaced', 'publish-failed', 'not-recorded'])
+def test_legacy_fingerprint_publication_fails_closed(prepared_suite, fault):
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    root = ET.fromstring(current_xml(owner, directory))
+    identity = json.loads(root.findtext('description'))
+    identity['schema_version'] = 1
+    identity.pop('package_content_sha256')
+    root.find('description').text = json.dumps(identity)
+    xml = ET.tostring(root, encoding='unicode')
+    existing = add('onpc-v1.1', xml)
+    if fault == 'metadata-replaced':
+        existing.getXMLDesc.side_effect = [xml, '<changed/>']
+    elif fault == 'publish-failed':
+        lease.source.domain.snapshotCreateXML.side_effect = RuntimeError('publish-failed')
+    else:
+        lease.source.domain.snapshotCreateXML.side_effect = lambda *args: existing
+    with pytest.raises(RuntimeError), lease:
+        owner.prepare_installed(directory, directory, {}, root=directory, overwrite=False)
+    lease.audit()
+    setup.run.assert_not_called()
+    assert events == []
+
+
 @pytest.mark.parametrize('change', ['legacy', 'package', 'recipe', 'baseline', 'incomplete'])
 def test_changed_installed_inputs_refresh_same_version_once(prepared_suite, change):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
@@ -464,14 +554,14 @@ def test_changed_installed_inputs_refresh_same_version_once(prepared_suite, chan
         xml = xml.replace('baseline_sha256', 'previous_baseline_sha256')
     add(name, xml)
     if change == 'package':
-        (directory / 'package.deb').write_bytes(b'different build, same version')
+        write_package(directory / 'package.deb', payload=b'different product, same version')
     elif change == 'recipe':
         owner._input_bundle.files['guest_install_recipe.py'] += b'\n# changed preparation\n'
     with lease:
         assert owner.prepare_installed(directory, directory, {}, root=directory,
                                        overwrite=False) is True
         assert app_snapshot.matches(names[name].getXMLDesc(0),
-            app_snapshot.input_identity(lease, directory, owner._input_bundle))
+            app_snapshot.input_identity(lease, directory, owner._input_bundle, owner.commands))
     lease.audit()
     setup.run.assert_called_once()
     assert [e for e in events if e[0] in ('delete', 'create')] == [
@@ -553,7 +643,7 @@ def test_interruption_never_marks_unfinished_snapshot_reusable(prepared_suite, f
     lease.audit()
     assert calls == ([0] if failure == 'create' else [0, 1])
     assert not app_snapshot.matches(names['onpc-v1.1'].getXMLDesc(0),
-        app_snapshot.input_identity(lease, directory, owner._input_bundle))
+        app_snapshot.input_identity(lease, directory, owner._input_bundle, owner.commands))
 
 
 @pytest.mark.parametrize('overwrite', [False, True])

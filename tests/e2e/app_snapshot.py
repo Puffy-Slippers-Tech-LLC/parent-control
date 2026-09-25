@@ -4,22 +4,51 @@ import json
 import xml.etree.ElementTree as ET
 
 import system_runner as system
+import package_content
 
 
-def input_identity(lease, assets, bundle):
+def input_identity(lease, assets, bundle, commands):
     """Only installed state invalidates the cache; test payload is replaceable."""
-    return json.dumps({'schema_version': 1,
+    return json.dumps({'schema_version': 2,
         'package_sha256': system.baseline.digest(assets / 'package.deb'),
+        'package_content_sha256': package_content.digest(assets / 'package.deb', commands),
         'baseline_sha256': lease.state['baseline_sha256'],
         'recipe_sha256': bundle.digest('guest_install_recipe.py')},
         sort_keys=True, separators=(',', ':'))
 
 
-def matches(xml, expected):
+def mismatch(xml, expected):
+    """Separate archive integrity from installed equivalence; accept v1 exactly."""
     try:
-        return ET.fromstring(xml).findtext('description') == expected
-    except (ET.ParseError, ValueError):
-        return False
+        previous = json.loads(ET.fromstring(xml).findtext('description'))
+        current = json.loads(expected)
+        keys = {'schema_version', 'package_sha256', 'baseline_sha256', 'recipe_sha256'}
+        if not isinstance(previous, dict) or type(previous.get('schema_version')) is not int:
+            return 'missing or invalid snapshot metadata'
+        version = previous['schema_version']
+        if version == 2:
+            keys.add('package_content_sha256')
+        if (version not in (1, 2) or set(previous) != keys
+                or any(not isinstance(previous[key], str)
+                       or re.fullmatch('[0-9a-f]{64}', previous[key]) is None
+                       for key in keys - {'schema_version'})):
+            return 'missing or invalid snapshot metadata'
+        for key, reason in (('baseline_sha256', 'baseline changed'),
+                            ('recipe_sha256', 'installation recipe changed')):
+            if previous[key] != current[key]:
+                return reason
+        if version == 1:
+            if previous['package_sha256'] != current['package_sha256']:
+                return 'legacy snapshot has no content fingerprint for this archive'
+        elif previous['package_content_sha256'] != current['package_content_sha256']:
+            return 'package contents changed'
+        return None
+    except (ET.ParseError, ValueError, TypeError, KeyError):
+        return 'missing or invalid snapshot metadata'
+
+
+def matches(xml, expected):
+    return mismatch(xml, expected) is None
 
 
 def snapshot_name(version):
@@ -46,17 +75,22 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
                                   'Version']).decode().strip()
     name = snapshot_name(version)
     bundle = suite.input_bundle(root)
-    expected = input_identity(lease, assets, bundle)
+    with system.operation('Comparing app package contents'):
+        expected = input_identity(lease, assets, bundle, suite.commands)
     if name in lease.source.domain.snapshotListNames(0) and not overwrite:
         # The lease is validated but not prepared yet; guard()'s snapshot XML
         # is initialized by prepare(). Revalidate acquisition ownership here.
         lease.capture.vm_ownership.check_owner()
         lease.capture.revalidate()
         xml = lease.source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
-        if matches(xml, expected):
+        reason = mismatch(xml, expected)
+        if reason is None:
+            if json.loads(ET.fromstring(xml).findtext('description'))['schema_version'] == 1:
+                preparation('Recording content fingerprint for existing snapshot ' + name)
+                lease.record_installed_inputs(name, xml, expected)
             preparation('Reusing current snapshot ' + name)
             return False
-        preparation('Refreshing snapshot ' + name + ': installed inputs changed, unrecorded or incomplete')
+        preparation('Refreshing snapshot ' + name + ': ' + reason)
     system.log('stage:suite-installation')
     preparation('Restoring onpc-baseline')
     lease.prepare()
@@ -66,7 +100,8 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
     lease.save('isolated')
     # Restore first so deletion cannot leave the active disk on stale app state.
     if name in lease.source.domain.snapshotListNames(0):
-        preparation('Deleting existing snapshot ' + name + ' (overwrite=true)')
+        preparation('Deleting existing snapshot ' + name +
+                    (' (overwrite=true)' if overwrite else ' (installed inputs changed)'))
         lease.delete_installed()
     else:
         preparation('No existing snapshot ' + name + '; preparing it')

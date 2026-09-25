@@ -19,13 +19,14 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **040 — [Commit custom daily allowances](E2E-Tasks/040-allowance.md)**.
+Next task: **194 — [Read an expanded time explanation](E2E-Tasks/194-read-an-expanded-time-explanation.md)**.
 
-Implement and qualify custom values 1, 2 and 3 through pause, Enter and
-focus-leave commits, with independent save and reopened-editor readback.
-Reuse the qualified PARENT05 preset 0/15 callable and its open-picker return
-contract; keep each custom commit route distinct. The fixed
-`check_e2e_allowance` selector must be implemented and registered before use.
+Implement and qualify PARENT20's read-only daily, one-time and total balance
+projections, with display precision and monotonic observation time. Reuse the
+qualified ordinary allowance setup; require an already expanded explanation
+and refuse collapsed or wrong-child entry without opening it. The planned
+`check_e2e_read_an_expanded_time_explanation` selector must be implemented and
+registered before use.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

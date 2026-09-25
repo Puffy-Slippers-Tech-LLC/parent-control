@@ -481,6 +481,16 @@ class RequestExitQualification(KioskEntryQualification):
         return RequestExitJourney(context, progress)
 
 
+class AllowanceQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from allowance import AllowanceJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return AllowanceJourney(context, progress)
+
+
 class AllowancePresetsQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

@@ -22,6 +22,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Qualifying custom daily allowance commits and saved readback'
+       for operation in accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS},
     **{operation: 'Qualifying daily allowance presets and saved readback'
        for operation in accessible_ui.ALLOWANCE_OPERATIONS},
     'gdm-installed-accounts': 'Checking preserved personal accounts and the installed request station',
@@ -167,7 +169,7 @@ OPERATION_LABELS.update({
 })
 
 
-OPERATION_LABELS.update({operation: 'Qualifying synthetic feedback text replacement'
+OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret field value'
                          for operation in accessible_ui.TEXT_OPERATIONS})
 OPERATION_LABELS.update({
     'text-wrong-entry': 'Refusing text input outside feedback',
@@ -532,6 +534,13 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'text'}
                     and result['text'] == projection, 'ui:text-response')
             expected['text'] = projection
+        if operation in accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS:
+            minutes, action = accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS[operation]
+            projection = ({'refusal': action} if action in ('wrong-child', 'disabled')
+                          else {'minutes': minutes, 'action': action})
+            require(type(result) is dict and set(result) == {*expected, 'custom_allowance'}
+                    and result['custom_allowance'] == projection, 'ui:custom-allowance-response')
+            expected['custom_allowance'] = projection
         if operation in accessible_ui.ALLOWANCE_OPERATIONS:
             projection = ({'refusal': operation.removeprefix('allowance-')}
                           if operation in ('allowance-wrong-child', 'allowance-disabled')

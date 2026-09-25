@@ -525,3 +525,10 @@ def test_dependency_inventory_refuses_incomplete_or_ambiguous_status(change):
 def test_dependency_inventory_ignores_description_continuations():
     status = package_status() + '\n\nPackage: unrelated\nDescription: Other package\n Package: openssh-server\n'
     assert prepare.guest_tools.verify_packages(status) == prepare.guest_tools.VERSIONS
+
+
+def test_dependency_inventory_accepts_security_updates_without_downgrading():
+    name, version = next(iter(prepare.guest_tools.VERSIONS.items()))
+    updated = version + '.1'
+    result = prepare.guest_tools.verify_packages(package_status().replace(version, updated))
+    assert result[name] == updated

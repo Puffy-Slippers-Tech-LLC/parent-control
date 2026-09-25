@@ -18,16 +18,56 @@ environment-variable or command-line override. The E2E inventory's `ubuntu26.04`
 environment label describes the supported OS, independently of the VM name.
 
 Set a literal `TEST_ACCOUNT_PASSWORD` in the host checkout's private mode-0600
-`.envrc`, then run `tools/prepare-baseline` on the development host with the
+`.envrc`, then run `tools/prepare-baseline --mode manual` on the development host with the
 product-free Ubuntu 26.04 VM off. Missing, empty, placeholder or unsafe
 credentials fail before privilege dispatch or VM access. The old `make prepare-vm`
 target, `make prepare-baseline` alias and `./setup.sh --prepare-baseline` mode
 have been removed.
 
+The required `--mode` accepts only `auto` or `manual`, with no default. Missing
+options or values print help and examples. Help and the red warnings reuse the
+same bullet lists of steps. Both modes immediately refuse a VM
+that is not off. Under the shared lease, a red warning describes the selected
+workflow and deletion of **all versioned app snapshots**, including both
+`onpc-v1.2` and legacy `onpc-1.2` names. Only an explicit `y` proceeds; `n` or
+end of input exits without guest or snapshot changes. After confirmation, those
+app snapshots are deleted without recursively deleting their children.
+
+- `tools/prepare-baseline --mode auto` requires an existing accepted baseline,
+  restores it, boots, runs no-app prerequisites, and updates Ubuntu packages.
+  If a reboot is required, a second controlled boot verifies a changed boot ID
+  before shutdown. The old baseline is replaced only after successful guest
+  preparation and independent offline inspection.
+- `tools/prepare-baseline --mode manual` boots the current guest disk state,
+  runs no-app prerequisites, shuts down and creates `onpc_baseline`, replacing
+  an existing baseline if present. It does not run the system update step.
+
+Automatic updates use Ubuntu's scripting interface,
+[`apt-get`](https://manpages.ubuntu.com/manpages/resolute/man8/apt-get.8.html):
+refresh indexes with errors treated as failures, run a noninteractive
+`dist-upgrade` with a bounded package-lock wait, then `apt-get check`. Existing
+locally changed configuration files are retained when no package default resolves
+the choice. This updates packages from configured repositories within the
+current Ubuntu release. `/run/reboot-required` triggers a full power cycle; the
+second boot verifies the new boot identity and prerequisite package inventory.
+Update, setup or verification failure prevents baseline replacement. App
+snapshots already deleted after confirmation remain deleted if later work fails.
+Every confirmed invocation repeats its selected workflow, even if the previous
+baseline is already current. Auto always checks for and applies available system
+updates; both modes rerun no-app setup. After an interrupted attempt, shut down
+the same VM before retrying. Existing guest staging and already deleted app
+snapshots are safe to revisit. A snapshot created just before an interrupted
+final journal write is verified before the full workflow runs again. Genuine
+prerequisite, ownership, update and validation errors still fail visibly; auto
+continues to require an existing baseline.
+
 Under the shared lease, preparation stages the maintained guest modules and a
 temporary root-only password file, then boots the guest with a one-shot systemd
 service ordered before the display manager. The guest consumes and removes the
-password file, reconciles accounts and tools, records success and powers off.
+password file, reconciles accounts and tools, performs the selected update step,
+records success (or a required reboot) and powers off.
+The shared watch display uses CPU frame copies; preparation disables SPICE
+OpenGL and guest 3D acceleration to keep that display compatible with QEMU.
 The host removes the temporary service, independently inspects the guest, and
 captures its baseline. The guest log remains at
 `/var/lib/onpc-baseline-preparation/preparation.log`; it contains no password.
@@ -57,7 +97,7 @@ pinning is refreshed by host preparation); no product activation or data migrati
 | Libvirt connection and domain | `qemu:///system`; `name` in the shared config, currently `oh-no-parent-control` |
 | Host/guest preparation checkout | The checkout containing the invoked `tools/prepare-baseline`; maintained guest modules are staged privately inside the VM. Installed host helpers retain their checkout pin. |
 | Disk-chain anchor | `disk_anchor` in the shared config, currently `/Data/virt-manager/oh-no-parent-control.qcow2`; resolve and validate the actual active chain. |
-| Retained product-free baseline | Internal `onpc-baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_baseline.py](prepare_baseline.py). Runners also accept the previous name defined by `PREVIOUS_SNAPSHOT`; explicit preparation replaces it with `onpc-baseline`. |
+| Retained product-free baseline | Internal `onpc_baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_baseline.py](prepare_baseline.py). Runners also accept `onpc-baseline` and `oh-no-parent-control-baseline`; explicit preparation replaces them with `onpc_baseline`. |
 | Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/<configured-name>/` |
 | Provenance and active attempt | Immutable finalized `phase.json`; separate mutable `system-run.json`. |
 | Guest preparation record | Root-owned mode-0600 `/etc/oh-no-parent-control-test-baseline.json` |
@@ -75,10 +115,11 @@ Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
 prerequisite failure, not permission for a test to install host packages.
 The shared [guest tool inventory](guest_test_dependencies.py) is installed by
 the host's `tools/prepare-baseline` during its controlled guest boot.
-Dependencies are pinned OpenSSH server, pytest, OpenLDAP server/client
+Dependencies are OpenSSH server, pytest, OpenLDAP server/client
 and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
 Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
-versions, generates missing SSH host keys, enables SSH and checks public-key
+minimum qualified versions, accepts newer security/maintenance versions,
+generates missing SSH host keys, enables SSH and checks public-key
 authentication configuration. Repeats with matching packages skip APT refresh
 and installation. Failed prerequisites prevent a new success record.
 Account preparation is repeatable: existing test accounts retain their UIDs and
@@ -120,22 +161,23 @@ by installing tools. This
 test-environment change needs a prepared and accepted product-free baseline;
 there is no product-data migration or package activation (`none`).
 
-**Existing accepted baseline:** `tools/prepare-baseline` explicitly replaces it.
+**Existing accepted baseline:** either explicit preparation mode replaces it.
 The VM must already be off; preparation fails instead of shutting it down.
-Under the shared lease, it deletes the old snapshot without restoring it and
-captures the current prepared guest. Ownership checks and incomplete-attempt
+Auto restores the old baseline; manual keeps the current disk state. Both
+retain the old baseline until preparation and offline inspection succeed.
+Ownership checks and incomplete-attempt
 refusals still apply, and the old journal is archived. Ordinary `./setup.sh`
 never invokes baseline preparation. Tests continue to reuse the accepted baseline.
 
 **Manual snapshot maintenance:** restore any snapshot you manage (such as
 `1 - Clean`), perform maintenance, shut down, and delete/retake your snapshot.
-Then run `tools/prepare-baseline`. The command uses the current guest disk state
+Then run `tools/prepare-baseline --mode manual`. The command uses the current guest disk state
 without choosing or restoring any snapshot. A changed active image or backing
 chain on the same recorded VM is accepted automatically, provided the chain
-still ends at the configured anchor. Only the automation baseline is retired;
-manually managed snapshots are preserved. Its previous provenance is archived
-before capture. No extra confirmation or replacement flag is required for this
-workflow. The VM-off, same-UUID, idle-controller and product-free checks remain
+still ends at the configured anchor. The automation baseline and all versioned
+app snapshots are replaced/deleted; other manually managed snapshots are
+preserved. Previous provenance is archived before baseline replacement.
+The warning requires confirmation. The VM-off, same-UUID, idle-controller and product-free checks remain
 prerequisites.
 
 For an explicitly requested replacement environment, consult the maintained
@@ -199,7 +241,7 @@ with the saved disk proof, or explicit baseline replacement. An
 unrelated snapshot is not a substitute for the recorded baseline.
 
 To replace a baseline, prepare and shut down the guest, then run
-`tools/prepare-baseline`; manual deletion is unnecessary. Refresh an older
+`tools/prepare-baseline --mode manual`; manual deletion is unnecessary. Refresh an older
 installed setup dispatcher first with `./setup.sh --test-tools-only`.
 The retained `./setup.sh --replace-missing-baseline` recovery mode handles an
 already deleted baseline without replacing an existing one. It requires unchanged
@@ -207,8 +249,8 @@ source identities, no remaining baseline metadata or internal disk record, and n
 incomplete test attempt. Under the shared controller lock it retains the original
 journal as `retired-<operation>.json` before beginning a new capture. Guest
 validation and disk verification still apply. Retries resume the new operation
-or preserve its finalized snapshot. Explicit `tools/prepare-baseline` replaces a
-finalized snapshot on each invocation. Development activation is on the next invocation after helper refresh;
+or preserve its finalized snapshot. Explicit preparation replaces a finalized
+snapshot after confirmation. Development activation is on the next invocation after helper refresh;
 no product service or saved-data change is involved.
 
 An incomplete prior system run prevents a new run. Use only a supported,

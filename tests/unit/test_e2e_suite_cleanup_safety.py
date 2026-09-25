@@ -357,7 +357,7 @@ def test_suite_progress_precedes_slow_operations(prepared_suite, monkeypatch):
     add(name, '<stale/>')
     originals = {}
     for method, label in (
-            ('prepare', 'Restoring onpc-baseline'),
+            ('prepare', 'Restoring ' + system.baseline.SNAPSHOT),
             ('delete_installed', 'Deleting existing snapshot ' + name + ' (overwrite=true)'),
             ('create_installed', 'Taking snapshot ' + name)):
         original = getattr(lease, method)
@@ -372,7 +372,7 @@ def test_suite_progress_precedes_slow_operations(prepared_suite, monkeypatch):
         owner.prepare_installed(directory, directory, {}, root=directory)
         progress.suite_prepared.assert_called_once_with()
         assert [call.args[0] for call in progress.suite_preparation.call_args_list] == [
-            'Restoring onpc-baseline', 'Deleting existing snapshot ' + name + ' (overwrite=true)',
+            'Restoring ' + system.baseline.SNAPSHOT, 'Deleting existing snapshot ' + name + ' (overwrite=true)',
             'Installing app', 'Taking snapshot ' + name]
     for method, original in originals.items():
         monkeypatch.setattr(lease, method, original)

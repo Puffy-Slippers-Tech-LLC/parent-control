@@ -49,6 +49,14 @@ def display_endpoint(root):
     else:
         observer = ET.SubElement(devices, 'graphics', type='dbus', p2p='yes')
         ET.SubElement(observer, 'gl', enable='no')
+    # QEMU cannot combine this CPU-copy display with a SPICE GL context.
+    # Baseline preparation keeps the existing primary display, so normalize it
+    # here just as isolated test configurations already disable acceleration.
+    for gl in displays[0].findall('gl'):
+        gl.attrib.clear()
+        gl.set('enable', 'no')
+    for acceleration in devices.findall('video/model/acceleration'):
+        acceleration.set('accel3d', 'no')
 
 
 class DisplayAdapter:

@@ -65,6 +65,146 @@ def test_repeat_stages_only_maintained_code_and_never_the_host_envrc(preparation
     p.capture.source.shutdown.assert_not_called()
 
 
+def test_preparation_orders_background_apt_jobs_after_its_package_work():
+    assert 'Before=display-manager.service apt-daily.service apt-daily-upgrade.service' in guest.SERVICE
+
+
+@pytest.mark.parametrize('reboot', [False, True])
+def test_auto_updates_request_at_most_one_observed_reboot(preparation, monkeypatch, reboot):
+    import e2e_watch
+    p = preparation
+    start = Mock(return_value=Mock())
+    monkeypatch.setattr(e2e_watch, 'start', start)
+    boots = []
+    def boot():
+        boots.append(True)
+        if len(boots) == 1:
+            p.boot()
+            assert p.files[guest.STAGE + '/mode'] == b'auto'
+            if reboot:
+                p.files[guest.STAGE + '/success'] = b''
+                p.files[guest.STAGE + '/reboot-required'] = b'old-boot-id'
+        else:
+            assert b'--verify-reboot' in p.files[guest.UNIT]
+            assert b'ConditionPathExists=' + guest.STAGE.encode() + b'/reboot-required' in p.files[guest.UNIT]
+            p.files[guest.STAGE + '/success'] = b'success\n'
+            p.files.pop(guest.STAGE + '/reboot-required')
+    p.capture.source.domain.create.side_effect = boot
+    guest.prepare(p.capture, Mock(), 'fixture-password', mode='auto')
+    assert len(boots) == start.call_count == 1 + int(reboot)
+    assert guest.UNIT not in p.files
+
+
+@pytest.fixture
+def guest_entry(tmp_path, monkeypatch):
+    import baseline_guest_entry as entry
+    root = tmp_path / 'preparation'
+    root.mkdir()
+    (root / 'checkout').mkdir()
+    (root / 'password').write_text('fixture-password')
+    (root / 'password').chmod(0o600)
+    (root / 'mode').write_text('manual')
+    boot = tmp_path / 'boot-id'
+    boot.write_text('new-boot-id')
+    monkeypatch.setattr(entry, 'ROOT', root)
+    monkeypatch.setattr(entry, 'BOOT_ID', boot)
+    monkeypatch.setattr(entry.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(entry.os, 'chdir', Mock())
+    real_fstat = entry.os.fstat
+    def fstat(fd):
+        info = real_fstat(fd)
+        return Mock(st_mode=info.st_mode, st_nlink=info.st_nlink, st_uid=0)
+    monkeypatch.setattr(entry.os, 'fstat', fstat)
+    monkeypatch.setattr(entry.prepare_vm, 'CHECKOUT', root / 'checkout')
+    monkeypatch.setattr(entry.prepare_vm, 'main', Mock(return_value=0))
+    monkeypatch.setattr(entry.prepare_vm.guest_tools, 'verify_packages', Mock())
+    return entry, root
+
+
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+@pytest.mark.parametrize('setup_status', [0, 1])
+def test_guest_entry_updates_only_after_successful_auto_setup(guest_entry, monkeypatch, mode, setup_status):
+    entry, root = guest_entry
+    (root / 'mode').write_text(mode)
+    entry.prepare_vm.main.return_value = setup_status
+    update = Mock()
+    monkeypatch.setattr(entry, 'update_system', update)
+    # Fixed reboot path is only a read; fixture chooses whether it is present.
+    exists = Path.exists
+    monkeypatch.setattr(Path, 'exists', lambda p: False if str(p) == '/run/reboot-required' else exists(p))
+    assert entry.main([]) == setup_status
+    assert update.call_count == int(mode == 'auto' and setup_status == 0)
+    assert (root / 'success').exists() == (setup_status == 0)
+    assert not (root / 'password').exists()
+
+
+def test_guest_update_failure_never_marks_success(guest_entry, monkeypatch):
+    entry, root = guest_entry
+    (root / 'mode').write_text('auto')
+    monkeypatch.setattr(entry, 'update_system', Mock(side_effect=RuntimeError('update failed')))
+    with pytest.raises(RuntimeError, match='update failed'):
+        entry.main([])
+    assert not (root / 'success').exists()
+
+
+def test_auto_guest_records_reboot_before_success(guest_entry, monkeypatch):
+    entry, root = guest_entry
+    (root / 'mode').write_text('auto')
+    monkeypatch.setattr(entry, 'update_system', Mock())
+    exists = Path.exists
+    monkeypatch.setattr(Path, 'exists', lambda p: True if str(p) == '/run/reboot-required' else exists(p))
+    assert entry.main([]) == 0
+    assert (root / 'reboot-required').read_text() == 'new-boot-id'
+    assert not (root / 'success').exists()
+
+
+def test_guest_requires_a_different_boot_before_success(guest_entry, monkeypatch):
+    entry, root = guest_entry
+    (root / 'reboot-required').write_text('new-boot-id')
+    assert entry.main(['--verify-reboot']) == 1
+    assert not (root / 'success').exists()
+    (root / 'reboot-required').write_text('old-boot-id')
+    read = Path.read_text
+    monkeypatch.setattr(Path, 'read_text', lambda p, *a, **k:
+                        '' if str(p) == '/var/lib/dpkg/status' else read(p, *a, **k))
+    assert entry.main(['--verify-reboot']) == 0
+    assert (root / 'success').read_text() == 'success\n'
+    assert not (root / 'reboot-required').exists()
+
+
+@pytest.mark.parametrize('failure', [None, 0, 1, 2])
+def test_updates_use_bounded_noninteractive_apt_and_stop_on_failure(monkeypatch, failure):
+    import baseline_guest_entry as entry
+    import subprocess
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        assert kwargs['check'] and kwargs['timeout'] == 3600
+        assert kwargs['env']['DEBIAN_FRONTEND'] == 'noninteractive'
+        assert kwargs['stdin'] == subprocess.DEVNULL
+        if len(calls) - 1 == failure:
+            raise subprocess.CalledProcessError(1, command)
+    monkeypatch.setattr(entry.subprocess, 'run', run)
+    monkeypatch.setattr(Path, 'read_text', lambda *_: '')
+    verify = Mock()
+    monkeypatch.setattr(entry.prepare_vm.guest_tools, 'verify_packages', verify)
+    if failure is not None:
+        with pytest.raises(subprocess.CalledProcessError):
+            entry.update_system()
+        assert len(calls) == failure + 1
+        verify.assert_not_called()
+    else:
+        entry.update_system()
+        assert [command[-1] for command in calls] == ['update', 'dist-upgrade', 'check']
+        assert 'APT::Update::Error-Mode=any' in calls[0]
+        assert 'DPkg::Lock::Timeout=300' in calls[1]
+        verify.assert_called_once()
+        # No freshness cache: a second invocation runs the same update steps.
+        entry.update_system()
+        assert calls[:3] == calls[3:]
+        assert verify.call_count == 2
+
+
 def test_baseline_boot_uses_shared_endpoint_and_collector(preparation, monkeypatch):
     import e2e_watch
     import xml.etree.ElementTree as ET
@@ -122,6 +262,20 @@ def test_guest_failure_cannot_reuse_success_from_previous_run(preparation):
         guest.prepare(p.capture, Mock(), 'fixture-password')
 
 
+def test_guest_failure_reports_only_bounded_diagnostic_tokens(preparation):
+    p = preparation
+    log = b'private fixture-password\nprepare-vm: [stage:guard] private\nprepare-vm: [guard:os] private\n'
+    p.files[guest.STAGE + '/preparation.log'] = log
+    p.g.filesize.return_value = len(log)
+    p.g.pread.return_value = log
+    p.capture.source.domain.create.side_effect = lambda: p.files.pop(guest.STAGE + '/password')
+    with pytest.raises(host.CaptureError) as caught:
+        guest.prepare(p.capture, Mock(), 'fixture-password')
+    assert 'diagnostics:stage:guard,guard:os' in str(caught.value)
+    assert 'private' not in str(caught.value) and 'fixture-password' not in str(caught.value)
+    p.g.pread.assert_called_once_with(guest.STAGE + '/preparation.log', len(log), 0)
+
+
 def test_guard_failure_prevents_staging_and_boot(preparation):
     p = preparation
     p.capture.revalidate.side_effect = host.CaptureError('guard:changed')
@@ -152,7 +306,7 @@ def test_replaced_running_instance_is_never_stopped(preparation):
 def test_timeout_requests_shutdown_only_for_the_spawned_instance(preparation, monkeypatch):
     p = preparation
     p.capture.source.snapshot.return_value = ({}, False)
-    monkeypatch.setattr(guest.time, 'monotonic', Mock(side_effect=[0, 2701]))
+    monkeypatch.setattr(guest.time, 'monotonic', Mock(side_effect=[0, 7501]))
     with pytest.raises(host.CaptureError, match='preparation-timeout'):
         guest.prepare(p.capture, Mock(), 'fixture-password')
     p.capture.source.shutdown.assert_called_once_with(p.capture.revalidate, requested=False)
@@ -185,6 +339,6 @@ def test_missing_password_precedes_any_host_dependency_or_vm_access(monkeypatch)
     tools, source = Mock(), Mock()
     monkeypatch.setattr(host.shutil, 'which', tools)
     monkeypatch.setattr(host, 'LibvirtSource', source)
-    assert host.main([]) == 1
+    assert host.main(['--mode', 'manual']) == 1
     tools.assert_not_called()
     source.assert_not_called()

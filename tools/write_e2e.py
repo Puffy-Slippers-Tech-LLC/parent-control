@@ -243,7 +243,11 @@ def wait_for_answer(run, state, progress_key):
     publish_progress(run, progress_key, [heading, 'Paused — waiting for your answer'])
     renderer = AgentRenderer(sys.stdout)
     renderer.message(blocker['explanation'])
-    renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)
+    # The observer owns the editable menu. Do not leave its initial selection
+    # in the transcript, where it would reappear after submission.
+    prompt = QuestionInput(question, None)
+    prompt.selected = None
+    renderer.console.print('\n'.join(prompt.lines()), markup=False)
     print('No timeout. Reattach with tools/write-e2e to answer after a disconnect.', flush=True)
     while True:
         if (run / 'cancel').exists():
@@ -252,6 +256,7 @@ def wait_for_answer(run, state, progress_key):
             return False
         question = json.loads(path.read_text())
         if question['answer'] is not None:
+            renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)
             state.update(phase='recover', recovery_run=str(run),
                          user_answer={'question': question['question'], 'answer': question['answer']})
             state.pop('blocker_id', None)

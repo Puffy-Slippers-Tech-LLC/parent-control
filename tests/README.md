@@ -589,7 +589,7 @@ does not bypass live ownership or VM checks. Explicit regression and fresh-build
 selections remain fresh.
 
 Installed-system runs retain one exclusive VM lease. Package installation/reboot
-checks keep their lifecycle together on `onpc-baseline`; each post-install area
+checks keep their lifecycle together on `onpc_baseline`; each post-install area
 restores the same retained version snapshot used by E2E, preparing it only when
 missing. Explicit upgrade attempts keep the upgraded state throughout their
 selected checks. Multi-case E2E runs retain one exclusive VM lease and

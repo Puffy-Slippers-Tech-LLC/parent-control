@@ -11,27 +11,38 @@ sys.path.insert(0, str(ROOT / 'tests/integration'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_account_password import read_password
 from dev_privileges import check
+from baseline_messages import help_message
 
 HELPER = '/usr/local/libexec/onpc-setup'
 
 
 def arguments(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--mode', required=True, choices=('auto', 'manual'),
+                        help='auto: restore baseline and update Ubuntu; manual: prepare current VM state')
+    parser.epilog = help_message()
+    # Show the complete, short usage reminder for missing options or values.
+    def error(message):
+        parser.print_help(sys.stderr)
+        parser.exit(2, '\nPlease choose --mode auto or --mode manual. ' + message + '\n')
+    parser.error = error
     return parser.parse_args(argv)
 
 
 def main(argv=None):
-    arguments(argv)
+    args = arguments(argv)
     try:
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         read_password(ROOT)
         check(HELPER)
-        print('prepare-baseline: [stage:prepare-baseline]', flush=True)
         status = subprocess.run(
-            ['/usr/bin/pkexec', HELPER, 'prepare-baseline'],
+            ['/usr/bin/pkexec', HELPER, 'prepare-baseline', '--mode', args.mode],
             env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
         ).returncode
+        if status == 3:  # Operator declined; no baseline was prepared.
+            return 0
         if status:
             return status
         # Pin the accepted UUID only after successful baseline reconciliation.

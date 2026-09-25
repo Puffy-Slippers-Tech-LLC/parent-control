@@ -1371,7 +1371,12 @@ On the exclusively held offline disk, credential verification checks the
 fixture UIDs, homes and shells against accepted baseline records and verifies
 the existing password hashes through libcrypt. This step opens the disk read-only:
 it changes no account passwords, keyrings or other guest data. A mismatch
-requires rerunning `tools/prepare-baseline` on the host. Baseline preparation
+requires rerunning `tools/prepare-baseline --mode auto` on the host, or
+`tools/prepare-baseline --mode manual` to prepare the current guest state.
+Both require the VM off and confirmation before deleting all versioned app
+snapshots and replacing the baseline; auto also restores the baseline and
+updates Ubuntu. See [VM preparation modes](../integration/Environment.md).
+Baseline preparation
 preserves account UIDs/homes and backs up old keyrings before setting the
 configured shared password; E2E never changes it.
 

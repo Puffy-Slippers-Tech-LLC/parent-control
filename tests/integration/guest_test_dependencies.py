@@ -1,10 +1,12 @@
 """Shared, product-free guest tool contract; no installation at import time.
 
-Only prepare_vm installs these packages. Controllers and guest tests verify the
-same inventory and refuse an incomplete baseline instead of repairing it.
+prepare_vm installs these packages; auto baseline preparation updates them.
+Controllers and guest tests verify the same minimum inventory and refuse an
+incomplete baseline instead of repairing it.
 """
 
 import re
+import subprocess
 
 REMOTE_PACKAGES = (
     'slapd=2.6.10+dfsg-1ubuntu5', 'ldap-utils=2.6.10+dfsg-1ubuntu5',
@@ -15,6 +17,7 @@ PACKAGES = (
     *REMOTE_PACKAGES,
 )
 VERSIONS = dict(package.split('=', 1) for package in PACKAGES)
+# Qualified minimum versions. Security and maintenance updates may be newer.
 DORMANT_PATHS = ('/etc/ldap/slapd.d', '/etc/ldap/slapd.conf', '/etc/sssd/sssd.conf')
 
 
@@ -37,7 +40,7 @@ def ubuntu_archive_sources(contents):
 
 
 def verify_packages(status, packages=PACKAGES):
-    """Check dpkg's public status paragraphs, including fully configured state."""
+    """Require fully configured packages at or above their qualified versions."""
     expected = dict(package.split('=', 1) for package in packages)
     found = {}
     for paragraph in status.split('\n\n'):
@@ -57,6 +60,11 @@ def verify_packages(status, packages=PACKAGES):
         if fields.get('Status') != 'install ok installed':
             raise ValueError('guest-tools:package-not-configured')
         found[name] = fields.get('Version')
-    if found != expected:
+    if set(found) != set(expected) or any(
+            not version or subprocess.run(
+                ['/usr/bin/dpkg', '--compare-versions', version, 'ge', expected[name]],
+                check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=10).returncode != 0
+            for name, version in found.items()):
         raise ValueError('guest-tools:missing-or-mismatched-package; run tools/prepare-baseline on the host')
     return found

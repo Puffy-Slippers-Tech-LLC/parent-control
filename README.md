@@ -143,20 +143,31 @@ Reference: [test commands and artifacts](tests/README.md).
 
 ## Run VM and graphical E2E tests
 
-Follow [VM setup](tests/integration/Environment.md). With the source VM off, run
-`tools/prepare-baseline` on the host. It validates `.envrc` first, prepares the
-guest accounts and reusable tools during a controlled boot, then captures the
-powered-off guest. Existing accounts keep their UIDs and homes; their password,
-picture, display name, role, shell and unlocked status are reconciled with the
+Follow [VM setup](tests/integration/Environment.md). With the source VM off,
+choose one required mode on the host:
+
+- `tools/prepare-baseline --mode auto`: restore an existing accepted baseline,
+  boot, run no-app prerequisites, update Ubuntu packages, reboot if required,
+  shut down and replace `onpc_baseline`.
+- `tools/prepare-baseline --mode manual`: boot the current guest state, run
+  no-app prerequisites, shut down and create or replace `onpc_baseline`.
+
+Both modes show a red confirmation warning and delete all versioned app
+snapshots (`onpc-[version]` and `onpc-v[version]`) after confirmation. Declining
+exits without changing the guest or snapshots. Missing `--mode` or its value
+shows usage help; there is no default. Every confirmed run repeats its steps.
+Ordinary `./setup.sh` never prepares a baseline.
+
+The command validates `.envrc` first. Existing accounts keep their UIDs and homes;
+their password, picture, display name, role, shell and unlocked status are reconciled with the
 fixture definitions. Existing keyrings are backed up so GNOME can create ones
-matching the shared password. Repeating this command replaces the baseline
-without restoring it. Ordinary `./setup.sh` never prepares a baseline.
+matching the shared password.
 
 For manual maintenance, restore your own snapshot (for example `1 - Clean`),
 make your changes, shut down the VM, and replace your snapshot as usual. Then
-run `tools/prepare-baseline`. It accepts the current disk chain of the same VM
-without another confirmation, preserves your snapshots, and replaces only the
-automation-owned `onpc-baseline`. It never restores a snapshot during preparation.
+run `tools/prepare-baseline --mode manual`. After confirmation, it accepts the
+current disk chain of the same VM, deletes the versioned app snapshots and
+replaces `onpc_baseline`. Other manually managed snapshots are preserved.
 
 For an explicitly authorized replacement after manual baseline deletion, prepare
 and shut down the guest, then run `./setup.sh --replace-missing-baseline`. This

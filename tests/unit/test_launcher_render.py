@@ -178,7 +178,7 @@ def test_latest_two_steps_wrap_and_survive_resize_without_ellipsis(terminal):
         assert '…' not in visible
 
 
-def test_shared_task_heading_appears_once_and_survives_small_terminal(terminal):
+def test_shared_task_heading_keeps_only_latest_session_through_resize(terminal):
     display = LauncherDisplay(terminal)
     heading = '\033[1mTask 005a\033[22m: Start a graphical journey before product installation'
     steps = [
@@ -193,7 +193,7 @@ def test_shared_task_heading_appears_once_and_survives_small_terminal(terminal):
         visible = ' '.join(terminal.visible().split())
         assert visible.count('Task 005a:') == 1
         assert 'Start a graphical journey before product installation' in visible
-        assert 'Session [2/2]: Live VM test 1' in visible
+        assert 'Session [2/2]' not in visible
         assert 'Session [3/3]: Live VM test 2' in visible
     terminal.resize(80, 5)
     display.draw()
@@ -221,9 +221,11 @@ def test_completed_groups_replace_session_history_and_survive_reconnection(termi
     assert [step['key'] for step in steps] == ['complete-001', 'complete-002', '6', '7']
     assert list(display.step_history) == ['complete-001', 'complete-002', '6', '7']
     for step in steps:
+        if step['key'] == '6':
+            continue
         for line in step['lines']:
             assert line in terminal.visible()
-    for session in range(1, 6):
+    for session in range(1, 7):
         assert f'Session {session}' not in terminal.visible()
     visible = terminal.visible()
     display.close()

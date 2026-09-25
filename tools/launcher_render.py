@@ -321,6 +321,11 @@ class LauncherDisplay:
             size = shutil.get_terminal_size()
         width, height = max(1, size.columns - 1), max(1, size.lines)
         active = [step for step in self.steps if not step.get('replaces')][-2:]
+        if (len(active) == 2 and active[0]['lines'] and active[1]['lines']
+                and active[0]['lines'][0] == active[1]['lines'][0]):
+            # A task's rolling status replaces its previous session line.
+            # Completed summaries remain independent entries in the top pane.
+            active = active[-1:]
         recent = [step for step in self.steps if step.get('replaces') or step in active]
         steps = []
         previous_lines = []

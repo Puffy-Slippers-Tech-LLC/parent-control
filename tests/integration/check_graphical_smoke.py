@@ -656,7 +656,20 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          challenges=False, product_free_entry=False, package_authority=False,
          package_install=False, customer_reboot=False, app_row_observations=False,
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
-         time_explanation=False):
+         time_explanation=False, set_allowance=False):
+    require(type(set_allowance) is bool and (not set_allowance or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
+                     parent_setup, parent_input, parent_standard_input, parent_about,
+                     parent_access, desktop_session_logout, desktop_session_switch,
+                     gdm_navigation, gdm_recipient, gdm_product_free, kiosk_entry,
+                     request_exit, parent_toggle, shell_search_results, parent_search_launch,
+                     shell_search, parent_terminal_provider, license_viewer_provider,
+                     kiosk_eligible_choices, request_choices, kiosk_no_child, kiosk_no_approver,
+                     repeated_operations, challenges, product_free_entry, package_authority,
+                     package_install, customer_reboot, app_row_observations, feedback_read,
+                     text_qualification, allowance_presets, allowance, time_explanation)))),
+            'smoke:set-allowance-prerequisites')
     require(type(time_explanation) is bool and (not time_explanation or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1052,6 +1065,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-allowance-qualification'
         if time_explanation:
             result['scope'] = 'installed-time-explanation-qualification'
+        if set_allowance:
+            result['scope'] = 'installed-set-allowance-qualification'
         if repeated_operations:
             result['scope'] = 'installed-repeated-operations-qualification'
         if challenges:
@@ -1085,7 +1100,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or fresh_desktop is not None or shell_search_results or parent_search_launch
                         or shell_search or parent_terminal_provider or license_viewer_provider
-                        or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or kiosk_eligible_choices or request_choices
+                        or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                     staged = directory / 'input'
@@ -1213,6 +1228,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if time_explanation:
                     from parent_setup_qualification import TimeExplanationQualification
                     qualification_class = TimeExplanationQualification
+                if set_allowance:
+                    from parent_setup_qualification import SetAllowanceQualification
+                    qualification_class = SetAllowanceQualification
                 qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
                                               staged, credentials, serial, install, install_refusal, vt6_prompt,
                                               vt6_auth)

@@ -226,6 +226,21 @@ def test_time_explanation_reads_public_balances_twice_without_input(monkeypatch)
         node.component.scroll_to.assert_not_called()
 
 
+@pytest.mark.parametrize('present', [False, True])
+def test_new_parent_window_entry_refuses_existing_window_without_input(present):
+    ui, *_ = time_explanation_ui()
+    ui.desktop_result = Mock()
+    ui.parent_search_closed = Mock(return_value=not present)
+    ui.launch_parent_command = Mock()
+    if present:
+        with pytest.raises(UiError, match='parent-window-exists'):
+            ui.new_parent_window_entry()
+    else:
+        ui.new_parent_window_entry()
+    ui.desktop_result.assert_called_once_with(accessible_ui.PARENT, 'success')
+    ui.launch_parent_command.assert_not_called()
+
+
 @pytest.mark.parametrize('collapsed', [False, True])
 def test_reach_time_explanation_expands_once_and_repeated_reads_never_collapse(collapsed):
     ui, root, _picker, section, explanation, collapse = time_explanation_ui()

@@ -19,13 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **180 — [Set an allowance for a named child](E2E-Tasks/180-set-an-allowance-for-a-named-child.md)**.
+Next task: **203 — [E2E-036: zero-total](E2E-Tasks/203-case-161.md)**.
 
-Qualify FLOW01's same-user Parent entry, then compose FLOW16's fresh/same-user
-allowance setup using the qualified FLOW02 0/15-minute preset scope. Keep the
-parent, child, source and window entry explicit. The planned
-`check_e2e_set_an_allowance_for_a_named_child` selector must be implemented and
-registered before use; complete scenarios remain separate.
+Implement complete case 161 from fresh limits-off/zero defaults using FLOW16's
+qualified fresh-zero binding. Observe zero balances and disabled Revoke while
+idle, turn limits off, then verify Revoke remains disabled and the saved zero
+allowance remains. Register and validate the complete independent scenario;
+Task 180's capability qualification does not supply its acceptance.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

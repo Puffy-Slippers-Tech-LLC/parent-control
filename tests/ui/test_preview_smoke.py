@@ -231,6 +231,8 @@ def test_parent_screen_time_change_saves_or_restores(
 
 def test_parent_daily_preset_and_custom_limit_autosave(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD
     from tests.support.keyboard import key_combo, type_text
     path = tmp_path / "daily-limit-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
@@ -256,6 +258,29 @@ def test_parent_daily_preset_and_custom_limit_autosave(
                     for record in read_events(path)),
         "preset allowance saves",
     )
+    reader = AccessibleUI(
+        ui.api, timeout=10, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001},
+        dispatch=lambda: GLib.MainContext.default().iteration(False),
+    )
+    for minutes in (0, 15):
+        identity = f"parent-daily-limit-{minutes}"
+        for action in ('select', 'read', 'reopen'):
+            assert reader.allowance_preset(CHILD, minutes, action=action) == {
+                'minutes': minutes, 'saved': True}
+        wait_for_accessible_state(
+            lambda: any(record["event"] == "set_parent_control"
+                        and record["daily_limit_minutes"] == minutes
+                        for record in read_events(path)), "ordinary preset saves")
+        assert ui.showing(identity)
+        assert ui.target(identity).get_description() == (
+            f"Selected daily allowance: {minutes} minutes")
+        other = "parent-daily-limit-15" if minutes == 0 else "parent-daily-limit-0"
+        assert ui.target(other).get_description() == (
+            "Daily allowance: 15 minutes" if minutes == 0 else "Daily allowance: 0 minutes")
 
 
 def test_parent_app_search_rule_edit_and_revocation_confirmation(

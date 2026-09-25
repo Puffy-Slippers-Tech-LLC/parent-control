@@ -403,6 +403,104 @@ def test_parent_save_observation_accepts_only_its_fixed_sanitized_result(operati
         session.observe(operation)
 
 
+@pytest.mark.parametrize('minutes', [0, 15])
+@pytest.mark.parametrize('action', ['select', 'read', 'reopen'])
+def test_allowance_presets_require_independent_public_value(minutes, action):
+    ui, root, _picker, _toggle, allowance = parent_save_ui()
+    label = Node('30 minutes', 'label')
+    allowance.children = [label]
+    choice = Node(identity='parent-daily-limit-' + str(minutes))
+    choice.get_description = lambda: 'Selected daily allowance: ' + str(minutes) + ' minutes'
+    root.children.append(choice)
+    def activate(identity):
+        if identity == choice.identity:
+            label.name = str(minutes) + ' minutes'
+    ui.activate_id = Mock(side_effect=activate)
+    if action != 'select':
+        label.name = str(minutes) + ' minutes'
+    assert ui.allowance_preset(accessible_ui.CHILD, minutes, action=action) == {
+        'minutes': minutes, 'saved': True}
+    assert ui.activate_id.call_count == {'read': 0, 'reopen': 1, 'select': 2}[action]
+    label.name = '30 minutes'
+    with pytest.raises(UiError, match='ui:allowance-value'):
+        ui.allowance_preset(accessible_ui.CHILD, minutes, action='read')
+    label.name = str(minutes) + ' minutes'
+    choice.get_description = lambda: 'Daily allowance: ' + str(minutes) + ' minutes'
+    with pytest.raises(UiError, match='ui:allowance-selection'):
+        ui.allowance_preset(accessible_ui.CHILD, minutes, action='reopen')
+
+
+@pytest.mark.parametrize('disabled', [False, True])
+def test_allowance_refuses_wrong_child_and_disabled_before_input(disabled):
+    ui, *_ = parent_save_ui(enabled=not disabled)
+    ui.activate_id = Mock()
+    operation = 'allowance-disabled' if disabled else 'allowance-wrong-child'
+    assert ui.allowance_operation(operation) == {
+        'refusal': 'disabled' if disabled else 'wrong-child'}
+    ui.activate_id.assert_not_called()
+
+
+def test_allowance_selection_waits_for_popup_labels_to_disappear(monkeypatch):
+    ui, _root, _picker, _toggle, allowance = parent_save_ui()
+    label = Node('0 minutes', 'label')
+    choice = Node(identity='parent-daily-limit-0',
+                  description='Selected daily allowance: 0 minutes')
+    choices = Node(identity='parent-daily-limit-choices', children=[choice])
+    custom = Node('Custom amount', 'label')
+    allowance.children = [label]
+    inputs = []
+
+    def activate(identity):
+        inputs.append(identity)
+        if identity == 'parent-daily-limit-selector':
+            allowance.children = [label, choices, custom]
+        else:
+            assert identity == 'parent-daily-limit-0'
+        # Selection returns before GTK removes the popover's accessible labels.
+
+    ui.activate_id = activate
+    ui.timeout = 1
+    settle = Mock(side_effect=lambda _seconds: setattr(allowance, 'children', [label]))
+    monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
+    assert ui.allowance_preset(accessible_ui.CHILD, 0, action='select') == {
+        'minutes': 0, 'saved': True}
+    assert len(inputs) == 2
+    settle.assert_called_once()
+
+
+def test_allowance_reopen_reads_open_picker_without_replaying_popup():
+    ui, _root, _picker, _toggle, allowance = parent_save_ui()
+    label = Node('0 minutes', 'label')
+    choice = Node(identity='parent-daily-limit-0',
+                  description='Selected daily allowance: 0 minutes')
+    choices = Node(identity='parent-daily-limit-choices', children=[choice])
+    custom = Node('Custom amount', 'label')
+    allowance.children = [label]
+    # The public menu.popup action opens; invoking it again does not close.
+    ui.activate_id = Mock(side_effect=lambda identity: setattr(
+        allowance, 'children', [label, choices, custom]))
+    assert ui.allowance_preset(accessible_ui.CHILD, 0, action='reopen') == {
+        'minutes': 0, 'saved': True}
+    ui.activate_id.assert_called_once_with('parent-daily-limit-selector')
+    assert ui.showing(choice)
+
+
+@pytest.mark.parametrize('operation', accessible_ui.ALLOWANCE_OPERATIONS)
+def test_allowance_controller_rejects_mismatched_public_projection(operation):
+    value = ({'refusal': operation.removeprefix('allowance-')}
+             if operation in ('allowance-disabled', 'allowance-wrong-child')
+             else {'minutes': int(operation.split('-')[1]), 'saved': True})
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'allowance': value}
+    transport = SimpleNamespace(call=Mock(return_value=(json.dumps(result) + '\n').encode()))
+    session = UiObservations(transport)
+    assert session.observe(operation)['allowance'] == value
+    result['allowance'] = {'minutes': 30, 'saved': True}
+    transport.call.return_value = (json.dumps(result) + '\n').encode()
+    with pytest.raises(EvidenceError, match='ui:allowance-response'):
+        session.observe(operation)
+
+
 def search_ui(surface, *, outside=()):
     surface.identity = 'test-shell-app-grid'
     application = Node(identity='test-shell-application', children=[surface])

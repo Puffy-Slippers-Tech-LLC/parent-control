@@ -19,15 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **040b — [Select and read ordinary daily presets](E2E-Tasks/040b-allowance-presets.md)**.
+Next task: **040 — [Commit custom daily allowances](E2E-Tasks/040-allowance.md)**.
 
-Remaining: implement and qualify PARENT05 preset 0/15 selection and saved
-readback. Enable limits, save each preset, independently observe each save and
-reopen the picker to read its selected value. Require independent valid entry,
-wrong-child and disabled-control refusal, collection and owned cleanup through
-the planned `tools/run-tests integration check_e2e_allowance_presets` selector.
-Implement and register that selector before invocation. Custom input remains
-in task 040.
+Implement and qualify custom values 1, 2 and 3 through pause, Enter and
+focus-leave commits, with independent save and reopened-editor readback.
+Reuse the qualified PARENT05 preset 0/15 callable and its open-picker return
+contract; keep each custom commit route distinct. The fixed
+`check_e2e_allowance` selector must be implemented and registered before use.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

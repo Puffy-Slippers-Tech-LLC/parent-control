@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
+import pytest
 
 import parent_setup_qualification
 from parent_setup_qualification import ParentToggleQualification
@@ -125,3 +126,62 @@ def test_toggle_worker_refuses_input_without_independent_choice_focus(monkeypatc
     assert not result['ok']
     assert 'fixture:missing-focus' in result['error']
     assert not any(event[0] in ('key', 'text', 'secret') for event in result['events'])
+
+
+def test_allowance_selector_and_prerequisites(monkeypatch, tmp_path):
+    import check_e2e_allowance_presets as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import AllowancePresetsQualification
+    from allowance_presets import PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['allowance_presets'] is True
+    with pytest.raises(CommandError, match='allowance-presets-prerequisites'):
+        smoke.main(allowance_presets=True)
+    with pytest.raises(CommandError, match='allowance-presets-prerequisites'):
+        smoke.main(assets=tmp_path, provision_credentials=True,
+                   allowance_presets=True, parent_toggle=True)
+    journey = AllowancePresetsQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is PLAN
+
+
+def test_allowance_worker_matches_plan_and_stops_on_refusal(monkeypatch):
+    from allowance_presets import PLAN, PRESET_STAGES
+    script = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @stages;
+BEGIN { $INC{'testapi.pm'} = 1; $INC{'onpc_gdm.pm'} = 1; $INC{'onpc_parent.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub console { bless {}, 'Console' }
+sub power { }
+sub check_shutdown { 1 }
+package Console;
+sub disable { }
+package onpc_gdm;
+sub reattach_functional { }
+package onpc_parent;
+sub open_for_child { return $_[0]->seen('parent-selected'); }
+package main;
+require onpc_allowance_presets;
+my $exchange = sub {
+    push @stages, $_[0];
+    die 'fixture:refused' if $_[0] eq $ENV{ONPC_TEST_REFUSE};
+    return {observed => $_[0]};
+};
+my $ok = eval { onpc_allowance_presets::run($exchange); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages, error => "$@"});
+'''
+    for refused in ('', 'allowance-0-select'):
+        monkeypatch.setenv('ONPC_TEST_REFUSE', refused)
+        result = json.loads(run_perl(script).stdout)
+        expected = ['parent-selected', *PRESET_STAGES]
+        if refused:
+            expected = expected[:expected.index(refused) + 1]
+        assert result['stages'] == expected
+        assert bool(result['ok']) == (not refused), result['error']
+        assert all(stage in PLAN.screen_tags for stage in expected)

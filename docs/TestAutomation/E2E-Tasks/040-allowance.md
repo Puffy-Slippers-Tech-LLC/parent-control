@@ -21,6 +21,17 @@ Read only the named block rows/callables, this recipe's selected cases and
 applicable finite-data rows. Prerequisite IDs are completion checks; do not open
 their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
+Reuse `tests/e2e/accessible_ui.py::allowance_preset` / `allowance_operation`,
+`tests/e2e/allowance_presets.py::PLAN`,
+`tests/integration/graphical_smoke/lib/onpc_allowance_presets.pm::run` and
+`tests/integration/parent_setup_qualification.py::AllowancePresetsQualification`.
+Preset `reopen` verifies the closed saved selector before opening, checks the
+selected choice's public description and returns the picker open. The public
+`menu.popup` action opens only; do not use it to close. Preserve the asynchronous
+closure observation after selection. Adapter and real GTK regression entry
+points are `tests/unit/test_accessible_e2e_ui.py`, `tests/unit/test_e2e_toggle.py`
+and `tests/ui/test_preview_smoke.py::test_parent_daily_preset_and_custom_limit_autosave`.
+
 ## Scope and prerequisites
 
 Deliver **PARENT05/06 valid ordinary values**. First scheduled consumer: [E2E-036, case 161](../E2E-Scenario-Recipes.md#e2e-036).

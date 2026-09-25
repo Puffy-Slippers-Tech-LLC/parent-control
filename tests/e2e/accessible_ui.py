@@ -69,6 +69,11 @@ STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 OPERATIONS |= frozenset({'help-desktop-clear'})
 OPERATIONS |= frozenset({'gdm-product-free-provider', 'parent-desktop-provider'})
 PRODUCT = 'Oh No! Parent Control'
+FEEDBACK_READ_OPERATIONS = frozenset({
+    'feedback-open', 'feedback-read', 'feedback-close',
+    'feedback-wrong-entry', 'feedback-reopen', 'feedback-reread', 'feedback-finished',
+})
+OPERATIONS |= FEEDBACK_READ_OPERATIONS
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
 CHILD = 'Riley (Child)'
@@ -1251,6 +1256,111 @@ class AccessibleUI:
 
     def about(self):
         return self.id_target('about-dialog')
+
+    def feedback_snapshot(self, projection='initial-empty'):
+        """FEED03: only the declared empty synthetic draft, never arbitrary text.
+
+        One complete public snapshot supplies ownership, the exact attachment
+        set and controls. Only closed comparison values leave this method.
+        """
+        require(projection == 'initial-empty', 'ui:feedback-projection')
+        edges, identities, facts = {}, {}, {}
+        nodes = list(self.nodes(strict=True, snapshot=edges, identities=identities, facts=facts))
+        observation = (nodes, edges, identities, facts)
+        root = self.snapshot_owned_target('feedback-dialog', observation=observation,
+                                          check_prompt=True)
+        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+                'ui:feedback-entry')
+        scoped = self.snapshot_scope(nodes, edges, root)
+        require(all(not self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
+                'ui:feedback-stale')
+        # GTK implementation IDs such as "box" and "title" are reusable
+        # inside compound widgets. Only the feedback namespace is our public
+        # control contract; its IDs must remain unique, including hidden ones.
+        ids = [identities[node] for node in scoped
+               if identities[node].startswith('feedback-')]
+        require(len(ids) == len(set(ids)), 'ui:feedback-duplicate')
+
+        def target(identity):
+            node = self.snapshot_owned_target(identity, root=root, showing=False,
+                                              observation=observation)
+            require(node is not None and self.has_state(node, self.api.StateType.VISIBLE),
+                    'ui:feedback-target')
+            return node
+
+        for identity in ('feedback-editor-input', 'feedback-reply-email'):
+            node = target(identity)
+            require(node.get_role_name() != 'password text'
+                    and self.has_state(node, self.api.StateType.EDITABLE)
+                    and self.has_state(node, self.api.StateType.SENSITIVE),
+                    'ui:feedback-editor')
+            text = node.get_text_iface()
+            require(text is not None, 'ui:feedback-editor')
+            count = self.api.Text.get_character_count(text)
+            # Quill's empty paragraph is one public newline in WebKit. Compare
+            # only that bounded representation; never extract a longer draft
+            # or project a mismatching character into evidence.
+            empty = count == 0 or (
+                identity == 'feedback-editor-input' and count == 1
+                and self.api.Text.get_text(text, 0, 1) == '\n')
+            require(empty,
+                    'ui:feedback-nonempty-draft')
+        require(not any(value.startswith('feedback-attachment-') for value in ids),
+                'ui:feedback-attachment-set')
+        logs = target('feedback-logs-row')
+        require(logs.get_name() == 'diagnostic-logs.zip', 'ui:feedback-logs')
+        for identity in ('feedback-collection-status', 'feedback-retry-logs',
+                         'feedback-send-without-logs'):
+            node = self.snapshot_owned_target(identity, root=root, showing=False,
+                                              observation=observation)
+            require(node is None or not self.has_state(node, self.api.StateType.VISIBLE),
+                    'ui:feedback-collection')
+        status = self.snapshot_owned_target('feedback-status', root=root, showing=False,
+                                            observation=observation)
+        require(status is None or not self.has_state(status, self.api.StateType.VISIBLE)
+                or status.get_name() == '', 'ui:feedback-validation')
+        for identity in ('feedback-close', 'feedback-send', 'feedback-add-files',
+                         'feedback-download-logs', 'feedback-toggle-logs'):
+            require(self.has_state(target(identity), self.api.StateType.SENSITIVE),
+                    'ui:feedback-control')
+        return {'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
+                'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+
+    def open_feedback(self):
+        """FEED01: ordinary Parent entry, with an independently observed result."""
+        self.activate_id('parent-feedback-button')
+        self.id_target('feedback-editor-input', sensitive=True)
+        def ready():
+            try:
+                return self.feedback_snapshot()
+            except UiError as error:
+                if str(error) in ('ui:feedback-collection', 'ui:feedback-target'):
+                    return None
+                raise
+        return self.wait(ready, 'feedback-ready')
+
+    def feedback_read_operation(self, operation):
+        require(operation in FEEDBACK_READ_OPERATIONS, 'ui:feedback-operation')
+        if operation in ('feedback-open', 'feedback-reopen'):
+            return self.open_feedback()
+        if operation in ('feedback-close', 'feedback-finished'):
+            self.feedback_snapshot()
+            self.activate_id('feedback-close')
+            self.wait(lambda: self.absent_id('feedback-dialog', within='parent-window'),
+                      'feedback-closed')
+            self.parent()
+            return None
+        if operation == 'feedback-wrong-entry':
+            require(self.absent_id('feedback-dialog', within='parent-window'),
+                    'ui:feedback-wrong-entry')
+            try:
+                self.feedback_snapshot()
+            except UiError as error:
+                require(str(error) == 'ui:feedback-entry', 'ui:feedback-refusal')
+            else:
+                raise UiError('ui:feedback-wrong-entry-accepted')
+            return None
+        return self.feedback_snapshot()
 
     def open_about(self, version):
         """ABOUT01: independent Parent entry; menu, About, text and license link."""
@@ -4011,6 +4121,10 @@ class AccessibleUI:
                 result['settings'] = self.selected_child(child)
         elif operation == 'about':
             self.open_about(version)
+        elif operation in FEEDBACK_READ_OPERATIONS:
+            feedback = self.feedback_read_operation(operation)
+            if feedback is not None:
+                result['feedback'] = feedback
         elif operation == 'about-rechecked':
             root = self.about()
             self.read_label(root, 'about-product', maximum=80)

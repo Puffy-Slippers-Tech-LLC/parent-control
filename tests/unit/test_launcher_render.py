@@ -204,6 +204,38 @@ def test_shared_task_heading_appears_once_and_survives_small_terminal(terminal):
     assert list(display.step_history.values()) == [step['lines'] for step in steps]
 
 
+def test_completed_groups_replace_session_history_and_survive_reconnection(terminal, tmp_path):
+    display = LauncherDisplay(terminal)
+    for task, sessions in [('001', (1, 2, 3)), ('002', (4, 5))]:
+        for session in sessions:
+            publish_progress(tmp_path, str(session), [f'Task {task}', f'Session {session}'])
+            display.update(read_progress(tmp_path), [])
+        summary = f'Task {task} complete (sessions={len(sessions)}, duration=2m)'
+        publish_progress(tmp_path, 'complete-' + task, [summary],
+                         replaces=[str(session) for session in sessions])
+        display.update(read_progress(tmp_path), [])
+    for session in (6, 7):
+        publish_progress(tmp_path, str(session), ['Task 003', f'Session {session}'])
+        display.update(read_progress(tmp_path), [])
+    steps = read_progress(tmp_path)
+    assert [step['key'] for step in steps] == ['complete-001', 'complete-002', '6', '7']
+    assert list(display.step_history) == ['complete-001', 'complete-002', '6', '7']
+    for step in steps:
+        for line in step['lines']:
+            assert line in terminal.visible()
+    for session in range(1, 6):
+        assert f'Session {session}' not in terminal.visible()
+    visible = terminal.visible()
+    display.close()
+    reattached = LauncherDisplay(terminal)
+    reattached.update(read_progress(tmp_path), [])
+    assert terminal.visible() == visible
+    terminal.resize(80, 5)
+    reattached.draw()
+    assert terminal.visible().startswith('Task 003\nSession 7\n')
+    reattached.close()
+
+
 def test_test_tree_updates_stay_below_controller_and_quiet_frames_do_not_repaint(terminal):
     display = LauncherDisplay(terminal)
     steps = [{'key': 'unit', 'lines': ['Category: unit (1/2) | Overall - 10% (1/10)']}]

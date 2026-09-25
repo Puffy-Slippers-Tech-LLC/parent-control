@@ -246,8 +246,11 @@ def save_handoff(run, state, reason, *, display=True):
         sys.stdout.flush()
 
 
-def format_duration(seconds):
+def format_duration(seconds, *, short=False):
     minutes = max(0, int(seconds / 60 + 0.5))
+    if short:
+        hours, remaining_minutes = divmod(minutes, 60)
+        return f'{hours}h {remaining_minutes}m' if seconds >= 3600 else f'{minutes}m'
     if seconds < 3600:
         return f'{minutes} {"minute" if minutes == 1 else "minutes"}'
     hours, minutes = divmod(minutes, 60)
@@ -314,6 +317,15 @@ def worker(root, run, owner, sessions, tasks, state_json):
     state = json.loads(state_json)
     total = state.get('total_sessions', state.get('task_sessions', 0))
     count, completed, status, reason = 0, 0, 0, 'session limit reached'
+    completions = []
+
+    def compact_completions():
+        for task_id, task_sessions, launcher_sessions, duration, keys, heading in completions:
+            publish_progress(run, 'complete-' + task_id,
+                             [f'\033[32m{heading} '
+                              f'(sessions={task_sessions}, duration={format_duration(duration, short=True)})\033[0m'],
+                             replaces=keys)
+
     try:
         while True:
             with launcher.lock(run / 'limits-gate') as gate:
@@ -342,6 +354,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 break
             if state['phase'] == 'complete':
                 state = fresh_state(task)
+                compact_completions()
             if task != state['task_id']:
                 raise ValueError('active task changed outside the workflow; inspect the checkpoint')
             count += 1
@@ -358,7 +371,8 @@ def worker(root, run, owner, sessions, tasks, state_json):
             launcher.atomic(run / 'checkpoint.json', state)
             launcher.atomic(run / 'progress.json', {'session': count, 'limit': sessions,
                                                    'task_id': task, 'phase': state['phase']})
-            publish_progress(run, str(count), session_progress(root, state, total))
+            progress_lines = session_progress(root, state, total)
+            publish_progress(run, str(count), progress_lines)
             print(f"\nwrite-e2e: session {count}{'/' + str(sessions) if sessions else ''}; "
                   f"task {task}; {MODEL} {effort}", flush=True)
             try:
@@ -380,8 +394,12 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state.pop('worktree_before', None)
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'complete':
-                show_completion(task, state['task_sessions'], total,
-                                time.time() - state['started_at'])
+                keys = [str(index) for index in
+                        range(max(1, count - state['task_sessions'] + 1), count + 1)]
+                completions.append((task, state['task_sessions'], total,
+                                    time.time() - state['started_at'], keys, progress_lines[0]))
+                if tasks > 1 or completed > 1:
+                    compact_completions()
             if state['phase'] == 'blocked':
                 status, reason = 1, 'blocked'
                 break
@@ -393,12 +411,14 @@ def worker(root, run, owner, sessions, tasks, state_json):
         status, reason = 1, str(error)
     finally:
         previous = read_progress(run)
-        if previous:
+        if previous and not previous[-1].get('replaces'):
             lines = previous[-1]['lines']
             outcome = ('Stopped' if status == 130 else 'Blocked' if status else
                        'Complete' if state['phase'] == 'complete' else reason)
             lines[-1] += ' — ' + outcome
             publish_progress(run, previous[-1]['key'], lines)
+        for task, task_sessions, launcher_sessions, duration, _, _ in completions:
+            show_completion(task, task_sessions, launcher_sessions, duration)
         save_handoff(run, state, reason,
                      display=not (status == 0 and completed and state['phase'] == 'complete'))
         if task_session_limit_reached(state):

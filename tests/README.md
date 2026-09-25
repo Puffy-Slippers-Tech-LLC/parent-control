@@ -341,8 +341,16 @@ workflow lock. Already-running tests that the agent merely attaches to remain
 owned by their original caller.
 
 Private output and checkpoints use the shared storage and retention libraries
-under `output/test-runs/host/write-e2e/`. At a successful task boundary, the
-launcher prints a green `Task ID complete.` line after acceptance and staging,
+under `output/test-runs/host/write-e2e/`. In a launcher handling multiple tasks,
+each completed task's top-pane session updates are replaced after acceptance
+and staging by `Task ID: Title (sessions=N, duration=D)`, preserving the bold
+task-label link and title from its live update and using that task's
+session count and duration (`12m` below an hour, `1h 31m` from an hour onward).
+Current-task updates keep their existing format.
+These compact summaries survive attachment and replace the completed task's
+controller scrollback too. At launcher exit, the final recap includes every
+task completed in that run, in order, with the existing detailed format:
+a green `Task ID complete.` line,
 followed by the number of sessions spent on that task (including earlier
 launcher runs) and the cumulative sessions actually consumed by the current
 launcher run, including earlier sessions only for the unfinished task being

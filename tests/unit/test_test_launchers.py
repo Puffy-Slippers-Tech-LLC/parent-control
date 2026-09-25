@@ -86,6 +86,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_parent_search_launch', 'check_e2e_parent_search_launch.py',
     'check_e2e_terminal_provider', 'check_e2e_terminal_provider.py',
     'check_e2e_license_viewer', 'check_e2e_license_viewer.py',
+    'check_e2e_feedback_read', 'check_e2e_feedback_read.py',
     'check_e2e_give_repeated_public_operations_distinct_stages',
     'check_e2e_give_repeated_public_operations_distinct_stages.py',
     'check_e2e_gdm_product_free', 'check_e2e_gdm_product_free.py',
@@ -377,7 +378,7 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused():
     assert '--list' in plan[0]
     assert safety is False
     with pytest.raises(ValueError, match='selection:pending'):
-        commands.plan(ROOT, 'e2e', ['--scenario=E2E-002', '--artifacts=/tmp/onpc-future'])
+        commands.plan(ROOT, 'e2e', ['--scenario=E2E-031', '--artifacts=/tmp/onpc-future'])
 
 
 def test_privileged_parent_symlink_is_rejected(checkout):

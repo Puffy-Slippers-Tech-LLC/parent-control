@@ -199,6 +199,46 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     assert 'Task 002 complete.\n- Took 3 sessions.\n- Total launcher sessions: 5' in rendered
     assert rendered.count('- Duration: ') == 2
     assert len(re.findall(r'─+\nTask \d+ complete\.', rendered)) == 2
+    recap = rendered[rendered.index('Task 001 complete.'):]
+    assert 'write-e2e: session' not in recap
+    assert 'Working' not in recap
+    from launcher_progress import read_progress
+    steps = read_progress(run)
+    assert len(steps) == 2
+    for step, task, title, sessions in zip(steps, ['001', '002'], ['First', 'Second'], [2, 3]):
+        assert re.fullmatch(
+            rf'Task {task}: {title} \(sessions={sessions}, duration=\d+m\)',
+            Text.from_ansi(step['lines'][0]).plain)
+
+
+def test_completed_task_is_compacted_while_next_task_keeps_live_updates(checkout):
+    from launcher_progress import read_progress
+    from rich.console import Console
+    from rich.text import Text
+    root, _ = checkout
+    queue = root / workflow.QUEUE
+    queue.write_text(queue.read_text().replace('| First |', '| [First](first.md) |'))
+    script(root, {'result': reply()},
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply(task_id='002')},
+           {'result': reply('task_complete', 'passed', task_id='002'),
+            'close': True, 'wait': True})
+    run, _ = workflow.select(root, ['--tasks', '2'])
+    wait_for(root / 'agent-ready-4')
+    steps = read_progress(run)
+    assert [step['key'] for step in steps] == ['complete-001', '3', '4']
+    summary = Text.from_ansi(steps[0]['lines'][0])
+    assert re.fullmatch(r'Task 001: First \(sessions=2, duration=\d+m\)', summary.plain)
+    label_style = summary.get_style_at_offset(Console(), 0)
+    assert label_style.bold
+    assert label_style.link == (queue.parent / 'first.md').as_uri()
+    title_style = summary.get_style_at_offset(Console(), len('Task 001: '))
+    assert not title_style.bold and not title_style.link
+    lines = [Text.from_ansi(line).plain for step in steps[1:] for line in step['lines']]
+    assert 'Session [1/3]: Writing task code + host validation + first live VM test; close on success, hand off on failure' in lines
+    assert 'Session [2/4]: Live VM test 2, fix errors if any + host validation' in lines
+    (root / 'release').touch()
+    assert launcher.follow(run, io.StringIO()) == 0
 
 
 def test_completion_excludes_sessions_from_previous_completed_launcher(checkout):

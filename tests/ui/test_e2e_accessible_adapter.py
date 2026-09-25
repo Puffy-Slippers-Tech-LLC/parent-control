@@ -142,6 +142,44 @@ def _record_parent_public_state(ui, module, log_path):
     print('Parent public state:', path)
 
 
+def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
+    from collections import Counter
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+
+    launch_ui('parent_component_preview', wait_for_application=False)
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.PARENT_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    expected = {'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
+                'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+    try:
+        for operation in ('feedback-open', 'feedback-read', 'feedback-close',
+                          'feedback-wrong-entry', 'feedback-reopen',
+                          'feedback-reread', 'feedback-finished'):
+            result = ui.run(operation, '')
+            if operation in ('feedback-open', 'feedback-read', 'feedback-reopen',
+                             'feedback-reread'):
+                assert result['feedback'] == expected
+    except Exception:
+        # This preview contains only declared synthetic data. Retain public-ID
+        # collisions to diagnose toolkit internals without reading draft text.
+        root = ui.id_target('feedback-dialog')
+        counts = Counter(module.public_automation_id(node)
+                         for node in ui.nodes(root, strict=True))
+        print('Feedback duplicate public IDs:',
+              {identity: count for identity, count in counts.items() if identity and count > 1})
+        for identity in ('feedback-editor-input', 'feedback-reply-email'):
+            node = ui.id_target(identity)
+            text = node.get_text_iface()
+            count = Atspi.Text.get_character_count(text)
+            print('Synthetic field character count:', identity, count)
+        raise
+
+
 @pytest.mark.parametrize('dismissal', ['close', 'window-manager'])
 def test_standard_user_startup_denial_has_specific_public_result(launch_ui, automation,
                                                                wait_for_accessible_state, dismissal):

@@ -12,13 +12,34 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 
 ## Scope and prerequisites
 
-Deliver **FEED01, FEED03**. First scheduled consumer: [E2E-036, case 161](../E2E-Scenario-Recipes.md#e2e-036).
+Deliver **FEED01, FEED03**. Complete feedback consumer: [E2E-031, case 152](../E2E-Scenario-Recipes.md#e2e-031).
 Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments) and only the selected consumer's recipe.
 
 Required tasks: none (Baseline). Use the existing qualified source interfaces
 and guarded attempt envelope; unqualified provider bindings remain unavailable.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+
+Source: `AccessibleUI.open_feedback`, `feedback_snapshot` and
+`feedback_read_operation` in `tests/e2e/accessible_ui.py`;
+`FeedbackObservation` in `tests/e2e/ui_observations.py`;
+`tests/e2e/feedback_read.py` and `onpc_feedback_read.pm` compose the slice.
+The initial observation permits only empty body/reply, the sole diagnostic ZIP,
+successful collection and initial control/validation states. Nonempty drafts,
+attachments and other collection states remain future bindings.
+Host checks: `tests/unit/test_e2e_feedback_read.py`,
+`tests/unit/test_installed_journey_cleanup_safety.py`,
+`tests/unit/test_test_launchers.py` and `tests/unit/test_e2e_progress.py`;
+real-editor regression:
+`tests/ui/test_e2e_accessible_adapter.py::test_feedback_read_adapter_uses_real_public_editor`.
+
+Blocker: app-snapshot preparation stopped before VM work because two unrelated
+`write-e2e` cleanup prerequisites expect `duration=N minutes` but receive
+`duration=0m`. See [the prerequisite report](../../../output/test-runs/host/reports/20260925T002355Z-61aea90d/report.md).
+Resume when the launcher expectations and implementation are reconciled and
+prerequisites pass. The feedback adapter repairs pass
+[host validation](../../../output/test-runs/host/reports/20260925T002159Z-f8f68c58/report.md);
+installed acceptance still needs a fresh guarded attempt.
 
 ## Implementation
 

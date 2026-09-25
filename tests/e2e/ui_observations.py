@@ -154,6 +154,34 @@ OPERATION_LABELS.update({
 })
 
 
+OPERATION_LABELS.update({
+    'feedback-open': 'Opening ordinary Parent feedback',
+    'feedback-read': 'Reading the initial synthetic feedback draft',
+    'feedback-close': 'Closing the owned feedback dialog',
+    'feedback-wrong-entry': 'Refusing a feedback read outside its dialog',
+    'feedback-reopen': 'Independently opening Parent feedback again',
+    'feedback-reread': 'Comparing the independently observed synthetic draft',
+    'feedback-finished': 'Closing feedback after read qualification',
+})
+
+
+@dataclass(frozen=True)
+class FeedbackObservation:
+    draft: str
+    attachments: tuple
+    collection: str
+    validation: str
+    controls: str
+
+    @classmethod
+    def from_value(cls, value):
+        require(type(value) is dict and value == {
+            'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
+            'collection': 'ready', 'validation': 'none', 'controls': 'ready'},
+            'ui:feedback-response')
+        return cls('initial-empty', ('diagnostic-logs.zip',), 'ready', 'none', 'ready')
+
+
 @dataclass(frozen=True)
 class AppRowsObservation:
     """Immutable public ID/access/match values; expectations belong to callers."""
@@ -483,6 +511,11 @@ class UiObservations:
                 require(type(apps) is dict and set(apps) == {'rows'}, 'ui:app-rows')
                 AppRowsObservation.from_rows(apps['rows'])
             expected['apps'] = apps
+        if operation in ('feedback-open', 'feedback-read', 'feedback-reopen', 'feedback-reread'):
+            require(type(result) is dict and set(result) == {*expected, 'feedback'},
+                    'ui:feedback-response')
+            FeedbackObservation.from_value(result['feedback'])
+            expected['feedback'] = result['feedback']
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'save'}
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],

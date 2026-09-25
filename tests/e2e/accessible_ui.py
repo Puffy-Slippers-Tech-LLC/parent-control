@@ -108,8 +108,10 @@ TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-config-wrong-state',
     'time-explanation-off-read', 'time-explanation-positive-read',
     'time-explanation-zero-read', 'time-explanation-zero-reread',
+    'time-explanation-setup-zero-read', 'time-explanation-setup-positive-read',
 })
 OPERATIONS |= TIME_EXPLANATION_OPERATIONS
+OPERATIONS |= frozenset({'parent-new-window-absent', 'parent-new-window-refused'})
 
 
 def duration_projection(text):
@@ -2067,6 +2069,8 @@ class AccessibleUI:
     def time_explanation_operation(self, operation):
         require(operation in TIME_EXPLANATION_OPERATIONS, 'ui:time-operation')
         configurations = {
+            'time-explanation-setup-zero-read': (False, 0, True),
+            'time-explanation-setup-positive-read': (True, 15, True),
             'time-explanation-off-read': (True, 15, False),
             'time-explanation-positive-read': (False, 15, True),
             'time-explanation-zero-read': (True, 0, True),
@@ -2696,6 +2700,11 @@ class AccessibleUI:
         ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
         # Keep the input latch set: even a successful submission cannot be
         # repeated by this adapter instance. The next checkpoint is a new read.
+
+    def new_parent_window_entry(self):
+        """Refuse a new-window declaration while an owned Parent window exists."""
+        self.desktop_result(PARENT, 'success')
+        require(self.parent_search_closed(), 'ui:parent-window-exists')
 
     def parent_search_closed(self):
         """Independent complete window absence on the qualified Parent desktop."""
@@ -4514,6 +4523,16 @@ class AccessibleUI:
             self.wait(self.parent_search_closed, 'parent-search-closed')
         elif operation == 'parent-window':
             self.parent()
+        elif operation == 'parent-new-window-absent':
+            self.new_parent_window_entry()
+        elif operation == 'parent-new-window-refused':
+            self.parent()
+            try:
+                self.new_parent_window_entry()
+            except UiError as error:
+                require(str(error) == 'ui:parent-window-exists', 'ui:window-refusal')
+            else:
+                raise UiError('ui:window-refusal-missing')
         elif operation == 'parent-empty':
             self.parent_empty()
         elif operation in TOGGLE_OPERATIONS:

@@ -70,6 +70,8 @@ OPERATION_LABELS = {
     'shell-search-cleared': 'Checking the search query cleared before closing Overview',
     'app-grid': 'Finding the launchable Parent result in public app search',
     'parent-window': 'Waiting for the Parent window',
+    'parent-new-window-absent': 'Checking a new Parent window can be opened',
+    'parent-new-window-refused': 'Refusing new-window entry while Parent remains open',
     'parent-command-launch': 'Invoking the Parent command as [Parent user]',
     'standard-parent-command-launch': 'Invoking the Parent command as [Standard user]',
     'child-command-launch': 'Invoking the child overlay command as [Child user]',

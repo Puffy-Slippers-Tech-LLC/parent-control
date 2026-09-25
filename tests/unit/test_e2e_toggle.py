@@ -234,6 +234,100 @@ def test_time_explanation_checks_all_balances_and_monotonic_order():
     journey.check_settings('time-explanation-zero-reread', observation)
 
 
+def test_set_allowance_selector_and_guarded_preparation(monkeypatch, tmp_path):
+    import check_e2e_set_an_allowance_for_a_named_child as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import SetAllowanceQualification, KioskEntryQualification
+    from set_allowance import PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['set_allowance'] is True
+    with pytest.raises(CommandError, match='set-allowance-prerequisites'):
+        smoke.main(set_allowance=True)
+    with pytest.raises(CommandError, match='set-allowance-prerequisites'):
+        smoke.main(assets=tmp_path, provision_credentials=True,
+                   set_allowance=True, time_explanation=True)
+    context = SimpleNamespace(directory=tmp_path)
+    assert SetAllowanceQualification.journey(context, Mock()).plan is PLAN
+    assert context.installed_snapshot == 'onpc-v1.1'
+    assert SetAllowanceQualification.finalize is KioskEntryQualification.finalize
+    assert SetAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
+
+
+# Isolated, bounded Perl children with captured pipes; no VM or shared resources.
+ALLOWANCE_WORKER = r'''
+use strict;
+use warnings;
+use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; $INC{'onpc_gdm.pm'} = 1; $INC{'onpc_password.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, ['key', @_]; }
+sub console { bless {}, 'Console' }
+sub power { push @main::events, ['power', @_]; }
+sub check_shutdown { 1 }
+package Console;
+sub disable { }
+package onpc_gdm;
+sub reattach_functional { }
+sub choose_account { $_[0]->seen('parent-focused'); }
+package onpc_password;
+sub enter_parent_gdm_password {
+    $_[0]->seen('recipient-qualified'); $_[0]->seen('recipient-rechecked');
+}
+package main;
+require onpc_set_allowance;
+my $exchange = sub {
+    push @events, ['stage', $_[0]];
+    die 'fixture:refused' if $_[0] eq $ENV{ONPC_TEST_REFUSE};
+    return {observed => $_[0], ui_focused => JSON::PP::true};
+};
+my $ok = eval { onpc_set_allowance::run($exchange); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
+'''
+
+
+def test_set_allowance_actual_worker_stops_before_later_input_at_every_boundary(monkeypatch):
+    from set_allowance import PLAN
+    stages = list(PLAN.screen_tags)
+    monkeypatch.setenv('ONPC_TEST_REFUSE', '')
+    success = json.loads(run_perl(ALLOWANCE_WORKER).stdout)
+    assert success['ok'], success['error']
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    assert [event for event in success['events'] if event[0] == 'key'] == [
+        ['key', 'ret'], ['key', 'ret'], ['key', 'alt-f4'], ['key', 'ret']]
+    for stage in stages:
+        monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
+        result = json.loads(run_perl(ALLOWANCE_WORKER).stdout)
+        assert not result['ok'] and 'fixture:refused' in result['error']
+        boundary = success['events'].index(['stage', stage])
+        assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_set_allowance_refuses_wrong_declared_bindings_before_any_input():
+    script = ALLOWANCE_WORKER[:ALLOWANCE_WORKER.index('my $ok = eval')]
+    script += r'''
+my @errors;
+for my $args (
+    ['gdm', 'other-parent', 'fresh', 'new', 'child', 0, 0, 1],
+    ['gdm', 'parent', 'fresh', 'retained', 'child', 0, 0, 1],
+    ['desktop', 'parent', 'fresh', 'new', 'child', 0, 0, 1],
+    ['gdm', 'parent', 'fresh', 'new', 'existing', 0, 0, 1]) {
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'set-allowance', review => 0);
+    eval { onpc_parent::set_allowance($journey, @$args); };
+    push @errors, "$@";
+}
+print encode_json({errors => \@errors, events => \@events});
+'''
+    result = json.loads(run_perl(script).stdout)
+    assert not result['events']
+    assert len(result['errors']) == 4
+    assert all('parent:allowance-binding' in error for error in result['errors'])
+
+
 def test_time_explanation_worker_stops_at_each_refused_boundary(monkeypatch):
     from time_explanation import PLAN, STAGES
     script = r'''

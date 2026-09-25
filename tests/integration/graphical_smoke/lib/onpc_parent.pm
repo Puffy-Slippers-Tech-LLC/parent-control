@@ -119,13 +119,15 @@ sub launch {
     my ($journey, $desktop, $expected, $desktop_stage) = @_;
     $desktop_stage //= 'desktop';
     die 'parent:launch-binding' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
-        && ($desktop_stage eq 'desktop' || $desktop_stage eq 'reboot-desktop')
+        && ($desktop_stage eq 'desktop' || $desktop_stage eq 'reboot-desktop'
+            || $desktop_stage eq 'same-desktop')
         && ($expected eq 'management' || $expected eq 'denied');
     $journey->consume_observation($desktop_stage, $desktop);
     # The controller executes the installed command once as this desktop user.
     # A transport failure is uncertain input; no terminal/search fallback.
-    $journey->seen('parent-command');
-    return $journey->seen($expected eq 'management' ? 'parent-window' : 'management-denied');
+    my $prefix = $desktop_stage eq 'same-desktop' ? 'same-' : '';
+    $journey->seen($prefix . 'parent-command');
+    return $journey->seen($prefix . ($expected eq 'management' ? 'parent-window' : 'management-denied'));
 }
 
 # FLOW15's bounded GDM/fresh/Parent/success route. Other routes remain unsupported.
@@ -137,16 +139,38 @@ sub enter_desktop {
     return sign_in($journey, $account, $expected);
 }
 
-# FLOW01: independently supplied greeter, new Parent window, explicit child.
+# FLOW01: fresh greeter or independently observed same-user desktop; new window.
 sub open_for_child {
     onpc_progress::operation('Opening Parent for [Child user]');
     my ($journey, $source, $entry, $window, $child) = @_;
-    die 'parent:flow-binding' unless @_ == 5 && $source eq 'gdm' && $entry eq 'fresh'
+    die 'parent:flow-binding' unless @_ == 5 && ref($journey) eq 'onpc_journey'
+        && (($source eq 'gdm' && $entry eq 'fresh')
+            || ($source eq 'desktop' && $entry eq 'same-user'))
         && $window eq 'new' && ($child eq 'existing' || $child eq 'child');
-    my $desktop = enter_desktop($journey, $source, 'parent', $entry, 'success');
-    launch($journey, $desktop, 'management');
-    return select_child($journey, $child, $journey->seen('child-picker-opened'),
-        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    my $same = $entry eq 'same-user';
+    my $prefix = $same ? 'same-' : '';
+    # New means absent before launch, not a relabelled retained window.
+    $journey->seen('same-window-absent') if $same;
+    my $desktop = $same ? $journey->seen('same-desktop')
+        : enter_desktop($journey, $source, 'parent', $entry, 'success');
+    launch($journey, $desktop, 'management', $prefix . 'desktop');
+    return select_child($journey, $child, $journey->seen($prefix . 'child-picker-opened'),
+        $prefix . 'child-picker-opened', $prefix . 'child-choice-highlighted', $prefix . 'parent-selected');
+}
+
+# FLOW16's finite qualified bindings. The controller maps each checkpoint to
+# FLOW02 with these exact explicit inputs, then independently reads balances.
+sub set_allowance {
+    onpc_progress::operation('Setting the daily allowance for [Child user]');
+    my ($journey, $source, $parent, $entry, $window, $child, $initial, $minutes, $final) = @_;
+    die 'parent:allowance-binding' unless @_ == 9 && $parent eq 'parent'
+        && $child eq 'child' && $window eq 'new' && $final eq '1'
+        && (($source eq 'gdm' && $entry eq 'fresh' && $initial eq '0' && $minutes eq '0')
+            || ($source eq 'desktop' && $entry eq 'same-user' && $initial eq '1' && $minutes eq '15'));
+    my $prefix = $entry eq 'same-user' ? 'same-' : '';
+    my $selected = open_for_child($journey, $source, $entry, $window, $child);
+    $journey->consume_observation($prefix . 'parent-selected', $selected);
+    return $journey->seen($prefix . 'allowance-configured');
 }
 
 # PARENT02/UI15: opened public list -> UI14 -> Enter -> independent selection.
@@ -162,7 +186,10 @@ sub select_child {
     );
     die 'parent:selection-binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
         && exists($bindings{$child})
-        && join('/', $list_stage, $highlight_stage, $selected_stage) eq $bindings{$child};
+        && (join('/', $list_stage, $highlight_stage, $selected_stage) eq $bindings{$child}
+            || ($child eq 'child' || $child eq 'existing')
+            && join('/', $list_stage, $highlight_stage, $selected_stage)
+                eq 'same-child-picker-opened/same-child-choice-highlighted/same-parent-selected');
     my $highlighted = $journey->highlight_choice($opened, $list_stage, $highlight_stage);
     $journey->consume_observation($highlight_stage, $highlighted);
     testapi::send_key('ret');

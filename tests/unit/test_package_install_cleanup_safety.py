@@ -12,9 +12,9 @@ import package_install as install
 import session_control
 from owned_commands import CommandError
 from private_artifacts import EvidenceError
+from tests.support.desktop_session import RUN_PROBE
+from tests.support.package_command import boundary
 from tests.support.perl import run_perl
-from tests.unit.test_e2e_desktop_session import RUN_PROBE
-from tests.unit.test_package_authority_cleanup_safety import boundary
 
 
 def test_fixed_launcher(monkeypatch):

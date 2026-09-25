@@ -179,7 +179,7 @@ Unit-only validation (same unit buckets and resource limits as host)
   tools/run-tests unit 'tests/unit/test_regression*.py' -q
 
   Balances selected modules across up to four branches; fixtures stay together.
-  New/unreviewed modules and full application-fixture builds remain exclusive.
+  Unknown modules stay exclusive; reviewed fixture builds use artifact limits.
   Preserves exact file/case selectors, -k, -m and scoped ignores.
   Adds no other suites, package stages, or cleanup prerequisite inventory.
   -x/--exitfirst or positive --maxfail keeps one serial unit invocation.

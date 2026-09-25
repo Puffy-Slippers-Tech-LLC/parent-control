@@ -14,8 +14,8 @@ import installed_journey as journeys
 import session_control
 from owned_commands import CommandError
 from private_artifacts import EvidenceError
+from tests.support.desktop_session import RUN_PROBE
 from tests.support.perl import run_perl
-from tests.unit.test_e2e_desktop_session import RUN_PROBE
 
 
 BEFORE, AFTER = 'a' * 64, 'b' * 64

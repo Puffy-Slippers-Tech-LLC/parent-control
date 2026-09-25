@@ -113,6 +113,16 @@ Read the [VM mandate](docs/Mandates/VM-Mandate.MD) only when doing VM operations
 
 ## Tests and artifacts
 
+- Review every added host test module, and resource-affecting changes to existing
+  tests, for parallel execution before marking the work complete. Check mutable
+  paths, caches, processes, sockets/buses/displays, fixtures and resource demand.
+  Classify qualified work in the applicable unit, cleanup and UI schedulers;
+  cleanup modules need both unit and cleanup review. Use build resource admission
+  for heavy fixture construction. Record a concrete shared-resource reason for
+  any necessary exclusive classification. The unreviewed fallback is a runtime
+  safeguard, not an acceptable final classification. Maintain the host inventory
+  review regression and validate the affected scheduling scope; see the
+  [parallelism review contract](tests/README.md#host-test-parallelism-review).
 - Read the [test storage mandate](docs/Mandates/Test-Storage-Mandate.md) when
   creating or changing test storage. Use its shared allocation helpers; tests
   must not choose `/tmp` or hardcode their own temporary storage root.

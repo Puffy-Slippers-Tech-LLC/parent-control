@@ -10,8 +10,8 @@ import accessible_ui as ui_module
 import clean_install as case
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
+from tests.support.desktop_session import RUN_PROBE
 from tests.support.perl import run_perl
-from tests.unit.test_e2e_desktop_session import RUN_PROBE
 
 
 def journey(monkeypatch):

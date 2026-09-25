@@ -20,9 +20,9 @@ from owned_commands import CommandError
 from parent_setup_qualification import ProductFreeEntryQualification, ParentJourneyQualification
 from private_artifacts import EvidenceError
 from product_free_entry import PLAN, ProductFreeEntryJourney
+from tests.support.desktop_session import RUN_PROBE, props
 from tests.support.perl import run_perl
 from tests.support.accessible_ui import Node, ui_for
-from tests.unit.test_e2e_desktop_session import RUN_PROBE, props
 from ui_observations import UiObservations
 
 

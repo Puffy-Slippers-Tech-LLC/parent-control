@@ -94,14 +94,42 @@ def test_parent_preview_publishes_and_loads_management_controls(
 
 
 def test_parent_daily_allowance_menu_opens_and_selects(
-        launch_ui, automation, wait_for_accessible_state):
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from tests.support.keyboard import key_combo, type_text
+
+    release = tmp_path / "allowance-save-release"
+    events = tmp_path / "allowance-menu-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
-                      launcher="parent_preview")
+                      scenario="held-save", events_path=events, loading_release=release)
     wait_parent_ready(ui, wait_for_accessible_state)
     ui.activate("parent-daily-limit-selector")
     wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
                               "allowance choices open")
-    ui.activate("parent-daily-limit-45")
+    ui.activate("parent-daily-limit-custom")
+    wait_for_accessible_state(
+        lambda: ui.find("parent-custom-daily-limit") is not None
+                and ui.state("parent-custom-daily-limit", ui.api.StateType.FOCUSED),
+        "choosing Custom amount focuses its textbox",
+    )
+    # Loading now seeds Custom amount with the saved allowance. Make a real
+    # edit and hold its response so menu access cannot race save completion.
+    try:
+        key_combo(ui, "parent-custom-daily-limit", "<Control>a",
+                  state=ui.api.StateType.FOCUSED)
+        type_text(ui, "parent-custom-daily-limit", "91")
+        wait_for_accessible_state(
+            lambda: not ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE),
+            "custom save is in progress",
+        )
+        ui.activate("parent-daily-limit-selector")
+        wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
+                                  "one activation during the custom save opens the choices")
+        ui.activate("parent-daily-limit-45")
+    finally:
+        release.touch()
+    wait_parent_ready(ui, wait_for_accessible_state)
+    assert [record["daily_limit_minutes"] for record in read_events(events)
+            if record["event"] == "set_parent_control"] == [91, 45]
 
 
 @pytest.mark.parametrize("scenario", ("denied", "unavailable"))
@@ -241,10 +269,10 @@ def test_parent_daily_preset_and_custom_limit_autosave(
     ui.focus("parent-custom-daily-limit")
     key_combo(ui, "parent-custom-daily-limit", "<Control>a",
               state=ui.api.StateType.FOCUSED)
-    type_text(ui, "parent-custom-daily-limit", "73")
+    type_text(ui, "parent-custom-daily-limit", "74")
     wait_for_accessible_state(
         lambda: any(record["event"] == "set_parent_control"
-                    and record["daily_limit_minutes"] == 73
+                    and record["daily_limit_minutes"] == 74
                     for record in read_events(path)),
         "custom allowance saves",
     )
@@ -294,6 +322,82 @@ def test_parent_daily_preset_and_custom_limit_autosave(
         reader.custom_allowance(CHILD, minutes, action='saved')
         assert reader.settings(CHILD)['allowance'] == [str(minutes) + ' minutes']
         reader.custom_allowance(CHILD, minutes, action='reopen')
+
+    # Match the live boundary-to-invalid transition: the reopened custom
+    # editor still owns focus when the next saved preset is requested.
+    reader.allowance_preset(CHILD, 15, action='select')
+    reader.allowance_preset(CHILD, 15, action='read')
+    reader.custom_allowance(CHILD, 15, action='open')
+    from tests.e2e.allowance_values import INVALID, INVALID_DESCRIPTION
+    for binding, value in INVALID.items():
+        reader.focus_text('parent-custom-daily-limit')
+        key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
+        if value:
+            type_text(ui, 'parent-custom-daily-limit', value)
+        else:
+            key_combo(ui, 'parent-custom-daily-limit', 'BackSpace', state=ui.api.StateType.FOCUSED)
+        assert reader.invalid_allowance(binding) == {'binding': binding, 'validation': 'rejected'}
+        assert ui.target('parent-custom-daily-limit').get_description() == INVALID_DESCRIPTION
+        saves = [record for record in read_events(path) if record['event'] == 'set_parent_control']
+        assert saves[-1]['daily_limit_minutes'] == 15
+    reader.focus_text('parent-custom-daily-limit')
+    key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
+    type_text(ui, 'parent-custom-daily-limit', '1')
+    reader.custom_allowance(CHILD, 1, action='saved')
+    assert ui.target('parent-custom-daily-limit').get_description() == (
+        'Enter a whole number of minutes from zero through 1439.')
+    # Type the remaining digits after each debounce/save, without restoring
+    # focus or selecting the text again. Both focus and caret must survive.
+    for digit, minutes in (('4', 14), ('3', 143), ('9', 1439)):
+        assert ui.state('parent-custom-daily-limit', ui.api.StateType.FOCUSED)
+        type_text(ui, 'parent-custom-daily-limit', digit)
+        wait_for_accessible_state(
+            lambda: any(record['event'] == 'set_parent_control'
+                        and record['daily_limit_minutes'] == minutes
+                        for record in read_events(path)), 'next digit autosaves')
+        reader.parent_save_snapshot(CHILD, True)
+        assert reader.settings(CHILD)['allowance'] == [str(minutes) + ' minutes']
+        assert ui.state('parent-custom-daily-limit', ui.api.StateType.FOCUSED)
+
+
+def test_parent_rejected_custom_allowance_reloads_saved_value(
+        launch_ui, automation, wait_for_accessible_state):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD
+    from tests.support.keyboard import key_combo
+
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    reader = AccessibleUI(
+        ui.api, timeout=10, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001},
+        dispatch=lambda: GLib.MainContext.default().iteration(False),
+    )
+    reader.allowance_preset(CHILD, 15, action='select')
+    reader.custom_allowance(CHILD, 15, action='open')
+    reader.focus_text('parent-custom-daily-limit')
+    key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
+    key_combo(ui, 'parent-custom-daily-limit', 'BackSpace', state=ui.api.StateType.FOCUSED)
+    assert reader.invalid_allowance('empty') == {'binding': 'empty', 'validation': 'rejected'}
+
+    # Match Task 040a's public reload: visit the other child and return before
+    # reading the saved preset and reopening its custom editor.
+    for uid in (1002, 1001):
+        ui.activate('parent-child-selector', action_name='menu.popup')
+        wait_for_accessible_state(lambda: ui.showing(f'parent-child-choice-{uid}'),
+                                  'child choices open')
+        ui.activate(f'parent-child-choice-{uid}')
+        wait_for_accessible_state(lambda: ui.showing(f'parent-child-selected-{uid}'),
+                                  'selected child changes')
+        wait_parent_ready(ui, wait_for_accessible_state)
+    reader.allowance_preset(CHILD, 15, action='read')
+    reader.custom_allowance(CHILD, 15, action='open')
+    assert ui.content('parent-custom-daily-limit', maximum=16) == '15'
+    assert ui.target('parent-custom-daily-limit').get_description() == (
+        'Enter a whole number of minutes from zero through 1439.')
 
 
 def test_parent_app_search_rule_edit_and_revocation_confirmation(

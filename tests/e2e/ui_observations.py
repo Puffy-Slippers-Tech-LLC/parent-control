@@ -28,6 +28,8 @@ OPERATION_LABELS = {
        for operation in accessible_ui.TIME_EXPLANATION_OPERATIONS},
     **{operation: 'Qualifying custom daily allowance commits and saved readback'
        for operation in accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS},
+    **{operation: 'Observing rejected daily allowance and unchanged saved value'
+       for operation in accessible_ui.INVALID_ALLOWANCE_OPERATIONS},
     **{operation: 'Qualifying daily allowance presets and saved readback'
        for operation in accessible_ui.ALLOWANCE_OPERATIONS},
     'gdm-installed-accounts': 'Checking preserved personal accounts and the installed request station',
@@ -549,6 +551,13 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'text'}
                     and result['text'] == projection, 'ui:text-response')
             expected['text'] = projection
+        if operation in accessible_ui.INVALID_ALLOWANCE_OPERATIONS:
+            projection = {'binding': accessible_ui.INVALID_ALLOWANCE_OPERATIONS[operation],
+                          'validation': 'rejected'}
+            require(type(result) is dict and set(result) == {*expected, 'allowance_validation'}
+                    and result['allowance_validation'] == projection,
+                    'ui:allowance-validation-response')
+            expected['allowance_validation'] = projection
         if operation in accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS:
             minutes, action = accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS[operation]
             projection = ({'refusal': action} if action in ('wrong-child', 'disabled')

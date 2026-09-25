@@ -63,20 +63,22 @@ def launch(tmp_path, monkeypatch):
     return controller, cleanup, allocation
 
 
-@pytest.mark.parametrize('status', [1, 2, 130])
-def test_reuse_checks_built_content_and_never_trusts_a_name_only_probe(launch, status):
+@pytest.mark.parametrize('status', [0, 1, 2, 130])
+def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
     control, cleanup, allocation = launch
     control.run.return_value = status
     assert launcher.main(['--overwrite', 'false']) == status
-    assert 'build_test_artifacts.py' in control.run.call_args.args[0][2]
+    assert control.run.call_args.args[0] == [
+        '/usr/bin/pkexec', '--disable-internal-agent',
+        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe']
     control.run.assert_called_once()
-    cleanup.assert_called_once()
-    allocation.assert_called_once()
+    cleanup.assert_not_called()
+    allocation.assert_not_called()
 
 
 @pytest.mark.parametrize('argv, results, calls', [([], [0, 0], 2),
     (['--overwrite'], [0, 0], 2), (['--overwrite', 'true'], [0, 0], 2),
-    (['--overwrite', 'false'], [0, 0], 2)])
+    (['--overwrite', 'false'], [3, 0, 0], 3)])
 def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, results, calls):
     control, cleanup, allocation = launch
     control.run.side_effect = results
@@ -112,6 +114,15 @@ def test_failed_build_does_not_install(launch, argv):
     control.run.return_value = 17
     assert launcher.main(argv) == 17
     control.run.assert_called_once()
+    assert control.run.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
+
+
+def test_missing_snapshot_failed_build_does_not_install(launch):
+    control, cleanup, allocation = launch
+    control.run.side_effect = [3, 17]
+    assert launcher.main(['--overwrite', 'false']) == 17
+    cleanup.assert_called_once()
+    assert control.run.call_count == 2
     assert control.run.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
 
 

@@ -57,6 +57,11 @@ GROUPS = (
 # Keep pairing identities separate even when buckets have the same reservation.
 # Feedback replacement uses the adapter bucket's private preview, compositor and
 # accessibility bus; keyboard input and app cleanup stay inside that fixture.
+# Preview allowance focus and rejected-draft reload checks reuse that bucket's
+# private Parent process, keyboard/display and optional tmp_path event log;
+# child reselection adds no shared resources or extra process.
+# The held allowance save uses a tmp_path release file and event log within
+# that same private preview; finally releases its existing broker worker.
 # A qualified build companion must never implicitly authorize other UI fixtures.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')

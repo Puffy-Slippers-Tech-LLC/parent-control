@@ -13,26 +13,32 @@ my %values = (
     'reply-first' => 'first@example.invalid',
     'reply-second' => 'second@example.invalid', 'reply-clear' => '',
     'daily-1' => '1', 'daily-2' => '2', 'daily-3' => '3',
+    'daily-0' => '0', 'daily-15' => '15', 'daily-1439' => '1439',
+    'daily-invalid-empty' => '', 'daily-invalid-letters' => 'abc',
+    'daily-invalid-negative' => '-1', 'daily-invalid-fraction' => '0.5',
+    'daily-invalid-maximum' => '1440', 'daily-invalid-over' => '1441',
 );
 
 # UI16: every keyboard batch consumes a new focused-recipient proof. An
 # exception stops this composite; no input retry or repair is permitted.
 sub replace_text {
     onpc_progress::operation('Replacing one declared nonsecret field value');
-    my ($journey, $binding) = @_;
-    die 'text:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+    my ($journey, $binding, $prefix) = @_;
+    die 'text:binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
         && defined($binding) && exists($values{$binding});
+    $prefix //= "text-$binding";
+    die 'text:prefix' unless $prefix =~ /\A[a-z][a-z0-9-]*\z/;
     if ($binding =~ /^reply-/) {
         # GTK's native entry has no Component.GrabFocus implementation. Use
         # the declared keyboard route, then independently prove reply focus.
-        my $anchor = "text-$binding-anchor";
+        my $anchor = "$prefix-anchor";
         $journey->consume_observation($anchor, $journey->seen($anchor));
         testapi::send_key('ctrl-tab');
     }
-    my $stage = "text-$binding-focus";
+    my $stage = "$prefix-focus";
     $journey->consume_observation($stage, $journey->seen($stage));
     testapi::send_key('ctrl-a');
-    $stage = "text-$binding-selected";
+    $stage = "$prefix-selected";
     $journey->consume_observation($stage, $journey->seen($stage));
     if (length($values{$binding})) {
         # A declared custom commit is part of this single bounded keyboard
@@ -44,7 +50,7 @@ sub replace_text {
     } else {
         testapi::send_key('backspace');
     }
-    $stage = "text-$binding-read";
+    $stage = "$prefix-read";
     my $result = $journey->seen($stage);
     $journey->consume_observation($stage, $result);
     return $result;

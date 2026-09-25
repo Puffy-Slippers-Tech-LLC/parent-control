@@ -40,8 +40,11 @@ prompts to work around restrictive policy.
 Human authorization is exceptional: initial administrator bootstrap, repair of
 a denied installation from an administrator-authorized root session, an operation
 outside the user's authorized scope, or a capability blocked by applicable policy.
-An executable grant does not itself authorize a release, baseline replacement or
-unrelated destructive action. Missing prerequisites or grants are blockers, not
+An executable grant does not itself authorize a release, manual baseline replacement or
+unrelated destructive action. Auto-mode baseline refresh needed for authorized
+development or testing has standing authorization under the
+[VM mandate](Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+Missing prerequisites or grants are blockers, not
 invitations to bypass controls or retry authentication. Report the exact blocker
 and required setup or scope decision; continue independent authorized work.
 
@@ -196,9 +199,12 @@ dedicated Polkit action defaults to denial and grants only active local members
 of `sudo`. `setup.sh` and `tools/prepare-baseline` check this authorization without
 requesting interaction before invoking the helper, and never fall back to generic
 `pkexec` on denial. The public baseline-replacement entry is
-`tools/prepare-baseline --mode auto|manual`. Both modes require the VM off and
-explicit confirmation of the selected preparation and deletion of all versioned
-app snapshots. Auto restores the accepted baseline and updates Ubuntu; manual
+`tools/prepare-baseline --mode auto|manual`. Auto mode is preapproved when needed
+for authorized development or testing, including deletion of all versioned app
+snapshots and replacement of the baseline. Do not request developer confirmation;
+answer the tool's existing confirmation prompt with `y`. Manual mode requires
+explicit developer authorization. Both modes require the VM off and retain the
+tool's confirmation and safety checks. Auto restores the accepted baseline and updates Ubuntu; manual
 prepares the current disk state. Both capture `onpc_baseline` after validation.
 The dispatcher uses fixed modules from its pinned trusted checkout and a clean
 environment; trust includes edits to that checkout's setup code. The dependency
@@ -273,7 +279,7 @@ the checkout activity lock.
 | Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all` / `tools/run-tests all` / `tools/run-tests` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. No arguments starts `all` when idle; an active or unread session still attaches. |
 | Scripted test repair | `tools/fix-tests [CATEGORY ...] [--model MODEL] [--effort high]` / `tools/fix-tests --stop` | Granular pass then complete regression retries by default; explicit categories expand to leaves and restrict repair and verification to that scope; detached scripting owner, catalog-selected Sol classifier and optional strongest-model app review per failure in fresh ephemeral sessions, existing sandbox/rules and test-runner cleanup; no automatic setup or authority expansion |
-| Scripted E2E implementation | `tools/write-e2e [--sessions N] [--tasks N]` / `tools/write-e2e --stop` | Fresh Astra Low implementation and Astra High live/repair sessions; a parameterless new run defaults to 5 sessions and 1 completed task, while a new run with `--tasks` alone retains unlimited sessions; stop at either limit; plain invocation attaches unchanged, explicit live limits are signed adjustments applied at session boundaries (minimum zero; unlimited sessions become sessions already started plus N); safe stop at the next session boundary, Ctrl+C owned cancellation; staging of explicit paths and task-session worktree changes without commits, excluding prior work and output artifacts; existing grants and guarded test cleanup |
+| Scripted E2E implementation | `tools/write-e2e [--sessions N] [--tasks N]` / `tools/write-e2e --stop` | Fresh Astra Low implementation and Astra High live/repair sessions; a parameterless new run defaults to 5 sessions and 1 completed task, while a new run with `--tasks` alone retains unlimited total sessions; each new launcher permits 5 more sessions for its current task while retaining cumulative task numbering, and the next task begins with its own 5-session cap; stop at either limit; plain invocation attaches unchanged, explicit live limits are signed adjustments applied at session boundaries (minimum zero; unlimited sessions become sessions already started plus N); safe stop at the next session boundary, Ctrl+C owned cancellation; staging of explicit paths and task-session worktree changes without commits, excluding prior work and output artifacts; existing grants and guarded test cleanup |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
 | Combined complete categories | `tools/run-tests host system e2e` | Equals `all`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; VM-only selections build their required input automatically |
 | Host compatibility alias | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same scope as `host`; `--serial-builds` retains publishing/builds after the host join for a scheduling comparison |

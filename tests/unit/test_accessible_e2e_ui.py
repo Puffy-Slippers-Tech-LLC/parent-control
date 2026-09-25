@@ -2,6 +2,7 @@
 
 import json
 import copy
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -13,6 +14,24 @@ from accessible_ui import (KIOSK_SESSION_OPERATIONS, PARENT_APPLICATION, UiError
 from private_artifacts import EvidenceError
 from ui_observations import UiObservations
 from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
+
+
+def test_observer_payload_runs_without_checkout_imports(tmp_path):
+    """Exercise the real stdin payload with the guest's isolated Python route."""
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps({
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+    }).encode()))
+    UiObservations(transport).observe('desktop')
+    argv = transport.call.call_args.args[0]
+    assert argv[:3] == ['/usr/bin/python3', '-I', '-']
+    # Invalid input reaches the standalone argument guard before any host UI,
+    # account lookup or privilege operation, but after all module imports.
+    result = subprocess.run([*argv[:3], 'invalid-operation', argv[-1]],
+                            input=transport.call.call_args.kwargs['input'],
+                            cwd=tmp_path, capture_output=True, timeout=10)
+    assert result.returncode == 1
+    assert result.stdout == b''
+    assert result.stderr == b'ui:arguments\n'
 
 
 GDM_CONTROLS = {
@@ -732,7 +751,7 @@ def test_settings_reads_custom_editor_value_through_controller(value):
         ui.settings()
 
 
-@pytest.mark.parametrize('value', [1, 2, 3])
+@pytest.mark.parametrize('value', [0, 1, 2, 3, 15, 1439])
 def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch):
     ui, root, *_ = parent_save_ui()
     root.states.add('active')
@@ -740,7 +759,7 @@ def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch
                  states=('showing', 'visible', 'sensitive', 'editable', 'focused'))
     entry.get_text_iface = lambda: entry
     root.children.append(entry)
-    ui.api.Text = SimpleNamespace(get_character_count=lambda _: 1,
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(str(value)),
                                  get_text=Mock(return_value=str(value)))
     ui.activate_id = Mock()
     assert ui.custom_allowance(accessible_ui.CHILD, value, action='open') == {
@@ -767,6 +786,38 @@ def test_custom_allowance_wrong_entry_refuses_before_any_input(disabled):
     action = 'disabled' if disabled else 'wrong-child'
     assert ui.custom_allowance_operation('custom-' + action) == {'refusal': action}
     ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('binding', accessible_ui.INVALID)
+def test_invalid_allowance_requires_public_rejection_and_exact_draft(binding):
+    ui, root, *_ = parent_save_ui()
+    root.states.add('active')
+    value = accessible_ui.INVALID[binding]
+    entry = Node(identity='parent-custom-daily-limit', role='text',
+                 description=accessible_ui.INVALID_DESCRIPTION,
+                 states=('showing', 'visible', 'sensitive', 'editable', 'focused'))
+    entry.get_text_iface = lambda: entry
+    root.children.append(entry)
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value),
+                                 get_text=Mock(return_value=value))
+    assert ui.invalid_allowance(binding) == {'binding': binding, 'validation': 'rejected'}
+    entry.get_description = lambda: 'Enter a whole number of minutes from zero through 1439.'
+    with pytest.raises(UiError, match='allowance-validation'):
+        ui.invalid_allowance(binding)
+
+
+@pytest.mark.parametrize('operation', accessible_ui.INVALID_ALLOWANCE_OPERATIONS)
+def test_invalid_allowance_controller_rejects_mismatched_projection(operation):
+    projection = {'binding': accessible_ui.INVALID_ALLOWANCE_OPERATIONS[operation],
+                  'validation': 'rejected'}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'allowance_validation': projection}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    assert UiObservations(transport).observe(operation)['allowance_validation'] == projection
+    result['allowance_validation'] = {**projection, 'validation': 'saved'}
+    transport.call.return_value = json.dumps(result).encode()
+    with pytest.raises(EvidenceError, match='ui:allowance-validation-response'):
+        UiObservations(transport).observe(operation)
 
 
 def test_custom_text_read_waits_for_save_before_reading_disabled_editor():

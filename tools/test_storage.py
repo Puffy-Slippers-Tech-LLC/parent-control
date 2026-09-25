@@ -72,8 +72,17 @@ def allocation_parent():
     return directory()
 
 
-def named_input():
+def named_input(*, package_source=False):
     # Privileged qualifiers consume the caller's already frozen host bundle.
+    # Product-changing qualifications must not silently reuse an older package.
+    # Keep each source identity immutable under the normal allocation journal.
+    if package_source:
+        if __package__:
+            from . import package_inputs
+        else:
+            import package_inputs
+        identity = package_inputs.digest(ROOT, package_inputs.paths(ROOT))
+        return BASE / ('host/allocations/onpc-parent-setup-' + identity)
     return BASE / 'host/allocations/onpc-parent-setup-input'
 
 

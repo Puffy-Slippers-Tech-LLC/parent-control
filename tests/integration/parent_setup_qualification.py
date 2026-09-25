@@ -511,6 +511,16 @@ class SetAllowanceQualification(KioskEntryQualification):
         return SetAllowanceJourney(context, progress)
 
 
+class AllowanceBoundariesQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from allowance_boundaries import AllowanceBoundariesJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return AllowanceBoundariesJourney(context, progress)
+
+
 class AllowanceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

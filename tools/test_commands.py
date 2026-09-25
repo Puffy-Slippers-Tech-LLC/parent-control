@@ -313,6 +313,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_parent_save'], ['check_e2e_parent_save.py'],
             ['check_e2e_allowance_presets'], ['check_e2e_allowance_presets.py'],
             ['check_e2e_allowance'], ['check_e2e_allowance.py'],
+            ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'],
             ['check_e2e_read_an_expanded_time_explanation'],
             ['check_e2e_read_an_expanded_time_explanation.py'],
             ['check_e2e_time_explanation'], ['check_e2e_time_explanation.py'],
@@ -321,7 +322,9 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_app_restart'], ['check_e2e_app_restart.py']):
         return None
     from test_storage import named_input
-    output = str(named_input())
+    output = str(named_input(package_source=True) if args in (
+        ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'])
+        else named_input())
     if os.path.lexists(output):
         artifact_path(output)
         return None  # The privileged consumer verifies the frozen manifest.

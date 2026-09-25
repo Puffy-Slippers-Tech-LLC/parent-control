@@ -103,6 +103,8 @@ class ScriptedParentBroker:
         )
         if self._mode == "slow-save":
             time.sleep(1)
+        if self._mode == "held-save":
+            self._wait_for_loading_release()
         if self._mode == "save-fails":
             raise RuntimeError("save rejected")
         self._preferences[uid]["parent_control_enabled"] = enabled

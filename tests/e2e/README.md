@@ -408,6 +408,12 @@ tools/run-tests e2e --id '4'
 tools/run-tests e2e --id '5'
 ```
 
+Standalone `tools/prepare-appsnapshot --overwrite false` first checks for the
+current version's snapshot under the guarded VM lock. If it exists, the command
+returns without cleanup, package or fixture builds, or snapshot changes; source
+freshness is deliberately not checked. If it is missing, normal preparation
+builds and creates it. `--overwrite true` (the default) rebuilds and replaces it.
+
 Suite preparation reuses the powered-off `onpc-v[version]` snapshot only when its
 recorded package-content fingerprint, baseline identity and installation recipe
 match. The fingerprint covers both data and control archives: file bytes, paths,

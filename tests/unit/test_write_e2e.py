@@ -106,7 +106,7 @@ def test_task_restart_inherits_only_its_own_consumed_sessions(tmp_path, monkeypa
     (previous / 'checkpoint.json').write_text(json.dumps(state))
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
     restarted = workflow.initial_state(tmp_path, tmp_path)
-    expected = dict(state, total_sessions=2)
+    expected = dict(state, total_sessions=2, task_session_limit=7)
     if in_flight:
         expected.update(phase='recover', in_flight=False, recovery_run=str(previous))
     assert restarted == expected

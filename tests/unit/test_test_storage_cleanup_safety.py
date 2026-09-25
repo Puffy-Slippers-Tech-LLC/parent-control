@@ -12,6 +12,26 @@ import pytest
 from tools import test_retention as retention, test_storage as storage
 
 
+def test_current_named_input_changes_with_product_bytes_without_overwriting(tmp_path, monkeypatch):
+    from tools import package_inputs
+    # Only private files and read-only hashing; no subprocess, allocation or cleanup.
+    monkeypatch.setattr(storage, 'ROOT', tmp_path)
+    monkeypatch.setattr(storage, 'BASE', tmp_path / 'outputs')
+    monkeypatch.setattr(package_inputs, 'paths', lambda _: [Path('product.py')])
+    source = tmp_path / 'product.py'
+    source.write_text('first')
+    first = storage.named_input(package_source=True)
+    assert storage.named_input(package_source=True) == first
+    assert not first.exists()
+    source.write_text('second')
+    assert storage.named_input(package_source=True) != first
+    assert storage.named_input().name == 'onpc-parent-setup-input'
+    source.unlink()
+    source.symlink_to(tmp_path / 'missing')
+    with pytest.raises(ValueError, match='regular file'):
+        storage.named_input(package_source=True)
+
+
 def test_storage_refuses_linked_parent_before_creating_outside(tmp_path):
     outside = tmp_path / 'outside'
     outside.mkdir()

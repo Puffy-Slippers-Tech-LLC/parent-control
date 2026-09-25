@@ -273,11 +273,13 @@ tools/write-e2e --stop
 `--sessions N` limits the total number of new sessions across implementation,
 live verification, retries and subsequent tasks. A new run with no options
 defaults to 5 sessions and 1 completed task. A new run with `--tasks N` but no
-`--sessions` has no total session limit. Each task has a hard cap of 5 sessions,
-including sessions retained across launcher restarts. If the task is still
-incomplete at that cap, the entire launcher exits with failure and prints a bold
+`--sessions` has no total session limit. Each task can use at most 5 sessions
+per new launcher process. A restarted launcher retains the task's cumulative
+session count and adds 5 to it for that process's task cap. Attaching to a
+running launcher does not renew the cap. If the task is still incomplete at
+that cap, the entire launcher exits with failure and prints a bold
 red warning as the final line after the summary and follow-up instructions.
-Completing on session 5 permits the next task to start with its own cap.
+The next task starts with its own cap of 5.
 `--tasks N` limits completed tasks and defaults
 to `1`. Both limits accept positive integers for a new run; the launcher stops
 when either limit is reached. A task counts only after acceptance, queue

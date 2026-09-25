@@ -21,6 +21,14 @@ def test_duration_format(seconds, expected):
     assert workflow.format_duration(seconds) == expected
 
 
+@pytest.mark.parametrize(('seconds', 'expected'), [
+    (29, '0m'), (30, '1m'), (720, '12m'), (3599, '60m'),
+    (3600, '1h 0m'), (5430, '1h 31m'), (7200, '2h 0m'),
+])
+def test_compact_duration_format(seconds, expected):
+    assert workflow.format_duration(seconds, short=True) == expected
+
+
 @pytest.mark.parametrize(('phase', 'attempts', 'summary'), [
     ('implement', 0, 'Writing task code + host validation + first live VM test; close on success, hand off on failure'),
     ('recover', 0, 'Recovering interrupted work + host validation'),

@@ -154,6 +154,8 @@ class LauncherDisplay:
                 self.stream.write('\n'.join(details) + '\n')
             self.stream.flush()
         for step in steps:
+            for key in step.get('replaces', ()):
+                self.step_history.pop(key, None)
             self.step_history[step['key']] = list(retained_tail(step['lines']))
         history_size = sum(len(line) for lines in self.step_history.values() for line in lines)
         history_lines = sum(map(len, self.step_history.values()))
@@ -298,7 +300,8 @@ class LauncherDisplay:
         except (OSError, ValueError):
             size = shutil.get_terminal_size()
         width, height = max(1, size.columns - 1), max(1, size.lines)
-        recent = self.steps[-2:]
+        active = [step for step in self.steps if not step.get('replaces')][-2:]
+        recent = [step for step in self.steps if step.get('replaces') or step in active]
         steps = []
         previous_lines = []
         for step in recent:
@@ -314,8 +317,10 @@ class LauncherDisplay:
         # Keep even extremely small terminals on the alternate screen: falling
         # back to ordinary output would permanently leak panes into scrollback.
         while len(steps) > 1 and sum(map(len, steps)) + 3 > height:
-            # Once the predecessor is hidden, restore the newest step's context.
-            steps = [self.wrapped(recent[-1]['lines'], width)]
+            # Drop the oldest row group first, restoring the first survivor's
+            # heading if it previously shared context with that group.
+            recent = recent[1:]
+            steps = [self.wrapped(recent[0]['lines'], width), *steps[2:]]
         top = [row for step in steps for row in step]
         if len(top) + 3 > height:
             top = top[:max(0, height - 2)]

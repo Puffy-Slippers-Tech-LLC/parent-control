@@ -10,19 +10,27 @@ def read_progress(run):
         return []
 
 
-def publish_progress(run, key, lines):
+def publish_progress(run, key, lines, *, replaces=()):
     steps = read_progress(run)
     step = {'key': key, 'lines': lines}
-    if steps and steps[-1] == step:
+    if replaces:
+        step['replaces'] = list(replaces)
+        steps = [previous for previous in steps if previous['key'] not in replaces]
+    if (steps and steps[-1] == step) or (replaces and step in steps):
         return
-    if steps and steps[-1]['key'] == key:
-        steps[-1] = step
+    existing = (next((index for index, previous in enumerate(steps)
+                      if previous['key'] == key), None) if replaces else
+                len(steps) - 1 if steps and steps[-1]['key'] == key else None)
+    if existing is not None:
+        steps[existing] = step
     else:
         steps.append(step)
-    # Reconnecting observers start with the latest two major steps. Attached
-    # observers retain their own controller scrollback.
+    # Keep compact completions alongside the latest two active steps so a
+    # reconnect can recover the same task recap as an attached observer.
+    active = [previous for previous in steps if not previous.get('replaces')][-2:]
+    retained = [previous for previous in steps if previous.get('replaces') or previous in active]
     temporary = run / 'controller.tmp'
-    temporary.write_text(json.dumps(steps[-2:]))
+    temporary.write_text(json.dumps(retained))
     temporary.replace(run / 'controller.json')
 
 

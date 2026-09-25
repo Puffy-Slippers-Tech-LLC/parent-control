@@ -35,12 +35,12 @@ def submit(run, identity, choice, instructions=''):
 
 
 class QuestionInput:
-    """Small keyboard menu; merely displaying a recommendation never selects it."""
+    """Small keyboard menu with the recommendation selected; Enter submits it."""
 
     def __init__(self, question, send):
         self.question = question
         self.send = send
-        self.selected = None
+        self.selected = 0
         self.text = ''
         self.buffer = ''
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
@@ -95,13 +95,15 @@ class QuestionInput:
         for index, option in enumerate(options):
             marker = '›' if index == self.selected else ' '
             suffix = ' (recommended)' if index == 0 else ''
-            lines.append(f'{marker} {index + 1}. {clean(option)}{suffix}')
+            line = f'{marker} {index + 1}. {clean(option)}{suffix}'
+            lines.append(f'\033[1m{line}\033[22m' if index == self.selected else line)
         marker = '›' if self.selected == len(options) else ' '
         value = clean(self.text)
         if width is not None and len(value) > max(1, width - 8):
             value = '…' + value[-max(1, width - 8):]
-        value = value or '\033[90mOther\033[0m'
-        lines.append(f'{marker} {len(options) + 1}. {value}')
+        value = value or '\033[90mOther\033[39m'
+        line = f'{marker} {len(options) + 1}. {value}'
+        lines.append(f'\033[1m{line}\033[22m' if self.selected == len(options) else line)
         lines.append('Choose a number or ↑/↓; type for Other; Enter to send. Waiting for your answer.')
         return lines
 

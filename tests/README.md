@@ -332,7 +332,9 @@ still scroll the explanation. Blank input never chooses an answer, and pasting
 multiple lines does not submit automatically.
 
 The workflow waits indefinitely without starting another model session or
-consuming session allowance. Closing the terminal leaves it paused; rerun
+consuming session allowance. An unchanged prompt performs no repeated layout or
+terminal writes; keyboard input and terminal resizing remain responsive.
+Closing the terminal leaves it paused; rerun
 `tools/write-e2e` in an interactive terminal to answer. Piped output remains an
 observer and never invents an answer. With multiple attached terminals, the first
 submitted answer wins. Your answer continues the same task through a fresh Astra

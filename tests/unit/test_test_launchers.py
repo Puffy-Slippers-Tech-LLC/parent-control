@@ -128,6 +128,21 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
         ROOT, 'tools/build_test_artifacts.py', '--output', output)
 
 
+@pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py'])
+def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, selector):
+    import test_storage
+    output = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'
+    named = Mock(return_value=output)
+    monkeypatch.setattr(test_storage, 'named_input', named)
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    allocate = Mock(return_value=str(output))
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == (
+        commands.python_file(ROOT, 'tools/build_test_artifacts.py', '--output', str(output)))
+    named.assert_called_once_with(package_source=True)
+    allocate.assert_called_once_with(str(output))
+
+
 def test_toggle_qualification_reuses_existing_inputs_without_overwriting(monkeypatch):
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
     validate = Mock()

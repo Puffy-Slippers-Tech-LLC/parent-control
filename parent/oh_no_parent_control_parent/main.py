@@ -1813,6 +1813,12 @@ class ParentWindow(Adw.ApplicationWindow):
     def _update_daily_limit_choice_styles(self):
         for choice, marker, index in self._daily_limit_choices:
             selected = index == self._daily_limit_selected
+            label = ("Custom amount" if index == CUSTOM_DAILY_LIMIT_INDEX
+                     else _daily_limit_label(DAILY_LIMIT_PRESETS[index]))
+            choice.update_property(
+                [Gtk.AccessibleProperty.DESCRIPTION],
+                [("Selected daily allowance: " if selected else "Daily allowance: ") + label],
+            )
             if selected:
                 choice.add_css_class("selected")
                 marker.add_css_class("selected")

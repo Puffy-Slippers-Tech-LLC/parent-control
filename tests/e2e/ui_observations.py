@@ -22,6 +22,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Qualifying daily allowance presets and saved readback'
+       for operation in accessible_ui.ALLOWANCE_OPERATIONS},
     'gdm-installed-accounts': 'Checking preserved personal accounts and the installed request station',
     'parent-app-rows': 'Reading the complete App Limits row set',
     'parent-app-rows-reopened': 'Reopening App Limits and independently reading its rows',
@@ -530,6 +532,13 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'text'}
                     and result['text'] == projection, 'ui:text-response')
             expected['text'] = projection
+        if operation in accessible_ui.ALLOWANCE_OPERATIONS:
+            projection = ({'refusal': operation.removeprefix('allowance-')}
+                          if operation in ('allowance-wrong-child', 'allowance-disabled')
+                          else {'minutes': int(operation.split('-')[1]), 'saved': True})
+            require(type(result) is dict and set(result) == {*expected, 'allowance'}
+                    and result['allowance'] == projection, 'ui:allowance-response')
+            expected['allowance'] = projection
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'save'}
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],

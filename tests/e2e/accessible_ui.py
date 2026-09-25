@@ -91,6 +91,12 @@ TEXT_OPERATIONS = {
                    if binding.startswith('reply-') else ('focus', 'selected', 'read'))
 }
 OPERATIONS |= frozenset(TEXT_OPERATIONS) | {'text-wrong-entry', 'text-disabled'}
+ALLOWANCE_OPERATIONS = frozenset({
+    'allowance-wrong-child', 'allowance-disabled',
+    'allowance-0-select', 'allowance-0-read', 'allowance-0-reopen',
+    'allowance-15-select', 'allowance-15-read', 'allowance-15-reopen',
+})
+OPERATIONS |= ALLOWANCE_OPERATIONS
 LICENSE_LINK = 'GNU General Public License v3.0'
 ABOUT_FOOTER = '© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.'
 CHILD = 'Riley (Child)'
@@ -1939,6 +1945,54 @@ class AccessibleUI:
             return value if value == expected else False
 
         return self.wait(saved, 'parent-save', prompt_in_predicate=True)
+
+    def allowance_preset(self, child, minutes, *, action):
+        """PARENT05: saved preset readback; reopen returns the picker open."""
+        require(child in CHILD_IDENTITIES and type(minutes) is int
+                and minutes in (0, 15) and action in ('select', 'read', 'reopen'),
+                'ui:allowance-binding')
+        # Refuse the wrong child and disabled controls before any input.
+        root = self.parent()
+        picker = self.id_target('parent-child-selector', root=root, sensitive=True)
+        require(self.child_id_control(child, 'parent-child-selected-', root=picker,
+                                      showing=True) is not None, 'ui:wrong-child')
+        self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
+        self.parent_save_snapshot(child, True)
+        if action == 'select':
+            self.activate_id('parent-daily-limit-selector')
+            self.activate_id('parent-daily-limit-' + str(minutes))
+        self.parent_save_snapshot(child, True)
+        # Selection closes the popover asynchronously. Its labels remain
+        # selector descendants until closure, so read the saved label only
+        # after a complete negative observation of the choices.
+        self.wait(lambda: self.absent_id('parent-daily-limit-choices',
+                                        within='parent-window'),
+                  'allowance-picker-close')
+        selector = self.id_target('parent-daily-limit-selector', sensitive=True)
+        require(self.read_label(selector, 'allowance', maximum=32)
+                == [str(minutes) + ' minutes'], 'ui:allowance-value')
+        if action == 'reopen':
+            self.activate_id('parent-daily-limit-selector')
+            choice = self.id_target('parent-daily-limit-' + str(minutes), sensitive=True)
+            require(choice.get_description() == 'Selected daily allowance: '
+                    + str(minutes) + ' minutes', 'ui:allowance-selection')
+            # The public menu.popup action opens; it is not a close toggle.
+            # Leave the verified picker open for the next selection.
+        return {'minutes': minutes, 'saved': True}
+
+    def allowance_operation(self, operation):
+        require(operation in ALLOWANCE_OPERATIONS, 'ui:allowance-operation')
+        if operation in ('allowance-wrong-child', 'allowance-disabled'):
+            child = EXISTING_CHILD if operation == 'allowance-wrong-child' else CHILD
+            expected = 'ui:wrong-child' if child == EXISTING_CHILD else 'ui:unusable-target'
+            try:
+                self.allowance_preset(child, 0, action='select')
+            except UiError as error:
+                require(str(error) == expected, 'ui:allowance-refusal')
+                return {'refusal': operation.removeprefix('allowance-')}
+            raise UiError('ui:allowance-refusal-missing')
+        _, value, action = operation.split('-')
+        return self.allowance_preset(CHILD, int(value), action=action)
 
     def parent_save_operation(self, operation):
         """Installed PARENT08 saved snapshot and wrong-child refusal."""
@@ -4225,6 +4279,8 @@ class AccessibleUI:
                 result['settings'] = self.selected_child(child)
         elif operation == 'about':
             self.open_about(version)
+        elif operation in ALLOWANCE_OPERATIONS:
+            result['allowance'] = self.allowance_operation(operation)
         elif operation in TEXT_OPERATIONS or operation in ('text-wrong-entry', 'text-disabled'):
             text = self.text_operation(operation)
             if text is not None:

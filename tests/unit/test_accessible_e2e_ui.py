@@ -411,13 +411,43 @@ def test_configure_time_controls_conditional_enable_save_and_final_state(initial
     ui.reach_time_explanation.assert_called_once_with(accessible_ui.CHILD)
 
 
+def test_fresh_thirty_operation_enables_saves_and_reads_selected_child():
+    ui, *_ = time_explanation_ui()
+    events = []
+    ui.activate_id = Mock(side_effect=lambda identity: events.append(('page', identity)))
+    ui.settings = Mock(side_effect=[{'limit_enabled': False}, {
+        'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['30 minutes']}])
+    ui.set_toggle = Mock(side_effect=lambda _id, state, **_kw: events.append(('toggle', state)))
+    ui.parent_save_snapshot = Mock(side_effect=lambda child, state: events.append(('save', child, state)))
+    ui.allowance_preset = Mock(side_effect=lambda child, value, **_kw: events.append(('allowance', child, value)))
+    ui.reach_time_explanation = Mock(return_value={'independent': True})
+    assert ui.time_explanation_operation('time-explanation-setup-thirty-read') == {'independent': True}
+    assert events == [('page', 'parent-page-screen-limits'), ('toggle', True),
+                      ('save', accessible_ui.CHILD, True), ('allowance', accessible_ui.CHILD, 30),
+                      ('save', accessible_ui.CHILD, True), ('toggle', True),
+                      ('save', accessible_ui.CHILD, True)]
+    ui.reach_time_explanation.assert_called_once_with(accessible_ui.CHILD)
+
+
+@pytest.mark.parametrize('initial,minutes,final', [(True, 30, True), (False, 30, False),
+                                                (False, 45, True), (False, True, True)])
+def test_configure_time_controls_refuses_unqualified_bindings_before_input(initial, minutes, final):
+    ui, *_ = time_explanation_ui()
+    ui.time_explanation_entry = Mock()
+    with pytest.raises(UiError, match='time-binding'):
+        ui.configure_time_controls(accessible_ui.CHILD, initial_enabled=initial,
+                                   minutes=minutes, final_enabled=final)
+    ui.time_explanation_entry.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['child', 'initial', 'save', 'settings'])
-def test_configure_time_controls_refuses_wrong_entry_and_failed_save(fault):
+@pytest.mark.parametrize('minutes,initial', [(0, True), (30, False)])
+def test_configure_time_controls_refuses_wrong_entry_and_failed_save(fault, minutes, initial):
     ui, *_ = time_explanation_ui()
     ui.activate_id = Mock()
-    ui.settings = Mock(side_effect=[{'limit_enabled': fault != 'initial'}, {
+    ui.settings = Mock(side_effect=[{'limit_enabled': not initial if fault == 'initial' else initial}, {
         'child': 'fixture-child', 'limit_enabled': True,
-        'allowance': ['15 minutes' if fault == 'settings' else '0 minutes']}])
+        'allowance': ['15 minutes' if fault == 'settings' else str(minutes) + ' minutes']}])
     ui.set_toggle = Mock()
     ui.allowance_preset = Mock()
     ui.parent_save_snapshot = Mock(side_effect=UiError('ui:save') if fault == 'save' else None)
@@ -425,10 +455,10 @@ def test_configure_time_controls_refuses_wrong_entry_and_failed_save(fault):
     with pytest.raises(UiError):
         ui.configure_time_controls(
             accessible_ui.EXISTING_CHILD if fault == 'child' else accessible_ui.CHILD,
-            initial_enabled=True, minutes=0, final_enabled=True)
+            initial_enabled=initial, minutes=minutes, final_enabled=True)
     if fault in ('child', 'initial'):
         ui.allowance_preset.assert_not_called()
-    if fault in ('child', 'initial', 'save'):
+    if fault in ('child', 'initial') or fault == 'save' and initial:
         ui.set_toggle.assert_not_called()
     ui.reach_time_explanation.assert_not_called()
 
@@ -2159,6 +2189,45 @@ def test_standard_desktop_requires_unique_live_shell_panel(fault):
     else:
         assert ui.desktop_result(accessible_ui.EXISTING_CHILD, 'success') is panel
     panel.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('no_prompt', [False, True])
+@pytest.mark.parametrize('persistent', [False, True])
+def test_desktop_discards_defunct_observation_before_accepting_fresh_tree(
+        monkeypatch, no_prompt, persistent):
+    panel = Node('Activities', 'toggle button')
+    shell = Node('gnome-shell', 'application', children=[panel])
+    closing = Node('closing application', 'application', states=('defunct',))
+    root = Node(role='desktop frame', children=[shell, closing])
+    ui = ui_for(root)
+    ui.timeout = 4
+    now = [0.0]
+    reads = []
+    original_nodes = ui.nodes
+
+    def nodes(*args, **kwargs):
+        reads.append(now[0])
+        yield from original_nodes(*args, **kwargs)
+
+    def advance(seconds):
+        now[0] += seconds
+        if not persistent:
+            root.children = [shell]
+
+    ui.nodes = nodes
+    monkeypatch.setattr(accessible_ui, 'time', SimpleNamespace(
+        monotonic=lambda: now[0], sleep=advance))
+    if persistent:
+        with pytest.raises(UiError, match='ui:timeout:.*shell-desktop'):
+            ui.standard_shell_desktop(no_prompt=no_prompt)
+        assert 4 <= now[0] < 4.3
+    else:
+        assert ui.standard_shell_desktop(no_prompt=no_prompt) is panel
+        assert now[0] >= (2.2 if no_prompt else .2)
+    assert len(set(reads)) > 1
+    assert ui.incomplete_observations
+    panel.action.do_action.assert_not_called()
+    closing.action.do_action.assert_not_called()
 
 
 def test_fresh_parent_desktop_uses_bound_shell_and_refuses_a_keyring_modal():

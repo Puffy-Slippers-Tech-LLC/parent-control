@@ -77,6 +77,7 @@ import text_qualification
 import allowance_presets
 import allowance
 import time_explanation
+import fresh_thirty_allowance
 import parent_discovery
 import shell_search_results
 import parent_search_launch
@@ -176,7 +177,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN,
                                  kiosk_multiple.PLAN, kiosk_multiple.CASE_PLAN,
                                  kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN,
-                                 restricted_station_about.PLAN],
+                                 restricted_station_about.PLAN, fresh_thirty_allowance.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -188,7 +189,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
-                              'ineligible-profile', 'ineligible-case', 'station-about'])
+                              'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -282,6 +283,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                     operation == 'parent-selected' and operation_counts[operation] == 3
                     or operation == 'parent-screen-page' and operation_counts[operation] == 2):
                 result['settings']['allowance'] = ['1 hour']
+            if plan is fresh_thirty_allowance.PLAN and operation_counts[operation] == 2:
+                result['settings'].update(limit_enabled=True, allowance=['30 minutes'])
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS):

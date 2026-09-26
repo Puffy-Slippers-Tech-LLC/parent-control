@@ -335,6 +335,8 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_time_explanation'], ['check_e2e_time_explanation.py'],
             ['check_e2e_set_an_allowance_for_a_named_child'],
             ['check_e2e_set_an_allowance_for_a_named_child.py'],
+            ['check_e2e_set_fresh_thirty_minute_allowance'],
+            ['check_e2e_set_fresh_thirty_minute_allowance.py'],
             ['check_e2e_app_restart'], ['check_e2e_app_restart.py']):
         return None
     from test_storage import named_input

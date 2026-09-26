@@ -6,7 +6,7 @@ import json
 import pytest
 
 import write_e2e as workflow
-from tests.support.write_e2e_fixtures import prepare, reply
+from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
 @pytest.mark.parametrize(('seconds', 'expected'), [
@@ -285,6 +285,123 @@ def test_queue_order_is_authoritative_and_deferred_tasks_are_excluded(tmp_path):
         '| [x] | 001 | First |\n| [x] | 002 | Second |\n'
         '## Deferred future work\n| [ ] | 999 | Deferred |\n')
     assert workflow.queue_state(tmp_path)[0] is None
+
+
+def insert_prerequisite(root):
+    for name, content in prerequisite_writes().items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+
+
+def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp_path):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), task_sessions=3, live_attempts=2,
+                 in_flight=True, stage_candidates=['partial.py'],
+                 stage_baseline={'unrelated.py': 'original'}, progress_keys=['1'])
+    insert_prerequisite(tmp_path)
+    selected = workflow.accept_result(tmp_path, state,
+        reply('blocked', 'not_run', host_validated=False, handoff='Keep partial consumer work.'), before)
+    assert selected['task_id'] == '000a' and selected['phase'] == 'implement'
+    assert selected['task_sessions'] == selected['live_attempts'] == 0
+    assert selected['stage_candidates'] == [] and not selected['in_flight']
+    consumer = selected['suspended_tasks']['001']
+    assert consumer['phase'] == 'recover' and not consumer['in_flight']
+    assert consumer['task_sessions'] == 3 and consumer['live_attempts'] == 2
+    assert consumer['stage_candidates'] == ['partial.py']
+    assert consumer['stage_baseline'] == {'unrelated.py': 'original'}
+    assert consumer['handoff'] == 'Keep partial consumer work.'
+    assert workflow.select_task_state('001', selected) == consumer
+    assert workflow.queue_state(tmp_path)[1] == {'000a': False, '001': False, '002': False}
+
+
+@pytest.mark.parametrize('fault', ['unrelated', 'checked', 'missing-brief', 'forward-dependency',
+                                  'extra-row', 'reordered', 'live-failure'])
+def test_prerequisite_exception_does_not_allow_skips_or_unrelated_queue_edits(tmp_path, fault):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    insert_prerequisite(tmp_path)
+    queue = tmp_path / workflow.QUEUE
+    text = queue.read_text()
+    if fault == 'unrelated':
+        text = text.replace('| 000a | Consumer |', '| — | Consumer |')
+    elif fault == 'checked':
+        text = text.replace('| [ ] | 001 |', '| [x] | 001 |')
+    elif fault == 'missing-brief':
+        (tmp_path / 'docs/TestAutomation/E2E-Tasks/000a.md').unlink()
+    elif fault == 'forward-dependency':
+        text = text.replace('| — | Setup |', '| 001 | Setup |')
+    elif fault == 'extra-row':
+        text += '| [ ] | extra | Extra | — | Extra |\n'
+    elif fault == 'reordered':
+        before = {'002': False, '001': False}
+    queue.write_text(text)
+    with pytest.raises(ValueError, match='incomplete task advanced'):
+        workflow.accept_result(tmp_path, workflow.fresh_state('001'),
+            reply('blocked', 'failed' if fault == 'live-failure' else 'not_run'), before)
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_restart_recovers_interrupted_prerequisite_insertion(tmp_path, monkeypatch, legacy):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    previous = tmp_path / 'previous-run'
+    previous.mkdir()
+    state = dict(workflow.fresh_state('001'), in_flight=True, task_sessions=1,
+                 stage_candidates=['partial.py'], handoff='Retained consumer work.', progress_keys=['1'])
+    if not legacy:
+        state['queue_before'] = before
+    (previous / 'checkpoint.json').write_text(json.dumps(state))
+    original_checkpoint = (previous / 'checkpoint.json').read_bytes()
+    insert_prerequisite(tmp_path)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
+    selected = workflow.initial_state(tmp_path, tmp_path)
+    assert selected['task_id'] == '000a' and selected['phase'] == 'recover'
+    assert selected['task_session_limit'] == 5 and selected['task_sessions'] == 0
+    assert str(previous) in workflow.session_prompt(selected)
+    consumer = selected['suspended_tasks']['001']
+    assert consumer['task_sessions'] == 1 and consumer['stage_candidates'] == ['partial.py']
+    assert 'progress_keys' not in consumer
+    assert (previous / 'checkpoint.json').read_bytes() == original_checkpoint
+
+
+def test_restart_still_refuses_unrelated_interrupted_queue_change(tmp_path, monkeypatch):
+    prepare(tmp_path)
+    previous = tmp_path / 'previous-run'
+    previous.mkdir()
+    (previous / 'checkpoint.json').write_text(json.dumps(dict(
+        workflow.fresh_state('001'), in_flight=True)))
+    insert_prerequisite(tmp_path)
+    queue = tmp_path / workflow.QUEUE
+    queue.write_text(queue.read_text().replace('| 000a | Consumer |', '| — | Consumer |'))
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
+    with pytest.raises(ValueError, match='interrupted task changed the queue'):
+        workflow.initial_state(tmp_path, tmp_path)
+
+
+def test_multiple_inserted_prerequisites_keep_consumer_across_launcher_boundaries(tmp_path, monkeypatch):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    insert_prerequisite(tmp_path)
+    queue = tmp_path / workflow.QUEUE
+    queue.write_text(queue.read_text().replace(
+        '| [ ] | 001 |', '| [ ] | 000b | [Second prerequisite](E2E-Tasks/000b.md) | 000a | Setup |\n| [ ] | 001 |'
+    ).replace('| 000a | Consumer |', '| 000b | Consumer |'))
+    (tmp_path / 'docs/TestAutomation/E2E-Tasks/000b.md').write_text('Qualify second prerequisite.\n')
+    state = workflow.accept_result(tmp_path, dict(workflow.fresh_state('001'), task_sessions=2),
+                                   reply('blocked', 'not_run'), before)
+    previous = tmp_path / 'previous-run'
+    previous.mkdir()
+    state.update(phase='complete')
+    (previous / 'checkpoint.json').write_text(json.dumps(state))
+    queue.write_text(queue.read_text().replace('| [ ] | 000a |', '| [x] | 000a |'))
+    (tmp_path / workflow.PLAN).write_text('Next task: **000b — Second prerequisite**.\n')
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
+    second = workflow.initial_state(tmp_path, tmp_path)
+    assert second['task_id'] == '000b' and second['task_sessions'] == 0
+    assert second['suspended_tasks']['001']['task_sessions'] == 2
+    assert workflow.select_task_state('001', second)['task_sessions'] == 2
 
 
 @pytest.mark.parametrize('value', ['0', '-1', 'garbage', '1.5'])

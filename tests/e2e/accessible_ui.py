@@ -128,6 +128,7 @@ TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-off-read', 'time-explanation-positive-read',
     'time-explanation-zero-read', 'time-explanation-zero-reread',
     'time-explanation-setup-zero-read', 'time-explanation-setup-positive-read',
+    'time-explanation-setup-thirty-read',
 })
 OPERATIONS |= TIME_EXPLANATION_OPERATIONS
 REVOKE_DISABLED_OPERATIONS = {
@@ -2375,6 +2376,7 @@ class AccessibleUI:
         configurations = {
             'time-explanation-setup-zero-read': (False, 0, True),
             'time-explanation-setup-positive-read': (True, 15, True),
+            'time-explanation-setup-thirty-read': (False, 30, True),
             'time-explanation-off-read': (True, 15, False),
             'time-explanation-positive-read': (False, 15, True),
             'time-explanation-zero-read': (True, 0, True),
@@ -2445,7 +2447,9 @@ class AccessibleUI:
         state before edits; disabling is an intentional grant reset.
         """
         require(type(initial_enabled) is bool and type(final_enabled) is bool
-                and type(minutes) is int and minutes in (0, 15), 'ui:time-binding')
+                and type(minutes) is int
+                and (minutes in (0, 15) or
+                     minutes == 30 and not initial_enabled and final_enabled), 'ui:time-binding')
         self.time_explanation_entry(child)
         self.activate_id('parent-page-screen-limits')
         initial = self.settings(child)
@@ -3178,8 +3182,14 @@ class AccessibleUI:
             facts = {}
             nodes = list(self.nodes(root, strict=True, protect_text=True,
                                     snapshot=snapshot, facts=facts))
-            require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
-                            for node in nodes), 'ui:stale-surface')
+            if any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes):
+                # Closing an application can invalidate an otherwise complete
+                # desktop traversal. Discard it and reacquire through wait's
+                # existing read-only deadline; stale nodes never prove a desktop
+                # or prompt absence, and no input is repeated.
+                error = UiError('ui:incomplete-tree')
+                error.add_note('desktop observation contains a defunct node')
+                raise error
             if no_prompt:
                 require(self.system_prompt_kind(observation=(nodes, snapshot, facts)) is None,
                         'ui:fresh-desktop-prompt')

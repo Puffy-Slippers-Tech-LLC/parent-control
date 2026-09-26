@@ -21,6 +21,10 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **234 — [E2E-042: kiosk](E2E-Tasks/234-case-192.md)**.
 
+FLOW16's fresh 30-minute prerequisite is qualified. Task 234 remains incomplete;
+implement and register its complete case 192 using that binding and the qualified
+kiosk About capability.
+
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
 pointer; record its exact remaining work and return condition here and in its

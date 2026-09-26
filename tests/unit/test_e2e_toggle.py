@@ -256,6 +256,56 @@ def test_set_allowance_selector_and_guarded_preparation(monkeypatch, tmp_path):
     assert SetAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
 
 
+def test_fresh_thirty_selector_and_guarded_preparation(monkeypatch, tmp_path):
+    import check_e2e_set_fresh_thirty_minute_allowance as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import FreshThirtyAllowanceQualification, KioskEntryQualification
+    from fresh_thirty_allowance import PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['fresh_thirty_allowance'] is True
+    with pytest.raises(CommandError, match='set-allowance-prerequisites'):
+        smoke.main(fresh_thirty_allowance=True)
+    for conflict in ('set_allowance', 'time_explanation', 'app_restart', 'kiosk_valid_duration'):
+        with pytest.raises(CommandError, match='prerequisites'):
+            smoke.main(assets=tmp_path, provision_credentials=True,
+                       fresh_thirty_allowance=True, **{conflict: True})
+    context = SimpleNamespace(directory=tmp_path)
+    assert FreshThirtyAllowanceQualification.journey(context, Mock()).plan is PLAN
+    assert context.installed_snapshot == 'onpc-v1.1'
+    assert FreshThirtyAllowanceQualification.finalize is KioskEntryQualification.finalize
+    assert FreshThirtyAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
+
+
+@pytest.mark.parametrize('fault', ['daily', 'one_time', 'total', 'order', 'child', 'enabled', 'allowance'])
+def test_fresh_thirty_requires_balances_fresh_read_and_saved_settings(fault):
+    from fresh_thirty_allowance import FreshThirtyAllowanceJourney
+    from private_artifacts import EvidenceError
+    journey = FreshThirtyAllowanceJourney(SimpleNamespace(), Mock())
+    value = {'daily': {'seconds': 1800, 'precision_seconds': 1},
+             'one_time': {'seconds': 0, 'precision_seconds': 1},
+             'total': {'seconds': 1800, 'precision_seconds': 1}, 'observed_monotonic_ns': 10}
+    observation = {'ui': {'time_explanation': value}}
+    journey.check_settings('allowance-configured', observation)
+    value['observed_monotonic_ns'] = 11
+    settings = {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['30 minutes']}
+    if fault in ('daily', 'one_time', 'total'):
+        value[fault]['seconds'] += 1
+    elif fault == 'order':
+        value['observed_monotonic_ns'] = 10
+    else:
+        journey.check_settings('balance-reread', observation)
+        settings[{'child': 'child', 'enabled': 'limit_enabled', 'allowance': 'allowance'}[fault]] = {
+            'child': 'existing-fixture-child', 'enabled': False, 'allowance': ['15 minutes']}[fault]
+    with pytest.raises(EvidenceError):
+        if fault in ('daily', 'one_time', 'total', 'order'):
+            journey.check_settings('balance-reread', observation)
+        else:
+            journey.check_settings('final-settings', {'ui': {'settings': settings}})
+
+
 def test_app_restart_selector_uses_owned_snapshot_and_cleanup(monkeypatch, tmp_path):
     import check_e2e_app_restart as check
     import check_graphical_smoke as smoke
@@ -398,6 +448,34 @@ def test_set_allowance_actual_worker_stops_before_later_input_at_every_boundary(
         assert result['events'] == success['events'][:boundary + 1]
 
 
+def test_fresh_thirty_actual_worker_stops_at_every_refused_boundary(monkeypatch):
+    from fresh_thirty_allowance import PLAN
+    from accessible_ui import OPERATIONS
+    from ui_observations import OPERATION_LABELS
+    from tests.support.paths import ROOT
+    import re
+    dispatch = (ROOT / 'tests/integration/graphical_smoke/tests/smoke.pm').read_text()
+    branches = re.findall(r'if \(\$ready->\{fresh_thirty_allowance\}\) \{(.*?)\n    \}', dispatch, re.S)
+    assert len(branches) == 1
+    assert 'onpc_fresh_thirty_allowance::run(\\&exchange);' in branches[0]
+    script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_fresh_thirty_allowance')
+    monkeypatch.setenv('ONPC_TEST_REFUSE', '')
+    success = json.loads(run_perl(script).stdout)
+    assert success['ok'], success['error']
+    stages = list(PLAN.screen_tags)
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    assert [event for event in success['events'] if event[0] == 'key'] == [['key', 'ret'], ['key', 'ret']]
+    assert set(PLAN.phases) == set(PLAN.stages)
+    assert all(tag.removeprefix('ui:') in OPERATIONS for tag in PLAN.screen_tags.values())
+    assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
+    for stage in stages:
+        monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
+        result = json.loads(run_perl(script).stdout)
+        assert not result['ok'] and 'fixture:refused' in result['error']
+        boundary = success['events'].index(['stage', stage])
+        assert result['events'] == success['events'][:boundary + 1]
+
+
 def test_zero_total_actual_worker_stops_at_each_refused_observation(monkeypatch):
     from zero_total import PLAN
     script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_zero_total')
@@ -461,7 +539,11 @@ for my $args (
     ['gdm', 'other-parent', 'fresh', 'new', 'child', 0, 0, 1],
     ['gdm', 'parent', 'fresh', 'retained', 'child', 0, 0, 1],
     ['desktop', 'parent', 'fresh', 'new', 'child', 0, 0, 1],
-    ['gdm', 'parent', 'fresh', 'new', 'existing', 0, 0, 1]) {
+    ['gdm', 'parent', 'fresh', 'new', 'existing', 0, 0, 1],
+    ['gdm', 'parent', 'fresh', 'retained', 'child', 0, 30, 1],
+    ['gdm', 'parent', 'fresh', 'new', 'child', 1, 30, 1],
+    ['desktop', 'parent', 'same-user', 'new', 'child', 1, 30, 1],
+    ['gdm', 'parent', 'fresh', 'new', 'child', 0, 45, 1]) {
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'set-allowance', review => 0);
     eval { onpc_parent::set_allowance($journey, @$args); };
     push @errors, "$@";
@@ -470,7 +552,7 @@ print encode_json({errors => \@errors, events => \@events});
 '''
     result = json.loads(run_perl(script).stdout)
     assert not result['events']
-    assert len(result['errors']) == 4
+    assert len(result['errors']) == 8
     assert all('parent:allowance-binding' in error for error in result['errors'])
 
 

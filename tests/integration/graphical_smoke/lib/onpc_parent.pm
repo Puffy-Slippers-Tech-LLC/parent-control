@@ -165,7 +165,8 @@ sub set_allowance {
     my ($journey, $source, $parent, $entry, $window, $child, $initial, $minutes, $final) = @_;
     die 'parent:allowance-binding' unless @_ == 9 && $parent eq 'parent'
         && $child eq 'child' && $window eq 'new' && $final eq '1'
-        && (($source eq 'gdm' && $entry eq 'fresh' && $initial eq '0' && $minutes eq '0')
+        && (($source eq 'gdm' && $entry eq 'fresh' && $initial eq '0'
+             && ($minutes eq '0' || $minutes eq '30'))
             || ($source eq 'desktop' && $entry eq 'same-user' && $initial eq '1' && $minutes eq '15'));
     my $prefix = $entry eq 'same-user' ? 'same-' : '';
     my $selected = open_for_child($journey, $source, $entry, $window, $child);

@@ -42,6 +42,7 @@ use onpc_allowance_boundaries ();
 use onpc_allowance_case ();
 use onpc_time_explanation ();
 use onpc_set_allowance ();
+use onpc_fresh_thirty_allowance ();
 use onpc_app_restart ();
 use onpc_zero_total ();
 use onpc_app_rows ();
@@ -387,6 +388,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_zero_total::run(\&exchange);
+        return;
+    }
+    if ($ready->{fresh_thirty_allowance}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_fresh_thirty_allowance::run(\&exchange);
         return;
     }
     if ($ready->{set_allowance}) {

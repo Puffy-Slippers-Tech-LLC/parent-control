@@ -660,7 +660,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
-         kiosk_ineligible=False, restricted_station_about=False):
+         kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False):
+    require(type(fresh_thirty_allowance) is bool and type(set_allowance) is bool
+            and not (fresh_thirty_allowance and set_allowance),
+            'smoke:fresh-thirty-allowance-prerequisites')
+    set_allowance = set_allowance or fresh_thirty_allowance
     require(type(restricted_station_about) is bool and not (restricted_station_about and (
         kiosk_ineligible or kiosk_multiple or kiosk_valid_duration or request_duration
         or request_flow or mate_prompt or kiosk_approval or kiosk_rejection or auth_result
@@ -1172,6 +1176,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-time-explanation-qualification'
         if set_allowance:
             result['scope'] = 'installed-set-allowance-qualification'
+        if fresh_thirty_allowance:
+            result['scope'] = 'installed-fresh-thirty-allowance-qualification'
         if app_restart:
             result['scope'] = 'installed-app-restart-qualification'
         if repeated_operations:
@@ -1378,6 +1384,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if set_allowance:
                     from parent_setup_qualification import SetAllowanceQualification
                     qualification_class = SetAllowanceQualification
+                if fresh_thirty_allowance:
+                    from parent_setup_qualification import FreshThirtyAllowanceQualification
+                    qualification_class = FreshThirtyAllowanceQualification
                 if app_restart:
                     from parent_setup_qualification import AppRestartQualification
                     qualification_class = AppRestartQualification

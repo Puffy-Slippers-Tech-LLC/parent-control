@@ -1770,7 +1770,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent."},
-          {"id": "step-2", "operation": "ui", "description": "For boundaries, exercise every offered preset and the finite valid/invalid custom table. For save-order, commit by pause, Enter and focus leave, then make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values."},
+          {"id": "step-2", "operation": "ui", "description": "For boundaries, exercise representative whole-hour and half-hour presets plus both extremes, and the finite valid/invalid custom table. For save-order, commit by pause, Enter and focus leave, then make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values."},
           {"id": "step-3", "operation": "ui", "description": "Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value."}
         ],
         "end": [

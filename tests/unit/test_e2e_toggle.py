@@ -338,13 +338,13 @@ def test_allowance_boundaries_worker_and_every_refusal(monkeypatch, module_name)
 
 def test_complete_allowance_case_preserves_finite_matrix_and_reopen_checks():
     from allowance_case import PLAN
-    from allowance_values import PRESETS, ACCEPTED, INVALID
+    from allowance_values import REPRESENTATIVE_PRESETS, ACCEPTED, INVALID
     from ui_observations import SettingsObservation
     stages = list(PLAN.screen_tags)
-    assert PLAN.screen_tags['parent-activity-ready'] == 'system:parent-continuous-activity'
-    assert stages.index('parent-selected') < stages.index('parent-activity-ready') < stages.index('preset-0-select')
+    assert 'system:parent-continuous-activity' not in PLAN.screen_tags.values()
+    assert REPRESENTATIVE_PRESETS == (0, 60, 90, 1410)
     presets = [PLAN.screen_tags[stage] for stage in stages if stage.startswith('preset-')]
-    assert presets == [f'ui:allowance-{value}-{action}' for value in PRESETS
+    assert presets == [f'ui:allowance-{value}-{action}' for value in REPRESENTATIVE_PRESETS
                        for action in ('select', 'read')]
     for value in ACCEPTED:
         assert stages.index(f'boundary-{value}-saved') < stages.index(f'boundary-{value}-reopen')

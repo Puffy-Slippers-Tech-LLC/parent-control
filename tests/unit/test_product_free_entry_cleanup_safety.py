@@ -335,7 +335,11 @@ def test_greeter_keyboard_uses_bounded_locale1_configuration(monkeypatch, proper
 
 @pytest.mark.parametrize('stage', ['installed-greeter', 'desktop'])
 @pytest.mark.parametrize('fault', ['', 'provider', 'durability'])
-def test_entry_never_acknowledges_missing_provider_evidence(tmp_path, stage, fault):
+def test_entry_never_acknowledges_missing_provider_evidence(tmp_path, monkeypatch, stage, fault):
+    monkeypatch.setattr(control, 'observe', Mock(return_value={
+        'operation': 'parent-continuous-activity', 'outcome': 'passed',
+        'interface': 'system session', 'idle_delay_seconds': 0,
+        'previous_idle_delay_seconds': 300}))
     progress = Mock(side_effect=OSError('storage failed') if fault == 'durability' else None)
     journey = ProductFreeEntryJourney(SimpleNamespace(directory=tmp_path,
         product_free=True, asset_transfer=Mock()), progress)

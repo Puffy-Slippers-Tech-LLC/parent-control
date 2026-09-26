@@ -66,6 +66,53 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
     assert list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.parametrize('operation', ['desktop', 'fresh-parent-desktop', 'standard-desktop',
+                                       'fresh-standard-desktop', 'parent-selected'])
+@pytest.mark.parametrize('fault', [None, 'ui', 'boot', 'preparation'])
+def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
+        tmp_path, monkeypatch, operation, fault):
+    plan = replace(SYNTHETIC, screen_tags={'entry': 'ui:' + operation},
+                   phases={'ready': 'setup', 'setup-detached': 'setup', 'entry': 'step-1'},
+                   advance_after={})
+    progress = Mock()
+    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), progress, plan)
+    journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
+    journey.boot = 'a' * 64
+    journey.transport = object()
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+    journey.ui = SimpleNamespace(
+        boot_proof=('b' if fault == 'boot' else 'a') * 64,
+        observe=Mock(return_value=result, side_effect=RuntimeError('ui-failed') if fault == 'ui' else None))
+    preparation = {'operation': 'parent-continuous-activity', 'outcome': 'passed',
+                   'interface': 'system session', 'idle_delay_seconds': 0,
+                   'previous_idle_delay_seconds': 300}
+    prepare = Mock(return_value=preparation,
+                   side_effect=RuntimeError('prepare-failed') if fault == 'preparation' else None)
+    monkeypatch.setattr(session_control, 'observe', prepare)
+    (tmp_path / 'entry.request.json').write_text(json.dumps({'stage': 'entry', 'screenshot': None}))
+    parent = operation in ('desktop', 'fresh-parent-desktop')
+    if fault in ('ui', 'boot') or fault == 'preparation' and parent:
+        with pytest.raises((RuntimeError, EvidenceError)):
+            journey.step(Mock())
+        with pytest.raises(EvidenceError, match='previous-failure'):
+            journey.step(Mock())
+        progress.assert_not_called()
+        assert not (tmp_path / 'entry.reply.json').exists()
+    else:
+        def recorded(stage, observed):
+            assert stage == 'entry'
+            assert not (tmp_path / 'entry.reply.json').exists()
+            assert observed.get('desktop_preparation') == (preparation if parent else None)
+        progress.side_effect = recorded
+        journey.step(Mock())
+        progress.assert_called_once()
+        assert (tmp_path / 'entry.reply.json').exists()
+    if parent and fault not in ('ui', 'boot'):
+        prepare.assert_called_once_with(journey.transport, 'parent-continuous-activity')
+    else:
+        prepare.assert_not_called()
+
+
 @pytest.mark.parametrize('plan', [parent_about.PLAN, SYNTHETIC, parent_discovery.PLAN,
                                  parent_discovery.EMPTY_PLAN, parent_access.PLAN, parent_terminal.PLAN,
                                  command_help.PLAN, desktop_session.LOGOUT_PLAN,

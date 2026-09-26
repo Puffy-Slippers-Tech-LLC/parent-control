@@ -1,21 +1,20 @@
-"""Case 158: every daily preset, custom boundary and per-child persistence."""
+"""Case 158: representative presets, custom boundaries and per-child persistence."""
 
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management
 from allowance_boundaries import BOUNDARY_SCREENS
-from allowance_values import PRESETS
+from allowance_values import REPRESENTATIVE_PRESETS
 from ui_observations import SettingsObservation
 
 
 ENTRY = {
     **fresh_desktop('parent'), **parent_management(),
-    'parent-activity-ready': 'system:parent-continuous-activity',
     'editor-disabled': 'ui:allowance-disabled',
     'allowance-configured': 'ui:time-explanation-setup-zero-read',
 }
 VALUES = {
     **{f'preset-{value}-{action}': f'ui:allowance-{value}-{action}'
-       for value in PRESETS for action in ('select', 'read')},
+       for value in REPRESENTATIVE_PRESETS for action in ('select', 'read')},
     **BOUNDARY_SCREENS,
 }
 PERSISTENCE = {

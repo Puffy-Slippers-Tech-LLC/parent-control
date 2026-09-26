@@ -43,6 +43,17 @@ Shell/GDM navigation, login preparation, logout, user switching, explicit locks,
 reboot/suspend, network changes, clock reads, account/file preparation and
 supporting-tool launch. Completed queue tasks and retained code have no exemption.
 
+The shared installed envelope prepares each observed fixture Parent desktop for
+accessibility input, including idle prevention and independent readback, before
+acknowledging entry. Cases must not add idle-prevention stages. See the
+[shared entry contract](../../tests/e2e/README.md#shared-system-and-account-entry-helpers)
+for ownership, cleanup and the unchanged child-session policies.
+Case 158 requalified this shared preparation at fresh and reopened Parent entry
+in `20260926T034552Z-b0849af0`, with product, infrastructure, collection, cleanup
+and baseline restoration passed. Its PARENT05/06 preset composition now samples
+0/60/90/1410; the adapters retain all supported preset bindings. The full custom
+validation table and Parent reopen persistence remain in the case.
+
 Routine login goes directly to the intended account through the shared entry
 helper. Where real graphical login or unlock is necessary, keep the minimal
 selection/keyboard authentication and fresh secret-recipient checks. Wrong-account

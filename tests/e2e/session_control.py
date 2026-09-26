@@ -179,7 +179,7 @@ def package_digest():
 
 
 def prepare_continuous_activity():
-    """Prevent idle blanking during an explicitly declared Parent-only journey.
+    """Prepare the fixture Parent desktop for accessibility-driven journeys.
 
     Accessibility actions do not reset GNOME's hardware-input idle timer.
     This fixture-user setting is restored by the attempt's snapshot cleanup;

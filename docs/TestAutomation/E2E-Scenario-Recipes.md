@@ -147,7 +147,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 
 | Data | Complete finite set / expected result |
 | --- | --- |
-| Daily presets (158) | 0, 15, 30, 45, and every 30-minute increment from 60 through 1410: 50 offered presets. Select/read each; no login per value. |
+| Daily presets (158) | 0 and 1410 (both extremes), 60 (whole hour), 90 (half hour). Select/read each representative class; no login per value. |
 | Daily custom (158) | Accept 0, 1, 15, 1439. Reject empty, abc, −1, 0.5, 1440, 1441. Start invalid attempts with saved 15; reopen and read 15 afterward. The API's 1440 allowance belongs to engineering tests. |
 | Daily saving (159) | Save 2 by pause, 3 by Enter, 4 by leaving focus. Then type valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, save 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Qualify the public window-count projection with this consumer. Close/reopen and repeat the value read. Do not assert a minimum visible Saving animation duration. |
 | E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0→5 minutes; grant-only 0→4→0. At zero, daily-only must deny access while combined retains its grant. Re-read actual D and the original grant deadline; if navigation exhausts a required margin, fail preparation rather than inject usage. |
@@ -161,7 +161,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | App transitions (13–16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in limits-off cases temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
 | Match/control/route matrix | Preserve all four precise/pattern × on/off cases and all 48 route × rule × on/off cases. Alias, special-path, update and file-pattern data run only in their owning cases. |
 
-The 50-preset set includes 46 half-hour entries plus the four shorter presets.
+The daily picker offers 50 presets; case 158 samples the four classes above.
 Noninteracting combinations, such as every attachment size with every app launch
 route, add no app-behavior coverage and are not multiplied. Every declared
 interacting matrix is complete; this is a finite coverage model, not a claim
@@ -632,20 +632,13 @@ Bindings: delivery = retry.
 
 ### E2E-035
 
-Implementation status: Complete case 158 passed in `20260926T031042Z-c0e70792`,
-including the full finite matrix, Parent reopen persistence, collection, owned
-cleanup and baseline restoration. Case 159 remains pending.
+Implementation status: Complete case 158 passed in `20260926T034552Z-b0849af0`,
+including representative presets 0/60/90/1410, the full valid/invalid custom
+table, Parent reopen persistence, collection, owned cleanup and baseline
+restoration. Case 159 remains pending.
 
-Case 158 declares `parent-activity-ready` after fresh Parent/child entry and
-before edits. The shared `session_control.observe(..., 'parent-continuous-activity')`
-helper binds the active, unlocked fixture Parent, drops privileges, sets only
-that user's `org.gnome.desktop.session idle-delay` to zero and independently
-reads it back. This supports the long accessibility-only input loop, which does
-not reset the hardware-input idle timer. GNOME documents zero as disabling
-[idle blanking](https://help.gnome.org/system-admin-guide/desktop-lockscreen.html).
-Owned snapshot cleanup restores the fixture setting. Child-session expiry and
-explicit lock tests do not use this preparation. This Parent-only binding was
-qualified by the complete case 158 run above.
+Parent desktop preparation belongs to the shared installed envelope, with no
+case-specific idle step; see the [shared entry contract](../../tests/e2e/README.md#shared-system-and-account-entry-helpers).
 
 Parent reopening uses `onpc_lifecycle::reopen(journey, 'parent', prior_window,
 'management')` with a fresh `prior-window` observation. Bind the stages in

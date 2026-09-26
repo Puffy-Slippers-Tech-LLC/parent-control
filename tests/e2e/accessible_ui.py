@@ -24,6 +24,10 @@ import warnings
 INVALID = {'empty': '', 'letters': 'abc', 'negative': '-1',
            'fraction': '0.5', 'maximum': '1440', 'over': '1441'}
 INVALID_DESCRIPTION = 'Invalid daily allowance. Enter a whole number from 0 to 1439.'
+PRESETS = (0, 15, 30, 45, *range(60, 1411, 30))
+PRESET_LABELS = {value: (f'{value} minutes' if value < 60 else
+                         '1 hour' if value == 60 else f'{value / 60:g} hours')
+                 for value in PRESETS}
 
 OPERATIONS = frozenset({
     'gdm-installed-accounts',
@@ -104,9 +108,8 @@ TEXT_OPERATIONS = {
 OPERATIONS |= frozenset(TEXT_OPERATIONS) | {'text-wrong-entry', 'text-disabled'}
 ALLOWANCE_OPERATIONS = frozenset({
     'allowance-wrong-child', 'allowance-disabled',
-    'allowance-0-select', 'allowance-0-read', 'allowance-0-reopen',
-    'allowance-15-select', 'allowance-15-read', 'allowance-15-reopen',
-})
+}) | frozenset(f'allowance-{value}-{action}' for value in PRESETS
+              for action in ('select', 'read', 'reopen'))
 OPERATIONS |= ALLOWANCE_OPERATIONS
 TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-collapse', 'time-explanation-collapsed',
@@ -2380,7 +2383,7 @@ class AccessibleUI:
     def allowance_preset(self, child, minutes, *, action):
         """PARENT05: saved preset readback; reopen returns the picker open."""
         require(child in CHILD_IDENTITIES and type(minutes) is int
-                and minutes in (0, 15) and action in ('select', 'read', 'reopen'),
+                and minutes in PRESETS and action in ('select', 'read', 'reopen'),
                 'ui:allowance-binding')
         # Refuse the wrong child and disabled controls before any input.
         root = self.parent()
@@ -2401,12 +2404,12 @@ class AccessibleUI:
                   'allowance-picker-close')
         selector = self.id_target('parent-daily-limit-selector', sensitive=True)
         require(self.read_label(selector, 'allowance', maximum=32)
-                == [str(minutes) + ' minutes'], 'ui:allowance-value')
+                == [PRESET_LABELS[minutes]], 'ui:allowance-value')
         if action == 'reopen':
             self.activate_id('parent-daily-limit-selector')
             choice = self.id_target('parent-daily-limit-' + str(minutes), sensitive=True)
             require(choice.get_description() == 'Selected daily allowance: '
-                    + str(minutes) + ' minutes', 'ui:allowance-selection')
+                    + PRESET_LABELS[minutes], 'ui:allowance-selection')
             # The public menu.popup action opens; it is not a close toggle.
             # Leave the verified picker open for the next selection.
         return {'minutes': minutes, 'saved': True}
@@ -5052,6 +5055,21 @@ def observation_environment(account, operation):
     return session_environment(account)
 
 
+def allowance_failure_diagnostic():
+    """Distinguish desktop idle blanking from a missing preset, without UI text."""
+    active = None
+    try:
+        result = subprocess.run(
+            ['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
+             '--object-path', '/org/gnome/ScreenSaver',
+             '--method', 'org.gnome.ScreenSaver.GetActive'],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=10)
+        active = {'(true,)': True, '(false,)': False}.get(result.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {'event': 'allowance-failure-diagnostic', 'screensaver_active': active}
+
+
 def main():
     require(len(sys.argv) in (3, 4) and sys.argv[1] in OPERATIONS, 'ui:arguments')
     boot = None
@@ -5114,6 +5132,9 @@ def main():
     try:
         result = ui.run(sys.argv[1], sys.argv[2])
     except UiError:
+        if sys.argv[1] in ALLOWANCE_OPERATIONS:
+            print(json.dumps(allowance_failure_diagnostic(), sort_keys=True),
+                  file=sys.stderr, flush=True)
         if sys.argv[1] in STANDARD_OPERATIONS:
             try:
                 print(json.dumps(ui.search_diagnostic(), sort_keys=True), file=sys.stderr, flush=True)

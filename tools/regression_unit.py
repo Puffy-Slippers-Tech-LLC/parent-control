@@ -116,6 +116,9 @@ write_e2e write_e2e_cleanup_safety
 # widgets only; they add no timers, threads, filesystem or display resources.
 # Public AT-SPI transport tests use in-memory RPC/connection doubles only;
 # traversal caches and object identities are local to each test instance.
+# Parent continuous-activity checks mock session identity, privilege transitions
+# and gsettings calls; diagnostic checks mock the read-only screen-saver query.
+# Neither touches the host session, settings, bus or display.
 
 # Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
 # trees, reads installed runtime inputs and owns its native child. Keep it out

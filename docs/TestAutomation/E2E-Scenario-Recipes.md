@@ -632,7 +632,20 @@ Bindings: delivery = retry.
 
 ### E2E-035
 
-Implementation status: All cases pending.
+Implementation status: Complete case 158 passed in `20260926T031042Z-c0e70792`,
+including the full finite matrix, Parent reopen persistence, collection, owned
+cleanup and baseline restoration. Case 159 remains pending.
+
+Case 158 declares `parent-activity-ready` after fresh Parent/child entry and
+before edits. The shared `session_control.observe(..., 'parent-continuous-activity')`
+helper binds the active, unlocked fixture Parent, drops privileges, sets only
+that user's `org.gnome.desktop.session idle-delay` to zero and independently
+reads it back. This supports the long accessibility-only input loop, which does
+not reset the hardware-input idle timer. GNOME documents zero as disabling
+[idle blanking](https://help.gnome.org/system-admin-guide/desktop-lockscreen.html).
+Owned snapshot cleanup restores the fixture setting. Child-session expiry and
+explicit lock tests do not use this preparation. This Parent-only binding was
+qualified by the complete case 158 run above.
 
 Parent reopening uses `onpc_lifecycle::reopen(journey, 'parent', prior_window,
 'management')` with a fresh `prior-window` observation. Bind the stages in

@@ -21,12 +21,14 @@ ACCOUNTS = {'parent': 'onpc-parent-jamie', 'standard': 'onpc-child-jordan'}
 BINDINGS = {role + '-' + action: (role, action)
             for role in ACCOUNTS for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
 BINDINGS.update({'parent-command-context': ('parent', 'command-context'),
-                 'parent-command-refused': ('parent', 'command-refused')})
+                 'parent-command-refused': ('parent', 'command-refused'),
+                 'parent-continuous-activity': ('parent', 'continuous-activity')})
 LABELS = {'switch-user': 'Switching to the greeter',
           'logout': 'Logging out the fixture desktop', 'lock': 'Locking the fixture desktop',
           'return-greeter': 'Returning from the locked fixture session to the greeter'}
 LABELS.update({'command-context': 'Verifying the administrator package command context',
-               'command-refused': 'Checking command refusal outside the fixture desktop'})
+               'command-refused': 'Checking command refusal outside the fixture desktop',
+               'continuous-activity': 'Preparing the Parent desktop for continuous accessibility input'})
 
 
 class SessionError(RuntimeError):
@@ -176,6 +178,23 @@ def package_digest():
     return digest
 
 
+def prepare_continuous_activity():
+    """Prevent idle blanking during an explicitly declared Parent-only journey.
+
+    Accessibility actions do not reset GNOME's hardware-input idle timer.
+    This fixture-user setting is restored by the attempt's snapshot cleanup;
+    child sessions, manual locking and product expiry retain their policies.
+    """
+    command = ['/usr/bin/gsettings', 'get', 'org.gnome.desktop.session', 'idle-delay']
+    previous = call(command).strip()
+    require(re.fullmatch(r'uint32 [0-9]+', previous) is not None, 'idle-delay-value')
+    seconds = int(previous.split()[1])
+    require(0 <= seconds <= 4294967295, 'idle-delay-value')
+    call(['/usr/bin/gsettings', 'set', 'org.gnome.desktop.session', 'idle-delay', 'uint32 0'])
+    require(call(command).strip() == 'uint32 0', 'idle-delay-readback')
+    return seconds
+
+
 def execute(binding):
     require(binding in BINDINGS and os.geteuid() == 0, 'binding')
     role, action = BINDINGS[binding]
@@ -204,6 +223,11 @@ def execute(binding):
     os.environ.update(env)
     # Recheck after changing identity, immediately before the single submission.
     require(source_session(sessions(), account.pw_uid, locked=locked) == source, 'source-changed')
+    if action == 'continuous-activity':
+        previous = prepare_continuous_activity()
+        require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                'idle_delay_seconds': 0, 'previous_idle_delay_seconds': previous}
     if action == 'command-context':
         require(os.geteuid() == account.pw_uid and administrator_gid in os.getgroups(),
                 'administrator-authority')
@@ -233,6 +257,15 @@ def observe(transport, binding):
                              input=Path(__file__).read_bytes(), timeout=90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
+    if action == 'continuous-activity':
+        require(type(result) is dict and set(result) == {
+            'operation', 'outcome', 'interface', 'idle_delay_seconds', 'previous_idle_delay_seconds'}
+            and result['operation'] == binding and result['outcome'] == 'passed'
+            and result['interface'] == 'system session'
+            and type(result['idle_delay_seconds']) is int and result['idle_delay_seconds'] == 0
+            and type(result['previous_idle_delay_seconds']) is int
+            and 0 <= result['previous_idle_delay_seconds'] <= 4294967295, 'response')
+        return result
     if action == 'command-refused':
         require(result == {'operation': binding, 'outcome': 'passed',
                            'interface': 'system session', 'wrong_entry_refused': True}, 'response')

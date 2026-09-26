@@ -101,7 +101,8 @@ def test_greeter_command_locks_only_an_unlocked_source_and_never_retries(monkeyp
     assert events == ['failed-command']
 
 
-@pytest.mark.parametrize('binding', ['root-logout', 'parent-reboot', 'parent-logout;id', ''])
+@pytest.mark.parametrize('binding', ['root-logout', 'parent-reboot', 'parent-logout;id',
+                                    'standard-continuous-activity', ''])
 def test_unregistered_commands_refuse_before_session_lookup(monkeypatch, binding):
     read = Mock()
     monkeypatch.setattr(control, 'sessions', read)
@@ -112,7 +113,7 @@ def test_unregistered_commands_refuse_before_session_lookup(monkeypatch, binding
 
 @pytest.mark.parametrize('fault', ['initial-owner', 'changed-source', 'initial-lock', 'changed-lock'])
 @pytest.mark.parametrize('binding', ['parent-switch-user', 'parent-logout',
-                                    'standard-return-greeter'])
+                                    'standard-return-greeter', 'parent-continuous-activity'])
 def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges(
         monkeypatch, fault, binding):
     role, action = control.BINDINGS[binding]
@@ -133,9 +134,88 @@ def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges
     ]))
     submit = Mock()
     monkeypatch.setattr(control, 'submit', submit)
+    prepare = Mock()
+    monkeypatch.setattr(control, 'prepare_continuous_activity', prepare)
     with pytest.raises(control.SessionError):
         control.execute(binding)
     submit.assert_not_called()
+    prepare.assert_not_called()
+
+
+@pytest.mark.parametrize('previous', [0, 300, 4294967295])
+def test_continuous_activity_disables_only_idle_blanking_and_reads_back(monkeypatch, previous):
+    call = Mock(side_effect=[f'uint32 {previous}\n', '', 'uint32 0\n'])
+    monkeypatch.setattr(control, 'call', call)
+    assert control.prepare_continuous_activity() == previous
+    assert [item.args[0] for item in call.call_args_list] == [
+        ['/usr/bin/gsettings', 'get', 'org.gnome.desktop.session', 'idle-delay'],
+        ['/usr/bin/gsettings', 'set', 'org.gnome.desktop.session', 'idle-delay', 'uint32 0'],
+        ['/usr/bin/gsettings', 'get', 'org.gnome.desktop.session', 'idle-delay'],
+    ]
+
+
+@pytest.mark.parametrize('responses,calls,exception', [
+    (['300'], 1, control.SessionError),
+    (['uint32 4294967296'], 1, control.SessionError),
+    (['uint32 300', TimeoutError()], 2, TimeoutError),
+    (['uint32 300', '', 'uint32 300'], 3, control.SessionError),
+])
+def test_continuous_activity_refuses_bad_values_and_never_replays(monkeypatch, responses, calls, exception):
+    command = Mock(side_effect=responses)
+    monkeypatch.setattr(control, 'call', command)
+    with pytest.raises(exception):
+        control.prepare_continuous_activity()
+    assert command.call_count == calls
+
+
+@pytest.mark.parametrize('source_changed', [False, True])
+def test_continuous_activity_belongs_to_the_bound_unprivileged_parent(monkeypatch, source_changed):
+    account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name=control.ACCOUNTS['parent'])
+    identity = [0]
+    monkeypatch.setattr(control.os, 'geteuid', lambda: identity[0])
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: account)
+    monkeypatch.setattr(control, 'environment', lambda _: {'fixture': 'parent'})
+    monkeypatch.setattr(control.os, 'environ', {})
+    monkeypatch.setattr(control.os, 'initgroups', Mock())
+    monkeypatch.setattr(control.os, 'setgid', Mock())
+    monkeypatch.setattr(control.os, 'setuid', lambda uid: identity.__setitem__(0, uid))
+    monkeypatch.setattr(control, 'sessions', Mock(side_effect=[
+        {'7': props()}, {'7': props()}, {'8' if source_changed else '7': props()}]))
+    def prepare():
+        assert identity[0] == 1000
+        assert control.os.environ == {'fixture': 'parent'}
+        return 300
+    operation = Mock(side_effect=prepare)
+    monkeypatch.setattr(control, 'prepare_continuous_activity', operation)
+    if source_changed:
+        with pytest.raises(control.SessionError, match='source-changed'):
+            control.execute('parent-continuous-activity')
+    else:
+        assert control.execute('parent-continuous-activity') == {
+            'operation': 'parent-continuous-activity', 'outcome': 'passed',
+            'interface': 'system session', 'idle_delay_seconds': 0,
+            'previous_idle_delay_seconds': 300}
+    operation.assert_called_once_with()
+
+
+@pytest.mark.parametrize('fault', [None, 'enabled', 'boolean', 'missing', 'out-of-range'])
+def test_continuous_activity_controller_requires_exact_readback(monkeypatch, fault):
+    result = {'operation': 'parent-continuous-activity', 'outcome': 'passed',
+              'interface': 'system session', 'idle_delay_seconds': 0,
+              'previous_idle_delay_seconds': 300}
+    if fault == 'enabled': result['idle_delay_seconds'] = 300
+    if fault == 'boolean': result['idle_delay_seconds'] = False
+    if fault == 'missing': del result['previous_idle_delay_seconds']
+    if fault == 'out-of-range': result['previous_idle_delay_seconds'] = 4294967296
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    if fault:
+        with pytest.raises(control.SessionError, match='response'):
+            control.observe(transport, 'parent-continuous-activity')
+    else:
+        assert control.observe(transport, 'parent-continuous-activity') == result
+    transport.call.assert_called_once()
+    assert transport.call.call_args.args[0] == [
+        '/usr/bin/python3', '-I', '-', 'parent-continuous-activity']
 
 
 @pytest.mark.parametrize('operation', ['session-menu-toggle', 'session-menu-power',

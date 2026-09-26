@@ -19,12 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **200 — [E2E-035: boundaries](E2E-Tasks/200-case-158.md)**.
+Next task: **012c — [Choose valid kiosk durations and soft-app access](E2E-Tasks/012c-kiosk-valid-duration.md)**.
 
-Implement the complete independent case 158: enumerate all 50 daily presets,
-exercise every accepted/invalid custom value, and verify persistence after
-closing and reopening Parent. Reuse the qualified allowance, validation and
-Parent-reopen slices; their capability qualification does not complete this case.
+Qualify REQUEST04/05/06/08 kiosk valid durations, estimates and soft-app choice.
+Bind preset, valid fractional and Rest-of-day choices through the shared request
+form, independently read estimates and app choice, then exit without authentication.
+Keep invalid-input qualification and complete scenarios in their own later tasks.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

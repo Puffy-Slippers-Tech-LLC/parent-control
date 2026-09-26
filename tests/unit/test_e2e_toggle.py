@@ -312,13 +312,15 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
 '''
 
 
-def test_allowance_boundaries_worker_and_every_refusal(monkeypatch):
-    from allowance_boundaries import PLAN
+@pytest.mark.parametrize('module_name', ['allowance_boundaries', 'allowance_case'])
+def test_allowance_boundaries_worker_and_every_refusal(monkeypatch, module_name):
+    from importlib import import_module
+    PLAN = import_module(module_name).PLAN
     from allowance_values import ACCEPTED, INVALID, PRESETS
     assert ACCEPTED == (0, 1, 15, 1439)
     assert list(INVALID.values()) == ['', 'abc', '-1', '0.5', '1440', '1441']
     assert PRESETS == (0, 15, 30, 45, *range(60, 1411, 30)) and len(PRESETS) == 50
-    script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_allowance_boundaries')
+    script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_' + module_name)
     script = script.replace('sub record_info { }',
                             "sub record_info { }\nsub type_string { push @main::events, ['text', @_]; }")
     monkeypatch.setenv('ONPC_TEST_REFUSE', '')
@@ -332,6 +334,31 @@ def test_allowance_boundaries_worker_and_every_refusal(monkeypatch):
         assert not result['ok'] and 'fixture:refused' in result['error']
         boundary = success['events'].index(['stage', stage])
         assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_complete_allowance_case_preserves_finite_matrix_and_reopen_checks():
+    from allowance_case import PLAN
+    from allowance_values import PRESETS, ACCEPTED, INVALID
+    from ui_observations import SettingsObservation
+    stages = list(PLAN.screen_tags)
+    assert PLAN.screen_tags['parent-activity-ready'] == 'system:parent-continuous-activity'
+    assert stages.index('parent-selected') < stages.index('parent-activity-ready') < stages.index('preset-0-select')
+    presets = [PLAN.screen_tags[stage] for stage in stages if stage.startswith('preset-')]
+    assert presets == [f'ui:allowance-{value}-{action}' for value in PRESETS
+                       for action in ('select', 'read')]
+    for value in ACCEPTED:
+        assert stages.index(f'boundary-{value}-saved') < stages.index(f'boundary-{value}-reopen')
+    for binding in INVALID:
+        prefix = 'invalid-' + binding
+        assert PLAN.screen_tags[prefix + '-baseline'] == 'ui:allowance-15-select'
+        assert PLAN.screen_tags[prefix + '-unchanged'] == 'ui:allowance-15-read'
+        assert PLAN.screen_tags[prefix + '-reopen'] == 'ui:custom-15-reopen'
+        assert stages.index(prefix + '-rejected') < stages.index(prefix + '-unchanged')
+    assert stages.index('initial-selection') < stages.index('persist-away-open')
+    assert PLAN.settings_checks['persist-away-selected'] == SettingsObservation(
+        'existing-fixture-child', False, ('0 minutes',))
+    assert PLAN.settings_checks['persist-back-selected'] == SettingsObservation(
+        'fixture-child', True, ('15 minutes',))
 
 
 def test_allowance_boundaries_uses_guarded_installed_envelope(monkeypatch, tmp_path):

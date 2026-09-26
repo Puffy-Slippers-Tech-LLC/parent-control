@@ -32,6 +32,7 @@ use onpc_parent_toggle ();
 use onpc_allowance_presets ();
 use onpc_allowance ();
 use onpc_allowance_boundaries ();
+use onpc_allowance_case ();
 use onpc_time_explanation ();
 use onpc_set_allowance ();
 use onpc_app_restart ();
@@ -295,6 +296,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_time_explanation::run(\&exchange);
+        return;
+    }
+    if ($ready->{allowance_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_allowance_case::run(\&exchange);
         return;
     }
     if ($ready->{allowance_boundaries}) {

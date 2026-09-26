@@ -19,11 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **234 — [E2E-042: kiosk](E2E-Tasks/234-case-192.md)**.
+Next task: **030 — [Read privacy and preserve a dialog draft](E2E-Tasks/030-feedback-privacy.md)**.
 
-FLOW16's fresh 30-minute prerequisite is qualified. Task 234 remains incomplete;
-implement and register its complete case 192 using that binding and the qualified
-kiosk About capability.
+Implement FEED05 and FEED10 dialog persistence using the qualified UI16
+nonsecret text entry. Read Privacy, close and reopen feedback, then compare
+the preserved draft and controls before editing; keep Send untouched.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

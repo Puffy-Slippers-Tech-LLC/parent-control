@@ -33,6 +33,7 @@ APIS = {
     'kiosk_approved_flow': {'approved_request', 'obtain_time'},
     'approval_flow': {'rejected_request', 'ApprovalFlowJourney'},
     'kiosk_valid_duration': {'KioskValidDurationJourney'},
+    'restricted_station_about': {'RestrictedStationAboutJourney'},
     'package_install': {'check_install_result'},
     'package_journey': {'record_package_journey'},
     'ui_observations': {'SettingsObservation'},

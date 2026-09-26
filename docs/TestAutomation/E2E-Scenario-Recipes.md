@@ -780,9 +780,9 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 
 ### E2E-042
 
-Implementation status: Case 193 retains its complete installed-journey,
-collection and cleanup evidence and ready inventory binding. Cases 190–192
-remain pending.
+Implementation context: Case 192 uses `kiosk_about.PLAN`,
+`RestrictedStationAboutJourney` and `onpc_kiosk_about::run`; case 193 uses
+`command_help.PLAN`. Current executable status belongs in the inventory.
 
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.
 
@@ -791,6 +791,14 @@ Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 1. Parent P0 → PARENT03(capture); overlay/station FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help V(parent) → qualified desktop.
 2. Parent/overlay INFO01(Help) → ABOUT01; overlay additionally ABOUT02 → UI18(license viewer). Then INFO01(website,privacy,support,legal as offered). Kiosk ABOUT01 → UI03 → UI11(external actions). Command INFO02(each fixed command/manual). Parent's complete license-reading path remains owned by case 151.
 3. UI18(About, only where opened) → PARENT03 or REQUEST03 → UI12. INFO01 has already closed each external destination; do not close it twice. INFO02 leaves the parent desktop clear.
+
+Kiosk binds FLOW16 to fresh Parent entry with limits initially off, a saved
+30-minute allowance and limits on. After GDM/station entry, FLOW04 selects
+Jordan, Jamie, custom 1.25 minutes and soft apps included before the form
+capture. About reads product/version and all five offered legal/contact values,
+with no external action controls. Close About once, compare the captured form,
+then Cancel normally and independently observe usable GDM. The three phases
+separate setup/capture, information reading and unchanged-form return.
 
 Command-help binds INFO02 to `/usr/bin/oh-no-parent-control-parent --help`,
 `/usr/bin/oh-no-parent-control --help`, `man oh-no-parent-control-parent` and

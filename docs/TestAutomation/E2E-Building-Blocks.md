@@ -1506,10 +1506,17 @@ and a fresh form observation precede the immutable captured-form comparison.
 run `20260926T202755Z-941af41f`. Independent station entry, wrong Parent entry
 refusal, offered information, external-action absence, preserved 75-second
 custom request/soft-app choices, normal Cancel/GDM return, private collection,
-owned cleanup and baseline restoration passed. This is capability acceptance;
-E2E-042 case 192 remains pending its complete consumer task. Adapter, worker,
-return-comparison and controller regressions are maintained in
+owned cleanup and baseline restoration passed. This is capability acceptance.
+Adapter, worker, return-comparison and controller regressions are maintained in
 `test_e2e_kiosk_valid_duration.py` and `test_installed_journey_cleanup_safety.py`.
+
+Complete E2E-042 case 192 composes `kiosk_about.PLAN` / `onpc_kiosk_about::run`
+with FLOW16's fresh 30-minute binding. `RestrictedStationAboutJourney` accepts
+the caller's plan, checks the 1800/0/1800-second starting balances, and compares
+the captured form after About closes. `tools/run-tests e2e --id '192'` passed
+in `20260926T212947Z-358f37d8`, including offered information, external-action
+absence, unchanged choices, Cancel/GDM return, collection, owned cleanup and
+baseline restoration.
 
 The [recipe](../../tests/e2e/parent_about.py) and
 [worker](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) compose

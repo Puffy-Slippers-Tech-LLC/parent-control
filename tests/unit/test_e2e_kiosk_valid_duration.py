@@ -29,6 +29,7 @@ from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
 from restricted_station import PLAN as STATION_PLAN, DENIED_PLAN, CANCELLED_PLAN
 import approval_flow
 from restricted_station_about import PLAN as ABOUT_PLAN, RestrictedStationAboutJourney
+from kiosk_about import PLAN as ABOUT_CASE_PLAN
 
 
 def station_about_ui():
@@ -102,21 +103,44 @@ def test_station_about_wrong_entry_has_no_input_and_real_menu_is_used_once():
     ui.run('kiosk-about-closed', '1.1')
 
 
-@pytest.mark.parametrize('refusal', [None, 'wrong-entry', 'about-open', 'about-read',
+@pytest.mark.parametrize('plan,worker_module', [
+    (ABOUT_PLAN, 'onpc_restricted_station_about'), (ABOUT_CASE_PLAN, 'onpc_kiosk_about')])
+@pytest.mark.parametrize('refusal', [None, 'wrong-entry', 'parent-selected', 'open-estimate', 'about-open', 'about-read',
                                    'about-close-ready', 'about-closed', 'form-returned'])
-def test_station_about_worker_preserves_order_and_stops_on_refusal(monkeypatch, refusal):
+def test_station_about_worker_preserves_order_and_stops_on_refusal(monkeypatch, refusal, plan, worker_module):
+    if plan is ABOUT_CASE_PLAN and refusal == 'wrong-entry':
+        refusal = 'allowance-configured'
     if refusal:
         monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
-    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_restricted_station_about').replace(
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', worker_module).replace(
         'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
     result = json.loads(run_perl(worker).stdout)
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    expected = list(ABOUT_PLAN.screen_tags)
+    expected = list(plan.screen_tags)
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     closes = [event for event in result['events'] if event == ['key', 'alt-f4']]
     assert len(closes) == (0 if refusal in (
-        'wrong-entry', 'about-open', 'about-read', 'about-close-ready') else 1)
+        'wrong-entry', 'allowance-configured', 'parent-selected', 'open-estimate',
+        'about-open', 'about-read', 'about-close-ready') else 1)
+
+
+@pytest.mark.parametrize('fault', [None, 'daily', 'one_time', 'total'])
+def test_station_about_thirty_minute_setup_requires_all_balances(monkeypatch, fault):
+    monkeypatch.setattr(KioskValidDurationJourney, 'check_settings', lambda *args: None)
+    journey = object.__new__(RestrictedStationAboutJourney)
+    journey.balance = None
+    value = {key: {'seconds': seconds, 'precision_seconds': 1}
+             for key, seconds in (('daily', 1800), ('one_time', 0), ('total', 1800))}
+    value['observed_monotonic_ns'] = 1_000_000_000
+    if fault:
+        value[fault]['seconds'] += 60
+        with pytest.raises(EvidenceError, match='ordinary-balances'):
+            journey.check_settings('allowance-configured', {'ui': {'time_explanation': value}})
+        assert journey.balance is None
+    else:
+        journey.check_settings('allowance-configured', {'ui': {'time_explanation': value}})
+        assert journey.balance == value
 
 
 @pytest.mark.parametrize('fault', [None, 'missing-before', 'child', 'duration_seconds', 'allow_soft'])

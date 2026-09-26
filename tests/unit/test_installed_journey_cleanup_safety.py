@@ -24,6 +24,7 @@ import kiosk_valid_duration
 import request_duration
 import request_flow
 import restricted_station_about
+import kiosk_about
 import mate_prompt
 import kiosk_multiple
 import kiosk_approval
@@ -177,7 +178,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN,
                                  kiosk_multiple.PLAN, kiosk_multiple.CASE_PLAN,
                                  kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN,
-                                 restricted_station_about.PLAN, fresh_thirty_allowance.PLAN],
+                                 restricted_station_about.PLAN, fresh_thirty_allowance.PLAN, kiosk_about.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -189,7 +190,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
-                              'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance'])
+                              'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance',
+                              'station-about-case'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -205,6 +207,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-004/terminal'
     if plan is command_help.PLAN:
         selector = 'E2E-042/command-help'
+    if plan is kiosk_about.PLAN:
+        selector = 'E2E-042/kiosk'
     if plan is kiosk_no_child.CASE_PLAN:
         selector = 'E2E-017/no-child'
     if plan is kiosk_no_approver.CASE_PLAN:
@@ -429,7 +433,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             elif plan is kiosk_multiple.INELIGIBLE_CASE_PLAN:
                 expected_steps.append('step-3')
                 actions['prepare-ineligible-approver'].assert_called_once()
-            elif plan in (command_help.PLAN, restricted_station.PLAN, kiosk_multiple.CASE_PLAN):
+            elif plan in (command_help.PLAN, restricted_station.PLAN, kiosk_multiple.CASE_PLAN,
+                          kiosk_about.PLAN):
                 expected_steps.append('step-3')
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)

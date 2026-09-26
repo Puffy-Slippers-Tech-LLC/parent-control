@@ -30,8 +30,8 @@ PLAN = JourneyPlan(
 
 
 class KioskValidDurationJourney(InstalledJourney):
-    def __init__(self, context, progress, *, plan=PLAN):
-        super().__init__(context, progress, plan)
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
         self.balance = None
 
     def check_settings(self, stage, observed):

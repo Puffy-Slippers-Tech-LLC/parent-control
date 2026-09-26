@@ -19,10 +19,10 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **015 — [E2E-015: kiosk-cancel](E2E-Tasks/015-case-47.md)**.
+Next task: **015b — [E2E-015: kiosk-escape](E2E-Tasks/015b-case-48.md)**.
 
-Implement complete case 47 using the qualified FLOW04 kiosk request composition,
-then Cancel once and observe the absent form and usable GDM. Preserve independent
+Implement complete case 48 using the qualified FLOW04 kiosk request composition,
+then Escape once and observe the absent form and usable GDM. Preserve independent
 Parent preparation, public results, collection and owned cleanup.
 
 This pointer must name the first unchecked active queue row. After completion,

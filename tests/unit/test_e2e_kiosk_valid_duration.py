@@ -18,6 +18,7 @@ from ui_observations import UiObservations, RequestObservation
 from kiosk_valid_duration import PLAN, KioskValidDurationJourney
 from request_duration import PLAN as INVALID_PLAN
 from request_flow import PLAN as FLOW_PLAN, CHOICES, prepared_request, RequestFlowJourney
+from kiosk_cancel import PLAN as CANCEL_PLAN
 
 
 def valid_form():
@@ -396,6 +397,31 @@ def test_flow_worker_order_and_terminal_refusal(monkeypatch, refusal):
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     if refusal is None:
         assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25', '1.25']
+
+
+@pytest.mark.parametrize('refusal', [None, 'open-estimate', 'cancel-action', 'cancel-returned'])
+def test_cancel_case_worker_order_and_terminal_refusal(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_kiosk_cancel').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(CANCEL_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25']
+    assert expected.count('cancel-action') == 1
+    assert expected[-1] == 'cancel-returned'
+
+
+def test_cancel_case_uses_shared_balance_comparison(tmp_path):
+    actions = {}
+    journey = KioskValidDurationJourney(SimpleNamespace(directory=tmp_path), Mock(),
+                                        CANCEL_PLAN, actions=actions)
+    assert journey.plan is CANCEL_PLAN
+    assert journey.balance is None
+    assert journey.check_settings.__func__ is KioskValidDurationJourney.check_settings
 
 
 def test_flow_open_uses_supplied_form_and_rejects_unbound_choices():

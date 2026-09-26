@@ -30,6 +30,7 @@ APIS = {
                        'product_free_desktop', 'reboot_desktop', 'station_entry'},
     'journey_checks': {'allowed_app_rows', 'installed_accounts'},
     'request_flow': {'prepared_request'},
+    'kiosk_valid_duration': {'KioskValidDurationJourney'},
     'package_install': {'check_install_result'},
     'package_journey': {'record_package_journey'},
     'ui_observations': {'SettingsObservation'},

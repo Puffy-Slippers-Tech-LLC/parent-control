@@ -295,6 +295,10 @@ KIOSK_VALID_REQUESTS = {
            ('excluded', 0, None, False))
        for action in ('select', 'read') if choice != 'fraction' or action == 'read'},
 }
+KIOSK_VALID_REQUESTS.update({f'kiosk-valid-fraction-soft-{action}': (75, '1.25', True)
+                             for action in ('select', 'read')})
+KIOSK_VALID_REQUESTS.update({f'kiosk-flow-{field}-select': (75, '1.25', True)
+                             for field in ('child', 'approver')})
 KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
 KIOSK_INVALID_OPERATIONS = {
     f'kiosk-invalid-{key}-{action}': (key, action)
@@ -3945,9 +3949,16 @@ class AccessibleUI:
                       'kiosk-custom-open')
             return None
         seconds, custom, soft = KIOSK_VALID_REQUESTS[operation]
-        if operation.endswith('-select'):
+        if operation in ('kiosk-flow-child-select', 'kiosk-flow-approver-select'):
+            field = operation.split('-')[2]
+            self.select_kiosk_account(
+                field, CHILD if field == 'child' else PARENT,
+                expected=(CHILD, EXISTING_CHILD) if field == 'child' else (PARENT, OTHER_PARENT),
+                duration_seconds=seconds, custom_text=custom)
+        elif operation.endswith('-select'):
             identity = ('kiosk-soft-apps-toggle' if operation in (
-                'kiosk-valid-soft-select', 'kiosk-valid-excluded-select')
+                'kiosk-valid-soft-select', 'kiosk-valid-excluded-select',
+                'kiosk-valid-fraction-soft-select')
                 else f'kiosk-duration-{seconds}')
             target = self.kiosk_valid_target(identity)
             if identity == 'kiosk-soft-apps-toggle':
@@ -4061,7 +4072,8 @@ class AccessibleUI:
                 'ui:kiosk-account-unavailable')
         return selector, form, observation
 
-    def select_kiosk_account(self, field, name, *, expected, enabled=True, inspect_only=False):
+    def select_kiosk_account(self, field, name, *, expected, enabled=True, inspect_only=False,
+                             duration_seconds=1800, custom_text=None):
         """UI15: inspect the exact offered set, optionally select and read back."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
@@ -4124,7 +4136,8 @@ class AccessibleUI:
         self.input_uncertain = True
         self.invalidate_observation()
         canonical = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
-        result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]))
+        result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]),
+                                         duration_seconds=duration_seconds, custom_text=custom_text)
         self.input_uncertain = False
         return result
 

@@ -17,6 +17,7 @@ from tests.support.perl import run_perl
 from ui_observations import UiObservations, RequestObservation
 from kiosk_valid_duration import PLAN, KioskValidDurationJourney
 from request_duration import PLAN as INVALID_PLAN
+from request_flow import PLAN as FLOW_PLAN, CHOICES, prepared_request, RequestFlowJourney
 
 
 def valid_form():
@@ -378,3 +379,88 @@ def test_invalid_mode_conflicts_refuse_before_vm(conflict):
     with pytest.raises(CommandError, match='duration-prerequisites'):
         check_graphical_smoke.main(assets='/unused', provision_credentials=True,
                                   request_duration=True, **{conflict: True})
+
+
+@pytest.mark.parametrize('refusal', [None, 'open-form', 'open-text-selected',
+                                  'open-estimate', 'cancel-station-list', 'new-form', 'new-apps'])
+def test_flow_worker_order_and_terminal_refusal(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_request_flow').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    worker = worker.replace("$stage eq 'station-branch'", "$stage =~ /station-branch\\z/")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(FLOW_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    if refusal is None:
+        assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25', '1.25']
+
+
+def test_flow_open_uses_supplied_form_and_rejects_unbound_choices():
+    stages = prepared_request(prefix='open', entry='open', initial='default', **CHOICES)
+    assert not any('station' in stage for stage in stages)
+    assert list(stages)[0] == 'open-form'
+    for field, value in [('child', 'other-child'), ('duration_seconds', 76), ('allow_soft', False)]:
+        with pytest.raises(EvidenceError, match='request-flow:choices'):
+            prepared_request(prefix='open', entry='open', initial='default',
+                             **{**CHOICES, field: value})
+
+
+def test_flow_custom_soft_readback_through_controller():
+    ui, _, _ = valid_form()
+    ui.run('kiosk-valid-custom-open', '')
+    observer = UiObservations(Mock())
+    for action in ('select', 'read'):
+        operation = 'kiosk-valid-fraction-soft-' + action
+        result = ui.run(operation, '')
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        assert observer.observe(operation) == result
+        assert result['valid_choice']['request']['allow_soft'] is True
+        assert result['valid_choice']['request']['duration_seconds'] == 75
+    ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+
+
+def test_flow_reselects_approver_with_saved_custom_and_soft_choices():
+    ui, _, _ = valid_form()
+    ui.run('kiosk-valid-custom-open', '')
+    ui.run('kiosk-valid-fraction-soft-select', '')
+    result = ui.run('kiosk-flow-approver-select', '')
+    observer = UiObservations(Mock())
+    observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+    assert observer.observe('kiosk-flow-approver-select') == result
+    assert result['valid_choice']['request']['custom_text'] == '1.25'
+    assert result['valid_choice']['request']['allow_soft'] is True
+
+
+@pytest.mark.parametrize('operation', ['kiosk-flow-child-select', 'kiosk-flow-approver-select'])
+def test_flow_account_input_refuses_wrong_entry(operation):
+    ui = ui_for(Node(identity='parent-window'))
+    with pytest.raises(UiError, match='kiosk-account-surface'):
+        ui.run(operation, '')
+
+
+def test_flow_reentry_compares_independent_choices():
+    journey = object.__new__(RequestFlowJourney)
+    journey.plan = FLOW_PLAN
+    journey.balance = {'daily': {'seconds': 900, 'precision_seconds': 1},
+                       'one_time': {'seconds': 0, 'precision_seconds': 1},
+                       'observed_monotonic_ns': 1_000_000_000}
+    journey.prepared = None
+    value = {'request': {'duration_seconds': 75, 'allow_soft': True},
+             'estimate': {'kind': 'fixed', 'seconds': 975}, 'observed_monotonic_ns': 2_000_000_000}
+    journey.check_settings('open-estimate', {'ui': {'valid_choice': value}})
+    repeated = {'ui': {'valid_choice': {**value, 'request': dict(value['request'])}}}
+    journey.check_settings('new-estimate', repeated)
+    assert repeated['comparison']['reproduced_choices']
+    repeated['ui']['valid_choice']['request']['allow_soft'] = False
+    with pytest.raises(EvidenceError, match='reproduced-choices'):
+        journey.check_settings('new-estimate', repeated)
+
+
+def test_flow_qualification_uses_guarded_snapshot(tmp_path):
+    from parent_setup_qualification import RequestFlowQualification, KioskEntryQualification
+    journey = RequestFlowQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is FLOW_PLAN
+    assert RequestFlowQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot

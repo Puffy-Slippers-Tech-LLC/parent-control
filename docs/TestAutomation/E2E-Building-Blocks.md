@@ -484,7 +484,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. New launches always use PARENT01's direct command. | `onpc_parent::open_for_child(journey, source, entry, window, child)` composes fresh FLOW15 → PARENT01(management) → PARENT02, or `desktop/same-user/new` with independent window-absence and Parent-desktop observations before the direct launch and child selection. `check_e2e_set_an_allowance_for_a_named_child` qualified fresh and independently reopened same-user Parent/child entries, persisted settings and wrong-window refusal in run `20260925T064318Z-ac40f2a1`, including collection, owned cleanup and baseline restoration. Case 6's affected launch regression passed in `20260925T064705Z-37ca73c8`. Fresh Parent/Riley also passed in case 151; retained windows, second-parent and other bindings remain pending. | pending; fresh and same-user/new Parent/child bindings ready |
 | FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | `AccessibleUI.configure_time_controls(child, initial_enabled=…, minutes=…, final_enabled=…)`: PARENT04(Screen Limits) → conditional UI17(true)/PARENT08 → PARENT05 preset commit/PARENT08 → UI17(final boolean)/PARENT08 → PARENT03 → PARENT09. Qualified inputs are 0/15-minute presets and explicit boolean enablement; custom values remain with PARENT06 until separately composed. `check_e2e_time_explanation` qualified enabled→disabled, disabled→enabled and enabled→enabled paths, saved settings, positive/zero balances and wrong-child/initial-state refusal in run `20260925T062949Z-49d65b22`, with collection and owned cleanup. Disabling intentionally clears a grant; it is never navigation. | ready |
 | FLOW03 | C | Configure one app's matching and access choices through Parent and read the saved row. | PARENT10 → PARENT11 if declared → PARENT13 → UI16(match draft) → PARENT15(save) → PARENT16 → PARENT12. | pending |
-| FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. | pending |
+| FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. `request_flow.prepared_request` / `onpc_request_flow::prepare` qualify the explicit kiosk child/parent, custom 1.25-minute, soft-included binding for independently open and new entry; see [prepared request qualification](#prepared-request-qualification). | pending; declared kiosk open/new binding ready; other choices and overlay pending |
 | FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its surface-specific automatic exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic). | pending |
 | FLOW06 | C | Obtain time through kiosk from an existing GDM screen and return to GDM. | FLOW04(kiosk) → FLOW05. Child login/unlock is deliberately a later step. | pending |
 | FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | pending |
@@ -500,6 +500,38 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
 | FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
 | FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). Overlay returns to its existing desktop. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | pending |
+
+#### Prepared request qualification
+
+`request_flow.prepared_request(prefix, entry, initial, child, approver,
+duration_seconds, allow_soft)` declares the finite FLOW04 kiosk stage mapping;
+`onpc_request_flow::prepare` executes the same composition. Arguments are explicit:
+`fixture-child`, `fixture-parent`, 75 seconds (exact custom text `1.25`) and
+`allow_soft=True`. `entry=open` performs no station entry; `entry=new` uses the
+shared station helper. `initial=default` observes the fresh default form before
+selection; `initial=selected` observes the remembered child/approver/custom/soft
+choices. Prefixes `open` and `new` keep repeated evidence distinct. Callers must
+supply enabled Parent policy and an independent public balance; the flow never
+changes policy or submits Request.
+
+`request_flow.PLAN` / `RequestFlowJourney` passed
+`tools/run-tests integration check_e2e_request_flow` in run
+`20260926T050310Z-aef4320a`. Separate public Parent preparation established a
+15-minute daily balance. The caller independently opened the default form for
+`entry=open`; after Cancel and observed GDM, `entry=new` reproduced all choices
+from the remembered form. Both estimates were 16m 15s, checked against the
+earlier public balance with `KioskValidDurationJourney.check_settings` and its
+elapsed-time/precision bounds. Each branch ended with Cancel and usable GDM.
+Wrong-entry refusal, capture reconciliation, collection, owned cleanup and
+baseline restoration passed. No complete scenario was registered or qualified.
+
+`AccessibleUI.select_kiosk_account` accepts explicit expected duration/custom
+readback for already prepared forms. `kiosk-flow-child-select` and
+`kiosk-flow-approver-select` retain exact account-set, ownership and prompt guards;
+`kiosk-valid-fraction-soft-select/read` bind the custom/included projection through
+`RequestObservation.from_request`. Host regressions cover controller decoding,
+remembered-value reselection, independent estimate/choice comparison, worker
+order and terminal refusal. Other choices and overlay composition remain pending.
 
 ### Canonical reuse and implementation checkpoints
 

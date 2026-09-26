@@ -19,11 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **014 — [Compose prepared request choices](E2E-Tasks/014-request-flow.md)**.
+Next task: **015 — [E2E-015: kiosk-cancel](E2E-Tasks/015-case-47.md)**.
 
-Compose FLOW04 kiosk with explicit choices and independent estimates, qualifying
-both an already open form and a fresh GDM entry. Reuse the qualified request
-operations; complete scenarios remain separate.
+Implement complete case 47 using the qualified FLOW04 kiosk request composition,
+then Cancel once and observe the absent form and usable GDM. Preserve independent
+Parent preparation, public results, collection and owned cleanup.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

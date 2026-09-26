@@ -660,7 +660,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
-         kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False):
+         kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
+         feedback_privacy=False, feedback_states=False):
+    require(type(feedback_states) is bool
+            and not (feedback_states and (feedback_privacy or feedback_read)),
+            'smoke:feedback-states-prerequisites')
+    require(type(feedback_privacy) is bool and not (feedback_privacy and feedback_read),
+            'smoke:feedback-privacy-prerequisites')
+    feedback_read = feedback_read or feedback_privacy or feedback_states
     require(type(fresh_thirty_allowance) is bool and type(set_allowance) is bool
             and not (fresh_thirty_allowance and set_allowance),
             'smoke:fresh-thirty-allowance-prerequisites')
@@ -1140,6 +1147,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-app-row-observations-qualification'
         if feedback_read:
             result['scope'] = 'installed-feedback-read-qualification'
+        if feedback_privacy:
+            result['scope'] = 'installed-feedback-privacy-qualification'
+        if feedback_states:
+            result['scope'] = 'installed-feedback-states-qualification'
         if text_qualification:
             result['scope'] = 'installed-text-qualification'
         if allowance_presets:
@@ -1329,6 +1340,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if feedback_read:
                     from parent_setup_qualification import FeedbackReadQualification
                     qualification_class = FeedbackReadQualification
+                if feedback_privacy:
+                    from parent_setup_qualification import FeedbackPrivacyQualification
+                    qualification_class = FeedbackPrivacyQualification
+                if feedback_states:
+                    from parent_setup_qualification import FeedbackStatesQualification
+                    qualification_class = FeedbackStatesQualification
                 if text_qualification:
                     from parent_setup_qualification import TextQualification
                     qualification_class = TextQualification

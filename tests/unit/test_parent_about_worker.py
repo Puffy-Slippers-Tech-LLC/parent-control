@@ -248,6 +248,9 @@ def test_close_observation_precedes_semantic_footer_reveal_and_return_close():
     ('about', 'about-returned', 'parent-returned'),
     ('management-denied', 'management-denied', 'denial-closed'),
     ('parent', 'close-ready', 'closed'),
+    ('feedback', 'feedback-draft-reread', 'feedback-draft-closed'),
+    ('feedback-privacy', 'feedback-privacy-open', 'feedback-privacy-returned'),
+    ('feedback-privacy-independent', 'privacy-independent', 'privacy-independent-returned'),
 ])
 @pytest.mark.parametrize('fault', ['', 'stale', 'missing', 'uncertain', 'result', 'binding'])
 def test_shared_window_close_requires_fresh_proof_and_cannot_replay(window, before, after, fault):

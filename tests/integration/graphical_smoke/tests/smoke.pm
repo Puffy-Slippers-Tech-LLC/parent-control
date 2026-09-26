@@ -48,6 +48,8 @@ use onpc_app_restart ();
 use onpc_zero_total ();
 use onpc_app_rows ();
 use onpc_feedback_read ();
+use onpc_feedback_privacy ();
+use onpc_feedback_states ();
 use onpc_text ();
 use onpc_parent_discovery ();
 use onpc_journey ();
@@ -449,6 +451,18 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_text::run(\&exchange);
+        return;
+    }
+    if ($ready->{feedback_states}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_states::run(\&exchange);
+        return;
+    }
+    if ($ready->{feedback_privacy}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_privacy::run(\&exchange);
         return;
     }
     if ($ready->{feedback_read}) {

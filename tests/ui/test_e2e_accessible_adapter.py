@@ -231,15 +231,14 @@ def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
         provider_contracts=_qualified_absent_prompt_contracts(module),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.run('feedback-open', '')
-    # This fixture exercises feedback's six replacement bindings. The shared
-    # registry also contains daily allowances, whose Parent dialog is separate.
+    # Preserve the original replacement/clear slice as the registry grows.
     bindings = {binding: target for binding, target in module.TEXT_VALUES.items()
-                if binding.startswith(('body-', 'reply-'))}
+                if binding in ('body-first', 'body-second', 'body-clear',
+                               'reply-first', 'reply-second', 'reply-clear')}
     assert len(bindings) == 6
-    for binding, (identity, value) in bindings.items():
-        if binding == 'reply-first':
-            ui.run('feedback-close', '')
-            ui.run('feedback-reopen', '')
+
+    def replace(binding):
+        identity, value = module.TEXT_VALUES[binding]
         if binding.startswith('reply-'):
             ui.run(f'text-{binding}-anchor', '')
             key_combo(ui, 'feedback-editor-input', '<Control>Tab',
@@ -253,6 +252,28 @@ def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
             press_key(ui, identity, 'BackSpace', state=Atspi.StateType.FOCUSED)
         assert ui.run(f'text-{binding}-read', '')['text'] == {
             'binding': binding, 'exact': True, 'length': len(value)}
+
+    for binding in bindings:
+        if binding == 'reply-first':
+            ui.run('feedback-close', '')
+            ui.run('feedback-reopen', '')
+        replace(binding)
+    # FEED09 uses the same private preview and public keyboard route; no new
+    # processes/displays or shared resources beyond this reviewed UI fixture.
+    assert ui.run('feedback-state-empty', '')['feedback_state']['send_enabled'] is True
+    for binding, operation in (
+            ('body-whitespace', 'feedback-state-whitespace'),
+            ('body-first', 'feedback-state-no-reply'),
+            ('reply-malformed', 'feedback-state-malformed'),
+            ('reply-first', 'feedback-state-valid')):
+        replace(binding)
+        state = ui.run(operation, '')['feedback_state']
+        assert state['validation'] == 'none' and state['send_enabled'] is True
+    ui.run('feedback-state-close', '')
+    ui.run('feedback-state-wrong-entry', '')
+    assert ui.run('feedback-state-reopen', '')['feedback_state'] == state
+    replace('body-clear')
+    replace('reply-clear')
     ui.run('feedback-finished', '')
 
 

@@ -214,6 +214,35 @@ OPERATION_LABELS.update({
     'text-disabled': 'Refusing text input to a disabled control',
 })
 
+OPERATION_LABELS.update({operation: 'Reading privacy and comparing the synthetic feedback draft'
+                         for operation in accessible_ui.FEEDBACK_PRIVACY_OPERATIONS})
+OPERATION_LABELS.update({
+    **{operation: 'Reading validation and Send availability after declared feedback edits'
+       for operation in accessible_ui.FEEDBACK_STATE_PROJECTIONS},
+    'feedback-state-close': 'Closing the synthetic feedback dialog before independent entry',
+    'feedback-state-wrong-entry': 'Refusing a validation snapshot outside feedback',
+    'feedback-state-reopen': 'Reopening feedback and independently reading validation and Send',
+})
+
+
+@dataclass(frozen=True)
+class FeedbackStateObservation:
+    draft: str
+    validation: str
+    send_enabled: bool
+
+    @classmethod
+    def from_value(cls, value):
+        require(type(value) is dict and set(value) == {
+            'draft', 'attachments', 'collection', 'validation', 'controls', 'send_enabled'}
+            and value['draft'] in accessible_ui.FEEDBACK_STATE_PROJECTIONS.values()
+            and value['attachments'] == ['diagnostic-logs.zip']
+            and value['collection'] == 'ready' and value['controls'] == 'ready'
+            and value['validation'] in accessible_ui.FEEDBACK_VALIDATION.values()
+            and type(value['send_enabled']) is bool, 'ui:feedback-state-response')
+        return cls(value['draft'], value['validation'], value['send_enabled'])
+
+
 @dataclass(frozen=True)
 class FeedbackObservation:
     draft: str
@@ -224,11 +253,12 @@ class FeedbackObservation:
 
     @classmethod
     def from_value(cls, value):
-        require(type(value) is dict and value == {
-            'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
+        require(type(value) is dict and type(value.get('draft')) is str
+                and value['draft'] in accessible_ui.FEEDBACK_PROJECTIONS and value == {
+            'draft': value['draft'], 'attachments': ['diagnostic-logs.zip'],
             'collection': 'ready', 'validation': 'none', 'controls': 'ready'},
             'ui:feedback-response')
-        return cls('initial-empty', ('diagnostic-logs.zip',), 'ready', 'none', 'ready')
+        return cls(value['draft'], ('diagnostic-logs.zip',), 'ready', 'none', 'ready')
 
 
 @dataclass(frozen=True)
@@ -656,11 +686,23 @@ class UiObservations:
                 require(type(apps) is dict and set(apps) == {'rows'}, 'ui:app-rows')
                 AppRowsObservation.from_rows(apps['rows'])
             expected['apps'] = apps
-        if operation in ('feedback-open', 'feedback-read', 'feedback-reopen', 'feedback-reread'):
+        if operation in ('feedback-open', 'feedback-read', 'feedback-reopen', 'feedback-reread',
+                         'feedback-draft', 'feedback-draft-reopen', 'feedback-draft-reread',
+                         'feedback-privacy-returned'):
             require(type(result) is dict and set(result) == {*expected, 'feedback'},
                     'ui:feedback-response')
             FeedbackObservation.from_value(result['feedback'])
+            require(result['feedback']['draft'] == (
+                'synthetic-first' if operation in accessible_ui.FEEDBACK_PRIVACY_OPERATIONS
+                else 'initial-empty'), 'ui:feedback-response')
             expected['feedback'] = result['feedback']
+        if operation in accessible_ui.FEEDBACK_STATE_PROJECTIONS:
+            require(type(result) is dict and set(result) == {*expected, 'feedback_state'},
+                    'ui:feedback-state-response')
+            state = FeedbackStateObservation.from_value(result['feedback_state'])
+            require(state.draft == accessible_ui.FEEDBACK_STATE_PROJECTIONS[operation],
+                    'ui:feedback-state-response')
+            expected['feedback_state'] = result['feedback_state']
         if operation in accessible_ui.TEXT_OPERATIONS and operation.endswith('-read'):
             binding, _ = accessible_ui.TEXT_OPERATIONS[operation]
             projection = {'binding': binding, 'exact': True,

@@ -74,6 +74,8 @@ import request_exit
 import parent_toggle
 import app_row_observations
 import feedback_read
+import feedback_privacy
+import feedback_states
 import text_qualification
 import allowance_presets
 import allowance
@@ -170,7 +172,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  kiosk_no_approver.PLAN, kiosk_no_approver.CASE_PLAN,
                                  parent_terminal_provider.PLAN, license_viewer_provider.PLAN,
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
-                                 feedback_read.PLAN, text_qualification.PLAN, allowance_presets.PLAN,
+                                 feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
+                                 text_qualification.PLAN, allowance_presets.PLAN,
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
                                  kiosk_escape.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN,
@@ -185,7 +188,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-eligible-choices', 'request-choices', 'kiosk-no-child', 'no-child-case',
                               'kiosk-no-approver', 'no-parent-case',
                               'terminal-provider', 'license-viewer-provider', 'repeated-operations',
-                              'challenges', 'app-rows', 'feedback-read', 'text', 'allowance-presets',
+                              'challenges', 'app-rows', 'feedback-read', 'feedback-privacy', 'feedback-states',
+                              'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',

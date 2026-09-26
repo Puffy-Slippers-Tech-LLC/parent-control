@@ -85,6 +85,36 @@ FEEDBACK_READ_OPERATIONS = frozenset({
     'feedback-wrong-entry', 'feedback-reopen', 'feedback-reread', 'feedback-finished',
 })
 OPERATIONS |= FEEDBACK_READ_OPERATIONS
+FEEDBACK_PRIVACY_OPERATIONS = frozenset({
+    'feedback-draft', 'feedback-draft-reopen', 'feedback-draft-reread',
+    'feedback-draft-closed', 'feedback-close-refused',
+    'feedback-privacy-open', 'feedback-privacy-returned',
+})
+OPERATIONS |= FEEDBACK_PRIVACY_OPERATIONS
+FEEDBACK_PROJECTIONS = {
+    'initial-empty': ('body-clear', 'reply-clear'),
+    'synthetic-first': ('body-first', 'reply-first'),
+    'states-whitespace': ('body-whitespace', 'reply-clear'),
+    'states-no-reply': ('body-first', 'reply-clear'),
+    'states-malformed': ('body-first', 'reply-malformed'),
+}
+FEEDBACK_STATE_PROJECTIONS = {
+    'feedback-state-empty': 'initial-empty',
+    'feedback-state-whitespace': 'states-whitespace',
+    'feedback-state-no-reply': 'states-no-reply',
+    'feedback-state-malformed': 'states-malformed',
+    'feedback-state-valid': 'synthetic-first',
+    'feedback-state-reopen': 'synthetic-first',
+}
+FEEDBACK_STATE_OPERATIONS = frozenset(FEEDBACK_STATE_PROJECTIONS) | {
+    'feedback-state-close', 'feedback-state-wrong-entry'}
+OPERATIONS |= FEEDBACK_STATE_OPERATIONS
+# Exact public explanations only; never return arbitrary status/draft text.
+FEEDBACK_VALIDATION = {
+    '': 'none',
+    'Please enter your feedback.': 'body-required',
+    'Enter a bare reply email address, or leave it blank.': 'reply-invalid',
+}
 KIOSK_INVALID_VALUES = {
     'empty': '', 'letters': 'abc', 'negative': '-1', 'zero': '0',
     'below': '0.09', 'over': '1440.1', 'comma': '1,5',
@@ -96,9 +126,11 @@ TEXT_VALUES = {
     'body-first': ('feedback-editor-input', 'Synthetic feedback first'),
     'body-second': ('feedback-editor-input', 'Synthetic feedback replacement'),
     'body-clear': ('feedback-editor-input', ''),
+    'body-whitespace': ('feedback-editor-input', '   '),
     'reply-first': ('feedback-reply-email', 'first@example.invalid'),
     'reply-second': ('feedback-reply-email', 'second@example.invalid'),
     'reply-clear': ('feedback-reply-email', ''),
+    'reply-malformed': ('feedback-reply-email', 'invalid-reply'),
     **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
        for value in (0, 1, 2, 3, 15, 1439)},
 }
@@ -1530,13 +1562,13 @@ class AccessibleUI:
     def about(self):
         return self.id_target('about-dialog')
 
-    def feedback_snapshot(self, projection='initial-empty'):
-        """FEED03: only the declared empty synthetic draft, never arbitrary text.
+    def feedback_snapshot(self, projection='initial-empty', *, states=False):
+        """FEED03: compare a declared synthetic draft, never project arbitrary text.
 
         One complete public snapshot supplies ownership, the exact attachment
         set and controls. Only closed comparison values leave this method.
         """
-        require(projection == 'initial-empty', 'ui:feedback-projection')
+        require(projection in FEEDBACK_PROJECTIONS, 'ui:feedback-projection')
         edges, identities, facts = {}, {}, {}
         nodes = list(self.nodes(strict=True, snapshot=edges, identities=identities, facts=facts))
         observation = (nodes, edges, identities, facts)
@@ -1561,7 +1593,8 @@ class AccessibleUI:
                     'ui:feedback-target')
             return node
 
-        for identity in ('feedback-editor-input', 'feedback-reply-email'):
+        for binding in FEEDBACK_PROJECTIONS[projection]:
+            identity, expected = TEXT_VALUES[binding]
             node = target(identity)
             require(node.get_role_name() != 'password text'
                     and self.has_state(node, self.api.StateType.EDITABLE)
@@ -1570,13 +1603,14 @@ class AccessibleUI:
             text = node.get_text_iface()
             require(text is not None, 'ui:feedback-editor')
             count = self.api.Text.get_character_count(text)
-            # Quill's empty paragraph is one public newline in WebKit. Compare
-            # only that bounded representation; never extract a longer draft
-            # or project a mismatching character into evidence.
-            empty = count == 0 or (
-                identity == 'feedback-editor-input' and count == 1
-                and self.api.Text.get_text(text, 0, 1) == '\n')
-            require(empty,
+            # Quill exposes a terminal paragraph newline in WebKit. Only read
+            # declared lengths; never project mismatching text into evidence.
+            allowed = ((expected, expected + '\n')
+                       if identity == 'feedback-editor-input' else (expected,))
+            require(count in {len(value) for value in allowed},
+                    'ui:feedback-nonempty-draft')
+            actual = self.api.Text.get_text(text, 0, count) if count else ''
+            require(actual in allowed,
                     'ui:feedback-nonempty-draft')
         require(not any(value.startswith('feedback-attachment-') for value in ids),
                 'ui:feedback-attachment-set')
@@ -1590,14 +1624,49 @@ class AccessibleUI:
                     'ui:feedback-collection')
         status = self.snapshot_owned_target('feedback-status', root=root, showing=False,
                                             observation=observation)
-        require(status is None or not self.has_state(status, self.api.StateType.VISIBLE)
-                or status.get_name() == '', 'ui:feedback-validation')
+        status_text = (status.get_name() if status is not None
+                       and self.has_state(status, self.api.StateType.VISIBLE) else '')
+        require(status_text in FEEDBACK_VALIDATION if states else status_text == '',
+                'ui:feedback-validation')
         for identity in ('feedback-close', 'feedback-send', 'feedback-add-files',
                          'feedback-download-logs', 'feedback-toggle-logs'):
+            if states and identity == 'feedback-send':
+                continue
             require(self.has_state(target(identity), self.api.StateType.SENSITIVE),
                     'ui:feedback-control')
-        return {'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
+        if states:
+            return {'draft': projection, 'attachments': ['diagnostic-logs.zip'],
+                    'collection': 'ready', 'validation': FEEDBACK_VALIDATION[status_text],
+                    'controls': 'ready',
+                    'send_enabled': bool(self.has_state(target('feedback-send'),
+                                                       self.api.StateType.SENSITIVE))}
+        return {'draft': projection, 'attachments': ['diagnostic-logs.zip'],
                 'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+
+    def feedback_state_operation(self, operation):
+        """FEED09 reads after caller-owned edits; never invokes Send."""
+        require(operation in FEEDBACK_STATE_OPERATIONS, 'ui:feedback-operation')
+        if operation == 'feedback-state-wrong-entry':
+            require(self.absent_id('feedback-dialog', within='parent-window'),
+                    'ui:feedback-wrong-entry')
+            try:
+                self.feedback_snapshot('synthetic-first', states=True)
+            except UiError as error:
+                require(str(error) == 'ui:feedback-entry', 'ui:feedback-refusal')
+            else:
+                raise UiError('ui:feedback-wrong-entry-accepted')
+            return None
+        if operation == 'feedback-state-close':
+            self.feedback_snapshot('synthetic-first', states=True)
+            self.activate_id('feedback-close')
+            self.wait(lambda: self.absent_id('feedback-dialog', within='parent-window'),
+                      'feedback-closed')
+            self.parent()
+            return None
+        projection = FEEDBACK_STATE_PROJECTIONS[operation]
+        if operation == 'feedback-state-reopen':
+            self.open_feedback(projection)
+        return self.feedback_snapshot(projection, states=True)
 
     def text_recipient(self, identity, *, focused=False):
         """Fresh UI16 recipient proof; refuse before focus, keys or Text access."""
@@ -1706,13 +1775,14 @@ class AccessibleUI:
             return self.wait(ready, 'text-exact-value')
         return None
 
-    def open_feedback(self):
+    def open_feedback(self, projection='initial-empty'):
         """FEED01: ordinary Parent entry, with an independently observed result."""
+        require(projection in FEEDBACK_PROJECTIONS, 'ui:feedback-projection')
         self.activate_id('parent-feedback-button')
         self.id_target('feedback-editor-input', sensitive=True)
         def ready():
             try:
-                return self.feedback_snapshot()
+                return self.feedback_snapshot(projection)
             except UiError as error:
                 if str(error) in ('ui:feedback-collection', 'ui:feedback-target'):
                     return None
@@ -1741,6 +1811,54 @@ class AccessibleUI:
                 raise UiError('ui:feedback-wrong-entry-accepted')
             return None
         return self.feedback_snapshot()
+
+    def feedback_privacy(self, projection):
+        """FEED05 entry and actual public disclosure, with no external navigation."""
+        self.feedback_snapshot(projection)
+        self.activate_id('feedback-privacy-link')
+        root = self.id_target('feedback-privacy-dialog')
+        self.window_ready_to_close('feedback-privacy')
+        node = self.id_target('feedback-privacy-text', root=root)
+        text = node.get_name()
+        require(type(text) is str and 0 < len(text) <= 2048,
+                'ui:feedback-privacy-text')
+        for fragment in (
+            'Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support.',
+            'Retention depends on our support mailbox and service providers, including their backup policies.',
+            'We do not currently guarantee deletion within a fixed period.',
+            'Diagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages.',
+            'Automatic diagnostics contain validated technical events, health checks, and system information:',
+            'Your own feedback, reply email, and selected files are separate and may contain personal information.',
+            'Review them before sending.',
+        ):
+            require(fragment in text, 'ui:feedback-privacy-disclosure')
+
+    def feedback_privacy_operation(self, operation):
+        require(operation in FEEDBACK_PRIVACY_OPERATIONS, 'ui:feedback-operation')
+        projection = 'synthetic-first'
+        if operation == 'feedback-privacy-open':
+            self.feedback_privacy(projection)
+        elif operation == 'feedback-privacy-returned':
+            self.window_closed('feedback-privacy', 'feedback')
+            return self.feedback_snapshot(projection)
+        elif operation == 'feedback-draft-closed':
+            self.window_closed('feedback', 'parent')
+        elif operation == 'feedback-close-refused':
+            require(self.absent_id('feedback-dialog', within='parent-window'),
+                    'ui:feedback-wrong-entry')
+            try:
+                self.window_ready_to_close('feedback')
+            except UiError as error:
+                require(str(error) == 'ui:feedback-entry', 'ui:feedback-refusal')
+            else:
+                raise UiError('ui:feedback-wrong-entry-accepted')
+        elif operation == 'feedback-draft-reopen':
+            return self.open_feedback(projection)
+        else:
+            value = self.feedback_snapshot(projection)
+            self.window_ready_to_close('feedback')
+            return value
+        return None
 
     def open_about(self, version):
         """ABOUT01: independent Parent entry; menu, About, text and license link."""
@@ -2069,7 +2187,12 @@ class AccessibleUI:
 
     def window_ready_to_close(self, window):
         """UI01/02: fresh active named window before a worker's Alt-F4."""
-        require(window in ('license', 'about'), 'ui:window-binding')
+        require(window in ('license', 'about', 'feedback', 'feedback-privacy'), 'ui:window-binding')
+        if window in ('feedback', 'feedback-privacy'):
+            root = self.snapshot_owned_target(window + '-dialog', check_prompt=True)
+            require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+                    'ui:feedback-entry')
+            return
         def active():
             if window == 'license':
                 if not self.provider_contracts['document-viewer']['application_id']:
@@ -2091,8 +2214,18 @@ class AccessibleUI:
     def window_closed(self, window, destination):
         """UI11: complete fresh absence within the positively recognized return UI."""
         require((window, destination) in (('license', 'about'), ('about', 'parent'),
-                                         ('about', 'kiosk')),
+                                         ('about', 'kiosk'), ('feedback', 'parent'),
+                                         ('feedback-privacy', 'feedback')),
                 'ui:window-binding')
+        if window in ('feedback', 'feedback-privacy'):
+            underlying = 'parent-window' if destination == 'parent' else 'feedback-dialog'
+            def returned():
+                if not self.absent_id(window + '-dialog', within=underlying):
+                    return False
+                root = self.snapshot_owned_target(underlying, check_prompt=True)
+                return root is not None and self.has_state(root, self.api.StateType.ACTIVE)
+            self.wait(returned, window + '-close')
+            return
         semantic_license = (window == 'license'
                             and not self.provider_contracts['document-viewer']['application_id'])
         if window == 'license' and not semantic_license:
@@ -5544,6 +5677,14 @@ class AccessibleUI:
             text = self.text_operation(operation)
             if text is not None:
                 result['text'] = text
+        elif operation in FEEDBACK_STATE_OPERATIONS:
+            feedback = self.feedback_state_operation(operation)
+            if feedback is not None:
+                result['feedback_state'] = feedback
+        elif operation in FEEDBACK_PRIVACY_OPERATIONS:
+            feedback = self.feedback_privacy_operation(operation)
+            if feedback is not None:
+                result['feedback'] = feedback
         elif operation in FEEDBACK_READ_OPERATIONS:
             feedback = self.feedback_read_operation(operation)
             if feedback is not None:

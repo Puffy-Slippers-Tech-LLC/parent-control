@@ -77,6 +77,7 @@ import feedback_read
 import feedback_privacy
 import feedback_states
 import format_qualification
+import window_switch
 import text_qualification
 import allowance_presets
 import allowance
@@ -175,6 +176,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
                                  format_qualification.PLAN,
+                                 window_switch.PLAN,
                                  text_qualification.PLAN, allowance_presets.PLAN,
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
@@ -191,7 +193,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-no-approver', 'no-parent-case',
                               'terminal-provider', 'license-viewer-provider', 'repeated-operations',
                               'challenges', 'app-rows', 'feedback-read', 'feedback-privacy', 'feedback-states',
-                              'format',
+                              'format', 'window-switch',
                               'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',

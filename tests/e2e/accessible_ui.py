@@ -141,6 +141,22 @@ FORMAT_OPERATIONS = frozenset({
     'format-read', 'format-close', 'format-wrong-entry', 'format-reopen',
 })
 OPERATIONS |= FORMAT_OPERATIONS
+WINDOW_SWITCH_OPERATIONS = frozenset({
+    'switch-parent-before', 'switch-viewer-launch', 'switch-parent',
+    'switch-draft-before', 'switch-viewer', 'switch-feedback',
+    'switch-viewer-again', 'switch-feedback-again', 'switch-viewer-close',
+    'switch-viewer-absent',
+})
+WINDOW_SWITCH_TARGETS = {
+    'switch-parent': ('parent', 'viewer'),
+    'switch-viewer': ('viewer', 'feedback'),
+    'switch-feedback': ('feedback', 'viewer'),
+    'switch-viewer-again': ('viewer', 'feedback'),
+    'switch-feedback-again': ('feedback', 'viewer'),
+    'switch-viewer-close': ('viewer', 'feedback'),
+}
+WINDOW_SWITCH_OPERATIONS |= frozenset(stage + '-ready' for stage in WINDOW_SWITCH_TARGETS)
+OPERATIONS |= WINDOW_SWITCH_OPERATIONS
 
 TEXT_OPERATIONS = {
     'text-' + binding + '-' + action: (binding, action)
@@ -2014,9 +2030,9 @@ class AccessibleUI:
             self.activate_id(surface, action_name='focus.' + identity)
         return self.id_target(identity)
 
-    def read_document(self, root, projection, *, maximum):
+    def read_document(self, root, projection, *, maximum, require_active=True):
         """UI03: only the bounded GPL heading projection; never return raw text."""
-        require(projection == 'gpl-heading' and type(maximum) is int
+        require(type(require_active) is bool and projection == 'gpl-heading' and type(maximum) is int
                 and 64 <= maximum <= 1024, 'ui:document-binding')
         if self.provider_contracts['document-viewer']['application_id']:
             _application_id, _surface_id, registered = self.require_provider_contract(
@@ -2028,7 +2044,7 @@ class AccessibleUI:
         else:
             window, content, _observation = self.license_viewer_snapshot()
             require(root is content and window is not None
-                    and self.has_state(window, self.api.StateType.ACTIVE),
+                    and (not require_active or self.has_state(window, self.api.StateType.ACTIVE)),
                     'ui:document-owner')
         require(root.get_role_name() in ('text', 'document text') and self.showing(root),
                 'ui:document-surface')
@@ -2221,6 +2237,90 @@ class AccessibleUI:
                                     or not facts[content]['showing']):
             content = None
         return window, content, observation
+
+    def existing_window(self, binding):
+        """DESK10: resolve an existing surface; never launch or infer a title."""
+        require(binding in ('parent', 'feedback', 'viewer'), 'ui:switch-binding')
+        if binding == 'viewer':
+            root, content, _ = self.license_viewer_snapshot()
+            require(root is not None and content is not None, 'ui:switch-absent')
+            require(self.read_document(content, 'gpl-heading', maximum=1024, require_active=False),
+                    'ui:switch-document')
+        else:
+            root = self.snapshot_owned_target(
+                'parent-window' if binding == 'parent' else 'feedback-dialog',
+                check_prompt=True)
+            require(root is not None, 'ui:switch-absent')
+        require(self.showing(root) and self.has_state(root, self.api.StateType.SENSITIVE),
+                'ui:switch-unusable')
+        return root
+
+    def existing_window_active(self, binding, *, expected=None):
+        root = self.existing_window(binding)
+        require(expected is None or root == expected, 'ui:switch-replaced')
+        return root if self.has_state(root, self.api.StateType.ACTIVE) else None
+
+    def window_switch_ready(self, binding, source):
+        """Resolve both endpoints before the shared worker's single Alt+Tab.
+
+        GTK toplevel Component.GrabFocus is unsupported. No action is tried
+        before selecting this keyboard route, and a wrong destination stops
+        the worker rather than trying another key or relaunching anything.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(binding != source and self.existing_window_active(source) is not None,
+                'ui:switch-source')
+        require(self.existing_window_active(binding) is None, 'ui:switch-already-active')
+        return self.window_switch_proof(binding, active=False)
+
+    def window_switch_proof(self, binding, *, active=True):
+        root = self.existing_window(binding)
+        require(self.has_state(root, self.api.StateType.ACTIVE) is active, 'ui:switch-active')
+        # Public AT-SPI endpoint identity distinguishes two windows of one PID.
+        pid, bus, path = root.get_process_id(), root.bus, root.path
+        require(type(pid) is int and pid > 0 and type(bus) is str
+                and bus.startswith(':') and type(path) is str and path.startswith('/'),
+                'ui:switch-endpoint')
+        proof = {'binding': binding, 'pid': pid, 'endpoint': [bus, path], 'active': active}
+        if binding == 'feedback' and active:
+            proof['feedback'] = self.feedback_snapshot('synthetic-first')
+        return proof
+
+    def window_switch_operation(self, operation):
+        require(operation in WINDOW_SWITCH_OPERATIONS, 'ui:switch-operation')
+        if operation.endswith('-ready'):
+            return self.window_switch_ready(*WINDOW_SWITCH_TARGETS[operation[:-6]])
+        if operation == 'switch-viewer-launch':
+            require(not self.input_uncertain, 'ui:uncertain-input')
+            require(self.existing_window_active('parent') is not None, 'ui:switch-entry')
+            viewer, _, _ = self.license_viewer_snapshot()
+            require(viewer is None, 'ui:switch-viewer-exists')
+            self.input_uncertain = True
+            subprocess.run([
+                '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+                '--service-type=exec', '/usr/bin/gnome-text-editor', '--new-window',
+                '/usr/share/oh-no-parent-control/LICENSE',
+            ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+            self.license_content()
+            self.input_uncertain = False
+            return self.window_switch_proof('viewer')
+        if operation == 'switch-viewer-absent':
+            viewer, _, _ = self.license_viewer_snapshot()
+            require(viewer is None, 'ui:switch-viewer-exists')
+            try:
+                self.window_switch_ready('viewer', 'feedback')
+            except UiError as error:
+                require(str(error) == 'ui:switch-absent', 'ui:switch-refusal')
+            else:
+                raise UiError('ui:switch-refusal-missing')
+            return self.window_switch_proof('feedback')
+        binding = ('parent' if operation in ('switch-parent-before', 'switch-parent') else
+                   'viewer' if operation in ('switch-viewer', 'switch-viewer-again',
+                                              'switch-viewer-close') else 'feedback')
+        if operation not in ('switch-parent-before', 'switch-draft-before'):
+            self.wait(lambda: self.existing_window_active(binding), 'switch-active',
+                      prompt_in_predicate=True)
+        return self.window_switch_proof(binding)
 
     def license_content(self):
         """Read the ID-scoped registered viewer, without title discovery."""
@@ -5744,6 +5844,10 @@ class AccessibleUI:
             text = self.text_operation(operation)
             if text is not None:
                 result['text'] = text
+        elif operation in WINDOW_SWITCH_OPERATIONS:
+            result['window'] = self.window_switch_operation(operation)
+            if operation == 'switch-viewer-launch':
+                result['provider'] = self.license_provider_metadata()
         elif operation in FORMAT_OPERATIONS:
             formatting = self.format_operation(operation)
             if formatting is not None:

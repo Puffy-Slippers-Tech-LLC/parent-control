@@ -401,6 +401,9 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
             else:
                 if label == 'fix-tests':
                     steps = repair_progress(run, steps)
+                elif label == 'write-e2e':
+                    from write_e2e import task_progress
+                    steps = task_progress(run, steps)
                 # Overall progress belongs to the controller pane, not the
                 # rapidly refreshed detailed test tree. Legacy frames still work.
                 if steps:

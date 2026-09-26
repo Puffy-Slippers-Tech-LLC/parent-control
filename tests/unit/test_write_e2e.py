@@ -44,6 +44,36 @@ def test_session_controller_reports_task_title_and_phase(tmp_path, phase, attemp
         'Task 001: First', f'Session [2]: {summary}']
 
 
+def test_current_task_recap_refreshes_and_freezes_at_completion(tmp_path, monkeypatch):
+    from rich.console import Console
+    from rich.text import Text
+    state = dict(workflow.fresh_state('001'), started_at=1000,
+                 task_sessions=2, progress_keys=['1', '2'])
+    steps = [{'key': '2', 'lines': ['Task 001: First', 'Session [2]: Working']}]
+    workflow.launcher.atomic(tmp_path / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.time, 'time', lambda: 1120)
+    rendered = workflow.task_progress(tmp_path, steps)
+    assert rendered[-1]['lines'][0] == 'Task 001: First (sessions=2, duration=2m)'
+    text = Text.from_ansi(rendered[-1]['lines'][0])
+    assert text.get_style_at_offset(Console(), text.plain.index('sessions=')).color is None
+    monkeypatch.setattr(workflow.time, 'time', lambda: 1180)
+    assert workflow.task_progress(tmp_path, steps)[-1]['lines'][0].endswith('duration=3m)')
+    state.update(task_sessions=3)
+    workflow.launcher.atomic(tmp_path / 'checkpoint.json', state)
+    assert '(sessions=3,' in workflow.task_progress(tmp_path, steps)[-1]['lines'][0]
+    state.update(phase='complete', completed_at=1180)
+    workflow.launcher.atomic(tmp_path / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.time, 'time', lambda: 1300)
+    assert workflow.task_progress(tmp_path, steps)[-1]['lines'][0].endswith(
+        f"duration={workflow.format_duration(180, short=True)})")
+    assert steps[-1]['lines'][0] == 'Task 001: First'
+    previous = dict(steps[0], key='1')
+    rolling = workflow.task_progress(tmp_path, [previous, *steps])
+    assert rolling[0]['lines'][0] == rolling[1]['lines'][0]
+    completed = [{'key': 'complete-001', 'lines': ['Completed recap'], 'replaces': ['2']}]
+    assert workflow.task_progress(tmp_path, completed) == completed
+
+
 def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, capsys):
     from rich.console import Console
     from rich.text import Text

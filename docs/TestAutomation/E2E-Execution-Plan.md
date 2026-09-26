@@ -19,11 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **044a — [Return to an already-open window on one desktop](E2E-Tasks/044a-window-switch.md)**.
+Next task: **032 — [E2E-031: validation](E2E-Tasks/032-case-153.md)**.
 
-Implement DESK10 same-desktop activation of explicitly identified existing
-Parent, feedback and supporting-viewer windows. Independently observe active
-state and the preserved synthetic draft without relaunching or restoring fields.
+Implement complete case 153's feedback validation table through public editor
+input and independent results, then review Privacy and preserved dialog state.
+Reuse the delivered capability scopes; do not infer complete-case readiness.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

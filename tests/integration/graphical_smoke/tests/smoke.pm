@@ -454,6 +454,12 @@ sub run {
         onpc_text::run(\&exchange);
         return;
     }
+    if ($ready->{window_switch}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_read::run_window_switch(\&exchange);
+        return;
+    }
     if ($ready->{format_qualification}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

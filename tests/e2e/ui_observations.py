@@ -207,6 +207,8 @@ OPERATION_LABELS.update({
 
 OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret field value'
                          for operation in accessible_ui.TEXT_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Applying and independently reading synthetic range formatting'
+                         for operation in accessible_ui.FORMAT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying kiosk approval and its explicit public result'
                          for operation in accessible_ui.MATE_APPROVAL_OPERATIONS})
 OPERATION_LABELS.update({
@@ -696,6 +698,14 @@ class UiObservations:
                 'synthetic-first' if operation in accessible_ui.FEEDBACK_PRIVACY_OPERATIONS
                 else 'initial-empty'), 'ui:feedback-response')
             expected['feedback'] = result['feedback']
+        if operation in ('format-before', 'format-read', 'format-reopen'):
+            projection = [
+                {'start': 0, 'end': 9, 'weight': 'normal' if operation == 'format-before' else 'bold'},
+                {'start': 9, 'end': 23, 'weight': 'normal'},
+            ]
+            require(type(result) is dict and set(result) == {*expected, 'formatting'}
+                    and result['formatting'] == projection, 'ui:format-response')
+            expected['formatting'] = projection
         if operation in accessible_ui.FEEDBACK_STATE_PROJECTIONS:
             require(type(result) is dict and set(result) == {*expected, 'feedback_state'},
                     'ui:feedback-state-response')

@@ -25,6 +25,96 @@ from ui_observations import FeedbackStateObservation
 # Added Privacy checks retain this module's reviewed isolation: in-memory UI
 # doubles, pytest-owned paths and waited, private Perl subprocesses only.
 # FEED09 additions use those same resources and require no scheduler change.
+# UI24/FEED04 additions retain the same in-memory and private Perl resources.
+
+
+@pytest.mark.parametrize('fault', ['', 'missing', 'stalled', 'mixed', 'private', 'range'])
+def test_format_range_public_runs_refuse_unavailable_or_invalid_attributes(fault):
+    ui, _, _, controls = synthetic_feedback_ui()
+    ui.api.Text.get_attribute_run = Mock(side_effect=lambda text, offset, defaults: (
+        {'weight': '700' if offset < 9 else '400'}, 0 if offset < 9 else 9,
+        9 if offset < 9 else 23))
+    if fault == 'missing':
+        ui.api.Text.get_attribute_run.return_value = ({}, 0, 23)
+        ui.api.Text.get_attribute_run.side_effect = None
+    elif fault == 'stalled':
+        ui.api.Text.get_attribute_run.side_effect = lambda *args: ({'weight': '700'}, 0, 0)
+    elif fault == 'private':
+        controls['feedback-editor-input'].text.value = 'private'
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.formatting_attributes(-1 if fault == 'range' else 0, 23 if fault == 'mixed' else 9)
+    else:
+        assert ui.formatting_attributes(0, 9) == {'start': 0, 'end': 9, 'weight': 'bold'}
+        assert ui.formatting_attributes(9, 23) == {'start': 9, 'end': 23, 'weight': 'normal'}
+        # No ambiguous boundary lookup; full public bounds still prove coverage.
+        assert [call.args[1] for call in ui.api.Text.get_attribute_run.call_args_list] == [4, 16]
+
+
+def test_format_decoder_and_independent_recorder(tmp_path):
+    from format_qualification import FormatJourney
+    from ui_observations import UiObservations
+    value = [{'start': 0, 'end': 9, 'weight': 'bold'},
+             {'start': 9, 'end': 23, 'weight': 'normal'}]
+    reader = UiObservations(Mock())
+    reply = {'operation': 'format-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+             'formatting': value}
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    assert reader.observe('format-read') == reply
+    journey = FormatJourney(SimpleNamespace(directory=tmp_path), Mock())
+    with pytest.raises(EvidenceError, match='format:independent-entry'):
+        journey.check_settings('format-reopen', {'ui': reply})
+    journey.check_settings('format-read', {'ui': reply})
+    journey.check_settings('format-reopen', {'ui': reply})
+    value[1]['weight'] = 'bold'
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    with pytest.raises(EvidenceError, match='ui:format-response'):
+        reader.observe('format-read')
+
+
+@pytest.mark.parametrize('fault', ['', 'format-home', 'format-selected', 'format-read', 'format-reopen'])
+def test_format_worker_stops_on_refusal(fault):
+    from format_qualification import STAGES
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type'; }
+package main;
+require onpc_format;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_format::run(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = ['parent-selected', *STAGES]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+
+
+def test_format_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_format
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_format, 'smoke', run)
+    assert check_e2e_format.main() == 0
+    assert run.call_args.kwargs['format_qualification'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(format_qualification=True)
+    with pytest.raises(CommandError, match='format-prerequisites'):
+        smoke.main(format_qualification=True, feedback_states=True)
 
 
 @pytest.mark.parametrize('projection', sorted(set(accessible_ui.FEEDBACK_STATE_PROJECTIONS.values())))

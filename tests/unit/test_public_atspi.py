@@ -34,6 +34,25 @@ def fixture_bus():
     return api, items, rpc, api.node(app), api.node(button)
 
 
+def test_text_range_cursor_and_selection_reads_are_live_public_calls():
+    api, _, rpc, _, node = fixture_bus()
+    rpc.side_effect = [0, 1, (0, 9), ({'weight': '700'}, 0, 9), 23]
+    assert node.get_caret_offset() == 0
+    assert node.get_n_selections() == 1
+    selected = node.get_selection(0)
+    assert (selected.start_offset, selected.end_offset) == (0, 9)
+    assert node.get_attribute_run(0, True) == ({'weight': '700'}, 0, 9)
+    assert node.get_caret_offset() == 23
+    assert [(call.args[2], call.args[3], call.args[4], call.args[5])
+            for call in rpc.call_args_list] == [
+        ('org.freedesktop.DBus.Properties', 'Get', 'ss', (PREFIX + 'Text', 'CaretOffset')),
+        (PREFIX + 'Text', 'GetNSelections', '', ()),
+        (PREFIX + 'Text', 'GetSelection', 'i', (0,)),
+        (PREFIX + 'Text', 'GetAttributeRun', 'ib', (0, True)),
+        ('org.freedesktop.DBus.Properties', 'Get', 'ss', (PREFIX + 'Text', 'CaretOffset')),
+    ]
+
+
 def test_shared_reader_facade_is_not_wrapped_again():
     from tests.e2e.accessible_ui import AccessibleUI
 

@@ -661,13 +661,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
-         feedback_privacy=False, feedback_states=False):
+         feedback_privacy=False, feedback_states=False, format_qualification=False):
+    require(type(format_qualification) is bool
+            and not (format_qualification and (feedback_privacy or feedback_states or feedback_read)),
+            'smoke:format-prerequisites')
     require(type(feedback_states) is bool
             and not (feedback_states and (feedback_privacy or feedback_read)),
             'smoke:feedback-states-prerequisites')
     require(type(feedback_privacy) is bool and not (feedback_privacy and feedback_read),
             'smoke:feedback-privacy-prerequisites')
-    feedback_read = feedback_read or feedback_privacy or feedback_states
+    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification
     require(type(fresh_thirty_allowance) is bool and type(set_allowance) is bool
             and not (fresh_thirty_allowance and set_allowance),
             'smoke:fresh-thirty-allowance-prerequisites')
@@ -1151,6 +1154,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-feedback-privacy-qualification'
         if feedback_states:
             result['scope'] = 'installed-feedback-states-qualification'
+        if format_qualification:
+            result['scope'] = 'installed-format-qualification'
         if text_qualification:
             result['scope'] = 'installed-text-qualification'
         if allowance_presets:
@@ -1346,6 +1351,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if feedback_states:
                     from parent_setup_qualification import FeedbackStatesQualification
                     qualification_class = FeedbackStatesQualification
+                if format_qualification:
+                    from parent_setup_qualification import FormatQualification
+                    qualification_class = FormatQualification
                 if text_qualification:
                     from parent_setup_qualification import TextQualification
                     qualification_class = TextQualification

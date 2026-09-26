@@ -479,6 +479,16 @@ class BusNode:
     def get_attribute_run(self, offset, defaults):
         return self.call('Text', 'GetAttributeRun', 'ib', (offset, defaults))
 
+    def get_caret_offset(self):
+        return self.property('CaretOffset', 'Text')
+
+    def get_n_selections(self):
+        return self.call('Text', 'GetNSelections')
+
+    def get_selection(self, index):
+        start, end = self.call('Text', 'GetSelection', 'i', (index,))
+        return SimpleNamespace(start_offset=start, end_offset=end)
+
     def grab_focus(self):
         return self.call('Component', 'GrabFocus')
 

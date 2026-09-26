@@ -136,6 +136,12 @@ TEXT_VALUES = {
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
+FORMAT_OPERATIONS = frozenset({
+    'format-before', 'format-focus', 'format-home', 'format-selected',
+    'format-read', 'format-close', 'format-wrong-entry', 'format-reopen',
+})
+OPERATIONS |= FORMAT_OPERATIONS
+
 TEXT_OPERATIONS = {
     'text-' + binding + '-' + action: (binding, action)
     # The qualification controller consumes this order. Each native-entry
@@ -1667,6 +1673,67 @@ class AccessibleUI:
         if operation == 'feedback-state-reopen':
             self.open_feedback(projection)
         return self.feedback_snapshot(projection, states=True)
+
+    def formatting_attributes(self, start, end):
+        """UI24: bounded public weight runs over the declared synthetic body."""
+        require(type(start) is int and type(end) is int
+                and 0 <= start < end <= len(TEXT_VALUES['body-first'][1]),
+                'ui:format-range')
+        self.read_synthetic_text('body-first')
+        node = self.text_recipient('feedback-editor-input')
+        text = node.get_text_iface()
+        # Query inside the requested run: WebKit can report the preceding run
+        # at its exclusive end. The returned bounds must nevertheless cover
+        # EVERY requested character; a mixed or unavailable range still refuses.
+        offset = (start + end) // 2
+        attributes, first, last = self.api.Text.get_attribute_run(text, offset, True)
+        require(type(attributes) is dict and 0 <= first <= start < end <= last
+                and last <= self.api.Text.get_character_count(text),
+                'ui:format-attributes')
+        weight = attributes.get('weight', '')
+        require(weight in ('400', '700'), 'ui:format-weight-unavailable')
+        return {'start': start, 'end': end, 'weight': 'bold' if weight == '700' else 'normal'}
+
+    def format_operation(self, operation):
+        require(operation in FORMAT_OPERATIONS, 'ui:format-operation')
+        if operation == 'format-wrong-entry':
+            require(self.absent_id('feedback-dialog', within='parent-window'),
+                    'ui:format-entry')
+            try:
+                self.formatting_attributes(0, 9)
+            except UiError as error:
+                require(str(error) == 'ui:text-entry', 'ui:format-refusal')
+            else:
+                raise UiError('ui:format-refusal-missing')
+            return None
+        if operation == 'format-reopen':
+            self.open_feedback('states-no-reply')
+        self.read_synthetic_text('body-first')
+        if operation == 'format-focus':
+            self.focus_text('feedback-editor-input')
+        elif operation in ('format-home', 'format-selected'):
+            node = self.text_recipient('feedback-editor-input', focused=True)
+            text = node.get_text_iface()
+            if operation == 'format-home':
+                require(self.api.Text.get_caret_offset(text) == 0, 'ui:format-caret')
+            else:
+                require(self.api.Text.get_n_selections(text) == 1, 'ui:format-selection')
+                selected = self.api.Text.get_selection(text, 0)
+                require((selected.start_offset, selected.end_offset) == (0, 9),
+                        'ui:format-selection')
+                self.activate_id('feedback-format-bold')
+        elif operation == 'format-close':
+            self.activate_id('feedback-close')
+            self.wait(lambda: self.absent_id('feedback-dialog', within='parent-window'),
+                      'feedback-closed')
+            self.parent()
+        else:
+            result = [self.formatting_attributes(0, 9), self.formatting_attributes(9, 23)]
+            expected = 'normal' if operation == 'format-before' else 'bold'
+            require(result[0]['weight'] == expected and result[1]['weight'] == 'normal',
+                    'ui:format-result')
+            return result
+        return None
 
     def text_recipient(self, identity, *, focused=False):
         """Fresh UI16 recipient proof; refuse before focus, keys or Text access."""
@@ -5677,6 +5744,10 @@ class AccessibleUI:
             text = self.text_operation(operation)
             if text is not None:
                 result['text'] = text
+        elif operation in FORMAT_OPERATIONS:
+            formatting = self.format_operation(operation)
+            if formatting is not None:
+                result['formatting'] = formatting
         elif operation in FEEDBACK_STATE_OPERATIONS:
             feedback = self.feedback_state_operation(operation)
             if feedback is not None:

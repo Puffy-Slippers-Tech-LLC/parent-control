@@ -245,6 +245,12 @@ sub run {
         onpc_request_choices::run(\&exchange);
         return;
     }
+    if ($ready->{request_duration}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_valid_duration::run(\&exchange, 'invalid');
+        return;
+    }
     if ($ready->{kiosk_valid_duration}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

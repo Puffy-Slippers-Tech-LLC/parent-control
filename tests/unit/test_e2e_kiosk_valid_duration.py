@@ -16,6 +16,7 @@ from tests.support.e2e_kiosk import accounts_form, WORKER
 from tests.support.perl import run_perl
 from ui_observations import UiObservations, RequestObservation
 from kiosk_valid_duration import PLAN, KioskValidDurationJourney
+from request_duration import PLAN as INVALID_PLAN
 
 
 def valid_form():
@@ -264,3 +265,116 @@ def test_qualification_reuses_snapshot_and_ledger(tmp_path):
     assert 'ui:time-explanation-expand' not in PLAN.screen_tags.values()
     assert PLAN.screen_tags['time-explanation-read'] == 'ui:time-explanation-read'
     assert KioskValidDurationQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+
+
+@pytest.mark.parametrize('binding,value', list(accessible_ui.KIOSK_INVALID_VALUES.items()))
+def test_invalid_submission_preserves_exact_form_and_decodes(binding, value):
+    ui, status, custom = valid_form()
+    ui.run('kiosk-valid-custom-open', '')
+    custom.value = value
+    submit = ui.find_id('kiosk-request-submit')
+    def validate(_):
+        status.name = 'Enter a number from 0.1 to 1440 minutes.'
+        return True
+    submit.action.do_action.side_effect = validate
+    observer = UiObservations(Mock())
+    for action in ('ready', 'submit', 'read'):
+        operation = f'kiosk-invalid-{binding}-{action}'
+        result = ui.run(operation, '')
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        assert observer.observe(operation) == result
+        projection = result['invalid_choice']
+        assert projection['request']['custom_text'] == value
+        assert projection['request']['duration_seconds'] is None
+        assert projection['request']['request_enabled'] is True
+        assert projection['validation'] is (action != 'ready')
+    submit.action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['disabled', 'wrong-child', 'wrong-value', 'prompt',
+                                  'uncertain', 'no-validation', 'changed-form', 'prompt-after'])
+def test_invalid_submission_refuses_and_never_replays(fault):
+    ui, status, custom = valid_form()
+    ui.run('kiosk-valid-custom-open', '')
+    custom.value = 'abc'
+    submit = ui.find_id('kiosk-request-submit')
+    ui.timeout = .01
+    if fault == 'disabled':
+        submit.states.discard('sensitive')
+    elif fault == 'wrong-child':
+        ui.find_id('kiosk-child-selector').children[0].identity = 'kiosk-child-selected-9999'
+    elif fault == 'wrong-value':
+        custom.value = '1.25'
+    elif fault == 'prompt':
+        ui.system_prompt_kind = Mock(return_value='mate-polkit-agent')
+    def submit_once(_):
+        if fault == 'uncertain':
+            raise RuntimeError('lost reply')
+        if fault != 'no-validation':
+            status.name = 'Enter a number from 0.1 to 1440 minutes.'
+        if fault == 'changed-form':
+            custom.value = '0'
+        if fault == 'prompt-after':
+            ui.system_prompt_kind = Mock(return_value='mate-polkit-agent')
+        return True
+    submit.action.do_action.side_effect = submit_once
+    with pytest.raises((UiError, RuntimeError)):
+        ui.run('kiosk-invalid-letters-submit', '')
+    if fault != 'prompt':  # run's outer prompt guard refuses before entering the operation.
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.kiosk_invalid_choice('kiosk-invalid-letters-submit')
+    assert submit.action.do_action.call_count == (0 if fault in (
+        'disabled', 'wrong-child', 'wrong-value', 'prompt') else 1)
+
+
+@pytest.mark.parametrize('field,value', [('duration_seconds', 0), ('custom_text', '1.25'),
+                                       ('request_enabled', False), ('child', 'existing-fixture-child')])
+def test_invalid_decoder_rejects_valid_or_changed_form(field, value):
+    ui, _, custom = valid_form()
+    ui.run('kiosk-valid-custom-open', '')
+    custom.value = 'abc'
+    result = ui.run('kiosk-invalid-letters-ready', '')
+    result['invalid_choice']['request'][field] = value
+    observer = UiObservations(Mock())
+    observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+    with pytest.raises(EvidenceError):
+        observer.observe('kiosk-invalid-letters-ready')
+
+
+@pytest.mark.parametrize('refusal', [None, 'invalid-wrong-entry', 'kiosk-invalid-empty-submit',
+                                  'kiosk-invalid-comma-read'])
+def test_invalid_worker_order_text_and_terminal_refusal(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_kiosk_valid_duration').replace(
+        "sub record_info { }", "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    worker = worker.replace('    });\n    1;', "    }, 'invalid');\n    1;")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(INVALID_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    if refusal is None:
+        assert [event[1] for event in result['events'] if event[0] == 'text'] == [
+            '1.25', 'abc', '-1', '0', '0.09', '1440.1', '1,5']
+
+
+def test_invalid_wrong_entry_refuses_without_input():
+    ui = ui_for(Node(identity='parent-window'))
+    ui.run('parent-kiosk-invalid-refused', '')
+
+
+def test_invalid_qualification_reuses_snapshot_and_ledger(tmp_path):
+    from parent_setup_qualification import RequestDurationQualification, KioskEntryQualification
+    journey = RequestDurationQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is INVALID_PLAN
+    assert RequestDurationQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+
+
+@pytest.mark.parametrize('conflict', ['kiosk_valid_duration', 'request_choices', 'allowance'])
+def test_invalid_mode_conflicts_refuse_before_vm(conflict):
+    import check_graphical_smoke
+    from owned_commands import CommandError
+    with pytest.raises(CommandError, match='duration-prerequisites'):
+        check_graphical_smoke.main(assets='/unused', provision_credentials=True,
+                                  request_duration=True, **{conflict: True})

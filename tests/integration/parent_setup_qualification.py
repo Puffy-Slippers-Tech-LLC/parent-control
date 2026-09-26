@@ -194,6 +194,16 @@ class KioskValidDurationQualification(KioskEntryQualification):
         return KioskValidDurationJourney(context, progress)
 
 
+class RequestDurationQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from request_duration import RequestDurationJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RequestDurationJourney(context, progress)
+
+
 class KioskEligibleChoicesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

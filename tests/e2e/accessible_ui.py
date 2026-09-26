@@ -85,7 +85,13 @@ FEEDBACK_READ_OPERATIONS = frozenset({
     'feedback-wrong-entry', 'feedback-reopen', 'feedback-reread', 'feedback-finished',
 })
 OPERATIONS |= FEEDBACK_READ_OPERATIONS
+KIOSK_INVALID_VALUES = {
+    'empty': '', 'letters': 'abc', 'negative': '-1', 'zero': '0',
+    'below': '0.09', 'over': '1440.1', 'comma': '1,5',
+}
 TEXT_VALUES = {
+    **{'kiosk-invalid-' + key: ('kiosk-custom-duration', value)
+       for key, value in KIOSK_INVALID_VALUES.items()},
     'kiosk-fraction': ('kiosk-custom-duration', '1.25'),
     'body-first': ('feedback-editor-input', 'Synthetic feedback first'),
     'body-second': ('feedback-editor-input', 'Synthetic feedback replacement'),
@@ -290,6 +296,11 @@ KIOSK_VALID_REQUESTS = {
        for action in ('select', 'read') if choice != 'fraction' or action == 'read'},
 }
 KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
+KIOSK_INVALID_OPERATIONS = {
+    f'kiosk-invalid-{key}-{action}': (key, action)
+    for key in KIOSK_INVALID_VALUES for action in ('ready', 'submit', 'read')
+}
+OPERATIONS |= frozenset(KIOSK_INVALID_OPERATIONS) | {'parent-kiosk-invalid-refused'}
 OPERATIONS |= KIOSK_VALID_OPERATIONS | {'parent-kiosk-valid-refused'}
 OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
@@ -297,7 +308,7 @@ KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
 KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHOICE_OPERATIONS
                             | frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS)
                             | {'kiosk-choice-refusals'})
-KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(
+KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPERATIONS) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
     if binding.startswith('kiosk-'))
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
@@ -3964,6 +3975,44 @@ class AccessibleUI:
         value = self.wait(estimate, 'kiosk-estimate')
         return {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns()}
 
+    def kiosk_invalid_choice(self, operation):
+        """Submit one finite invalid value; never authenticate or replay input."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(operation in KIOSK_INVALID_OPERATIONS, 'ui:kiosk-invalid-binding')
+        binding, action = KIOSK_INVALID_OPERATIONS[operation]
+
+        def read_form():
+            self.kiosk_valid_target('kiosk-custom-duration')
+            request = self.kiosk_request_form(
+                enabled=True, expected_selection=('child', 'fixture-child'),
+                duration_seconds=None, custom_text=KIOSK_INVALID_VALUES[binding])
+            require(request['approver'] == 'fixture-parent' and not request['allow_soft']
+                    and all(request[key] for key in (
+                        'child_selector_enabled', 'approver_selector_enabled', 'duration_enabled',
+                        'soft_choice_enabled', 'request_enabled', 'cancel_enabled')),
+                    'ui:kiosk-invalid-form')
+            return request
+
+        try:
+            before = read_form()
+            if action == 'submit':
+                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
+                self.invalidate_observation()
+            if action != 'ready':
+                def validation():
+                    root = self.snapshot_owned_target('kiosk-request-form', check_prompt=True)
+                    require(root is not None, 'ui:kiosk-invalid-form')
+                    status = self.snapshot_owned_target('kiosk-request-status', root=root,
+                                                        check_prompt=True)
+                    require(status is not None, 'ui:kiosk-validation-missing')
+                    return status.get_name() == 'Enter a number from 0.1 to 1440 minutes.'
+                self.wait(validation, 'kiosk-invalid-validation')
+                require(read_form() == before, 'ui:kiosk-invalid-preserved')
+            return {'request': before, 'validation': action != 'ready', 'no_authentication': True}
+        except BaseException:
+            self.input_uncertain = True
+            raise
+
     def kiosk_approver_baseline(self):
         """Prove at least one parent is listed, without using a disabled selector.
 
@@ -4984,13 +5033,16 @@ class AccessibleUI:
                                       enabled=False, inspect_only=True)
         elif operation == 'kiosk-child-choices-closed':
             result['request'] = self.collapse_kiosk_child_choices()
-        elif operation == 'parent-kiosk-valid-refused':
+        elif operation in ('parent-kiosk-valid-refused', 'parent-kiosk-invalid-refused'):
             try:
-                self.kiosk_valid_target('kiosk-duration-300')
+                self.kiosk_valid_target('kiosk-request-submit' if operation ==
+                                        'parent-kiosk-invalid-refused' else 'kiosk-duration-300')
             except UiError as error:
                 require(str(error) == 'ui:kiosk-valid-entry', 'ui:kiosk-valid-refusal')
             else:
                 raise UiError('ui:kiosk-valid-refusal-missing')
+        elif operation in KIOSK_INVALID_OPERATIONS:
+            result['invalid_choice'] = self.kiosk_invalid_choice(operation)
         elif operation in KIOSK_VALID_OPERATIONS:
             value = self.kiosk_valid_choice(operation)
             if value is not None:

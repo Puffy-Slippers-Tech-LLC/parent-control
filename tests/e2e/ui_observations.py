@@ -23,6 +23,9 @@ RESPONSE_BYTE_LIMITS = {
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
     'parent-kiosk-valid-refused': 'Refusing kiosk duration input from Parent management',
+    'parent-kiosk-invalid-refused': 'Refusing kiosk Request input from Parent management',
+    **{operation: 'Checking invalid kiosk duration: ' + binding + ' / ' + action
+       for operation, (binding, action) in accessible_ui.KIOSK_INVALID_OPERATIONS.items()},
     **{operation: 'Choosing and independently reading valid kiosk duration and app access'
        for operation in accessible_ui.KIOSK_VALID_OPERATIONS},
     **{operation: 'Reading idle Revoke availability and zero remaining balances'
@@ -257,7 +260,7 @@ class RequestObservation:
     form_count: int
     child: str
     approver: str
-    duration_seconds: int
+    duration_seconds: int | None
     custom_text: str | None
     allow_soft: bool
     child_selector_enabled: bool
@@ -274,10 +277,14 @@ class RequestObservation:
         fields = tuple(cls.__dataclass_fields__)
         require(type(value) is dict and set(value) == set(fields), 'ui:request')
         observation = cls(**value)
+        invalid = accessible_ui.KIOSK_INVALID_OPERATIONS.get(operation)
         require(type(observation.surface) is str and type(observation.form_count) is int
                 and type(observation.child) is str and type(observation.approver) is str
-                and type(observation.duration_seconds) is int
-                and (observation.custom_text is None or observation.custom_text == '1.25')
+                and (type(observation.duration_seconds) is int or (
+                    invalid is not None and observation.duration_seconds is None))
+                and (observation.custom_text is None or observation.custom_text == '1.25'
+                     or invalid is not None and observation.custom_text ==
+                     accessible_ui.KIOSK_INVALID_VALUES[invalid[0]])
                 and all(type(getattr(observation, field)) is bool for field in (
                     'allow_soft', 'child_selector_enabled', 'approver_selector_enabled',
                     'duration_enabled', 'soft_choice_enabled', 'request_enabled',
@@ -285,14 +292,14 @@ class RequestObservation:
                 and type(observation.message) is str and observation.mute is None,
                 'ui:request')
         valid = accessible_ui.KIOSK_VALID_REQUESTS.get(operation)
-        enabled = operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS or valid is not None
+        enabled = operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS or valid is not None or invalid is not None
         require(enabled or operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS, 'ui:request-operation')
         child, approver = {**accessible_ui.KIOSK_ACCOUNT_REQUESTS,
                            **accessible_ui.KIOSK_DISABLED_REQUESTS}.get(
             operation, ('existing-fixture-child', 'other-fixture-parent'))
         no_child = operation == 'kiosk-no-child-form'
-        if valid is not None:
+        if valid is not None or invalid is not None:
             child, approver = 'fixture-child', 'fixture-parent'
         no_approver = operation == 'kiosk-no-approver-form'
         if no_child:
@@ -301,8 +308,8 @@ class RequestObservation:
             approver = 'none'
         require(observation == cls(
             surface='kiosk', form_count=1, child=child,
-            approver=approver, duration_seconds=valid[0] if valid else 1800,
-            custom_text=valid[1] if valid else None,
+            approver=approver, duration_seconds=None if invalid else valid[0] if valid else 1800,
+            custom_text=accessible_ui.KIOSK_INVALID_VALUES[invalid[0]] if invalid else valid[1] if valid else None,
             allow_soft=valid[2] if valid else False, child_selector_enabled=True,
             approver_selector_enabled=enabled, duration_enabled=enabled,
             soft_choice_enabled=enabled, request_enabled=enabled, cancel_enabled=True,
@@ -641,6 +648,15 @@ class UiObservations:
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],
                     'ui:parent-save-response')
             expected['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
+        if operation in accessible_ui.KIOSK_INVALID_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'invalid_choice'}, 'ui:response')
+            value = result['invalid_choice']
+            require(type(value) is dict and set(value) == {'request', 'validation', 'no_authentication'}
+                    and value['no_authentication'] is True
+                    and value['validation'] is (accessible_ui.KIOSK_INVALID_OPERATIONS[operation][1] != 'ready'),
+                    'ui:kiosk-invalid-response')
+            RequestObservation.from_request(value['request'], operation=operation)
+            expected['invalid_choice'] = value
         if operation in accessible_ui.KIOSK_VALID_REQUESTS:
             require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
             value = result['valid_choice']

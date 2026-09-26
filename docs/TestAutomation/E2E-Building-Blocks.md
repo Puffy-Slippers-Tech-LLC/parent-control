@@ -202,6 +202,13 @@ usernames. The public-UI connection must be qualified for the selected greeter
 or desktop. Extending the current fixed Parent/other-child routing is part of
 the affected entry block; that connection metadata supplies no product evidence.
 
+`greeter_account` uses bounded public logind reads. If a listed session disappears
+before its properties can be read, a fresh successful inventory must confirm
+its absence before the incomplete scan is discarded. The next scan rechecks
+the sole active local greeter; a still-listed failed read, failed inventory,
+ambiguity or deadline expiry refuses. No graphical input is replayed, and the
+destination still requires an independent public UI observation.
+
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
 | GDM08 | A | Observe the selected account label, focused showing password role and hidden account list. This is a nonsecret prompt observation only; it cannot authorize password input and never reads password contents. | `AccessibleUI.greeter_prompt()` uses the scoped semantic GDM adapter to resolve the sole greeter, exact prepared recipient and protected password node while rejecting visible account rows. `check_e2e_gdm_recipient` installed-qualifies the Parent prompt; `GdmProductFreeJourney` / `check_e2e_gdm_product_free` qualifies the same protected Parent prompt on the declared product-free baseline. Focused tests reject wrong/duplicate recipients, missing/duplicate/unfocused/nonempty/unmasked fields and list overlap without traversing or reading password text. | pending; prepared installed and product-free Parent prompts qualified |
@@ -394,7 +401,7 @@ worker binding `approval` for automatic exit; `auth_result.PLAN` and `immediate`
 for offered exit; `kiosk_rejection.PLAN` and `rejection` for explicit rejection
 and independent preserved-form readback, including separate password-free Cancel.
 Reuse unchanged rejection/Cancel evidence below. The fixed FLOW05/06 composition
-is qualified below; FLOW07 and complete customer scenarios remain separately
+and FLOW07 are qualified below; complete customer scenarios remain separately
 queued. Added host checks retain
 the existing compatible unit/cleanup classifications: private tree/recorder
 fixtures and bounded owned Perl doubles, with no shared bus, display, VM or
@@ -579,7 +586,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. `request_flow.prepared_request` / `onpc_request_flow::prepare` qualify the explicit kiosk child/parent, custom 1.25-minute, soft-included binding for independently open and new entry; see [prepared request qualification](#prepared-request-qualification). | pending; declared kiosk open/new binding ready; other choices and overlay pending |
 | FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its surface-specific automatic exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic). `kiosk_approved_flow.approved_request` / `onpc_request_flow::approve`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). | fixed kiosk 75-second/soft-included binding ready; other choices and overlay pending |
 | FLOW06 | C | Obtain time through kiosk from an existing GDM screen and return to GDM. | FLOW04(kiosk) → FLOW05. `kiosk_approved_flow.obtain_time` / `onpc_request_flow::obtain_time`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). Child login/unlock is deliberately a later step. | fixed kiosk remembered-choice binding ready; other choices pending |
-| FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | pending |
+| FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. `approval_flow.rejected_request` / `onpc_request_flow::reject`; see [rejected kiosk flow qualification](#rejected-kiosk-flow-qualification). The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | fixed kiosk 75-second/soft-included rejection and Cancel binding ready; other choices and overlay pending |
 | FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | APP01 → APP02 → APP03 only for expected usable access. | pending |
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | FLOW15(entry=retained) → APP04(compare) → APP03. | pending |
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
@@ -645,6 +652,44 @@ Host checks cover exact worker order, refusal before later input, unsupported
 bindings and durable recorder/cleanup failures. Existing compatible unit and
 cleanup classifications remain valid: private trees and bounded owned Perl
 doubles, with no shared bus, display, VM, cache or heavyweight fixture build.
+
+#### Rejected kiosk flow qualification
+
+`approval_flow.REJECTION_PLAN` / `CANCEL_PLAN`, `ApprovalFlowJourney` and
+`onpc_request_flow::run(exchange, 'flow-rejection' | 'flow-cancel')` passed
+`tools/run-tests integration check_e2e_approval_flow` in run
+`20260926T175707Z-78d5f0fd`. Each branch used a separate restored attempt with
+independent open/new entry, wrong-entry refusals and explicit
+`fixture-child`, `fixture-parent`, 75 seconds (`1.25` minutes), soft apps included.
+The MATE provider tuple remains Ubuntu 26.04, `1.26.1-6`, `en_US.UTF-8`,
+keyboard `[["xkb", "us"]]`.
+
+FLOW07's `rejected_request(outcome, child, approver, duration_seconds, allow_soft)`
+and worker `reject` accept only that fixed binding and `rejection` or `cancel`.
+They observe explicit wrong-password rejection or password-free Cancel, then
+independently compare the no-error open form with its saved before-observation.
+They end at `flow-preserved`, without retry or exit. Their caller can inspect
+the remaining form before separately composing FLOW05.
+
+The qualification explicitly composes a later FLOW05: a fresh read and a
+distinct challenge precede two new recipient proofs, one correct submission,
+explicit success and automatic usable-GDM return. `UiObservations` permits
+this transition after completed rejection only through the fresh form read;
+reused/replaced challenges, failed reads, uncertain input and secret replay
+remain refusals. Worker stages use the `kiosk-approval-flow` namespace and
+separate single-use rejection/approval secret bindings. Repeated approvals
+and other request values remain unqualified.
+
+Both branches passed private capture reconciliation, collection, owned cleanup
+and baseline restoration. The affected FLOW05/06 regression
+`check_e2e_kiosk_approved_flow` passed separately in
+`20260926T180713Z-246238d4` with the same terminal guarantees. These are
+capability qualifications, with no complete-scenario credit.
+Host coverage retains exact worker order, refusal before later input, preserved
+choices, fresh challenges, bounded session-discovery races and terminal errors.
+Added tests retain the existing compatible unit/cleanup classifications: private
+Python state, recorder fixtures and bounded owned Perl doubles, with no shared
+paths, caches, buses, displays or heavy fixture construction.
 
 #### Prepared request qualification
 

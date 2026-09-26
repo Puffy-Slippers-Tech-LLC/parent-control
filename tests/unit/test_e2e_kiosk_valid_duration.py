@@ -27,6 +27,7 @@ from auth_result import PLAN as AUTH_RESULT_PLAN
 from kiosk_approved_flow import PLAN as APPROVED_FLOW_PLAN, approved_request, obtain_time
 from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
 from restricted_station import PLAN as STATION_PLAN
+import approval_flow
 
 
 def valid_form():
@@ -860,6 +861,96 @@ def test_approved_flow_composes_leaves_and_owned_snapshot(tmp_path):
     journey = KioskApprovedFlowQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
     assert journey.plan is APPROVED_FLOW_PLAN
     assert KioskApprovedFlowQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+
+
+@pytest.mark.parametrize('outcome', ['rejection', 'cancel'])
+@pytest.mark.parametrize('refusal', [None, 'flow-before', 'flow-preserved', 'approval-open',
+                                   'approval-qualified', 'approval-rechecked', 'approval-success'])
+def test_flow07_worker_preserves_form_before_new_approval(monkeypatch, outcome, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_request_flow').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    worker = worker.replace("$stage eq 'station-branch'", "$stage =~ /station-branch\\z/")
+    worker = worker.replace('    });', "    }, 'flow-" + outcome + "');")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(approval_flow.plan(outcome).screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    # Parent login, optional wrong submission, then correct submission only after proof.
+    assert sum(event[0] == 'secret' for event in result['events']) == (
+        1 + int(outcome == 'rejection' and refusal != 'flow-before')
+        + int(refusal in (None, 'approval-success')))
+
+
+@pytest.mark.parametrize('outcome', ['rejection', 'cancel'])
+def test_flow07_compares_preserved_choices_and_uses_owned_snapshot(tmp_path, monkeypatch, outcome):
+    from parent_setup_qualification import (ApprovalFlowRejectionQualification,
+                                           ApprovalFlowCancelQualification, KioskEntryQualification)
+    cls = ApprovalFlowRejectionQualification if outcome == 'rejection' else ApprovalFlowCancelQualification
+    journey = cls.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan == approval_flow.plan(outcome)
+    assert cls.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+    monkeypatch.setattr(RequestFlowJourney, 'check_settings', lambda *args: None)
+    observed = {'ui': {'valid_choice': {'request': dict(CHOICES)}}, 'comparison': {}}
+    with pytest.raises(EvidenceError, match='changed-form'):
+        journey.check_settings('flow-preserved', observed)
+    journey.check_settings('flow-before', observed)
+    journey.check_settings('flow-preserved', observed)
+    assert observed['comparison']['preserved_choices'] is True
+    observed['ui']['valid_choice']['request']['allow_soft'] = False
+    with pytest.raises(EvidenceError, match='changed-form'):
+        journey.check_settings('flow-preserved', observed)
+    stages = approval_flow.rejected_request(outcome=outcome, **CHOICES)
+    assert list(stages)[-1] == 'flow-preserved'
+    assert not any('approval' in stage or 'returned' in stage for stage in stages)
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-form', 'same-challenge', 'changed-challenge', 'failed-read'])
+def test_new_approval_after_rejection_requires_fresh_form_and_challenge(fault):
+    observer = UiObservations(Mock())
+    current = 'a'
+    def call(_args, operation, **kwargs):
+        approval = ({'rejected': True, 'cancelled': True, 'no_error': True}
+                    if operation.endswith('submit-rejection') else {'challenge_id': current * 64})
+        value = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                 'approval': approval}
+        if operation not in ('kiosk-mate-open', 'kiosk-mate-rejection-open'):
+            value['boot_sha256'] = 'c' * 64
+        return json.dumps(value).encode(), []
+    observer.call = Mock(side_effect=call)
+    for operation in accessible_ui.MATE_REJECTION_ORDER:
+        observer.observe(operation)
+    real_observe = observer._observe
+    # Exercise the real order wrapper; the existing form decoder is tested separately.
+    def form_read(operation):
+        if operation == 'kiosk-valid-fraction-soft-read':
+            if fault == 'failed-read':
+                raise EvidenceError('form-failed')
+            return {'valid_choice': {'request': dict(CHOICES)}}
+        return real_observe(operation)
+    observer._observe = form_read
+    if fault == 'failed-read':
+        with pytest.raises(EvidenceError):
+            observer.observe('kiosk-valid-fraction-soft-read')
+    elif fault != 'missing-form':
+        observer.observe('kiosk-valid-fraction-soft-read')
+    current = 'a' if fault == 'same-challenge' else 'b'
+    if fault in ('missing-form', 'same-challenge', 'failed-read'):
+        with pytest.raises(EvidenceError, match='ui:'):
+            observer.observe('kiosk-mate-open')
+        with pytest.raises(EvidenceError, match='ui:'):
+            observer.observe('kiosk-mate-open')
+    else:
+        observer.observe('kiosk-mate-open')
+        if fault == 'changed-challenge':
+            current = 'c'
+            with pytest.raises(EvidenceError, match='replacement'):
+                observer.observe('kiosk-mate-qualified')
+        else:
+            observer.observe('kiosk-mate-qualified')
+            observer.observe('kiosk-mate-rechecked')
 
 
 @pytest.mark.parametrize('fault', [None, 'changed', 'nonempty', 'unfocused', 'uncertain'])

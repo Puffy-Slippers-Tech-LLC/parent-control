@@ -31,6 +31,7 @@ APIS = {
     'journey_checks': {'allowed_app_rows', 'installed_accounts'},
     'request_flow': {'prepared_request'},
     'kiosk_approved_flow': {'approved_request', 'obtain_time'},
+    'approval_flow': {'rejected_request'},
     'kiosk_valid_duration': {'KioskValidDurationJourney'},
     'package_install': {'check_install_result'},
     'package_journey': {'record_package_journey'},

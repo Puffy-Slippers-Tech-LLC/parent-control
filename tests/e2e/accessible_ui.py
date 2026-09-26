@@ -5561,18 +5561,40 @@ def greeter_account(*, station_branch=False, station_required=False):
     def call(*args):
         remaining = deadline - time.monotonic()
         require(remaining > 0, 'ui:timeout:greeter-identity')
-        return subprocess.run(['/usr/bin/loginctl', *args], capture_output=True,
-                              text=True, check=True, timeout=min(5, remaining)).stdout
-    while True:
+        try:
+            return subprocess.run(['/usr/bin/loginctl', *args], capture_output=True,
+                                  text=True, check=True, timeout=min(5, remaining)).stdout
+        except subprocess.SubprocessError:
+            # Fixed operation only; logind errors can contain account details.
+            print('ui:greeter-read-failed:' + args[0], file=sys.stderr, flush=True)
+            raise
+
+    def sessions():
         rows = call('list-sessions', '--no-legend', '--no-pager').splitlines()
         require(len(rows) <= 32, 'ui:session-bound')
+        identities = [row.split()[0] if row.split() else '' for row in rows]
+        require(all(re.fullmatch(r'[a-zA-Z0-9]+', session) for session in identities),
+                'ui:session-id')
+        require(len(identities) == len(set(identities)), 'ui:session-id')
+        return identities
+
+    while True:
         found = []
-        for row in rows:
-            session = row.split()[0]
-            import re
-            require(re.fullmatch(r'[a-zA-Z0-9]+', session), 'ui:session-id')
-            props = dict(line.split('=', 1) for line in call('show-session', session,
-                '-p', 'Class', '-p', 'Active', '-p', 'Remote', '-p', 'Type', '-p', 'Seat', '-p', 'User').splitlines())
+        for session in sessions():
+            try:
+                raw = call('show-session', session, '-p', 'Class', '-p', 'Active',
+                           '-p', 'Remote', '-p', 'Type', '-p', 'Seat', '-p', 'User')
+            except subprocess.CalledProcessError:
+                # A session can disappear between list and show during logout.
+                # Confirm absence through a fresh successful inventory, then
+                # discard the incomplete scan. A still-listed session, failed
+                # inventory or timeout remains fatal; no input is retried.
+                if session in sessions():
+                    raise
+                print('ui:greeter-session-disappeared', file=sys.stderr, flush=True)
+                found = []
+                break
+            props = dict(line.split('=', 1) for line in raw.splitlines())
             if ((station_branch or props.get('Class') == 'greeter') and props.get('Active') == 'yes'
                     and props.get('Remote') == 'no' and props.get('Seat') == 'seat0'
                     and props.get('Type') in ('wayland', 'x11')):
@@ -5595,7 +5617,7 @@ def greeter_account(*, station_branch=False, station_required=False):
                 return pwd.getpwuid(found[0][0]), found[0][1]
             return pwd.getpwuid(found[0])
         # SSH can become ready before GDM after an installed snapshot boots.
-        # Retry only absence, never an ambiguous identity or a failed read.
+        # Repeat only confirmed absence, never ambiguity or an unresolved read.
         time.sleep(min(.2, remaining))
 
 

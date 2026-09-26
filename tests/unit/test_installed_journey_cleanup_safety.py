@@ -28,6 +28,19 @@ import kiosk_approval
 import auth_result
 import kiosk_approved_flow
 import kiosk_rejection
+import approval_flow
+
+
+@pytest.mark.parametrize('failure', [0, 1])
+def test_flow07_selector_runs_separate_owned_attempts_and_stops_after_failure(monkeypatch, failure):
+    import check_e2e_approval_flow as selector
+    smoke = Mock(side_effect=[failure, 0])
+    monkeypatch.setattr(selector, 'smoke', smoke)
+    monkeypatch.setattr(selector, 'named_input', lambda: 'owned-input')
+    assert selector.main() == failure
+    assert [call.kwargs for call in smoke.call_args_list] == [
+        dict(assets='owned-input', provision_credentials=True, approval_flow=outcome)
+        for outcome in (('rejection',) if failure else ('rejection', 'cancel'))]
 import restricted_station
 
 
@@ -156,7 +169,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
                                  kiosk_escape.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN,
                                  kiosk_rejection.PLAN, auth_result.PLAN, kiosk_approved_flow.PLAN,
-                                 restricted_station.PLAN],
+                                 restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -166,7 +179,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'challenges', 'app-rows', 'feedback-read', 'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',
-                              'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station'])
+                              'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
+                              'flow-rejection', 'flow-cancel'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):

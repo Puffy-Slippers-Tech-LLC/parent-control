@@ -85,7 +85,8 @@ sub enter_kiosk_mate_password {
         my $binding = $reject ? 'rejection' : 'approval';
         my $id = 'kiosk-mate-' . $binding;
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
-            && ($journey->{prefix} // '') eq 'kiosk-' . $binding
+            && (($journey->{prefix} // '') eq 'kiosk-' . $binding
+                || ($journey->{prefix} // '') eq 'kiosk-approval-flow')
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = 1;

@@ -218,6 +218,30 @@ def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
         raise
 
 
+def test_existing_window_switch_entry_uses_public_owned_surfaces(launch_ui):
+    # Reuses this module's private display/bus and fixture-owned preview process.
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+
+    launch_ui('parent_component_preview', wait_for_application=False)
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.PARENT_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    ui.id_target('parent-window')
+    ui.wait(lambda: ui.existing_window_active('parent'), 'parent-active')
+    assert ui.window_switch_proof('parent')['active'] is True
+    with pytest.raises(module.UiError, match='switch-absent'):
+        ui.window_switch_ready('feedback', 'parent')
+    ui.run('feedback-open', '')
+    root = ui.existing_window('feedback')
+    assert ui.existing_window_active('feedback', expected=root) is not None
+    with pytest.raises(module.UiError, match='switch-source'):
+        ui.window_switch_ready('feedback', 'parent')
+
+
 def test_format_adapter_reads_real_public_ranges(launch_ui):
     # Same private preview/display and owned-process fixture as the reviewed
     # adapter tests; no new shared resource or scheduler exclusion.

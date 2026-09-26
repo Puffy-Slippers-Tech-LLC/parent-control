@@ -688,6 +688,16 @@ class TextQualification(KioskEntryQualification):
         return TextJourney(context, progress)
 
 
+class WindowSwitchQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from window_switch import WindowSwitchJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return WindowSwitchJourney(context, progress)
+
+
 class FormatQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

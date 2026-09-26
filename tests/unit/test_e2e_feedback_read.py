@@ -26,6 +26,169 @@ from ui_observations import FeedbackStateObservation
 # doubles, pytest-owned paths and waited, private Perl subprocesses only.
 # FEED09 additions use those same resources and require no scheduler change.
 # UI24/FEED04 additions retain the same in-memory and private Perl resources.
+# DESK10 uses the same isolated doubles and waited private Perl processes.
+
+
+@pytest.mark.parametrize('fault', ['', 'absent', 'wrong-owner', 'duplicate', 'hidden',
+                                  'disabled', 'already-active', 'focus-lost', 'uncertain'])
+def test_existing_window_preparation_refuses_unsafe_or_uncertain_targets(fault):
+    ui, parent, dialog, _ = synthetic_feedback_ui()
+    dialog.states.discard('active')
+    parent.states.add('active')
+    dialog.bus, dialog.path = ':1.123', '/org/a11y/atspi/accessible/42'
+    if fault == 'absent':
+        parent.children.clear()
+    elif fault == 'wrong-owner':
+        ui.api.get_desktop(0).identity = 'unrelated.application'
+    elif fault == 'duplicate':
+        parent.children.append(Node(identity='feedback-dialog'))
+    elif fault in ('hidden', 'disabled'):
+        dialog.states.discard('showing' if fault == 'hidden' else 'sensitive')
+    elif fault == 'already-active':
+        dialog.states.add('active')
+    elif fault == 'focus-lost':
+        parent.states.discard('active')
+    elif fault == 'uncertain':
+        ui.input_uncertain = True
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.window_switch_ready('feedback', 'parent')
+    else:
+        assert ui.window_switch_ready('feedback', 'parent')['active'] is False
+        with pytest.raises(accessible_ui.UiError, match='switch-active'):
+            ui.window_switch_proof('feedback')
+    dialog.component.grab_focus.assert_not_called()
+
+
+def test_window_switch_public_proof_decoder_and_retained_identity(tmp_path):
+    import copy
+    from window_switch import WindowSwitchJourney
+    from ui_observations import UiObservations
+    ui, _, dialog, controls = synthetic_feedback_ui()
+    dialog.bus, dialog.path = ':1.123', '/org/a11y/atspi/accessible/42'
+    value = ui.window_switch_proof('feedback')
+    reader = UiObservations(Mock())
+    reply = {'operation': 'switch-feedback', 'outcome': 'passed', 'interface': 'AT-SPI',
+             'window': value}
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    assert reader.observe('switch-feedback') == reply
+    journey = WindowSwitchJourney(SimpleNamespace(directory=tmp_path), Mock())
+    with pytest.raises(EvidenceError, match='window-or-draft-changed'):
+        journey.check_settings('switch-feedback', {'ui': reply})
+    journey.check_settings('switch-draft-before', {'ui': copy.deepcopy(reply)})
+    ready = copy.deepcopy(reply)
+    ready['operation'] = 'switch-feedback-ready'
+    ready['window'].pop('feedback')
+    ready['window']['active'] = False
+    reader.call.return_value = (json.dumps(ready).encode(), [])
+    assert reader.observe('switch-feedback-ready') == ready
+    journey.check_settings('switch-feedback-ready', {'ui': ready})
+    journey.check_settings('switch-feedback', {'ui': reply})
+    value['endpoint'][1] += '1'
+    with pytest.raises(EvidenceError, match='window-or-draft-changed'):
+        journey.check_settings('switch-feedback-again', {'ui': reply})
+    value['active'] = False
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    with pytest.raises(EvidenceError, match='switch-response'):
+        reader.observe('switch-feedback')
+    controls['feedback-editor-input'].text.value = 'X' * controls['feedback-editor-input'].text.count
+    with pytest.raises(accessible_ui.UiError, match='nonempty-draft'):
+        ui.window_switch_proof('feedback')
+
+
+def test_window_switch_absent_target_never_launches(monkeypatch):
+    ui, _, dialog, _ = synthetic_feedback_ui()
+    dialog.bus, dialog.path = ':1.123', '/org/a11y/atspi/accessible/42'
+    ui.license_viewer_snapshot = Mock(return_value=(None, None, None))
+    launch = Mock(side_effect=AssertionError('must not launch'))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', launch)
+    assert ui.window_switch_operation('switch-viewer-absent')['binding'] == 'feedback'
+    launch.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-owner', 'ambiguous', 'unrelated', 'hidden', 'wrong-pid'])
+def test_window_switch_viewer_reacquires_inactive_public_document(fault):
+    content = Node(identity='view', role='text')
+    text = 'GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007'
+    content.get_text_iface = lambda: content
+    window = Node(children=[content])
+    owner = Node(identity='org.gnome.TextEditor', role='application', children=[window])
+    ui = ui_for(Node(role='desktop frame', children=[owner]))
+    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(text),
+                                  get_text=lambda _, start, end: text[start:end])
+    if fault == 'wrong-owner':
+        owner.identity = 'unrelated'
+    elif fault == 'ambiguous':
+        owner.children.append(Node())
+    elif fault == 'unrelated':
+        text = 'Unrelated document'
+    elif fault == 'hidden':
+        content.states.discard('showing')
+    elif fault == 'wrong-pid':
+        content.get_process_id = lambda: 999
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.existing_window('viewer')
+        window.component.grab_focus.assert_not_called()
+    else:
+        with pytest.raises(accessible_ui.UiError, match='document-owner'):
+            ui.read_document(content, 'gpl-heading', maximum=1024)
+        assert ui.existing_window('viewer') is window
+        assert ui.existing_window_active('viewer') is None
+        window.states.add('active')
+        assert ui.existing_window_active('viewer') is window
+        window.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'switch-viewer-launch', 'switch-parent',
+                                  'switch-viewer-ready', 'switch-feedback-ready',
+                                  'switch-viewer', 'switch-feedback', 'switch-viewer-absent'])
+def test_window_switch_worker_preserves_order_and_stops_before_later_input(fault):
+    from window_switch import STAGES
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type'; }
+package main;
+require onpc_feedback_read;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_read::run_window_switch(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = ['parent-selected', *STAGES]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+    if not fault:
+        assert result['events'].count('alt-tab') == 6
+    elif fault.endswith('-ready'):
+        assert result['events'][-1] != 'alt-tab'
+
+
+def test_window_switch_selector_uses_guarded_envelope(monkeypatch):
+    import check_e2e_window_switch
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_window_switch, 'smoke', run)
+    assert check_e2e_window_switch.main() == 0
+    assert run.call_args.kwargs['window_switch'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(window_switch=True)
+    with pytest.raises(CommandError, match='window-switch-prerequisites'):
+        smoke.main(window_switch=True, format_qualification=True)
 
 
 @pytest.mark.parametrize('fault', ['', 'missing', 'stalled', 'mixed', 'private', 'range'])

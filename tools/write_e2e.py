@@ -144,6 +144,23 @@ def session_progress(root, state, count):
             f"\033[1mSession [{state['task_sessions']}]\033[22m: {summary}"]
 
 
+def task_progress(run, steps):
+    """Refresh the current task recap without changing durable controller lines."""
+    checkpoint = run / 'checkpoint.json'
+    if not steps or steps[-1].get('replaces') or not checkpoint.exists():
+        return steps
+    state = json.loads(checkpoint.read_text())
+    if ('started_at' not in state
+            or steps[-1]['key'] not in state.get('progress_keys', [])):
+        return steps
+    duration = state.get('completed_at', time.time()) - state['started_at']
+    summary = (f" (sessions={state['task_sessions']}, "
+               f"duration={format_duration(duration, short=True)})")
+    return [dict(step, lines=[step['lines'][0] + summary, *step['lines'][1:]])
+            if not step.get('replaces') and step['key'] in state['progress_keys']
+            else step for step in steps]
+
+
 def session_prompt(state):
     task = state['task_id']
     common = f"""
@@ -522,11 +539,13 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 completed += 1
             state = updated
             state.pop('worktree_before', None)
+            if state['phase'] == 'complete':
+                state['completed_at'] = time.time()
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'complete':
                 keys = state['progress_keys']
                 completions.append((task, state['task_sessions'],
-                                    time.time() - state['started_at'], keys, progress_lines[0]))
+                                    state['completed_at'] - state['started_at'], keys, progress_lines[0]))
                 if tasks > 1 or completed > 1:
                     compact_completions()
         if (run / 'stop').exists():

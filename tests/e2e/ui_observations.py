@@ -209,6 +209,8 @@ OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret 
                          for operation in accessible_ui.TEXT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Applying and independently reading synthetic range formatting'
                          for operation in accessible_ui.FORMAT_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Activating an existing window and independently checking its public state'
+                         for operation in accessible_ui.WINDOW_SWITCH_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying kiosk approval and its explicit public result'
                          for operation in accessible_ui.MATE_APPROVAL_OPERATIONS})
 OPERATION_LABELS.update({
@@ -698,6 +700,29 @@ class UiObservations:
                 'synthetic-first' if operation in accessible_ui.FEEDBACK_PRIVACY_OPERATIONS
                 else 'initial-empty'), 'ui:feedback-response')
             expected['feedback'] = result['feedback']
+        if operation in accessible_ui.WINDOW_SWITCH_OPERATIONS:
+            if operation == 'switch-viewer-launch':
+                expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
+            require(type(result) is dict and set(result) == {*expected, 'window'},
+                    'ui:switch-response')
+            value = result['window']
+            ready = operation.endswith('-ready')
+            stage = operation[:-6] if ready else operation
+            binding = ('parent' if stage in ('switch-parent-before', 'switch-parent') else
+                       'viewer' if stage in ('switch-viewer-launch', 'switch-viewer',
+                           'switch-viewer-again', 'switch-viewer-close') else 'feedback')
+            require(type(value) is dict and set(value) == {
+                'binding', 'pid', 'endpoint', 'active', *(['feedback'] if binding == 'feedback' and not ready else [])}
+                and value['binding'] == binding and value['active'] is (not ready)
+                and type(value['pid']) is int and value['pid'] > 0
+                and type(value['endpoint']) is list and len(value['endpoint']) == 2
+                and all(type(part) is str and 0 < len(part) <= 256 for part in value['endpoint'])
+                and value['endpoint'][0].startswith(':') and value['endpoint'][1].startswith('/'),
+                'ui:switch-response')
+            if binding == 'feedback' and not ready:
+                FeedbackObservation.from_value(value['feedback'])
+                require(value['feedback']['draft'] == 'synthetic-first', 'ui:switch-response')
+            expected['window'] = value
         if operation in ('format-before', 'format-read', 'format-reopen'):
             projection = [
                 {'start': 0, 'end': 9, 'weight': 'normal' if operation == 'format-before' else 'bold'},

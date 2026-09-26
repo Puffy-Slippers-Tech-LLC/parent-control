@@ -8,6 +8,7 @@ use onpc_journey ();
 use onpc_parent ();
 
 my %values = (
+    'kiosk-fraction' => '1.25',
     'body-first' => 'Synthetic feedback first',
     'body-second' => 'Synthetic feedback replacement', 'body-clear' => '',
     'reply-first' => 'first@example.invalid',

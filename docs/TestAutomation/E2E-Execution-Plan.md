@@ -19,12 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **012c — [Choose valid kiosk durations and soft-app access](E2E-Tasks/012c-kiosk-valid-duration.md)**.
+Next task: **012a — [Reject invalid kiosk durations](E2E-Tasks/012a-request-duration.md)**.
 
-Qualify REQUEST04/05/06/08 kiosk valid durations, estimates and soft-app choice.
-Bind preset, valid fractional and Rest-of-day choices through the shared request
-form, independently read estimates and app choice, then exit without authentication.
-Keep invalid-input qualification and complete scenarios in their own later tasks.
+Qualify invalid custom-duration validation with otherwise enabled Request,
+preserved form and no authentication. Reuse 012c's qualified valid controls,
+independent estimates and soft-app choices; complete scenarios remain separate.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

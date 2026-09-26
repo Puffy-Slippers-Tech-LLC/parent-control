@@ -20,6 +20,7 @@ import session_control
 import desktop_session
 import kiosk_entry
 import kiosk_eligible_choices
+import kiosk_valid_duration
 import kiosk_no_child
 import kiosk_no_approver
 import request_choices
@@ -123,7 +124,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  parent_terminal_provider.PLAN, license_viewer_provider.PLAN,
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
                                  feedback_read.PLAN, text_qualification.PLAN, allowance_presets.PLAN,
-                                 allowance.PLAN, time_explanation.PLAN],
+                                 allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -131,7 +132,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-no-approver', 'no-parent-case',
                               'terminal-provider', 'license-viewer-provider', 'repeated-operations',
                               'challenges', 'app-rows', 'feedback-read', 'text', 'allowance-presets',
-                              'allowance', 'time-explanation'])
+                              'allowance', 'time-explanation', 'kiosk-valid-duration'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):

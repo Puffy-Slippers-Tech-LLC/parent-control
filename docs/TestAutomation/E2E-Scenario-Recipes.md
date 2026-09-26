@@ -406,13 +406,15 @@ absent form and usable GDM.
 
 ### E2E-016
 
-Implementation status: Cases 50 and 51 use `restricted_station.PLAN` /
-`DENIED_PLAN` and `onpc_restricted_station::run(exchange[, 'denied'])`.
-Case 51 passed in `20260926T183413Z-1058d7dc`, including FLOW07's preserved-form
-comparison, all three repeated restriction checks and Cancel to usable GDM.
-Case 50's affected regression passed in `20260926T183900Z-53757cd3`.
-Both passed collection, owned cleanup and baseline restoration. Case 52 remains
-pending. About/Help and report restrictions remain under
+Implementation status: Cases 50–52 use `restricted_station.PLAN`,
+`DENIED_PLAN` and `CANCELLED_PLAN`, with
+`onpc_restricted_station::run(exchange[, 'denied' | 'cancelled'])`.
+Case 52 passed in `20260926T185046Z-2140b0d4`, including password-free approval
+Cancel, FLOW07's preserved-form comparison, all three repeated restriction checks
+and form Cancel to usable GDM. Affected cases 50 and 51 passed separately in
+`20260926T185518Z-026edc31` and `20260926T185927Z-3a6cff95`.
+All passed collection, owned cleanup and baseline restoration.
+About/Help and report restrictions remain under
 E2E-042 and E2E-045, outside this family's ordinary shortcut assertions.
 
 **Restricted request station.** Cases 50, 51, 52.

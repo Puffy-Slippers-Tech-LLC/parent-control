@@ -11,7 +11,7 @@ use onpc_station ();
 sub run {
     onpc_progress::operation('Checking request-station restrictions and the declared outcome');
     my ($exchange, $outcome) = @_;
-    die 'station:arguments' unless (@_ == 1 || @_ == 2 && $outcome eq 'denied')
+    die 'station:arguments' unless (@_ == 1 || @_ == 2 && ($outcome eq 'denied' || $outcome eq 'cancelled'))
         && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => $outcome ? 'kiosk-approval-flow' : 'kiosk-approval', review => 0);
@@ -27,7 +27,8 @@ sub run {
     onpc_request_flow::prepare($journey, 'open', 'open', 'default',
         'fixture-child', 'fixture-parent', 75, 1);
     if ($outcome) {
-        onpc_request_flow::reject($journey, 'rejection', 'fixture-child', 'fixture-parent', 75, 1);
+        onpc_request_flow::reject($journey, $outcome eq 'denied' ? 'rejection' : 'cancel',
+            'fixture-child', 'fixture-parent', 75, 1);
         onpc_station::restrictions($journey, 'after-');
         for my $stage ('new-cancel', 'new-returned') {
             $journey->consume_observation($stage, $journey->seen($stage));

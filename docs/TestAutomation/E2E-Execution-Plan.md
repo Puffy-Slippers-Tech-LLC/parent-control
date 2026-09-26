@@ -19,14 +19,14 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **020 — [Qualify immediate approved kiosk exit](E2E-Tasks/020-auth-result.md)**.
+Next task: **021a — [Compose successful kiosk approval and time request](E2E-Tasks/021a-kiosk-approved-flow.md)**.
 
-Qualify the offered immediate exit after approval and compose the kiosk outcome
-set. Reuse 020a's automatic approved exit (`20260926T065928Z-8c15b645`) and
-020b's wrong-password rejection/Cancel and separate password-free Cancel
-(report run `20260926T154532Z-4ed66f34`), rerunning affected branches only.
-The latter passed independent entry/refusals, unchanged usable form/choices,
-private collection, owned cleanup and baseline restoration.
+Compose the approved kiosk FLOW05/06 branch using the qualified request and
+authentication leaves. Task 020 qualified immediate approved exit in report run
+`20260926T160110Z-c946f822` and automatic exit regression in
+`20260926T160801Z-2f278af9`, with collection, owned cleanup and baseline restoration.
+Reuse unchanged rejection/Cancel qualification `20260926T154532Z-4ed66f34`;
+complete scenarios remain separate tasks.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

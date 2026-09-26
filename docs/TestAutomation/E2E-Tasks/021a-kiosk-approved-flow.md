@@ -21,6 +21,14 @@ and the affected safety/adapter tests. Follow the
 [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
 Use delivered prerequisite scopes; do not open predecessor briefs.
 
+Start at `kiosk_approval.PLAN`, `AccessibleUI.kiosk_mate_approval` /
+`kiosk_approval_success`, `request_flow.prepared_request` and
+`onpc_request_flow::run(exchange, 'approval')` / `prepare`.
+Task 020's outcome set and exact qualification limits are in the catalogue's
+**Kiosk approval qualification** and **Kiosk rejection qualification** sections.
+Supporting checks are `test_e2e_kiosk_valid_duration.py`,
+`test_challenges_cleanup_safety.py` and `test_installed_journey_cleanup_safety.py`.
+
 ## Implementation
 
 Compose REQUEST09/AUTH02/REQUEST11/REQUEST12 for success, then kiosk FLOW04/FLOW05 for a prepared request. Use fresh invocation stages and explicit automatic GDM exit.

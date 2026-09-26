@@ -443,6 +443,8 @@ class UiObservations:
                         self.mate_rejection = operation == accessible_ui.MATE_REJECTION_ORDER[0]
                     if self.mate_rejection:
                         order = accessible_ui.MATE_REJECTION_ORDER
+                    elif operation == 'kiosk-mate-submit-immediate':
+                        order = (*order[:3], operation)
                     require(index < len(order) and operation == order[index], 'ui:mate-order')
                     if index:
                         require(time.monotonic() - self.mate_approval_checked < 30, 'ui:mate-stale-proof')
@@ -532,8 +534,9 @@ class UiObservations:
             if operation == 'kiosk-mate-submit-rejection':
                 require(value == {'rejected': True, 'cancelled': True, 'no_error': True}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
-            elif operation == 'kiosk-mate-submit-success':
-                require(value == {'approved': True, 'form_success': True}
+            elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate'):
+                require(value == {'approved': True, 'form_success': True,
+                                  **({'immediate_exit': True} if operation.endswith('immediate') else {})}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             else:
                 require(type(value) is dict and set(value) == {'challenge_id'} and

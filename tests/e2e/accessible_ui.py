@@ -312,6 +312,7 @@ MATE_APPROVAL_OPERATIONS = frozenset({'kiosk-mate-open', 'kiosk-mate-qualified',
 MATE_REJECTION_ORDER = ('kiosk-mate-rejection-open', 'kiosk-mate-rejection-qualified',
                         'kiosk-mate-rejection-rechecked', 'kiosk-mate-submit-rejection')
 MATE_APPROVAL_OPERATIONS |= frozenset(MATE_REJECTION_ORDER)
+MATE_APPROVAL_OPERATIONS |= frozenset({'kiosk-mate-submit-immediate'})
 OPERATIONS |= MATE_APPROVAL_OPERATIONS
 MATE_REFUSALS = ('wrong-agent', 'owner', 'recipient', 'child', 'duration', 'apps',
                  'multiple-fields', 'hidden', 'disabled', 'unfocused', 'nonempty',
@@ -4069,7 +4070,7 @@ class AccessibleUI:
                    [(node.bus, node.path) for node in challenge]]
         return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
-    def kiosk_approval_success(self):
+    def kiosk_approval_success(self, *, immediate=False):
         """REQUEST11: explicit owned success, never prompt disappearance alone."""
         def success():
             self.invalidate_observation()
@@ -4082,15 +4083,24 @@ class AccessibleUI:
                 return False
             require(title.get_name() == 'Request approved', 'ui:kiosk-approval-result')
             require(self.system_prompt_kind() is None, 'ui:kiosk-approval-prompt')
+            if immediate:
+                action = self.find_id('kiosk-result-action', root=page)
+                require(action is not None and self.has_state(action, self.api.StateType.VISIBLE)
+                        and self.has_state(action, self.api.StateType.SENSITIVE),
+                        'ui:kiosk-immediate-action')
+                return action
             return True
-        self.wait(success, 'kiosk-approval-success', prompt_in_predicate=True)
-        return {'approved': True, 'form_success': True}
+        action = self.wait(success, 'kiosk-approval-success', prompt_in_predicate=True)
+        if immediate:
+            self._invoke_target(action)
+        return {'approved': True, 'form_success': True, **({'immediate_exit': True} if immediate else {})}
 
     def kiosk_mate_approval(self, operation):
         require(not self.input_uncertain, 'ui:uncertain-input')
         pid = self.mate_agent_pid()
         opening = operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open')
-        submitting = operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-rejection')
+        submitting = operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-rejection',
+                                   'kiosk-mate-submit-immediate')
         try:
             if opening:
                 self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')
@@ -4120,8 +4130,9 @@ class AccessibleUI:
                     result = self.kiosk_mate_rejected(pid, challenge)
                     self.input_uncertain = True
                     return result
+                result = self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate')
                 self.input_uncertain = True  # This one submission is consumed even on success.
-                return self.kiosk_approval_success()
+                return result
             return {'challenge_id': identity}
         except BaseException:
             self.input_uncertain = True

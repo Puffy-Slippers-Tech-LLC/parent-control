@@ -358,6 +358,13 @@ class InstalledJourney:
                     and (self.boot is None or self.boot == current), plan.prefix + ':boot-changed')
             self.boot = current
             observed['boot_sha256'] = current
+            # Accessibility input does not reset GNOME's hardware idle timer.
+            # Desktop preparation belongs to the envelope, including fresh,
+            # reopened and post-reboot Parent entry, never to a case recipe.
+            # Child desktops retain their idle/expiry policy.
+            if tag in ('ui:desktop', 'ui:fresh-parent-desktop'):
+                observed['desktop_preparation'] = session_control.observe(
+                    self.transport, 'parent-continuous-activity')
             reply = {'observed': stage}
             if plan.challenge_at(stage):
                 reply['challenge'] = observed['challenge']

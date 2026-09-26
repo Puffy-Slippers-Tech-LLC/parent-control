@@ -87,6 +87,17 @@ transition. The caller observes any tested lock/denial before leaving it.
 observation supplies the required public result. No Quick Settings, confirmation
 dialog or fallback after uncertain submission is involved.
 
+After a successful `desktop` or `fresh-parent-desktop` observation and boot
+continuity check, `InstalledJourney` automatically prepares the fixture Parent
+for continuous accessibility input through `session_control`'s
+`parent-continuous-activity` binding. This covers fresh, reopened and post-reboot
+entry without a case-specific stage. The helper validates the active unlocked
+Parent, drops privileges, sets only that user's GNOME `idle-delay` to zero and
+reads it back. Accessibility actions do not reset the hardware idle timer.
+The envelope records the preparation result before acknowledging the desktop;
+failure stops the attempt without replay. Owned snapshot cleanup restores the
+setting. Child desktop idle/expiry policy and explicit locking are unaffected.
+
 [`journey_blocks.py`](journey_blocks.py) and the shared `onpc_parent::sign_in` /
 `onpc_gdm::enter_station` workers go straight to the intended account. Customer
 entry never visits an unrelated account or exercises a keyring prompt first.

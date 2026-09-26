@@ -224,6 +224,22 @@ class KioskApprovedFlowQualification(KioskEntryQualification):
         return KioskApprovedFlowJourney(context, progress)
 
 
+class ApprovalFlowRejectionQualification(KioskEntryQualification):
+    outcome = 'rejection'
+
+    @classmethod
+    def journey(cls, context, progress):
+        from app_snapshot import snapshot_name
+        from approval_flow import ApprovalFlowJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ApprovalFlowJourney(context, progress, cls.outcome)
+
+
+class ApprovalFlowCancelQualification(ApprovalFlowRejectionQualification):
+    outcome = 'cancel'
+
+
 class AuthResultQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

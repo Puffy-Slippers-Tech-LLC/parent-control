@@ -164,11 +164,13 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
 @pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review'])
 @pytest.mark.parametrize('binding', ['approval', 'rejection'])
 @pytest.mark.parametrize('credential', ['fixture-only-canary', 'onpc-wrong-fixture-password'])
-def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, binding, credential):
+@pytest.mark.parametrize('flow', [False, True])
+def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, binding, credential, flow):
     program = r'''
 use strict; use warnings; use JSON::PP;
 our $fault = shift @ARGV; our @events;
 our $binding = shift @ARGV; our $credential = shift @ARGV;
+our $flow = shift @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
@@ -182,7 +184,7 @@ sub type_password {
 }
 package main;
 require onpc_journey; require onpc_password;
-my $journey = onpc_journey->new(prefix => 'kiosk-' . $binding, review => ($fault eq 'review' ? 1 : 0),
+my $journey = onpc_journey->new(prefix => $flow ? 'kiosk-approval-flow' : 'kiosk-' . $binding, review => ($fault eq 'review' ? 1 : 0),
     exchange => sub {
         my ($stage) = @_;
         push @events, $stage;
@@ -197,7 +199,7 @@ my $capture = eval { onpc_password::capture_before_authentication(); 1 };
 print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     retry => $retry ? 1 : 0, capture => $capture ? 1 : 0, events => \@events});
 '''
-    raw = run_perl(program, fault, binding, credential).stdout
+    raw = run_perl(program, fault, binding, credential, '1' if flow else '0').stdout
     assert 'fixture-only-canary' not in raw
     value = json.loads(raw)
     assert bool(value['ok']) == (not fault), value

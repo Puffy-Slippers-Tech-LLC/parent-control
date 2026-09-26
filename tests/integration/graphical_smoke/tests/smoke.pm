@@ -279,6 +279,12 @@ sub run {
         onpc_request_flow::run(\&exchange, 'approved-flow');
         return;
     }
+    if ($ready->{approval_flow_rejection} || $ready->{approval_flow_cancel}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::run(\&exchange, $ready->{approval_flow_rejection} ? 'flow-rejection' : 'flow-cancel');
+        return;
+    }
     if ($ready->{auth_result}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

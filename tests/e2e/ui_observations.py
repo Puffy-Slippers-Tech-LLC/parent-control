@@ -427,6 +427,8 @@ class UiObservations:
 
     def observe(self, operation):
         import time
+        previous_operation = getattr(self, 'last_mate_operation', None)
+        self.last_mate_operation = None
         self.pending_challenge = None
         self.approver_uids = None
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
@@ -441,6 +443,12 @@ class UiObservations:
                     order = ('kiosk-mate-open', 'kiosk-mate-qualified',
                              'kiosk-mate-rechecked', 'kiosk-mate-submit-success')
                     index = getattr(self, 'mate_approval_index', 0)
+                    # A successful rejection ends its challenge. Only a subsequent,
+                    # independently read form permits a deliberately new approval.
+                    if (index == 4 and self.mate_rejection
+                            and operation == 'kiosk-mate-open'
+                            and previous_operation == 'kiosk-valid-fraction-soft-read'):
+                        index = 0
                     if index == 0:
                         self.mate_rejection = operation == accessible_ui.MATE_REJECTION_ORDER[0]
                     if self.mate_rejection:
@@ -454,7 +462,9 @@ class UiObservations:
                     self.mate_approval_checked = time.monotonic()
                 if operation in accessible_ui.MATE_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
-                return self._observe(operation)
+                result = self._observe(operation)
+                self.last_mate_operation = operation
+                return result
             except BaseException:
                 if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS:
                     self.challenge_failed = True

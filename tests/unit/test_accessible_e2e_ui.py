@@ -1802,6 +1802,53 @@ def test_greeter_discovery_does_not_retry_failed_session_reads(monkeypatch):
     sleep.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'still-listed', 'relist-failed', 'malformed',
+                                   'duplicate', 'churn'])
+def test_greeter_discovery_restarts_only_after_confirmed_session_disappearance(monkeypatch, capsys, fault):
+    import accessible_ui
+    clock = [0.0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: clock.__setitem__(0, clock[0] + delay))
+    reads = []
+    inventories = iter(['c1\nclosing\n', 'c1\nclosing\n' if fault == 'still-listed' else
+                        'bad/id\n' if fault == 'malformed' else 'c2\n'])
+    failed_read = accessible_ui.subprocess.CalledProcessError(
+        1, '/usr/bin/loginctl', stderr='private session details')
+
+    def call(argv, **kwargs):
+        reads.append(tuple(argv[1:3]))
+        if argv[1] == 'list-sessions':
+            if len(reads) == 4 and fault == 'relist-failed':
+                raise failed_read
+            if fault == 'churn':
+                value = 'closing\n' if len(reads) % 3 == 1 else ''
+            else:
+                value = next(inventories, 'c2\nc3\n' if fault == 'duplicate' else 'c2\n')
+            return SimpleNamespace(stdout=value)
+        if argv[2] == 'closing':
+            raise failed_read
+        uid = '61234' if argv[2] == 'c1' else '61235'
+        return SimpleNamespace(stdout='Class=greeter\nActive=yes\nRemote=no\nType=wayland\nSeat=seat0\nUser=' + uid)
+
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', call)
+    lookup = Mock(side_effect=lambda uid: SimpleNamespace(pw_uid=uid))
+    monkeypatch.setattr(accessible_ui.pwd, 'getpwuid', lookup)
+    if fault:
+        expected = (accessible_ui.subprocess.CalledProcessError
+                    if fault in ('still-listed', 'relist-failed') else UiError)
+        with pytest.raises(expected):
+            greeter_account()
+        lookup.assert_not_called()
+        if fault == 'churn':
+            assert 300 <= clock[0] < 300.2
+    else:
+        # Discard even a previously observed candidate from the incomplete scan.
+        assert greeter_account().pw_uid == 61235
+        lookup.assert_called_once_with(61235)
+        assert reads.count(('show-session', 'closing')) == 1
+    assert 'private session details' not in capsys.readouterr().err
+
+
 @pytest.mark.parametrize('operation,timeout', [
     ('gdm-other-list', 390), ('desktop', 90), ('kiosk-request-form', 120),
     ('kiosk-request-cancel', 120), ('kiosk-request-escape-ready', 120),

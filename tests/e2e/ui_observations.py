@@ -22,6 +22,9 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'parent-kiosk-valid-refused': 'Refusing kiosk duration input from Parent management',
+    **{operation: 'Choosing and independently reading valid kiosk duration and app access'
+       for operation in accessible_ui.KIOSK_VALID_OPERATIONS},
     **{operation: 'Reading idle Revoke availability and zero remaining balances'
        for operation in accessible_ui.REVOKE_DISABLED_OPERATIONS},
     **{operation: 'Qualifying saved time controls and non-collapsing balance reads'
@@ -274,20 +277,23 @@ class RequestObservation:
         require(type(observation.surface) is str and type(observation.form_count) is int
                 and type(observation.child) is str and type(observation.approver) is str
                 and type(observation.duration_seconds) is int
-                and observation.custom_text is None
+                and (observation.custom_text is None or observation.custom_text == '1.25')
                 and all(type(getattr(observation, field)) is bool for field in (
                     'allow_soft', 'child_selector_enabled', 'approver_selector_enabled',
                     'duration_enabled', 'soft_choice_enabled', 'request_enabled',
                     'cancel_enabled'))
                 and type(observation.message) is str and observation.mute is None,
                 'ui:request')
-        enabled = operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
+        valid = accessible_ui.KIOSK_VALID_REQUESTS.get(operation)
+        enabled = operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS or valid is not None
         require(enabled or operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS, 'ui:request-operation')
         child, approver = {**accessible_ui.KIOSK_ACCOUNT_REQUESTS,
                            **accessible_ui.KIOSK_DISABLED_REQUESTS}.get(
             operation, ('existing-fixture-child', 'other-fixture-parent'))
         no_child = operation == 'kiosk-no-child-form'
+        if valid is not None:
+            child, approver = 'fixture-child', 'fixture-parent'
         no_approver = operation == 'kiosk-no-approver-form'
         if no_child:
             child = 'none'
@@ -295,8 +301,9 @@ class RequestObservation:
             approver = 'none'
         require(observation == cls(
             surface='kiosk', form_count=1, child=child,
-            approver=approver, duration_seconds=1800, custom_text=None,
-            allow_soft=False, child_selector_enabled=True,
+            approver=approver, duration_seconds=valid[0] if valid else 1800,
+            custom_text=valid[1] if valid else None,
+            allow_soft=valid[2] if valid else False, child_selector_enabled=True,
             approver_selector_enabled=enabled, duration_enabled=enabled,
             soft_choice_enabled=enabled, request_enabled=enabled, cancel_enabled=True,
             message='no-child' if no_child else 'no-approver' if no_approver else (
@@ -634,6 +641,23 @@ class UiObservations:
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],
                     'ui:parent-save-response')
             expected['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
+        if operation in accessible_ui.KIOSK_VALID_REQUESTS:
+            require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
+            value = result['valid_choice']
+            require(type(value) is dict and set(value) == {'request', 'estimate', 'observed_monotonic_ns'}
+                    and type(value['observed_monotonic_ns']) is int
+                    and value['observed_monotonic_ns'] > 0, 'ui:kiosk-valid-response')
+            RequestObservation.from_request(value['request'], operation=operation)
+            estimate = value['estimate']
+            if accessible_ui.KIOSK_VALID_REQUESTS[operation][0] == 0:
+                require(estimate == {'kind': 'midnight'}, 'ui:kiosk-valid-response')
+            else:
+                require(type(estimate) is dict and set(estimate) == {
+                    'kind', 'text', 'seconds', 'precision_seconds'} and estimate['kind'] == 'fixed',
+                    'ui:kiosk-valid-response')
+                require(estimate == {'kind': 'fixed', **accessible_ui.duration_projection(estimate['text'])},
+                        'ui:kiosk-valid-response')
+            expected['valid_choice'] = value
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS):

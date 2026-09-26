@@ -86,6 +86,7 @@ FEEDBACK_READ_OPERATIONS = frozenset({
 })
 OPERATIONS |= FEEDBACK_READ_OPERATIONS
 TEXT_VALUES = {
+    'kiosk-fraction': ('kiosk-custom-duration', '1.25'),
     'body-first': ('feedback-editor-input', 'Synthetic feedback first'),
     'body-second': ('feedback-editor-input', 'Synthetic feedback replacement'),
     'body-clear': ('feedback-editor-input', ''),
@@ -280,12 +281,25 @@ KIOSK_DISABLED_REQUESTS = {
     'kiosk-disabled-form': ('fixture-child', 'other-fixture-parent'),
 }
 KIOSK_ACCOUNT_REFUSALS = frozenset({'kiosk-choice-refusals', 'parent-kiosk-refused'})
+KIOSK_VALID_REQUESTS = {
+    **{f'kiosk-valid-{choice}-{action}': (seconds, custom, soft)
+       for choice, seconds, custom, soft in (
+           ('preset', 300, None, False), ('fraction', 75, '1.25', False),
+           ('rest', 0, None, False), ('soft', 0, None, True),
+           ('excluded', 0, None, False))
+       for action in ('select', 'read') if choice != 'fraction' or action == 'read'},
+}
+KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
+OPERATIONS |= KIOSK_VALID_OPERATIONS | {'parent-kiosk-valid-refused'}
 OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
                                    'kiosk-request-escape-ready'})
 KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHOICE_OPERATIONS
                             | frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS)
                             | {'kiosk-choice-refusals'})
+KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(
+    operation for operation, (binding, _) in TEXT_OPERATIONS.items()
+    if binding.startswith('kiosk-'))
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
@@ -1537,7 +1551,8 @@ class AccessibleUI:
         require(identity in {item[0] for item in TEXT_VALUES.values()}, 'ui:text-binding')
         require(node.get_role_name() != 'password text'
                 and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
-        surface = ('parent-window' if identity == 'parent-custom-daily-limit'
+        surface = ('kiosk-request-window' if identity == 'kiosk-custom-duration' else
+                   'parent-window' if identity == 'parent-custom-daily-limit'
                    else 'feedback-dialog')
         root = self.snapshot_owned_target(surface, check_prompt=True)
         require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
@@ -1546,14 +1561,17 @@ class AccessibleUI:
                 'ui:text-entry')
         if identity == 'parent-custom-daily-limit':
             self.allowance_entry(CHILD)
+        if identity == 'kiosk-custom-duration':
+            self.kiosk_valid_target(identity)
         require(not focused or self.has_state(node, self.api.StateType.FOCUSED),
                 'ui:text-focus')
         return node
 
     def focus_text(self, identity):
         node = self.text_recipient(identity)
-        if identity == 'parent-custom-daily-limit':
-            self.activate_id('parent-window', action_name='focus.' + identity)
+        if identity in ('parent-custom-daily-limit', 'kiosk-custom-duration'):
+            surface = 'parent-window' if identity == 'parent-custom-daily-limit' else 'kiosk-request-window'
+            self.activate_id(surface, action_name='focus.' + identity)
             self.wait(lambda: self.has_state(self.text_recipient(identity),
                                             self.api.StateType.FOCUSED), 'text-focus')
             self.text_recipient(identity, focused=True)
@@ -2015,8 +2033,9 @@ class AccessibleUI:
                 'allowance': labels}
 
     def set_toggle(self, identity, desired, *, root):
-        """UI17: set the one qualified Parent switch to an explicit state."""
-        require(identity == 'parent-screen-limit-toggle' and type(desired) is bool,
+        """UI17: set a registered owned switch to an explicit state."""
+        require(identity in ('parent-screen-limit-toggle', 'kiosk-soft-apps-toggle')
+                and type(desired) is bool,
                 'ui:toggle-binding')
         # A complete lookup may legitimately omit a hidden GTK stack page.
         # Retry incomplete reads, but never wait for a missing input target to
@@ -3619,7 +3638,7 @@ class AccessibleUI:
                 'ui:gdm-password-focus')
 
     def kiosk_request_form(self, *, enabled=False, expected_selection=None, no_child=False,
-                           no_approver=False):
+                           no_approver=False, duration_seconds=1800, custom_text=None):
         """Read REQUEST03's default-duration station state after accounts load."""
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
         require(type(no_child) is bool and (not no_child or (
@@ -3779,7 +3798,8 @@ class AccessibleUI:
             diagnostic.emit('duration-states')
             selected = [index for index, button in enumerate(durations)
                         if self.has_state(button, self.api.StateType.PRESSED)]
-            require(selected == [2], 'ui:kiosk-duration-selection')
+            wanted = 'custom' if custom_text is not None else duration_seconds
+            require(selected == [duration_ids.index(wanted)], 'ui:kiosk-duration-selection')
             if enabled:
                 if not all(self.has_state(button, self.api.StateType.SENSITIVE)
                            for button in durations):
@@ -3821,6 +3841,12 @@ class AccessibleUI:
                 require(message == 'Screen limit is not enabled in Parent App',
                         'ui:kiosk-disabled-message')
             custom = lookup('kiosk-custom-duration', form_nodes, identity_by_node)
+            if custom_text is not None:
+                require(custom is not None, 'ui:kiosk-custom-missing')
+                text = custom.get_text_iface()
+                require(text is not None and self.api.Text.get_character_count(text) == len(custom_text)
+                        and self.api.Text.get_text(text, 0, len(custom_text)) == custom_text,
+                        'ui:kiosk-custom-value')
             require(lookup('kiosk-mute-button', window_nodes, identity_by_node) is None,
                     'ui:kiosk-mute-present')
             diagnostic.emit('projection')
@@ -3831,8 +3857,9 @@ class AccessibleUI:
                 'approver': 'none' if no_approver else selected_identity(
                     approver, 'Approving parent', APPROVER_IDENTITIES,
                     'kiosk-approver'),
-                'duration_seconds': 1800,
-                'custom_text': None if custom is None else 'unexpected-visible-value',
+                'duration_seconds': duration_seconds,
+                'custom_text': custom_text if custom_text is not None else (
+                    None if custom is None else 'unexpected-visible-value'),
                 'allow_soft': self.has_state(allow_soft, self.api.StateType.CHECKED),
                 'child_selector_enabled': self.has_state(child, self.api.StateType.SENSITIVE),
                 'approver_selector_enabled': self.has_state(approver, self.api.StateType.SENSITIVE),
@@ -3857,6 +3884,85 @@ class AccessibleUI:
             raise
         finally:
             self.kiosk_diagnostic = None
+
+    def kiosk_valid_target(self, identity, *, awaiting_custom=False):
+        """Resolve a valid-choice input on the enabled, explicitly selected kiosk child."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(not awaiting_custom or identity == 'kiosk-custom-duration',
+                'ui:kiosk-valid-binding')
+        observation = self.read_snapshot()
+        window = self.snapshot_owned_target('kiosk-request-window', observation=observation,
+                                            check_prompt=True)
+        require(window is not None, 'ui:kiosk-valid-entry')
+        form = self.snapshot_owned_target('kiosk-request-form', root=window, observation=observation)
+        require(form is not None, 'ui:kiosk-valid-entry')
+        for field, name in (('child', CHILD), ('approver', PARENT)):
+            uid = self.fixture_uids[name] if self.fixture_uids is not None else pwd.getpwnam(
+                (CHILD_ACCOUNTS if field == 'child' else APPROVER_ACCOUNTS)[name]).pw_uid
+            require(self.snapshot_owned_target(f'kiosk-{field}-selected-{uid}', root=form,
+                                               observation=observation) is not None,
+                    'ui:kiosk-valid-selection')
+        target = self.snapshot_owned_target(identity, root=form, observation=observation)
+        request = self.snapshot_owned_target('kiosk-request-submit', root=form, observation=observation)
+        require(request is not None and self.has_state(request, self.api.StateType.SENSITIVE),
+                'ui:kiosk-valid-disabled')
+        # GTK publishes the newly revealed entry asynchronously after the
+        # Custom action. Only this post-input read may wait for its appearance;
+        # existing targets and disabled controls still refuse immediately.
+        if target is None and awaiting_custom:
+            return None
+        require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE),
+                'ui:kiosk-valid-disabled')
+        return target
+
+    def kiosk_valid_choice(self, operation):
+        """Finite valid choices, independently read back without submitting a request."""
+        try:
+            return self._kiosk_valid_choice(operation)
+        except BaseException:
+            # A missing result after accepted input cannot authorize replay.
+            self.input_uncertain = True
+            raise
+
+    def _kiosk_valid_choice(self, operation):
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(operation in KIOSK_VALID_OPERATIONS, 'ui:kiosk-valid-binding')
+        if operation == 'kiosk-valid-custom-open':
+            self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom'))
+            self.invalidate_observation()
+            self.wait(lambda: self.kiosk_valid_target('kiosk-custom-duration', awaiting_custom=True),
+                      'kiosk-custom-open')
+            return None
+        seconds, custom, soft = KIOSK_VALID_REQUESTS[operation]
+        if operation.endswith('-select'):
+            identity = ('kiosk-soft-apps-toggle' if operation in (
+                'kiosk-valid-soft-select', 'kiosk-valid-excluded-select')
+                else f'kiosk-duration-{seconds}')
+            target = self.kiosk_valid_target(identity)
+            if identity == 'kiosk-soft-apps-toggle':
+                root = self.snapshot_owned_target('kiosk-request-form', check_prompt=True)
+                self.set_toggle(identity, soft, root=root)
+            else:
+                self._invoke_target(target)
+                self.invalidate_observation()
+        request = self.kiosk_request_form(enabled=True, expected_selection=('child', 'fixture-child'),
+                                          duration_seconds=seconds, custom_text=custom)
+        require(request['approver'] == 'fixture-parent' and request['allow_soft'] is soft,
+                'ui:kiosk-valid-choice')
+        def estimate():
+            node = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
+            require(node is not None, 'ui:kiosk-estimate-missing')
+            message = ' '.join(node.get_name().split())
+            if message == 'Calculating time estimate…':
+                return None
+            if seconds == 0:
+                require(message == 'If approved, access until midnight.', 'ui:kiosk-rest-estimate')
+                return {'kind': 'midnight'}
+            prefix = 'Estimated time remaining if approved: '
+            require(message.startswith(prefix), 'ui:kiosk-estimate')
+            return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix))}
+        value = self.wait(estimate, 'kiosk-estimate')
+        return {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns()}
 
     def kiosk_approver_baseline(self):
         """Prove at least one parent is listed, without using a disabled selector.
@@ -4878,6 +4984,17 @@ class AccessibleUI:
                                       enabled=False, inspect_only=True)
         elif operation == 'kiosk-child-choices-closed':
             result['request'] = self.collapse_kiosk_child_choices()
+        elif operation == 'parent-kiosk-valid-refused':
+            try:
+                self.kiosk_valid_target('kiosk-duration-300')
+            except UiError as error:
+                require(str(error) == 'ui:kiosk-valid-entry', 'ui:kiosk-valid-refusal')
+            else:
+                raise UiError('ui:kiosk-valid-refusal-missing')
+        elif operation in KIOSK_VALID_OPERATIONS:
+            value = self.kiosk_valid_choice(operation)
+            if value is not None:
+                result['valid_choice'] = value
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-no-child-form':

@@ -21,6 +21,28 @@ Read only the named block rows/callables, this recipe's selected cases and
 applicable finite-data rows. Prerequisite IDs are completion checks; do not open
 their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
+Reuse `AccessibleUI.kiosk_valid_choice`, `kiosk_valid_target`,
+`kiosk_request_form`, `focus_text` and `set_toggle` in
+`tests/e2e/accessible_ui.py`, with `RequestObservation.from_request` and
+`UiObservations` in `tests/e2e/ui_observations.py`. The valid composition is
+`kiosk_valid_duration.PLAN` / `KioskValidDurationJourney` in
+`tests/e2e/kiosk_valid_duration.py` and `onpc_kiosk_valid_duration::run` in
+`tests/integration/graphical_smoke/lib/onpc_kiosk_valid_duration.pm`.
+The Custom reveal read waits for asynchronous public entry publication without
+replaying input. Extend the finite bindings and exact projections for invalid
+values; do not reuse a valid-value assertion as an invalid-value observation.
+
+Read the request-custom finite-data row and E2E-014 invalid branch in the
+[recipes](../E2E-Scenario-Recipes.md#e2e-014), plus the selected consumer's exit
+requirements. Relevant host checks are
+`tests/unit/test_e2e_kiosk_valid_duration.py`,
+`tests/unit/test_installed_journey_cleanup_safety.py`, and the affected
+request-choice/text/observation adapters. Validate registrations with
+`test_test_launchers.py`, `test_regression_unit.py`, `test_e2e_case_composition.py`,
+`test_e2e_progress.py` and `test_e2e_plan.py` under `tests/unit/`.
+The valid slice passed in run `20260926T043102Z-88f3a4f2`; retain unchanged
+evidence and rerun affected branches under the master contract.
+
 ## Scope and prerequisites
 
 Deliver **REQUEST04 duration; REQUEST05/06/08 and REQUEST09 invalid-input branch, kiosk**. First scheduled consumer: [E2E-015, case 47](../E2E-Scenario-Recipes.md#e2e-015).

@@ -24,6 +24,7 @@ from kiosk_escape import PLAN as ESCAPE_PLAN
 from mate_prompt import PLAN as MATE_PLAN
 from kiosk_approval import PLAN as APPROVAL_PLAN
 from auth_result import PLAN as AUTH_RESULT_PLAN
+from kiosk_approved_flow import PLAN as APPROVED_FLOW_PLAN, approved_request, obtain_time
 from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
 
 
@@ -725,7 +726,7 @@ def test_mate_qualification_refuses_conflicting_modes(conflict):
 
 @pytest.mark.parametrize('refusal', [None, 'approval-open', 'approval-qualified',
                                    'approval-rechecked', 'approval-success', 'new-returned'])
-@pytest.mark.parametrize('binding', ['approval', 'rejection', 'immediate'])
+@pytest.mark.parametrize('binding', ['approval', 'rejection', 'immediate', 'approved-flow'])
 def test_approval_worker_order_and_secret_once(monkeypatch, refusal, binding):
     if refusal and binding == 'rejection':
         refusal = refusal.replace('approval-', 'rejection-').replace('rejection-success', 'rejection-result')
@@ -738,12 +739,31 @@ def test_approval_worker_order_and_secret_once(monkeypatch, refusal, binding):
     result = json.loads(run_perl(worker).stdout)
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
     expected = list({'approval': APPROVAL_PLAN, 'rejection': REJECTION_PLAN,
-                     'immediate': AUTH_RESULT_PLAN}[binding].screen_tags)
+                     'immediate': AUTH_RESULT_PLAN, 'approved-flow': APPROVED_FLOW_PLAN}[binding].screen_tags)
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     assert sum(event[0] == 'secret' for event in result['events']) == (
         1 if refusal in tuple(('rejection' if binding == 'rejection' else 'approval') + '-' + item
                               for item in ('open', 'qualified', 'rechecked')) else 2)
+
+
+@pytest.mark.parametrize('changed', [{'child': 'other-child'}, {'approver': 'other-parent'},
+                                   {'duration_seconds': 300}, {'allow_soft': False},
+                                   {'exit': 'immediate'}])
+def test_approved_composites_refuse_unsupported_bindings(changed):
+    choices = {**CHOICES, 'exit': 'automatic', **changed}
+    for flow, extra in ((approved_request, {}), (obtain_time, {'initial': 'selected'})):
+        with pytest.raises(Exception, match='approved-flow:'):
+            flow(**choices, **extra)
+
+
+def test_approved_flow_composes_leaves_and_owned_snapshot(tmp_path):
+    from parent_setup_qualification import KioskApprovedFlowQualification, KioskEntryQualification
+    assert list(APPROVED_FLOW_PLAN.screen_tags.items()) == list(APPROVAL_PLAN.screen_tags.items())
+    assert approved_request(**CHOICES, exit='automatic')['new-returned'] == 'ui:gdm-station-returned'
+    journey = KioskApprovedFlowQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is APPROVED_FLOW_PLAN
+    assert KioskApprovedFlowQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
 
 
 @pytest.mark.parametrize('fault', [None, 'changed', 'nonempty', 'unfocused', 'uncertain'])

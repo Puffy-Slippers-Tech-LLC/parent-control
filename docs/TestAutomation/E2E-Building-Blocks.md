@@ -393,8 +393,9 @@ The fixed kiosk outcome set composes these leaves: `kiosk_approval.PLAN` and
 worker binding `approval` for automatic exit; `auth_result.PLAN` and `immediate`
 for offered exit; `kiosk_rejection.PLAN` and `rejection` for explicit rejection
 and independent preserved-form readback, including separate password-free Cancel.
-Reuse unchanged rejection/Cancel evidence below. Higher-level FLOW05/06/07 and
-complete customer scenarios remain separately queued. Added host checks retain
+Reuse unchanged rejection/Cancel evidence below. The fixed FLOW05/06 composition
+is qualified below; FLOW07 and complete customer scenarios remain separately
+queued. Added host checks retain
 the existing compatible unit/cleanup classifications: private tree/recorder
 fixtures and bounded owned Perl doubles, with no shared bus, display, VM or
 heavyweight fixture construction.
@@ -576,8 +577,8 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | `AccessibleUI.configure_time_controls(child, initial_enabled=…, minutes=…, final_enabled=…)`: PARENT04(Screen Limits) → conditional UI17(true)/PARENT08 → PARENT05 preset commit/PARENT08 → UI17(final boolean)/PARENT08 → PARENT03 → PARENT09. Qualified inputs are 0/15-minute presets and explicit boolean enablement; custom values remain with PARENT06 until separately composed. `check_e2e_time_explanation` qualified enabled→disabled, disabled→enabled and enabled→enabled paths, saved settings, positive/zero balances and wrong-child/initial-state refusal in run `20260925T062949Z-49d65b22`, with collection and owned cleanup. Disabling intentionally clears a grant; it is never navigation. | ready |
 | FLOW03 | C | Configure one app's matching and access choices through Parent and read the saved row. | PARENT10 → PARENT11 if declared → PARENT13 → UI16(match draft) → PARENT15(save) → PARENT16 → PARENT12. | pending |
 | FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. `request_flow.prepared_request` / `onpc_request_flow::prepare` qualify the explicit kiosk child/parent, custom 1.25-minute, soft-included binding for independently open and new entry; see [prepared request qualification](#prepared-request-qualification). | pending; declared kiosk open/new binding ready; other choices and overlay pending |
-| FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its surface-specific automatic exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic). | pending |
-| FLOW06 | C | Obtain time through kiosk from an existing GDM screen and return to GDM. | FLOW04(kiosk) → FLOW05. Child login/unlock is deliberately a later step. | pending |
+| FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its surface-specific automatic exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic). `kiosk_approved_flow.approved_request` / `onpc_request_flow::approve`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). | fixed kiosk 75-second/soft-included binding ready; other choices and overlay pending |
+| FLOW06 | C | Obtain time through kiosk from an existing GDM screen and return to GDM. | FLOW04(kiosk) → FLOW05. `kiosk_approved_flow.obtain_time` / `onpc_request_flow::obtain_time`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). Child login/unlock is deliberately a later step. | fixed kiosk remembered-choice binding ready; other choices pending |
 | FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | pending |
 | FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | APP01 → APP02 → APP03 only for expected usable access. | pending |
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | FLOW15(entry=retained) → APP04(compare) → APP03. | pending |
@@ -591,6 +592,35 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
 | FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
 | FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). Overlay returns to its existing desktop. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | pending |
+
+#### Approved kiosk flow qualification
+
+`kiosk_approved_flow.PLAN` / `KioskApprovedFlowJourney` and
+`onpc_request_flow::run(exchange, 'approved-flow')` passed
+`tools/run-tests integration check_e2e_kiosk_approved_flow` in report run
+`20260926T162146Z-b021e65a`. An independently opened form qualified the valid
+choices and wrong-child/request/authentication refusals, then Cancel returned
+to GDM. FLOW06 independently reentered, reproduced the choices and estimate,
+submitted one real approval, observed explicit success and automatically
+returned to usable GDM. Private capture reconciliation, collection, owned worker
+cleanup and baseline restoration passed. This supplies no complete-case credit.
+
+FLOW05's declaration `approved_request` and worker `approve` take explicit
+child, approver, duration, soft-app choice and `exit='automatic'`. The qualified
+binding is `fixture-child`, `fixture-parent`, 75 seconds (`1.25` minutes), soft
+apps included. The caller supplies a prepared form; the existing REQUEST09
+leaf freshly verifies its exact choices before input. FLOW06's `obtain_time`
+composes FLOW04 `new/selected` and FLOW05 from caller-owned GDM and enabled
+policy. It neither changes policy nor logs in the child. One invocation per
+fresh attempt uses the existing `kiosk-approval` challenge namespace and unique
+`new-*` / `approval-*` stages; repeated approvals remain unqualified. Both
+reuse the unchanged MATE binding, provider tuple and single-use secret guards
+in [kiosk approval qualification](#kiosk-approval-qualification).
+
+Host checks cover exact worker order, refusal before later input, unsupported
+bindings and durable recorder/cleanup failures. Existing compatible unit and
+cleanup classifications remain valid: private trees and bounded owned Perl
+doubles, with no shared bus, display, VM, cache or heavyweight fixture build.
 
 #### Prepared request qualification
 

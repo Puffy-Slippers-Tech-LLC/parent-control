@@ -19,14 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **021a — [Compose successful kiosk approval and time request](E2E-Tasks/021a-kiosk-approved-flow.md)**.
+Next task: **022 — [E2E-016: approved](E2E-Tasks/022-case-50.md)**.
 
-Compose the approved kiosk FLOW05/06 branch using the qualified request and
-authentication leaves. Task 020 qualified immediate approved exit in report run
-`20260926T160110Z-c946f822` and automatic exit regression in
-`20260926T160801Z-2f278af9`, with collection, owned cleanup and baseline restoration.
-Reuse unchanged rejection/Cancel qualification `20260926T154532Z-4ed66f34`;
-complete scenarios remain separate tasks.
+Implement complete case 50, including station restrictions and the approved
+request outcome. Task 021a qualified the fixed kiosk FLOW05/06 composition in
+report run `20260926T162146Z-b021e65a`, with independent entry/refusals, approval,
+automatic GDM return, collection, owned cleanup and baseline restoration.
+Reuse its maintained callables; capability acceptance does not complete case 50.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

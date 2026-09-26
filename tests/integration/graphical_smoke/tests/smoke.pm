@@ -266,6 +266,12 @@ sub run {
         onpc_request_flow::run(\&exchange, 'rejection');
         return;
     }
+    if ($ready->{kiosk_approved_flow}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::run(\&exchange, 'approved-flow');
+        return;
+    }
     if ($ready->{auth_result}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

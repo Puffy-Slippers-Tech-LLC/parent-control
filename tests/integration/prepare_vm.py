@@ -437,6 +437,19 @@ def suppress_initial_setup(username: str, *, runner: Runner) -> None:
         runner.run([*prefix, "test", "-f", str(path)])
 
 
+def disable_screensaver(username: str, *, runner: Runner) -> None:
+    """Disable idle blanking persistently without disabling explicit locking."""
+    # Preparation runs before graphical login. Use a private session bus as the
+    # account so dconf writes its own database without root-owned home files.
+    prefix = ["runuser", "--user", username, "--", "dbus-run-session", "--", "gsettings"]
+    setting = ["org.gnome.desktop.session", "idle-delay"]
+    if runner.run([*prefix, "get", *setting]).stdout.strip() == "uint32 0":
+        return
+    runner.run([*prefix, "set", *setting, "uint32 0"])
+    if runner.run([*prefix, "get", *setting]).stdout.strip() != "uint32 0":
+        raise PreparationError("verify:screensaver", "idle blanking remains enabled")
+
+
 def reconcile_accounts(
     existing: dict[str, ExistingAccount | None],
     password: str,
@@ -527,6 +540,7 @@ def reconcile_accounts(
             raise PreparationError("verify:uid-collision", f"{identity.label} shares a UID with another account")
         seen_uids.add(uid)
         suppress_initial_setup(identity.username, runner=runner)
+        disable_screensaver(identity.username, runner=runner)
         print(f"prepare-vm: {identity.label} first-login welcome suppression verified", file=sys.stderr)
         verified[identity.username] = {"uid": uid, "role": identity.role}
         print(f"prepare-vm: {identity.label} verified", file=sys.stderr)

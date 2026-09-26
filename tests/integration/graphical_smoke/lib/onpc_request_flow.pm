@@ -40,13 +40,37 @@ sub prepare {
     }
 }
 
+# FLOW05 uses the fixed single-use approval challenge and observes automatic GDM exit.
+sub approve {
+    my ($journey, $child, $approver, $seconds, $soft, $exit) = @_;
+    die 'approved-flow:binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
+        && $child eq 'fixture-child' && $approver eq 'fixture-parent'
+        && $seconds eq '75' && $soft eq '1' && $exit eq 'automatic';
+    onpc_progress::operation('Approving the prepared kiosk request and observing automatic return');
+    $journey->consume_observation('approval-open', $journey->seen('approval-open'));
+    onpc_password::enter_kiosk_mate_password($journey);
+    $journey->consume_observation('approval-success', $journey->seen('approval-success'));
+    $journey->consume_observation('new-returned', $journey->seen('new-returned'));
+}
+
+# FLOW06: the caller supplies GDM and enabled policy, never a previous attempt.
+sub obtain_time {
+    my ($journey, $initial, $child, $approver, $seconds, $soft, $exit) = @_;
+    die 'approved-flow:binding' unless @_ == 7 && ref($journey) eq 'onpc_journey'
+        && ($initial eq 'default' || $initial eq 'selected')
+        && $child eq 'fixture-child' && $approver eq 'fixture-parent'
+        && $seconds eq '75' && $soft eq '1' && $exit eq 'automatic';
+    prepare($journey, 'new', 'new', $initial, $child, $approver, $seconds, $soft);
+    approve($journey, $child, $approver, $seconds, $soft, $exit);
+}
+
 sub run {
     onpc_progress::operation('Qualifying open and fresh kiosk request composition');
     my ($exchange, $mate) = @_;
-    die 'request-flow:arguments' unless (@_ == 1 || @_ == 2 && ($mate eq 'mate' || $mate eq 'approval' || $mate eq 'rejection' || $mate eq 'immediate'))
+    die 'request-flow:arguments' unless (@_ == 1 || @_ == 2 && ($mate eq 'mate' || $mate eq 'approval' || $mate eq 'rejection' || $mate eq 'immediate' || $mate eq 'approved-flow'))
         && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $mate && $mate eq 'immediate' ? 'kiosk-approval' :
+        prefix => $mate && ($mate eq 'immediate' || $mate eq 'approved-flow') ? 'kiosk-approval' :
             $mate && $mate eq 'rejection' ? 'kiosk-rejection' :
             $mate && $mate eq 'approval' ? 'kiosk-approval' : $mate ? 'mate-prompt' : 'request-flow', review => 0);
     onpc_gdm::reattach_functional();
@@ -65,6 +89,11 @@ sub run {
     $journey->consume_observation('open-mate', $journey->seen('open-mate')) if $mate;
     for my $stage ('open-cancel', 'open-returned') {
         $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    if ($mate && $mate eq 'approved-flow') {
+        obtain_time($journey, 'selected', 'fixture-child', 'fixture-parent', 75, 1, 'automatic');
+        $journey->finish();
+        return;
     }
     prepare($journey, 'new', 'new', 'selected', 'fixture-child', 'fixture-parent', 75, 1);
     if ($mate && ($mate eq 'approval' || $mate eq 'immediate')) {

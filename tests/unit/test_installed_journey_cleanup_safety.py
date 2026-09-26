@@ -25,11 +25,13 @@ import request_duration
 import request_flow
 import mate_prompt
 import kiosk_approval
+import auth_result
 import kiosk_rejection
 
 
 @pytest.mark.parametrize('selector,mode', [('auth_prompt', 'mate_prompt'),
                                           ('kiosk_approval', 'kiosk_approval'),
+                                          ('auth_result', 'auth_result'),
                                           ('kiosk_rejection', 'kiosk_rejection')])
 def test_auth_prompt_qualification_reuses_owned_mate_envelope(selector, mode):
     # The argument-free selector must not acquire a separate VM/cleanup route.
@@ -150,7 +152,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
                                  kiosk_escape.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN,
-                                 kiosk_rejection.PLAN],
+                                 kiosk_rejection.PLAN, auth_result.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -160,7 +162,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'challenges', 'app-rows', 'feedback-read', 'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',
-                              'kiosk-rejection'])
+                              'kiosk-rejection', 'auth-result'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):

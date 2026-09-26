@@ -23,6 +23,7 @@ from kiosk_cancel import PLAN as CANCEL_PLAN
 from kiosk_escape import PLAN as ESCAPE_PLAN
 from mate_prompt import PLAN as MATE_PLAN
 from kiosk_approval import PLAN as APPROVAL_PLAN
+from auth_result import PLAN as AUTH_RESULT_PLAN
 from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
 
 
@@ -724,7 +725,7 @@ def test_mate_qualification_refuses_conflicting_modes(conflict):
 
 @pytest.mark.parametrize('refusal', [None, 'approval-open', 'approval-qualified',
                                    'approval-rechecked', 'approval-success', 'new-returned'])
-@pytest.mark.parametrize('binding', ['approval', 'rejection'])
+@pytest.mark.parametrize('binding', ['approval', 'rejection', 'immediate'])
 def test_approval_worker_order_and_secret_once(monkeypatch, refusal, binding):
     if refusal and binding == 'rejection':
         refusal = refusal.replace('approval-', 'rejection-').replace('rejection-success', 'rejection-result')
@@ -736,11 +737,13 @@ def test_approval_worker_order_and_secret_once(monkeypatch, refusal, binding):
     worker = worker.replace('    });', "    }, '" + binding + "');")
     result = json.loads(run_perl(worker).stdout)
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    expected = list((APPROVAL_PLAN if binding == 'approval' else REJECTION_PLAN).screen_tags)
+    expected = list({'approval': APPROVAL_PLAN, 'rejection': REJECTION_PLAN,
+                     'immediate': AUTH_RESULT_PLAN}[binding].screen_tags)
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     assert sum(event[0] == 'secret' for event in result['events']) == (
-        1 if refusal in tuple(binding + '-' + item for item in ('open', 'qualified', 'rechecked')) else 2)
+        1 if refusal in tuple(('rejection' if binding == 'rejection' else 'approval') + '-' + item
+                              for item in ('open', 'qualified', 'rechecked')) else 2)
 
 
 @pytest.mark.parametrize('fault', [None, 'changed', 'nonempty', 'unfocused', 'uncertain'])
@@ -768,7 +771,8 @@ def test_approval_proofs_preserve_recipient_and_challenge(fault):
 
 
 @pytest.mark.parametrize('fault', [None, 'replacement', 'empty', 'uncertain', 'denied'])
-def test_approval_submits_once_and_requires_explicit_success(fault):
+@pytest.mark.parametrize('immediate', [False, True])
+def test_approval_submits_once_and_requires_explicit_success(fault, immediate):
     ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()
     ui.mate_challenge_identity = Mock(return_value='a' * 64)
     ui.run('kiosk-mate-open', '')
@@ -781,6 +785,10 @@ def test_approval_submits_once_and_requires_explicit_success(fault):
     result = Node(identity='kiosk-result-page', children=[Node(
         'Request denied' if fault == 'denied' else 'Request approved', 'label', identity='kiosk-result-title')])
     result.parent = window
+    exit_action = Node('Return to Login (3)', 'push button', identity='kiosk-result-action')
+    exit_action.parent = result
+    result.children.append(exit_action)
+    operation = 'kiosk-mate-submit-immediate' if immediate else 'kiosk-mate-submit-success'
     def approve(_):
         desktop.children.remove(agent)
         window.children.append(result)
@@ -790,23 +798,55 @@ def test_approval_submits_once_and_requires_explicit_success(fault):
         authenticate.action.do_action.side_effect = RuntimeError('private failure')
     if fault:
         with pytest.raises((UiError, RuntimeError)):
-            ui.run('kiosk-mate-submit-success', '')
+            ui.run(operation, '')
         with pytest.raises(UiError, match='uncertain'):
-            ui.run('kiosk-mate-submit-success', '')
+            ui.run(operation, '')
     else:
-        assert ui.run('kiosk-mate-submit-success', '')['approval'] == {
-            'approved': True, 'form_success': True}
+        assert ui.run(operation, '')['approval'] == {
+            'approved': True, 'form_success': True, **({'immediate_exit': True} if immediate else {})}
     assert authenticate.action.do_action.call_count == (0 if fault in ('replacement', 'empty') else 1)
+    assert exit_action.action.do_action.call_count == (1 if immediate and not fault else 0)
+
+
+@pytest.mark.parametrize('fault', ['missing', 'duplicate', 'hidden', 'disabled', 'uncertain'])
+def test_immediate_exit_refuses_unusable_action_and_never_replays(fault):
+    ui, desktop, agent, dialog, *_ = mate_form()
+    window = ui.find_id('kiosk-request-window')
+    action = Node('Return to Login (3)', 'push button', identity='kiosk-result-action')
+    page = Node(identity='kiosk-result-page', children=[
+        Node('Request approved', 'label', identity='kiosk-result-title'), action])
+    page.parent = window
+    window.children.append(page)
+    if fault == 'missing':
+        page.children.remove(action)
+    elif fault == 'duplicate':
+        other = Node(identity='kiosk-result-action')
+        other.parent = page
+        page.children.append(other)
+    elif fault in ('hidden', 'disabled'):
+        action.states.discard('visible' if fault == 'hidden' else 'sensitive')
+    else:
+        action.action.do_action.side_effect = RuntimeError('uncertain exit')
+    with pytest.raises((UiError, RuntimeError)):
+        ui.kiosk_approval_success(immediate=True)
+    assert action.action.do_action.call_count == (1 if fault == 'uncertain' else 0)
+    if fault == 'uncertain':
+        with pytest.raises(UiError, match='uncertain'):
+            ui.kiosk_approval_success(immediate=True)
+        assert action.action.do_action.call_count == 1
 
 
 @pytest.mark.parametrize('fault', [None, 'replay', 'changed', 'intervening', 'out-of-order', 'stale'])
-@pytest.mark.parametrize('binding', ['approval', 'rejection'])
+@pytest.mark.parametrize('binding', ['approval', 'rejection', 'immediate'])
 def test_approval_controller_reconciles_fresh_proofs_and_latches(fault, binding):
     observer = UiObservations(Mock())
     operations = (('kiosk-mate-open', 'kiosk-mate-qualified', 'kiosk-mate-rechecked',
-                   'kiosk-mate-submit-success') if binding == 'approval' else accessible_ui.MATE_REJECTION_ORDER)
+                   'kiosk-mate-submit-immediate' if binding == 'immediate' else 'kiosk-mate-submit-success')
+                  if binding != 'rejection' else accessible_ui.MATE_REJECTION_ORDER)
     def call(_args, operation, **_kwargs):
-        approval = ({'approved': True, 'form_success': True} if operation.endswith('success') else
+        approval = ({'approved': True, 'form_success': True, 'immediate_exit': True}
+                    if operation.endswith('immediate') else
+                    {'approved': True, 'form_success': True} if operation.endswith('success') else
                     {'rejected': True, 'cancelled': True, 'no_error': True} if operation.endswith('submit-rejection') else
                     {'challenge_id': ('b' if fault == 'changed' and operation.endswith('rechecked') else 'a') * 64})
         value = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'approval': approval}
@@ -898,3 +938,10 @@ def test_approval_qualification_uses_guarded_snapshot(tmp_path):
     journey = KioskApprovalQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
     assert journey.plan is APPROVAL_PLAN
     assert KioskApprovalQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+
+
+def test_immediate_qualification_uses_guarded_snapshot(tmp_path):
+    from parent_setup_qualification import AuthResultQualification, KioskEntryQualification
+    journey = AuthResultQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is AUTH_RESULT_PLAN
+    assert AuthResultQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot

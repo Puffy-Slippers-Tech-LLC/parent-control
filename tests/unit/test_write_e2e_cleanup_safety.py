@@ -82,7 +82,9 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
     assert launcher.follow(run, output) == 0
     from rich.text import Text
     assert ('Task 001 complete.\n- Took 1 sessions.\n'
-            '- Total launcher sessions: 1\n') in Text.from_ansi(output.getvalue()).plain
+            '- Duration: ') in Text.from_ansi(output.getvalue()).plain
+    assert re.search(r'- Total launcher sessions: 1\n─+\n?$',
+                     Text.from_ansi(output.getvalue()).plain)
     assert len(calls(root)) == 1
     assert workflow.queue_state(root)[0] == '002'
     state = json.loads((run / 'checkpoint.json').read_text())
@@ -108,7 +110,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     rendered = Text.from_ansi(output.getvalue())
     assert re.search(
         r'Task 001 complete\.\n- Took 2 sessions\.\n'
-        r'- Total launcher sessions: 2\n- Duration: \d+ minutes$',
+        r'- Duration: \d+ minutes\n- Total launcher sessions: 2\n─+$',
         rendered.plain.rstrip())
     assert rendered.plain.count('Task 001 complete.') == 1
     assert re.search(r'─+\nTask 001 complete\.', rendered.plain)
@@ -201,8 +203,10 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     assert launcher.follow(run, output) == 0
     from rich.text import Text
     rendered = Text.from_ansi(output.getvalue()).plain
-    assert 'Task 001 complete.\n- Took 2 sessions.\n- Total launcher sessions: 2' in rendered
-    assert 'Task 002 complete.\n- Took 3 sessions.\n- Total launcher sessions: 5' in rendered
+    assert 'Task 001 complete.\n- Took 2 sessions.\n- Duration: ' in rendered
+    assert 'Task 002 complete.\n- Took 3 sessions.\n- Duration: ' in rendered
+    assert rendered.count('Total launcher sessions:') == 1
+    assert re.search(r'- Duration: \d+ minutes\n- Total launcher sessions: 5\n─+\n?$', rendered)
     assert rendered.count('- Duration: ') == 2
     assert len(re.findall(r'─+\nTask \d+ complete\.', rendered)) == 2
     recap = rendered[rendered.index('Task 001 complete.'):]
@@ -263,7 +267,9 @@ def test_completion_excludes_sessions_from_previous_completed_launcher(checkout)
     assert launcher.follow(second, output) == 0
     assert len(calls(root)) == 5
     assert ('Task 002 complete.\n- Took 1 sessions.\n'
-            '- Total launcher sessions: 1\n') in Text.from_ansi(output.getvalue()).plain
+            '- Duration: ') in Text.from_ansi(output.getvalue()).plain
+    assert re.search(r'- Total launcher sessions: 1\n─+\n?$',
+                     Text.from_ansi(output.getvalue()).plain)
 
 
 @pytest.mark.parametrize('args, sessions, completed, reason', [

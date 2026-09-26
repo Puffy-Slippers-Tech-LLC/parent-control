@@ -352,14 +352,13 @@ def format_duration(seconds, *, short=False):
             f'{minutes} {"minute" if minutes == 1 else "minutes"}')
 
 
-def show_completion(task, task_sessions, launcher_sessions, duration):
+def show_completion(task, task_sessions, duration):
     from launcher_render import AgentRenderer
     from rich.text import Text
     console = AgentRenderer(sys.stdout).console
     console.rule(style='dim')
     console.print(Text(f'Task {task} complete.', style='bold green'))
     print(f'- Took {task_sessions} sessions.\n'
-          f'- Total launcher sessions: {launcher_sessions}\n'
           f'- Duration: {format_duration(duration)}', flush=True)
     sys.stdout.flush()
 
@@ -414,7 +413,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
     completions = []
 
     def compact_completions():
-        for task_id, task_sessions, launcher_sessions, duration, keys, heading in completions:
+        for task_id, task_sessions, duration, keys, heading in completions:
             publish_progress(run, 'complete-' + task_id,
                              [f'\033[32m{heading} '
                               f'(sessions={task_sessions}, duration={format_duration(duration, short=True)})\033[0m'],
@@ -506,7 +505,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             if state['phase'] == 'complete':
                 keys = [str(index) for index in
                         range(max(1, count - state['task_sessions'] + 1), count + 1)]
-                completions.append((task, state['task_sessions'], total,
+                completions.append((task, state['task_sessions'],
                                     time.time() - state['started_at'], keys, progress_lines[0]))
                 if tasks > 1 or completed > 1:
                     compact_completions()
@@ -524,12 +523,17 @@ def worker(root, run, owner, sessions, tasks, state_json):
                        'Complete' if state['phase'] == 'complete' else reason)
             lines[-1] += ' — ' + outcome
             publish_progress(run, previous[-1]['key'], lines)
-        for task, task_sessions, launcher_sessions, duration, _, _ in completions:
-            show_completion(task, task_sessions, launcher_sessions, duration)
+        for task, task_sessions, duration, _, _ in completions:
+            show_completion(task, task_sessions, duration)
         save_handoff(run, state, reason,
                      display=not (status == 0 and completed and state['phase'] == 'complete'))
         if task_session_limit_reached(state) and state['phase'] != 'blocked':
             show_session_limit(state)
+        if completions:
+            from launcher_render import AgentRenderer
+            print(f'- Total launcher sessions: {total}', flush=True)
+            AgentRenderer(sys.stdout).console.rule(style='dim')
+            sys.stdout.flush()
         launcher.atomic(run / 'result.json', {'status': status, 'sessions': count,
                                              'tasks': completed})
         os.close(owner)

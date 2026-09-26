@@ -214,6 +214,16 @@ class KioskApprovalQualification(KioskEntryQualification):
         return KioskApprovalJourney(context, progress)
 
 
+class KioskRejectionQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_rejection import KioskRejectionJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskRejectionJourney(context, progress)
+
+
 class MatePromptQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

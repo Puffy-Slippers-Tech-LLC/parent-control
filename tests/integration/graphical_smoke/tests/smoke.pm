@@ -260,6 +260,12 @@ sub run {
         onpc_kiosk_cancel::run(\&exchange);
         return;
     }
+    if ($ready->{kiosk_rejection}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::run(\&exchange, 'rejection');
+        return;
+    }
     if ($ready->{kiosk_approval}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -658,7 +658,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
          time_explanation=False, set_allowance=False, app_restart=False,
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
-         request_flow=False, mate_prompt=False, kiosk_approval=False):
+         request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False):
+    require(type(kiosk_rejection) is bool and not (kiosk_rejection and (
+        kiosk_approval or mate_prompt or request_flow or request_duration or kiosk_valid_duration)),
+        'smoke:kiosk-rejection-prerequisites')
     require(type(kiosk_approval) is bool and not (kiosk_approval and (
         mate_prompt or request_flow or request_duration or kiosk_valid_duration)),
         'smoke:kiosk-approval-prerequisites')
@@ -668,7 +671,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         kiosk_valid_duration or request_duration)), 'smoke:request-flow-prerequisites')
     require(type(request_duration) is bool and not (request_duration and kiosk_valid_duration),
             'smoke:request-duration-prerequisites')
-    kiosk_valid_duration = kiosk_valid_duration or request_duration or request_flow or mate_prompt or kiosk_approval
+    kiosk_valid_duration = (kiosk_valid_duration or request_duration or request_flow or mate_prompt
+                            or kiosk_approval or kiosk_rejection)
     require(type(kiosk_valid_duration) is bool and (not kiosk_valid_duration or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1127,6 +1131,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-mate-prompt-qualification'
         if kiosk_approval:
             result['scope'] = 'installed-kiosk-approval-qualification'
+        if kiosk_rejection:
+            result['scope'] = 'installed-kiosk-rejection-qualification'
         if time_explanation:
             result['scope'] = 'installed-time-explanation-qualification'
         if set_allowance:
@@ -1309,6 +1315,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_approval:
                     from parent_setup_qualification import KioskApprovalQualification
                     qualification_class = KioskApprovalQualification
+                if kiosk_rejection:
+                    from parent_setup_qualification import KioskRejectionQualification
+                    qualification_class = KioskRejectionQualification
                 if time_explanation:
                     from parent_setup_qualification import TimeExplanationQualification
                     qualification_class = TimeExplanationQualification

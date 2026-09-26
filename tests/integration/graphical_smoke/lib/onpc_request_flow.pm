@@ -43,10 +43,11 @@ sub prepare {
 sub run {
     onpc_progress::operation('Qualifying open and fresh kiosk request composition');
     my ($exchange, $mate) = @_;
-    die 'request-flow:arguments' unless (@_ == 1 || @_ == 2 && ($mate eq 'mate' || $mate eq 'approval'))
+    die 'request-flow:arguments' unless (@_ == 1 || @_ == 2 && ($mate eq 'mate' || $mate eq 'approval' || $mate eq 'rejection'))
         && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $mate && $mate eq 'approval' ? 'kiosk-approval' : $mate ? 'mate-prompt' : 'request-flow', review => 0);
+        prefix => $mate && $mate eq 'rejection' ? 'kiosk-rejection' :
+            $mate && $mate eq 'approval' ? 'kiosk-approval' : $mate ? 'mate-prompt' : 'request-flow', review => 0);
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
@@ -69,6 +70,12 @@ sub run {
         $journey->consume_observation('approval-open', $journey->seen('approval-open'));
         onpc_password::enter_kiosk_mate_password($journey);
         $journey->consume_observation('approval-success', $journey->seen('approval-success'));
+    } elsif ($mate && $mate eq 'rejection') {
+        $journey->consume_observation('rejection-open', $journey->seen('rejection-open'));
+        onpc_password::enter_kiosk_mate_password($journey, 'wrong');
+        for my $stage ('rejection-result', 'rejection-form') {
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
     } elsif ($mate) {
         $journey->consume_observation('new-mate', $journey->seen('new-mate'));
     }

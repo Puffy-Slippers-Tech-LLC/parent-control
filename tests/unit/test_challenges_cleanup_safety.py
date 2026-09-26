@@ -162,37 +162,42 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
 
 
 @pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review'])
-def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault):
+@pytest.mark.parametrize('binding', ['approval', 'rejection'])
+@pytest.mark.parametrize('credential', ['fixture-only-canary', 'onpc-wrong-fixture-password'])
+def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, binding, credential):
     program = r'''
 use strict; use warnings; use JSON::PP;
 our $fault = shift @ARGV; our @events;
+our $binding = shift @ARGV; our $credential = shift @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
 sub current_console { 'sut' }
 sub get_var { $main::fault eq 'capture' ? 0 : 1 }
-sub get_required_var { push @main::events, 'read'; 'fixture-only-canary' }
+sub get_required_var { push @main::events, 'read'; $main::credential }
 sub type_password {
     push @main::events, 'type';
+    die 'wrong credential selection' unless ($_[0] ne $main::credential) == ($main::binding eq 'rejection');
     die 'fixture-only-canary' if $main::fault eq 'typing';
 }
 package main;
 require onpc_journey; require onpc_password;
-my $journey = onpc_journey->new(prefix => 'kiosk-approval', review => ($fault eq 'review' ? 1 : 0),
+my $journey = onpc_journey->new(prefix => 'kiosk-' . $binding, review => ($fault eq 'review' ? 1 : 0),
     exchange => sub {
         my ($stage) = @_;
         push @events, $stage;
-        die 'fixture-only-canary' if $stage eq 'approval-' . $fault;
+        die 'fixture-only-canary' if $stage eq $binding . '-' . $fault;
         return {observed => $stage};
     });
-my $ok = eval { onpc_password::enter_kiosk_mate_password($journey); 1 };
+my @args = $binding eq 'rejection' ? ($journey, 'wrong') : ($journey);
+my $ok = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
 my $error = "$@"; my $before = scalar @events;
-my $retry = eval { onpc_password::enter_kiosk_mate_password($journey); 1 };
+my $retry = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
 my $capture = eval { onpc_password::capture_before_authentication(); 1 };
 print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     retry => $retry ? 1 : 0, capture => $capture ? 1 : 0, events => \@events});
 '''
-    raw = run_perl(program, fault).stdout
+    raw = run_perl(program, fault, binding, credential).stdout
     assert 'fixture-only-canary' not in raw
     value = json.loads(raw)
     assert bool(value['ok']) == (not fault), value

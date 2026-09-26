@@ -36,7 +36,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Implement FLOW05 first from REQUEST09/AUTH02/REQUEST11/REQUEST12, then FLOW06 from kiosk FLOW04/FLOW05, and FLOW07 for reject/cancel without retry. Bind fresh stages for every invocation and observe automatic kiosk exit.
+Reuse `kiosk_approved_flow.approved_request` / `obtain_time` and
+`onpc_request_flow::approve` / `obtain_time` for the qualified FLOW05/06 binding.
+Implement FLOW07 for reject/cancel without retry. Bind fresh stages and a new
+challenge for the later approval; the existing helpers qualify one successful
+approval per fresh attempt. Preserve automatic kiosk exit.
 
 ## Live VM acceptance
 

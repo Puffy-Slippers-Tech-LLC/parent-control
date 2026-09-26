@@ -235,6 +235,8 @@ class AccountRunner:
             self.inputs.append((command, input_text))
         if command[0] == "gpasswd":
             return subprocess.CompletedProcess(command, 3, "", "not a member")
+        if "gsettings" in command and "get" in command:
+            return subprocess.CompletedProcess(command, 0, "uint32 0\n", "")
         if command[0] in {"useradd", "usermod", "install", "chpasswd", "runuser"}:
             return subprocess.CompletedProcess(command, 0, "", "")
         if command[0] == "id":
@@ -302,6 +304,8 @@ def test_reconciliation_verifies_roles_and_passes_one_shared_secret_only_on_stdi
     assert sum(command[0] == "install" for command in runner.commands) == 4
     for identity in prepare.IDENTITIES:
         prefix = ["runuser", "--user", identity.username, "--"]
+        assert [*prefix, "dbus-run-session", "--", "gsettings", "get",
+                "org.gnome.desktop.session", "idle-delay"] in runner.commands
         config = Path("/home") / identity.username / ".config"
         markers = [config / "gnome-initial-setup-done",
                    config / "gnome-initial-setup/upgrade-26.04-done"]
@@ -314,6 +318,33 @@ def test_reconciliation_verifies_roles_and_passes_one_shared_secret_only_on_stdi
             existing, secret, runner=AccountRunner(entries, bad_child=True),
             lookup_user=entries.__getitem__, list_users=lambda: list(entries.values()),
         )
+
+
+@pytest.mark.parametrize("writable", [True, False])
+def test_screensaver_preparation_persists_and_skips_repeat_writes(writable):
+    class SettingsRunner:
+        value = "uint32 300"
+        writes = 0
+
+        def run(self, command):
+            assert command[:7] == ["runuser", "--user", "test-child", "--",
+                                   "dbus-run-session", "--", "gsettings"]
+            assert command[8:10] == ["org.gnome.desktop.session", "idle-delay"]
+            if command[7] == "set":
+                self.writes += 1
+                if writable:
+                    self.value = command[10]
+            return subprocess.CompletedProcess(command, 0, self.value + "\n", "")
+
+    runner = SettingsRunner()
+    if not writable:
+        with pytest.raises(prepare.PreparationError, match="verify:screensaver"):
+            prepare.disable_screensaver("test-child", runner=runner)
+        return
+    prepare.disable_screensaver("test-child", runner=runner)
+    prepare.disable_screensaver("test-child", runner=runner)
+    assert runner.value == "uint32 0"
+    assert runner.writes == 1
 
 
 def valid_marker():

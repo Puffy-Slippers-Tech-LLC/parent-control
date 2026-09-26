@@ -245,10 +245,13 @@ class _PendingAuthorization:
     def _authorization_finished(self, connection, result):
         self.auth_done = True
         try:
-            authorized, challenge, _details = connection.call_finish(result).unpack()[0]
+            authorized, _challenge, details = connection.call_finish(result).unpack()[0]
             if not self.cancel_reason:
+                # PolicyKit reports the agent's Cancel action in this public
+                # result detail. is_challenge only means authentication could
+                # still authorize the subject; it is not a dismissal result.
                 self.outcome = "approved" if authorized else (
-                    "cancelled" if challenge else "denied")
+                    "cancelled" if details.get("polkit.dismissed") else "denied")
         except GLib.Error as error:
             if not self.cancel_reason:
                 LOG.warning(

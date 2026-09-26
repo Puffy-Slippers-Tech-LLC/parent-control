@@ -306,6 +306,14 @@ KIOSK_INVALID_OPERATIONS = {
 }
 OPERATIONS |= frozenset(KIOSK_INVALID_OPERATIONS) | {'parent-kiosk-invalid-refused'}
 OPERATIONS |= KIOSK_VALID_OPERATIONS | {'parent-kiosk-valid-refused'}
+MATE_OPERATIONS = frozenset({'kiosk-mate-cancel', 'kiosk-mate-refusals-cancel'})
+MATE_APPROVAL_OPERATIONS = frozenset({'kiosk-mate-open', 'kiosk-mate-qualified',
+                                     'kiosk-mate-rechecked', 'kiosk-mate-submit-success'})
+OPERATIONS |= MATE_APPROVAL_OPERATIONS
+MATE_REFUSALS = ('wrong-agent', 'owner', 'recipient', 'child', 'duration', 'apps',
+                 'multiple-fields', 'hidden', 'disabled', 'unfocused', 'nonempty',
+                 'stale', 'replaced')
+OPERATIONS |= MATE_OPERATIONS | {'parent-mate-refused'}
 OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
                                    'kiosk-request-escape-ready'})
@@ -316,6 +324,7 @@ KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPE
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
     if binding.startswith('kiosk-'))
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
+KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
@@ -3981,10 +3990,264 @@ class AccessibleUI:
                 require(message == 'If approved, access until midnight.', 'ui:kiosk-rest-estimate')
                 return {'kind': 'midnight'}
             prefix = 'Estimated time remaining if approved: '
-            require(message.startswith(prefix), 'ui:kiosk-estimate')
+            require(message.startswith(prefix), 'ui:kiosk-estimate:request-denied'
+                    if message == 'Request denied' else 'ui:kiosk-estimate')
             return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix))}
         value = self.wait(estimate, 'kiosk-estimate')
         return {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns()}
+
+    def mate_agent_pid(self):
+        """Bind AT-SPI to the kiosk session's maintained agent service."""
+        value = subprocess.check_output([
+            '/usr/bin/systemctl', '--user', 'show', '--property=MainPID', '--value',
+            'oh-no-parent-control-polkit-agent.service'], text=True, timeout=5).strip()
+        require(re.fullmatch(r'[1-9][0-9]*', value) is not None, 'ui:mate-service-owner')
+        pid = int(value)
+        require(Path('/proc/' + value).stat().st_uid == os.getuid(), 'ui:mate-service-owner')
+        return pid
+
+    def mate_prompt(self, pid, *, observation=None, challenge=None, filled=False):
+        """MATE-only semantic adapter; never reads password contents or types.
+
+        English PAM recipient label and displayed policy message are public
+        meaning checks inside the sole service-owned authentication dialog.
+        Missing context refuses; the form/broker cannot supply it instead.
+        """
+        if observation is None:
+            self.invalidate_observation()
+            observation = self.read_snapshot(protect_text=True)
+        nodes, snapshot, _identities, facts = observation
+        kind = self.system_prompt_kind(observation=(nodes, snapshot, facts))
+        require(kind in (None, 'mate-polkit'), 'ui:mate-wrong-agent')
+        if kind is None:
+            require(challenge is None, 'ui:mate-replacement')
+            return None
+        owners = [node for node in nodes if facts[node]['role'] == 'application'
+                  and self._prompt_application_kind(facts[node]['name']) == 'mate-polkit']
+        require(len(owners) == 1 and owners[0].get_process_id() == pid, 'ui:mate-owner')
+        owner = owners[0]
+        scoped = self.snapshot_scope(nodes, snapshot, owner)
+        dialogs = [node for node in scoped if facts[node]['showing']
+                   and facts[node]['role'] in ('dialog', 'alert')]
+        require(len(dialogs) == 1, 'ui:mate-dialog')
+        dialog = dialogs[0]
+        controls = self.snapshot_scope(nodes, snapshot, dialog)
+        require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
+                    and node.get_process_id() == pid for node in (owner, *controls)),
+                'ui:mate-owner')
+        fields = [node for node in controls if facts[node]['role'] == 'password text']
+        require(len(fields) == 1, 'ui:mate-field-ambiguous')
+        field = fields[0]
+        proof = self.mate_field_proof(field, facts)
+        if filled:
+            require(type(proof['length']) is int and 1 <= proof['length'] <= 256,
+                    'ui:mate-field-empty')
+            proof = {**proof, 'length': 0}
+        self.validate_mate_field(proof)
+        labels = [facts[node]['name'] for node in controls
+                  if facts[node]['role'] == 'label' and facts[node]['showing']]
+        require(labels.count('Password for ' + APPROVER_ACCOUNTS[PARENT] + ':') == 1,
+                'ui:mate-recipient-context-missing')
+        message = f'Grant {CHILD} 1 minute, 15 seconds and allow soft blocked apps?'
+        require(labels.count(message) == 1, 'ui:mate-request-context-missing')
+        buttons = [node for node in controls if facts[node]['role'] in ('push button', 'button')
+                   and facts[node]['showing'] and facts[node]['name'] == 'Cancel']
+        require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
+                'ui:mate-cancel')
+        current = (owner, dialog, field, buttons[0])
+        require(challenge is None or current == challenge, 'ui:mate-replacement')
+        return current
+
+    def mate_challenge_identity(self, pid, challenge):
+        """Opaque public object identity, bound to this boot, session and process."""
+        import hashlib
+        payload = [Path('/proc/sys/kernel/random/boot_id').read_text(), os.getuid(), pid,
+                   Path('/proc/' + str(pid) + '/stat').read_text().rsplit(')', 1)[1].split()[19],
+                   [(node.bus, node.path) for node in challenge]]
+        return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
+
+    def kiosk_approval_success(self):
+        """REQUEST11: explicit owned success, never prompt disappearance alone."""
+        def success():
+            self.invalidate_observation()
+            window = self.snapshot_owned_target('kiosk-request-window', check_prompt=False)
+            if window is None:
+                return False
+            title = self.find_id('kiosk-result-title', root=window)
+            page = self.find_id('kiosk-result-page', root=window)
+            if title is None or page is None or not self.showing(title) or not self.showing(page):
+                return False
+            require(title.get_name() == 'Request approved', 'ui:kiosk-approval-result')
+            require(self.system_prompt_kind() is None, 'ui:kiosk-approval-prompt')
+            return True
+        self.wait(success, 'kiosk-approval-success', prompt_in_predicate=True)
+        return {'approved': True, 'form_success': True}
+
+    def kiosk_mate_approval(self, operation):
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        pid = self.mate_agent_pid()
+        try:
+            if operation == 'kiosk-mate-open':
+                self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')
+                require(self.mate_prompt(pid) is None, 'ui:mate-already-open')
+                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
+                challenge = self.wait(lambda: self.mate_prompt(pid), 'mate-prompt',
+                                      prompt_in_predicate=True)
+            else:
+                challenge = self.mate_prompt(pid, filled=operation == 'kiosk-mate-submit-success')
+                require(challenge is not None, 'ui:mate-missing')
+            identity = self.mate_challenge_identity(pid, challenge)
+            if operation != 'kiosk-mate-open':
+                require(identity == self.expected_mate_challenge, 'ui:mate-replacement')
+            if operation == 'kiosk-mate-submit-success':
+                # Resolve the provider button from the same fresh scoped tree;
+                # submit once, then read the brief product result in this process.
+                nodes, snapshot, _, facts = self.read_snapshot(protect_text=True)
+                current = self.mate_prompt(pid, observation=(nodes, snapshot, _, facts),
+                                           challenge=challenge, filled=True)
+                buttons = [node for node in self.snapshot_scope(nodes, snapshot, current[1])
+                           if facts[node]['role'] in ('button', 'push button')
+                           and facts[node]['name'] == 'Authenticate' and facts[node]['showing']]
+                require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
+                        'ui:mate-submit')
+                self._invoke_target(buttons[0])
+                self.input_uncertain = True  # This one submission is consumed even on success.
+                return self.kiosk_approval_success()
+            return {'challenge_id': identity}
+        except BaseException:
+            self.input_uncertain = True
+            raise
+
+    def mate_field_proof(self, field, facts):
+        """Read public field state and length only, never password contents."""
+        interface = field.get_text_iface()
+        return {'showing': facts[field]['showing'],
+                'sensitive': self.has_state(field, self.api.StateType.SENSITIVE),
+                'focused': self.has_state(field, self.api.StateType.FOCUSED),
+                'stale': self.has_state(field, self.api.StateType.DEFUNCT),
+                'length': None if interface is None else self.api.Text.get_character_count(interface)}
+
+    @staticmethod
+    def validate_mate_field(proof):
+        require(not proof['stale'], 'ui:mate-owner')
+        require(all(proof[key] for key in ('showing', 'sensitive', 'focused')),
+                'ui:mate-field-state')
+        require(type(proof['length']) is int and proof['length'] == 0,
+                'ui:mate-field-not-empty')
+
+    def mate_provider_metadata(self, pid):
+        from gi.repository import Gio
+        environment = dict(item.split(b'=', 1) for item in
+                           Path('/proc/' + str(pid) + '/environ').read_bytes().split(b'\0')
+                           if b'=' in item)
+        locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
+                  or environment.get(b'LANG') or b'C').decode('ascii')
+        version = subprocess.check_output(
+            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'mate-polkit'],
+            text=True, timeout=5).strip()
+        sources = Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack()
+        # GNOME Kiosk uses locale1 when the account has no configured sources.
+        # https://github.com/GNOME/gnome-kiosk#keyboard-layout-switching
+        # Keep the tuple nonempty and validated; do not invent a default layout.
+        if sources == []:
+            sources = greeter_keyboard_sources()
+        return validate_shell_metadata({'version': version, 'locale': locale,
+                                        'keyboard': [list(source) for source in sources]})
+
+    def mate_prompt_refusals(self, pid, challenge):
+        """Exercise refusal on projections of a fresh real tree; no test input."""
+        self.invalidate_observation()
+        observation = self.read_snapshot(protect_text=True)
+        self.mate_prompt(pid, observation=observation, challenge=challenge)
+        nodes, snapshot, identities, facts = observation
+        owner, dialog, field, cancel = challenge
+        variants = []
+        wrong_agent = {node: dict(value) for node, value in facts.items()}
+        wrong_agent[owner]['name'] = 'gnome-shell'
+        variants.append((pid, (nodes, snapshot, identities, wrong_agent), challenge,
+                         'ui:mate-wrong-agent'))
+        variants.append((pid + 1, observation, challenge, 'ui:mate-owner'))
+        labels = [node for node in self.snapshot_scope(nodes, snapshot, dialog)
+                  if facts[node]['role'] == 'label' and facts[node]['showing']]
+        recipient = next(node for node in labels
+                         if facts[node]['name'] == 'Password for ' + APPROVER_ACCOUNTS[PARENT] + ':')
+        message = next(node for node in labels if facts[node]['name'].startswith('Grant '))
+        for node, value, code in (
+                (recipient, 'Password for wrong-parent:', 'ui:mate-recipient-context-missing'),
+                (message, 'Grant wrong-child 1 minute, 15 seconds and allow soft blocked apps?',
+                 'ui:mate-request-context-missing'),
+                (message, f'Grant {CHILD} 5 minutes and allow soft blocked apps?',
+                 'ui:mate-request-context-missing'),
+                (message, f'Grant {CHILD} 1 minute, 15 seconds?',
+                 'ui:mate-request-context-missing')):
+            projected = {key: dict(value) for key, value in facts.items()}
+            projected[node]['name'] = value
+            variants.append((pid, (nodes, snapshot, identities, projected), challenge, code))
+        ambiguous = {node: dict(value) for node, value in facts.items()}
+        ambiguous[cancel]['role'] = 'password text'
+        variants.append((pid, (nodes, snapshot, identities, ambiguous), challenge,
+                         'ui:mate-field-ambiguous'))
+        variants.append((pid, observation, (owner, dialog, cancel, field), 'ui:mate-replacement'))
+        for expected_pid, tree, expected_challenge, code in variants:
+            try:
+                self.mate_prompt(expected_pid, observation=tree, challenge=expected_challenge)
+            except UiError as error:
+                require(str(error) == code, 'ui:mate-refusal-mismatch')
+            else:
+                raise UiError('ui:mate-refusal-accepted')
+        proof = self.mate_field_proof(field, facts)
+        for key, value, code in (
+                ('showing', False, 'ui:mate-field-state'),
+                ('sensitive', False, 'ui:mate-field-state'),
+                ('focused', False, 'ui:mate-field-state'),
+                ('length', 1, 'ui:mate-field-not-empty'),
+                ('stale', True, 'ui:mate-owner')):
+            try:
+                self.validate_mate_field({**proof, key: value})
+            except UiError as error:
+                require(str(error) == code, 'ui:mate-refusal-mismatch')
+            else:
+                raise UiError('ui:mate-refusal-accepted')
+        return list(MATE_REFUSALS)
+
+    def kiosk_mate_cancel(self, *, refusals=False):
+        """One owned Request, guarded Cancel, complete absence and form readback."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        before = self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')['request']
+        pid = self.mate_agent_pid()
+        require(self.mate_prompt(pid) is None, 'ui:mate-already-open')
+        challenge_id = os.urandom(32).hex()
+        try:
+            self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
+            self.invalidate_observation()
+            challenge = self.wait(lambda: self.mate_prompt(pid), 'mate-prompt',
+                                  prompt_in_predicate=True)
+            provider = self.mate_provider_metadata(pid)
+            rejected = self.mate_prompt_refusals(pid, challenge) if refusals else []
+            require(self.mate_agent_pid() == pid, 'ui:mate-owner')
+            current = self.mate_prompt(pid, challenge=challenge)
+            self._invoke_target(current[3])
+            self.invalidate_observation()
+            def absent():
+                self.invalidate_observation()
+                observation = self.read_snapshot(protect_text=True)
+                nodes, snapshot, _identities, facts = observation
+                kind = self.system_prompt_kind(observation=(nodes, snapshot, facts))
+                if kind is None:
+                    return True
+                self.mate_prompt(pid, observation=observation, challenge=challenge)
+                return False
+            self.wait(absent, 'mate-dismissed', prompt_in_predicate=True)
+            after = self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')['request']
+            require(after == before, 'ui:mate-form-changed')
+            return {'provider': provider, 'child': 'fixture-child', 'approver': 'fixture-parent',
+                    'duration_seconds': 75, 'allow_soft': True, 'cancelled': True,
+                    'unchanged_form': True, 'no_error': True, 'refusals': refusals,
+                    'rejected_proofs': rejected, 'challenge_id': challenge_id,
+                    'same_challenge_rechecked': True}
+        except BaseException:
+            self.input_uncertain = True
+            raise
 
     def kiosk_invalid_choice(self, operation):
         """Submit one finite invalid value; never authenticate or replay input."""
@@ -5046,6 +5309,19 @@ class AccessibleUI:
                                       enabled=False, inspect_only=True)
         elif operation == 'kiosk-child-choices-closed':
             result['request'] = self.collapse_kiosk_child_choices()
+        elif operation == 'parent-mate-refused':
+            require(self.snapshot_owned_target('parent-window', check_prompt=True) is not None,
+                    'ui:mate-parent-entry')
+            try:
+                self.kiosk_valid_target('kiosk-request-submit')
+            except UiError as error:
+                require(str(error) == 'ui:kiosk-valid-entry', 'ui:mate-wrong-entry-refusal')
+            else:
+                raise UiError('ui:mate-wrong-entry-accepted')
+        elif operation in MATE_APPROVAL_OPERATIONS:
+            result['approval'] = self.kiosk_mate_approval(operation)
+        elif operation in MATE_OPERATIONS:
+            result['mate'] = self.kiosk_mate_cancel(refusals=operation == 'kiosk-mate-refusals-cancel')
         elif operation in ('parent-kiosk-valid-refused', 'parent-kiosk-invalid-refused'):
             try:
                 self.kiosk_valid_target('kiosk-request-submit' if operation ==
@@ -5253,9 +5529,9 @@ def allowance_failure_diagnostic():
 
 
 def main():
-    require(len(sys.argv) in (3, 4) and sys.argv[1] in OPERATIONS, 'ui:arguments')
+    require(len(sys.argv) in (3, 4, 5) and sys.argv[1] in OPERATIONS, 'ui:arguments')
     boot = None
-    if len(sys.argv) == 4:
+    if len(sys.argv) >= 4:
         # This is transport continuity, not a product/UI assertion. Check it
         # before account lookup, accessibility connection or any public input.
         import hashlib
@@ -5291,7 +5567,7 @@ def main():
     os.environ.update(HOME=account.pw_dir, USER=account.pw_name,
                       **environment,
                       LANG='C.UTF-8', NO_AT_BRIDGE='0')
-    if sys.argv[1] == 'keyring-cancel-standard':
+    if sys.argv[1] == 'keyring-cancel-standard' or sys.argv[1] in MATE_APPROVAL_OPERATIONS:
         require_active_launch_session()
     import gi
     gi.require_version('Atspi', '2.0')
@@ -5311,6 +5587,10 @@ def main():
         timing=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.branch_owner = branch_owner
+    ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 else None
+    require(ui.expected_mate_challenge is None or (
+        sys.argv[1] in MATE_APPROVAL_OPERATIONS and
+        re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
     try:
         result = ui.run(sys.argv[1], sys.argv[2])
     except UiError:

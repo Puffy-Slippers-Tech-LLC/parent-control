@@ -22,6 +22,9 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'parent-mate-refused': 'Refusing kiosk authentication entry from Parent management',
+    **{operation: 'Qualifying MATE request context, guarded Cancel and unchanged form return'
+       for operation in accessible_ui.MATE_OPERATIONS},
     'parent-kiosk-valid-refused': 'Refusing kiosk duration input from Parent management',
     'parent-kiosk-invalid-refused': 'Refusing kiosk Request input from Parent management',
     **{operation: 'Checking invalid kiosk duration: ' + binding + ' / ' + action
@@ -189,6 +192,8 @@ OPERATION_LABELS.update({
 
 OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret field value'
                          for operation in accessible_ui.TEXT_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Qualifying kiosk approval and its explicit public result'
+                         for operation in accessible_ui.MATE_APPROVAL_OPERATIONS})
 OPERATION_LABELS.update({
     'text-wrong-entry': 'Refusing text input outside feedback',
     'text-disabled': 'Refusing text input to a disabled control',
@@ -419,11 +424,33 @@ class UiObservations:
             commands.progress = previous
 
     def observe(self, operation):
+        import time
         self.pending_challenge = None
         self.approver_uids = None
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
         with watch_activity.operation(OPERATION_LABELS[operation]):
-            return self._observe(operation)
+            try:
+                if 0 < getattr(self, 'mate_approval_index', 0) < 4:
+                    if operation not in accessible_ui.MATE_APPROVAL_OPERATIONS:
+                        self.challenge_failed = True
+                        require(False, 'ui:mate-intervening-operation')
+                if operation in accessible_ui.MATE_APPROVAL_OPERATIONS:
+                    require(not self.challenge_failed, 'ui:challenge-previous-failure')
+                    order = ('kiosk-mate-open', 'kiosk-mate-qualified',
+                             'kiosk-mate-rechecked', 'kiosk-mate-submit-success')
+                    index = getattr(self, 'mate_approval_index', 0)
+                    require(index < len(order) and operation == order[index], 'ui:mate-order')
+                    if index:
+                        require(time.monotonic() - self.mate_approval_checked < 30, 'ui:mate-stale-proof')
+                    self.mate_approval_index = index + 1
+                    self.mate_approval_checked = time.monotonic()
+                if operation in accessible_ui.MATE_OPERATIONS:
+                    require(not self.challenge_failed, 'ui:challenge-previous-failure')
+                return self._observe(operation)
+            except BaseException:
+                if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS:
+                    self.challenge_failed = True
+                raise
 
     def observe_challenge(self, operation, challenge):
         """Two fresh same-challenge checks; no intervening operation or replay."""
@@ -453,6 +480,7 @@ class UiObservations:
             raise
 
     def _observe(self, operation):
+        import re
         # Qualifications lack a scenario recorder, but use the same existing
         # spectator command pane as customer cases. Keep private program/stdin
         # and raw UI replies hidden; expose the fixed operation and its result.
@@ -474,6 +502,8 @@ class UiObservations:
             require(type(self.boot_guard) is str and (self.boot_guard == '' or
                     re.fullmatch(r'[0-9a-f]{64}', self.boot_guard)), 'ui:boot-binding')
             binding = [self.boot_guard]
+        if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation != 'kiosk-mate-open':
+            binding = [self.boot_guard or '', self.mate_approval_identity]
         # The standalone observer can exceed Linux's per-argument limit after
         # SSH shell quoting. Carry its bytes on the existing guarded stdin pipe.
         try:
@@ -491,6 +521,23 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in accessible_ui.MATE_APPROVAL_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'approval'}, 'ui:mate-response')
+            value = result['approval']
+            if operation == 'kiosk-mate-submit-success':
+                require(value == {'approved': True, 'form_success': True}
+                        and all(type(item) is bool for item in value.values()), 'ui:mate-result')
+            else:
+                require(type(value) is dict and set(value) == {'challenge_id'} and
+                        type(value['challenge_id']) is str and
+                        re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']), 'ui:mate-identity')
+                if operation == 'kiosk-mate-open':
+                    require(value['challenge_id'] not in self.challenges, 'ui:challenge-replay')
+                    self.challenges.add(value['challenge_id'])
+                    self.mate_approval_identity = value['challenge_id']
+                else:
+                    require(value['challenge_id'] == self.mate_approval_identity, 'ui:mate-replacement')
+            expected['approval'] = value
         if operation == 'parent-initial-selection':
             require(type(result) is dict and set(result) == {*expected, 'selection'}
                     and result['selection'] in ('fixture-child', 'existing-fixture-child'),
@@ -648,6 +695,27 @@ class UiObservations:
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],
                     'ui:parent-save-response')
             expected['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
+        if operation in accessible_ui.MATE_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'mate'}, 'ui:mate-response')
+            value = result['mate']
+            projection = {'child': 'fixture-child', 'approver': 'fixture-parent',
+                          'duration_seconds': 75, 'allow_soft': True, 'cancelled': True,
+                          'unchanged_form': True, 'no_error': True,
+                          'same_challenge_rechecked': True,
+                          'rejected_proofs': list(accessible_ui.MATE_REFUSALS)
+                          if operation == 'kiosk-mate-refusals-cancel' else [],
+                          'refusals': operation == 'kiosk-mate-refusals-cancel'}
+            require(type(value) is dict and set(value) == {*projection, 'provider', 'challenge_id'}
+                    and all(value[key] == item and type(value[key]) is type(item)
+                            for key, item in projection.items()), 'ui:mate-response')
+            accessible_ui.validate_shell_metadata(value['provider'])
+            challenge_id = value['challenge_id']
+            require(type(challenge_id) is str and len(challenge_id) == 64
+                    and all(char in '0123456789abcdef' for char in challenge_id), 'ui:challenge')
+            require(not self.challenge_failed and challenge_id not in self.challenges,
+                    'ui:challenge-replay')
+            self.challenges.add(challenge_id)
+            expected['mate'] = value
         if operation in accessible_ui.KIOSK_INVALID_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'invalid_choice'}, 'ui:response')
             value = result['invalid_choice']

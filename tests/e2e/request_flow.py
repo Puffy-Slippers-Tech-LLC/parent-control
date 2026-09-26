@@ -63,8 +63,8 @@ PLAN = JourneyPlan(
 
 
 class RequestFlowJourney(KioskValidDurationJourney):
-    def __init__(self, context, progress):
-        super().__init__(context, progress, plan=PLAN)
+    def __init__(self, context, progress, plan=PLAN):
+        super().__init__(context, progress, plan=plan)
         self.prepared = None
 
     def check_settings(self, stage, observed):

@@ -162,6 +162,9 @@ ID. The local GIO wait is cancelled as well; a late approval cannot revive the
 request. Authentication otherwise remains user-driven without an idle timeout.
 Sessionless callers with a bus-registered agent retain disconnect cancellation.
 
+Agent Cancel is identified by the nonempty `polkit.dismissed` detail in
+Polkit's public authorization result. Its `is_challenge` flag describes whether
+authentication could authorize the subject and is not a cancellation signal.
 Cancellation returns the existing `cancelled` result, which both shared request
 interfaces handle silently. Logs include the random request correlation ID,
 fixed cancellation reason, and remote cleanup result, without account names,

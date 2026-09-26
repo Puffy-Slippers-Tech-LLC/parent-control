@@ -23,6 +23,23 @@ import kiosk_eligible_choices
 import kiosk_valid_duration
 import request_duration
 import request_flow
+import mate_prompt
+import kiosk_approval
+
+
+@pytest.mark.parametrize('selector,mode', [('auth_prompt', 'mate_prompt'),
+                                          ('kiosk_approval', 'kiosk_approval')])
+def test_auth_prompt_qualification_reuses_owned_mate_envelope(selector, mode):
+    # The argument-free selector must not acquire a separate VM/cleanup route.
+    import ast
+    source = (ROOT / ('tests/integration/check_e2e_' + selector + '.py')).read_text()
+    tree = ast.parse(source)
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+             and isinstance(node.func, ast.Name) and node.func.id == 'smoke']
+    assert len(calls) == 1
+    keywords = {item.arg: ast.unparse(item.value) for item in calls[0].keywords}
+    assert keywords == {'assets': 'named_input()', 'provision_credentials': 'True',
+                        mode: 'True'}
 import kiosk_cancel
 import kiosk_escape
 import kiosk_no_child
@@ -130,7 +147,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  feedback_read.PLAN, text_qualification.PLAN, allowance_presets.PLAN,
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
-                                 kiosk_escape.PLAN],
+                                 kiosk_escape.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -139,7 +156,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'terminal-provider', 'license-viewer-provider', 'repeated-operations',
                               'challenges', 'app-rows', 'feedback-read', 'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
-                              'request-flow', 'kiosk-cancel', 'kiosk-escape'])
+                              'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):

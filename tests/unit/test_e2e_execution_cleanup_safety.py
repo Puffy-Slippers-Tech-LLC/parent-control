@@ -361,6 +361,31 @@ def test_preparation_failure_retains_diagnostics_and_only_owned_cleanup(harness,
     else:
         harness.source.close.assert_not_called()
     assert 'private-canary' not in json.dumps(documents(harness))
+    assert result['failure_location']
+    assert all(set(frame) == {'path', 'line'} and frame['path'].startswith('tests/')
+               and type(frame['line']) is int for frame in result['failure_location'])
+
+
+def test_failure_location_excludes_dynamic_filenames_and_exception_data():
+    namespace = {}
+    exec(compile("def private_canary():\n    raise RuntimeError('private-canary')\n",
+                 '/private-canary/secret.py', 'exec'), namespace)
+    try:
+        namespace['private_canary']()
+    except RuntimeError as error:
+        frames = execution.failure_location(error)
+    assert frames == [{'path': 'tests/unit/test_e2e_execution_cleanup_safety.py',
+                       'line': frames[0]['line']}]
+    assert 'private-canary' not in json.dumps(frames)
+
+
+def test_outdated_baseline_refusal_retains_actionable_code_and_owned_cleanup(harness):
+    execution.open_source.side_effect = execution.system.Error('baseline:preparation-outdated')
+    result = run(harness)
+    assert result['first_failure'] == {
+        'category': 'infrastructure', 'code': 'baseline:preparation-outdated'}
+    harness.worker.assert_not_called()
+    harness.source.close.assert_not_called()
 
 
 @pytest.mark.parametrize('boundary', ['preflight', 'capture', 'contract'])
@@ -405,6 +430,9 @@ def test_pre_recorder_provenance_refusal_survives_owned_cleanup(harness, monkeyp
     EvidenceError('provenance:source-changed', 'private-canary'),
     EvidenceError({'private-canary': 'value'}),
     RuntimeError('provenance:source-changed'),
+    execution.system.Error('baseline:preparation-outdated private-canary'),
+    execution.system.Error('baseline:preparation-outdated', 'private-canary'),
+    execution.system.Error('baseline:private-canary'),
 ])
 def test_pre_recorder_exception_text_is_never_exported(harness, monkeypatch, error):
     monkeypatch.setattr(execution.VerifiedInputs, 'contract', Mock(side_effect=error))

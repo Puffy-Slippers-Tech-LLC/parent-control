@@ -19,13 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **022 — [E2E-016: approved](E2E-Tasks/022-case-50.md)**.
-
-Implement complete case 50, including station restrictions and the approved
-request outcome. Task 021a qualified the fixed kiosk FLOW05/06 composition in
-report run `20260926T162146Z-b021e65a`, with independent entry/refusals, approval,
-automatic GDM return, collection, owned cleanup and baseline restoration.
-Reuse its maintained callables; capability acceptance does not complete case 50.
+Next task: **021 — [Compose kiosk rejection and cancellation](E2E-Tasks/021-approval-flow.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

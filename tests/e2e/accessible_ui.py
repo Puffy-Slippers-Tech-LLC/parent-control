@@ -329,6 +329,9 @@ KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPE
     if binding.startswith('kiosk-'))
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
 KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
+KIOSK_RESTRICTION_OPERATIONS = frozenset({'kiosk-restriction-ready', 'kiosk-restriction-read'})
+OPERATIONS |= KIOSK_RESTRICTION_OPERATIONS
+KIOSK_SESSION_OPERATIONS |= KIOSK_RESTRICTION_OPERATIONS
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
@@ -4539,6 +4542,84 @@ class AccessibleUI:
         target = self.kiosk_exit_target()
         self._invoke_target(target)
 
+    def kiosk_restrictions(self, *, stable_seconds=2):
+        """Complete public station-tree exclusion, anchored by owned form IDs.
+
+        No provider targets or names are inferred: any showing content outside
+        the station application refuses, including a Shell search or terminal.
+        Inspect offered control IDs within the recognized product window; do
+        not type a query or open supporting applications to test their absence.
+        """
+        require(type(stable_seconds) in (int, float) and 0 <= stable_seconds <= 2,
+                'ui:restriction-interval')
+        started = None
+
+        def inspect():
+            nonlocal started
+            observation = self.read_snapshot()
+            nodes, edges, identities, facts = observation
+            require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                      for node in nodes), 'ui:restriction-stale-tree')
+            window = self.snapshot_owned_target('kiosk-request-window',
+                                                observation=observation, check_prompt=True)
+            require(window is not None, 'ui:restriction-window')
+            self.snapshot_matches('kiosk-request-form', nodes, identities=identities)
+            form = self.snapshot_owned_target('kiosk-request-form', root=window,
+                                              observation=observation)
+            require(form is not None, 'ui:restriction-form')
+            application = self.snapshot_matches(KIOSK_APPLICATION, nodes, identities=identities)
+            scope = set(self.snapshot_scope(nodes, edges, application))
+            # Registry/application roots do not themselves constitute a window.
+            # Every descendant outside the owned app must be non-showing.
+            roots = {nodes[0], *edges[nodes[0]]} if nodes[0] != application else {application}
+            require(not any(facts[node]['showing'] for node in nodes
+                            if node not in scope and node not in roots),
+                    'ui:station-forbidden-surface')
+            allowed = {
+                'kiosk-child-selector', 'kiosk-approver-selector',
+                'kiosk-soft-apps-row', 'kiosk-soft-apps-toggle',
+                'kiosk-request-submit', 'kiosk-request-cancel', 'kiosk-menu-button',
+                'kiosk-menu-item-about', 'kiosk-custom-duration',
+                'kiosk-request-scrollbar',
+                *('kiosk-duration-' + str(value) for value in
+                  (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')),
+            }
+            controls = {'push button', 'button', 'toggle button', 'check box',
+                        'radio button', 'combo box', 'entry', 'text', 'menu item'}
+            # GtkMenuButton exposes an anonymous implementation toggle below
+            # its public ID (also recognized by the owned-control audit). It
+            # is part of this allowed menu, not another offered product action.
+            # Never target it, accept a named unknown control, or exempt the
+            # whole menu subtree from the restriction check.
+            menu = self.snapshot_owned_target('kiosk-menu-button', root=window,
+                                              observation=observation)
+            menu_toggles = set() if menu is None else {
+                node for node in edges[menu]
+                if not identities[node] and facts[node]['role'] == 'toggle button'
+            }
+            require(len(menu_toggles) <= 1, 'ui:station-forbidden-control')
+            for node in self.snapshot_scope(nodes, edges, window):
+                if facts[node]['showing'] and facts[node]['role'] in controls:
+                    require(identities[node] in allowed or node in menu_toggles,
+                            'ui:station-forbidden-control')
+            if started is None:
+                started = time.monotonic()
+            return time.monotonic() - started >= stable_seconds
+
+        def stable():
+            nonlocal started
+            try:
+                return inspect()
+            except self.query_errors:
+                started = None
+                raise
+
+        self.wait(stable, 'station-restrictions', prompt_in_predicate=True)
+        # One final independent form read keeps diagnostic output bounded.
+        self.invalidate_observation()
+        self.kiosk_request_form()
+        return True
+
     def focus_kiosk_escape_recipient(self):
         """UI05: focus and freshly recheck the owned recipient before Escape."""
         require(not self.input_uncertain, 'ui:uncertain-input')
@@ -5395,6 +5476,12 @@ class AccessibleUI:
             value = self.kiosk_valid_choice(operation)
             if value is not None:
                 result['valid_choice'] = value
+        elif operation in KIOSK_RESTRICTION_OPERATIONS:
+            if operation == 'kiosk-restriction-ready':
+                self.kiosk_restrictions(stable_seconds=0)
+                self.focus_kiosk_escape_recipient()
+            else:
+                self.kiosk_restrictions()
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-no-child-form':

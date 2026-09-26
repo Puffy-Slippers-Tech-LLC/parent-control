@@ -307,12 +307,18 @@ and run the first live VM test. Success completes acceptance and close-out in
 that session; failure preserves evidence and hands off after cleanup, leaving
 review and repairs to the next session. The installed `codex exec` transport has
 no in-session model-switch control, so subsequent live/repair sessions use
-GPT-6-Astra High. After a first-session failure, the next session reviews unstaged
-code and failure evidence, repairs authorized defects and host-validates before
-retrying live acceptance. Further failures are repaired and host-validated, then
-handed off before another live attempt. A
-passing live session completes the plan's acceptance, checks the row and advances
-its sole pointer. It returns an explicit list of task-related code, test and
+GPT-6-Astra High. Every subsequent session, including recovery after an interruption
+or answered blocker, investigates the previous VM failure when present, reviews
+unstaged code and retained evidence, and repairs authorized defects before host
+validation and live VM acceptance in that same session. Recovery first rechecks
+the interrupted operation or blocked prerequisite and owned cleanup. Every live
+failure ends the session after evidence preservation and cleanup; investigation
+and repairs of that new failure belong to the next session. A normal handoff
+requires passing host checks and a completed failed VM attempt, including in
+recovery. An unresolved prerequisite or behavior decision still returns a blocker
+with the actual validation outcome. A passing session completes the plan's
+acceptance, checks the row and advances its sole pointer. It returns an explicit
+list of task-related code, test and
 close-out files; the launcher stages those files without committing before
 starting another session. This staging uses literal Git paths and needs no
 agent-side Git permission grant. Task 192 retains the plan's explicit host-only exception.
@@ -418,7 +424,9 @@ without printing them. At an incomplete session boundary or safe stop, it still 
 the handoff. A new invocation after that boundary continues the latest
 handoff with fresh session and task budgets. An interrupted checkpoint
 starts an Astra High recovery session that rechecks evidence and cleanup,
-resolves authorized remaining host work, then hands off before live testing.
+resolves authorized remaining work, then runs host and live VM validation in
+that session. A pass closes the task; a failure preserves evidence and hands off
+for investigation and repairs in the next session.
 Blocked checkpoints retain their pending question and pause again until answered.
 The full engineering handoff remains in `handoff.txt`, without being repeated in
 the blocked display. An interrupted session that changed the queue

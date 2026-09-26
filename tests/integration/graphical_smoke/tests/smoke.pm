@@ -31,6 +31,7 @@ use onpc_kiosk_no_approver ();
 use onpc_no_child ();
 use onpc_no_parent ();
 use onpc_disabled_child ();
+use onpc_restricted_station ();
 use onpc_request_exit ();
 use onpc_parent_toggle ();
 use onpc_allowance_presets ();
@@ -210,6 +211,12 @@ sub run {
         onpc_fresh_desktop::run(\&exchange,
             $ready->{fresh_parent_desktop} ? 'parent' : 'standard',
             $ready->{keyring_standard_desktop} ? 1 : 0);
+        return;
+    }
+    if ($ready->{restricted_station}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_restricted_station::run(\&exchange);
         return;
     }
     if ($ready->{disabled_child}) {

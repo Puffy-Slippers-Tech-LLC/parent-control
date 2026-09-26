@@ -97,6 +97,44 @@ def test_approver_baseline_reads_real_disabled_form(
     assert not calls(path, 'RequestAccess')
 
 
+def test_station_restrictions_accept_real_request_controls(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, monkeypatch):
+    from tests.support.request_form import launch_request, calls
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+
+    # Uses the existing private preview, bus/display and launcher-owned process.
+    # No shared resources or additional scheduling exclusion are needed.
+    monkeypatch.setattr(module, 'CHILD_IDENTITIES', {'Alex Morgan': 'fixture-child'})
+    monkeypatch.setattr(module, 'APPROVER_IDENTITIES', {
+        'Taylor Morgan': 'fixture-parent', 'Avery Quinn': 'other-fixture-parent'})
+    # The restriction leaf precedes FLOW04's child selection, so its entry
+    # contract is the default disabled form, as in the installed journey.
+    _application, path = launch_request(
+        launch_ui, tmp_path, overlay=False, scenario='control-disabled')
+    wait_for_accessible_state(lambda: automation.showing('kiosk-request-window'),
+                              'request station loaded')
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.KIOSK_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        fixture_uids={'Taylor Morgan': 1000, 'Avery Quinn': 1010, 'Alex Morgan': 1001},
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    try:
+        assert ui.kiosk_restrictions(stable_seconds=0)
+    except module.UiError:
+        # Synthetic host fixture only: record IDs/roles, never names or text.
+        nodes, edges, identities, facts = ui.read_snapshot()
+        window = ui.snapshot_matches('kiosk-request-window', nodes, identities=identities)
+        print('Station public controls:', [
+            (identities[node], facts[node]['role'])
+            for node in ui.snapshot_scope(nodes, edges, window)
+            if facts[node]['showing']])
+        raise
+    assert not calls(path, 'RequestAccess')
+
+
 def _record_parent_public_state(ui, module, log_path):
     """Keep bounded public failure evidence without retrying customer input."""
     evidence = {'incomplete_reads': [], 'discarded_observations': ui.incomplete_observations}

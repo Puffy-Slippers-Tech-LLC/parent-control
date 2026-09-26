@@ -31,9 +31,9 @@ def test_compact_duration_format(seconds, expected):
 
 @pytest.mark.parametrize(('phase', 'attempts', 'summary'), [
     ('implement', 0, 'Writing task code + host validation + first live VM test; close on success, hand off on failure'),
-    ('recover', 0, 'Recovering interrupted work + host validation'),
-    ('live', 0, 'Live VM test 1, fix errors if any + host validation'),
-    ('live', 2, 'Live VM test 3, fix errors if any + host validation'),
+    ('recover', 0, 'Investigate/fix previous failure + host validation + live VM test 1; close on success, hand off on failure'),
+    ('live', 0, 'Investigate/fix previous failure + host validation + live VM test 1; close on success, hand off on failure'),
+    ('live', 2, 'Investigate/fix previous failure + host validation + live VM test 3; close on success, hand off on failure'),
 ])
 def test_session_controller_reports_task_title_and_phase(tmp_path, phase, attempts, summary):
     from rich.text import Text
@@ -41,7 +41,7 @@ def test_session_controller_reports_task_title_and_phase(tmp_path, phase, attemp
     state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
                  task_sessions=2)
     assert [Text.from_ansi(line).plain for line in workflow.session_progress(tmp_path, state, 5)] == [
-        'Task 001: First', f'Session [2/5]: {summary}']
+        'Task 001: First', f'Session [2]: {summary}']
 
 
 def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, capsys):
@@ -70,8 +70,9 @@ def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, 
 def test_implementation_prompt_preserves_requested_boundary():
     prompt = workflow.session_prompt(workflow.fresh_state('001'))
     assert prompt.startswith(workflow.INITIAL_PROMPT)
-    assert "run this task's first live VM acceptance" in prompt
-    assert 'Leave failure review and repairs to the next' in prompt
+    assert 'Implement this task and complete host validation' in prompt
+    assert "run this task's live VM acceptance" in prompt
+    assert 'Leave investigation and repairs of this new failure to the next session' in prompt
     assert 'task_complete with live_result passed' in prompt
     assert 'The launcher owns staging' in prompt
     assert 'Do not analyze staged' in prompt
@@ -79,19 +80,36 @@ def test_implementation_prompt_preserves_requested_boundary():
     assert 'tools/run-tests' in prompt
 
 
-def test_only_latest_handoff_crosses_into_first_live_then_retry(tmp_path):
+@pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
+@pytest.mark.parametrize('attempts', [0, 1, 2])
+def test_every_session_ends_at_validation_before_new_repairs(phase, attempts):
+    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts)
+    prompt = workflow.session_prompt(state)
+    validation = prompt.index("After host checks pass, run this task's live VM acceptance")
+    if phase != 'implement':
+        assert prompt.index('Start by investigating the previous VM validation error') < validation
+        assert prompt.index('repair authorized defects') < validation
+        assert prompt.index('complete host validation') < validation
+    assert prompt.index('If live acceptance fails') > validation
+    assert 'Leave investigation and repairs of this new failure to the next session' in prompt
+    assert 'finish live VM validation\nwith a passed or failed result' in prompt
+    assert 'Do not run live VM tests' not in prompt
+    assert 'return ready_for_vm with live_result not_run' not in prompt
+
+
+def test_only_latest_handoff_crosses_into_each_live_retry(tmp_path):
     prepare(tmp_path)
     state = workflow.fresh_state('001')
     _, before = workflow.queue_state(tmp_path)
     state = workflow.accept_result(tmp_path, state, reply(handoff='CURRENT HANDOFF'), before)
     prompt = workflow.session_prompt(state)
-    assert 'first live attempt failed' in prompt
-    assert 'review the unstaged code' in prompt
+    assert 'Start by investigating the previous VM validation error' in prompt
+    assert 'unstaged code (including new files)' in prompt
     assert 'CURRENT HANDOFF' in prompt
     state = workflow.accept_result(tmp_path, state, reply(live='failed', handoff='LATEST REPAIR'), before)
     prompt = workflow.session_prompt(state)
     assert state['live_attempts'] == 2
-    assert 'first live attempt has already happened' in prompt
+    assert 'Start by investigating the previous VM validation error' in prompt
     assert 'LATEST REPAIR' in prompt and 'CURRENT HANDOFF' not in prompt
 
 
@@ -113,7 +131,8 @@ def test_task_restart_inherits_only_its_own_consumed_sessions(tmp_path, monkeypa
     prompt = workflow.session_prompt(restarted)
     if expected['phase'] == 'recover':
         assert 'current source/evidence' in prompt and workflow.PLAN in prompt
-        assert 'Do not run live VM tests' in prompt
+        assert "run this task's live VM acceptance" in prompt
+        assert str(previous) in prompt
     assert workflow.queue_state(tmp_path)[0] == '001'
 
 
@@ -207,19 +226,20 @@ def test_restart_preserves_an_answer_before_owner_checkpoint(tmp_path, monkeypat
     assert not workflow.task_session_limit_reached(resumed)
 
 
+@pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
 @pytest.mark.parametrize('change', [
     {'task_id': '002'}, {'host_validated': False}, {'live_result': 'passed'},
     {'live_result': 'not_run'},
     {'handoff': ''}, {'status': 'made_up'}, {'host_validated': 'yes'},
 ])
-def test_invalid_initial_handoff_cannot_advance(tmp_path, change):
+def test_invalid_handoff_cannot_advance_in_any_session(tmp_path, phase, change):
     prepare(tmp_path)
     _, before = workflow.queue_state(tmp_path)
     with pytest.raises(ValueError):
-        workflow.accept_result(tmp_path, workflow.fresh_state('001'), reply(**change), before)
+        workflow.accept_result(tmp_path, dict(workflow.fresh_state('001'), phase=phase), reply(**change), before)
 
 
-@pytest.mark.parametrize('phase', ['implement', 'live'])
+@pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
 def test_completion_requires_live_success_and_queue_closeout(tmp_path, phase):
     prepare(tmp_path)
     state = dict(workflow.fresh_state('001'), phase=phase)
@@ -233,6 +253,27 @@ def test_completion_requires_live_success_and_queue_closeout(tmp_path, phase):
     assert result['live_attempts'] == 1
     with pytest.raises(ValueError, match='completion'):
         workflow.accept_result(tmp_path, state, reply('task_complete', 'failed'), before)
+
+
+@pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
+def test_failed_vm_handoff_counts_attempt_without_advancing_queue(tmp_path, phase):
+    prepare(tmp_path)
+    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=2)
+    _, before = workflow.queue_state(tmp_path)
+    result = workflow.accept_result(tmp_path, state, reply(), before)
+    assert result['phase'] == 'live' and result['live_attempts'] == 3
+    assert workflow.queue_state(tmp_path) == ('001', before)
+
+
+@pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
+def test_blocked_host_validation_does_not_claim_vm_attempt(tmp_path, phase):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=2)
+    result = workflow.accept_result(tmp_path, state,
+                                    reply('blocked', 'not_run', host_validated=False), before)
+    assert result['phase'] == 'blocked' and result['live_attempts'] == 2
+    assert workflow.queue_state(tmp_path) == ('001', before)
 
 
 def test_queue_order_is_authoritative_and_deferred_tasks_are_excluded(tmp_path):

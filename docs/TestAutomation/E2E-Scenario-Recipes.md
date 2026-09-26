@@ -406,7 +406,11 @@ absent form and usable GDM.
 
 ### E2E-016
 
-Implementation status: All cases pending.
+Implementation status: Case 50 passed through `restricted_station.PLAN`
+and `onpc_restricted_station::run` in `20260926T172007Z-3a5d2feb`, including
+collection, owned cleanup and baseline restoration. Cases 51 and 52 remain
+pending. About/Help and report restrictions remain under
+E2E-042 and E2E-045, outside this family's ordinary shortcut assertions.
 
 **Restricted request station.** Cases 50, 51, 52.
 

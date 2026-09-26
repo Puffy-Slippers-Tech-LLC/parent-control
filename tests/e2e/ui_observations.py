@@ -158,6 +158,8 @@ OPERATION_LABELS.update({
     'gdm-station-focused': 'Checking the request station is focused',
     'gdm-station-returned': 'Checking the usable greeter after leaving the request station',
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
+    'kiosk-restriction-ready': 'Checking and focusing the request station before an ordinary shortcut',
+    'kiosk-restriction-read': 'Verifying the station remains request-only after an ordinary shortcut',
     'kiosk-disabled-child-select': 'Selecting the disabled child in the request station',
     'kiosk-child-choices-open': 'Inspecting the exact eligible child choices',
     'kiosk-child-choices-closed': 'Collapsing child choices and checking the unchanged unavailable form',

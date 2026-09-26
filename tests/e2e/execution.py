@@ -56,7 +56,26 @@ def attempt_failure(error):
         code = error.args[0]
         if type(code) is str and code in codes:
             return code
+    if (isinstance(error, system.Error) and len(error.args) == 1
+            and type(error.args[0]) is str
+            and error.args[0] == 'baseline:preparation-outdated'):
+        return error.args[0]
     return 'execution:attempt-failed'
+
+
+def failure_location(error):
+    """Static checkout locations only: no exception text, source, or locals."""
+    locations = []
+    frame = error.__traceback__
+    while frame is not None:
+        path = Path(frame.tb_frame.f_code.co_filename)
+        if (path.is_absolute() and path.is_relative_to(ROOT)
+                and path.suffix == '.py' and path.is_file() and path.resolve() == path):
+            relative = path.relative_to(ROOT)
+            if relative.parts[0] in ('tests', 'tools'):
+                locations.append({'path': relative.as_posix(), 'line': frame.tb_lineno})
+        frame = frame.tb_next
+    return locations[-8:]
 
 
 @cache
@@ -275,6 +294,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             except BaseException as error:
                 # Persist before Lease.__exit__ starts restoration, including
                 # preparation failures before a recorder or finalizer exists.
+                report.setdefault('failure_location', failure_location(error))
                 if context is not None and context.recorder.records:
                     failures = context.recorder.records[-1]['failures']
                     for failure in failures:
@@ -293,6 +313,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
     except BaseException as error:
         # Lease restoration/finalization/release may have failed after the
         # callback returned. Keep those domains instead of blaming the product.
+        report.setdefault('failure_location', failure_location(error))
         if context is not None and context.recorder.records:
             for failure in context.recorder.records[-1]['failures']:
                 fail(failure['category'], failure['code'])

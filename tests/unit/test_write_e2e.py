@@ -53,11 +53,12 @@ def test_current_task_recap_refreshes_and_freezes_at_completion(tmp_path, monkey
     workflow.launcher.atomic(tmp_path / 'checkpoint.json', state)
     monkeypatch.setattr(workflow.time, 'time', lambda: 1120)
     rendered = workflow.task_progress(tmp_path, steps)
-    assert rendered[-1]['lines'][0] == 'Task 001: First (sessions=2, duration=2m)'
     text = Text.from_ansi(rendered[-1]['lines'][0])
-    assert text.get_style_at_offset(Console(), text.plain.index('sessions=')).color is None
+    assert text.plain == 'Task 001: First (sessions=2, duration=2m)'
+    assert text.get_style_at_offset(Console(), 0).color.get_truecolor().hex == '#0066ff'
+    assert text.get_style_at_offset(Console(), text.plain.index('sessions=')).color.get_truecolor().hex == '#0066ff'
     monkeypatch.setattr(workflow.time, 'time', lambda: 1180)
-    assert workflow.task_progress(tmp_path, steps)[-1]['lines'][0].endswith('duration=3m)')
+    assert Text.from_ansi(workflow.task_progress(tmp_path, steps)[-1]['lines'][0]).plain.endswith('duration=3m)')
     state.update(task_sessions=3)
     workflow.launcher.atomic(tmp_path / 'checkpoint.json', state)
     assert '(sessions=3,' in workflow.task_progress(tmp_path, steps)[-1]['lines'][0]
@@ -72,6 +73,44 @@ def test_current_task_recap_refreshes_and_freezes_at_completion(tmp_path, monkey
     assert rolling[0]['lines'][0] == rolling[1]['lines'][0]
     completed = [{'key': 'complete-001', 'lines': ['Completed recap'], 'replaces': ['2']}]
     assert workflow.task_progress(tmp_path, completed) == completed
+
+
+@pytest.mark.parametrize('prerequisite_started', [False, True])
+def test_suspended_consumer_does_not_show_an_ongoing_session(tmp_path, prerequisite_started):
+    from rich.console import Console
+    from rich.text import Text
+    prepare(tmp_path)
+    consumer = dict(workflow.fresh_state('001'), task_sessions=2,
+                    started_at=1000, progress_keys=['1', '2'])
+    insert_prerequisite(tmp_path)
+    selected = workflow.defer_to_prerequisite(tmp_path, consumer)
+    completed = {'key': 'complete-previous', 'lines': ['Previously completed'],
+                 'replaces': ['0']}
+    steps = [completed, *[
+        {'key': str(index), 'lines': workflow.session_progress(tmp_path, dict(consumer, task_sessions=index), index)}
+        for index in (1, 2)]]
+    if prerequisite_started:
+        selected.update(started_at=1000, task_sessions=1, progress_keys=['3'])
+        steps.append({'key': '3', 'lines': workflow.session_progress(tmp_path, selected, 3)})
+    workflow.launcher.atomic(tmp_path / 'checkpoint.json', selected)
+    original = json.dumps(steps)
+    rendered = workflow.task_progress(tmp_path, steps)
+    assert rendered[0] == completed
+    assert len(rendered[1]['lines']) == 1
+    suspended = Text.from_ansi(rendered[1]['lines'][0])
+    assert suspended.plain == 'Task 001: First — Suspended for prerequisite'
+    assert suspended.get_style_at_offset(Console(), 0).color.get_truecolor().hex == '#808080'
+    assert suspended.get_style_at_offset(Console(), len(suspended.plain) - 1).color.get_truecolor().hex == '#808080'
+    if prerequisite_started:
+        for line in rendered[-1]['lines']:
+            ongoing = Text.from_ansi(line)
+            for offset in range(len(ongoing.plain)):
+                assert ongoing.get_style_at_offset(Console(), offset).color.get_truecolor().hex == '#0066ff'
+    assert sum('Session [' in line for step in rendered for line in step['lines']) == int(prerequisite_started)
+    assert json.dumps(steps) == original
+    # Resumption restores the original session display; the overlay is not durable.
+    workflow.launcher.atomic(tmp_path / 'checkpoint.json', consumer)
+    assert Text.from_ansi(workflow.task_progress(tmp_path, steps)[1]['lines'][1]).plain == Text.from_ansi(steps[1]['lines'][1]).plain
 
 
 def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, capsys):

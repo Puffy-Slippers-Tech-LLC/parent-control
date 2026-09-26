@@ -147,16 +147,30 @@ def session_progress(root, state, count):
 def task_progress(run, steps):
     """Refresh the current task recap without changing durable controller lines."""
     checkpoint = run / 'checkpoint.json'
-    if not steps or steps[-1].get('replaces') or not checkpoint.exists():
+    if not steps or not checkpoint.exists():
         return steps
     state = json.loads(checkpoint.read_text())
-    if ('started_at' not in state
+    # A queue repair suspends its consumer without completing it. Its last
+    # session remains in the controller history, but is no longer running.
+    # Derive this from the checkpoint so reconnects also repair older frames.
+    for suspended in state.get('suspended_tasks', {}).values():
+        keys = suspended.get('progress_keys', [])
+        previous = [step for step in steps if not step.get('replaces') and step['key'] in keys]
+        if previous:
+            latest = previous[-1]
+            steps = [dict(step, lines=[f"\033[38;2;128;128;128m{step['lines'][0]} — Suspended for prerequisite\033[39m"])
+                     if step is latest else step for step in steps
+                     if step not in previous or step is latest]
+    if (steps[-1].get('replaces') or 'started_at' not in state
             or steps[-1]['key'] not in state.get('progress_keys', [])):
         return steps
     duration = state.get('completed_at', time.time()) - state['started_at']
     summary = (f" (sessions={state['task_sessions']}, "
                f"duration={format_duration(duration, short=True)})")
-    return [dict(step, lines=[step['lines'][0] + summary, *step['lines'][1:]])
+    color = '\033[38;2;0;102;255m' if state['phase'] != 'complete' else ''
+    reset = '\033[39m' if color else ''
+    return [dict(step, lines=[color + line + reset
+                             for line in [step['lines'][0] + summary, *step['lines'][1:]]])
             if not step.get('replaces') and step['key'] in state['progress_keys']
             else step for step in steps]
 

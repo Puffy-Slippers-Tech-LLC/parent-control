@@ -135,7 +135,7 @@ class Authorities:
                                         list(invalidated),
                                     )))
 
-    def reply(self, item=None, *, authorized=False, challenge=False, error=False):
+    def reply(self, item=None, *, authorized=False, challenge=False, details=None, error=False):
         item = self.checks[-1] if item is None else item
         item["done"] = True
         if error:
@@ -143,7 +143,7 @@ class Authorities:
                 "org.freedesktop.PolicyKit1.Error.Failed", "private error")
         else:
             item["invocation"].return_value(GLib.Variant(
-                "((bba{ss}))", ((authorized, challenge, {}),)))
+                "((bba{ss}))", ((authorized, challenge, details or {}),)))
 
 
 @pytest.fixture
@@ -343,10 +343,31 @@ def test_authentication_outcomes_and_selected_identity_are_preserved(lifecycle, 
     assert flags == 1
     assert details == {"target-account": "Child", "approver-user": "admin",
                        "requested-duration": "5 minutes", "soft-blocked-apps": " and allow soft blocked apps"}
-    lifecycle.authorities.reply(authorized=outcome == "approved", challenge=outcome == "cancelled",
+    lifecycle.authorities.reply(authorized=outcome == "approved",
+                                details={"polkit.dismissed": "true"} if outcome == "cancelled" else {},
                                 error=outcome == "agent-lost")
     spin_until(lambda: pending["done"])
     assert pending["result"][1] == ("denied" if outcome == "agent-lost" else outcome)
+    assert lifecycle.authorities.cancellations == []
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+@pytest.mark.parametrize("details, expected", [
+    ({"polkit.dismissed": "true"}, "cancelled"),
+    ({"polkit.dismissed": "1"}, "cancelled"),
+    ({"polkit.dismissed": ""}, "denied"),
+    ({"unrelated": "true"}, "denied"),
+    ({}, "denied"),
+])
+def test_dismissal_detail_not_challenge_controls_silent_return(lifecycle, surface, details, expected):
+    # Private bus and existing owned worker only; no new shared resource.
+    # A challenge indicates authentication is still possible, not dismissal.
+    pending = lifecycle.start(surface)
+    spin_until(lambda: lifecycle.authorities.checks)
+    lifecycle.authorities.reply(challenge=True, details=details)
+    spin_until(lambda: pending["done"])
+    assert pending["result"][1] == expected
+    assert lifecycle.accounts.events == []
     assert lifecycle.authorities.cancellations == []
 
 

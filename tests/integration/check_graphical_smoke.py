@@ -658,12 +658,17 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
          time_explanation=False, set_allowance=False, app_restart=False,
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
-         request_flow=False):
+         request_flow=False, mate_prompt=False, kiosk_approval=False):
+    require(type(kiosk_approval) is bool and not (kiosk_approval and (
+        mate_prompt or request_flow or request_duration or kiosk_valid_duration)),
+        'smoke:kiosk-approval-prerequisites')
+    require(type(mate_prompt) is bool and not (mate_prompt and (
+        request_flow or request_duration or kiosk_valid_duration)), 'smoke:mate-prompt-prerequisites')
     require(type(request_flow) is bool and not (request_flow and (
         kiosk_valid_duration or request_duration)), 'smoke:request-flow-prerequisites')
     require(type(request_duration) is bool and not (request_duration and kiosk_valid_duration),
             'smoke:request-duration-prerequisites')
-    kiosk_valid_duration = kiosk_valid_duration or request_duration or request_flow
+    kiosk_valid_duration = kiosk_valid_duration or request_duration or request_flow or mate_prompt or kiosk_approval
     require(type(kiosk_valid_duration) is bool and (not kiosk_valid_duration or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1118,6 +1123,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-request-duration-qualification'
         if request_flow:
             result['scope'] = 'installed-request-flow-qualification'
+        if mate_prompt:
+            result['scope'] = 'installed-mate-prompt-qualification'
+        if kiosk_approval:
+            result['scope'] = 'installed-kiosk-approval-qualification'
         if time_explanation:
             result['scope'] = 'installed-time-explanation-qualification'
         if set_allowance:
@@ -1294,6 +1303,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if request_flow:
                     from parent_setup_qualification import RequestFlowQualification
                     qualification_class = RequestFlowQualification
+                if mate_prompt:
+                    from parent_setup_qualification import MatePromptQualification
+                    qualification_class = MatePromptQualification
+                if kiosk_approval:
+                    from parent_setup_qualification import KioskApprovalQualification
+                    qualification_class = KioskApprovalQualification
                 if time_explanation:
                     from parent_setup_qualification import TimeExplanationQualification
                     qualification_class = TimeExplanationQualification

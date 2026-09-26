@@ -260,6 +260,18 @@ sub run {
         onpc_kiosk_cancel::run(\&exchange);
         return;
     }
+    if ($ready->{kiosk_approval}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::run(\&exchange, 'approval');
+        return;
+    }
+    if ($ready->{mate_prompt}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::run(\&exchange, 'mate');
+        return;
+    }
     if ($ready->{request_flow}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

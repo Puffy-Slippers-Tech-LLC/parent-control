@@ -73,6 +73,43 @@ sub enter_parent_gdm_password {
     return _enter_functional_gdm_password('parent', @_);
 }
 
+# Fixed MATE binding: controller checks opaque same-challenge identity and the
+# exact administrator/child/request at both durable checkpoints. Any failure
+# poisons all subsequent secret routes, including uncertain type_password.
+sub enter_kiosk_mate_password {
+    onpc_progress::operation('Qualifying the kiosk approval password recipient');
+    my ($journey) = @_;
+    die "secret:input-refused\n" if $failed;
+    my $ok = eval {
+        my $id = 'kiosk-mate-approval';
+        die 'secret:challenge' unless @_ == 1 && ref($journey) eq 'onpc_journey'
+            && ($journey->{prefix} // '') eq 'kiosk-approval'
+            && !$journey->{review} && !$challenges_used{$id};
+        $challenges_used{$id} = 1;
+        $authentication_started = 1;
+        $functional_started = 1;
+        $functional_input_started = 1;
+        die 'secret:console' unless testapi::current_console() eq 'sut';
+        die 'secret:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
+        my $proof;
+        for my $stage ('approval-qualified', 'approval-rechecked') {
+            $proof = $journey->seen($stage);
+            die 'secret:recipient' unless ref($proof) eq 'HASH' && keys(%$proof) == 1
+                && ($proof->{observed} // '') eq $stage;
+        }
+        $active_challenge = {journey => $journey, id => $id, role => 'parent',
+                             stage => 'approval-rechecked', proof => $proof};
+        type_fixture_secret('parent', $journey, $proof, $id);
+        1;
+    };
+    unless ($ok) {
+        $failed = 1;
+        undef $active_challenge;
+        die "secret:input-failed\n";
+    }
+    return 1;
+}
+
 sub enter_standard_gdm_password {
     onpc_progress::operation('Qualifying the standard-account password recipient');
     return _enter_functional_gdm_password('other-child', @_);

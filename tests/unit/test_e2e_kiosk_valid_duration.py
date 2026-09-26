@@ -3,6 +3,7 @@
 No shared files, buses, displays, sockets or fixture builds; unit-compatible.
 """
 import json
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -20,6 +21,8 @@ from request_duration import PLAN as INVALID_PLAN
 from request_flow import PLAN as FLOW_PLAN, CHOICES, prepared_request, RequestFlowJourney
 from kiosk_cancel import PLAN as CANCEL_PLAN
 from kiosk_escape import PLAN as ESCAPE_PLAN
+from mate_prompt import PLAN as MATE_PLAN
+from kiosk_approval import PLAN as APPROVAL_PLAN
 
 
 def valid_form():
@@ -514,3 +517,315 @@ def test_flow_qualification_uses_guarded_snapshot(tmp_path):
     journey = RequestFlowQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
     assert journey.plan is FLOW_PLAN
     assert RequestFlowQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+
+
+def mate_form():
+    """Private public-tree double; no service, files, secret or display access."""
+    ui, status, custom = valid_form()
+    ui.kiosk_valid_choice('kiosk-valid-custom-open')
+    ui.kiosk_valid_choice('kiosk-valid-fraction-soft-select')
+    app = ui.root()
+    desktop = Node('desktop', 'desktop frame', children=[app])
+    ui.api.get_desktop = lambda _: desktop
+    field = Node(role='password text', states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_text_iface = lambda: SimpleNamespace(
+        get_character_count=lambda: 0, get_text=Mock(side_effect=AssertionError('password content')))
+    # Public accessible names are labels; never traverse or read secret contents.
+    field.get_description = Mock(side_effect=AssertionError('protected description'))
+    field.get_child_count = Mock(side_effect=AssertionError('protected children'))
+    cancel = Node('Cancel', 'push button')
+    message = Node(f'Grant {accessible_ui.CHILD} 1 minute, 15 seconds and allow soft blocked apps?', 'label')
+    recipient = Node('Password for onpc-parent-jamie:', 'label')
+    dialog = Node('Authenticate', 'dialog', children=[message, recipient, field, cancel])
+    agent = Node('mate-polkit', 'application', children=[dialog])
+    agent.parent = desktop
+    submit = ui.find_id('kiosk-request-submit')
+    submit.action.do_action.side_effect = lambda _: desktop.children.append(agent) or True
+    cancel.action.do_action.side_effect = lambda _: desktop.children.remove(agent) or True
+    ui.mate_agent_pid = Mock(return_value=100)
+    ui.mate_provider_metadata = Mock(return_value={
+        'version': '1.26.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]})
+    return ui, desktop, agent, dialog, field, cancel, submit, message, recipient
+
+
+@pytest.mark.parametrize('sources', [[], [('xkb', 'gb')]])
+def test_mate_metadata_uses_kiosk_keyboard_configuration(monkeypatch, sources):
+    ui = ui_for(Node())
+    path = Mock(return_value=SimpleNamespace(read_bytes=lambda:
+        b'LANG=de_DE.UTF-8\0LC_MESSAGES=en_US.UTF-8\0'))
+    monkeypatch.setattr(accessible_ui, 'Path', path)
+    monkeypatch.setenv('LC_ALL', 'fr_FR.UTF-8')
+    query = Mock(return_value='1.26.1-1build3\n')
+    monkeypatch.setattr(accessible_ui.subprocess, 'check_output', query)
+    settings = Mock()
+    settings.get_value.return_value.unpack.return_value = sources
+    gio = SimpleNamespace(Settings=SimpleNamespace(new=Mock(return_value=settings)))
+    monkeypatch.setitem(sys.modules, 'gi.repository', SimpleNamespace(Gio=gio))
+    system_sources = Mock(return_value=[['xkb', 'us']])
+    monkeypatch.setattr(accessible_ui, 'greeter_keyboard_sources', system_sources)
+    result = ui.mate_provider_metadata(4321)
+    assert result == {'version': '1.26.1-1build3', 'locale': 'en_US.UTF-8',
+                      'keyboard': [['xkb', 'gb']] if sources else [['xkb', 'us']]}
+    path.assert_called_once_with('/proc/4321/environ')
+    query.assert_called_once_with(
+        ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'mate-polkit'],
+        text=True, timeout=5)
+    gio.Settings.new.assert_called_once_with('org.gnome.desktop.input-sources')
+    settings.get_value.assert_called_once_with('sources')
+    if sources:
+        system_sources.assert_not_called()
+    else:
+        system_sources.assert_called_once_with()
+        system_sources.side_effect = RuntimeError('locale1 unavailable')
+        with pytest.raises(RuntimeError, match='locale1 unavailable'):
+            ui.mate_provider_metadata(4321)
+
+
+@pytest.mark.parametrize('operation', sorted(accessible_ui.MATE_OPERATIONS))
+def test_mate_cancel_real_decoder_single_input_and_unchanged_form(operation):
+    ui, desktop, agent, _dialog, field, cancel, submit, *_ = mate_form()
+    result = ui.run(operation, '')
+    observer = UiObservations(Mock())
+    observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+    assert observer.observe(operation) == result
+    assert agent not in desktop.children
+    submit.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_called_once()
+    field.get_child_count.assert_not_called()
+    assert result['mate']['refusals'] is (operation == 'kiosk-mate-refusals-cancel')
+    assert result['mate']['rejected_proofs'] == (list(accessible_ui.MATE_REFUSALS)
+        if operation == 'kiosk-mate-refusals-cancel' else [])
+    assert result['mate']['same_challenge_rechecked'] is True
+    with pytest.raises(Exception, match='ui:challenge-replay'):
+        observer.observe(operation)
+    assert 'onpc-parent-jamie' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('fault', ['agent', 'owner', 'duplicate-owner', 'duplicate-field',
+                                  'hidden', 'disabled', 'focus', 'nonempty', 'recipient',
+                                  'context', 'cancel', 'incomplete', 'stale'])
+def test_mate_prompt_refuses_before_cancel_and_latches_failure(fault):
+    ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form()
+    if fault == 'agent':
+        agent.name = 'gnome-shell'
+    elif fault == 'owner':
+        agent.get_process_id = lambda: 999
+    elif fault == 'duplicate-owner':
+        desktop.children.append(Node('mate-polkit', 'application'))
+    elif fault == 'duplicate-field':
+        dialog.children.append(Node(role='password text'))
+    elif fault in ('hidden', 'disabled', 'focus'):
+        field.states.discard({'hidden': 'visible', 'disabled': 'sensitive', 'focus': 'focused'}[fault])
+    elif fault == 'nonempty':
+        field.get_text_iface = lambda: SimpleNamespace(get_character_count=lambda: 1)
+    elif fault == 'recipient':
+        recipient.name = 'Password for onpc-parent-casey:'
+    elif fault == 'context':
+        message.name = 'Authentication is required'
+    elif fault == 'cancel':
+        cancel.states.discard('sensitive')
+    elif fault == 'incomplete':
+        dialog.children.append(None)
+    else:
+        field.states.add('defunct')
+    with pytest.raises(UiError):
+        ui.run('kiosk-mate-cancel', '')
+    cancel.action.do_action.assert_not_called()
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.run('kiosk-mate-cancel', '')
+    submit.action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['replacement', 'service-replaced', 'uncertain', 'unchanged',
+                                  'form-changed', 'error'])
+def test_mate_cancel_replacement_or_uncertain_result_never_replays(fault):
+    ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()
+    if fault == 'replacement':
+        def metadata(_pid):
+            replacement = Node('Cancel', 'push button')
+            replacement.parent = dialog
+            dialog.children[-1] = replacement
+            return {'version': '1', 'locale': 'C', 'keyboard': [['xkb', 'us']]}
+        ui.mate_provider_metadata.side_effect = metadata
+    elif fault == 'service-replaced':
+        ui.mate_agent_pid.side_effect = [100, 999]
+    elif fault == 'uncertain':
+        cancel.action.do_action.side_effect = RuntimeError('lost response')
+    elif fault == 'unchanged':
+        cancel.action.do_action.side_effect = None
+    else:
+        def dismiss(_):
+            desktop.children.remove(agent)
+            if fault == 'form-changed':
+                ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
+            else:
+                ui.find_id('kiosk-request-status').name = 'Request denied'
+            return True
+        cancel.action.do_action.side_effect = dismiss
+    with pytest.raises((UiError, RuntimeError),
+                       match='ui:kiosk-estimate:request-denied' if fault == 'error' else None):
+        ui.run('kiosk-mate-cancel', '')
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.run('kiosk-mate-cancel', '')
+    submit.action.do_action.assert_called_once()
+    assert cancel.action.do_action.call_count == (0 if fault in ('replacement', 'service-replaced') else 1)
+
+
+@pytest.mark.parametrize('refusal', [None, 'mate-wrong-entry', 'kiosk-invalid-letters-submit',
+                                   'open-mate', 'new-mate'])
+def test_mate_worker_uses_independent_entries_and_stops_on_refusal(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_request_flow').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    worker = worker.replace("$stage eq 'station-branch'", "$stage =~ /station-branch\\z/")
+    worker = worker.replace('    });', "    }, 'mate');")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(MATE_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+
+
+def test_mate_qualification_uses_guarded_snapshot(tmp_path):
+    from parent_setup_qualification import MatePromptQualification, KioskEntryQualification
+    journey = MatePromptQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is MATE_PLAN
+    assert MatePromptQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+
+
+@pytest.mark.parametrize('fault', ['recipient', 'child', 'duration', 'apps', 'field', 'proofs', 'id'])
+def test_auth_prompt_controller_rejects_incomplete_or_wrong_proof(fault):
+    ui, *_ = mate_form()
+    result = ui.run('kiosk-mate-refusals-cancel', '')
+    key, value = {
+        'recipient': ('approver', 'other-parent'), 'child': ('child', 'other-child'),
+        'duration': ('duration_seconds', 300), 'apps': ('allow_soft', False),
+        'field': ('same_challenge_rechecked', False), 'proofs': ('rejected_proofs', []),
+        'id': ('challenge_id', ''),
+    }[fault]
+    result['mate'][key] = value
+    observer = UiObservations(Mock())
+    observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+    with pytest.raises(Exception, match='ui:'):
+        observer.observe('kiosk-mate-refusals-cancel')
+
+
+@pytest.mark.parametrize('conflict', ['request_flow', 'request_duration', 'kiosk_valid_duration',
+                                   'request_choices', 'allowance'])
+def test_mate_qualification_refuses_conflicting_modes(conflict):
+    import check_graphical_smoke
+    from owned_commands import CommandError
+    with pytest.raises(CommandError, match='prerequisites'):
+        check_graphical_smoke.main(assets='/not-used', provision_credentials=True,
+                                  mate_prompt=True, **{conflict: True})
+
+
+@pytest.mark.parametrize('refusal', [None, 'approval-open', 'approval-qualified',
+                                   'approval-rechecked', 'approval-success', 'new-returned'])
+def test_approval_worker_order_and_secret_once(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_request_flow').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    worker = worker.replace("$stage eq 'station-branch'", "$stage =~ /station-branch\\z/")
+    worker = worker.replace('    });', "    }, 'approval');")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(APPROVAL_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    assert sum(event[0] == 'secret' for event in result['events']) == (
+        1 if refusal in ('approval-open', 'approval-qualified', 'approval-rechecked') else 2)
+
+
+@pytest.mark.parametrize('fault', [None, 'changed', 'nonempty', 'unfocused', 'uncertain'])
+def test_approval_proofs_preserve_recipient_and_challenge(fault):
+    ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    assert ui.run('kiosk-mate-open', '')['approval'] == {'challenge_id': 'a' * 64}
+    ui.expected_mate_challenge = 'a' * 64
+    if fault == 'changed':
+        ui.mate_challenge_identity.return_value = 'b' * 64
+    elif fault == 'nonempty':
+        field.get_text_iface = lambda: SimpleNamespace(get_character_count=lambda: 1)
+    elif fault == 'unfocused':
+        field.states.discard('focused')
+    elif fault == 'uncertain':
+        ui.input_uncertain = True
+    if fault:
+        with pytest.raises(UiError):
+            ui.run('kiosk-mate-qualified', '')
+    else:
+        assert ui.run('kiosk-mate-qualified', '')['approval'] == {'challenge_id': 'a' * 64}
+        assert ui.run('kiosk-mate-rechecked', '')['approval'] == {'challenge_id': 'a' * 64}
+    submit.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'replacement', 'empty', 'uncertain', 'denied'])
+def test_approval_submits_once_and_requires_explicit_success(fault):
+    ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    ui.run('kiosk-mate-open', '')
+    ui.expected_mate_challenge = 'b' * 64 if fault == 'replacement' else 'a' * 64
+    field.get_text_iface = lambda: SimpleNamespace(get_character_count=lambda: 0 if fault == 'empty' else 5)
+    authenticate = Node('Authenticate', 'push button')
+    authenticate.parent = dialog
+    dialog.children.append(authenticate)
+    window = ui.find_id('kiosk-request-window')
+    result = Node(identity='kiosk-result-page', children=[Node(
+        'Request denied' if fault == 'denied' else 'Request approved', 'label', identity='kiosk-result-title')])
+    result.parent = window
+    def approve(_):
+        desktop.children.remove(agent)
+        window.children.append(result)
+        return True
+    authenticate.action.do_action.side_effect = approve
+    if fault == 'uncertain':
+        authenticate.action.do_action.side_effect = RuntimeError('private failure')
+    if fault:
+        with pytest.raises((UiError, RuntimeError)):
+            ui.run('kiosk-mate-submit-success', '')
+        with pytest.raises(UiError, match='uncertain'):
+            ui.run('kiosk-mate-submit-success', '')
+    else:
+        assert ui.run('kiosk-mate-submit-success', '')['approval'] == {
+            'approved': True, 'form_success': True}
+    assert authenticate.action.do_action.call_count == (0 if fault in ('replacement', 'empty') else 1)
+
+
+@pytest.mark.parametrize('fault', [None, 'replay', 'changed', 'intervening', 'out-of-order', 'stale'])
+def test_approval_controller_reconciles_fresh_proofs_and_latches(fault):
+    observer = UiObservations(Mock())
+    def call(_args, operation, **_kwargs):
+        approval = ({'approved': True, 'form_success': True} if operation.endswith('success') else
+                    {'challenge_id': ('b' if fault == 'changed' and operation.endswith('rechecked') else 'a') * 64})
+        value = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'approval': approval}
+        if operation != 'kiosk-mate-open':
+            value['boot_sha256'] = 'c' * 64
+        return json.dumps(value).encode(), []
+    observer.call = Mock(side_effect=call)
+    observer.observe('kiosk-mate-open')
+    if fault == 'stale':
+        observer.mate_approval_checked = float('-inf')
+    if fault:
+        operation = {'replay': 'kiosk-mate-open', 'intervening': 'desktop',
+                     'out-of-order': 'kiosk-mate-submit-success', 'changed': 'kiosk-mate-rechecked',
+                     'stale': 'kiosk-mate-qualified'}[fault]
+        if fault == 'changed':
+            observer.observe('kiosk-mate-qualified')
+        with pytest.raises(Exception, match='ui:'):
+            observer.observe(operation)
+        with pytest.raises(Exception, match='ui:'):
+            observer.observe('kiosk-mate-qualified')
+    else:
+        for operation in ('kiosk-mate-qualified', 'kiosk-mate-rechecked', 'kiosk-mate-submit-success'):
+            observer.observe(operation)
+
+
+def test_approval_qualification_uses_guarded_snapshot(tmp_path):
+    from parent_setup_qualification import KioskApprovalQualification, KioskEntryQualification
+    journey = KioskApprovalQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is APPROVAL_PLAN
+    assert KioskApprovalQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot

@@ -19,12 +19,14 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **019a — [Inspect and qualify the kiosk MATE prompt entry](E2E-Tasks/019a-mate-prompt.md)**.
+Next task: **020b — [Observe kiosk password rejection and Cancel](E2E-Tasks/020b-kiosk-rejection.md)**.
 
-Qualify the actual kiosk MATE challenge's owner, selected administrator and
-public request context, then guarded Cancel and unchanged form return. Preserve
-independent prompt entry, refusal checks, sanitized evidence and owned cleanup;
-password submission belongs to a later task.
+Qualify one declared wrong password, explicit rejection and normal Cancel with
+independent preserved-form readback; separately Cancel a fresh prompt without
+a password. Task 020a qualified the fixed kiosk's single-use correct-password
+delivery, explicit success and automatic GDM return in run
+`20260926T065928Z-8c15b645`, including independent entry/refusals, private
+collection, owned cleanup and baseline restoration.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

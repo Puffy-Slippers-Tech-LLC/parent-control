@@ -22,6 +22,16 @@ and the affected safety/adapter tests. Follow the
 [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
 Use delivered prerequisite scopes; do not open predecessor briefs.
 
+Start the delivered approval path at `kiosk_approval.PLAN`,
+`AccessibleUI.kiosk_mate_approval` / `mate_prompt` / `mate_challenge_identity`,
+`UiObservations.observe`, `onpc_password::enter_kiosk_mate_password` and
+`onpc_request_flow::run(exchange, 'approval')`. Its fixed operation sequence
+accepts only correct-password approval; rejection needs its own declared
+binding and result observation. Reuse the existing secret delivery leaf and
+failure latch, without replaying a consumed challenge. Existing tests are
+`test_e2e_kiosk_valid_duration.py`, `test_challenges_cleanup_safety.py`,
+`test_installed_journey_cleanup_safety.py` and `test_e2e_secret_variables.py`.
+
 ## Implementation
 
 Reuse 019/020a's MATE recipient and sealed submission. Add explicit wrong-password rejection and normal Cancel with independent preserved-form readback.

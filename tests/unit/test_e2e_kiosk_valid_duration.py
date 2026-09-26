@@ -26,6 +26,7 @@ from kiosk_approval import PLAN as APPROVAL_PLAN
 from auth_result import PLAN as AUTH_RESULT_PLAN
 from kiosk_approved_flow import PLAN as APPROVED_FLOW_PLAN, approved_request, obtain_time
 from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
+from restricted_station import PLAN as STATION_PLAN
 
 
 def valid_form():
@@ -64,6 +65,101 @@ def valid_form():
         return True
     soft.action.do_action.side_effect = toggle
     return ui, status, custom
+
+
+@pytest.mark.parametrize('fault', [None, 'terminal', 'shell', 'management',
+                                  'control', 'incomplete', 'stale', 'wrong-owner', 'duplicate'])
+def test_station_restrictions_inspect_complete_public_tree(fault):
+    from tests.support.e2e_kiosk import request_form
+    ui, _ = request_form()
+    ui.timeout = 3
+    app = ui.root()
+    desktop = Node(children=[app])
+    ui.api.get_desktop = lambda _: desktop
+    if fault in ('terminal', 'shell', 'management'):
+        # No provider name/role/ID is needed to detect forbidden public content.
+        desktop.children.append(Node(children=[Node()]))
+    elif fault == 'control':
+        ui.find_id('kiosk-request-form').children.append(
+            Node('Settings', 'push button', identity='kiosk-settings-launch'))
+    elif fault == 'incomplete':
+        desktop.children.append(None)
+    elif fault == 'stale':
+        ui.find_id('kiosk-request-form').states.add('defunct')
+    elif fault == 'wrong-owner':
+        ui.owner_pids = lambda: {999}
+    elif fault == 'duplicate':
+        app.children.append(Node(identity='kiosk-request-form'))
+    if fault:
+        with pytest.raises(UiError):
+            ui.kiosk_restrictions(stable_seconds=0)
+    else:
+        result = ui.run('kiosk-restriction-read', '')
+        observer = UiObservations(Mock())
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        assert observer.observe('kiosk-restriction-read') == result
+
+
+def test_station_shortcut_ready_focuses_owned_cancel_without_activating_it():
+    from tests.support.e2e_kiosk import request_form
+    ui, _ = request_form()
+    window = ui.find_id('kiosk-request-window')
+    cancel = ui.find_id('kiosk-request-cancel')
+    window.action.get_action_name = lambda _: 'focus.kiosk-request-cancel'
+    window.action.do_action.side_effect = lambda _: cancel.states.add('focused') or True
+    ui.run('kiosk-restriction-ready', '')
+    assert 'focused' in cancel.states
+    cancel.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'named-toggle', 'extra-toggle', 'outside-menu',
+                                  'nested-control', 'wrong-menu-id'])
+def test_station_menu_toolkit_toggle_is_not_a_separate_product_action(fault):
+    from tests.support.e2e_kiosk import request_form
+    ui, _ = request_form()
+    window = ui.find_id('kiosk-request-window')
+    toggle = Node(role='toggle button')
+    menu = Node(role='button', identity='kiosk-menu-button', children=[toggle])
+    window.children.append(menu)
+    if fault == 'named-toggle':
+        toggle.identity = 'kiosk-settings-launch'
+    elif fault == 'extra-toggle':
+        menu.children.append(Node(role='toggle button'))
+    elif fault == 'outside-menu':
+        menu.children.remove(toggle)
+        window.children.append(toggle)
+    elif fault == 'nested-control':
+        toggle.children.append(Node(role='push button'))
+    elif fault == 'wrong-menu-id':
+        menu.identity = 'kiosk-settings-menu'
+    if fault:
+        with pytest.raises(UiError, match='ui:station-forbidden-control'):
+            ui.kiosk_restrictions(stable_seconds=0)
+    else:
+        assert ui.kiosk_restrictions(stable_seconds=0)
+    toggle.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('refusal', [None, 'restriction-overview-ready',
+                                   'restriction-grid-read', 'restriction-terminal-read',
+                                   'approval-qualified', 'approval-success', 'new-returned'])
+def test_restricted_station_worker_order_and_refusal(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_restricted_station').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(STATION_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    if refusal is None:
+        keys = [event[1] for event in result['events'] if event[0] == 'key']
+        assert [key for key in keys if key in ('super', 'super-a', 'ctrl-alt-t')] == [
+            'super', 'super-a', 'ctrl-alt-t']
+        assert sum(event[0] == 'secret' for event in result['events']) == 2
+    elif refusal.startswith('restriction-'):
+        assert not any(event[0] == 'text' for event in result['events'])
 
 
 def test_public_choices_roundtrip_through_real_controller_decoder():

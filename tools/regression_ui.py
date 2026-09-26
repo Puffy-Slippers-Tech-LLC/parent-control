@@ -66,6 +66,8 @@ GROUPS = (
 # that same private preview; finally releases its existing broker worker.
 # Public reader connections belong to each private preview bus and close before
 # fixture teardown; alias resolution and selection waits add no shared resource.
+# Station restriction adapter checks reuse the private request preview, its bus,
+# display and tmp_path event log; they add no shared resources or fixture builds.
 # A qualified build companion must never implicitly authorize other UI fixtures.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')

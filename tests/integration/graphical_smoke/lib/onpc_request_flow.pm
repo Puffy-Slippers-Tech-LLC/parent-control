@@ -42,11 +42,11 @@ sub prepare {
 
 # FLOW05 uses the fixed single-use approval challenge and observes automatic GDM exit.
 sub approve {
+    onpc_progress::operation('Approving the prepared kiosk request and observing automatic return');
     my ($journey, $child, $approver, $seconds, $soft, $exit) = @_;
     die 'approved-flow:binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
         && $seconds eq '75' && $soft eq '1' && $exit eq 'automatic';
-    onpc_progress::operation('Approving the prepared kiosk request and observing automatic return');
     $journey->consume_observation('approval-open', $journey->seen('approval-open'));
     onpc_password::enter_kiosk_mate_password($journey);
     $journey->consume_observation('approval-success', $journey->seen('approval-success'));
@@ -55,6 +55,7 @@ sub approve {
 
 # FLOW06: the caller supplies GDM and enabled policy, never a previous attempt.
 sub obtain_time {
+    onpc_progress::operation('Obtaining time through a fresh request-station entry');
     my ($journey, $initial, $child, $approver, $seconds, $soft, $exit) = @_;
     die 'approved-flow:binding' unless @_ == 7 && ref($journey) eq 'onpc_journey'
         && ($initial eq 'default' || $initial eq 'selected')

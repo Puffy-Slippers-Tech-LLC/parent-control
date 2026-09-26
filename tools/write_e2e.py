@@ -61,11 +61,11 @@ def session_progress(root, state, count):
     link = target.resolve().as_uri()
     task_label = f'\033]8;;{link}\033\\\033[1mTask {task}\033[22m\033]8;;\033\\'
     title = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', title).replace('`', '').replace('**', '')
-    summary = {'implement': 'Writing task code + host validation + first live VM test; close on success, hand off on failure',
-               'recover': 'Recovering interrupted work + host validation'}.get(
-                   state['phase'], f"Live VM test {state['live_attempts'] + 1}, fix errors if any + host validation")
+    summary = ('Writing task code + host validation + first live VM test; close on success, hand off on failure'
+               if state['phase'] == 'implement' else
+               f"Investigate/fix previous failure + host validation + live VM test {state['live_attempts'] + 1}; close on success, hand off on failure")
     return [f'{task_label}: {title}',
-            f"\033[1mSession [{state['task_sessions']}/{count}]\033[22m: {summary}"]
+            f"\033[1mSession [{state['task_sessions']}]\033[22m: {summary}"]
 
 
 def session_prompt(state):
@@ -113,52 +113,35 @@ files, excluding unrelated work. Otherwise return stage_paths empty.
                    'Recheck the prerequisite before continuing; an answer alone is not '
                    'evidence that it passed.\n' + json.dumps(state['user_answer'], ensure_ascii=False) + '\n')
     if state['phase'] == 'implement':
-        return INITIAL_PROMPT + common + """
-After host checks pass, run this task's first live VM acceptance, including
-required regressions, under the plan. If it fails, preserve failure evidence,
-wait for owned cleanup and return ready_for_vm with live_result failed and a
-handoff for GPT-6-Astra High. Leave failure review and repairs to the next
-session; do not retry live acceptance or advance the pointer in this session.
+        preparation = INITIAL_PROMPT + common + "\nImplement this task and complete host validation.\n"
+    else:
+        preparation = common + """
+Continue this task with GPT-6-Astra High from the handoff and current source/evidence.
+Start by investigating the previous VM validation error, when present. Review
+unstaged code (including new files) and retained failure evidence, apply the
+repository failure contract and repair authorized defects. For interrupted or
+blocked work, recheck the operation or prerequisite and owned test cleanup first.
+Finish remaining implementation or repairs and complete host validation before
+starting live acceptance in this same session.
+"""
+        if state['phase'] == 'recover':
+            preparation += f"\nLast operation evidence: {state.get('recovery_run', 'see handoff')}/output and prompt.txt.\n"
+        preparation += f"\nPrevious session's handoff:\n{state['handoff']}\n"
+    return preparation + """
+Use this same validation and handoff boundary in every session, including recovery.
+After host checks pass, run this task's live VM acceptance, including required
+regressions, under the plan. Wait for validation and owned cleanup to finish.
+If live acceptance fails, preserve failure evidence and return ready_for_vm with
+host_validated true, live_result failed and a fresh handoff for GPT-6-Astra High.
+Leave investigation and repairs of this new failure to the next session; do not
+repair it, retry live acceptance or advance the pointer in this session.
+Do not end a normal session with only host validation: finish live VM validation
+with a passed or failed result. If a prerequisite or unresolved blocker prevents
+validation, return blocked with the actual live_result; do not claim a VM attempt.
 After all acceptance and cleanup pass, complete the plan's close-out and return
 task_complete with live_result passed and the next-task handoff. Leave the next
 task's implementation to a fresh session. Task 192 may instead return
 task_complete with live_result not_run after its host-only acceptance and close-out.
-"""
-    if state['phase'] == 'recover':
-        return common + f"""
-Recover this task with GPT-6-Astra High from the handoff and current source/evidence.
-Recheck the blocker or interrupted operation and test cleanup. If the interrupted
-first live attempt failed, review unstaged code (including new files) before
-repairing it. Finish remaining implementation and host validation, then return
-ready_for_vm with live_result not_run. Do not run live VM tests or close the
-task/advance the pointer in this recovery session.
-
-Recovery handoff:
-Last operation evidence: {state.get('recovery_run', 'see handoff')}/output and prompt.txt.
-{state['handoff']}
-"""
-    review = (
-        'This is the first live VM attempt for this task. If it fails, review the '
-        'unstaged code (including new files) before fixing it.'
-        if state['live_attempts'] == 0 else
-        'The first live attempt failed. Before another live attempt, review the '
-        'unstaged code (including new files) and failure evidence, apply the '
-        'repository failure contract, repair authorized defects and host-validate.'
-        if state['live_attempts'] == 1 else
-        'The first live attempt has already happened; use its failure evidence and current source.'
-    )
-    return common + f"""
-Continue the handoff with GPT-6-Astra High. Run this task's live acceptance,
-including required regressions, under the plan. {review}
-On failure, apply the repository failure contract, repair authorized defects
-and host-validate, then return ready_for_vm with live_result failed and a fresh
-handoff. Do not rerun live acceptance after a repair in this session.
-After all acceptance and cleanup pass, complete the plan's close-out and return
-task_complete with live_result passed and the next-task handoff. Leave the next
-task's implementation to a fresh session.
-
-Previous session's handoff:
-{state['handoff']}
 """
 
 
@@ -187,19 +170,18 @@ def accept_result(root, state, result, before):
         raise ValueError('incomplete task requested staging')
     if status == 'task_complete':
         if (not after.get(task) or current == task or not result['host_validated']
-                or (task != '192' and (state['phase'] not in ('implement', 'live')
+                or (task != '192' and (state['phase'] not in ('implement', 'live', 'recover')
                                       or result['live_result'] != 'passed'))):
             raise ValueError('task completion lacks acceptance or queue close-out')
     elif current != task or after.get(task):
         raise ValueError('incomplete task advanced the queue pointer')
     if status == 'ready_for_vm':
-        expected_live = 'not_run' if state['phase'] == 'recover' else 'failed'
-        if not result['host_validated'] or result['live_result'] != expected_live:
+        if not result['host_validated'] or result['live_result'] != 'failed':
             raise ValueError('VM handoff lacks host validation or a matching live outcome')
     updated = dict(state, summary=result['summary'], handoff=result['handoff'], in_flight=False)
     updated.pop('blocker_id', None)
     updated['blocker'] = blocker
-    if state['phase'] in ('implement', 'live') and result['live_result'] != 'not_run':
+    if state['phase'] in ('implement', 'live', 'recover') and result['live_result'] != 'not_run':
         updated['live_attempts'] += 1
     updated['phase'] = 'complete' if status == 'task_complete' else 'live' if status == 'ready_for_vm' else 'blocked'
     return updated

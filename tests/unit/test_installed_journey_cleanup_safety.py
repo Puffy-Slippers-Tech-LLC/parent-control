@@ -28,6 +28,7 @@ import kiosk_approval
 import auth_result
 import kiosk_approved_flow
 import kiosk_rejection
+import restricted_station
 
 
 @pytest.mark.parametrize('selector,mode', [('auth_prompt', 'mate_prompt'),
@@ -154,7 +155,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
                                  kiosk_escape.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN,
-                                 kiosk_rejection.PLAN, auth_result.PLAN, kiosk_approved_flow.PLAN],
+                                 kiosk_rejection.PLAN, auth_result.PLAN, kiosk_approved_flow.PLAN,
+                                 restricted_station.PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -164,7 +166,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'challenges', 'app-rows', 'feedback-read', 'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',
-                              'kiosk-rejection', 'auth-result', 'kiosk-approved-flow'])
+                              'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -188,6 +190,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-015/kiosk-cancel'
     if plan is kiosk_escape.PLAN:
         selector = 'E2E-015/kiosk-escape'
+    if plan is restricted_station.PLAN:
+        selector = 'E2E-016/approved'
     scenario_id, variant_id = selector.split('/', 1)
     selected = next(
         variant
@@ -393,7 +397,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             elif plan is kiosk_no_approver.CASE_PLAN:
                 expected_steps.append('step-3')
                 actions['prepare-no-approver'].assert_called_once()
-            elif plan is command_help.PLAN:
+            elif plan in (command_help.PLAN, restricted_station.PLAN):
                 expected_steps.append('step-3')
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)
@@ -561,17 +565,21 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
                                  parent_about.PLAN, license_viewer_provider.PLAN,
                                  shell_search_results.PLAN, parent_search_launch.PLAN,
                                  shell_search.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN,
-                                 kiosk_no_approver.PLAN, kiosk_no_approver.CASE_PLAN],
+                                 kiosk_no_approver.PLAN, kiosk_no_approver.CASE_PLAN,
+                                 restricted_station.PLAN],
                          ids=['discovery', 'empty', 'standard-access', 'about', 'license-viewer-provider',
                               'shell-search', 'search-launch',
                               'standard-search', 'kiosk-no-child', 'no-child-case',
-                              'kiosk-no-approver', 'no-parent-case'])
+                              'kiosk-no-approver', 'no-parent-case', 'restricted-station'])
 def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
     details, observations = [], []
     for stage, tag in plan.screen_tags.items():
         if tag.startswith('ui:'):
             observations.append({'stage': stage, 'ui': {
                 'operation': tag[3:], 'outcome': 'passed', 'interface': 'AT-SPI'}})
+        elif tag.startswith('system:'):
+            observations.append({'stage': stage, 'system': {
+                'operation': tag[7:], 'outcome': 'passed', 'interface': 'system session'}})
         else:
             details.append({'needle': tag, 'result': 'ok',
                             'area': [{'result': 'ok', 'similarity': 100}], 'screenshot': 'safe.png'})

@@ -609,9 +609,14 @@ or customer acceptance claim. Host/source/baseline preservation and held-lease
 terminal evidence remain the existing controller's responsibility. Test-tool
 activation is `none` (next invocation); no setup or product data change is needed.
 Before a scenario recorder exists, the invocation retains reviewed, fixed
-provenance refusal codes through cleanup. Unknown exception text stays private
-and produces `execution:attempt-failed`; a later cleanup failure cannot replace
-the first refusal. Checkout edits do not invalidate an attempt.
+provenance refusal codes and `baseline:preparation-outdated` through cleanup.
+Unknown exception text is never exported and produces `execution:attempt-failed`;
+bounded `failure_location` entries retain only existing checkout Python file
+paths and line numbers, never source text, locals or exception messages.
+A later cleanup failure cannot replace the first refusal. Checkout edits do
+not invalidate an attempt. Diagnostic regressions use existing private recorder
+fixtures and in-memory exceptions; the compatible unit and cleanup scheduler
+classifications remain valid without new shared resources or build demand.
 Before lease acquisition, the controller fsyncs a private
 `input/selected-inputs.json` containing the source preflight identity, inventory
 identity and exact case. The shared SSH bootstrap binds its guest observation

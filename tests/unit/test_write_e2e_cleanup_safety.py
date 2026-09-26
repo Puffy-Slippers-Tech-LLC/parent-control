@@ -135,7 +135,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
     assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
     from launcher_progress import read_progress
-    assert 'Session [2/2]' in Text.from_ansi(read_progress(second)[-1]['lines'][-1]).plain
+    assert 'Session [2]' in Text.from_ansi(read_progress(second)[-1]['lines'][-1]).plain
     assert json.loads((second / 'result.json').read_text())['sessions'] == 1
 
 
@@ -147,7 +147,7 @@ def test_cumulative_sessions_restart_only_for_a_new_task(checkout):
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    for sessions, expected in [('2', '2/2'), ('1', '1/1'), ('1', '2/2')]:
+    for sessions, expected in [('2', '2'), ('1', '1'), ('1', '2')]:
         run, started = workflow.select(root, ['--sessions', sessions])
         assert started
         assert launcher.follow(run, io.StringIO()) == 0
@@ -173,21 +173,24 @@ def test_completion_stages_changes_from_every_session_despite_omitted_stage_path
     assert unrelated.read_text() == 'pre-existing work'
 
 
-def test_failure_repair_returns_before_retry_and_counts_every_session(checkout):
+def test_each_session_repairs_previous_failure_then_validates_and_hands_off(checkout):
     root, _ = checkout
     script(root, {'result': reply(handoff='FIRST')},
-           {'result': reply(live='failed', handoff='REPAIRED')},
+           {'result': reply(live='failed', handoff='LATEST VM FAILURE')},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002', handoff='NEXT TASK LIVE')})
     run, _ = workflow.select(root, ['--sessions', '4', '--tasks', '2'])
     assert launcher.follow(run, io.StringIO()) == 0
     invocations = calls(root)
     assert len(invocations) == 4
-    assert 'first live attempt failed' in invocations[1]['prompt']
-    assert 'REPAIRED' in invocations[2]['prompt'] and 'FIRST' not in invocations[2]['prompt']
-    assert 'first live attempt has already happened' in invocations[2]['prompt']
+    for invocation in invocations[1:3]:
+        prompt = invocation['prompt']
+        assert prompt.index('Start by investigating the previous VM validation error') < prompt.index(
+            "After host checks pass, run this task's live VM acceptance")
+        assert 'Leave investigation and repairs of this new failure to the next session' in prompt
+    assert 'LATEST VM FAILURE' in invocations[2]['prompt'] and 'FIRST' not in invocations[2]['prompt']
     assert invocations[3]['prompt'].startswith(workflow.INITIAL_PROMPT)
-    assert 'REPAIRED' not in invocations[3]['prompt']
+    assert 'LATEST VM FAILURE' not in invocations[3]['prompt']
     assert 'Task 002' in (run / 'handoff.txt').read_text()
 
 
@@ -245,8 +248,8 @@ def test_completed_task_is_compacted_while_next_task_keeps_live_updates(checkout
     title_style = summary.get_style_at_offset(Console(), len('Task 001: '))
     assert not title_style.bold and not title_style.link
     lines = [Text.from_ansi(line).plain for step in steps[1:] for line in step['lines']]
-    assert 'Session [1/3]: Writing task code + host validation + first live VM test; close on success, hand off on failure' in lines
-    assert 'Session [2/4]: Live VM test 2, fix errors if any + host validation' in lines
+    assert 'Session [1]: Writing task code + host validation + first live VM test; close on success, hand off on failure' in lines
+    assert 'Session [2]: Investigate/fix previous failure + host validation + live VM test 2; close on success, hand off on failure' in lines
     (root / 'release').touch()
     assert launcher.follow(run, io.StringIO()) == 0
 
@@ -526,8 +529,7 @@ def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, cu
     from rich.text import Text
     root, spawned = checkout
     script(root, {'result': reply('blocked', handoff='ENGINEERING DETAILS ONLY IN SAVED HANDOFF')},
-           {'result': reply(live='not_run'), 'wait': True},
-           {'result': reply('task_complete', 'passed'), 'close': True})
+           {'result': reply('task_complete', 'passed'), 'close': True, 'wait': True})
     run, _ = workflow.select(root, [])
     wait_for(run / 'question.json')
     wait_for(run / 'handoff.txt')
@@ -543,7 +545,7 @@ def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, cu
     prompt = calls(root)[1]['prompt']
     assert ('Keep 0m.' if custom else question['options'][0]) in prompt
     assert 'ENGINEERING DETAILS ONLY IN SAVED HANDOFF' in prompt
-    assert 'Do not run live VM tests' in prompt
+    assert "run this task's live VM acceptance" in prompt
     (root / 'release').touch()
     output = io.StringIO()
     assert finish_answered_run(run, spawned, output) == 0
@@ -556,15 +558,16 @@ def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, cu
     assert selected in rendered
     if custom:
         assert f"› 1. {question['options'][0]}" not in rendered
-    assert len(calls(root)) == 3
+    assert len(calls(root)) == 2
     assert workflow.queue_state(root)[0] == '002'
+    assert json.loads((run / 'checkpoint.json').read_text())['live_attempts'] == 2
 
 
 @pytest.mark.parametrize('action', ['stop', 'cancel'])
 def test_waiting_can_stop_or_cancel_and_restart_still_requires_an_answer(checkout, action):
     from launcher_question import submit
     root, spawned = checkout
-    script(root, {'result': reply('blocked')}, {'result': reply(live='not_run')})
+    script(root, {'result': reply('blocked')}, {'result': reply(live='failed')})
     run, _ = workflow.select(root, [])
     wait_for(run / 'handoff.txt')
     (run / action).touch()
@@ -586,7 +589,7 @@ def test_answer_permits_recovery_when_blocker_used_the_last_session(checkout):
     from launcher_question import submit
     root, spawned = checkout
     script(root, *[{'result': reply()} for _ in range(4)],
-           {'result': reply('blocked')}, {'result': reply(live='not_run')})
+           {'result': reply('blocked')}, {'result': reply(live='failed')})
     run, _ = workflow.select(root, [])
     wait_for(run / 'question.json')
     assert len(calls(root)) == 5 and not (run / 'result.json').exists()
@@ -623,10 +626,12 @@ def test_expired_completed_nested_run_does_not_block_the_next_session(tmp_path):
     assert launcher.finish_nested(tmp_path, parent) is False
 
 
-def test_cancelled_run_can_restart_through_fresh_recovery_session(checkout):
+@pytest.mark.parametrize('live', ['passed', 'failed'])
+def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, live):
     root, _ = checkout
     script(root, {'result': reply(), 'wait': True},
-           {'result': reply(live='not_run', handoff='RECOVERED HANDOFF')})
+           {'result': reply('task_complete' if live == 'passed' else 'ready_for_vm',
+                            live, handoff='RECOVERED HANDOFF'), 'close': live == 'passed'})
     run, _ = workflow.select(root, [])
     wait_for(root / 'agent-ready-1')
     (run / 'cancel').touch()
@@ -641,8 +646,12 @@ def test_cancelled_run_can_restart_through_fresh_recovery_session(checkout):
     progress = json.loads((recovered / 'progress.json').read_text())
     assert progress['task_id'] == '001' and progress['phase'] == 'recover'
     prompt = ' '.join(invocation['prompt'].split())
-    assert 'Recover this task with GPT-6-Astra High' in prompt
-    assert 'Do not run live VM tests or close the task/advance the pointer' in prompt
+    assert 'Continue this task with GPT-6-Astra High' in prompt
+    assert "run this task's live VM acceptance" in prompt
     assert str(run) in prompt
-    assert workflow.queue_state(root) == ('001', {'001': False, '002': False})
+    assert workflow.queue_state(root) == ('002' if live == 'passed' else '001',
+                                         {'001': live == 'passed', '002': False})
+    state = json.loads((recovered / 'checkpoint.json').read_text())
+    assert state['live_attempts'] == 1
+    assert state['phase'] == ('complete' if live == 'passed' else 'live')
     assert 'RECOVERED HANDOFF' in (recovered / 'handoff.txt').read_text()

@@ -595,6 +595,30 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 
 #### Approved kiosk flow qualification
 
+Case 50 composes the qualified fresh-zero FLOW16 setup, caller-owned station
+entry, `onpc_station::restrictions`, FLOW04(open/default) and FLOW05 automatic
+exit in `restricted_station.PLAN` / `onpc_restricted_station::run`.
+`AccessibleUI.kiosk_restrictions` anchors a complete public tree at the owned
+station window/form, excludes showing content outside its application, and
+inspects offered control IDs for request-only actions. The ID-owned menu's
+single anonymous direct GTK toggle is its implementation child, never an input
+target or a blanket subtree exemption; named unknown controls and other
+anonymous controls still refuse. Each Super, Super-A and
+Ctrl-Alt-T input has a fresh ID-owned focused Cancel recipient and independent
+two-second absence observation followed by REQUEST03. It never types a search
+query. Approval replaces the form with success and automatically exits; no
+post-approval form restriction pass is applicable. Case 50 passed independently
+in `20260926T172007Z-3a5d2feb`: all three shortcut restrictions, exact prepared
+choices, real approval, explicit success and automatic usable-GDM return passed,
+with private capture reconciliation, collection, owned cleanup and baseline
+restoration. About/report actions remain E2E-042/045 obligations.
+The added host regressions use private trees, bounded owned Perl doubles and
+the existing private durable-recorder fixtures. Unit and cleanup scheduler
+classifications remain compatible: no shared cache, bus, display, VM or heavy
+fixture construction is added. The real GTK restriction regression in
+`tests/ui/test_e2e_accessible_adapter.py` reuses the existing private preview,
+bus/display and event log; its UI scheduler classification remains compatible.
+
 `kiosk_approved_flow.PLAN` / `KioskApprovedFlowJourney` and
 `onpc_request_flow::run(exchange, 'approved-flow')` passed
 `tools/run-tests integration check_e2e_kiosk_approved_flow` in report run

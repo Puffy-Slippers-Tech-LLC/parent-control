@@ -836,8 +836,8 @@
       "title": "Restricted request station",
       "category": "customer-journey",
       "owners": ["kiosk-session"],
-      "requirements": ["ONPC-CORE-REQUEST-002", "ONPC-COMP-KIOSK-001", "ONPC-COMP-KIOSK-006", "ONPC-CORE-ABOUT-002", "ONPC-CORE-ABOUT-003", "ONPC-CORE-FEEDBACK-007"],
-      "requirement_gap": "Request-station About/Help restrictions and restricted report controls are mapped to this surface; the existing approval/denial/cancellation variants do not yet exercise those flows. The related Parent/child-overlay links and Help actions also need separate qualification beyond the existing Parent-only About case.",
+      "requirements": ["ONPC-CORE-REQUEST-002", "ONPC-COMP-KIOSK-001", "ONPC-COMP-KIOSK-006"],
+      "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
@@ -879,7 +879,7 @@
         "rationale": "Owns product station restrictions, not shell exploits, SSH or general login tests."
       },
       "variants": [
-        {"coverage_id": 50, "id": "approved", "owner": "kiosk-session", "parameters": {"request": "approved"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 50, "id": "approved", "owner": "kiosk-session", "parameters": {"request": "approved"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/restricted_station.py", "test_id": "approved"}},
         {"coverage_id": 51, "id": "denied", "owner": "kiosk-session", "parameters": {"request": "denied"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 52, "id": "cancelled", "owner": "kiosk-session", "parameters": {"request": "cancelled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]

@@ -15,7 +15,7 @@ import pytest
 import detached_launcher as launcher
 import write_e2e as workflow
 from tests.support.paths import ROOT
-from tests.support.write_e2e_fixtures import prepare, reply
+from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
 def wait_for(path):
@@ -93,6 +93,53 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
     assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
 
 
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout, interrupted):
+    root, _ = checkout
+    repair = prerequisite_writes()
+    closed = {
+        workflow.QUEUE: repair[workflow.QUEUE].replace('| [ ] | 000a |', '| [x] | 000a |'),
+        workflow.PLAN: 'Next task: **001 — [First](E2E-Tasks/001.md)**.\n',
+    }
+    script(root,
+        {'result': reply('blocked', 'not_run', host_validated=False,
+                         handoff='Keep consumer partial.py and finish prerequisite first.'),
+         'writes': {**repair, 'partial.py': '# consumer work\n'}, 'invalid': interrupted},
+        {'result': reply('task_complete', 'passed', task_id='000a'), 'writes': closed},
+        {'result': reply('task_complete', 'passed'), 'close': True})
+    first, _ = workflow.select(root, ['--tasks', '2', '--sessions', '3'])
+    assert launcher.follow(first, io.StringIO()) == (1 if interrupted else 0)
+    if interrupted:
+        # The old failure remains untouched; the new owner resumes the inserted
+        # prerequisite and stops after its genuine completion, not the repair.
+        retained = (first / 'checkpoint.json').read_bytes()
+        second, _ = workflow.select(root, ['--tasks', '1'])
+        assert launcher.follow(second, io.StringIO()) == 0
+        assert (first / 'checkpoint.json').read_bytes() == retained
+        assert workflow.queue_state(root)[0] == '001'
+        staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
+        assert 'partial.py' not in staged.stdout
+        final, _ = workflow.select(root, ['--tasks', '1'])
+        assert launcher.follow(final, io.StringIO()) == 0
+    else:
+        final = first
+    recorded = calls(root)
+    assert len(recorded) == 3
+    assert 'Task 000a:' in recorded[1]['prompt']
+    assert 'Task 001:' in recorded[2]['prompt']
+    assert 'model_reasoning_effort="high"' in recorded[2]['args']
+    state = json.loads((final / 'checkpoint.json').read_text())
+    assert state['task_id'] == '001' and state['task_sessions'] == 2
+    assert workflow.queue_state(root) == ('002', {'000a': True, '001': True, '002': False})
+    staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
+    assert 'partial.py' in staged.stdout
+    if not interrupted:
+        from launcher_progress import read_progress
+        first_completion = next(row for row in read_progress(final) if row['key'] == 'complete-000a')
+        assert first_completion['replaces'] == ['2']
+        assert json.loads((final / 'result.json').read_text())['tasks'] == 2
+
+
 def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     root, _ = checkout
     script(root, {'result': reply(handoff='LATEST LIVE HANDOFF')},
@@ -137,6 +184,24 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     from launcher_progress import read_progress
     assert 'Session [2]' in Text.from_ansi(read_progress(second)[-1]['lines'][-1]).plain
     assert json.loads((second / 'result.json').read_text())['sessions'] == 1
+
+
+def test_prerequisite_completion_does_not_renew_suspended_consumer_cap(checkout):
+    root, _ = checkout
+    repair = prerequisite_writes()
+    script(root, *[{'result': reply()} for _ in range(4)],
+        {'result': reply('blocked', 'not_run'), 'writes': repair},
+        {'result': reply('task_complete', 'passed', task_id='000a'), 'writes': {
+            workflow.QUEUE: repair[workflow.QUEUE].replace('| [ ] | 000a |', '| [x] | 000a |'),
+            workflow.PLAN: 'Next task: **001 — [First](E2E-Tasks/001.md)**.\n'}})
+    run, _ = workflow.select(root, ['--tasks', '2', '--sessions', '10'])
+    assert launcher.follow(run, io.StringIO()) == 1
+    assert len(calls(root)) == 6
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['task_id'] == '001' and state['task_sessions'] == 5
+    assert state['live_attempts'] == 4 and state['phase'] == 'recover'
+    assert json.loads((run / 'result.json').read_text())['tasks'] == 1
+    assert workflow.queue_state(root)[0] == '001'
 
 
 def test_cumulative_sessions_restart_only_for_a_new_task(checkout):

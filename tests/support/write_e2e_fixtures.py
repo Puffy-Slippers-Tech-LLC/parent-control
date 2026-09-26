@@ -23,3 +23,14 @@ def reply(status='ready_for_vm', live='failed', **values):
             'host_validated': True, 'live_result': live,
             'stage_paths': [workflow.PLAN, workflow.QUEUE] if status == 'task_complete' else [],
             **values}
+
+
+def prerequisite_writes():
+    return {
+        workflow.PLAN: 'Next task: **000a — [Prerequisite](E2E-Tasks/000a.md)**.\n',
+        workflow.QUEUE: '| [ ] | 000a | [Prerequisite](E2E-Tasks/000a.md) | — | Setup |\n'
+                        '| [ ] | 001 | [First](E2E-Tasks/001.md) | 000a | Consumer |\n'
+                        '| [ ] | 002 | Second | 001 | Later |\n',
+        'docs/TestAutomation/E2E-Tasks/000a.md': 'Implement and qualify the prerequisite.\n',
+        'docs/TestAutomation/E2E-Tasks/001.md': 'Resume the incomplete consumer after 000a.\n',
+    }

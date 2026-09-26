@@ -31,6 +31,10 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # mocked. These modules therefore share the same isolation as cleanup buckets.
 # The ineligible-approver plan uses those same private journey/fixture doubles;
 # it introduces no real account, VM, socket, process or shared cache in host tests.
+# Fresh-thirty allowance adds recorder cases within that same private collector
+# and mocked guest lifetime, retaining compatible installed-journey scheduling.
+# Prerequisite-repair launcher cases retain the existing private checkout and
+# identity-recorded owner/agent fixture, with no new cleanup or shared resource.
 # App-snapshot and suite tests use private locks with mocked libvirt sources;
 # baseline-guest uses an in-memory guestfs double; update/reboot checks mock all
 # package/VM operations and use tmp_path for guest entry records. Fix-tests owns every child it

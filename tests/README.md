@@ -340,6 +340,18 @@ starting another session. This staging uses literal Git paths and needs no
 agent-side Git permission grant. Task 192 retains the plan's explicit host-only exception.
 Staged code is the baseline; agents do not analyze staged diffs.
 
+If a session discovers a missing capability, the plan permits inserting an
+unchecked prerequisite immediately before its unfinished consumer. The launcher
+validates that insertion, preserves the consumer's handoff, staging ownership
+and session counts, and starts the prerequisite in a fresh session. This earns
+no completion or live-acceptance credit. Existing task order/status must remain
+unchanged, and the inserted rows must be explicit dependencies with briefs.
+After the prerequisites pass, the consumer resumes in a recovery session.
+Restart also recognizes this dependency relationship in an older interrupted
+checkpoint, preserving its evidence and requiring cleanup verification first;
+unrelated queue changes still refuse. No checkpoint deletion or manual editing
+is needed.
+
 Each session is a new `exec --ephemeral` process with history and memories
 disabled. Only the latest standalone handoff crosses sessions. Existing CLI
 authentication, sandbox and command grants apply; missing grants or unresolved

@@ -50,6 +50,81 @@ def fresh_state(task):
             'handoff': INITIAL_PROMPT, 'in_flight': False, 'stage_candidates': []}
 
 
+def prerequisite_repair(root, state, before=None):
+    """Recognize a backward move to explicit unfinished prerequisites, never a skip."""
+    current, after = queue_state(root)
+    task = state['task_id']
+    order = list(after)
+    if (current is None or task not in after or after[task] or current == task
+            or order.index(current) >= order.index(task)):
+        return False
+    inserted = order[order.index(current):order.index(task)]
+    if before is not None:
+        if (task not in before or before[task] or current in before
+                or any(after.get(key) != value for key, value in before.items())
+                or [key for key in after if key in before] != list(before)
+                or [key for key in after if key not in before] != inserted):
+            return False
+    text = (root / QUEUE).read_text().split('## Deferred future work', 1)[0]
+    rows = {}
+    for line in text.splitlines():
+        fields = [field.strip() for field in line.split('|')]
+        if len(fields) >= 6 and fields[1] in ('[ ]', '[x]'):
+            rows[fields[2]] = fields
+    required = set()
+
+    def visit(key):
+        row = rows.get(key)
+        if row is None:
+            return False
+        dependencies = [] if row[4] in ('', '—', '-') else row[4].split(',')
+        for dependency in map(str.strip, dependencies):
+            if dependency not in after or order.index(dependency) >= order.index(key):
+                return False
+            if not after[dependency] and dependency not in required:
+                required.add(dependency)
+                if not visit(dependency):
+                    return False
+        return True
+
+    if not visit(task) or required != set(inserted) or any(after[key] for key in inserted):
+        return False
+    for key in [*inserted, task]:
+        link = re.fullmatch(r'\[[^\]]+\]\((E2E-Tasks/[^/]+\.md)\)', rows[key][3])
+        if link is None or not ((root / QUEUE).parent / link[1]).is_file():
+            return False
+    return True
+
+
+def select_task_state(task, state):
+    """Carry suspended consumers across prerequisite completion and launcher restarts."""
+    pending = dict(state.get('suspended_tasks', {}))
+    selected = dict(pending.pop(task)) if task in pending else fresh_state(task)
+    if pending:
+        selected['suspended_tasks'] = pending
+    return selected
+
+
+def defer_to_prerequisite(root, state, *, recovery_run=None):
+    current, _ = queue_state(root)
+    pending = dict(state.get('suspended_tasks', {}))
+    consumer = {key: value for key, value in state.items()
+                if key not in ('suspended_tasks', 'blocker', 'blocker_id', 'queue_before')}
+    consumer.update(phase='recover', in_flight=False)
+    if recovery_run is not None:
+        consumer['recovery_run'] = str(recovery_run)
+    pending[state['task_id']] = consumer
+    selected = fresh_state(current)
+    selected['suspended_tasks'] = pending
+    selected['total_sessions'] = state.get('total_sessions', state.get('task_sessions', 0))
+    if recovery_run is not None:
+        selected.update(phase='recover', recovery_run=str(recovery_run),
+                        handoff=f'Recheck retained test results and owned cleanup in `{recovery_run}`. '
+                                f'Implement prerequisite `{current}` from its current brief before '
+                                f'resuming incomplete task `{state["task_id"]}`. No acceptance is implied.')
+    return selected
+
+
 def session_progress(root, state, count):
     task = state['task_id']
     queue = (root / QUEUE).read_text().split('## Deferred future work', 1)[0]
@@ -95,6 +170,10 @@ and identifiers; fenced bash blocks for commands; Markdown links for references.
 For task_complete, list every task-related code, test and close-out file in
 stage_paths, including deletions, plan and queue. Use explicit checkout-relative
 files, excluding unrelated work. Otherwise return stage_paths empty.
+If a missing capability requires a queue repair, insert its unchecked prerequisite
+immediately before this task, keep this task unchecked and return blocked with
+live_result not_run. The launcher validates the dependency insertion and selects
+that prerequisite in a fresh session without counting this task complete.
 """
     if state.get('user_answer'):
         common += ('\nThe user answered the blocker question below. Apply these instructions '
@@ -163,7 +242,9 @@ def accept_result(root, state, result, before):
                                       or result['live_result'] != 'passed'))):
             raise ValueError('task completion lacks acceptance or queue close-out')
     elif current != task or after.get(task):
-        raise ValueError('incomplete task advanced the queue pointer')
+        if not (status == 'blocked' and result['live_result'] == 'not_run'
+                and prerequisite_repair(root, state, before)):
+            raise ValueError('incomplete task advanced the queue pointer')
     if status == 'ready_for_vm':
         if not result['host_validated'] or result['live_result'] != 'failed':
             raise ValueError('VM handoff lacks host validation or a matching live outcome')
@@ -173,6 +254,8 @@ def accept_result(root, state, result, before):
     if state['phase'] in ('implement', 'live', 'recover') and result['live_result'] != 'not_run':
         updated['live_attempts'] += 1
     updated['phase'] = 'complete' if status == 'task_complete' else 'live' if status == 'ready_for_vm' else 'blocked'
+    if current != task and status == 'blocked':
+        return defer_to_prerequisite(root, updated)
     return updated
 
 
@@ -395,8 +478,11 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 reason = 'queue complete'
                 break
             if state['phase'] == 'complete':
-                state = fresh_state(task)
+                state = select_task_state(task, state)
                 compact_completions()
+                if task_session_limit_reached(state):
+                    status, reason = 1, 'task session limit reached'
+                    break
             if task != state['task_id']:
                 raise ValueError('active task changed outside the workflow; inspect the checkpoint')
             count += 1
@@ -404,11 +490,13 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state['total_sessions'] = total
             state.setdefault('started_at', time.time())
             state['task_sessions'] = state.get('task_sessions', 0) + 1
+            state.setdefault('progress_keys', []).append(str(count))
             effort = 'low' if state['phase'] == 'implement' else 'high'
             prompt = session_prompt(state)
             (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
             state.setdefault('stage_baseline', worktree_snapshot(root))
             state['worktree_before'] = worktree_snapshot(root)
+            state['queue_before'] = before
             state['in_flight'] = True
             launcher.atomic(run / 'checkpoint.json', state)
             launcher.atomic(run / 'progress.json', {'session': count, 'limit': sessions,
@@ -436,8 +524,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state.pop('worktree_before', None)
             launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'complete':
-                keys = [str(index) for index in
-                        range(max(1, count - state['task_sessions'] + 1), count + 1)]
+                keys = state['progress_keys']
                 completions.append((task, state['task_sessions'],
                                     time.time() - state['started_at'], keys, progress_lines[0]))
                 if tasks > 1 or completed > 1:
@@ -484,6 +571,18 @@ def initial_state(root, directory):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        # Progress keys name frames in one launcher, unlike cumulative task sessions.
+        for saved in [state, *state.get('suspended_tasks', {}).values()]:
+            saved.pop('progress_keys', None)
+        if state.get('in_flight') and state.get('worktree_before') is not None:
+            candidates = set(state.get('stage_candidates', []))
+            candidates.update(session_changes(root, state['worktree_before']))
+            state['stage_candidates'] = sorted(candidates)
+        if state.get('phase') == 'complete' and task in state.get('suspended_tasks', {}):
+            state = select_task_state(task, state)
+        elif (state.get('in_flight') and state.get('task_id') != task
+              and prerequisite_repair(root, state, state.get('queue_before'))):
+            state = defer_to_prerequisite(root, state, recovery_run=previous)
         if state.get('task_id') == task and state.get('phase') != 'complete':
             question_path = previous / 'question.json'
             if state.get('phase') == 'blocked' and question_path.exists():
@@ -498,10 +597,6 @@ def initial_state(root, directory):
                     state.pop('blocker_id', None)
                     state.pop('blocker', None)
             if state.get('in_flight'):
-                if state.get('worktree_before') is not None:
-                    candidates = set(state.get('stage_candidates', []))
-                    candidates.update(session_changes(root, state['worktree_before']))
-                    state['stage_candidates'] = sorted(candidates)
                 state = dict(state, phase='recover', in_flight=False,
                              recovery_run=str(previous))
             # Keep the task's cumulative numbering, but give this new owner
@@ -511,7 +606,7 @@ def initial_state(root, directory):
                         task_session_limit=used + MAX_TASK_SESSIONS)
         if state.get('in_flight'):
             raise ValueError(f'interrupted task changed the queue; inspect the handoff in {previous}')
-        return fresh_state(task)
+        return select_task_state(task, state)
     return fresh_state(task)
 
 

@@ -18,6 +18,11 @@ Native fixture cleanup probes compile in tmp_path and change signal masks only
 inside their explicitly spawned synthetic GUI child, never in the test worker.
 The UI cleanup crash probe owns one small Python child and tmp_path log/script;
 the child disables core files and aborts only itself, with no display or bus.
+Allowance qualification tests reuse bounded, synchronously reaped Perl children
+with captured pipes and synthetic UI values. Fresh-thirty recorder cases use
+only the existing private tmp_path collector; no additional shared resource.
+Prerequisite-repair launcher tests reuse private checkout/session trees and the
+existing recorded owner/agent doubles; they start no real Codex or VM process.
 """
 
 from pathlib import PurePosixPath

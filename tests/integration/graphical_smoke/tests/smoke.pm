@@ -22,6 +22,7 @@ use onpc_desktop_session ();
 use onpc_kiosk_entry ();
 use onpc_kiosk_eligible_choices ();
 use onpc_kiosk_valid_duration ();
+use onpc_request_flow ();
 use onpc_request_choices ();
 use onpc_kiosk_no_child ();
 use onpc_kiosk_no_approver ();
@@ -243,6 +244,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_choices::run(\&exchange);
+        return;
+    }
+    if ($ready->{request_flow}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::run(\&exchange);
         return;
     }
     if ($ready->{request_duration}) {

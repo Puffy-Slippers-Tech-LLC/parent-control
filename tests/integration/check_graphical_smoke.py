@@ -657,7 +657,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          package_install=False, customer_reboot=False, app_row_observations=False,
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
          time_explanation=False, set_allowance=False, app_restart=False,
-         allowance_boundaries=False, kiosk_valid_duration=False):
+         allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False):
+    require(type(request_duration) is bool and not (request_duration and kiosk_valid_duration),
+            'smoke:request-duration-prerequisites')
+    kiosk_valid_duration = kiosk_valid_duration or request_duration
     require(type(kiosk_valid_duration) is bool and (not kiosk_valid_duration or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1108,6 +1111,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-allowance-boundaries-qualification'
         if kiosk_valid_duration:
             result['scope'] = 'installed-kiosk-valid-duration-qualification'
+        if request_duration:
+            result['scope'] = 'installed-request-duration-qualification'
         if time_explanation:
             result['scope'] = 'installed-time-explanation-qualification'
         if set_allowance:
@@ -1278,6 +1283,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_valid_duration:
                     from parent_setup_qualification import KioskValidDurationQualification
                     qualification_class = KioskValidDurationQualification
+                if request_duration:
+                    from parent_setup_qualification import RequestDurationQualification
+                    qualification_class = RequestDurationQualification
                 if time_explanation:
                     from parent_setup_qualification import TimeExplanationQualification
                     qualification_class = TimeExplanationQualification

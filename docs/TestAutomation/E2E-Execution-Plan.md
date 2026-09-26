@@ -19,11 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **012a — [Reject invalid kiosk durations](E2E-Tasks/012a-request-duration.md)**.
+Next task: **014 — [Compose prepared request choices](E2E-Tasks/014-request-flow.md)**.
 
-Qualify invalid custom-duration validation with otherwise enabled Request,
-preserved form and no authentication. Reuse 012c's qualified valid controls,
-independent estimates and soft-app choices; complete scenarios remain separate.
+Compose FLOW04 kiosk with explicit choices and independent estimates, qualifying
+both an already open form and a fresh GDM entry. Reuse the qualified request
+operations; complete scenarios remain separate.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

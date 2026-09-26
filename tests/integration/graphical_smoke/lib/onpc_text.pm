@@ -9,6 +9,10 @@ use onpc_parent ();
 
 my %values = (
     'kiosk-fraction' => '1.25',
+    'kiosk-invalid-empty' => '', 'kiosk-invalid-letters' => 'abc',
+    'kiosk-invalid-negative' => '-1', 'kiosk-invalid-zero' => '0',
+    'kiosk-invalid-below' => '0.09', 'kiosk-invalid-over' => '1440.1',
+    'kiosk-invalid-comma' => '1,5',
     'body-first' => 'Synthetic feedback first',
     'body-second' => 'Synthetic feedback replacement', 'body-clear' => '',
     'reply-first' => 'first@example.invalid',

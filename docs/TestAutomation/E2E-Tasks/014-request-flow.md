@@ -10,6 +10,19 @@ Read only the named block rows/callables, this recipe's selected cases and
 applicable finite-data rows. Prerequisite IDs are completion checks; do not open
 their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
+Start at `AccessibleUI.kiosk_valid_choice`, `kiosk_valid_target`,
+`kiosk_request_form`, `select_kiosk_account`, and the `kiosk-fraction` text
+binding in `tests/e2e/accessible_ui.py`, with `RequestObservation.from_request`
+in `tests/e2e/ui_observations.py`. Reuse `kiosk_valid_duration.PLAN` /
+`KioskValidDurationJourney` and `onpc_kiosk_valid_duration::run` for the qualified
+valid controls and independent estimate comparison. `request_duration.PLAN`
+and `kiosk_invalid_choice` own the separate finite invalid-input branch;
+FLOW04 prepares a request without submitting it. The cumulative duration slice
+passed `check_e2e_request_duration` in run `20260926T044605Z-b5be87de`.
+Use `tests/unit/test_e2e_kiosk_valid_duration.py` and
+`tests/unit/test_installed_journey_cleanup_safety.py` for the related host checks.
+`check_e2e_request_flow` below is planned and must be implemented before use.
+
 ## Scope and prerequisites
 
 Deliver **FLOW04 kiosk**. First scheduled consumer: [E2E-015, case 47](../E2E-Scenario-Recipes.md#e2e-015).

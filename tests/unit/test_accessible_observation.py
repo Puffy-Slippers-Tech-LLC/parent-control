@@ -58,8 +58,10 @@ def test_future_controls_share_one_tree_across_nested_helpers_and_waits(count):
 
 def test_public_input_invalidates_every_scope_before_dispatch_and_rechecks_ambiguity():
     ui, _desktop, surface, controls = arbitrary_ui()
+    ui.api.invalidate_snapshot = Mock()
     def action(_index):
         assert ui._observation_cache == []
+        ui.api.invalidate_snapshot.assert_called_once_with()
         duplicate = Node(identity=controls[1].identity)
         duplicate.parent = surface
         surface.children.append(duplicate)
@@ -68,6 +70,7 @@ def test_public_input_invalidates_every_scope_before_dispatch_and_rechecks_ambig
 
     with ui.observation():
         assert lookup(ui, 1) is controls[1]
+        assert ui._projection_cache
         ui.activate_provider('future-provider', 'future-surface', '0')
         with pytest.raises(UiError, match='ambiguous-automation-id'):
             lookup(ui, 1)
@@ -190,6 +193,37 @@ def test_text_protection_and_tolerant_projection_preserve_their_exact_scopes():
     password.get_child_count.assert_not_called()
 
 
+@pytest.mark.parametrize('snapshot', [False, True])
+def test_one_shot_protected_ids_are_applied_before_traversal(snapshot):
+    secret = Node(identity='future-secret')
+    secret.get_child_count = Mock(side_effect=AssertionError('protected traversal'))
+    root = Node(children=[secret])
+    ui = ui_for(root)
+    with ui.observation():
+        protected = (identity for identity in ('future-secret',))
+        if snapshot:
+            nodes, edges, _identities, _facts = ui.read_snapshot(protected_ids=protected)
+            assert edges[secret] == ()
+        else:
+            nodes = tuple(ui.nodes(strict=True, protected_ids=protected))
+        assert nodes == (root, secret)
+        assert ui.read_snapshot(protected_ids=('future-secret',))[0] == nodes
+    secret.get_child_count.assert_not_called()
+
+
+@pytest.mark.parametrize('count,code', [(-1, 'incomplete-tree'), (6001, 'tree-bound')])
+def test_invalid_child_count_cannot_authorize_input_or_seed_a_complete_snapshot(count, code):
+    ui, _desktop, _surface, controls = arbitrary_ui()
+    controls[-1].get_child_count = Mock(return_value=count)
+    controls[-1].get_child_at_index = Mock(side_effect=AssertionError('unbounded traversal'))
+    with ui.observation():
+        with pytest.raises(UiError, match=code):
+            ui._invoke_target(lookup(ui, 0))
+        assert ui._observation_cache == []
+    controls[-1].get_child_at_index.assert_not_called()
+    controls[0].action.do_action.assert_not_called()
+
+
 def test_new_operation_and_explicit_client_reset_reacquire_complete_tree():
     ui, _desktop, surface, controls = arbitrary_ui()
     ui._run = lambda *_: lookup(ui, 0)
@@ -206,6 +240,33 @@ def test_new_operation_and_explicit_client_reset_reacquire_complete_tree():
     assert ui._read_nodes.call_count == 4
 
 
+def test_input_during_suspended_traversal_cannot_publish_mixed_facts():
+    ui, _desktop, _surface, controls = arbitrary_ui()
+    iterator = ui.nodes(strict=True)
+    next(iterator)
+    ui.input_uncertain = True
+    ui.input_uncertain = False
+    with pytest.raises(UiError, match='incomplete-tree'):
+        list(iterator)
+    assert ui._observation_cache is None
+    assert lookup(ui, 0) is controls[0]
+
+
+def test_invalidation_during_snapshot_construction_cannot_seed_reuse():
+    ui, _desktop, _surface, controls = arbitrary_ui()
+    original = controls[-1].get_attributes
+    def interrupt():
+        ui.invalidate_observation()
+        return original()
+    controls[-1].get_attributes = interrupt
+    with ui.observation():
+        with pytest.raises(UiError, match='incomplete-tree'):
+            ui.read_snapshot()
+        assert not ui._observation_cache
+        controls[-1].get_attributes = original
+        assert lookup(ui, 0) is controls[0]
+
+
 def test_prompt_scans_descendants_only_for_candidate_dialogs():
     ui, _desktop, surface, controls = arbitrary_ui(1000)
     ui.snapshot_scope = Mock(wraps=ui.snapshot_scope)
@@ -216,3 +277,125 @@ def test_prompt_scans_descendants_only_for_candidate_dialogs():
     dialog.parent = surface
     surface.children.append(dialog)
     assert ui.system_prompt_kind() == 'unknown'
+
+
+def test_id_checks_reuse_facts_but_state_guards_remain_live():
+    ui, _desktop, _surface, controls = arbitrary_ui(100)
+    for node in controls:
+        node.get_state_set = Mock(wraps=node.get_state_set)
+        node.get_accessible_id = Mock(wraps=node.get_accessible_id)
+    with ui.observation():
+        assert lookup(ui, 0) is controls[0]
+        for node in controls:
+            for _ in range(3):
+                assert ui.showing(node)
+                assert ui.has_state(node, ui.api.StateType.SENSITIVE)
+                assert ui.observed_id(node) == node.identity
+            assert node.get_state_set.call_count > 1
+            node.get_accessible_id.assert_called_once_with()
+        controls[1].states.discard('sensitive')
+        assert not ui.has_state(controls[1], ui.api.StateType.SENSITIVE)
+        ui.activate_provider('future-provider', 'future-surface', '0')
+        assert lookup(ui, 1) is controls[1]
+        assert not ui.has_state(controls[1], ui.api.StateType.SENSITIVE)
+
+
+def test_tree_preserves_depth_first_order_with_shared_children_and_cycles():
+    ui, desktop, surface, controls = arbitrary_ui(50)
+    nested = Node(identity='nested', children=[controls[-1]])
+    nested.parent = controls[0]
+    controls[0].children.extend([nested, desktop])
+    assert list(ui.nodes(strict=True)) == [
+        desktop, desktop.children[0], surface, controls[0], nested,
+        controls[-1], *controls[1:-1]]
+
+
+def test_cached_snapshot_and_scopes_are_immutable_but_projections_are_independent():
+    ui, _desktop, surface, controls = arbitrary_ui()
+    with ui.observation():
+        nodes, edges, identities, facts = ui.read_snapshot()
+        scope = ui.snapshot_scope(nodes, edges, surface)
+        assert ui.snapshot_scope(nodes, edges, surface) is scope
+        assert ui.read_snapshot()[0] is nodes
+        with pytest.raises(TypeError):
+            edges[surface] = ()
+        with pytest.raises(TypeError):
+            facts[controls[0]]['identity'] = 'forged'
+        assert type(scope) is tuple
+        projected_edges, projected_ids, projected_facts = {}, {}, {}
+        projected = list(ui.nodes(strict=True, snapshot=projected_edges,
+                                  identities=projected_ids, facts=projected_facts))
+        projected.clear()
+        projected_edges[surface].clear()
+        projected_ids[controls[0]] = 'forged'
+        projected_facts[controls[0]]['identity'] = 'forged'
+        assert lookup(ui, 0) is controls[0]
+        assert ui.snapshot_scope(nodes, edges, surface) == scope
+    ui._read_nodes.assert_called_once()
+
+
+def test_mutable_projection_changes_cannot_reuse_a_stale_scope_or_id_index():
+    ui, _desktop, surface, controls = arbitrary_ui()
+    with ui.observation():
+        edges, identities = {}, {}
+        nodes = list(ui.nodes(strict=True, snapshot=edges, identities=identities))
+        assert controls[0] in ui.snapshot_scope(nodes, edges, surface)
+        assert ui.snapshot_matches(controls[0].identity, nodes, identities=identities) is controls[0]
+        edges[surface].remove(controls[0])
+        assert controls[0] not in ui.snapshot_scope(nodes, edges, surface)
+        identities[controls[1]] = controls[0].identity
+        with pytest.raises(UiError, match='ambiguous-automation-id'):
+            ui.snapshot_matches(controls[0].identity, nodes, identities=identities)
+        nodes.remove(controls[1])
+        assert ui.snapshot_matches(controls[0].identity, nodes, identities=identities) is controls[0]
+
+
+def test_snapshot_index_does_not_alias_different_protected_or_nested_scopes():
+    ui, desktop, surface, controls = arbitrary_ui()
+    with ui.observation():
+        full = ui.read_snapshot()
+        scoped = ui.read_snapshot(surface)
+        assert scoped[0] == (surface, *controls)
+        assert desktop not in scoped[0]
+        assert ui.snapshot_matches('future-control-0', scoped[0], identities=scoped[2]) is controls[0]
+        protected = ui.read_snapshot(protected_ids=('future-surface',))
+        assert controls[0] not in protected[0]
+        assert ui.snapshot_matches('future-control-0', protected[0], identities=protected[2]) is None
+        assert ui.snapshot_matches('future-control-0', full[0], identities=full[2]) is controls[0]
+    assert not ui._projection_cache
+    assert ui._observation_cache is None
+
+
+def test_timing_reports_reader_and_action_intervals_without_observed_text(monkeypatch):
+    ui, _desktop, _surface, controls = arbitrary_ui()
+    clock = [10.0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    original = ui._walk_nodes
+    def walk(*args, **kwargs):
+        yield from original(*args, **kwargs)
+        clock[0] += .125
+    ui._walk_nodes = walk
+    controls[0].action.do_action.side_effect = lambda _index: clock.__setitem__(0, clock[0] + .25) or True
+    records = []
+    ui.timing = records.append
+    ui._run = lambda *_: ui.activate_provider('future-provider', 'future-surface', '0')
+    ui.run('child-picker-opened', '')
+    assert records == [{'event': 'ui-operation-timing', 'operation': 'child-picker-opened',
+                        'started_monotonic_ms': 10000.0, 'elapsed_ms': 375.0,
+                        'tree_reads': 1, 'nodes_read': 6, 'reader_ms': 125.0,
+                        'input_ms': [125.0]}]
+    assert ui._timing is None
+
+
+def test_timing_failure_does_not_replay_uncertain_input():
+    ui, _desktop, _surface, controls = arbitrary_ui()
+    ui.timing = Mock()
+    controls[0].action.do_action.return_value = False
+    ui._run = lambda *_: ui.activate_provider('future-provider', 'future-surface', '0')
+    with pytest.raises(UiError, match='action-refused'):
+        ui.run('child-picker-opened', '')
+    assert ui.input_uncertain
+    assert ui._timing is None
+    assert ui._observation_cache is None
+    ui.timing.assert_called_once()
+    controls[0].action.do_action.assert_called_once_with(0)

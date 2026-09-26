@@ -1,5 +1,6 @@
 """Reconnectable test owner; terminals only observe its durable output."""
 
+from contextlib import ExitStack
 import fcntl
 import json
 import os
@@ -49,6 +50,19 @@ def prepare(root, *, host_only=False):
     return directory
 
 
+def current_session(directory):
+    current = directory / 'current.json'
+    if not current.exists():
+        return None, False
+    record = json.loads(current.read_text())
+    name = record['run']
+    if not isinstance(name, str) or len(name) != 32 or any(c not in '0123456789abcdef' for c in name):
+        raise ValueError('invalid aggregate session identity')
+    run = directory / name
+    with lock(run / 'owner') as owner:
+        return run, busy(owner)
+
+
 def select(root, argv):
     from test_commands import host_only_request, is_inspection, validate
     # Inspection never attaches, waits for locks, or consumes an unread result.
@@ -56,24 +70,34 @@ def select(root, argv):
         return None, False
     requested = list(argv) or ['all']
     host_only = host_only_request(requested)
-    directory = prepare(root, host_only=host_only)
-    with lock(directory / 'gate') as gate:
-        fcntl.flock(gate, fcntl.LOCK_EX)
+    # Serialize discovery and startup across both namespaces. The activity locks
+    # remain separate so standalone VM preparation can overlap host tests.
+    directories = [prepare(root, host_only=scope) for scope in (False, True)]
+    directory = directories[int(host_only)]
+    with ExitStack() as locks:
+        for candidate in directories:
+            gate = locks.enter_context(lock(candidate / 'gate'))
+            fcntl.flock(gate, fcntl.LOCK_EX)
+        sessions = {candidate: current_session(candidate) for candidate in directories}
+        # Older launchers could start one run in each scope. Prefer the requested
+        # scope in that case, but always attach to a live owner before idle output.
+        for candidate in (directory, directories[int(not host_only)]):
+            run, active = sessions[candidate]
+            if active:
+                if '--stop' in argv:
+                    (run / 'cancel').touch(mode=0o600)
+                return run, False
+        if '--stop' in argv:
+            return None, False
         current = directory / 'current.json'
-        if current.exists():
-            record = json.loads(current.read_text())
-            name = record['run']
-            if len(name) != 32 or any(c not in '0123456789abcdef' for c in name):
-                raise ValueError('invalid aggregate session identity')
-            run = directory / name
-            with lock(run / 'owner') as owner:
-                active = busy(owner)
+        run, _ = sessions[directory]
+        if run is not None:
             result = run / 'result'
             try:
                 broken = not result.exists() or int(result.read_text()) != 0
             except (ValueError, OSError):
                 broken = True
-            if active or (not (run / 'delivered').exists() and (not argv or not broken)):
+            if not (run / 'delivered').exists() and (not argv or not broken):
                 return run, False
             if broken and not (run / 'delivered').exists():
                 print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',
@@ -144,11 +168,18 @@ def main(root, argv):
     try:
         run, started = select(root, argv)
         if run is None:
+            from test_commands import is_inspection
+            if '--stop' in argv and not is_inspection(argv):
+                print('run-tests: no active run to stop.', file=sys.stderr, flush=True)
+                return 0
             from test_commands import _main
             return _main(argv)
         if requested:
             cancel()
-        if not started:
+        if not started and '--stop' in argv:
+            print('run-tests: cancellation requested; waiting for owned cleanup.',
+                  file=sys.stderr, flush=True)
+        elif not started:
             print('WARNING: A previous run is in the background or has an unread result; '
                   'ignoring all new arguments and attaching to it.', file=sys.stderr, flush=True)
         # Install cancellation before advertising readiness to a supervisor.

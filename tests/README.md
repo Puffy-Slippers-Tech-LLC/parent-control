@@ -446,11 +446,15 @@ pending scope and prerequisites.
 Every `tools/run-tests` category runs independently of its terminal. Closing the
 terminal detaches the display; tests continue. Ctrl+C requests cancellation and
 waits for owned cleanup. Invoke `tools/run-tests` in a new terminal to attach to
-the existing progress and final output, including its exit status. Within the
-requested host or VM scope, while a run is active or has an unread successful
-result, execution invocations warn and attach to it, ignoring new arguments—even
-another category or invalid options. Host and VM sessions have independent
-ownership and reconnect state, so one of each can run concurrently.
+the existing progress and final output, including its exit status. While any run
+is active, execution invocations warn and attach to it, ignoring new arguments—even
+another category or invalid options. `tools/run-tests --stop` attaches, requests
+cancellation, and waits for owned cleanup; when idle it returns without starting
+tests or consuming saved results. An active host run is found even with no
+arguments or a VM category, and an active VM run is found with host arguments.
+Host and VM activity locks remain separate so standalone VM preparation can
+overlap host tests. If older launchers already started both scopes, attachment
+prefers the requested scope (VM for no arguments).
 The original selection and options remain in effect. Global and category help,
 listings, and collection-only invocations always return their requested inspection
 output without acquiring or checking test/session locks, attaching to a run, or
@@ -458,12 +462,13 @@ marking its result delivered.
 A failed or incomplete idle session can be replaced by an explicit new selection;
 its output is preserved and startup recovery runs before new VM checks. Host-only
 execution refuses pending VM recovery.
-Invoke without arguments to replay any unread VM-side result. After delivery,
-or when no VM session exists, an invocation without arguments starts the `all`
+When no run is active, an unread successful result is replayed within the
+requested host or VM scope. Invoke without arguments to replay any unread VM-side
+result. After delivery, or when no VM session exists, an invocation without arguments starts the `all`
 aggregate. VM session output and ownership records live under
 `output/test-runs/host/sessions/`; host-only records live under
 `output/test-runs/host/sessions-host/`. Reconnect to a host-only run with a host
-category such as `host`, `ui`, or `unit`.
+category such as `host`, `ui`, or `unit` to replay its idle result.
 Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before

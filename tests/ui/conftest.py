@@ -271,13 +271,18 @@ def automation(hermetic_ui_session, launch_ui, wait_for_accessible_state):
     gi.require_version("Atspi", "2.0")
     from gi.repository import Atspi, GLib
     from tests.support.automation import Automation
+    from tests.e2e.public_atspi import PublicAtspi
 
-    return Automation(Atspi, lambda: Atspi.get_desktop(0), query_errors=(GLib.Error,),
-                      owner_pids=launch_ui.owner_pids,
-                      application_ids=launch_ui.application_ids,
-                      application_owners=launch_ui.application_owners,
-                      application_owner_history=launch_ui.application_owner_history,
-                      complete_read_wait=wait_for_accessible_state)
+    api = PublicAtspi(Atspi)
+    try:
+        yield Automation(api, lambda: api.get_desktop(0), query_errors=(GLib.Error,),
+                         owner_pids=launch_ui.owner_pids,
+                         application_ids=launch_ui.application_ids,
+                         application_owners=launch_ui.application_owners,
+                         application_owner_history=launch_ui.application_owner_history,
+                         complete_read_wait=wait_for_accessible_state)
+    finally:
+        api.reset()
 
 
 @pytest.fixture

@@ -17,11 +17,14 @@ def test_native_gui_owner_keeps_its_executable_identity_and_reaps_its_child(tmp_
 
     binary = fixtures._compile_native(tmp_path)
     (binary.parent / 'onpc-test-gui.py').write_text(
-        'import signal, sys\n'
-        'def stop(*_):\n    print("GUI_STOPPED", flush=True)\n    sys.exit(0)\n'
-        'signal.signal(signal.SIGTERM, stop)\n'
+        'import signal\n'
+        # Block before publishing readiness, then consume the pending signal
+        # atomically. Python defers handlers: SIGTERM between entering pause()
+        # and its syscall can otherwise leave a pending handler asleep forever.
+        'signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})\n'
         'print("GUI_READY", flush=True)\n'
-        'signal.pause()\n', encoding='utf-8')
+        'assert signal.sigwait({signal.SIGTERM}) == signal.SIGTERM\n'
+        'print("GUI_STOPPED", flush=True)\n', encoding='utf-8')
     process = subprocess.Popen([str(binary)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         assert select.select([process.stdout], [], [], 5)[0]

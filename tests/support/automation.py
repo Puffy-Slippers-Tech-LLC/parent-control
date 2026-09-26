@@ -1,26 +1,13 @@
 """Public AT-SPI ID lookup and semantic interaction; no selector fallbacks."""
 
-import warnings
-
 from tests.e2e.accessible_ui import (
     AccessibleUI,
     UiError,
     owned_applications,
     owned_surface_id,
     public_automation_id,
-    _public_automation_id,
+    public_action_name,
 )
-
-
-def public_action_name(api, action, index):
-    # libatspi annotates the old get_name symbol as rename-to get_action_name,
-    # so GI incorrectly marks the recommended public name itself deprecated.
-    # Scope this metadata defect to that one call/message; all other warnings
-    # and errors retain the runner's policy.
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message=r"^Atspi\.Action\.get_action_name is deprecated$",
-                                category=DeprecationWarning)
-        return api.Action.get_action_name(action, index)
 
 
 class AutomationError(RuntimeError):
@@ -39,66 +26,45 @@ class Automation:
         self.application_owners = application_owners
         self.application_owner_history = application_owner_history
         self.complete_read_wait = complete_read_wait
-        self.input_uncertain = False
+        self._reader = AccessibleUI(api, root=lambda: self.root(), include_text_children=True)
+
+    @property
+    def input_uncertain(self):
+        return self._reader.input_uncertain
+
+    @input_uncertain.setter
+    def input_uncertain(self, value):
+        self._reader.input_uncertain = value
+
+    @property
+    def reader(self):
+        # Fixture ownership callbacks can change as previews start and stop.
+        # Keep the host facade's existing configuration API, with one engine.
+        for attribute in ('query_errors', 'owner_pids', 'application_ids',
+                          'application_owners', 'application_owner_history'):
+            setattr(self._reader, attribute, getattr(self, attribute))
+        return self._reader
 
     def nodes(self, root=None, *, strict=False, protected_ids=(), snapshot=None,
               identities=None):
-        """Traverse the current public tree without retaining stale nodes."""
-        pending = [self.root() if root is None else root]
-        seen = set()
-        while pending:
-            node = pending.pop()
-            if node is None:
-                if strict:
-                    raise UiError("ui:incomplete-tree")
-                continue
-            if node in seen:
-                continue
-            seen.add(node)
-            if len(seen) > 6000:
-                raise AutomationError("automation:tree-bound")
-            try:
-                node.clear_cache_single()
-                attributes = node.get_attributes()
-                if strict and attributes is None:
-                    raise UiError("ui:incomplete-tree")
-                identity = _public_automation_id(node, attributes)
-                if identities is not None:
-                    identities[node] = identity
-                protected = identity in protected_ids
-                role = node.get_role_name()
-                children = ([] if protected or role == "password text" else
-                            [node.get_child_at_index(i)
-                             for i in range(node.get_child_count())])
-                if strict and None in children:
-                    error = UiError("ui:incomplete-tree")
-                    error.add_note("Null child under public automation-id: "
-                                   + (public_automation_id(node) or "[unidentified]"))
-                    raise error
-                if snapshot is not None:
-                    snapshot.setdefault(node, []).extend(
-                        child for child in children if child is not None)
-                pending.extend(children)
-            except self.query_errors:
-                if strict:
-                    raise
-                continue
-            yield node
+        """Use the same traversal and completeness rules as installed tests."""
+        yield from self.reader.nodes(root, strict=strict, protected_ids=protected_ids,
+                                     snapshot=snapshot, identities=identities)
 
     def find_all(self, identity):
         """Return every fresh match so callers can assert surface cardinality."""
-        reader = AccessibleUI(self.api, query_errors=self.query_errors,
-                              owner_pids=self.owner_pids, application_ids=self.application_ids,
-                              application_owners=self.application_owners,
-                              application_owner_history=self.application_owner_history)
-        reader.nodes = self.nodes
+        reader = self.reader
 
         def read():
             try:
-                if owned_applications(identity) or identity.startswith("child-"):
-                    target = reader.snapshot_owned_target(identity, showing=False)
-                    return [] if target is None else [target]
-                return reader.find_all_ids(identity)
+                with reader.observation():
+                    if owned_applications(identity) or identity.startswith("child-"):
+                        target = reader.snapshot_owned_target(identity, showing=False)
+                        return [] if target is None else [target]
+                    # Generic fixture IDs retain explicit cardinality checks,
+                    # but an incomplete tree still cannot authorize input.
+                    nodes, _edges, identities, _facts = reader.read_snapshot()
+                    return [node for node in nodes if identities[node] == identity]
             except self.query_errors as error:
                 # A node can disappear during a complete AT-SPI traversal.
                 # Discard the snapshot and let the bounded read wait retry it.
@@ -124,13 +90,8 @@ class Automation:
 
     def absent(self, identity, *, within):
         """Complete fresh exclusion anchored by a positive public surface ID."""
-        reader = AccessibleUI(self.api, query_errors=self.query_errors,
-                              owner_pids=self.owner_pids, application_ids=self.application_ids,
-                              application_owners=self.application_owners,
-                              application_owner_history=self.application_owner_history)
-        reader.nodes = self.nodes
         try:
-            return reader.absent_id(identity, within=within)
+            return self.reader.absent_id(identity, within=within)
         except UiError as error:
             raise AutomationError(str(error).replace("ui:", "automation:")) from error
 
@@ -246,23 +207,10 @@ class Automation:
             raise AutomationError("automation:disabled:" + identity)
         if states.contains(self.api.StateType.DEFUNCT):
             raise AutomationError("automation:defunct:" + identity)
-        action = node.get_action_iface()
-        if action is None:
-            raise AutomationError("automation:ambiguous-action:" + identity)
-        count = action.get_n_actions()
-        if action_name is None:
-            # The shared native navigation actions are not a control's
-            # primary activation. All other ambiguity still refuses input.
-            candidates = [index for index in range(count)
-                          if not public_action_name(self.api, action, index).startswith("focus.")]
-        else:
-            candidates = [index for index in range(count)
-                          if public_action_name(self.api, action, index) == action_name]
-        if len(candidates) != 1:
-            raise AutomationError("automation:ambiguous-action:" + identity)
-        # Never retry input: a false result or transport exception can leave
-        # its effect uncertain. Consumers independently observe the outcome.
-        self.input_uncertain = True
-        if not action.do_action(candidates[0]):
-            raise AutomationError("automation:action-refused:" + identity)
-        self.input_uncertain = False
+        try:
+            self.reader._invoke_target(node, action_name)
+        except UiError as error:
+            code = str(error).replace('ui:', 'automation:')
+            if code in ('automation:missing-action', 'automation:missing-or-ambiguous-action'):
+                code = 'automation:ambiguous-action'
+            raise AutomationError(code + ':' + identity) from error

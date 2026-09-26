@@ -148,9 +148,12 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     boot = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
     operation_counts = {}
+    boot_bindings = []
 
     def observe_ui(operation):
         import accessible_ui
+        assert ui_observer.boot_guard == ('b' * 64 if boot_bindings or boot.read.call_count else '')
+        boot_bindings.append(ui_observer.boot_guard)
         operation_counts[operation] = operation_counts.get(operation, 0) + 1
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation == 'station-entry-branch':
@@ -194,8 +197,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             result['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
         return result
-    monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=SimpleNamespace(
-        observe=observe_ui, observe_challenge=lambda operation, binding: observe_ui(operation))))
+    ui_observer = SimpleNamespace(
+        boot_proof='b' * 64, observe=observe_ui,
+        observe_challenge=lambda operation, binding: observe_ui(operation))
+    monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=ui_observer))
     monkeypatch.setattr(command_documentation, 'observe',
                         lambda _transport, binding: {'operation': binding,
                                                        'outcome': 'passed',
@@ -318,7 +323,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         assert recorder._active is None
         setup.assert_not_called()
         journeys.Transport.return_value.reboot.assert_not_called()
-        assert boot.read.call_args_list and all(call.args == ('boot',) for call in boot.read.call_args_list)
+        assert boot.read.call_count or boot_bindings
+        assert all(call.args == ('boot',) for call in boot.read.call_args_list)
 
 
 def test_repeated_assertion_write_failure_prevents_reply_and_latches(tmp_path, monkeypatch):
@@ -457,7 +463,7 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
         result['settings'] = {'child': earlier.child, 'limit_enabled': fault == 'changed',
                               'allowance': ['0 minutes']}
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))
-    journey.ui = SimpleNamespace(observe=Mock(return_value=result))
+    journey.ui = SimpleNamespace(boot_proof='a' * 64, observe=Mock(return_value=result))
     (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
     with pytest.raises(EvidenceError): journey.step(Mock())
     with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())

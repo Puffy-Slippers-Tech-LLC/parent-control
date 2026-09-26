@@ -97,7 +97,9 @@ def test_parent_feedback_and_about_publish_public_ids(
     wait_for_accessible_state(lambda: ui.find("feedback-editor-input") is not None,
                               "rich editor publishes its input ID")
     from tests.e2e.accessible_ui import AccessibleUI
-    guest_reader = AccessibleUI(Atspi, application_ids=launch_ui.application_ids,
+    # Both facades share this private bus's node identities when passing an
+    # explicit scope between them; independent connections own separate nodes.
+    guest_reader = AccessibleUI(ui.api, application_ids=launch_ui.application_ids,
                                 application_owners=launch_ui.application_owners)
     for identity in ("feedback-editor-input", "feedback-format-bold",
                      "feedback-format-style", "feedback-format-link"):

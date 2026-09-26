@@ -5,7 +5,8 @@ public UI objects; it never imports product code or reads product storage/buses.
 Only fixed operation names and sanitized results cross the controller boundary.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from types import MappingProxyType
 import json
 import os
 from pathlib import Path
@@ -17,8 +18,9 @@ import sys
 import time
 import warnings
 
-# This file is sent alone over guarded stdin to isolated guest Python. Keep its
-# finite public-input data here; controller modules may import these constants.
+# Isolated guest Python receives this file on guarded stdin after the controller
+# installs public_atspi.py as the public_atspi module. Keep finite public-input
+# data here; controller modules may import these constants.
 INVALID = {'empty': '', 'letters': 'abc', 'negative': '-1',
            'fraction': '0.5', 'maximum': '1440', 'over': '1441'}
 INVALID_DESCRIPTION = 'Invalid daily allowance. Enter a whole number from 0 to 1439.'
@@ -466,6 +468,15 @@ def public_automation_id(node):
     return _public_automation_id(node, node.get_attributes())
 
 
+def public_action_name(api, action, index):
+    """Work around only GI's incorrect deprecation of the public rename."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore',
+                                message=r'^Atspi\.Action\.get_action_name is deprecated$',
+                                category=DeprecationWarning)
+        return api.Action.get_action_name(action, index)
+
+
 def owned_surface_id(identity):
     """The public containing surface for repository-owned control namespaces.
 
@@ -601,8 +612,21 @@ class AccessibleUI:
     def __init__(self, api, *, timeout=45, query_errors=(), dispatch=None,
                  reset_observer=None, provider_contracts=None, fixture_uids=None,
                  application_ids=None, owner_pids=None, application_owners=None,
-                 application_owner_history=None):
+                 application_owner_history=None, root=None, include_text_children=False,
+                 timing=None):
+        if root is None and getattr(api, '__name__', '') == 'gi.repository.Atspi':
+            # Real previews and installed observers use the same public bus
+            # client. In-memory doubles retain their small native facade.
+            try:
+                from public_atspi import PublicAtspi
+            except ImportError:
+                from tests.e2e.public_atspi import PublicAtspi
+            api = PublicAtspi(api)
         self.api = api
+        self.root = root if root is not None else lambda: self.api.get_desktop(0)
+        self.include_text_children = include_text_children
+        self.timing = timing
+        self._timing = None
         self.timeout = timeout
         self.query_errors = query_errors
         self.dispatch = dispatch
@@ -621,6 +645,8 @@ class AccessibleUI:
         self.application_owners = application_owners
         self.application_owner_history = application_owner_history
         self._observation_cache = None
+        self._observation_generation = 0
+        self._projection_cache = {}
         self.input_uncertain = False
         self.incomplete_observations = []
         self.gdm_row_diagnostic_emitted = False
@@ -640,8 +666,13 @@ class AccessibleUI:
 
     def invalidate_observation(self):
         """End the current read boundary before input, retry or client reset."""
+        self._observation_generation += 1
         if self._observation_cache is not None:
             self._observation_cache.clear()
+        self._projection_cache.clear()
+        invalidate = getattr(self.api, 'invalidate_snapshot', None)
+        if invalidate is not None:
+            invalidate()
 
     @contextmanager
     def observation(self):
@@ -663,21 +694,24 @@ class AccessibleUI:
         finally:
             if previous is None:
                 self._observation_cache = None
+                self._projection_cache.clear()
 
     def nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
               snapshot=None, facts=None, identities=None):
         """Reuse complete reads only within an explicit observation boundary."""
+        protected_ids = frozenset(protected_ids)
         if self._observation_cache is None:
             yield from self._read_nodes(
                 root, strict=strict, protected_ids=protected_ids, protect_text=protect_text,
                 snapshot=snapshot, facts=facts, identities=identities)
             return
-        root = root if root is not None else self.api.get_desktop(0)
+        root = root if root is not None else self.root()
         protection = (frozenset(protected_ids), protect_text)
         for policy, read_nodes, edges, read_facts, read_ids in reversed(self._observation_cache):
             if policy == protection and root in edges:
-                selected = self.snapshot_scope(read_nodes, edges, root)
-                if not strict:
+                selected = (read_nodes if root == read_nodes[0] else
+                            self.snapshot_scope(read_nodes, edges, root))
+                if not strict and not self.include_text_children:
                     # Preserve the legacy reader's text-child exclusion when
                     # projecting a complete strict read; never broaden a scope.
                     allowed, pending = set(), [root]
@@ -708,9 +742,18 @@ class AccessibleUI:
                 raise
             # Publish only after traversal completes. Partial reads, including
             # query errors and missing children, never enter the reusable set.
+            # Freeze once so shared snapshots need no per-helper deep copies.
+            edges = MappingProxyType({node: tuple(children) for node, children in edges.items()})
+            read_facts = MappingProxyType({node: MappingProxyType(record)
+                                          for node, record in read_facts.items()})
+            read_ids = MappingProxyType(read_ids)
+            selected = read_nodes = tuple(selected)
             self._observation_cache.append((protection, selected, edges, read_facts, read_ids))
+        # The compatibility projections remain independent mutable containers.
+        # Hot callers use read_snapshot() to share the immutable original.
         if snapshot is not None:
-            snapshot.update({node: ([] if not strict and read_facts[node]['role'] in
+            snapshot.update({node: ([] if not strict and not self.include_text_children
+                                   and read_facts[node]['role'] in
                                    ('text', 'entry') else list(edges[node]))
                              for node in selected})
         if facts is not None:
@@ -719,16 +762,74 @@ class AccessibleUI:
             identities.update({node: read_ids[node] for node in selected})
         yield from selected
 
+    def read_snapshot(self, root=None, *, protected_ids=(), protect_text=False):
+        """Return an immutable complete observation, reusable until input/retry.
+
+        Public nodes() projections may be edited by their caller. Only this
+        engine's immutable originals can seed cached scopes or ID indexes.
+        """
+        root = self.root() if root is None else root
+        protected_ids = frozenset(protected_ids)
+        policy = (protected_ids, protect_text)
+        with self.observation():
+            for protection, nodes, edges, facts, identities in reversed(self._observation_cache):
+                if protection == policy and root in edges:
+                    break
+            else:
+                tuple(self.nodes(root, strict=True, protected_ids=protected_ids,
+                                 protect_text=protect_text))
+                protection, nodes, edges, facts, identities = self._observation_cache[-1]
+            selected = nodes if root == nodes[0] else self.snapshot_scope(nodes, edges, root)
+            return selected, edges, identities, facts
+
     def _read_nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
+                    snapshot=None, facts=None, identities=None):
+        started = time.monotonic() if self._timing is not None else None
+        generation = self._observation_generation
+        count = 0
+        try:
+            boundary = getattr(self.api, 'snapshot', nullcontext)
+            with boundary():
+                for node in self._walk_nodes(root, strict=strict, protected_ids=protected_ids,
+                                             protect_text=protect_text, snapshot=snapshot,
+                                             facts=facts, identities=identities):
+                    require(generation == self._observation_generation, 'ui:incomplete-tree')
+                    count += 1
+                    yield node
+                require(generation == self._observation_generation, 'ui:incomplete-tree')
+        except getattr(self.api, 'read_errors', ()) as error:
+            raise UiError('ui:incomplete-tree') from error
+        finally:
+            if self._timing is not None:
+                self._timing['tree_reads'] += 1
+                self._timing['nodes_read'] += count
+                self._timing['reader_ms'] += (time.monotonic() - started) * 1000
+
+    def _walk_nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
                     snapshot=None, facts=None, identities=None):
         diagnostic = self.kiosk_diagnostic
         if diagnostic is not None:
             diagnostic.check()
             diagnostic.tree_reads += 1
-        root = root if root is not None else self.api.get_desktop(0)
+        root = root if root is not None else self.root()
         pending = [root]
         visited = 0
         seen = set()
+
+        def descend(identity, role):
+            return (identity not in protected_ids and role != 'password text'
+                    and not (protect_text and role in ('text', 'entry'))
+                    and (strict or self.include_text_children or role not in ('text', 'entry')))
+
+        def prepare_descend(node):
+            attributes = node.get_attributes()
+            require(attributes is not None, 'ui:incomplete-tree')
+            return descend(_public_automation_id(node, attributes), node.get_role_name())
+
+        prepare = getattr(self.api, 'prepare_tree', None)
+        if strict and prepare is not None:
+            prepare(root, descend=prepare_descend,
+                checkpoint=diagnostic.check if diagnostic is not None else None)
         while pending:
             if diagnostic is not None:
                 diagnostic.check()
@@ -755,7 +856,7 @@ class AccessibleUI:
                 if identities is not None:
                     identities[node] = identity
                 if facts is not None:
-                    states = node.get_state_set()
+                    states = getattr(node, 'snapshot_state_set', node.get_state_set)()
                     facts[node] = {
                         'identity': identity,
                         'role': role,
@@ -770,12 +871,12 @@ class AccessibleUI:
                     diagnostic.check()
                 # Never traverse password contents. Strict owned observations
                 # include ordinary text descendants without reading text values.
-                protected = identity in protected_ids
-                if (not protected and role != 'password text'
-                        and not (protect_text and role in ('text', 'entry'))
-                        and (strict or role not in ('text', 'entry'))):
+                if descend(identity, role):
                     children = []
-                    for i in reversed(range(node.get_child_count())):
+                    count = node.get_child_count()
+                    require(count >= 0 or not strict, 'ui:incomplete-tree')
+                    require(count <= 6000, 'ui:tree-bound')
+                    for i in reversed(range(count)):
                         if diagnostic is not None:
                             diagnostic.check()
                         children.append(node.get_child_at_index(i))
@@ -796,10 +897,20 @@ class AccessibleUI:
                 # A dead unrelated subtree must not hide live controls.
                 continue
 
-    @staticmethod
-    def snapshot_scope(nodes, snapshot, root):
+    def snapshot_scope(self, nodes, snapshot, root):
         """Return root's scope from one complete traversal, without rereading it."""
-        require(root in snapshot and root in nodes, 'ui:wrong-scope')
+        # Retain the input objects with the key: Python may otherwise recycle
+        # their ids inside a composed operation. Nothing survives input/retry.
+        cacheable = type(nodes) is tuple and any(
+            snapshot is item[2] for item in self._observation_cache or ())
+        cache = self._projection_cache if cacheable else {}
+        key = ('scope', id(nodes), id(snapshot))
+        if key not in cache:
+            cache[key] = (nodes, snapshot, {node: index for index, node in enumerate(nodes)}, {})
+        _nodes, _snapshot, positions, scopes = cache[key]
+        require(root in snapshot and root in positions, 'ui:wrong-scope')
+        if root in scopes:
+            return scopes[root]
         pending = [root]
         descendants = set()
         while pending:
@@ -808,17 +919,29 @@ class AccessibleUI:
                 continue
             descendants.add(node)
             pending.extend(snapshot.get(node, ()))
-        return [node for node in nodes if node in descendants]
+        # Small application/control scopes should not scan the whole desktop.
+        result = tuple(sorted((node for node in descendants if node in positions),
+                              key=positions.__getitem__))
+        scopes[root] = result
+        return result
 
-    @staticmethod
-    def snapshot_matches(identity, nodes, *, showing=None, show=None, identities=None):
+    def snapshot_matches(self, identity, nodes, *, showing=None, show=None, identities=None):
         """Resolve one ID from an already complete snapshot.
 
         ``show`` is injected by callers so this helper never starts another
         tree read while an input recipient is being qualified.
         """
-        matches = [node for node in nodes if (
-            public_automation_id(node) if identities is None else identities[node]) == identity]
+        cacheable = type(nodes) is tuple and any(
+            identities is item[4] for item in self._observation_cache or ())
+        cache = self._projection_cache if cacheable else {}
+        key = ('ids', id(nodes), id(identities))
+        if key not in cache:
+            index = {}
+            for node in nodes:
+                value = self.observed_id(node) if identities is None else identities[node]
+                index.setdefault(value, []).append(node)
+            cache[key] = (nodes, identities, index)
+        matches = cache[key][2].get(identity, ())
         require(len(matches) <= 1, 'ui:ambiguous-automation-id')
         if not matches or (showing is True and not show(matches[0])):
             return None
@@ -833,11 +956,7 @@ class AccessibleUI:
         shell_owned = identity.startswith('child-')
         require(applications or shell_owned, 'ui:unowned-automation-id')
         if observation is None:
-            snapshot = {}
-            facts = {}
-            identities = {}
-            nodes = list(self.nodes(strict=True, snapshot=snapshot, identities=identities,
-                                    **({'facts': facts} if check_prompt else {})))
+            nodes, snapshot, identities, facts = self.read_snapshot()
         else:
             nodes, snapshot, identities, facts = observation
             require(all(node in snapshot and node in identities for node in nodes),
@@ -912,12 +1031,7 @@ class AccessibleUI:
             provider, surface, (control,))
         protected = tuple(registered[key] for key in ('password', 'secret')
                           if key in registered and registered[key])
-        snapshot = {}
-        facts = {}
-        identities = {}
-        nodes = list(self.nodes(
-            strict=True, protected_ids=protected, snapshot=snapshot, identities=identities,
-            **({'facts': facts} if check_prompt else {})))
+        nodes, snapshot, identities, facts = self.read_snapshot(protected_ids=protected)
         if check_prompt:
             self.handle_system_prompt(observation=(nodes, snapshot, facts))
         application = self.snapshot_matches(
@@ -1135,6 +1249,17 @@ class AccessibleUI:
             surface_id, application_nodes, showing=showing, show=self.showing,
             identities=identities), registered
 
+    def observed_fact(self, node):
+        """Reuse one node's facts only inside the current complete read boundary."""
+        for _policy, _nodes, _edges, facts, _ids in reversed(self._observation_cache or ()):
+            if node in facts:
+                return facts[node]
+        return None
+
+    def observed_id(self, node):
+        fact = self.observed_fact(node)
+        return fact['identity'] if fact is not None else public_automation_id(node)
+
     def showing(self, node):
         states = node.get_state_set()
         return (states.contains(self.api.StateType.SHOWING)
@@ -1245,23 +1370,18 @@ class AccessibleUI:
         require(action is not None, 'ui:missing-action')
         count = self.api.Action.get_n_actions(action)
         if action_name is None:
-            require(count == 1, 'ui:missing-or-ambiguous-action')
-            matches = [0]
+            # Native focus actions navigate to descendants; they are never a
+            # control's default activation, on either host or installed UI.
+            matches = [index for index in range(count)
+                       if not public_action_name(self.api, action, index).startswith('focus.')]
         else:
-            names = []
-            for index in range(count):
-                # GI incorrectly deprecates the recommended rename of this
-                # AT-SPI method. Suppress only that metadata warning here.
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        'ignore',
-                        message=r'^Atspi\.Action\.get_action_name is deprecated$',
-                        category=DeprecationWarning,
-                    )
-                    names.append(self.api.Action.get_action_name(action, index))
-            matches = [index for index, name in enumerate(names) if name == action_name]
-            require(len(matches) == 1, 'ui:missing-or-ambiguous-action')
+            matches = [index for index in range(count)
+                       if public_action_name(self.api, action, index) == action_name]
+        require(len(matches) == 1, 'ui:missing-or-ambiguous-action')
         self.input_uncertain = True
+        if self._timing is not None and len(self._timing['input_ms']) < 64:
+            self._timing['input_ms'].append(round(
+                (time.monotonic() - self._timing['started']) * 1000, 3))
         require(self.api.Action.do_action(action, matches[0]), 'ui:action-refused')
         self.input_uncertain = False
         return node
@@ -2437,7 +2557,7 @@ class AccessibleUI:
         identities = set()
         for node in nodes:
             require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-picker')
-            identity = public_automation_id(node)
+            identity = self.observed_id(node)
             if re.fullmatch(re.escape(prefix) + r'[0-9]+', identity) is None:
                 continue
             require(identity not in identities, 'ui:ambiguous-automation-id')
@@ -2452,7 +2572,7 @@ class AccessibleUI:
     def focus(self, node):
         """Focus one already ID-resolved public control without keyboard routing."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        identity = public_automation_id(node)
+        identity = self.observed_id(node)
         match = re.fullmatch(r'parent-child-choice-([0-9]+)', identity)
         require(match is not None, 'ui:child-choice-id')
         current = self.find_id(identity, root=self.parent(), showing=False)
@@ -4360,12 +4480,9 @@ class AccessibleUI:
         not resolve an input control and cannot authorize an action.
         """
         if observation is None:
-            desktop = self.api.get_desktop(0)
+            desktop = self.root()
             require(desktop is not None, 'ui:incomplete-tree')
-            snapshot = {}
-            facts = {}
-            nodes = list(self.nodes(
-                desktop, strict=True, snapshot=snapshot, facts=facts))
+            nodes, snapshot, identities, facts = self.read_snapshot(desktop)
             require(nodes, 'ui:incomplete-tree')
         else:
             nodes, snapshot, facts = observation
@@ -4435,15 +4552,33 @@ class AccessibleUI:
                 require(self.prompt_session in ('station', 'desktop'),
                         'ui:system-prompt-session')
                 raise UiError('ui:system-prompt-refused:' + self.prompt_session + ':' + kind)
-        except self.query_errors:
-            raise UiError('ui:system-prompt-observation-failed') from None
+        except self.query_errors as error:
+            refusal = UiError('ui:system-prompt-observation-failed')
+            for note in getattr(error, '__notes__', ()):
+                if note.startswith('public-atspi-query:'):
+                    refusal.add_note(note)
+            raise refusal from None
         finally:
             self.handling_prompt = False
 
     def run(self, operation, version):
         """One registered operation, with generic read reuse between inputs."""
-        with self.observation():
-            return self._run(operation, version)
+        if self.timing is not None:
+            require(operation in OPERATIONS, 'ui:operation')
+            self._timing = {'started': time.monotonic(), 'tree_reads': 0,
+                            'nodes_read': 0, 'reader_ms': 0.0, 'input_ms': []}
+        try:
+            with self.observation():
+                return self._run(operation, version)
+        finally:
+            if self._timing is not None:
+                timing, self._timing = self._timing, None
+                started = timing.pop('started')
+                elapsed = (time.monotonic() - started) * 1000
+                timing['reader_ms'] = round(timing['reader_ms'], 3)
+                self.timing({'event': 'ui-operation-timing', 'operation': operation,
+                             'started_monotonic_ms': round(started * 1000, 3),
+                             'elapsed_ms': round(elapsed, 3), **timing})
 
     def _run(self, operation, version):
         require(operation in OPERATIONS, 'ui:operation')
@@ -4918,7 +5053,19 @@ def observation_environment(account, operation):
 
 
 def main():
-    require(len(sys.argv) == 3 and sys.argv[1] in OPERATIONS, 'ui:arguments')
+    require(len(sys.argv) in (3, 4) and sys.argv[1] in OPERATIONS, 'ui:arguments')
+    boot = None
+    if len(sys.argv) == 4:
+        # This is transport continuity, not a product/UI assertion. Check it
+        # before account lookup, accessibility connection or any public input.
+        import hashlib
+        expected = sys.argv[3]
+        require(expected == '' or re.fullmatch(r'[0-9a-f]{64}', expected), 'ui:boot-binding')
+        raw = Path('/proc/sys/kernel/random/boot_id').read_bytes()
+        require(re.fullmatch(rb'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n', raw),
+                'ui:boot-identity')
+        boot = hashlib.sha256(raw).hexdigest()
+        require(not expected or expected == boot, 'ui:boot-changed')
     greeter = sys.argv[1] in GREETER_OPERATIONS
     kiosk = sys.argv[1] in KIOSK_SESSION_OPERATIONS or sys.argv[1] == 'station-default-entry'
     require(os.geteuid() == 0, 'ui:fixture-identity')
@@ -4957,9 +5104,11 @@ def main():
         # or inspect an accessibility service.
         Atspi.exit()
         Atspi.init()
+        ui.api.reset()
 
     ui = AccessibleUI(Atspi, timeout=90 if kiosk else 45, query_errors=(GLib.Error,),
         reset_observer=reset_atspi_client if kiosk else None,
+        timing=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.branch_owner = branch_owner
     try:
@@ -4971,6 +5120,8 @@ def main():
             except Exception:
                 print('ui:search-diagnostic-unavailable', file=sys.stderr, flush=True)
         raise
+    if boot is not None:
+        result['boot_sha256'] = boot
     print(json.dumps(result, sort_keys=True), flush=True)
 
 

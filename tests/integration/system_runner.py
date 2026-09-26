@@ -743,7 +743,11 @@ class Lease:
                             state['original_xml'])
             off_isolated = off and not isolated and not restored_off
             if off_isolated:
-                require(state['phase'] == 'cleanup-requested' and
+                # The recorded guest is off but still has one isolated configuration.
+                # Cleanup may already have been requested, or the attempt may still
+                # be marked running because libvirtd or the host stopped first.
+                # A split active/inactive configuration is not that guest.
+                require(state['phase'] in ('running', 'cleanup-requested') and
                         self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) == active_xml,
                         'recovery:off-configuration-changed')
             if not restored_off:
@@ -787,9 +791,8 @@ class Lease:
                 log('recovery:verified-restored-off')
                 return
             if off_isolated:
-                # A host reboot can stop the recorded guest after cleanup was
-                # requested but before the snapshot revert. The exact off,
-                # isolated run can only be restored, never started or adopted.
+                # The recorded instance is gone. Restore its outer baseline and
+                # the original domain configuration. Never start or adopt it.
                 self.restore()
                 self.delete_suite_snapshot()
                 require(self.capture.verify_snapshot(boundary='restoration') ==

@@ -34,6 +34,49 @@ def test_observer_payload_runs_without_checkout_imports(tmp_path):
     assert result.stderr == b'ui:arguments\n'
 
 
+@pytest.mark.parametrize('expected', ['', 'b' * 64])
+def test_ui_boot_guard_shares_one_transport_call_without_changing_ui_projection(expected):
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps({
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'boot_sha256': 'b' * 64,
+    }).encode()))
+    observer = UiObservations(transport)
+    observer.boot_guard = expected
+    assert observer.observe('desktop') == {
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    assert observer.boot_proof == 'b' * 64
+    transport.call.assert_called_once()
+    assert transport.call.call_args.args[0][-1] == expected
+
+
+@pytest.mark.parametrize('proof', [None, 'c' * 64, 'private-value', 1])
+def test_ui_boot_proof_must_match_and_never_reuses_a_previous_reply(proof):
+    result = {'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    if proof is not None:
+        result['boot_sha256'] = proof
+    observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
+    observer.boot_guard = 'b' * 64
+    observer.boot_proof = 'b' * 64
+    with pytest.raises(EvidenceError, match='ui:boot-changed'):
+        observer.observe('desktop')
+    assert observer.boot_proof is None
+
+
+@pytest.mark.parametrize('raw,expected,code', [
+    (b'00000000-0000-0000-0000-000000000001\n', 'b' * 64, 'boot-changed'),
+    (b'invalid\n', '', 'boot-identity'),
+    (b'', 'invalid', 'boot-binding'),
+])
+def test_guest_boot_refusal_precedes_identity_switch_and_ui_access(monkeypatch, raw, expected, code):
+    monkeypatch.setattr(accessible_ui.sys, 'argv', ['observer', 'desktop', '1.1', expected])
+    monkeypatch.setattr(accessible_ui, 'Path', Mock(return_value=SimpleNamespace(read_bytes=lambda: raw)))
+    identity = Mock(side_effect=AssertionError('account access before boot refusal'))
+    monkeypatch.setattr(accessible_ui.os, 'geteuid', identity)
+    with pytest.raises(UiError, match=code):
+        accessible_ui.main()
+    identity.assert_not_called()
+
+
 GDM_CONTROLS = {
     'account-list': 'test-gdm-account-list',
     'account-choice::parent': 'test-gdm-account-parent',

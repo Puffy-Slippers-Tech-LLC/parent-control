@@ -62,6 +62,8 @@ GROUPS = (
 # child reselection adds no shared resources or extra process.
 # The held allowance save uses a tmp_path release file and event log within
 # that same private preview; finally releases its existing broker worker.
+# Public reader connections belong to each private preview bus and close before
+# fixture teardown; alias resolution and selection waits add no shared resource.
 # A qualified build companion must never implicitly authorize other UI fixtures.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')

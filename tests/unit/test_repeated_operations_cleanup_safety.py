@@ -163,7 +163,7 @@ def test_controller_failure_never_acknowledges_or_retries(tmp_path, fault):
     if fault == 'changed-settings':
         observed['settings']['allowance'] = ['0 minutes']
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'boot'}))
-    journey.ui = SimpleNamespace(observe=Mock(return_value=observed))
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value=observed))
     (tmp_path / (stage + '.request.json')).write_text(json.dumps({
         'stage': 'return-first' if fault == 'stale-request' else stage, 'screenshot': None}))
     reply = tmp_path / (stage + '.reply.json')

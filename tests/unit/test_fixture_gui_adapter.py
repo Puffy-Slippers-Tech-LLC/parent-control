@@ -35,7 +35,9 @@ def adapter(root):
         get_desktop=lambda _: root,
         StateType=SimpleNamespace(SHOWING='showing', VISIBLE='visible', SENSITIVE='sensitive',
                                   DEFUNCT='defunct', FOCUSED='focused', MODAL='modal'),
-        Action=SimpleNamespace(get_n_actions=lambda a: 1, do_action=lambda a, i: a.do_action(i)),
+        Action=SimpleNamespace(get_n_actions=lambda a: 1,
+                               get_action_name=lambda action, index: action.get_action_name(index),
+                               do_action=lambda a, i: a.do_action(i)),
         Text=SimpleNamespace(get_character_count=lambda n: len(n.name),
                              get_text=lambda n, a, b: n.name[a:b]),
     ), timeout=0)

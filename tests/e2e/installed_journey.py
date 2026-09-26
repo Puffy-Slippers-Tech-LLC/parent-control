@@ -334,23 +334,30 @@ class InstalledJourney:
                 self.reboot_observed = True
                 self.ui = None  # Never carry a pre-reboot recipient or UI cache.
                 observed['boot_transition'] = transition
-            current = self.vm.read('boot')['boot_sha256']
-            require(self.boot is None or self.boot == current, plan.prefix + ':boot-changed')
-            self.boot = current
-            observed['boot_sha256'] = current
             tag = plan.screen_tags[stage]
             if tag.startswith('ui:'):
                 if self.ui is None:
                     self.ui = UiObservations(self.transport, progress=self.watch_progress)
+                # Check the boot before UI input on the same guarded SSH call;
+                # a separate observer process added a round trip to every step.
+                self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
                 observed['ui'] = (self.ui.observe_challenge(tag[3:], challenge)
                                   if challenge else self.ui.observe(tag[3:]))
+                current = self.ui.boot_proof
                 if challenge:
                     observed['challenge'] = challenge
-            elif tag.startswith('command:'):
-                observed['command'] = command_documentation.observe(self.transport, tag[8:])
-            elif tag.startswith('system:'):
-                observed['system'] = session_control.observe(self.transport, tag[7:])
+            else:
+                current = self.vm.read('boot')['boot_sha256']
+                require(self.boot is None or self.boot == current, plan.prefix + ':boot-changed')
+                if tag.startswith('command:'):
+                    observed['command'] = command_documentation.observe(self.transport, tag[8:])
+                elif tag.startswith('system:'):
+                    observed['system'] = session_control.observe(self.transport, tag[7:])
+            require(type(current) is str and re.fullmatch(r'[0-9a-f]{64}', current)
+                    and (self.boot is None or self.boot == current), plan.prefix + ':boot-changed')
+            self.boot = current
+            observed['boot_sha256'] = current
             reply = {'observed': stage}
             if plan.challenge_at(stage):
                 reply['challenge'] = observed['challenge']

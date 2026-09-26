@@ -6,6 +6,18 @@ system paths, private sockets or recorded child identities. The launcher disable
 shared pytest/Hypothesis caches and aggregate retention in every unit worker.
 Unknown modules fail closed to exclusive execution; new modules must receive an
 isolation/resource review and classification before their work is complete.
+
+Regression session tests keep both session gates and cancellation records in
+private pytest trees; recorded harmless children are released and reaped by
+their fixture. Cross-scope reconnect tests remain safe for compatible overlap.
+Public AT-SPI and observation-cache regressions use process-local bus doubles,
+mock clocks and immutable synthetic trees; they open no real sockets or displays.
+Their asynchronous batch probe drains a private GLib context with synthetic
+callbacks and restores the thread-default context; no shared loop or thread runs.
+Native fixture cleanup probes compile in tmp_path and change signal masks only
+inside their explicitly spawned synthetic GUI child, never in the test worker.
+The UI cleanup crash probe owns one small Python child and tmp_path log/script;
+the child disables core files and aborts only itself, with no display or bus.
 """
 
 from pathlib import PurePosixPath
@@ -54,7 +66,7 @@ parent_setup_cleanup_safety ppa_build preferences prepare_baseline
 prepare_baseline_cleanup_safety prepare_baseline_tool prepare_vm prepare_vm_contract
 preview_screen privileged_test_runner probe_bus_client_cleanup_safety
 probe_channel_cleanup_safety probe_generation_cleanup_safety product_free_entry_cleanup_safety provision publish
-publish_source_integrity publishing_tests qualification_storage_cleanup_safety read_only_launcher regression regression_cleanup
+publish_source_integrity publishing_tests public_atspi qualification_storage_cleanup_safety read_only_launcher regression regression_cleanup
 regression_cleanup_safety regression_inputs regression_resources regression_schedule
 regression_selection regression_session regression_ui regression_ui_selection regression_unit
 regression_unit_selection release_signing repeated_operations_cleanup_safety request_selections request_time_estimate
@@ -102,6 +114,8 @@ write_e2e write_e2e_cleanup_safety
 # Their existing compatible unit classifications remain applicable.
 # Parent custom-save ordering tests hold callbacks in memory and use mocked
 # widgets only; they add no timers, threads, filesystem or display resources.
+# Public AT-SPI transport tests use in-memory RPC/connection doubles only;
+# traversal caches and object identities are local to each test instance.
 
 # Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
 # trees, reads installed runtime inputs and owns its native child. Keep it out

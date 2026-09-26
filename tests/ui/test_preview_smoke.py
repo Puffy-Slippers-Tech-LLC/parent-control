@@ -125,6 +125,13 @@ def test_parent_daily_allowance_menu_opens_and_selects(
         wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
                                   "one activation during the custom save opens the choices")
         ui.activate("parent-daily-limit-45")
+        # GTK's public button action acknowledges activation before emitting
+        # clicked. Keep the first save held until the selection is observable,
+        # otherwise its completion can make wait_parent_ready pass too early.
+        wait_for_accessible_state(
+            lambda: not ui.showing("parent-custom-daily-limit"),
+            "the preset selection is delivered while the custom save is held",
+        )
     finally:
         release.touch()
     wait_parent_ready(ui, wait_for_accessible_state)

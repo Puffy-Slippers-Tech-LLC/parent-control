@@ -79,7 +79,7 @@ def test_failed_shared_check_latches_before_reply(tmp_path, monkeypatch, stage):
     current.steps = [{'stage': name} for name in case.PLAN.stages[:case.PLAN.stages.index(stage)]]
     current.vm = Mock()
     current.vm.read.return_value = {'boot_sha256': 'b' * 64}
-    current.ui = Mock()
+    current.ui = Mock(boot_proof='b' * 64)
     current.ui.observe.return_value = {'operation': case.PLAN.screen_tags[stage][3:],
                                       'outcome': 'passed'}
     current.checks[stage] = Mock(side_effect=EvidenceError('required-result-missing'))

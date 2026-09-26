@@ -53,6 +53,8 @@ def recover(graphics_type):
         source = runner.baseline.LibvirtSource(api)
         if graphics_type is None:
             graphics_type = recorded_graphics_type(source.domain.XMLDesc(0))
+            kind = 'graphical' if graphics_type == 'vnc' else 'system'
+            result['scope'] = f'recorded-{kind}-cleanup-only'
         lease = runner.Lease(source, commands,
                             lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
                             graphics_type=graphics_type)

@@ -98,6 +98,7 @@ def test_new_boot_requires_fresh_gdm_and_durable_result(tmp_path, monkeypatch, f
     journey, progress = boundary(tmp_path, monkeypatch, 'reboot-installed-greeter')
     stale = journey.ui
     fresh = Mock()
+    fresh.boot_proof = 'c' * 64 if fault == 'changed-again' else AFTER
     fresh.observe.return_value = {'operation': 'gdm-list', 'outcome': 'passed'}
     monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=fresh))
     journey.reboot_submitted = fault != 'unsubmitted'
@@ -124,9 +125,12 @@ def test_unexpected_later_reboot_still_refuses(tmp_path, monkeypatch):
     journey, _ = boundary(tmp_path, monkeypatch, 'reboot-parent-focused')
     journey.reboot_submitted = journey.reboot_observed = True
     journey.vm.read.return_value = {'boot_sha256': AFTER}
+    journey.ui.observe.side_effect = EvidenceError('ui:boot-changed')
     with pytest.raises(EvidenceError, match='boot-changed'): journey.step(Mock())
     journey.vm.wait_boot_change.assert_not_called()
-    journey.ui.observe.assert_not_called()
+    journey.ui.observe.assert_called_once_with('gdm-focused')
+    assert journey.ui.boot_guard == BEFORE
+    journey.vm.read.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'reboot-requested', 'reboot-installed-greeter',

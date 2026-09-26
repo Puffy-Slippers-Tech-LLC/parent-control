@@ -55,12 +55,14 @@ def adapter(root, **kwargs):
     root = product_tree(root)
     return Automation(SimpleNamespace(
         Action=SimpleNamespace(get_action_name=lambda interface, index:
-                               interface.get_action_name(index)),
+                               interface.get_action_name(index),
+                               get_n_actions=lambda interface: interface.get_n_actions(),
+                               do_action=lambda interface, index: interface.do_action(index)),
         Text=SimpleNamespace(get_text=lambda interface, start, end:
                              interface.get_text(start, end)),
         StateType=SimpleNamespace(SHOWING="showing", VISIBLE="visible",
                                   SENSITIVE="sensitive", DEFUNCT="defunct",
-                                  FOCUSED="focused"),
+                                  FOCUSED="focused", MODAL="modal"),
         RelationType=SimpleNamespace(CONTROLLED_BY="controlled-by"),
         ScrollType=SimpleNamespace(ANYWHERE="anywhere")), lambda: root, **kwargs)
 
@@ -402,7 +404,7 @@ def test_webkit_public_ids_survive_ax_number_changes_and_reject_duplicates(reade
         find = ui.find
         error = AutomationError
     else:
-        ui = AccessibleUI(SimpleNamespace(get_desktop=lambda _: desktop))
+        ui = AccessibleUI(adapter(desktop).api, root=lambda: desktop)
         find = lambda identity: ui.find_id(identity, showing=False)
         error = UiError
     assert find("feedback-editor-input") is target
@@ -657,12 +659,30 @@ def test_child_chrome_siblings_stay_in_the_indicator_application(fault):
         assert ui.find("child-countdown-animation-toggle") is (None if fault else toggle)
 
 
-def test_navigation_actions_cannot_be_default_activation():
+@pytest.mark.parametrize('reader', ['preview', 'guest'])
+def test_navigation_actions_cannot_be_default_activation(reader):
     target = Node("submit")
     target.action.get_action_name = lambda _index: "focus.submit"
-    with pytest.raises(AutomationError, match="ambiguous-action"):
-        adapter(target).activate("submit")
+    ui = adapter(target)
+    with pytest.raises((AutomationError, UiError), match="ambiguous-action"):
+        if reader == 'preview':
+            ui.activate("submit")
+        else:
+            ui.reader._invoke_target(target)
     target.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('reader', ['preview', 'guest'])
+def test_primary_action_is_shared_and_never_selects_navigation(reader):
+    target = Node('submit')
+    target.action.get_n_actions = lambda: 2
+    target.action.get_action_name = lambda index: ('focus.submit', 'click')[index]
+    ui = adapter(target)
+    if reader == 'preview':
+        ui.activate('submit')
+    else:
+        ui.reader._invoke_target(target)
+    target.action.do_action.assert_called_once_with(1)
 
 
 @pytest.mark.parametrize("initial_parent_sensitive", [False, True])
@@ -767,7 +787,8 @@ def provider_adapter(root):
     }
     return AccessibleUI(SimpleNamespace(
         get_desktop=lambda _: root,
-        StateType=SimpleNamespace(SHOWING="showing", VISIBLE="visible", DEFUNCT="defunct"),
+        StateType=SimpleNamespace(SHOWING="showing", VISIBLE="visible", DEFUNCT="defunct",
+                                  MODAL="modal"),
     ), provider_contracts=contracts)
 
 

@@ -342,7 +342,7 @@ def test_entry_never_acknowledges_missing_provider_evidence(tmp_path, stage, fau
     journey.steps = [{'stage': item} for item in PLAN.stages[:PLAN.stages.index(stage)]]
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     provider = {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
-    journey.ui = SimpleNamespace(observe=Mock(side_effect=[
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(side_effect=[
         {'outcome': 'passed'}, EvidenceError('provider missing') if fault == 'provider'
         else {'provider': provider}]))
     (tmp_path / (stage + '.request.json')).write_text(json.dumps(

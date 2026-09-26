@@ -45,6 +45,10 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # install, package authority/install, product-free entry and reboot contracts
 # mock all system/guest mutations and write evidence only into pytest-private
 # trees. Their unit classification applies to the cleanup phase too.
+# UI crash logging owns one small Python child and private tmp_path script/log.
+# It disables core files before self-abort; no global crash files, bus or display.
+# Native fixture ownership checks compile only into tmp_path. Their synthetic
+# child blocks/waits for SIGTERM locally; no worker signal mask is changed.
 
 # Measured costs guide packing and dispatch only; never reuse passing results.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 11,

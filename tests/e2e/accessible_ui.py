@@ -329,7 +329,10 @@ KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPE
     if binding.startswith('kiosk-'))
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
 KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
-KIOSK_RESTRICTION_OPERATIONS = frozenset({'kiosk-restriction-ready', 'kiosk-restriction-read'})
+KIOSK_RESTRICTION_OPERATIONS = frozenset({
+    'kiosk-restriction-ready', 'kiosk-restriction-read',
+    'kiosk-restriction-prepared-ready', 'kiosk-restriction-prepared-read',
+})
 OPERATIONS |= KIOSK_RESTRICTION_OPERATIONS
 KIOSK_SESSION_OPERATIONS |= KIOSK_RESTRICTION_OPERATIONS
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
@@ -4542,7 +4545,7 @@ class AccessibleUI:
         target = self.kiosk_exit_target()
         self._invoke_target(target)
 
-    def kiosk_restrictions(self, *, stable_seconds=2):
+    def kiosk_restrictions(self, *, stable_seconds=2, prepared=False):
         """Complete public station-tree exclusion, anchored by owned form IDs.
 
         No provider targets or names are inferred: any showing content outside
@@ -4552,6 +4555,7 @@ class AccessibleUI:
         """
         require(type(stable_seconds) in (int, float) and 0 <= stable_seconds <= 2,
                 'ui:restriction-interval')
+        require(type(prepared) is bool, 'ui:restriction-form-binding')
         started = None
 
         def inspect():
@@ -4616,8 +4620,13 @@ class AccessibleUI:
 
         self.wait(stable, 'station-restrictions', prompt_in_predicate=True)
         # One final independent form read keeps diagnostic output bounded.
+        # The caller declares initial versus FLOW04-prepared state. Never
+        # infer an expectation from whichever duration the UI currently shows.
         self.invalidate_observation()
-        self.kiosk_request_form()
+        if prepared:
+            self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')
+        else:
+            self.kiosk_request_form()
         return True
 
     def focus_kiosk_escape_recipient(self):
@@ -5477,11 +5486,12 @@ class AccessibleUI:
             if value is not None:
                 result['valid_choice'] = value
         elif operation in KIOSK_RESTRICTION_OPERATIONS:
-            if operation == 'kiosk-restriction-ready':
-                self.kiosk_restrictions(stable_seconds=0)
+            prepared = operation.startswith('kiosk-restriction-prepared-')
+            if operation.endswith('-ready'):
+                self.kiosk_restrictions(stable_seconds=0, prepared=prepared)
                 self.focus_kiosk_escape_recipient()
             else:
-                self.kiosk_restrictions()
+                self.kiosk_restrictions(prepared=prepared)
         elif operation == 'kiosk-request-form':
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-no-child-form':

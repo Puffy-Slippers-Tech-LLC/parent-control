@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **023 — [E2E-016: denied](E2E-Tasks/023-case-51.md)**.
+Next task: **023b — [E2E-016: cancelled](E2E-Tasks/023b-case-52.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -233,7 +233,8 @@ class ApprovalFlowRejectionQualification(KioskEntryQualification):
         from approval_flow import ApprovalFlowJourney
         version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
         context.installed_snapshot = snapshot_name(version)
-        return ApprovalFlowJourney(context, progress, cls.outcome)
+        from approval_flow import plan
+        return ApprovalFlowJourney(context, progress, plan(cls.outcome))
 
 
 class ApprovalFlowCancelQualification(ApprovalFlowRejectionQualification):

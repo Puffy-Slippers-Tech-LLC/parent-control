@@ -880,7 +880,7 @@
       },
       "variants": [
         {"coverage_id": 50, "id": "approved", "owner": "kiosk-session", "parameters": {"request": "approved"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/restricted_station.py", "test_id": "approved"}},
-        {"coverage_id": 51, "id": "denied", "owner": "kiosk-session", "parameters": {"request": "denied"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 51, "id": "denied", "owner": "kiosk-session", "parameters": {"request": "denied"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/restricted_station.py", "test_id": "denied"}},
         {"coverage_id": 52, "id": "cancelled", "owner": "kiosk-session", "parameters": {"request": "cancelled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

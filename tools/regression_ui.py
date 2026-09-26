@@ -60,6 +60,8 @@ GROUPS = (
 # Preview allowance focus and rejected-draft reload checks reuse that bucket's
 # private Parent process, keyboard/display and optional tmp_path event log;
 # child reselection adds no shared resources or extra process.
+# Full preset enumeration uses the same private Parent, bus and tmp_path log;
+# its sequential actions add no shared resource or concurrent fixture demand.
 # The held allowance save uses a tmp_path release file and event log within
 # that same private preview; finally releases its existing broker worker.
 # Public reader connections belong to each private preview bus and close before

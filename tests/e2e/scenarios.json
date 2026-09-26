@@ -1798,7 +1798,7 @@
         "rationale": "Owns editor validation once; E2E-005 owns changes followed by child use."
       },
       "variants": [
-        {"coverage_id": 158, "id": "boundaries", "owner": "continuous-journeys", "parameters": {"flow": "boundaries"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 158, "id": "boundaries", "owner": "continuous-journeys", "parameters": {"flow": "boundaries"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/allowance_case.py", "test_id": "boundaries"}},
         {"coverage_id": 159, "id": "save-order", "owner": "continuous-journeys", "parameters": {"flow": "save-order"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

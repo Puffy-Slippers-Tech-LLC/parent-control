@@ -3,7 +3,7 @@ from installed_journey import InstalledJourney, JourneyPlan
 from allowance import SCREENS as ORDINARY_SCREENS
 from allowance_values import ACCEPTED, INVALID
 
-SCREENS = dict(ORDINARY_SCREENS)
+BOUNDARY_SCREENS = {}
 
 
 def reload_stages(prefix):
@@ -15,29 +15,31 @@ def reload_stages(prefix):
         ('back-focus', 'child-choice-highlighted'),
         ('back-selected', 'parent-selected'),
     ):
-        SCREENS[prefix + '-' + suffix] = 'ui:' + operation
+        BOUNDARY_SCREENS[prefix + '-' + suffix] = 'ui:' + operation
 
 
 for value in ACCEPTED:
     prefix = 'boundary-' + str(value)
-    SCREENS[prefix + '-open'] = 'ui:custom-' + str(value) + '-open'
+    BOUNDARY_SCREENS[prefix + '-open'] = 'ui:custom-' + str(value) + '-open'
     for action in ('focus', 'selected', 'read'):
-        SCREENS[prefix + '-text-' + action] = 'ui:text-daily-' + str(value) + '-' + action
-    SCREENS[prefix + '-saved'] = 'ui:custom-' + str(value) + '-saved'
+        BOUNDARY_SCREENS[prefix + '-text-' + action] = 'ui:text-daily-' + str(value) + '-' + action
+    BOUNDARY_SCREENS[prefix + '-saved'] = 'ui:custom-' + str(value) + '-saved'
     reload_stages(prefix)
-    SCREENS[prefix + '-reopen'] = 'ui:custom-' + str(value) + '-reopen'
+    BOUNDARY_SCREENS[prefix + '-reopen'] = 'ui:custom-' + str(value) + '-reopen'
 
 for binding in INVALID:
     prefix = 'invalid-' + binding
-    SCREENS[prefix + '-baseline'] = 'ui:allowance-15-select'
-    SCREENS[prefix + '-baseline-read'] = 'ui:allowance-15-read'
-    SCREENS[prefix + '-open'] = 'ui:custom-15-open'
+    BOUNDARY_SCREENS[prefix + '-baseline'] = 'ui:allowance-15-select'
+    BOUNDARY_SCREENS[prefix + '-baseline-read'] = 'ui:allowance-15-read'
+    BOUNDARY_SCREENS[prefix + '-open'] = 'ui:custom-15-open'
     for action in ('focus', 'selected', 'read'):
-        SCREENS[prefix + '-text-' + action] = 'ui:text-daily-invalid-' + binding + '-' + action
-    SCREENS[prefix + '-rejected'] = 'ui:custom-invalid-' + binding
+        BOUNDARY_SCREENS[prefix + '-text-' + action] = 'ui:text-daily-invalid-' + binding + '-' + action
+    BOUNDARY_SCREENS[prefix + '-rejected'] = 'ui:custom-invalid-' + binding
     reload_stages(prefix)
-    SCREENS[prefix + '-unchanged'] = 'ui:allowance-15-read'
-    SCREENS[prefix + '-reopen'] = 'ui:custom-15-reopen'
+    BOUNDARY_SCREENS[prefix + '-unchanged'] = 'ui:allowance-15-read'
+    BOUNDARY_SCREENS[prefix + '-reopen'] = 'ui:custom-15-reopen'
+
+SCREENS = {**ORDINARY_SCREENS, **BOUNDARY_SCREENS}
 
 PLAN = JourneyPlan(
     prefix='allowance-boundaries', worker_mode='allowance_boundaries', screen_tags=SCREENS,

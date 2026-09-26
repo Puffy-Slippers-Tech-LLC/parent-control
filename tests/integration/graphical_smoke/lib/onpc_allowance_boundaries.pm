@@ -23,13 +23,10 @@ sub reload_child {
     }
 }
 
-sub run {
-    onpc_progress::operation('Qualifying daily allowance boundaries and rejection');
-    my ($exchange) = @_;
-    die 'allowance-boundaries:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
-    my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => 'allowance-boundaries', review => 0);
-    onpc_allowance::qualify($journey);
+sub exercise {
+    onpc_progress::operation('Checking accepted and rejected custom daily allowances');
+    my ($journey) = @_;
+    die 'allowance-boundaries:journey' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     for my $value (0, 1, 15, 1439) {
         my $prefix = "boundary-$value";
         seen($journey, "$prefix-open");
@@ -47,6 +44,16 @@ sub run {
         seen($journey, "$prefix-unchanged");
         seen($journey, "$prefix-reopen");
     }
+}
+
+sub run {
+    onpc_progress::operation('Qualifying daily allowance boundaries and rejection');
+    my ($exchange) = @_;
+    die 'allowance-boundaries:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'allowance-boundaries', review => 0);
+    onpc_allowance::qualify($journey);
+    exercise($journey);
     $journey->finish();
 }
 1;

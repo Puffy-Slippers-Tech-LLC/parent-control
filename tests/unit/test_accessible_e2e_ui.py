@@ -736,31 +736,62 @@ def test_parent_save_observation_accepts_only_its_fixed_sanitized_result(operati
         session.observe(operation)
 
 
-@pytest.mark.parametrize('minutes', [0, 15])
+@pytest.mark.parametrize('minutes', [0, 15, 30, 45, *range(60, 1411, 30)])
 @pytest.mark.parametrize('action', ['select', 'read', 'reopen'])
 def test_allowance_presets_require_independent_public_value(minutes, action):
     ui, root, _picker, _toggle, allowance = parent_save_ui()
-    label = Node('30 minutes', 'label')
+    expected = (f'{minutes} minutes' if minutes < 60 else
+                '1 hour' if minutes == 60 else f'{minutes / 60:g} hours')
+    different = '15 minutes' if minutes == 0 else '0 minutes'
+    label = Node(different, 'label')
     allowance.children = [label]
     choice = Node(identity='parent-daily-limit-' + str(minutes))
-    choice.get_description = lambda: 'Selected daily allowance: ' + str(minutes) + ' minutes'
+    choice.get_description = lambda: 'Selected daily allowance: ' + expected
     root.children.append(choice)
     def activate(identity):
         if identity == choice.identity:
-            label.name = str(minutes) + ' minutes'
+            label.name = expected
     ui.activate_id = Mock(side_effect=activate)
     if action != 'select':
-        label.name = str(minutes) + ' minutes'
+        label.name = expected
     assert ui.allowance_preset(accessible_ui.CHILD, minutes, action=action) == {
         'minutes': minutes, 'saved': True}
     assert ui.activate_id.call_count == {'read': 0, 'reopen': 1, 'select': 2}[action]
-    label.name = '30 minutes'
+    label.name = different
     with pytest.raises(UiError, match='ui:allowance-value'):
         ui.allowance_preset(accessible_ui.CHILD, minutes, action='read')
-    label.name = str(minutes) + ' minutes'
-    choice.get_description = lambda: 'Daily allowance: ' + str(minutes) + ' minutes'
+    label.name = expected
+    choice.get_description = lambda: 'Daily allowance: ' + expected
     with pytest.raises(UiError, match='ui:allowance-selection'):
         ui.allowance_preset(accessible_ui.CHILD, minutes, action='reopen')
+
+
+@pytest.mark.parametrize('minutes', [True, '60', -1, 1, 59, 1440, 1441])
+def test_unoffered_presets_refuse_before_input(minutes):
+    ui, *_ = parent_save_ui()
+    ui.activate_id = Mock()
+    with pytest.raises(UiError, match='ui:allowance-binding'):
+        ui.allowance_preset(accessible_ui.CHILD, minutes, action='select')
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('output,active', [('(true,)\n', True), ('(false,)\n', False),
+                                          ('private unexpected output', None)])
+def test_allowance_failure_diagnostic_reports_only_public_idle_boolean(monkeypatch, output, active):
+    run = Mock(return_value=SimpleNamespace(stdout=output))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
+    assert accessible_ui.allowance_failure_diagnostic() == {
+        'event': 'allowance-failure-diagnostic', 'screensaver_active': active}
+    assert run.call_args.args[0] == [
+        '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
+        '--object-path', '/org/gnome/ScreenSaver',
+        '--method', 'org.gnome.ScreenSaver.GetActive']
+
+
+def test_allowance_failure_diagnostic_preserves_original_failure(monkeypatch):
+    monkeypatch.setattr(accessible_ui.subprocess, 'run',
+                        Mock(side_effect=subprocess.TimeoutExpired('gdbus', 10)))
+    assert accessible_ui.allowance_failure_diagnostic()['screensaver_active'] is None
 
 
 @pytest.mark.parametrize('disabled', [False, True])
@@ -948,7 +979,7 @@ def test_allowance_controller_rejects_mismatched_public_projection(operation):
     transport = SimpleNamespace(call=Mock(return_value=(json.dumps(result) + '\n').encode()))
     session = UiObservations(transport)
     assert session.observe(operation)['allowance'] == value
-    result['allowance'] = {'minutes': 30, 'saved': True}
+    result['allowance'] = {'minutes': -1, 'saved': True}
     transport.call.return_value = (json.dumps(result) + '\n').encode()
     with pytest.raises(EvidenceError, match='ui:allowance-response'):
         session.observe(operation)

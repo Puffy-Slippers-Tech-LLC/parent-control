@@ -264,6 +264,34 @@ def test_parent_screen_time_change_saves_or_restores(
         )
 
 
+def test_parent_all_daily_presets_through_installed_reader(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD
+
+    path = tmp_path / "all-daily-presets.jsonl"
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      events_path=path)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    reader = AccessibleUI(
+        ui.api, timeout=10, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001},
+        dispatch=lambda: GLib.MainContext.default().iteration(False),
+    )
+    for minutes in (0, 15, 30, 45, *range(60, 1411, 30)):
+        for action in ('select', 'read'):
+            assert reader.allowance_preset(CHILD, minutes, action=action) == {
+                'minutes': minutes, 'saved': True}
+        wait_for_accessible_state(
+            lambda: any(record['event'] == 'set_parent_control'
+                        and record['daily_limit_minutes'] == minutes
+                        for record in read_events(path)),
+            f"preset {minutes} independently committed")
+
+
 def test_parent_daily_preset_and_custom_limit_autosave(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from gi.repository import GLib

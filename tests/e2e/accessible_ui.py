@@ -356,6 +356,10 @@ KIOSK_RESTRICTION_OPERATIONS = frozenset({
 })
 OPERATIONS |= KIOSK_RESTRICTION_OPERATIONS
 KIOSK_SESSION_OPERATIONS |= KIOSK_RESTRICTION_OPERATIONS
+KIOSK_ABOUT_OPERATIONS = frozenset({'kiosk-about-open', 'kiosk-about-read',
+                                   'kiosk-about-close-ready', 'kiosk-about-closed'})
+OPERATIONS |= KIOSK_ABOUT_OPERATIONS | {'parent-kiosk-about-refused'}
+KIOSK_SESSION_OPERATIONS |= KIOSK_ABOUT_OPERATIONS
 APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
 APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
@@ -1746,6 +1750,76 @@ class AccessibleUI:
         self.read_label(root, 'about-version', maximum=80, expected=version)
         self.reveal_id('about-license-value', root=root)
 
+    def kiosk_about_entry(self):
+        """ABOUT01 kiosk entry: a caller-owned station, never Parent/overlay."""
+        observation = self.read_snapshot()
+        nodes, edges, identities, _facts = observation
+        application = self.snapshot_matches(KIOSK_APPLICATION, nodes, identities=identities)
+        require(application is not None, 'ui:kiosk-about-entry')
+        window = self.snapshot_owned_target('kiosk-request-window',
+            observation=observation, check_prompt=True)
+        require(window is not None and window in self.snapshot_scope(nodes, edges, application)
+                and self.has_state(window, self.api.StateType.ACTIVE), 'ui:kiosk-about-entry')
+        require(self.snapshot_owned_target('kiosk-request-form', root=window,
+                observation=observation) is not None, 'ui:kiosk-about-entry')
+        require(self.snapshot_owned_target('about-dialog', observation=observation) is None,
+                'ui:kiosk-about-already-open')
+        return window
+
+    def open_kiosk_about(self):
+        """Open the real station menu/About controls once from valid entry."""
+        self.kiosk_about_entry()
+        self.activate_id('kiosk-menu-button', action_name='menu.popup')
+        self.activate_id('kiosk-menu-item-about')
+        self.window_ready_to_close('about')
+
+    def kiosk_about_snapshot(self):
+        """Fresh active About surface owned by the station, including close input."""
+        observation = self.read_snapshot()
+        nodes, edges, identities, facts = observation
+        application = self.snapshot_matches(KIOSK_APPLICATION, nodes, identities=identities)
+        require(application is not None, 'ui:kiosk-about-entry')
+        root = self.snapshot_owned_target('about-dialog', observation=observation, check_prompt=True)
+        require(root is not None and root in self.snapshot_scope(nodes, edges, application)
+                and self.has_state(root, self.api.StateType.ACTIVE), 'ui:kiosk-about-entry')
+        require(not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes),
+                'ui:kiosk-about-stale')
+        return root, observation
+
+    def read_kiosk_about(self, version):
+        """Read public information and prove external actions are not offered.
+
+        A complete owned snapshot is mandatory; traversal failures never become
+        evidence of absence. Toolkit window buttons are confined to their ID owner.
+        """
+        root, observation = self.kiosk_about_snapshot()
+        nodes, edges, identities, facts = observation
+        controls = self.snapshot_owned_target('about-window-controls', root=root,
+                                              observation=observation)
+        require(controls is not None, 'ui:kiosk-about-window-controls')
+        toolkit = set(self.snapshot_scope(nodes, edges, controls))
+        for node in self.snapshot_scope(nodes, edges, root):
+            if self.has_state(node, self.api.StateType.VISIBLE) and node not in toolkit:
+                require(facts[node]['role'] not in (
+                    'link', 'push button', 'button', 'toggle button', 'menu item',
+                    'entry', 'check box', 'radio button', 'combo box'),
+                    'ui:kiosk-about-external-action')
+        require(not any(identities[node] == 'kiosk-menu-item-help' and facts[node]['showing']
+                        for node in nodes), 'ui:kiosk-about-external-action')
+        self.read_label(root, 'about-product', maximum=80)
+        self.read_label(root, 'about-version', maximum=80, expected=version)
+        for field, expected in (
+                ('website', None), ('privacy', 'Privacy policy'), ('support', None),
+                ('license', 'GNU General Public License v3.0'),
+                ('legal-notices', 'Malcontent integration and bundled-font notices')):
+            node = self.reveal_id('about-' + field + '-value', root=self.about())
+            text = node.get_name()
+            require(node.get_role_name() == 'label' and type(text) is str
+                    and 0 < len(text) <= 256 and (expected is None or text == expected),
+                    'ui:kiosk-about-information')
+        self.about_footer()
+        return True
+
     def reveal_id(self, identity, *, root):
         node = self.id_target(identity, root=root, showing=False)
         if not self.showing(node):
@@ -2015,7 +2089,8 @@ class AccessibleUI:
 
     def window_closed(self, window, destination):
         """UI11: complete fresh absence within the positively recognized return UI."""
-        require((window, destination) in (('license', 'about'), ('about', 'parent')),
+        require((window, destination) in (('license', 'about'), ('about', 'parent'),
+                                         ('about', 'kiosk')),
                 'ui:window-binding')
         semantic_license = (window == 'license'
                             and not self.provider_contracts['document-viewer']['application_id'])
@@ -2024,7 +2099,8 @@ class AccessibleUI:
                 'document-viewer', 'license-document', ('content', 'close'))
         def closed():
             if window == 'about':
-                return self.absent_id('about-dialog', within='parent-window')
+                return self.absent_id('about-dialog', within=(
+                    'kiosk-request-window' if destination == 'kiosk' else 'parent-window'))
             if semantic_license:
                 viewer, _content, (nodes, snapshot, facts) = self.license_viewer_snapshot()
                 identities = {node: facts[node]['identity'] for node in nodes}
@@ -5424,6 +5500,23 @@ class AccessibleUI:
                 result['settings'] = self.parent_page(child, 'Screen Limits')
             else:
                 result['settings'] = self.selected_child(child)
+        elif operation == 'parent-kiosk-about-refused':
+            require(self.snapshot_owned_target('parent-window', check_prompt=True) is not None,
+                    'ui:kiosk-about-parent-entry')
+            try:
+                self.open_kiosk_about()
+            except UiError as error:
+                require(str(error) == 'ui:kiosk-about-entry', 'ui:kiosk-about-refusal')
+            else:
+                raise UiError('ui:kiosk-about-refusal-missing')
+        elif operation == 'kiosk-about-open':
+            self.open_kiosk_about()
+        elif operation == 'kiosk-about-read':
+            self.read_kiosk_about(version)
+        elif operation == 'kiosk-about-close-ready':
+            self.kiosk_about_snapshot()
+        elif operation == 'kiosk-about-closed':
+            self.window_closed('about', 'kiosk')
         elif operation == 'about':
             self.open_about(version)
         elif operation in ALLOWANCE_OPERATIONS:

@@ -16,6 +16,7 @@ sub close {
         'license-empty-fixture' => ['license-empty-ready', 'license-empty-closed'],
         'license-ambiguous-fixture' => ['license-ambiguous-ready', 'license-ambiguous-closed'],
         about => ['about-returned', 'parent-returned'],
+        'station-about' => ['about-close-ready', 'about-closed'],
         'management-denied' => ['management-denied', 'denial-closed'],
         parent => ['close-ready', 'closed'],
     );

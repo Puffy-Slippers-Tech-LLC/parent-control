@@ -22,6 +22,11 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'parent-kiosk-about-refused': 'Refusing station About entry from Parent management',
+    'kiosk-about-open': 'Opening About from the request station',
+    'kiosk-about-read': 'Reading station product and legal information without external actions',
+    'kiosk-about-close-ready': 'Rechecking the active station About dialog before closing',
+    'kiosk-about-closed': 'Observing About closed and the request station returned',
     'multiple-child-open': 'Inspecting the exact eligible child choices',
     'multiple-approver-open': 'Inspecting the exact eligible approving parent choices',
     'multiple-other-enable': 'Enabling screen limits for the second declared child',

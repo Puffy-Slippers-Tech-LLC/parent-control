@@ -28,6 +28,115 @@ from kiosk_approved_flow import PLAN as APPROVED_FLOW_PLAN, approved_request, ob
 from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
 from restricted_station import PLAN as STATION_PLAN, DENIED_PLAN, CANCELLED_PLAN
 import approval_flow
+from restricted_station_about import PLAN as ABOUT_PLAN, RestrictedStationAboutJourney
+
+
+def station_about_ui():
+    labels = {
+        'product-name': accessible_ui.PRODUCT, 'version': 'Version 1.1',
+        'website-value': 'https://example.test', 'privacy-value': 'Privacy policy',
+        'support-value': 'support@example.test', 'license-value': 'GNU General Public License v3.0',
+        'legal-notices-value': 'Malcontent integration and bundled-font notices',
+        'copyright': accessible_ui.ABOUT_FOOTER,
+    }
+    about = Node(identity='about-dialog', states=('showing', 'visible', 'active'), children=[
+        *(Node(text, 'label', identity='about-' + field) for field, text in labels.items()),
+        Node(identity='about-window-controls', children=[Node(role='push button')]),
+    ])
+    window = Node(identity='kiosk-request-window', states=('showing', 'visible', 'active'),
+                  children=[Node(identity='kiosk-request-form'), about])
+    return ui_for(window), window, about
+
+
+@pytest.mark.parametrize('fault', [None, 'link', 'unknown-action', 'incomplete', 'duplicate',
+                                  'wrong-owner', 'wrong-version', 'wrong-license', 'inactive'])
+def test_station_about_reads_information_and_refuses_unproven_absence(fault):
+    ui, window, about = station_about_ui()
+    if fault == 'link':
+        ui.find_id('about-website-value').role = 'link'
+    elif fault == 'unknown-action':
+        about.children.append(Node(role='push button', identity='about-new-external-action'))
+    elif fault == 'incomplete':
+        about.children.append(None)
+    elif fault == 'duplicate':
+        about.children.append(Node('Version 1.1', 'label', identity='about-version'))
+    elif fault == 'wrong-owner':
+        ui.owner_pids = lambda: {999}
+    elif fault == 'wrong-version':
+        ui.find_id('about-version').name = 'Version 9.9'
+    elif fault == 'wrong-license':
+        ui.find_id('about-license-value').name = 'Different license'
+    elif fault == 'inactive':
+        about.states.discard('active')
+    if fault:
+        with pytest.raises(UiError):
+            ui.run('kiosk-about-read', '1.1')
+    else:
+        result = ui.run('kiosk-about-read', '1.1')
+        observer = UiObservations(Mock())
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        assert observer.observe('kiosk-about-read') == result
+        ui.run('kiosk-about-close-ready', '1.1')
+
+
+def test_station_about_wrong_entry_has_no_input_and_real_menu_is_used_once():
+    parent = ui_for(Node(identity='parent-window'))
+    parent.run('parent-kiosk-about-refused', '1.1')
+    for node in parent.nodes(strict=True):
+        node.action.do_action.assert_not_called()
+    ui, window, about = station_about_ui()
+    window.children.remove(about)
+    entry = Node(identity='kiosk-menu-item-about', states=('visible', 'sensitive'))
+    menu = Node(identity='kiosk-menu-button', children=[entry])
+    menu.parent = window
+    window.children.append(menu)
+    menu.action.get_action_name = lambda _: 'menu.popup'
+    menu.action.do_action.side_effect = lambda _: entry.states.add('showing') or True
+    entry.action.do_action.side_effect = lambda _: window.children.append(about) or True
+    ui.run('kiosk-about-open', '1.1')
+    menu.action.do_action.assert_called_once()
+    entry.action.do_action.assert_called_once()
+    with pytest.raises(UiError, match='already-open'):
+        ui.open_kiosk_about()
+    window.children.remove(about)
+    ui.run('kiosk-about-closed', '1.1')
+
+
+@pytest.mark.parametrize('refusal', [None, 'wrong-entry', 'about-open', 'about-read',
+                                   'about-close-ready', 'about-closed', 'form-returned'])
+def test_station_about_worker_preserves_order_and_stops_on_refusal(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_restricted_station_about').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(ABOUT_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    closes = [event for event in result['events'] if event == ['key', 'alt-f4']]
+    assert len(closes) == (0 if refusal in (
+        'wrong-entry', 'about-open', 'about-read', 'about-close-ready') else 1)
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-before', 'child', 'duration_seconds', 'allow_soft'])
+def test_station_about_return_compares_captured_form_before_acknowledgement(monkeypatch, fault):
+    monkeypatch.setattr(KioskValidDurationJourney, 'check_settings', lambda *args: None)
+    journey = object.__new__(RestrictedStationAboutJourney)
+    journey.before_about = None
+    value = {'child': 'fixture-child', 'duration_seconds': 75, 'allow_soft': True}
+    if fault != 'missing-before':
+        journey.check_settings('open-estimate', {'ui': {'valid_choice': {'request': value}}})
+    returned = dict(value)
+    if fault in returned:
+        returned[fault] = 'changed'
+    observed = {'ui': {'valid_choice': {'request': returned}}, 'comparison': {}}
+    if fault:
+        with pytest.raises(EvidenceError, match='changed-form'):
+            journey.check_settings('form-returned', observed)
+    else:
+        journey.check_settings('form-returned', observed)
+        assert observed['comparison']['unchanged_form'] is True
 
 
 def valid_form():

@@ -660,7 +660,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
-         kiosk_ineligible=False):
+         kiosk_ineligible=False, restricted_station_about=False):
+    require(type(restricted_station_about) is bool and not (restricted_station_about and (
+        kiosk_ineligible or kiosk_multiple or kiosk_valid_duration or request_duration
+        or request_flow or mate_prompt or kiosk_approval or kiosk_rejection or auth_result
+        or kiosk_approved_flow or approval_flow)), 'smoke:restricted-station-about-prerequisites')
     require(type(kiosk_ineligible) is bool and not (kiosk_ineligible and kiosk_multiple),
             'smoke:kiosk-ineligible-prerequisites')
     kiosk_multiple = kiosk_multiple or kiosk_ineligible
@@ -691,7 +695,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:request-duration-prerequisites')
     kiosk_valid_duration = (kiosk_valid_duration or request_duration or request_flow or mate_prompt
                             or kiosk_approval or kiosk_rejection or auth_result or kiosk_approved_flow
-                            or approval_flow is not None or kiosk_multiple)
+                            or approval_flow is not None or kiosk_multiple or restricted_station_about)
     require(type(kiosk_valid_duration) is bool and (not kiosk_valid_duration or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1146,6 +1150,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-request-duration-qualification'
         if request_flow:
             result['scope'] = 'installed-request-flow-qualification'
+        if restricted_station_about:
+            result['scope'] = 'installed-restricted-station-about-qualification'
         if mate_prompt:
             result['scope'] = 'installed-mate-prompt-qualification'
         if kiosk_multiple:
@@ -1338,6 +1344,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if request_flow:
                     from parent_setup_qualification import RequestFlowQualification
                     qualification_class = RequestFlowQualification
+                if restricted_station_about:
+                    from parent_setup_qualification import RestrictedStationAboutQualification
+                    qualification_class = RestrictedStationAboutQualification
                 if mate_prompt:
                     from parent_setup_qualification import MatePromptQualification
                     qualification_class = MatePromptQualification

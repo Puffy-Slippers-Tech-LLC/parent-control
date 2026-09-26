@@ -175,7 +175,7 @@ def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
         for identity in ('feedback-editor-input', 'feedback-reply-email'):
             node = ui.id_target(identity)
             text = node.get_text_iface()
-            count = Atspi.Text.get_character_count(text)
+            count = ui.api.Text.get_character_count(text)
             print('Synthetic field character count:', identity, count)
         raise
 
@@ -193,7 +193,12 @@ def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
         provider_contracts=_qualified_absent_prompt_contracts(module),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.run('feedback-open', '')
-    for binding, (identity, value) in module.TEXT_VALUES.items():
+    # This fixture exercises feedback's six replacement bindings. The shared
+    # registry also contains daily allowances, whose Parent dialog is separate.
+    bindings = {binding: target for binding, target in module.TEXT_VALUES.items()
+                if binding.startswith(('body-', 'reply-'))}
+    assert len(bindings) == 6
+    for binding, (identity, value) in bindings.items():
         if binding == 'reply-first':
             ui.run('feedback-close', '')
             ui.run('feedback-reopen', '')
@@ -292,6 +297,7 @@ def test_parent_functional_adapter_at_display_scales(
     application, _log = launch_ui('parent_component_preview', wait_for_application=False)
     from gi.repository import Atspi, GLib
     ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,),
+                            timing=lambda value: print(json.dumps(value, sort_keys=True), flush=True),
                             application_ids=(module.PARENT_APPLICATION,),
                             application_owners=launch_ui.application_owners,
                             provider_contracts=_qualified_absent_prompt_contracts(module),

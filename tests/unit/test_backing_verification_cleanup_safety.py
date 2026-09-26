@@ -320,8 +320,8 @@ def test_off_recovery_audits_exact_restoration_without_vm_mutations(lease_rig, f
     lease.source.connection.defineXML.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', [None, 'phase', 'run', 'snapshot'])
-def test_off_isolated_recovery_restores_only_recorded_cleanup(lease_rig, fault):
+@pytest.mark.parametrize('fault', [None, 'phase', 'run', 'snapshot', 'split'])
+def test_off_isolated_recovery_restores_a_dead_recorded_guest(lease_rig, fault):
     import system_runner as runner
     lease, current = lease_rig
     lease.view.graphics_type = 'vnc'
@@ -346,7 +346,15 @@ def test_off_isolated_recovery_restores_only_recorded_cleanup(lease_rig, fault):
             '<creationTime>100', '<creationTime>200')
     lease.source.domain.reset_mock()
     lease.source.connection.reset_mock()
-    if fault is None:
+    if fault == 'split':
+        inactive = lease.source.api.VIR_DOMAIN_XML_INACTIVE
+
+        def describe(flags=0):
+            text = current['xml']
+            return text + '\n' if flags == inactive else text
+
+        lease.source.domain.XMLDesc.side_effect = describe
+    if fault in (None, 'phase'):
         recovery.recover_graphical_cleanup()
         assert recovery.state['phase'] == 'complete'
         lease.source.domain.revertToSnapshot.assert_called_once()

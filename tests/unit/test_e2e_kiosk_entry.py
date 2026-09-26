@@ -654,19 +654,29 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     import vm_transport
 
     source = '# Standalone fixture source\n' + '# padded\n' * 40000
-    source_path = tmp_path / 'tests/e2e/accessible_ui.py'
-    source_path.parent.mkdir(parents=True)
-    source_path.write_text(source)
+    reader = 'READER = "public-atspi"\n'
+    e2e = tmp_path / 'tests/e2e'
+    e2e.mkdir(parents=True)
+    (e2e / 'accessible_ui.py').write_text(source)
+    (e2e / 'public_atspi.py').write_text(reader)
     data = tmp_path / 'data'
     data.mkdir()
     (data / 'app.json').write_text('{"version": "1.1"}')
     monkeypatch.setattr(ui_observations.system, 'ROOT', tmp_path)
     result = {'operation': 'gdm-focused', 'outcome': 'passed', 'interface': 'AT-SPI'}
     raw = json.dumps(result).encode()
+    expected = (
+        'import sys, types\n'
+        'public_atspi = types.ModuleType("public_atspi")\n'
+        'sys.modules["public_atspi"] = public_atspi\n'
+        'exec(compile(' + repr(reader) + ', "public_atspi.py", "exec"), '
+        'public_atspi.__dict__)\n' + source
+    ).encode()
 
     def call(argv, **kwargs):
         assert argv == ['/usr/bin/python3', '-I', '-', 'gdm-focused', '1.1']
-        assert kwargs['input'] == source.encode()
+        assert kwargs['input'] == expected
+        assert kwargs['input'].endswith(source.encode())
         assert len(kwargs['input']) > 128 * 1024
         config = {'directory': str(tmp_path), 'run': 'a' * 32, 'domain_uuid': 'b' * 32}
         assert len(vm_transport.remote(config, argv).encode()) < 4096

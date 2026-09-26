@@ -49,7 +49,11 @@ def preview_applications(session, directory):
         log_file = log_path.open("wb")
         try:
             process = subprocess.Popen(
-                [sys.executable, str(ROOT / "tests/ui" / f"{name}.py")],
+                # Enable before importing GTK/WebKit so startup, runtime and
+                # teardown faults reach the same retained stderr log. Python
+                # 3.14 also includes the native stack when its build supports it.
+                [sys.executable, "-X", "faulthandler",
+                 str(ROOT / "tests/ui" / f"{name}.py")],
                 env=environment, stdout=log_file, stderr=subprocess.STDOUT,
             )
         except BaseException:

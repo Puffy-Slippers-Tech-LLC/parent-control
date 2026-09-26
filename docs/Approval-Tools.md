@@ -325,13 +325,16 @@ grant on a future rules refresh; no broad shell/interpreter permission is added.
 
 Every `tools/run-tests` category runs in a terminal-independent session. Closing
 the terminal detaches; Ctrl+C requests owned cancellation and cleanup. While a
-session is active or its successful final result remains unread, a new execution invocation warns
-and attaches to it before interpreting arguments. All new arguments, including
-listing, different categories and invalid selections, are ignored. After
+session is active, a new execution invocation warns and attaches to it across
+host and VM scopes before interpreting execution arguments. Different categories
+and invalid selections are ignored. `--stop` requests cancellation and waits for
+owned cleanup; when idle it returns without starting work or consuming results.
+Help, listing and collection return immediately without inspecting session locks.
+When idle, an unread successful result is replayed in the requested scope. After
 the result is delivered, the next invocation validates and starts fresh work.
 An explicit selection can replace an idle failed/incomplete session immediately,
 preserving its output and reconciling residual state before starting tests.
-An invocation without arguments still replays its unread result. When idle, no
+An invocation without arguments still replays an unread VM-side result. When idle, no
 arguments starts the `all` aggregate. `--help` and `-h` always print usage
 immediately, before activity/session locks or attachment, without consuming an
 unread result.
@@ -339,14 +342,16 @@ unread result.
 Internal workers inherit the verified checkout activity lock and execute their
 assigned work without reattaching to their own session. Older runs without
 session metadata still refuse competing launches through that lock.
-Host-only selections use a separate activity lock, reconnect namespace and
+Host-only selections use a separate activity lock, storage namespace and
 retention journal, so
 `tools/prepare-appsnapshot` can run alongside `tools/run-tests ui` or other
 host-only tests. Selections containing system, E2E or integration work retain
 the VM-side checkout lock and reconnect namespace; the privileged
-cross-controller VM lease remains authoritative. A host run and a VM run can
-therefore proceed and be reattached independently. Existing processes keep
-their original locks until they exit.
+cross-controller VM lease remains authoritative. Public execution invocations
+check both session namespaces under ordered gates and attach to any active run
+instead of starting a competing category. If older launchers already started both,
+the requested scope wins (VM for no arguments). Existing processes keep their
+original locks until they exit.
 
 Bulk output, scratch, reconnect state and retained exports use gitignored,
 disk-backed `output/test-runs/`, with separate host and privileged ownership.

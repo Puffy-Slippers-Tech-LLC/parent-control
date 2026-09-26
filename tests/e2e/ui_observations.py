@@ -325,6 +325,8 @@ class UiObservations:
         self.challenge_failed = False
         self.approver_uids = None
         self.system_prompt = system_prompt
+        self.boot_guard = None
+        self.boot_proof = None
 
     @staticmethod
     def point(value):
@@ -444,11 +446,24 @@ class UiObservations:
         if self.progress is not None:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
+        reader = (system.ROOT / 'tests/e2e/public_atspi.py').read_text()
+        program = ('import sys, types\n'
+                   'public_atspi = types.ModuleType("public_atspi")\n'
+                   'sys.modules["public_atspi"] = public_atspi\n'
+                   'exec(compile(' + repr(reader) + ', "public_atspi.py", "exec"), '
+                   'public_atspi.__dict__)\n' + program)
         version = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
+        self.boot_proof = None
+        binding = []
+        if self.boot_guard is not None:
+            import re
+            require(type(self.boot_guard) is str and (self.boot_guard == '' or
+                    re.fullmatch(r'[0-9a-f]{64}', self.boot_guard)), 'ui:boot-binding')
+            binding = [self.boot_guard]
         # The standalone observer can exceed Linux's per-argument limit after
         # SSH shell quoting. Carry its bytes on the existing guarded stdin pipe.
         try:
-            raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version],
+            raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version, *binding],
                                      operation, input=program.encode())
         except BaseException:
             watch_activity.event('SSH UI observation failed: ' + operation)
@@ -456,6 +471,11 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <=
                 RESPONSE_BYTE_LIMITS.get(operation, 2048), 'ui:response-size')
         result = json.loads(raw)
+        if binding:
+            proof = result.pop('boot_sha256', None) if type(result) is dict else None
+            require(type(proof) is str and re.fullmatch(r'[0-9a-f]{64}', proof)
+                    and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
+            self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation == 'parent-initial-selection':
             require(type(result) is dict and set(result) == {*expected, 'selection'}

@@ -23,6 +23,54 @@ current provider qualification. Legacy pixel routes described below are migratio
 references, not executable exemptions. `ui:` stages retain public observations
 as screen evidence; worker markers alone cannot pass.
 
+The host [automation facade](../support/automation.py) and installed
+[observer](accessible_ui.py) share traversal, scoped identity/ownership checks,
+immutable read snapshots and public-action dispatch. Snapshot reuse ends before
+input, retry, client reset or the outer operation's return. State guards still
+query the live control, and partial trees never seed reusable observations.
+Both routes use [public_atspi.py](public_atspi.py) on the public accessibility
+D-Bus. Each traversal requests fresh bulk structural facts with `Cache.GetItems`;
+unsupported or legacy caches use live queries. Non-leaf children always use
+counted live enumeration: GTK can retain a hidden cache object at the same index
+as an unrealized replacement, even with apparently complete slots. Only
+uncontradicted bulk zero counts establish leaves; application roots stay live.
+Fresh identity and child queries for up to 32 already discovered nodes are
+pipelined through Gio's public asynchronous D-Bus API, with at most 64 calls
+outstanding. A private main context drains the replies without dispatching
+application callbacks. Breadth-first discovery batches independent branches;
+the consumer's traversal order stays unchanged. The same exclusion predicate gates both
+batched and ordinary child reads; password and protected text descendants are
+never prefetched. Incomplete counts, null/duplicate children and read failures
+still refuse. Batched identities expire with the traversal; text, ownership and
+input states remain live. Input invalidates
+even a suspended bulk traversal; nested scopes cannot restore invalidated facts.
+Node wrappers have weak lifetime tracking so closed controls do not accumulate.
+Named bus references are resolved to their current unique owner before object
+identity or duplicate checks. Embedded WebKit cache records may name the owning
+GTK application on a different bus; the reader independently confirms that
+reference with `Accessible.GetApplication`. Foreign object records and mismatched
+application references still refuse. A traversal interrupted by input or reset
+cannot publish a mixture of facts from before and after that boundary. Host
+fixtures close their private reader connection at teardown.
+Passing an existing public-bus facade to another reader preserves that facade
+and its node identities; it must not create a second connection when a scoped
+node is shared between the host and installed-reader interfaces.
+
+Journey UI observations also carry the kernel boot digest on the same guarded
+transport call. The guest checks continuity before connecting to the UI or
+delivering input; the controller validates the returned proof before its durable
+acknowledgement. System/command stages retain their separate boot observation.
+
+Each installed observer retains one `ui-operation-timing` record in its existing
+private command stderr. It reports the guest monotonic start, operation duration,
+reader traversal time/count, node count and up to 64 public AT-SPI action
+dispatch offsets. It contains no observed UI text. These are diagnostics, not
+acceptance: reader time excludes transport/controller work, and action timestamps
+do not establish compositor presentation latency. Use the existing worker log
+and recording to assess the gaps between visible customer actions; keep those
+measurements separate from reader cost. Host callers can inject the same timing
+callback without changing their input or result guards.
+
 ### Shared system and account entry helpers
 
 [`session_control.py`](session_control.py) owns fixed fixture lock, switch-user

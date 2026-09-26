@@ -265,8 +265,7 @@ After the guard is released and cleanup succeeds:
    matching brief/queue prerequisites, dependency order, immediate scenario
    placement, the first-unchecked pointer, ordinary estimates of at most 30
    minutes or an explained session exception, and unchanged case assignment.
-   Preserve every declared inventory case exactly once as implementation scope;
-   retained regression rows separately revisit the seven existing bindings.
+   Retained regression rows separately revisit the seven existing bindings.
    Splitting former paired rows changes task granularity, never case IDs, finite
    matrices or assertions. Planning repairs leave Lunar case 253 pending; its
    scenario task follows the registration and acceptance sequence above. Retain system
@@ -281,7 +280,7 @@ tools/run-tests unit 'tests/unit/test_e2e_plan.py' 'tests/unit/test_e2e_inventor
 ```
 
 It checks the pointer, task/brief dependencies, one case per scenario task,
-case assignment and parameters, first-consumer hints, session sizing/exception
+queued case titles and parameters, first-consumer hints, session sizing/exception
 metadata and capability-before-consumer
 order. It does not qualify UI
 adapters or establish a live pass.

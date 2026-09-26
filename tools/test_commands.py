@@ -112,9 +112,13 @@ def usage():
     return f'''Usage: tools/run-tests [--stop-on-error] [category [args ...]] ...
        tools/run-tests --help
        tools/run-tests --list
+       tools/run-tests --stop
 
 With no arguments, start the all aggregate unless a previous run is still
 active or has an unread result; then this invocation attaches to that run.
+Any active run takes precedence over new execution arguments, across categories.
+Help, listing and collection return immediately without attaching.
+--stop requests cancellation of the active run and waits for owned cleanup.
 
 Inspection
   --help, -h   this usage, including how all breaks down into pieces

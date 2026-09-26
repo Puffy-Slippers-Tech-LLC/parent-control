@@ -240,7 +240,7 @@ def test_challenge_reply_requires_observation_storage_and_final_guard(tmp_path, 
     journey = InstalledJourney(context, progress, PLAN)
     journey.steps = [{'stage': name} for name in PLAN.stages[:PLAN.stages.index(stage)]]
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'boot'}))
-    journey.ui = SimpleNamespace(observe_challenge=Mock(
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe_challenge=Mock(
         side_effect=EvidenceError('proof') if failure == 'observation' else None,
         return_value={'operation': PLAN.screen_tags[stage][3:], 'outcome': 'passed'}))
     (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))

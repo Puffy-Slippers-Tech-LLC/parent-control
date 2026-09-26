@@ -1,11 +1,32 @@
 """Host-safe regression for the UI launcher's owned-process cleanup."""
 
 import subprocess
+import signal
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 from tests.support import preview
+
+
+def test_native_preview_crash_retains_traceback_after_owned_cleanup(tmp_path, monkeypatch):
+    scripts = tmp_path / "tests" / "ui"
+    scripts.mkdir(parents=True)
+    script = scripts / "crash_probe.py"
+    script.write_text(
+        "import os, resource\n"
+        "resource.setrlimit(resource.RLIMIT_CORE, (0, 0))\n"
+        "def crash_preview():\n"
+        "    os.abort()\n"
+        "crash_preview()\n", encoding="utf-8")
+    monkeypatch.setattr(preview, "ROOT", tmp_path)
+    session = SimpleNamespace(environment={"PYTHONFAULTHANDLER": ""})
+    with preview.preview_applications(session, tmp_path) as launch:
+        process, log = launch("crash_probe")
+        assert process.wait(timeout=10) == -signal.SIGABRT
+    trace = log.read_text(encoding="utf-8")
+    assert "Fatal Python error: Aborted" in trace
+    assert str(script) in trace and "in crash_preview" in trace
 
 
 @pytest.mark.parametrize("exited, stubborn", [(False, False), (False, True), (True, False)])

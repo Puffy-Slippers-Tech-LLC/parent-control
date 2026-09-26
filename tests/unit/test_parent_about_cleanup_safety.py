@@ -52,10 +52,14 @@ def test_boot_replacement_refuses_before_next_customer_action(tmp_path):
     journey.steps = [{'stage': s} for s in parent_about.STAGES[:parent_about.STAGES.index(stage)]]
     journey.boot = 'a' * 64
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b'*64}))
+    journey.ui = SimpleNamespace(boot_proof=None,
+        observe=Mock(side_effect=EvidenceError('ui:boot-changed')))
     with pytest.raises(EvidenceError, match='boot-changed'):
         journey.step(Mock())
     progress.assert_not_called()
     assert not (tmp_path / (stage + '.reply.json')).exists()
+    assert journey.ui.boot_guard == 'a' * 64
+    journey.vm.read.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'child', 'toggle', 'allowance', 'missing', 'missing-earlier', 'replay'])
@@ -76,7 +80,7 @@ def test_about_return_uses_explicit_immutable_settings_before_reply(tmp_path, fa
     if fault != 'missing': result['settings'] = returned
     if fault == 'replay': journey.check_settings(stage, {'ui': result})
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))
-    journey.ui = SimpleNamespace(observe=Mock(return_value=result))
+    journey.ui = SimpleNamespace(boot_proof='a' * 64, observe=Mock(return_value=result))
     (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
     if fault:
         with pytest.raises(EvidenceError): journey.step(Mock())

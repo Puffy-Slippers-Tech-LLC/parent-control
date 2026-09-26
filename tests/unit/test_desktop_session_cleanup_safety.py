@@ -54,7 +54,14 @@ def test_boot_replacement_refuses_before_next_customer_action(tmp_path, plan):
     journey.steps = [{'stage': s} for s in plan.stages[:plan.stages.index(stage)]]
     journey.boot = 'a' * 64
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
+    journey.transport = SimpleNamespace(call=Mock(return_value=json.dumps({
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'boot_sha256': 'b' * 64,
+    }).encode()))
     with pytest.raises(EvidenceError, match='boot-changed'):
         journey.step(Mock())
+    journey.transport.call.assert_called_once()
+    assert journey.transport.call.call_args.args[0][-1] == 'a' * 64
+    journey.vm.read.assert_not_called()
     progress.assert_not_called()
     assert not (tmp_path / (stage + '.reply.json')).exists()

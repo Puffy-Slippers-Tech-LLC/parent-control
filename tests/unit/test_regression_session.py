@@ -139,22 +139,33 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     assert session.follow(run, io.StringIO()) == 7
 
 
-def test_host_and_vm_sessions_start_and_reconnect_independently(tmp_path, workers, monkeypatch):
+@pytest.mark.parametrize('category', ['ui', 'e2e'])
+def test_active_session_wins_across_scopes_before_validation(tmp_path, workers, monkeypatch, category):
     monkeypatch.setattr(test_commands, 'validate',
                         lambda root, argv: [(argv[0], argv[1:])])
-
-    host_run, host_started = session.select(tmp_path, ['ui'])
-    vm_run, vm_started = session.select(tmp_path, ['e2e'])
-
-    assert host_started and vm_started
-    assert host_run.parent == tmp_path / 'output/test-runs/host/sessions-host'
-    assert vm_run.parent == tmp_path / 'output/test-runs/host/sessions'
-    assert session.select(tmp_path, ['ui']) == (host_run, False)
-    assert session.select(tmp_path, ['e2e']) == (vm_run, False)
-    assert len(workers) == 2
+    run, started = session.select(tmp_path, [category])
+    assert started
+    def refuse(*_):
+        pytest.fail('attachment must not validate or start another operation')
+    monkeypatch.setattr(test_commands, 'validate', refuse)
+    monkeypatch.setattr(test_activity, 'activity', refuse)
+    for argv in ([], ['ui'], ['e2e'], ['invalid'], ['--stop-on-error', 'unit']):
+        assert session.select(tmp_path, argv) == (run, False)
+    assert len(workers) == 1
     (tmp_path / 'release').touch()
-    assert session.follow(host_run, io.StringIO()) == 7
-    assert session.follow(vm_run, io.StringIO()) == 7
+    assert session.follow(run, io.StringIO()) == 7
+
+
+def test_active_host_run_wins_over_unread_vm_result(tmp_path, workers):
+    vm_run, _ = session.select(tmp_path, ['e2e'])
+    (tmp_path / 'release').touch()
+    assert workers[0].wait(timeout=10) == 7
+    (vm_run / 'result').write_text('0')
+    (tmp_path / 'release').unlink()
+    host_run, started = session.select(tmp_path, ['ui'])
+    assert started
+    assert session.select(tmp_path, []) == (host_run, False)
+    assert not (vm_run / 'delivered').exists()
 
 
 @pytest.mark.parametrize(('argv', 'expected'), [
@@ -224,15 +235,16 @@ def test_inspection_prints_without_starting_a_session(tmp_path, workers, capsys,
 @pytest.mark.parametrize('argv', [['--help'], ['-h'], ['--list'],
                                   ['unit', '--collect-only'], ['e2e', '--list']])
 @pytest.mark.parametrize('state', ['active', 'unread'])
+@pytest.mark.parametrize('category', ['all', 'ui'])
 def test_inspection_preserves_existing_session(
-        tmp_path, workers, monkeypatch, capsys, argv, state):
-    run, _ = session.select(tmp_path, ['all'])
+        tmp_path, workers, monkeypatch, capsys, argv, state, category):
+    run, _ = session.select(tmp_path, [category])
     wait_for(tmp_path / 'started')
     if state == 'unread':
         (tmp_path / 'release').touch()
         assert workers[0].wait(timeout=10) == 7
         (run / 'result').write_text('0')
-    current = tmp_path / 'output/test-runs/host/sessions/current.json'
+    current = run.parent / 'current.json'
     before = current.read_bytes()
 
     def refuse(*args, **kwargs):
@@ -304,6 +316,14 @@ def test_lost_terminal_reconnects_and_preserves_summary_status(tmp_path, workers
 def test_concurrent_reconnections_share_one_worker(tmp_path, workers):
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: session.select(tmp_path, ['all']), range(2)))
+    assert results[0][0] == results[1][0]
+    assert sorted(result[1] for result in results) == [False, True]
+    assert len(workers) == 1
+
+
+def test_concurrent_cross_scope_requests_share_one_worker(tmp_path, workers):
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda category: session.select(tmp_path, [category]), ['ui', 'e2e']))
     assert results[0][0] == results[1][0]
     assert sorted(result[1] for result in results) == [False, True]
     assert len(workers) == 1
@@ -381,6 +401,33 @@ def test_reconnected_terminal_cancellation_reaches_owner(tmp_path, workers):
     assert session.follow(run, output) == 130
     assert 'owned cleanup finished' in output.getvalue()
     assert workers[0].wait(timeout=10) == 130
+
+
+@pytest.mark.parametrize('category', ['ui', 'e2e'])
+def test_stop_attaches_and_waits_for_owned_cleanup(tmp_path, workers, capsys, category):
+    run, _ = session.select(tmp_path, [category])
+    wait_for(tmp_path / 'child-ready')
+    assert session.main(tmp_path, ['--stop']) == 130
+    assert (run / 'cancel').exists()
+    output = capsys.readouterr()
+    assert 'owned cleanup finished' in output.out
+    assert 'cancellation requested' in output.err
+    assert len(workers) == 1
+    assert workers[0].wait(timeout=10) == 130
+
+
+@pytest.mark.parametrize('unread', [False, True])
+def test_idle_stop_does_not_start_tests_or_consume_result(tmp_path, workers, capsys, unread):
+    if unread:
+        run, _ = session.select(tmp_path, ['ui'])
+        (tmp_path / 'release').touch()
+        assert workers[0].wait(timeout=10) == 7
+    assert session.main(tmp_path, ['--stop']) == 0
+    assert 'no active run to stop' in capsys.readouterr().err
+    assert len(workers) == int(unread)
+    if unread:
+        assert not (run / 'delivered').exists()
+        assert not (run / 'cancel').exists()
 
 
 @pytest.mark.parametrize('category', ['all-verify', 'traceability'])

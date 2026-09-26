@@ -111,7 +111,8 @@ def test_collection_progress_disables_send_but_allows_editing(
         type_feedback(ui, "Draft during collection", wait_for_accessible_state)
     finally:
         release.touch()
-    wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "diagnostic-logs.zip",
+    wait_for_accessible_state(lambda: ui.find("feedback-logs-row") is not None
+                              and ui.text("feedback-logs-row") == "diagnostic-logs.zip",
                               "diagnostics collection completes")
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "collection enables sending")

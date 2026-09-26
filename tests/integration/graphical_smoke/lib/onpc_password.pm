@@ -78,12 +78,14 @@ sub enter_parent_gdm_password {
 # poisons all subsequent secret routes, including uncertain type_password.
 sub enter_kiosk_mate_password {
     onpc_progress::operation('Qualifying the kiosk approval password recipient');
-    my ($journey) = @_;
+    my ($journey, $wrong) = @_;
     die "secret:input-refused\n" if $failed;
     my $ok = eval {
-        my $id = 'kiosk-mate-approval';
-        die 'secret:challenge' unless @_ == 1 && ref($journey) eq 'onpc_journey'
-            && ($journey->{prefix} // '') eq 'kiosk-approval'
+        my $reject = @_ == 2 && defined($wrong) && $wrong eq 'wrong';
+        my $binding = $reject ? 'rejection' : 'approval';
+        my $id = 'kiosk-mate-' . $binding;
+        die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
+            && ($journey->{prefix} // '') eq 'kiosk-' . $binding
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = 1;
@@ -92,13 +94,13 @@ sub enter_kiosk_mate_password {
         die 'secret:console' unless testapi::current_console() eq 'sut';
         die 'secret:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
         my $proof;
-        for my $stage ('approval-qualified', 'approval-rechecked') {
+        for my $stage ($binding . '-qualified', $binding . '-rechecked') {
             $proof = $journey->seen($stage);
             die 'secret:recipient' unless ref($proof) eq 'HASH' && keys(%$proof) == 1
                 && ($proof->{observed} // '') eq $stage;
         }
         $active_challenge = {journey => $journey, id => $id, role => 'parent',
-                             stage => 'approval-rechecked', proof => $proof};
+                             stage => $binding . '-rechecked', proof => $proof, wrong => $reject};
         type_fixture_secret('parent', $journey, $proof, $id);
         1;
     };
@@ -167,6 +169,7 @@ sub type_fixture_secret {
         die "secret:arguments\n" unless (@_ == 3 || @_ == 4) && ($role eq 'parent' || $role eq 'other-child')
             && ref($journey) eq 'onpc_journey' && !$journey->{review};
         my $stage;
+        my $wrong = 0;
         if (defined($challenge)) {
             my $active = $active_challenge;
             undef $active_challenge; # Consume before accessing the secret API.
@@ -175,6 +178,7 @@ sub type_fixture_secret {
                 && $active->{role} eq $role && ref($proof) eq 'HASH'
                 && $active->{proof} == $proof;
             $stage = $active->{stage};
+            $wrong = $active->{wrong} // 0;
         } else {
             $stage = ($role eq 'parent' ? '' : 'standard-') . 'recipient-rechecked';
             die "secret:recipient\n" unless ref($proof) eq 'HASH' && keys(%$proof) == 1
@@ -186,6 +190,12 @@ sub type_fixture_secret {
         my $password = testapi::get_required_var($variables{$role});
         die "secret:value\n" unless defined($password) && !ref($password)
             && $password =~ /\A[\x20-\x7e]{1,256}\z/;
+        # Fixed public negative fixture, guaranteed different from the frozen
+        # credential; no derived secret bytes enter diagnostics or evidence.
+        if ($wrong) {
+            $password = $password eq 'onpc-wrong-fixture-password'
+                ? 'onpc-other-wrong-fixture-password' : 'onpc-wrong-fixture-password';
+        }
         testapi::type_password($password);
         1;
     };

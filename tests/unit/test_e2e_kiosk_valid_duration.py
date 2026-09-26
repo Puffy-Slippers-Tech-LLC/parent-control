@@ -23,6 +23,7 @@ from kiosk_cancel import PLAN as CANCEL_PLAN
 from kiosk_escape import PLAN as ESCAPE_PLAN
 from mate_prompt import PLAN as MATE_PLAN
 from kiosk_approval import PLAN as APPROVAL_PLAN
+from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
 
 
 def valid_form():
@@ -723,20 +724,23 @@ def test_mate_qualification_refuses_conflicting_modes(conflict):
 
 @pytest.mark.parametrize('refusal', [None, 'approval-open', 'approval-qualified',
                                    'approval-rechecked', 'approval-success', 'new-returned'])
-def test_approval_worker_order_and_secret_once(monkeypatch, refusal):
+@pytest.mark.parametrize('binding', ['approval', 'rejection'])
+def test_approval_worker_order_and_secret_once(monkeypatch, refusal, binding):
+    if refusal and binding == 'rejection':
+        refusal = refusal.replace('approval-', 'rejection-').replace('rejection-success', 'rejection-result')
     if refusal:
         monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
     worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_request_flow').replace(
         'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
     worker = worker.replace("$stage eq 'station-branch'", "$stage =~ /station-branch\\z/")
-    worker = worker.replace('    });', "    }, 'approval');")
+    worker = worker.replace('    });', "    }, '" + binding + "');")
     result = json.loads(run_perl(worker).stdout)
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    expected = list(APPROVAL_PLAN.screen_tags)
+    expected = list((APPROVAL_PLAN if binding == 'approval' else REJECTION_PLAN).screen_tags)
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     assert sum(event[0] == 'secret' for event in result['events']) == (
-        1 if refusal in ('approval-open', 'approval-qualified', 'approval-rechecked') else 2)
+        1 if refusal in tuple(binding + '-' + item for item in ('open', 'qualified', 'rechecked')) else 2)
 
 
 @pytest.mark.parametrize('fault', [None, 'changed', 'nonempty', 'unfocused', 'uncertain'])
@@ -796,32 +800,97 @@ def test_approval_submits_once_and_requires_explicit_success(fault):
 
 
 @pytest.mark.parametrize('fault', [None, 'replay', 'changed', 'intervening', 'out-of-order', 'stale'])
-def test_approval_controller_reconciles_fresh_proofs_and_latches(fault):
+@pytest.mark.parametrize('binding', ['approval', 'rejection'])
+def test_approval_controller_reconciles_fresh_proofs_and_latches(fault, binding):
     observer = UiObservations(Mock())
+    operations = (('kiosk-mate-open', 'kiosk-mate-qualified', 'kiosk-mate-rechecked',
+                   'kiosk-mate-submit-success') if binding == 'approval' else accessible_ui.MATE_REJECTION_ORDER)
     def call(_args, operation, **_kwargs):
         approval = ({'approved': True, 'form_success': True} if operation.endswith('success') else
+                    {'rejected': True, 'cancelled': True, 'no_error': True} if operation.endswith('submit-rejection') else
                     {'challenge_id': ('b' if fault == 'changed' and operation.endswith('rechecked') else 'a') * 64})
         value = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'approval': approval}
-        if operation != 'kiosk-mate-open':
+        if operation != operations[0]:
             value['boot_sha256'] = 'c' * 64
         return json.dumps(value).encode(), []
     observer.call = Mock(side_effect=call)
-    observer.observe('kiosk-mate-open')
+    observer.observe(operations[0])
     if fault == 'stale':
         observer.mate_approval_checked = float('-inf')
     if fault:
-        operation = {'replay': 'kiosk-mate-open', 'intervening': 'desktop',
-                     'out-of-order': 'kiosk-mate-submit-success', 'changed': 'kiosk-mate-rechecked',
-                     'stale': 'kiosk-mate-qualified'}[fault]
+        operation = {'replay': operations[0], 'intervening': 'desktop',
+                     'out-of-order': operations[3], 'changed': operations[2],
+                     'stale': operations[1]}[fault]
         if fault == 'changed':
-            observer.observe('kiosk-mate-qualified')
+            observer.observe(operations[1])
         with pytest.raises(Exception, match='ui:'):
             observer.observe(operation)
         with pytest.raises(Exception, match='ui:'):
-            observer.observe('kiosk-mate-qualified')
+            observer.observe(operations[1])
     else:
-        for operation in ('kiosk-mate-qualified', 'kiosk-mate-rechecked', 'kiosk-mate-submit-success'):
+        for operation in operations[1:]:
             observer.observe(operation)
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-rejection', 'disappeared', 'wrong-owner',
+                                  'duplicate-rejection', 'uncertain-cancel', 'changed-form'])
+def test_rejection_requires_explicit_message_then_one_cancel_and_public_form(fault):
+    ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    observer = UiObservations(Mock())
+    def call(_args, operation, **_kwargs):
+        ui.expected_mate_challenge = getattr(observer, 'mate_approval_identity', None)
+        result = ui.run(operation, '')
+        if operation != accessible_ui.MATE_REJECTION_ORDER[0]:
+            result['boot_sha256'] = 'c' * 64
+        return json.dumps(result).encode(), []
+    observer.call = Mock(side_effect=call)
+    for operation in accessible_ui.MATE_REJECTION_ORDER[:3]:
+        observer.observe(operation)
+    field.get_text_iface = lambda: SimpleNamespace(get_character_count=lambda: 5)
+    authenticate = Node('Authenticate', 'push button')
+    authenticate.parent = dialog
+    dialog.children.append(authenticate)
+    def reject(_):
+        field.get_text_iface = lambda: SimpleNamespace(get_character_count=lambda: 0)
+        if fault == 'disappeared':
+            desktop.children.remove(agent)
+        elif fault != 'missing-rejection':
+            for _ in range(2 if fault == 'duplicate-rejection' else 1):
+                label = Node('Your authentication attempt was unsuccessful. Please try again.', 'label')
+                label.parent = dialog
+                dialog.children.append(label)
+        if fault == 'wrong-owner':
+            agent.get_process_id = lambda: 999
+        if fault == 'changed-form':
+            ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
+        return True
+    authenticate.action.do_action.side_effect = reject
+    if fault == 'uncertain-cancel':
+        cancel.action.do_action.side_effect = RuntimeError('private failure')
+    if fault:
+        with pytest.raises((UiError, RuntimeError)):
+            observer.observe(accessible_ui.MATE_REJECTION_ORDER[3])
+    else:
+        assert observer.observe(accessible_ui.MATE_REJECTION_ORDER[3])['approval'] == {
+            'rejected': True, 'cancelled': True, 'no_error': True}
+    with pytest.raises(Exception, match='ui:'):
+        observer.observe(accessible_ui.MATE_REJECTION_ORDER[3])
+    authenticate.action.do_action.assert_called_once()
+    assert cancel.action.do_action.call_count == (1 if fault in (None, 'uncertain-cancel', 'changed-form') else 0)
+    field.get_child_count.assert_not_called()
+
+
+def test_rejection_plan_independent_form_comparison(tmp_path, monkeypatch):
+    monkeypatch.setattr(RequestFlowJourney, 'check_settings', lambda *_: None)
+    journey = KioskRejectionJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.prepared = {'choice': 'before'}
+    observed = {'ui': {'valid_choice': {'request': {'choice': 'after'}}}, 'comparison': {}}
+    with pytest.raises(EvidenceError, match='changed-form'):
+        journey.check_settings('rejection-form', observed)
+    observed['ui']['valid_choice']['request'] = journey.prepared.copy()
+    journey.check_settings('rejection-form', observed)
+    assert observed['comparison'] == {'preserved_choices': True}
 
 
 def test_approval_qualification_uses_guarded_snapshot(tmp_path):

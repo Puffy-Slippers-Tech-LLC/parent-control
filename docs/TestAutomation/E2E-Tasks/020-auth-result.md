@@ -7,7 +7,7 @@ Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 Add the immediate approved exit to GDM and compose the full kiosk outcome set. Reuse 020b's rejection/Cancel and 020a's automatic-exit evidence; rerun any affected branch.
 
-Tasks **020b** supply the extracted operations through their maintained
+Task **020b** supplies the extracted operations through its maintained
 callables and qualified scope. The delivery below is cumulative with those
 prerequisites. Implement only the remaining slice above. Keep the original
 acceptance results: reuse valid independent-branch evidence, and run every new
@@ -35,13 +35,33 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
+Start at `kiosk_approval.PLAN`, `AccessibleUI.kiosk_mate_approval` /
+`kiosk_approval_success`, and `onpc_request_flow::run(exchange, 'approval')`.
+Reuse `kiosk_rejection.PLAN` / `KioskRejectionJourney`,
+`AccessibleUI.kiosk_mate_rejected` and
+`onpc_request_flow::run(exchange, 'rejection')` for affected rejection branches.
+The rejection/Cancel evidence is report run `20260926T154532Z-4ed66f34`, with
+collection, owned cleanup and baseline restoration passed. Supporting checks
+are `test_e2e_kiosk_valid_duration.py`, `test_challenges_cleanup_safety.py` and
+`test_installed_journey_cleanup_safety.py`.
+
 ## Implementation
 
-Reuse task 020a's qualified MATE submission and automatic approved exit. Add the explicit wrong-password/rejection observation, normal Cancel and independent preserved-form readback. Qualify the offered immediate exit after a correct approval in its own attempt. Compose the complete AUTH02 and REQUEST11/12 result set only after these leaves pass; do not require this composite before its adapters.
+Reuse task 020a's qualified MATE submission and automatic approved exit and
+020b's explicit rejection/Cancel and independent preserved-form readback.
+Qualify the offered immediate exit after a correct approval in its own attempt.
+Compose the complete AUTH02 and REQUEST11/12 result set only after these leaves
+pass; do not require this composite before its adapters.
 
 ## Live VM acceptance
 
-In separate fresh live attempts, submit one declared wrong fixture password and observe explicit rejection, then Cancel normally and verify unchanged choices; separately Cancel a fresh challenge without password submission. Approve with correct credentials in another attempt, read success and take the offered immediate exit to independently observed GDM. Retain the valid automatic-exit qualification from 020a; rerun it when changed code affects that route. Timeout is not rejection, and authentication disappearance is not approval. Require sealed capture reconciliation and cleanup for every outcome.
+Retain 020b's separate fresh-entry wrong-password rejection/Cancel and
+password-free Cancel evidence; rerun either branch if affected by changes.
+Approve with correct credentials in a new attempt, read success and take the
+offered immediate exit to independently observed GDM. Retain the valid
+automatic-exit qualification from 020a; rerun it when changed code affects that
+route. Timeout is not rejection, and authentication disappearance is not
+approval. Require sealed capture reconciliation and cleanup for every outcome.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

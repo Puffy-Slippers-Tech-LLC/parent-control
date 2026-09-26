@@ -19,14 +19,14 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **020b — [Observe kiosk password rejection and Cancel](E2E-Tasks/020b-kiosk-rejection.md)**.
+Next task: **020 — [Qualify immediate approved kiosk exit](E2E-Tasks/020-auth-result.md)**.
 
-Qualify one declared wrong password, explicit rejection and normal Cancel with
-independent preserved-form readback; separately Cancel a fresh prompt without
-a password. Task 020a qualified the fixed kiosk's single-use correct-password
-delivery, explicit success and automatic GDM return in run
-`20260926T065928Z-8c15b645`, including independent entry/refusals, private
-collection, owned cleanup and baseline restoration.
+Qualify the offered immediate exit after approval and compose the kiosk outcome
+set. Reuse 020a's automatic approved exit (`20260926T065928Z-8c15b645`) and
+020b's wrong-password rejection/Cancel and separate password-free Cancel
+(report run `20260926T154532Z-4ed66f34`), rerunning affected branches only.
+The latter passed independent entry/refusals, unchanged usable form/choices,
+private collection, owned cleanup and baseline restoration.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

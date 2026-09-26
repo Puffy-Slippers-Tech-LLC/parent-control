@@ -19,11 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **030 — [Read privacy and preserve a dialog draft](E2E-Tasks/030-feedback-privacy.md)**.
+Next task: **033 — [Apply and observe rich-text formatting](E2E-Tasks/033-format.md)**.
 
-Implement FEED05 and FEED10 dialog persistence using the qualified UI16
-nonsecret text entry. Read Privacy, close and reopen feedback, then compare
-the preserved draft and controls before editing; keep Send untouched.
+Implement UI24 public formatting-attribute reads for an explicit synthetic range,
+then FEED04 keyboard selection and toolbar/menu input. Independently distinguish
+the formatted range from an adjacent unformatted range on the installed app.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -10,9 +10,11 @@ SCREENS = {
     **{stage: 'ui:' + stage for stage in (
         'parent-window', 'child-picker-opened', 'child-choice-highlighted',
         'parent-selected', 'text-disabled', 'text-wrong-entry', 'feedback-open',
-        *(stage for stage in TEXT_OPERATIONS if stage.startswith('text-body-')),
+        *(stage for stage, (binding, _) in TEXT_OPERATIONS.items()
+          if binding in ('body-first', 'body-second', 'body-clear')),
         'feedback-close', 'feedback-reopen',
-        *(stage for stage in TEXT_OPERATIONS if stage.startswith('text-reply-')),
+        *(stage for stage, (binding, _) in TEXT_OPERATIONS.items()
+          if binding in ('reply-first', 'reply-second', 'reply-clear')),
         'feedback-finished')},
 }
 PLAN = JourneyPlan(

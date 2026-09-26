@@ -16,6 +16,287 @@ from tests.support.accessible_ui import Node, ui_for
 from ui_observations import FeedbackObservation
 import check_e2e_text
 from text_qualification import PLAN as TEXT_PLAN
+from feedback_privacy import FeedbackPrivacyJourney, PLAN as PRIVACY_PLAN
+import check_e2e_feedback_privacy
+import check_e2e_feedback_states
+from feedback_states import FeedbackStatesJourney, PLAN as STATES_PLAN
+from ui_observations import FeedbackStateObservation
+
+# Added Privacy checks retain this module's reviewed isolation: in-memory UI
+# doubles, pytest-owned paths and waited, private Perl subprocesses only.
+# FEED09 additions use those same resources and require no scheduler change.
+
+
+@pytest.mark.parametrize('projection', sorted(set(accessible_ui.FEEDBACK_STATE_PROJECTIONS.values())))
+@pytest.mark.parametrize('enabled', [True, False])
+@pytest.mark.parametrize('explanation', list(accessible_ui.FEEDBACK_VALIDATION))
+def test_state_reads_public_send_and_validation_independently(projection, enabled, explanation):
+    ui, _, dialog, controls = feedback_ui()
+    for binding in accessible_ui.FEEDBACK_PROJECTIONS[projection]:
+        identity, text = accessible_ui.TEXT_VALUES[binding]
+        controls[identity].text.count = len(text)
+        controls[identity].text.value = text
+    ui.api.Text.get_text = Mock(side_effect=lambda text, start, end: text.value[start:end])
+    if not enabled:
+        controls['feedback-send'].states.remove('sensitive')
+    if explanation:
+        dialog.children.append(Node(explanation, identity='feedback-status'))
+    state = FeedbackStateObservation.from_value(ui.feedback_snapshot(projection, states=True))
+    assert state.send_enabled is enabled
+    assert state.validation == accessible_ui.FEEDBACK_VALIDATION[explanation]
+    for node in controls.values():
+        node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['private-status', 'private-body', 'missing-send',
+                                  'duplicate-send', 'wrong-owner', 'inactive', 'wrong-entry'])
+def test_state_refuses_unsafe_reads_without_input(fault):
+    ui, parent, dialog, controls = synthetic_feedback_ui()
+    if fault == 'private-status':
+        dialog.children.append(Node('unregistered private text', identity='feedback-status'))
+    elif fault == 'private-body':
+        controls['feedback-editor-input'].text.count = 10000
+    elif fault == 'missing-send':
+        dialog.children.remove(controls['feedback-send'])
+    elif fault == 'duplicate-send':
+        dialog.children.append(Node(identity='feedback-send', states=()))
+    elif fault == 'wrong-owner':
+        ui.api.get_desktop(0).identity = 'unrelated.application'
+    elif fault == 'inactive':
+        dialog.states.remove('active')
+    elif fault == 'wrong-entry':
+        parent.children.clear()
+        assert ui.feedback_state_operation('feedback-state-wrong-entry') is None
+    with pytest.raises(accessible_ui.UiError):
+        ui.feedback_snapshot('synthetic-first', states=True)
+    for node in controls.values():
+        node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'send', 'validation', 'projection', 'missing-prior'])
+def test_state_controller_and_actual_decoder_reject_unexpected_results(tmp_path, fault):
+    from ui_observations import UiObservations
+    ui, _, _, controls = synthetic_feedback_ui()
+    value = ui.feedback_snapshot('synthetic-first', states=True)
+    reader = UiObservations(Mock())
+    reply = {'operation': 'feedback-state-valid', 'outcome': 'passed', 'interface': 'AT-SPI',
+             'feedback_state': value}
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    assert reader.observe('feedback-state-valid') == reply
+    journey = FeedbackStatesJourney(SimpleNamespace(directory=tmp_path), Mock())
+    if fault == 'send':
+        value['send_enabled'] = False
+    elif fault == 'validation':
+        value['validation'] = 'reply-invalid'
+    elif fault == 'projection':
+        value['draft'] = 'initial-empty'
+    if fault:
+        with pytest.raises(EvidenceError):
+            journey.check_settings('feedback-state-reopen' if fault == 'missing-prior'
+                                   else 'feedback-state-valid', {'ui': reply})
+    else:
+        journey.check_settings('feedback-state-valid', {'ui': reply})
+        journey.check_settings('feedback-state-reopen', {'ui': reply})
+    value['send_enabled'] = 'true'
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    with pytest.raises(EvidenceError, match='ui:feedback-state-response'):
+        reader.observe('feedback-state-valid')
+
+
+def test_states_selector_preserves_existing_guarded_envelope(monkeypatch):
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_feedback_states, 'smoke', run)
+    assert check_e2e_feedback_states.main() == 0
+    assert run.call_args.kwargs['feedback_states'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(feedback_states=True)
+    with pytest.raises(CommandError, match='feedback-states-prerequisites'):
+        smoke.main(feedback_states=True, feedback_privacy=True)
+
+
+@pytest.mark.parametrize('fault', ['', 'feedback-state-whitespace', 'text-reply-malformed-selected',
+                                  'feedback-state-valid', 'feedback-state-wrong-entry',
+                                  'feedback-state-reopen'])
+def test_states_worker_order_and_failure_stop_later_input(fault):
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages, @typed);
+our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type'; push @typed, $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_states::run(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages, typed => \@typed});
+''', fault).stdout)
+    stages = list(STATES_PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    if fault:
+        assert result['events'][-1] == fault
+    else:
+        from feedback_states import EDITS
+        assert result['typed'] == [accessible_ui.TEXT_VALUES[binding][1] for binding, _ in EDITS]
+        assert result['events'][-1] == 'finish'
+
+
+def synthetic_feedback_ui():
+    ui, parent, dialog, controls = feedback_ui()
+    for binding in ('body-first', 'reply-first'):
+        identity, value = accessible_ui.TEXT_VALUES[binding]
+        controls[identity].text.count = len(value)
+        controls[identity].text.value = value
+    ui.api.Text.get_text = Mock(side_effect=lambda text, start, end: text.value[start:end])
+    return ui, parent, dialog, controls
+
+
+@pytest.mark.parametrize('fault', ['', 'body', 'reply', 'controls', 'attachments'])
+def test_nonempty_projection_compares_fields_and_controls_without_input(fault):
+    ui, _, dialog, controls = synthetic_feedback_ui()
+    if fault in ('body', 'reply'):
+        identity = 'feedback-editor-input' if fault == 'body' else 'feedback-reply-email'
+        controls[identity].text.value = 'X' * controls[identity].text.count
+    elif fault == 'controls':
+        controls['feedback-send'].states.remove('sensitive')
+    elif fault == 'attachments':
+        dialog.children.append(Node(identity='feedback-attachment-0123456789abcdef'))
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.feedback_snapshot('synthetic-first')
+    else:
+        assert FeedbackObservation.from_value(ui.feedback_snapshot('synthetic-first')).draft == 'synthetic-first'
+    for node in controls.values():
+        node.action.do_action.assert_not_called()
+
+
+def test_feedback_close_proof_refuses_wrong_window_without_input():
+    ui, parent, dialog, controls = synthetic_feedback_ui()
+    ui.window_ready_to_close('feedback')
+    dialog.states.remove('active')
+    with pytest.raises(accessible_ui.UiError, match='ui:feedback-entry'):
+        ui.window_ready_to_close('feedback')
+    parent.children.clear()
+    assert ui.feedback_privacy_operation('feedback-close-refused') is None
+    for node in controls.values():
+        node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('missing', [False, True])
+def test_privacy_reads_actual_disclosure_and_never_follows_external_link(missing):
+    import ast
+    # The shipped disclosure supplies the fixture; remove an essential promise
+    # to prove a mere visible dialog cannot satisfy the observation.
+    from tests.support.paths import ROOT
+    tree = ast.parse((ROOT / 'common/oh_no_parent_control_ui/feedback.py').read_text())
+    method = next(node for node in ast.walk(tree)
+                  if isinstance(node, ast.FunctionDef) and node.name == '_show_log_privacy')
+    suffix = method.body[0].value.right.value
+    disclosure = ('Feedback, reply email addresses, attachments, and diagnostic logs are emailed '
+                  'to support. Retention depends on our support mailbox and service providers, '
+                  'including their backup policies. We do not currently guarantee deletion '
+                  'within a fixed period.')
+    ui, _, _, _ = synthetic_feedback_ui()
+    ui.activate_id = Mock()
+    ui.window_ready_to_close = Mock()
+    root = Node(identity='feedback-privacy-dialog')
+    text = Node(name=('' if missing else disclosure) + suffix, identity='feedback-privacy-text')
+    ui.id_target = Mock(side_effect=[root, text])
+    if missing:
+        with pytest.raises(accessible_ui.UiError, match='ui:feedback-privacy-disclosure'):
+            ui.feedback_privacy('synthetic-first')
+    else:
+        ui.feedback_privacy('synthetic-first')
+    ui.activate_id.assert_called_once_with('feedback-privacy-link')
+
+
+def test_privacy_selector_and_controller_preserve_explicit_prior_draft(tmp_path, monkeypatch):
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_feedback_privacy, 'smoke', run)
+    assert check_e2e_feedback_privacy.main() == 0
+    assert run.call_args.kwargs['feedback_privacy'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(feedback_privacy=True)
+    with pytest.raises(CommandError, match='feedback-privacy-prerequisites'):
+        smoke.main(feedback_privacy=True, feedback_read=True)
+    journey = FeedbackPrivacyJourney(SimpleNamespace(directory=tmp_path), Mock())
+    ui, _, _, _ = synthetic_feedback_ui()
+    observed = {'ui': {'feedback': ui.feedback_snapshot('synthetic-first')}}
+    with pytest.raises(EvidenceError, match='preserved-draft'):
+        journey.check_settings('feedback-draft-reopen', observed)
+    journey.check_settings('feedback-draft', observed)
+    journey.check_settings('feedback-draft-reopen', observed)
+    observed['ui']['feedback']['draft'] = 'initial-empty'
+    with pytest.raises(EvidenceError, match='expected-draft'):
+        journey.check_settings('feedback-draft-reopen', observed)
+
+
+def test_nonempty_feedback_roundtrips_actual_controller_decoder():
+    from ui_observations import UiObservations
+    ui, _, _, _ = synthetic_feedback_ui()
+    reader = UiObservations(Mock())
+    reply = {'operation': 'feedback-draft-reopen', 'outcome': 'passed', 'interface': 'AT-SPI',
+             'feedback': ui.feedback_snapshot('synthetic-first')}
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    assert reader.observe('feedback-draft-reopen') == reply
+    reply['feedback']['draft'] = 'initial-empty'
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    with pytest.raises(EvidenceError, match='ui:feedback-response'):
+        reader.observe('feedback-draft-reopen')
+
+
+@pytest.mark.parametrize('fault', ['', 'feedback-privacy-open', 'feedback-draft-reread',
+                                  'feedback-draft-reopen', 'privacy-independent'])
+def test_privacy_worker_sequence_and_failed_proofs_stop_later_input(fault):
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages);
+our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type'; }
+package main;
+require onpc_feedback_privacy;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_privacy::run(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = list(PRIVACY_PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    if fault:
+        assert result['events'][-1] == fault
+    else:
+        assert result['events'].count('alt-f4') == 3
+        assert result['events'].count('type') == 2
+        assert result['events'][-1] == 'finish'
 
 
 def feedback_ui():

@@ -688,6 +688,26 @@ class TextQualification(KioskEntryQualification):
         return TextJourney(context, progress)
 
 
+class FeedbackStatesQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from feedback_states import FeedbackStatesJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FeedbackStatesJourney(context, progress)
+
+
+class FeedbackPrivacyQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from feedback_privacy import FeedbackPrivacyJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FeedbackPrivacyJourney(context, progress)
+
+
 class FeedbackReadQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

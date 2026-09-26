@@ -19,6 +19,9 @@ sub close {
         'station-about' => ['about-close-ready', 'about-closed'],
         'management-denied' => ['management-denied', 'denial-closed'],
         parent => ['close-ready', 'closed'],
+        feedback => ['feedback-draft-reread', 'feedback-draft-closed'],
+        'feedback-privacy' => ['feedback-privacy-open', 'feedback-privacy-returned'],
+        'feedback-privacy-independent' => ['privacy-independent', 'privacy-independent-returned'],
     );
     die 'window:close-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && defined($window) && exists($stages{$window});

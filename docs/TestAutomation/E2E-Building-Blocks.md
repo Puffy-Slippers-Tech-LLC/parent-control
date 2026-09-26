@@ -529,7 +529,7 @@ these blocks, not copies of them.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| ABOUT01 | C | Open the declared surface's About entry; read product/version and reach the license information. Parent's established binding stays ready; overlay/kiosk bindings are pending. | `onpc_about::open_about` binds `AccessibleUI.open_about(version)`: UI01 → UI04(menu) → UI04(About) → UI01 → UI03 → UI09. [About contracts](#about-block-contracts). | ready |
+| ABOUT01 | C | Open the declared surface's About entry; read product/version and reach the license information. Parent and restricted kiosk bindings are ready; overlay remains pending. Kiosk reads plain legal information and proves external actions absent. | Parent: `onpc_about::open_about` / `AccessibleUI.open_about(version)`. Kiosk: `AccessibleUI.open_kiosk_about` / `read_kiosk_about(version)`; `onpc_window::close('station-about')` returns to the unchanged form. UI01 → UI04(menu) → UI04(About) → UI01 → UI03 → UI09, plus kiosk UI11 exclusion. [About contracts](#about-block-contracts). | ready for Parent and kiosk; overlay pending |
 | ABOUT02 | C | Follow the license link to the actual viewer and read the identifying license content. | `AccessibleUI.open_license` follows the ID-addressed product link once. `license_viewer_snapshot` scopes GNOME Text Editor's public `view` ID; `read_document` verifies bounded GPL title/version text. `check_e2e_license_viewer` qualified independent entry and live unrelated/empty/ambiguous viewer refusal in run `20260923T201618Z-50520052`. [Provider scope](#about-block-contracts). | ready for Parent/GNOME Text Editor; other bindings pending |
 | ABOUT04 | C | Reach and read the About footer in the already open About window through semantic ID reveal. | `onpc_about::read_footer(journey, returned, 'semantic-reveal')` delegates to `AccessibleUI.about_footer`: UI09 → UI03(footer), with no preliminary positional keys. [About contracts](#about-block-contracts). | ready |
 | ABOUT03 | C | Close the license, read the About footer, close About and compare the selected child/settings with the supplied earlier observation. | `onpc_about::return_to_parent` composes UI18 → ABOUT04 → UI18; `JourneyPlan.settings_checks` supplies UI12. `onpc_license_viewer_provider::run` qualified those leaves with active-viewer proof, ambiguous-close refusal, single-use close, complete viewer absence, active owned About return, footer read and unchanged child/switch/allowance in run `20260923T201618Z-50520052`. Complete case 151 passed the composed journey, collection and owned cleanup in run `20260923T202401Z-9e9a5886`. | ready for Parent/GNOME Text Editor; other bindings pending |
@@ -1486,6 +1486,30 @@ Changes to shared GDM, secret input, stage
 reconciliation or public-UI routing also require their affected safety/harness
 qualification; do not run the whole future matrix merely for an extraction.
 ## About block contracts
+
+The restricted-station binding uses `AccessibleUI.kiosk_about_entry`,
+`open_kiosk_about`, `kiosk_about_snapshot` and `read_kiosk_about(version)`.
+The caller supplies an independently open station form; Parent and overlay
+owners cannot authorize this route. Its real menu and About actions use public
+IDs. Product/version, the five website/privacy/support/license/legal values and
+copyright footer are read on the owned About surface. A complete fresh tree
+must show the five values as labels and exclude external action controls,
+including viewport-clipped controls; inaccessible traversal cannot prove absence.
+Anonymous toolkit window buttons are scoped beneath `about-window-controls`.
+The close checkpoint reacquires the active station-owned About dialog before
+`onpc_window::close('station-about')` issues Alt-F4 once. Complete About absence
+and a fresh form observation precede the immutable captured-form comparison.
+
+`restricted_station_about.PLAN` / `RestrictedStationAboutJourney` and
+`onpc_restricted_station_about::run` qualified this slice through
+`tools/run-tests integration check_e2e_read_restricted_station_about` in report
+run `20260926T202755Z-941af41f`. Independent station entry, wrong Parent entry
+refusal, offered information, external-action absence, preserved 75-second
+custom request/soft-app choices, normal Cancel/GDM return, private collection,
+owned cleanup and baseline restoration passed. This is capability acceptance;
+E2E-042 case 192 remains pending its complete consumer task. Adapter, worker,
+return-comparison and controller regressions are maintained in
+`test_e2e_kiosk_valid_duration.py` and `test_installed_journey_cleanup_safety.py`.
 
 The [recipe](../../tests/e2e/parent_about.py) and
 [worker](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) compose

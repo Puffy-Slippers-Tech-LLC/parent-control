@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">13442</span>/<span style="color: gray">0</span>/13442 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">13453</span>/<span style="color: gray">0</span>/13453 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -14,8 +14,8 @@
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">59</span>/<span style="color: gray">0</span>/59 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">14</span>/<span style="color: gray">228</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">14055</span>/<span style="color: gray">228</span>/14283** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">15</span>/<span style="color: gray">227</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">14067</span>/<span style="color: gray">227</span>/14294** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">13</span>/<span style="color: gray">228</span>/241 |
+| customer-journey | <span style="color: green">14</span>/<span style="color: gray">227</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -41,6 +41,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [5](#scenario-5) | Standard user cannot manage policy (launch: app grid) | `E2E-004/app-grid` | ready |
 | [6](#scenario-6) | Standard user cannot manage policy (launch: terminal) | `E2E-004/terminal` | ready |
 | [47](#scenario-47) | Request surface exit behavior (exit: cancel; surface: kiosk) | `E2E-015/kiosk-cancel` | ready |
+| [48](#scenario-48) | Request surface exit behavior (exit: escape; surface: kiosk) | `E2E-015/kiosk-escape` | ready |
 | [54](#scenario-54) | Kiosk selection and unavailable requests (accounts: no child) | `E2E-017/no-child` | ready |
 | [55](#scenario-55) | Kiosk selection and unavailable requests (accounts: no parent) | `E2E-017/no-parent` | ready |
 | [57](#scenario-57) | Kiosk selection and unavailable requests (accounts: disabled child) | `E2E-017/disabled-child` | ready |
@@ -88,7 +89,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[44](#scenario-44)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-cancel`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[45](#scenario-45)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-escape`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[46](#scenario-46)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-approved`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[48](#scenario-48)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-escape`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[49](#scenario-49)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-approved`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[50](#scenario-50)</span> | <span style="color: gray">Restricted request station (request: approved)</span> | <span style="color: gray">`E2E-016/approved`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[51](#scenario-51)</span> | <span style="color: gray">Restricted request station (request: denied)</span> | <span style="color: gray">`E2E-016/denied`</span> | <span style="color: gray">pending</span> |
@@ -366,6 +366,19 @@ Variant: launch: terminal
 Case: `E2E-015/kiosk-cancel` · Category: customer-journey · Status: **ready**
 
 Variant: exit: cancel; surface: kiosk
+
+**Steps:**
+
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
+
+### Scenario 48
+
+**Request surface exit behavior (exit: escape; surface: kiosk)**
+
+Case: `E2E-015/kiosk-escape` · Category: customer-journey · Status: **ready**
+
+Variant: exit: escape; surface: kiosk
 
 **Steps:**
 
@@ -1262,25 +1275,6 @@ Pending: Customer recipe is documented; required public blocks and full installe
 Case: `E2E-015/child-overlay-approved` · Category: customer-journey · Status: **pending**
 
 Variant: exit: approved; surface: child overlay
-
-**Steps:**
-
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 48
-
-**Request surface exit behavior (exit: escape; surface: kiosk)**
-
-Case: `E2E-015/kiosk-escape` · Category: customer-journey · Status: **pending**
-
-Variant: exit: escape; surface: kiosk
 
 **Steps:**
 

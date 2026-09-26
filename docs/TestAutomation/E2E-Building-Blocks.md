@@ -338,7 +338,7 @@ are unnecessary.
 | REQUEST09 | C | Activate an enabled Request once and observe the declared result: authentication for valid input or validation for invalid custom input. | UI01 → UI02(enabled) → UI04; valid then AUTH01, invalid then REQUEST03 → UI11(no prompt). `AccessibleUI.kiosk_invalid_choice` / `request_duration.PLAN` qualify enabled kiosk submission, exact validation, preserved form and no authentication for every finite invalid custom value; see [qualification](#invalid-kiosk-choice-qualification). Missing accounts, unloaded preferences or disabled limits instead require the disabled state and no activation. | pending; kiosk invalid-custom branch ready; valid authentication and overlay pending |
 | REQUEST10 | C | Double-click an enabled Request control and observe exactly one in-progress prompt/form. | UI01 → UI02 → UI20, surrounded by UI22 tracking registered prompt/form counts and Request availability; UI13 independently confirms final counts. No second approval input or internal exactly-once claim. | pending |
 | REQUEST11 | C | Observe success confirmation, rejection, cancellation without an error, or validation feedback, with the explicitly expected preserved choices. | UI01 → UI03 → REQUEST03 where the form remains → UI12. Capture brief success before waiting for automatic exit. `AccessibleUI.kiosk_gdm_returned` is installed-qualified through `check_e2e_request_exit` for Cancel/Escape from the fixed disabled-child kiosk form: usable GDM and absent request/error UI. Case 54 also validates Cancel from the no-child form through `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`. Authentication outcomes, preserved choices on a remaining form, validation and overlay results remain pending. | pending; kiosk form Cancel/Escape result ready |
-| REQUEST12 | C | Exit by Cancel, Escape, normal window close, the approved immediate exit action, or the already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. No authentication prompt may be active for form Cancel/Escape. | UI04(Cancel or approved immediate exit), UI05, UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. `RequestExitJourney` / `check_e2e_request_exit` uses shared direct station entry for each fixed disabled-child Cancel/Escape attempt: `AccessibleUI.cancel_kiosk_request` invokes the owned-ID action directly; `focus_kiosk_escape_recipient` guards ordinary Escape; `kiosk_gdm_returned` independently observes each destination. Both refuse active prompts. Case 54 independently validates the same Cancel action and GDM destination from the no-child form through `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`. Case 47 qualifies Cancel from enabled custom/soft-included choices; see [prepared request qualification](#prepared-request-qualification). Window close, approved exits, enabled-choice Escape and overlay exits remain pending. | pending; kiosk Cancel/Escape and enabled-choice Cancel ready |
+| REQUEST12 | C | Exit by Cancel, Escape, normal window close, the approved immediate exit action, or the already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. No authentication prompt may be active for form Cancel/Escape. | UI04(Cancel or approved immediate exit), UI05, UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. `RequestExitJourney` / `check_e2e_request_exit` uses shared direct station entry for each fixed disabled-child Cancel/Escape attempt: `AccessibleUI.cancel_kiosk_request` invokes the owned-ID action directly; `onpc_request_exit::escape` composes `focus_kiosk_escape_recipient`, one ordinary Escape and `kiosk_gdm_returned` for independent destination observation. Both exits refuse active prompts. Case 54 independently validates the same Cancel action and GDM destination from the no-child form through `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`. Cases 47/48 qualify Cancel/Escape from enabled custom/soft-included choices; see [prepared request qualification](#prepared-request-qualification). Window close, approved exits and overlay exits remain pending. | pending; kiosk Cancel/Escape including enabled choices ready |
 | REQUEST13 | C | Open the child overlay through the Shell panel only when the case explicitly tests that graphical launch route. Observe one usable form and fixed child identity. | DESK12(request entry) → UI04 → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). Declare the exception in case metadata and recipe. Normal unlocked-child panel entry and fullscreen reveal still need installed qualification. | pending |
 
 #### Valid kiosk choice qualification
@@ -540,8 +540,19 @@ consumer plan and recorder actions while retaining its public estimate checks.
 `tools/run-tests e2e --id '47'` passed in `20260926T051531Z-576edf40`: one Cancel
 from the enabled custom/soft-included form, independently absent form and usable
 GDM, capture reconciliation, collection, owned cleanup and baseline restoration.
-This qualifies REQUEST12's enabled-choice Cancel consumer; enabled Escape,
-approved exits and overlay cases retain their separate unfinished scope.
+This qualifies REQUEST12's enabled-choice Cancel consumer.
+
+Complete case 48 composes that same prepared binding through
+`kiosk_escape.PLAN` / `onpc_kiosk_escape::run`, using
+`onpc_request_exit::escape` for fresh recipient guarding, one Escape and
+independent GDM return. `tools/run-tests e2e --id '48'` passed in
+`20260926T052659Z-8144eb94`: independent Parent balance and estimate comparison,
+absent form and usable GDM, capture reconciliation, collection, owned cleanup
+and baseline restoration. The affected shared disabled-child Cancel/Escape
+qualification `check_e2e_request_exit` passed in `20260926T053454Z-d3ce9eca`,
+including both public returns, collection, owned cleanup and baseline restoration.
+Host checks cover worker order, single Escape and terminal refusal before input
+or after a failed result. Approved exits and overlay cases remain pending.
 
 ### Canonical reuse and implementation checkpoints
 

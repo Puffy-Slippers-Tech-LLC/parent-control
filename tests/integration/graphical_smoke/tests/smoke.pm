@@ -24,6 +24,7 @@ use onpc_kiosk_eligible_choices ();
 use onpc_kiosk_valid_duration ();
 use onpc_request_flow ();
 use onpc_kiosk_cancel ();
+use onpc_kiosk_escape ();
 use onpc_request_choices ();
 use onpc_kiosk_no_child ();
 use onpc_kiosk_no_approver ();
@@ -245,6 +246,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_choices::run(\&exchange);
+        return;
+    }
+    if ($ready->{kiosk_escape}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_escape::run(\&exchange);
         return;
     }
     if ($ready->{kiosk_cancel}) {

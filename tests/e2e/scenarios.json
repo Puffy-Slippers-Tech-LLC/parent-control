@@ -827,7 +827,7 @@
         {"coverage_id": 45, "id": "child-overlay-escape", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "escape"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 46, "id": "child-overlay-approved", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "approved"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 47, "id": "kiosk-cancel", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "cancel"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_cancel.py", "test_id": "kiosk-cancel"}},
-        {"coverage_id": 48, "id": "kiosk-escape", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "escape"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 48, "id": "kiosk-escape", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "escape"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_escape.py", "test_id": "kiosk-escape"}},
         {"coverage_id": 49, "id": "kiosk-approved", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "approved"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },

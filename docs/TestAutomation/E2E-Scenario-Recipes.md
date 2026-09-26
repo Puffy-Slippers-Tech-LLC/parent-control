@@ -386,6 +386,8 @@ Bindings: surface = child-overlay / kiosk; choice = predefined / custom / rest-o
 ### E2E-015
 
 Implementation context: case 47 uses `kiosk_cancel.PLAN` / `onpc_kiosk_cancel::run`.
+Case 48 uses `kiosk_escape.PLAN` / `onpc_kiosk_escape::run` and the shared
+`onpc_request_exit::escape` guard/input/return composition.
 Other exits and surfaces remain separate cases; runtime status is in the inventory.
 
 **Request surface exit behavior.** Cases 44, 45, 46, 47, 48, 49.
@@ -395,11 +397,12 @@ Bindings: surface = child-overlay / kiosk; exit = cancel / escape / approved.
 1. FLOW16 → C if overlay → FLOW08(allowed) → APP04 → FLOW04; kiosk uses G → FLOW04. Approved: REQUEST09 → AUTH02(correct) → REQUEST11.
 2. REQUEST12(cancel|escape|approved-immediate). Overlay APP04(compare) → APP03; kiosk GDM01. Approved enters child if needed → TIME01.
 
-Case 47 prepares an enabled 15-minute daily allowance through Parent and reads
+Cases 47 and 48 prepare an enabled 15-minute daily allowance through Parent and read
 the public balance before switching to GDM. Enter the station once, then use
 FLOW04 with `entry=open`, `initial=default`, explicit fixture child/parent,
 custom `1.25` minutes and soft apps included. Independently compare the estimate
-with that balance before Cancel; require the absent form and usable GDM.
+with that balance before Cancel (47) or one guarded Escape (48); require the
+absent form and usable GDM.
 
 ### E2E-016
 

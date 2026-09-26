@@ -17,6 +17,15 @@ sub enter_station {
     $journey->seen($route . '-request-form');
 }
 
+sub escape {
+    onpc_progress::operation('Escaping the request station and observing sign-in');
+    my ($journey) = @_;
+    die 'request-exit:escape-arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    $journey->seen('escape-ready');
+    testapi::send_key('esc');
+    $journey->seen('escape-returned');
+}
+
 sub run {
     onpc_progress::operation('Qualifying request-station Cancel and Escape exits');
     my ($exchange) = @_;
@@ -30,9 +39,7 @@ sub run {
     $journey->seen('cancel-returned');
 
     enter_station($journey, 'escape');
-    $journey->seen('escape-ready');
-    testapi::send_key('esc');
-    $journey->seen('escape-returned');
+    escape($journey);
     $journey->finish();
 }
 

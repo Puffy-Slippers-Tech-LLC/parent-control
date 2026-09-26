@@ -19,6 +19,7 @@ from kiosk_valid_duration import PLAN, KioskValidDurationJourney
 from request_duration import PLAN as INVALID_PLAN
 from request_flow import PLAN as FLOW_PLAN, CHOICES, prepared_request, RequestFlowJourney
 from kiosk_cancel import PLAN as CANCEL_PLAN
+from kiosk_escape import PLAN as ESCAPE_PLAN
 
 
 def valid_form():
@@ -415,11 +416,34 @@ def test_cancel_case_worker_order_and_terminal_refusal(monkeypatch, refusal):
     assert expected[-1] == 'cancel-returned'
 
 
-def test_cancel_case_uses_shared_balance_comparison(tmp_path):
+@pytest.mark.parametrize('refusal', [None, 'open-estimate', 'escape-ready', 'escape-returned'])
+def test_escape_case_worker_order_single_input_and_terminal_refusal(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_kiosk_escape').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(ESCAPE_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25']
+    escapes = [index for index, event in enumerate(result['events']) if event == ['key', 'esc']]
+    assert len(escapes) == (0 if refusal in ('open-estimate', 'escape-ready') else 1)
+    if escapes:
+        index = escapes[0]
+        assert result['events'][index - 1:index + 2] == [
+            ['stage', 'escape-ready'], ['key', 'esc'], ['stage', 'escape-returned']]
+    if refusal:
+        assert result['events'][-1] == ['stage', refusal]
+
+
+@pytest.mark.parametrize('plan', [CANCEL_PLAN, ESCAPE_PLAN])
+def test_exit_case_uses_shared_balance_comparison(tmp_path, plan):
     actions = {}
     journey = KioskValidDurationJourney(SimpleNamespace(directory=tmp_path), Mock(),
-                                        CANCEL_PLAN, actions=actions)
-    assert journey.plan is CANCEL_PLAN
+                                        plan, actions=actions)
+    assert journey.plan is plan
     assert journey.balance is None
     assert journey.check_settings.__func__ is KioskValidDurationJourney.check_settings
 

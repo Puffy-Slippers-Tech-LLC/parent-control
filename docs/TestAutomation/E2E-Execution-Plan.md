@@ -19,11 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **015b — [E2E-015: kiosk-escape](E2E-Tasks/015b-case-48.md)**.
+Next task: **019a — [Inspect and qualify the kiosk MATE prompt entry](E2E-Tasks/019a-mate-prompt.md)**.
 
-Implement complete case 48 using the qualified FLOW04 kiosk request composition,
-then Escape once and observe the absent form and usable GDM. Preserve independent
-Parent preparation, public results, collection and owned cleanup.
+Qualify the actual kiosk MATE challenge's owner, selected administrator and
+public request context, then guarded Cancel and unchanged form return. Preserve
+independent prompt entry, refusal checks, sanitized evidence and owned cleanup;
+password submission belongs to a later task.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

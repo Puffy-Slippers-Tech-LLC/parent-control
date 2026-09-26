@@ -23,6 +23,7 @@ use onpc_kiosk_entry ();
 use onpc_kiosk_eligible_choices ();
 use onpc_kiosk_multiple ();
 use onpc_restricted_station_about ();
+use onpc_kiosk_about ();
 use onpc_kiosk_valid_duration ();
 use onpc_request_flow ();
 use onpc_kiosk_cancel ();
@@ -322,6 +323,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_kiosk_multiple::run(\&exchange, 1);
+        return;
+    }
+    if ($ready->{kiosk_about}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_about::run(\&exchange);
         return;
     }
     if ($ready->{restricted_station_about}) {

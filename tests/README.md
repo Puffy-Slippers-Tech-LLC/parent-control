@@ -192,19 +192,19 @@ a complete selected pass needs no repairs; it never invokes the `all` aggregate.
 Without categories the existing two-round full-regression behavior is unchanged.
 Categories and model options apply to new runs; attaching keeps the active run's scope.
 
-The launcher itself is Python scripting. At the start of each new run, it reads
-the Codex CLI model catalog and selects the newest listed Sol model that supports
-high reasoning (`gpt-6-sol` currently). Each failure starts with that model at
-high reasoning. It classifies the failure first and repairs a test defect in the
-same session. For an app issue or uncertain classification, it exits without
-editing and the launcher starts a fresh session with the catalog's strongest
-listed high-reasoning model (`gpt-6-astra` currently) to recheck and repair. The
-next failure starts again with Sol. `--model` and `--effort` override the initial
-agent for a new run; app review always uses the strongest model at high reasoning.
+The launcher itself is Python scripting. At the start of each new run, it checks
+that the Codex CLI model catalog lists `gpt-6-astra` with low reasoning support.
+Both classification and app repair use GPT-6-astra low by default. It classifies
+the failure first and repairs a proven mechanical test defect in the same session.
+For an app issue or uncertain classification, it exits without editing and the
+launcher starts a fresh GPT-6-astra low session to recheck and repair.
+`--model` and `--effort` override the initial agent for a new run; app review
+uses GPT-6-astra low.
 Each agent uses
 `codex exec --ephemeral`, disabled conversation history and memories, and receives
 the latest failure handoff. The script never resumes or forks a session; the app
-review receives only the original handoff and the Sol classification summary.
+review receives the original handoff, classification summary and applicable
+developer answers. An answered blocker also supplies its latest repair handoff.
 The [official noninteractive documentation](https://learn.chatgpt.com/docs/non-interactive-mode)
 defines the ephemeral invocation. Existing CLI authentication, configuration,
 workspace sandbox and command rules remain in effect; agents cannot request
@@ -228,8 +228,9 @@ paths without inventing a diff. The detached supervisor renders an append-only,
 observers wrap its text to their current width with hanging indentation preserved.
 CLI diagnostics
 remain separate from event parsing, and unknown events remain visible. There is
-no interactive input box or approval prompt; the result file still controls
-repair verification. Development activation is `none`; new launcher processes
+no interactive agent approval prompt; developer decisions use the launcher's
+shared question menu described below. The result file still controls repair
+verification. Development activation is `none`; new launcher processes
 use the checkout code without product installation or a service restart.
 
 Closing the terminal detaches; rerun `tools/fix-tests` to attach to the current
@@ -251,9 +252,24 @@ category. Recovery still fails closed when no actionable handoff is available.
 Logs and small control files are private under `output/test-runs/host/fix-tests/`. They are
 not agent conversation history. Existing test evidence remains under the runner's
 retention policy. Machine-readable `failure.json` accompanies the printed prompt
-and supplies stable retry category IDs. A missing handoff, unresolved prerequisite,
-unmapped infrastructure failure or agent-reported blocker stops with evidence;
-the loop does not alter expectations or bypass permissions to continue.
+and supplies stable retry category IDs. A missing or malformed handoff, agent
+crash or unmapped infrastructure failure stops with evidence.
+
+An agent-reported blocker pauses the loop for developer instructions using the
+same [question implementation](../tools/launcher_question.py) as `write-e2e`.
+The menu offers two or three suggestions, selects the first recommendation by
+default, and includes editable Other input. Enter submits the selection; neither
+elapsed time nor disconnection submits an answer. Reattach with `tools/fix-tests`
+to answer. No tests or repairs start while waiting. After an answer, a fresh
+session receives the failure evidence, latest repair handoff and developer
+instructions, rechecks prerequisites, and continues the same repair phase.
+Decisions remain available to later repairs in the run within their stated scope.
+Ctrl+C or `--stop` cancels a paused run without answering.
+
+The [failure mandate](#handling-test-failures) still applies: classify from evidence,
+report expected versus actual behavior and ask before accepting changed behavior
+or altering expectations unless that exact change is already authorized. The
+loop does not weaken checks or bypass permissions to continue.
 
 The process lifecycle is qualified using isolated test/agent doubles in
 `test_fix_tests_cleanup_safety.py`; these tests never invoke the model or VM.

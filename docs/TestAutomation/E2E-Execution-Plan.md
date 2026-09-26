@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **024c — [Prepare and qualify multiple eligible kiosk accounts](E2E-Tasks/024c-kiosk-multiple.md)**.
+Next task: **185k — [Read restricted station About](E2E-Tasks/185k-read-restricted-station-about.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">13879</span>/<span style="color: gray">0</span>/13879 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">13991</span>/<span style="color: gray">0</span>/13991 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">152</span>/<span style="color: gray">0</span>/152 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">66</span>/<span style="color: gray">0</span>/66 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">18</span>/<span style="color: gray">224</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">14514</span>/<span style="color: gray">224</span>/14738** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">68</span>/<span style="color: gray">0</span>/68 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">20</span>/<span style="color: gray">222</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">14630</span>/<span style="color: gray">222</span>/14852** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">17</span>/<span style="color: gray">224</span>/241 |
+| customer-journey | <span style="color: green">19</span>/<span style="color: gray">222</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -45,8 +45,10 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [50](#scenario-50) | Restricted request station (request: approved) | `E2E-016/approved` | ready |
 | [51](#scenario-51) | Restricted request station (request: denied) | `E2E-016/denied` | ready |
 | [52](#scenario-52) | Restricted request station (request: cancelled) | `E2E-016/cancelled` | ready |
+| [53](#scenario-53) | Kiosk selection and unavailable requests (accounts: multiple) | `E2E-017/multiple` | ready |
 | [54](#scenario-54) | Kiosk selection and unavailable requests (accounts: no child) | `E2E-017/no-child` | ready |
 | [55](#scenario-55) | Kiosk selection and unavailable requests (accounts: no parent) | `E2E-017/no-parent` | ready |
+| [56](#scenario-56) | Kiosk selection and unavailable requests (accounts: ineligible parent) | `E2E-017/ineligible-parent` | ready |
 | [57](#scenario-57) | Kiosk selection and unavailable requests (accounts: disabled child) | `E2E-017/disabled-child` | ready |
 | [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
 | [158](#scenario-158) | Choose allowances and save edits (flow: boundaries) | `E2E-035/boundaries` | ready |
@@ -93,8 +95,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[45](#scenario-45)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-escape`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[46](#scenario-46)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-approved`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[49](#scenario-49)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-approved`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[53](#scenario-53)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: multiple)</span> | <span style="color: gray">`E2E-017/multiple`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[56](#scenario-56)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: ineligible parent)</span> | <span style="color: gray">`E2E-017/ineligible-parent`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[58](#scenario-58)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: first; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-first`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[59](#scenario-59)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: second; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-second`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[60](#scenario-60)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: first; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-first`</span> | <span style="color: gray">pending</span> |
@@ -427,6 +427,20 @@ Variant: request: cancelled
 - Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
 - Exit normally or observe automatic exit after approval and verify usable sign-in.
 
+### Scenario 53
+
+**Kiosk selection and unavailable requests (accounts: multiple)**
+
+Case: `E2E-017/multiple` · Category: customer-journey · Status: **ready**
+
+Variant: accounts: multiple
+
+**Steps:**
+
+- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off, observes a listed parent, then discovers and locks all eligible parents through the OS fixture, preserving children and the station. Cancel to GDM and reopen the station; no administrator or hidden enabled-policy setup is needed. Other profiles enter the station normally.
+- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
+- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
+
 ### Scenario 54
 
 **Kiosk selection and unavailable requests (accounts: no child)**
@@ -448,6 +462,20 @@ Variant: accounts: no child
 Case: `E2E-017/no-parent` · Category: customer-journey · Status: **ready**
 
 Variant: accounts: no parent
+
+**Steps:**
+
+- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off, observes a listed parent, then discovers and locks all eligible parents through the OS fixture, preserving children and the station. Cancel to GDM and reopen the station; no administrator or hidden enabled-policy setup is needed. Other profiles enter the station normally.
+- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
+- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
+
+### Scenario 56
+
+**Kiosk selection and unavailable requests (accounts: ineligible parent)**
+
+Case: `E2E-017/ineligible-parent` · Category: customer-journey · Status: **ready**
+
+Variant: accounts: ineligible parent
 
 **Steps:**
 
@@ -1341,46 +1369,6 @@ Variant: exit: approved; surface: kiosk
 
 - Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
 - Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 53
-
-**Kiosk selection and unavailable requests (accounts: multiple)**
-
-Case: `E2E-017/multiple` · Category: customer-journey · Status: **pending**
-
-Variant: accounts: multiple
-
-**Steps:**
-
-- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off, observes a listed parent, then discovers and locks all eligible parents through the OS fixture, preserving children and the station. Cancel to GDM and reopen the station; no administrator or hidden enabled-policy setup is needed. Other profiles enter the station normally.
-- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
-- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 56
-
-**Kiosk selection and unavailable requests (accounts: ineligible parent)**
-
-Case: `E2E-017/ineligible-parent` · Category: customer-journey · Status: **pending**
-
-Variant: accounts: ineligible parent
-
-**Steps:**
-
-- Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off, observes a listed parent, then discovers and locks all eligible parents through the OS fixture, preserving children and the station. Cancel to GDM and reopen the station; no administrator or hidden enabled-policy setup is needed. Other profiles enter the station normally.
-- Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
-- For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

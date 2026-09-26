@@ -659,7 +659,15 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          time_explanation=False, set_allowance=False, app_restart=False,
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
-         auth_result=False, kiosk_approved_flow=False, approval_flow=None):
+         auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
+         kiosk_ineligible=False):
+    require(type(kiosk_ineligible) is bool and not (kiosk_ineligible and kiosk_multiple),
+            'smoke:kiosk-ineligible-prerequisites')
+    kiosk_multiple = kiosk_multiple or kiosk_ineligible
+    require(type(kiosk_multiple) is bool and not (kiosk_multiple and (
+        kiosk_valid_duration or request_duration or request_flow or mate_prompt or kiosk_approval
+        or kiosk_rejection or auth_result or kiosk_approved_flow or approval_flow)),
+        'smoke:kiosk-multiple-prerequisites')
     require(approval_flow in (None, 'rejection', 'cancel') and not (approval_flow and (
         kiosk_approved_flow or auth_result or kiosk_approval or kiosk_rejection or mate_prompt
         or request_flow or request_duration or kiosk_valid_duration)), 'smoke:approval-flow-prerequisites')
@@ -683,7 +691,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:request-duration-prerequisites')
     kiosk_valid_duration = (kiosk_valid_duration or request_duration or request_flow or mate_prompt
                             or kiosk_approval or kiosk_rejection or auth_result or kiosk_approved_flow
-                            or approval_flow is not None)
+                            or approval_flow is not None or kiosk_multiple)
     require(type(kiosk_valid_duration) is bool and (not kiosk_valid_duration or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1140,6 +1148,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-request-flow-qualification'
         if mate_prompt:
             result['scope'] = 'installed-mate-prompt-qualification'
+        if kiosk_multiple:
+            result['scope'] = 'installed-kiosk-multiple-qualification'
+        if kiosk_ineligible:
+            result['scope'] = 'installed-kiosk-ineligible-qualification'
         if kiosk_approval:
             result['scope'] = 'installed-kiosk-approval-qualification'
         if auth_result:
@@ -1329,6 +1341,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if mate_prompt:
                     from parent_setup_qualification import MatePromptQualification
                     qualification_class = MatePromptQualification
+                if kiosk_multiple:
+                    from parent_setup_qualification import KioskMultipleQualification
+                    qualification_class = KioskMultipleQualification
+                if kiosk_ineligible:
+                    from parent_setup_qualification import KioskIneligibleQualification
+                    qualification_class = KioskIneligibleQualification
                 if kiosk_approval:
                     from parent_setup_qualification import KioskApprovalQualification
                     qualification_class = KioskApprovalQualification

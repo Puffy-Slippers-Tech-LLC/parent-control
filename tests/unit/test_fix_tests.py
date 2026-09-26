@@ -129,15 +129,15 @@ def test_unmapped_aggregate_failure_is_not_a_fabricated_category_pass():
     repair.assert_not_called()
 
 
-def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monkeypatch):
+def test_agent_is_ephemeral_low_astra_with_policy_and_without_parent_context(monkeypatch):
     monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
     for key in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
                 'ONPC_TEST_ACTIVITY_FD', fix_tests.FRAME_DIRECTORY):
         monkeypatch.setenv(key, 'previous-context')
-    command = fix_tests.agent_command(ROOT, 'gpt-6-sol', fix_tests.DEFAULT_EFFORT)
+    command = fix_tests.agent_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
     assert command[:5] == ['/opt/codex', '--ask-for-approval', 'never', 'exec', '--ephemeral']
-    assert command[command.index('--model') + 1] == 'gpt-6-sol'
-    assert 'model_reasoning_effort="high"' in command
+    assert command[command.index('--model') + 1] == 'gpt-6-astra'
+    assert 'model_reasoning_effort="low"' in command
     assert 'features.memories=false' in command and 'history.persistence="none"' in command
     assert 'workspace-write' in command
     assert '--json' in command
@@ -150,22 +150,62 @@ def test_agent_is_ephemeral_high_sol_with_policy_and_without_parent_context(monk
     assert 'status "uncertain"' in fix_tests.repair_prompt('LATEST FAILURE')
 
 
-def test_model_catalog_selects_latest_visible_high_sol_and_strongest(monkeypatch):
+def test_model_catalog_requires_gpt6_astra_low_even_when_newer_models_exist(monkeypatch):
     monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
 
-    def entry(slug, priority, *, visibility='list', high=True):
+    def entry(slug, priority, *, visibility='list', low=True):
         return {'slug': slug, 'priority': priority, 'visibility': visibility,
-                'supported_reasoning_levels': [{'effort': 'high' if high else 'medium'}]}
+                'supported_reasoning_levels': [{'effort': 'low' if low else 'high'}]}
 
     catalog = {'models': [
         entry('gpt-6-astra', 2), entry('gpt-6-sol', 3),
         entry('gpt-6.1-sol', 4), entry('gpt-7-sol', 1, visibility='hide'),
-        entry('gpt-7-astra', 1, high=False),
+        entry('gpt-7-astra', 1),
     ]}
     run = Mock(return_value=Mock(stdout=json.dumps(catalog)))
     monkeypatch.setattr(fix_tests.subprocess, 'run', run)
-    assert fix_tests.available_models() == ('gpt-6.1-sol', 'gpt-6-astra')
+    assert fix_tests.available_models() == ('gpt-6-astra', 'gpt-6-astra')
     assert run.call_args.args[0] == ['/opt/codex', 'debug', 'models']
+    for replacement in (entry('gpt-6-astra', 2, low=False),
+                        entry('gpt-6-astra', 2, visibility='hide'),
+                        entry('gpt-6-sol', 2)):
+        catalog['models'][0] = replacement
+        run.return_value.stdout = json.dumps(catalog)
+        with pytest.raises(ValueError, match='gpt-6-astra with low reasoning'):
+            fix_tests.available_models()
+
+
+@pytest.mark.parametrize('classification', [None, 'app_issue: behavior changed'])
+def test_every_repair_phase_preserves_the_behavior_confirmation_mandate(classification):
+    from launcher_question import BLOCKER_INSTRUCTIONS
+    prompt = fix_tests.repair_prompt(
+        'original evidence', app_issue=classification,
+        developer_answers=[{'question': 'Which behavior?', 'answer': 'Restore the specified behavior.'}],
+        blocker_summary='Retained evidence: failure.json')
+    if classification is None:
+        assert 'before editing' in prompt
+    else:
+        assert 'Recheck the classification' in prompt
+    assert 'expected versus actual results' in prompt
+    assert 'return status "blocked" to ask the developer to confirm intended behavior' in prompt
+    assert 'unless that exact behavior change is already explicitly authorized' in prompt
+    assert 'Do not weaken, skip or delete tests' in prompt
+    assert BLOCKER_INSTRUCTIONS in prompt
+    assert 'Restore the specified behavior.' in prompt
+    assert 'Retained evidence: failure.json' in prompt
+    assert 'an answer alone is not evidence it passed' in prompt
+
+
+@pytest.mark.parametrize('result', [
+    [], {'status': 'unknown', 'summary': 'x'},
+    {'status': 'blocked', 'summary': 'x', 'blocker': None},
+    {'status': 'blocked', 'summary': 'x', 'blocker': {
+        'explanation': 'x', 'question': 'q', 'options': ['one']}},
+    {'status': 'test_fixed', 'summary': 'x', 'blocker': {}},
+])
+def test_malformed_results_cannot_trigger_repairs_or_default_answers(result):
+    with pytest.raises(ValueError):
+        fix_tests.validate_result(result)
 
 
 def test_agent_transcript_formats_markdown_and_code_across_byte_boundaries():

@@ -838,7 +838,8 @@ def test_blocked_structured_result_is_displayed_only_by_workflow():
     assert stream.getvalue() == ''
 
 
-def test_write_e2e_observer_routes_keyboard_answer_to_persisted_question(terminal, tmp_path, monkeypatch):
+@pytest.mark.parametrize('label', ['write-e2e', 'fix-tests'])
+def test_workflow_observer_routes_keyboard_answer_to_persisted_question(terminal, tmp_path, monkeypatch, label):
     import detached_launcher
     from launcher_question import pending
     run = tmp_path / 'run'
@@ -853,7 +854,7 @@ def test_write_e2e_observer_routes_keyboard_answer_to_persisted_question(termina
             display.handle_input(b'2\r')
 
     monkeypatch.setattr(LauncherDisplay, 'poll_input', answer)
-    assert detached_launcher.follow(run, terminal, label='write-e2e') == 0
+    assert detached_launcher.follow(run, terminal, label=label) == 0
     assert pending(run) is None
     assert json.loads((run / 'question.json').read_text())['answer'] == 'Review'
 

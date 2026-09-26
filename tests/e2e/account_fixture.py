@@ -10,11 +10,15 @@ import watch_activity
 
 def station_fixture_actions(context, profile):
     """Bind fresh single-use FIX03 state and intent for each station attempt."""
-    require(profile in ('no-child', 'no-approver'), 'station-fixture:profile')
+    require(profile in ('no-child', 'no-approver', 'ineligible-approver'), 'station-fixture:profile')
     if profile == 'no-child':
         fixture = EmptyAccountFixture(context)
         action = 'prepare-empty'
         label = 'Preparing the fixed no-child station profile'
+    elif profile == 'ineligible-approver':
+        fixture = IneligibleApproverFixture(context)
+        action = 'prepare-ineligible-approver'
+        label = 'Preparing one locked administrator excluded from station choices'
     else:
         fixture = NoApproverFixture(context)
         action = 'prepare-no-approver'
@@ -54,6 +58,7 @@ class EmptyAccountFixture:
     operation = 'prepare-empty'
     result = b'onpc-e2e: stage=empty-account outcome=prepared\n'
     removed = 'eligible_accounts_removed'
+    count = 2
 
     def __init__(self, context):
         self.context = context
@@ -75,7 +80,14 @@ class EmptyAccountFixture:
         require(result == self.result,
                 "empty-account:unexpected-result")
         guard()
-        return {self.removed: 2}
+        return {self.removed: self.count}
+
+
+class IneligibleApproverFixture(EmptyAccountFixture):
+    operation = 'prepare-ineligible-approver'
+    result = b'onpc-e2e: stage=ineligible-approver outcome=prepared\n'
+    removed = 'ineligible_approvers_created'
+    count = 1
 
 
 class NoApproverFixture(EmptyAccountFixture):

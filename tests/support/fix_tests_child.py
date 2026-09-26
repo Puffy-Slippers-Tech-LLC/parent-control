@@ -15,7 +15,7 @@ def main():
     if kind == 'agent' and args == ['debug', 'models']:
         print(json.dumps({'models': [
             {'slug': 'gpt-6-astra', 'visibility': 'list', 'priority': 1,
-             'supported_reasoning_levels': [{'effort': 'high'}]},
+             'supported_reasoning_levels': [{'effort': 'low'}, {'effort': 'high'}]},
             {'slug': 'gpt-6-sol', 'visibility': 'list', 'priority': 2,
              'supported_reasoning_levels': [{'effort': 'high'}]},
         ]}))
@@ -98,17 +98,28 @@ def main():
         time.sleep(15)
     count = int((root / 'repair-count').read_text()) if (root / 'repair-count').exists() else 0
     (root / 'repair-count').write_text(str(count + 1))
-    if mode not in ('agent-repeat', 'agent-app', 'agent-uncertain') or count >= 1:
+    app_mode = mode in ('agent-app', 'agent-uncertain', 'agent-app-blocked')
+    blocked = ((mode == 'agent-blocked' and count == 0)
+               or (mode == 'agent-app-blocked' and count == 1)
+               or (mode == 'agent-blocked-twice' and count < 2))
+    if not blocked and (mode not in ('agent-repeat', 'agent-app', 'agent-uncertain',
+                                   'agent-app-blocked') or count >= 1):
         (root / 'fixed').touch()
-    status = ('app_issue' if mode == 'agent-app' and count == 0 else
+    status = ('blocked' if blocked else
+              'app_issue' if mode in ('agent-app', 'agent-app-blocked') and count == 0 else
               'uncertain' if mode == 'agent-uncertain' and count == 0 else
-              'blocked' if mode == 'agent-blocked' else
-              'fixed' if mode in ('agent-app', 'agent-uncertain') and count >= 1 else
+              'fixed' if app_mode and count >= 1 else
               'test_fixed')
     reply = Path(args[args.index('--output-last-message') + 1])
     reply.write_text(json.dumps([] if mode == 'agent-invalid' else
                                {'status': status,
-                                'summary': 'fixture result'}))
+                                'summary': 'fixture result',
+                                'blocker': {
+                                    'explanation': 'Expected the specified behavior; observed a mismatch.',
+                                    'question': 'Which behavior should the repair preserve?',
+                                    'options': ['Restore the specified behavior.',
+                                                'Investigate the requirement before editing.']
+                                } if blocked else None}))
     print(json.dumps({'type': 'item.completed', 'item': {
         'id': 'thinking', 'type': 'reasoning', 'text': 'PRIVATE REASONING FIXTURE'}}), flush=True)
     print(json.dumps({'type': 'item.completed', 'item': {

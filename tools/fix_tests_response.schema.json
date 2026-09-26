@@ -2,8 +2,18 @@
   "type": "object",
   "properties": {
     "status": {"type": "string", "enum": ["test_fixed", "fixed", "blocked", "app_issue", "uncertain"]},
-    "summary": {"type": "string"}
+    "summary": {"type": "string"},
+    "blocker": {
+      "type": ["object", "null"],
+      "properties": {
+        "explanation": {"type": "string"},
+        "question": {"type": "string"},
+        "options": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": ["explanation", "question", "options"],
+      "additionalProperties": false
+    }
   },
-  "required": ["status", "summary"],
+  "required": ["status", "summary", "blocker"],
   "additionalProperties": false
 }

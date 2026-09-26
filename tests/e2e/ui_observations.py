@@ -22,6 +22,12 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'multiple-child-open': 'Inspecting the exact eligible child choices',
+    'multiple-approver-open': 'Inspecting the exact eligible approving parent choices',
+    'multiple-other-enable': 'Enabling screen limits for the second declared child',
+    'multiple-other-saved': 'Reading saved screen limits for the second declared child',
+    **{operation: 'Checking the exact offered account set and declared selection'
+       for operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS if operation.startswith('multiple-')},
     'parent-mate-refused': 'Refusing kiosk authentication entry from Parent management',
     **{operation: 'Qualifying MATE request context, guarded Cancel and unchanged form return'
        for operation in accessible_ui.MATE_OPERATIONS},
@@ -730,6 +736,11 @@ class UiObservations:
                           'rejected_proofs': list(accessible_ui.MATE_REFUSALS)
                           if operation == 'kiosk-mate-refusals-cancel' else [],
                           'refusals': operation == 'kiosk-mate-refusals-cancel'}
+            if operation in accessible_ui.MULTIPLE_MATE_BINDINGS:
+                child, approver = accessible_ui.MULTIPLE_MATE_BINDINGS[operation]
+                projection.update(child=accessible_ui.CHILD_IDENTITIES[child],
+                                  approver=accessible_ui.APPROVER_IDENTITIES[approver],
+                                  duration_seconds=1800, allow_soft=False)
             require(type(value) is dict and set(value) == {*projection, 'provider', 'challenge_id'}
                     and all(value[key] == item and type(value[key]) is type(item)
                             for key, item in projection.items()), 'ui:mate-response')

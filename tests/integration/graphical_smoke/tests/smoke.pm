@@ -21,6 +21,7 @@ use onpc_command_help ();
 use onpc_desktop_session ();
 use onpc_kiosk_entry ();
 use onpc_kiosk_eligible_choices ();
+use onpc_kiosk_multiple ();
 use onpc_kiosk_valid_duration ();
 use onpc_request_flow ();
 use onpc_kiosk_cancel ();
@@ -313,6 +314,18 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_flow::run(\&exchange, 'mate');
+        return;
+    }
+    if ($ready->{multiple_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_multiple::run(\&exchange, 1);
+        return;
+    }
+    if ($ready->{kiosk_multiple}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_multiple::run(\&exchange);
         return;
     }
     if ($ready->{request_flow}) {

@@ -15,6 +15,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
+from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer as wait_for_developer
 
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
@@ -85,19 +86,7 @@ and wait for tests and owned cleanup before returning.
 Return the required structured result; unresolved blockers return blocked so the
 launcher pauses for the user's answer. Keep summary under 600 characters and
 handoff under 16000.
-For blocked, supply blocker with explanation, question and options. Write the
-explanation in concise, user-friendly, scenario-oriented language (at most 200
-words and 2000 characters): what is finished, what the user/test tries to do,
-what actually prevents progress and the practical steps to unblock. Distinguish
-test/tooling failures from established product defects. Keep technical evidence,
-long commands and continuation prompts in handoff only; do not repeat them in
-the explanation or commentary. Ask one concrete question (under 240 characters)
-that resolves the blocker. Provide 2 or 3 specific, distinct suggestions (under
-300 characters each), with the recommended action first. The launcher adds the
-recommended label and an editable Other option; do not include those yourself.
-Never propose bypassing a denied grant or weakening acceptance to make it pass.
-For other statuses set blocker to null. Do not print a separate final summary;
-the launcher displays the explanation once and waits without a timeout.
+{BLOCKER_INSTRUCTIONS}
 The handoff is a standalone prompt with only remaining work, task ID, exact next
 commands/selectors, evidence paths, blockers and recommended model/effort.
 Carry forward user decisions that still apply to that remaining work.
@@ -187,66 +176,28 @@ def accept_result(root, state, result, before):
     return updated
 
 
-def validate_blocker(blocker):
-    if (not isinstance(blocker, dict)
-            or any(not isinstance(blocker.get(key), str) or not blocker[key].strip()
-                   or len(blocker[key]) > limit
-                   for key, limit in (('explanation', 2000), ('question', 240)))
-            or not isinstance(blocker.get('options'), list)
-            or not 2 <= len(blocker['options']) <= 3
-            or any(not isinstance(option, str) or not option.strip() or len(option) > 300
-                   for option in blocker['options'])
-            or len(set(blocker['options'])) != len(blocker['options'])):
-        raise ValueError('blocked result needs a concise explanation, question and 2–3 distinct suggestions')
-
-
 def wait_for_answer(run, state, progress_key):
     """The detached owner waits; terminals may come and go without answering."""
-    from launcher_progress import publish_progress, read_progress
-    from launcher_question import QuestionInput
-    from launcher_render import AgentRenderer
+    from launcher_progress import read_progress
     blocker = state.get('blocker') or {
         'explanation': state['summary'],
         'question': 'How should we unblock this task?',
         'options': ['Recheck the blocker and resolve work already authorized.',
                     'Inspect the evidence and explain the decision needed before making changes.']}
-    validate_blocker(blocker)
     state.setdefault('blocker_id', uuid.uuid4().hex)
-    question = dict(blocker, id=state['blocker_id'], answer=None)
-    with launcher.lock(run / 'question-gate') as gate:
-        fcntl.flock(gate, fcntl.LOCK_EX)
-        path = run / 'question.json'
-        previous = json.loads(path.read_text()) if path.exists() else None
-        if previous is None or previous['id'] != question['id']:
-            launcher.atomic(path, question)
-    save_handoff(run, state, 'waiting for your answer', display=False)
     steps = read_progress(run)
     heading = steps[-1]['lines'][0] if steps else f"Task {state['task_id']}"
-    publish_progress(run, progress_key, [heading, 'Paused — waiting for your answer'])
-    renderer = AgentRenderer(sys.stdout)
-    renderer.message(blocker['explanation'])
-    # The observer owns the editable menu. Do not leave its initial selection
-    # in the transcript, where it would reappear after submission.
-    prompt = QuestionInput(question, None)
-    prompt.selected = None
-    renderer.console.print('\n'.join(prompt.lines()), markup=False)
-    print('No timeout. Reattach with tools/write-e2e to answer after a disconnect.', flush=True)
-    while True:
-        if (run / 'cancel').exists():
-            raise launcher.Stopped()
-        if (run / 'stop').exists():
-            return False
-        question = json.loads(path.read_text())
-        if question['answer'] is not None:
-            renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)
-            state.update(phase='recover', recovery_run=str(run),
-                         user_answer={'question': question['question'], 'answer': question['answer']})
-            state.pop('blocker_id', None)
-            state.pop('blocker', None)
-            launcher.atomic(run / 'checkpoint.json', state)
-            print('Answer received. Continuing this task.', flush=True)
-            return True
-        time.sleep(.1)
+    answer = wait_for_developer(
+        run, blocker, state['blocker_id'], progress_key, label='write-e2e', heading=heading,
+        on_wait=lambda: save_handoff(run, state, 'waiting for your answer', display=False))
+    if answer is None:
+        return False
+    state.update(phase='recover', recovery_run=str(run), user_answer=answer)
+    state.pop('blocker_id', None)
+    state.pop('blocker', None)
+    launcher.atomic(run / 'checkpoint.json', state)
+    print('Answer received. Continuing this task.', flush=True)
+    return True
 
 
 def stage_task(root, paths):

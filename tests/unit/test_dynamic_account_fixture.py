@@ -16,6 +16,65 @@ def test_dynamic_child_ui_lookup_uses_the_created_account():
     assert CHILD_ACCOUNTS[NEW_CHILD] == guest_fixture.USERNAME
 
 
+@pytest.mark.parametrize('fault', [None, 'collision', 'wrong-child', 'station-admin',
+                                  'unlocked', 'wrong-role', 'changed-child', 'guard'])
+def test_ineligible_fixture_creates_only_locked_admin_and_preserves_accounts(monkeypatch, capsys, fault):
+    records, guard, mutation = no_approver_guest(
+        monkeypatch, fault if fault in ('wrong-child', 'station-admin') else None)
+    identities = guest_fixture.pwd.getpwall.return_value
+    new = SimpleNamespace(pw_name=guest_fixture.INELIGIBLE_USERNAME,
+                          pw_uid=1010, pw_shell='/bin/bash')
+    if fault == 'collision':
+        identities.append(new)
+    if fault == 'guard':
+        guard.side_effect = guest_fixture.guest.GuestError('guard-refused')
+    before = {path: dict(value) for path, value in records.items()}
+    monkeypatch.setattr(guest_fixture.pwd, 'getpwnam', Mock(return_value=new))
+    def create(argv):
+        assert argv == ['busctl', '--system', 'call', guest_fixture.ACCOUNTS_NAME,
+                        guest_fixture.ACCOUNTS_PATH, guest_fixture.ACCOUNTS_INTERFACE,
+                        'CreateUser', 'ssi', guest_fixture.INELIGIBLE_USERNAME, 'Locked Parent', '1']
+        guest_fixture.pwd.getpwall.return_value = [*identities, new]
+        records['/org/freedesktop/Accounts/User1010'] = {
+            'Uid': '1010', 'UserName': new.pw_name, 'LocalAccount': 'true',
+            'SystemAccount': 'false', 'AccountType': '0' if fault == 'wrong-role' else '1',
+            'Locked': 'false' if fault == 'unlocked' else 'true', 'Shell': '/bin/bash',
+        }
+        if fault == 'changed-child':
+            records['/org/freedesktop/Accounts/User1001']['Locked'] = 'true'
+        return 'o "/org/freedesktop/Accounts/User1010"'
+    mutation.side_effect = create
+    if fault:
+        with pytest.raises(guest_fixture.guest.GuestError):
+            guest_fixture.main(['prepare-ineligible-approver'])
+        assert not capsys.readouterr().out
+        assert mutation.call_count == (1 if fault in ('unlocked', 'wrong-role', 'changed-child') else 0)
+    else:
+        guest_fixture.main(['prepare-ineligible-approver'])
+        mutation.assert_called_once()
+        assert all(records[path] == value for path, value in before.items())
+        assert capsys.readouterr().out == 'onpc-e2e: stage=ineligible-approver outcome=prepared\n'
+
+
+@pytest.mark.parametrize('reply', [b'onpc-e2e: stage=ineligible-approver outcome=prepared\n', b'wrong'])
+def test_ineligible_controller_is_guarded_single_use(reply):
+    context = SimpleNamespace(lease=SimpleNamespace(state={'run': 'a' * 32}))
+    journey = SimpleNamespace(context=context, transport=Mock())
+    journey.transport.call.return_value = reply
+    fixture = account_fixture.IneligibleApproverFixture(context)
+    guard = Mock()
+    if reply == fixture.result:
+        assert fixture.prepare(journey, guard) == {'ineligible_approvers_created': 1}
+        assert guard.call_count == 2
+    else:
+        with pytest.raises(EvidenceError, match='unexpected-result'):
+            fixture.prepare(journey, guard)
+    with pytest.raises(EvidenceError, match='controller-state'):
+        fixture.prepare(journey, guard)
+    journey.transport.call.assert_called_once()
+    assert journey.transport.call.call_args.args[0][-1] == 'prepare-ineligible-approver'
+
+
 def test_guest_guard_refuses_before_account_lookup_or_creation(monkeypatch):
     guard = Mock(side_effect=guest_fixture.guest.GuestError("guard-refused"))
     lookup, run = Mock(), Mock()

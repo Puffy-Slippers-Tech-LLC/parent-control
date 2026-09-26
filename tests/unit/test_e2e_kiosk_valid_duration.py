@@ -26,7 +26,7 @@ from kiosk_approval import PLAN as APPROVAL_PLAN
 from auth_result import PLAN as AUTH_RESULT_PLAN
 from kiosk_approved_flow import PLAN as APPROVED_FLOW_PLAN, approved_request, obtain_time
 from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
-from restricted_station import PLAN as STATION_PLAN, DENIED_PLAN
+from restricted_station import PLAN as STATION_PLAN, DENIED_PLAN, CANCELLED_PLAN
 import approval_flow
 
 
@@ -202,16 +202,20 @@ def test_restricted_station_worker_order_and_refusal(monkeypatch, refusal):
         assert not any(event[0] == 'text' for event in result['events'])
 
 
-@pytest.mark.parametrize('refusal', [None, *DENIED_PLAN.screen_tags])
-def test_denied_station_worker_rechecks_restrictions_then_exits(monkeypatch, refusal):
+@pytest.mark.parametrize('outcome,plan,refusal', [
+    (outcome, plan, refusal)
+    for outcome, plan in [('denied', DENIED_PLAN), ('cancelled', CANCELLED_PLAN)]
+    for refusal in [None, *plan.screen_tags]
+])
+def test_unapproved_station_worker_rechecks_restrictions_then_exits(monkeypatch, outcome, plan, refusal):
     if refusal:
         monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
     worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_restricted_station').replace(
         'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
-    worker = worker.replace('    });', "    }, 'denied');")
+    worker = worker.replace('    });', "    }, '" + outcome + "');")
     result = json.loads(run_perl(worker).stdout)
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
-    expected = list(DENIED_PLAN.screen_tags)
+    expected = list(plan.screen_tags)
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     assert not any(stage.startswith('approval-') for stage in stages)
@@ -219,15 +223,17 @@ def test_denied_station_worker_rechecks_restrictions_then_exits(monkeypatch, ref
         keys = [event[1] for event in result['events'] if event[0] == 'key']
         assert [key for key in keys if key in ('super', 'super-a', 'ctrl-alt-t')] == [
             'super', 'super-a', 'ctrl-alt-t'] * 2
-        assert sum(event[0] == 'secret' for event in result['events']) == 2
+        assert sum(event[0] == 'secret' for event in result['events']) == (2 if outcome == 'denied' else 1)
+        assert ('flow-cancel' in stages) == (outcome == 'cancelled')
         assert stages.index('flow-preserved') < stages.index('after-restriction-overview-ready')
         assert stages[-2:] == ['new-cancel', 'new-returned']
 
 
-def test_denied_station_uses_shared_preserved_form_comparison(tmp_path, monkeypatch):
+@pytest.mark.parametrize('plan', [DENIED_PLAN, CANCELLED_PLAN])
+def test_unapproved_station_uses_shared_preserved_form_comparison(tmp_path, monkeypatch, plan):
     journey = approval_flow.ApprovalFlowJourney(
-        SimpleNamespace(directory=tmp_path), Mock(), DENIED_PLAN, actions={})
-    assert journey.plan is DENIED_PLAN
+        SimpleNamespace(directory=tmp_path), Mock(), plan, actions={})
+    assert journey.plan is plan
     monkeypatch.setattr(RequestFlowJourney, 'check_settings', lambda *args: None)
     observed = {'ui': {'valid_choice': {'request': dict(CHOICES)}}, 'comparison': {}}
     journey.check_settings('flow-before', observed)

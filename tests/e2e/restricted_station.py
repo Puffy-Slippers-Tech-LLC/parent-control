@@ -1,4 +1,4 @@
-"""Restricted station: approval or denial, shortcut checks and normal exit."""
+"""Restricted station: approval, denial or cancellation and normal exit."""
 from approval_flow import ApprovalFlowJourney, rejected_request
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, station_entry
@@ -69,4 +69,31 @@ def execute_denied(recorder, context):
                              journey_type=ApprovalFlowJourney)
 
 
-E2E_CASES = {'approved': execute, 'denied': execute_denied}
+CANCELLED_REQUEST = {
+    **prepared_request(prefix='open', entry='open', initial='default',
+                       child='fixture-child', approver='fixture-parent',
+                       duration_seconds=75, allow_soft=True),
+    **rejected_request(outcome='cancel', child='fixture-child',
+                       approver='fixture-parent', duration_seconds=75, allow_soft=True),
+    **{f'after-restriction-{route}-{phase}': 'ui:kiosk-restriction-prepared-' + phase
+       for route in ('overview', 'grid', 'terminal') for phase in ('ready', 'read')},
+}
+CANCELLED_PLAN = JourneyPlan(
+    prefix='kiosk-approval-flow', worker_mode='restricted_station_cancelled',
+    screen_tags={**ENTRY, **CANCELLED_REQUEST, **DENIED_EXIT},
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in ENTRY}, 'installed-greeter': 'start',
+            **{stage: 'step-2' for stage in CANCELLED_REQUEST},
+            **{stage: 'step-3' for stage in DENIED_EXIT}},
+    advance_after={'installed-greeter': 'step-1',
+                   'restriction-terminal-read': 'step-2',
+                   'after-restriction-terminal-read': 'step-3'},
+)
+
+
+def execute_cancelled(recorder, context):
+    record_installed_journey(recorder, context, CANCELLED_PLAN, timeout=1800,
+                             journey_type=ApprovalFlowJourney)
+
+
+E2E_CASES = {'approved': execute, 'denied': execute_denied, 'cancelled': execute_cancelled}

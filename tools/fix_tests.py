@@ -9,11 +9,11 @@ import argparse
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import signal
 import subprocess
 import sys
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from regression_session import FRAME_DIRECTORY, busy, lock
@@ -23,10 +23,12 @@ from detached_launcher import (
     compact_log, TAIL_BYTES,
 )
 import detached_launcher
+from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
 
 
-DEFAULT_EFFORT = 'high'
-APP_EFFORT = 'high'
+DEFAULT_MODEL = 'gpt-6-astra'
+DEFAULT_EFFORT = 'low'
+APP_EFFORT = 'low'
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
@@ -43,45 +45,65 @@ def available_models():
     listed = [entry for entry in models if isinstance(entry, dict)
               and entry.get('visibility') == 'list'
               and isinstance(entry.get('slug'), str)
-              and isinstance(entry.get('priority'), int)
-              and not isinstance(entry.get('priority'), bool)
               and isinstance(entry.get('supported_reasoning_levels'), list)
-              and any(isinstance(level, dict) and level.get('effort') == 'high'
+              and any(isinstance(level, dict) and level.get('effort') == DEFAULT_EFFORT
                       for level in entry['supported_reasoning_levels'])]
-    sol = [entry for entry in listed
-           if re.fullmatch(r'gpt-(\d+(?:\.\d+)*)-sol', entry['slug'])]
-    if not sol:
-        raise ValueError('Codex model catalog has no listed high-reasoning Sol model')
-    newest_sol = max(sol, key=lambda entry: tuple(
-        int(part) for part in entry['slug'][4:-4].split('.')))
-    strongest = min(listed, key=lambda entry: entry['priority'])
-    return newest_sol['slug'], strongest['slug']
+    if not any(entry['slug'] == DEFAULT_MODEL for entry in listed):
+        raise ValueError(f'Codex model catalog has no listed {DEFAULT_MODEL} with low reasoning')
+    return DEFAULT_MODEL, DEFAULT_MODEL
 
 
-def repair_prompt(prompt, *, app_issue=None):
+def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summary=None):
     instructions = (
         'Classify the failure from the evidence as a test issue, an app issue, or '
         'uncertain before editing. If it is a test issue, fix it in this session '
         'and return status "test_fixed". If it is an app issue, make no edits and return '
         'status "app_issue" with a concise reason. If classification remains '
         'uncertain, make no edits and return status "uncertain" with the competing '
-        'explanations. The launcher will start a stronger agent for either of the '
+        'explanations. The launcher will start a fresh repair agent for either of the '
         'last two statuses. '
         if app_issue is None else
         'The first session classified this as an app issue or uncertain and ended. '
         'Recheck the classification using the original failure evidence, then fix '
         'the root cause in this checkout. Return status "fixed" after a repair. '
         f'Its classification was: {app_issue}\n\n')
+    decisions = ('\nDeveloper instructions for this run (apply only to their stated scope):\n'
+                 + json.dumps(developer_answers, ensure_ascii=False) + '\n'
+                 if developer_answers else '')
+    continuation = ('\nPrevious attempt paused with this handoff:\n' + blocker_summary + '\n'
+                    'Recheck the blocked prerequisite; an answer alone is not evidence it passed.\n'
+                    if blocker_summary else '')
     return (prompt + '\n\n'
             'This is one independent repair attempt in tools/fix-tests. '
             + instructions + 'Preserve unrelated work. Follow AGENTS.md '
-            'and docs/Approval-Tools.md. Do not change expected product behavior or weaken, '
-            'skip or delete tests to obtain a pass. Report any missing authority or '
-            'prerequisite using status "blocked" in the final result. '
+            'and docs/Approval-Tools.md and tests/README.md#handling-test-failures. '
+            'Current product behavior alone never proves a test is wrong. For a behavioral '
+            'mismatch, preserve evidence and identify the test, expected versus actual results '
+            'and authoritative requirement. Before accepting changed behavior or altering '
+            'expectations, return status "blocked" to ask the developer to confirm intended '
+            'behavior, unless that exact behavior change is already explicitly authorized. '
+            'Do not weaken, skip or delete tests to obtain a pass. Automatic test edits must '
+            'address proven mechanical test, fixture or harness defects while preserving the intended check. '
+            'Report any missing authority or prerequisite using status "blocked" in the final '
+            'result; the launcher pauses for developer instructions instead of failing. '
+            + BLOCKER_INSTRUCTIONS +
+            'Use summary as a standalone repair handoff with evidence paths and remaining work. '
             'The script owns test execution: finish after classification or repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions. '
             'Do not read or resume previous Codex sessions, histories, memories or repair '
-            'transcripts. Use only this failure handoff and the current repository.\n')
+            'transcripts. Use only this failure handoff and the current repository.\n'
+            + decisions + continuation)
+
+
+def validate_result(result):
+    if (not isinstance(result, dict)
+            or result.get('status') not in ('test_fixed', 'fixed', 'blocked', 'app_issue', 'uncertain')
+            or not isinstance(result.get('summary'), str) or not result['summary'].strip()):
+        raise ValueError('repair agent did not return a valid result object')
+    if result['status'] == 'blocked':
+        validate_blocker(result.get('blocker'))
+    elif result.get('blocker') is not None:
+        raise ValueError('only a blocked result may ask a question')
 
 
 def read_tail(path):
@@ -187,6 +209,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     round_number = 1
     operation = 0
+    developer_answers = []
 
     def round_changed(number):
         nonlocal round_number
@@ -276,35 +299,42 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
             return handoff(run)
 
     def repair(prompt):
-        progress('', 'fixing errors')
-        print(f'\nfix-tests: classify and repair ({model}, {effort})', flush=True)
-        (run / 'prompt.txt').write_text(repair_prompt(prompt), encoding='utf-8')
-        # Truncate only our own last reply; an agent crash cannot reuse it.
-        (run / 'agent-result.json').write_text('')
-        status = execute('agent')
-        if status:
-            raise ValueError(f'repair agent exited with status {status}; inspect the output before restarting')
-        result = json.loads((run / 'agent-result.json').read_text())
-        if not isinstance(result, dict):
-            raise ValueError('repair agent did not return a result object')
-        if result.get('status') in ('app_issue', 'uncertain'):
-            classification = result['status'] + ': ' + str(result.get('summary', ''))
-            print(f'\nfix-tests: app review ({app_model}, {APP_EFFORT}); {classification}',
-                  flush=True)
+        classification = None
+        blocker_summary = None
+        while True:
+            progress('', 'fixing errors')
+            agent_model, agent_effort = (app_model, APP_EFFORT) if classification else (model, effort)
+            phase = 'app review' if classification else 'classify and repair'
+            print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort})', flush=True)
             (run / 'prompt.txt').write_text(
-                repair_prompt(prompt, app_issue=classification), encoding='utf-8')
+                repair_prompt(prompt, app_issue=classification, developer_answers=developer_answers,
+                              blocker_summary=blocker_summary), encoding='utf-8')
+            # An agent crash cannot reuse an earlier reply.
             (run / 'agent-result.json').write_text('')
-            status = execute('agent', agent_model=app_model, agent_effort=APP_EFFORT)
+            status = execute('agent', agent_model=agent_model, agent_effort=agent_effort)
             if status:
-                raise ValueError(f'app review agent exited with status {status}; '
+                raise ValueError(f'repair agent exited with status {status}; '
                                  'inspect the output before restarting')
             result = json.loads((run / 'agent-result.json').read_text())
-            if not isinstance(result, dict):
-                raise ValueError('app review agent did not return a result object')
-            if result.get('status') != 'fixed':
-                raise ValueError('repair blocked: ' + str(result.get('summary', 'no repair result')))
-        elif result.get('status') != 'test_fixed':
-            raise ValueError('repair blocked: ' + str(result.get('summary', 'no repair result')))
+            validate_result(result)
+            if result['status'] == 'blocked':
+                previous = repair_progress(run, read_progress(run))[-1]
+                answer = wait_for_answer(
+                    run, result['blocker'], uuid.uuid4().hex, previous['key'],
+                    label='fix-tests', heading=previous['lines'][0])
+                if answer is None:
+                    raise Stopped()
+                developer_answers.append(answer)
+                atomic(run / 'developer-answers.json', developer_answers)
+                blocker_summary = result['summary']
+                print('Answer received. Continuing this repair.', flush=True)
+                continue
+            if not classification and result['status'] in ('app_issue', 'uncertain'):
+                classification = result['status'] + ': ' + result['summary']
+                continue
+            if result['status'] != ('fixed' if classification else 'test_fixed'):
+                raise ValueError('unexpected repair result: ' + result['summary'])
+            return
 
     status = 1
     try:
@@ -370,9 +400,9 @@ def follow(run, stream=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
-    parser.add_argument('--model', help='initial repair model (default: latest available Sol)')
+    parser.add_argument('--model', help='initial repair model (default: gpt-6-astra)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
-                        default=DEFAULT_EFFORT, help='reasoning effort (default: high)')
+                        default=DEFAULT_EFFORT, help='reasoning effort (default: low)')
     parser.add_argument('categories', nargs='*', metavar='CATEGORY',
                         help='leaf categories, host (or host-builds), or all; accepts "unit ui"; '
                              'omitting categories preserves the full regression loop')

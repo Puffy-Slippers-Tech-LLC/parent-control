@@ -29,6 +29,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # guest operations with process-local doubles. About's matcher reads repository
 # fixtures in its own Perl child; watcher sockets, processes and signals are
 # mocked. These modules therefore share the same isolation as cleanup buckets.
+# The ineligible-approver plan uses those same private journey/fixture doubles;
+# it introduces no real account, VM, socket, process or shared cache in host tests.
 # App-snapshot and suite tests use private locks with mocked libvirt sources;
 # baseline-guest uses an in-memory guestfs double; update/reboot checks mock all
 # package/VM operations and use tmp_path for guest entry records. Fix-tests owns every child it
@@ -36,7 +38,7 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # plus unique private sockets. Keyring/VM watcher safety uses process-local
 # doubles and socket pairs. Storage, migration and startup-cache checks use
 # private trees and journals; write-E2E owns its children in a private checkout.
-# Its paused-question tests keep decisions and observer locks in that checkout,
+# Both launchers' paused-question tests keep decisions and observer locks in that checkout,
 # and fixture teardown cancels/reaps only those recorded workflow children.
 # They do not share mutable state across workers.
 # Suite package-identity fixtures also use tiny private Debian archives and

@@ -431,7 +431,9 @@ Implementation status: Cases 57, 54 and 55 passed complete live acceptance in ru
 `20260924T001910Z-3076f596`, `20260924T152534Z-98108590` and
 `20260924T175340Z-dd93d54f`, respectively,
 including collection, owned cleanup and baseline restoration;
-the other cases remain pending. `disabled_child.PLAN` / `onpc_disabled_child::run`
+case 53 also passed in `20260926T193803Z-abb86806` and case 56 in
+`20260926T200913Z-2d372359`, with the same terminal outcomes.
+`disabled_child.PLAN` / `onpc_disabled_child::run`
 keeps limits off, inspects and collapses the exact child choices through the
 same public selector trigger, selects the disabled child, independently reads
 the unavailable form without authentication, and observes Cancel returning to GDM.
@@ -457,6 +459,34 @@ and public GDM return. Its complete live acceptance passed independently of
 the qualification-only wrong-entry checks.
 
 Bindings: accounts = multiple / no-child / no-parent / ineligible-parent / disabled-child.
+
+The multiple profile is qualified through `kiosk_multiple.PLAN` /
+`onpc_kiosk_multiple::run` and `check_e2e_kiosk_multiple` in report run
+`20260926T191541Z-dc28d61d`; the shared original prompt binding regression passed
+in `20260926T192244Z-e74f7983`. Reuse the guarded canonical account profile,
+public enable/save for both children, `select_kiosk_account`'s exact-set checks
+and the four `MULTIPLE_MATE_BINDINGS` Cancel operations. The fixed slice uses
+30 minutes with soft apps excluded for every pair and independently checks
+preserved selections after each prompt. Complete case 53 uses
+`kiosk_multiple.CASE_PLAN` / `onpc_kiosk_multiple::run`'s complete-case branch,
+adding explicit selector open/exact-set/collapse observations and independent
+unchanged-choice readback before selecting the four pairs. A final preserved-form
+read precedes Cancel and GDM return. It passed in `20260926T193803Z-abb86806`,
+including reconciliation, collection, owned cleanup and baseline restoration.
+The shared collapse helper's disabled-child case 57 regression passed in
+`20260926T194240Z-ff1d1166` with the same terminal outcomes.
+
+The ineligible-parent profile uses `kiosk_multiple.INELIGIBLE_PLAN` with
+`IneligibleApproverFixture` to add one fixed locked administrator before Parent
+entry, preserving both eligible parents and both children. Its exact offered-set
+checks and all four real prompt/Cancel pairs passed the fixed qualification
+`check_e2e_eligible_kiosk_fixtures` in run `20260926T195528Z-eb3740b5`, with
+collection, owned cleanup and baseline restoration. Complete case 56 uses
+`kiosk_multiple.INELIGIBLE_CASE_PLAN` / `execute_ineligible` with the fixed setup
+action and complete multiple-account worker: explicit exact-set selector inspection
+and collapse, all four eligible pairs' real prompt cancellations, preserved form
+and Cancel/GDM return. It passed independently in `20260926T200913Z-2d372359`,
+including collection, owned cleanup and baseline restoration.
 
 The no-parent profile's composition is qualified through
 `kiosk_no_approver.PLAN` / `onpc_kiosk_no_approver::run` and

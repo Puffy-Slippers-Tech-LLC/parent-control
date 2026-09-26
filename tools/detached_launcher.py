@@ -378,7 +378,7 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
         if offset:
             output.readline()  # Reattach at a full line, not midway through UTF-8/ANSI.
         while True:
-            if label == 'write-e2e':
+            if label in ('write-e2e', 'fix-tests'):
                 from launcher_question import pending, submit
                 display.update_question(pending(run), lambda identity, choice, text:
                                         submit(run, identity, choice, text))

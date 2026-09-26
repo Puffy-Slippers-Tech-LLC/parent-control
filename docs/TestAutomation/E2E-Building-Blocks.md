@@ -839,10 +839,71 @@ authentication outcome or app behavior being tested.
 | ID | Kind | Supporting operation and boundary | Existing source | Status |
 | --- | --- | --- | --- | --- |
 | FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. New game/Snap/Flatpak/attachment profiles still need preparation with their consumers. | ready |
-| FIX03 | A | Prepare one declared account-eligibility profile before a kiosk journey: multiple, no child, no approver or ineligible approver. Do not generalize FIX02 into arbitrary account mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes only the two canonical children's account type, preserving identities, existing administrators and the station; outer lease cleanup restores the profile. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` qualified this profile through `check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, with shared station navigation requalified in run `20260924T173643Z-8d742069`. `AccessibleUI.kiosk_request_form(no_child=True)` and `RequestObservation.from_request` independently require the exact empty child set and no-child explanation, disabled Request/duration/soft-app/approver controls and no authentication prompt. Valid station entry, wrong-entry refusal, repeated public readback, sanitized collection, owned cleanup and baseline restoration passed without product-policy mutation. Complete case 54 separately passed via `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` and `tools/run-tests e2e --id '54'`, adding public Cancel/GDM return; wrong-entry refusal remains qualification-only. The no-approver callables, qualification and independent case 55 acceptance below supply the second ready profile. Multiple/ineligible-approver profiles remain pending. | pending; no-child/no-approver profiles and station empty states ready |
+| FIX03 | A | Prepare one declared account-eligibility profile before a kiosk journey: multiple, no child, no approver or ineligible approver. Do not generalize FIX02 into arbitrary account mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes only the two canonical children's account type, preserving identities, existing administrators and the station; outer lease cleanup restores the profile. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` qualified this profile through `check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, with shared station navigation requalified in run `20260924T173643Z-8d742069`. `AccessibleUI.kiosk_request_form(no_child=True)` and `RequestObservation.from_request` independently require the exact empty child set and no-child explanation, disabled Request/duration/soft-app/approver controls and no authentication prompt. Valid station entry, wrong-entry refusal, repeated public readback, sanitized collection, owned cleanup and baseline restoration passed without product-policy mutation. Complete case 54 separately passed via `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` and `tools/run-tests e2e --id '54'`, adding public Cancel/GDM return; wrong-entry refusal remains qualification-only. The no-approver callables and independent case 55 acceptance below supply the second ready profile. `kiosk_multiple.PLAN` / `onpc_kiosk_multiple::run` supply the qualified multiple profile below. `kiosk_multiple.INELIGIBLE_PLAN` / `KioskIneligibleJourney` supplies the locked-administrator exclusion profile qualified below. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX05 | A | Validate the one declared, manually prepared Lunar/AppImageLauncher/Minecraft profile after the normal installed-snapshot restore and before the attempt. Read-only setup verification, not installation, policy configuration or customer acceptance. | No callable yet. Task 295 binds versions/digests, original AppImage and launcher/autostart routes, local world, credential references and ordinary restore/provisioning ownership. Refuse missing/drifted assets; never synthesize a denial. [Profile contract](#lunar-client-preparation-and-observation-gate). | pending |
+
+FIX03's multiple profile reuses the guarded installed snapshot's two canonical
+children and two approvers; it changes no account identities, roles or station
+ownership. `kiosk_multiple.PLAN` / `KioskMultipleJourney`,
+`KioskMultipleQualification` and `onpc_kiosk_multiple::run` publicly enable and
+read back each child's Screen Limits before switching to the station.
+`AccessibleUI.select_kiosk_account` checks the exact offered set on every
+selection. The finite `multiple-*` entries in `KIOSK_ACCOUNT_REQUESTS` and
+`MULTIPLE_MATE_BINDINGS` register both children and both approvers, including all
+four pairs. Each pair uses 1800 seconds with soft apps excluded, a freshly
+owned real MATE prompt with exact child/request/recipient context, one normal
+Cancel, complete prompt absence and independent unchanged-form/no-error readback.
+`mate_prompt(binding=...)` retains owner, ambiguity, focused empty masked field,
+same-challenge and uncertain-input guards; this extension submits no password.
+
+`tools/run-tests integration check_e2e_kiosk_multiple` passed in report run
+`20260926T191541Z-dc28d61d`, including independent valid entry and wrong-entry
+refusal. The earlier 75-second/soft-included prompt binding and its refusal
+matrix passed `check_e2e_auth_prompt` in `20260926T192244Z-e74f7983`.
+Both attempts passed sanitized collection, owned cleanup and baseline restoration.
+The qualified provider tuple remains Ubuntu 26.04, MATE Polkit `1.26.1-6`,
+`en_US.UTF-8`, keyboard `[["xkb", "us"]]`. Case 53 and the ineligible-approver
+profile remain separate from that qualification; these runs give no complete-case credit.
+Complete case 53 is registered through `kiosk_multiple.CASE_PLAN` and
+`onpc_kiosk_multiple::run`'s complete-case branch. It omits qualification-only
+wrong-entry checks and adds both selectors' explicit exact-set/open/collapse
+observations, unchanged initial choices and final preserved-form readback.
+`multiple-child-open` / `multiple-approver-open` reuse `select_kiosk_account`;
+their closed operations reuse `collapse_kiosk_child_choices(field, enabled=True)`.
+The controller independently validates the complete declared form after collapse.
+Case 53 passed in run `20260926T193803Z-abb86806`; the unchanged disabled-child
+collapse binding passed case 57 in `20260926T194240Z-ff1d1166`. Both include
+reconciliation, collection, owned cleanup and baseline restoration.
+The ineligible-approver profile is `kiosk_multiple.INELIGIBLE_PLAN` /
+`KioskIneligibleJourney`, selected by `KioskIneligibleQualification` and
+`check_e2e_eligible_kiosk_fixtures`. Its setup action uses
+`station_fixture_actions(context, 'ineligible-approver')` /
+`IneligibleApproverFixture` / `e2e_dynamic_account.prepare_ineligible_approver`.
+It creates only the fixed `onpc-e2e-locked-parent` administrator through
+AccountsService, requires it locked without credentials, refuses collisions,
+and checks preservation of existing identities, both children, eligible parents
+and station. Outer snapshot restoration owns removal. This qualification covers
+locked administrators; other ineligibility causes need their own declared scope.
+The unchanged exact-set selectors exclude the new account and all four existing
+child/approver pairs still reach correctly bound real prompts and cancel normally.
+The slice passed in report run `20260926T195528Z-eb3740b5`, including independent
+entry, wrong-entry refusal, both public child enable/save results, exclusion,
+unchanged forms, Cancel/GDM return, collection, owned cleanup and baseline
+restoration. No provider input, Parent launch or prompt binding changed;
+the multiple-profile and original-prompt qualifications above remain valid.
+Complete case 56 uses `kiosk_multiple.INELIGIBLE_CASE_PLAN` / `execute_ineligible`
+with the same fixed setup action and complete multiple-account worker. Both
+selectors are inspected and collapsed with unchanged selections before all four
+eligible pairs reach correctly bound prompts and cancel. The locked administrator
+is excluded by every exact offered-set check. Independent case 56 passed in
+`20260926T200913Z-2d372359`, including preserved-form readback, Cancel/GDM return,
+collection, owned cleanup and baseline restoration.
+Host adapter/decoder/worker regressions live in
+`test_e2e_kiosk_valid_duration.py` and `test_e2e_kiosk_eligible_choices.py`;
+fixed account creation and preservation are covered by `test_dynamic_account_fixture.py`;
+the plan participates in `test_installed_journey_cleanup_safety.py`.
 
 FIX03's no-approver profile starts with
 `AccessibleUI.kiosk_approver_baseline`: require at least one parent in the public

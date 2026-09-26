@@ -24,6 +24,7 @@ import kiosk_valid_duration
 import request_duration
 import request_flow
 import mate_prompt
+import kiosk_multiple
 import kiosk_approval
 import auth_result
 import kiosk_approved_flow
@@ -45,6 +46,7 @@ import restricted_station
 
 
 @pytest.mark.parametrize('selector,mode', [('auth_prompt', 'mate_prompt'),
+                                          ('kiosk_multiple', 'kiosk_multiple'),
                                           ('kiosk_approval', 'kiosk_approval'),
                                           ('auth_result', 'auth_result'),
                                           ('kiosk_approved_flow', 'kiosk_approved_flow'),
@@ -169,7 +171,9 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
                                  kiosk_escape.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN,
                                  kiosk_rejection.PLAN, auth_result.PLAN, kiosk_approved_flow.PLAN,
-                                 restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN],
+                                 restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN,
+                                 kiosk_multiple.PLAN, kiosk_multiple.CASE_PLAN,
+                                 kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -180,7 +184,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
-                              'flow-rejection', 'flow-cancel'])
+                              'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
+                              'ineligible-profile', 'ineligible-case'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, plan, failure):
@@ -200,6 +205,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-017/no-child'
     if plan is kiosk_no_approver.CASE_PLAN:
         selector = 'E2E-017/no-parent'
+    if plan is kiosk_multiple.CASE_PLAN:
+        selector = 'E2E-017/multiple'
+    if plan is kiosk_multiple.INELIGIBLE_CASE_PLAN:
+        selector = 'E2E-017/ineligible-parent'
     if plan is kiosk_cancel.PLAN:
         selector = 'E2E-015/kiosk-cancel'
     if plan is kiosk_escape.PLAN:
@@ -411,7 +420,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             elif plan is kiosk_no_approver.CASE_PLAN:
                 expected_steps.append('step-3')
                 actions['prepare-no-approver'].assert_called_once()
-            elif plan in (command_help.PLAN, restricted_station.PLAN):
+            elif plan is kiosk_multiple.INELIGIBLE_CASE_PLAN:
+                expected_steps.append('step-3')
+                actions['prepare-ineligible-approver'].assert_called_once()
+            elif plan in (command_help.PLAN, restricted_station.PLAN, kiosk_multiple.CASE_PLAN):
                 expected_steps.append('step-3')
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)

@@ -700,7 +700,7 @@ def test_flow_qualification_uses_guarded_snapshot(tmp_path):
     assert RequestFlowQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
 
 
-def mate_form():
+def mate_form(binding=None):
     """Private public-tree double; no service, files, secret or display access."""
     ui, status, custom = valid_form()
     ui.kiosk_valid_choice('kiosk-valid-custom-open')
@@ -726,6 +726,18 @@ def mate_form():
     ui.mate_agent_pid = Mock(return_value=100)
     ui.mate_provider_metadata = Mock(return_value={
         'version': '1.26.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]})
+    if binding is not None:
+        child, approver = accessible_ui.MULTIPLE_MATE_BINDINGS[binding]
+        ui.find_id('kiosk-duration-1800').action.do_action(0)
+        ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
+        for field_name, name, label in (('child', child, 'child account'),
+                                        ('approver', approver, 'approving parent')):
+            selector = ui.find_id(f'kiosk-{field_name}-selector')
+            selector.children[0].identity = f'kiosk-{field_name}-selected-{ui.fixture_uids[name]}'
+            selector.children[0].name = name
+            selector.description = f'Selected {label}: {name}.'
+        message.name = f'Grant {child} 30 minutes?'
+        recipient.name = 'Password for ' + accessible_ui.APPROVER_ACCOUNTS[approver] + ':'
     return ui, desktop, agent, dialog, field, cancel, submit, message, recipient
 
 
@@ -764,7 +776,8 @@ def test_mate_metadata_uses_kiosk_keyboard_configuration(monkeypatch, sources):
 
 @pytest.mark.parametrize('operation', sorted(accessible_ui.MATE_OPERATIONS))
 def test_mate_cancel_real_decoder_single_input_and_unchanged_form(operation):
-    ui, desktop, agent, _dialog, field, cancel, submit, *_ = mate_form()
+    ui, desktop, agent, _dialog, field, cancel, submit, *_ = mate_form(
+        operation if operation in accessible_ui.MULTIPLE_MATE_BINDINGS else None)
     result = ui.run(operation, '')
     observer = UiObservations(Mock())
     observer.call = Mock(return_value=(json.dumps(result).encode(), []))
@@ -780,6 +793,79 @@ def test_mate_cancel_real_decoder_single_input_and_unchanged_form(operation):
     with pytest.raises(Exception, match='ui:challenge-replay'):
         observer.observe(operation)
     assert 'onpc-parent-jamie' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('binding', sorted(accessible_ui.MULTIPLE_MATE_BINDINGS))
+@pytest.mark.parametrize('fault', ['recipient', 'child', 'duration', 'soft', 'owner', 'changed-form'])
+def test_multiple_prompt_rejects_wrong_binding_and_never_replays(binding, fault):
+    ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form(binding)
+    if fault == 'recipient':
+        recipient.name = 'Password for unrelated:'
+    elif fault == 'child':
+        message.name = 'Grant unrelated 30 minutes?'
+    elif fault == 'duration':
+        message.name = message.name.replace('30 minutes', '15 minutes')
+    elif fault == 'soft':
+        message.name = message.name.replace('?', ' and allow soft blocked apps?')
+    elif fault == 'owner':
+        ui.mate_agent_pid.return_value = 999
+    else:
+        def cancel_changed(_):
+            desktop.children.remove(agent)
+            ui.find_id('kiosk-soft-apps-toggle').states.add('checked')
+            return True
+        cancel.action.do_action.side_effect = cancel_changed
+    with pytest.raises(UiError):
+        ui.run(binding, '')
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.run(binding, '')
+    submit.action.do_action.assert_called_once()
+    assert cancel.action.do_action.call_count == (1 if fault == 'changed-form' else 0)
+
+
+@pytest.mark.parametrize('refusal', [None, 'other-saved', 'first-first-cancel', 'other-first-cancel'])
+@pytest.mark.parametrize('complete', [False, True, 'ineligible'])
+def test_multiple_worker_matches_plan_and_stops_before_later_input(monkeypatch, refusal, complete):
+    from kiosk_multiple import PLAN, CASE_PLAN, INELIGIBLE_CASE_PLAN
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_kiosk_multiple')
+    if complete:
+        PLAN = INELIGIBLE_CASE_PLAN if complete == 'ineligible' else CASE_PLAN
+        worker = worker.replace('    });', '    }, 1);')
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(PLAN.screen_tags)
+    assert stages == (expected[:expected.index(refusal) + 1] if refusal else expected)
+    assert bool(result['ok']) is (refusal is None), result['error']
+    if not refusal:
+        assert result['events'][-1] == ['power', 'off']
+    assert all(tag.removeprefix('ui:') in accessible_ui.OPERATIONS
+               for tag in PLAN.screen_tags.values() if tag.startswith('ui:'))
+
+
+@pytest.mark.parametrize('conflict', ['mate_prompt', 'kiosk_no_child', 'kiosk_eligible_choices'])
+def test_multiple_mode_refuses_conflicts_before_vm_access(conflict):
+    import check_graphical_smoke as smoke
+    with pytest.raises(Exception, match='prerequisites'):
+        smoke.main(assets='/unused', provision_credentials=True, kiosk_multiple=True,
+                   **{conflict: True})
+
+
+@pytest.mark.parametrize('refusal', ['child-open', 'child-closed', 'approver-open',
+                                   'approver-closed', 'preserved'])
+def test_multiple_case_stops_at_selector_and_preservation_boundaries(monkeypatch, refusal):
+    test_multiple_worker_matches_plan_and_stops_before_later_input(monkeypatch, refusal, True)
+
+
+def test_multiple_journey_reuses_owned_snapshot_and_no_account_mutation(tmp_path):
+    from kiosk_multiple import PLAN
+    from parent_setup_qualification import KioskMultipleQualification, KioskEntryQualification
+    context = SimpleNamespace(directory=tmp_path)
+    journey = KioskMultipleQualification.journey(context, Mock())
+    assert journey.plan is PLAN and not journey.actions
+    assert context.installed_snapshot == 'onpc-v1.1'
+    assert KioskMultipleQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
 
 
 @pytest.mark.parametrize('fault', ['agent', 'owner', 'duplicate-owner', 'duplicate-field',

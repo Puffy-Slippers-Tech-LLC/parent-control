@@ -4,8 +4,73 @@ import codecs
 import fcntl
 import json
 import re
+import sys
+import time
 
 import detached_launcher as launcher
+
+
+BLOCKER_INSTRUCTIONS = """For blocked, supply blocker with explanation, question and options. Write the
+explanation in concise, user-friendly, scenario-oriented language (at most 200
+words and 2000 characters): what is finished, what the user/test tries to do,
+what actually prevents progress and the practical steps to unblock. Distinguish
+test/tooling failures from established product defects. Keep technical evidence,
+long commands and continuation prompts in the handoff only; do not repeat them in
+the explanation or commentary. Ask one concrete question (under 240 characters)
+that resolves the blocker. Provide 2 or 3 specific, distinct suggestions (under
+300 characters each), with the recommended action first. The launcher adds the
+recommended label and an editable Other option; do not include those yourself.
+Never propose bypassing a denied grant or weakening acceptance to make it pass.
+For other statuses set blocker to null. Do not print a separate final summary;
+the launcher displays the explanation once and waits without a timeout.
+"""
+
+
+def validate_blocker(blocker):
+    if (not isinstance(blocker, dict)
+            or any(not isinstance(blocker.get(key), str) or not blocker[key].strip()
+                   or len(blocker[key]) > limit
+                   for key, limit in (('explanation', 2000), ('question', 240)))
+            or not isinstance(blocker.get('options'), list)
+            or not 2 <= len(blocker['options']) <= 3
+            or any(not isinstance(option, str) or not option.strip() or len(option) > 300
+                   for option in blocker['options'])
+            or len(set(blocker['options'])) != len(blocker['options'])):
+        raise ValueError('blocked result needs a concise explanation, question and 2–3 distinct suggestions')
+
+
+def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
+                    on_wait=lambda: None):
+    """The owner waits without a timeout; shared observers submit the answer."""
+    from launcher_progress import publish_progress
+    from launcher_render import AgentRenderer
+    validate_blocker(blocker)
+    question = dict(blocker, id=identity, answer=None)
+    with launcher.lock(run / 'question-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        path = run / 'question.json'
+        previous = json.loads(path.read_text()) if path.exists() else None
+        if previous is None or previous['id'] != identity:
+            launcher.atomic(path, question)
+    on_wait()
+    publish_progress(run, progress_key, [heading, 'Paused — waiting for your answer'])
+    renderer = AgentRenderer(sys.stdout)
+    renderer.message(blocker['explanation'])
+    # Only observers render an editable selection; the transcript has no default vote.
+    prompt = QuestionInput(question, None)
+    prompt.selected = None
+    renderer.console.print('\n'.join(prompt.lines()), markup=False)
+    print(f'No timeout. Reattach with tools/{label} to answer after a disconnect.', flush=True)
+    while True:
+        if (run / 'cancel').exists():
+            raise launcher.Stopped()
+        if (run / 'stop').exists():
+            return None
+        question = json.loads(path.read_text())
+        if question['answer'] is not None:
+            renderer.console.print('\n'.join(QuestionInput(question, None).lines()), markup=False)
+            return {'question': question['question'], 'answer': question['answer']}
+        time.sleep(.1)
 
 
 def pending(run):

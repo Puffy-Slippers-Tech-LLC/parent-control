@@ -271,6 +271,26 @@ class MatePromptQualification(KioskEntryQualification):
         return MatePromptJourney(context, progress)
 
 
+class KioskMultipleQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_multiple import KioskMultipleJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskMultipleJourney(context, progress)
+
+
+class KioskIneligibleQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_multiple import KioskIneligibleJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskIneligibleJourney(context, progress)
+
+
 class RequestFlowQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

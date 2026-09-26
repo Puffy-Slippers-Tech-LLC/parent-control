@@ -19,6 +19,7 @@ USER_INTERFACE = "org.freedesktop.Accounts.User"
 FIXED_CHILDREN = ("onpc-child-riley", "onpc-child-jordan")
 FIXED_APPROVERS = ("onpc-parent-jamie", "onpc-parent-casey")
 KIOSK_USERNAME = "oh-no-parent-control"
+INELIGIBLE_USERNAME = 'onpc-e2e-locked-parent'
 EXPECTED_ELIGIBLE_ACCOUNTS = len(FIXED_CHILDREN)
 NONINTERACTIVE_SHELLS = ("", "/bin/false", "/usr/sbin/nologin")
 APPROVER_NONINTERACTIVE_SHELLS = (*NONINTERACTIVE_SHELLS, '/usr/bin/false', '/sbin/nologin')
@@ -202,14 +203,78 @@ def prepare_no_approver(approver_uids):
     print(f'onpc-e2e: stage=no-approver outcome=prepared locked={len(targets)}', flush=True)
 
 
+def prepare_ineligible_approver():
+    """Create one locked administrator; never modify a pre-existing account."""
+    guest.guard()
+    identities = pwd.getpwall()
+    names = [entry.pw_name for entry in identities]
+    guest.require(INELIGIBLE_USERNAME not in names, 'ineligible-approver:collision')
+    guest.require(len(names) == len(set(names))
+                  and len(identities) == len({entry.pw_uid for entry in identities})
+                  and set((*FIXED_CHILDREN, *FIXED_APPROVERS, KIOSK_USERNAME)) <= set(names),
+                  'ineligible-approver:identity')
+    properties = (('Uid', 't'), ('UserName', 's'), ('LocalAccount', 'b'),
+                  ('SystemAccount', 'b'), ('AccountType', 'i'), ('Locked', 'b'), ('Shell', 's'))
+
+    def read(entry):
+        path = account_path(entry.pw_uid)
+        guest.require(path == f'/org/freedesktop/Accounts/User{entry.pw_uid}',
+                      'ineligible-approver:identity')
+        values = {key: property_value(path, key, signature) for key, signature in properties}
+        guest.require(values['Uid'] == str(entry.pw_uid) and values['UserName'] == entry.pw_name,
+                      'ineligible-approver:identity')
+        return path, values
+
+    before = {entry.pw_name: read(entry) for entry in identities if entry.pw_uid >= 1000}
+    for name in (*FIXED_CHILDREN, *FIXED_APPROVERS):
+        values = before[name][1]
+        guest.require(values['LocalAccount'] == 'true' and values['SystemAccount'] == 'false'
+                      and values['Locked'] == 'false'
+                      and values['Shell'] not in APPROVER_NONINTERACTIVE_SHELLS
+                      and values['AccountType'] == ('1' if name in FIXED_APPROVERS else '0'),
+                      'ineligible-approver:baseline')
+    guest.require(before[KIOSK_USERNAME][1]['AccountType'] == '0',
+                  'ineligible-approver:station-role')
+    guest.guard()
+    reply = shlex.split(guest.run([
+        'busctl', '--system', 'call', ACCOUNTS_NAME, ACCOUNTS_PATH,
+        ACCOUNTS_INTERFACE, 'CreateUser', 'ssi', INELIGIBLE_USERNAME, 'Locked Parent', '1',
+    ]))
+    account = pwd.getpwnam(INELIGIBLE_USERNAME)
+    guest.require(account.pw_uid >= 1000 and account.pw_uid not in {e.pw_uid for e in identities},
+                  'ineligible-approver:new-identity')
+    path, values = read(account)
+    guest.require(reply == ['o', path] and values == {
+        'Uid': str(account.pw_uid), 'UserName': INELIGIBLE_USERNAME,
+        'LocalAccount': 'true', 'SystemAccount': 'false', 'AccountType': '1',
+        'Locked': 'true', 'Shell': '/bin/bash',
+    }, 'ineligible-approver:locked-administrator')
+    # CreateUser produces a locked account until credentials are assigned. No
+    # password or authentication bypass is needed to construct this profile.
+    after = pwd.getpwall()
+    guest.require({(e.pw_name, e.pw_uid, e.pw_shell) for e in after}
+                  == {(e.pw_name, e.pw_uid, e.pw_shell) for e in identities}
+                  | {(account.pw_name, account.pw_uid, account.pw_shell)},
+                  'ineligible-approver:retained-identity')
+    for entry in identities:
+        if entry.pw_name in before:
+            guest.require(read(entry) == before[entry.pw_name],
+                          'ineligible-approver:retained-account')
+    guest.guard()
+    print('onpc-e2e: stage=ineligible-approver outcome=prepared', flush=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    guest.require(argv in (["create"], ["prepare-empty"], ['prepare-no-approver']),
+    guest.require(argv in (["create"], ["prepare-empty"], ['prepare-no-approver'],
+                          ['prepare-ineligible-approver']),
                   "dynamic-account:operation")
     if argv == ["create"]:
         create()
     elif argv == ['prepare-empty']:
         prepare_empty()
+    elif argv == ['prepare-ineligible-approver']:
+        prepare_ineligible_approver()
     else:
         # The controller carries the public selection over guarded private stdin,
         # never as account labels or command-line arguments.

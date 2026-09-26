@@ -195,6 +195,7 @@ APP_ROW_OPERATIONS = frozenset({
 })
 OPERATIONS |= APP_ROW_OPERATIONS
 TOGGLE_OPERATIONS = {
+    'multiple-other-enable': {'state': True, 'activated': True},
     'parent-toggle-enabled': {'state': True, 'activated': True},
     'parent-toggle-disabled': {'state': False, 'activated': True},
     'parent-toggle-current': {'state': False, 'activated': False},
@@ -203,6 +204,10 @@ TOGGLE_OPERATIONS = {
 }
 OPERATIONS |= frozenset(TOGGLE_OPERATIONS)
 PARENT_SAVE_OPERATIONS = {
+    'multiple-other-saved': {
+        'child': 'existing-fixture-child', 'result': 'saved', 'limit_enabled': True,
+        'child_selector_enabled': True, 'toggle_enabled': True, 'allowance_enabled': True,
+    },
     'parent-save-wrong-child-refused': {'refusal': 'wrong-child'},
     'parent-save-enabled': {
         'child': 'fixture-child', 'result': 'saved', 'limit_enabled': True,
@@ -275,9 +280,18 @@ GDM_SESSION_LABELS = {
 }
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form', 'kiosk-child-choices-closed',
                               'kiosk-no-child-form', 'kiosk-no-approver-form'})
-KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-child-choices-open', 'kiosk-approver-baseline'})
+KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-child-choices-open', 'kiosk-approver-baseline',
+    'multiple-child-open', 'multiple-approver-open'})
 OPERATIONS |= KIOSK_OPERATIONS | KIOSK_CHOICE_OPERATIONS
 KIOSK_ACCOUNT_REQUESTS = {
+    'multiple-child-closed': ('existing-fixture-child', 'other-fixture-parent'),
+    'multiple-approver-closed': ('existing-fixture-child', 'other-fixture-parent'),
+    'multiple-preserved': ('existing-fixture-child', 'fixture-parent'),
+    'multiple-first-child': ('fixture-child', 'other-fixture-parent'),
+    'multiple-first-parent': ('fixture-child', 'fixture-parent'),
+    'multiple-other-parent': ('fixture-child', 'other-fixture-parent'),
+    'multiple-other-child': ('existing-fixture-child', 'other-fixture-parent'),
+    'multiple-other-first-parent': ('existing-fixture-child', 'fixture-parent'),
     'kiosk-child-select': ('fixture-child', 'other-fixture-parent'),
     'kiosk-approver-select': ('fixture-child', 'fixture-parent'),
     'kiosk-enabled-form': ('fixture-child', 'fixture-parent'),
@@ -307,6 +321,13 @@ KIOSK_INVALID_OPERATIONS = {
 OPERATIONS |= frozenset(KIOSK_INVALID_OPERATIONS) | {'parent-kiosk-invalid-refused'}
 OPERATIONS |= KIOSK_VALID_OPERATIONS | {'parent-kiosk-valid-refused'}
 MATE_OPERATIONS = frozenset({'kiosk-mate-cancel', 'kiosk-mate-refusals-cancel'})
+MULTIPLE_MATE_BINDINGS = {
+    'multiple-first-first-cancel': (CHILD, PARENT),
+    'multiple-first-other-cancel': (CHILD, OTHER_PARENT),
+    'multiple-other-other-cancel': (EXISTING_CHILD, OTHER_PARENT),
+    'multiple-other-first-cancel': (EXISTING_CHILD, PARENT),
+}
+MATE_OPERATIONS |= frozenset(MULTIPLE_MATE_BINDINGS)
 MATE_APPROVAL_OPERATIONS = frozenset({'kiosk-mate-open', 'kiosk-mate-qualified',
                                      'kiosk-mate-rechecked', 'kiosk-mate-submit-success'})
 MATE_REJECTION_ORDER = ('kiosk-mate-rejection-open', 'kiosk-mate-rejection-qualified',
@@ -2103,6 +2124,9 @@ class AccessibleUI:
         """Installed Parent binding and bounded refusal checks for UI17."""
         require(operation in TOGGLE_OPERATIONS, 'ui:toggle-operation')
         root = self.parent()
+        if operation == 'multiple-other-enable':
+            self.parent_save_snapshot(EXISTING_CHILD, False)
+            return self.set_toggle('parent-screen-limit-toggle', True, root=root)
         if operation == 'parent-toggle-wrong-refused':
             try:
                 self.set_toggle('parent-legend-toggle', True, root=root)
@@ -2492,7 +2516,8 @@ class AccessibleUI:
                 return {'refusal': 'wrong-child'}
             raise UiError('ui:parent-save-wrong-accepted')
         return self.parent_save_snapshot(
-            CHILD, operation != 'parent-save-disabled')
+            EXISTING_CHILD if operation == 'multiple-other-saved' else CHILD,
+            operation != 'parent-save-disabled')
 
     def read_label(self, root, projection, *, maximum, expected=None):
         """UI03: bounded registered nonsecret projections; no arbitrary text."""
@@ -3919,9 +3944,11 @@ class AccessibleUI:
         finally:
             self.kiosk_diagnostic = None
 
-    def kiosk_valid_target(self, identity, *, awaiting_custom=False):
+    def kiosk_valid_target(self, identity, *, awaiting_custom=False, child=CHILD, approver=PARENT):
         """Resolve a valid-choice input on the enabled, explicitly selected kiosk child."""
         require(not self.input_uncertain, 'ui:uncertain-input')
+        require(child in (CHILD, EXISTING_CHILD) and approver in (PARENT, OTHER_PARENT),
+                'ui:kiosk-valid-binding')
         require(not awaiting_custom or identity == 'kiosk-custom-duration',
                 'ui:kiosk-valid-binding')
         observation = self.read_snapshot()
@@ -3930,7 +3957,7 @@ class AccessibleUI:
         require(window is not None, 'ui:kiosk-valid-entry')
         form = self.snapshot_owned_target('kiosk-request-form', root=window, observation=observation)
         require(form is not None, 'ui:kiosk-valid-entry')
-        for field, name in (('child', CHILD), ('approver', PARENT)):
+        for field, name in (('child', child), ('approver', approver)):
             uid = self.fixture_uids[name] if self.fixture_uids is not None else pwd.getpwnam(
                 (CHILD_ACCOUNTS if field == 'child' else APPROVER_ACCOUNTS)[name]).pw_uid
             require(self.snapshot_owned_target(f'kiosk-{field}-selected-{uid}', root=form,
@@ -4016,13 +4043,16 @@ class AccessibleUI:
         require(Path('/proc/' + value).stat().st_uid == os.getuid(), 'ui:mate-service-owner')
         return pid
 
-    def mate_prompt(self, pid, *, observation=None, challenge=None, filled=False):
+    def mate_prompt(self, pid, *, observation=None, challenge=None, filled=False,
+                    binding=None):
         """MATE-only semantic adapter; never reads password contents or types.
 
         English PAM recipient label and displayed policy message are public
         meaning checks inside the sole service-owned authentication dialog.
         Missing context refuses; the form/broker cannot supply it instead.
         """
+        require(binding is None or binding in MULTIPLE_MATE_BINDINGS, 'ui:mate-binding')
+        child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
         if observation is None:
             self.invalidate_observation()
             observation = self.read_snapshot(protect_text=True)
@@ -4056,9 +4086,10 @@ class AccessibleUI:
         self.validate_mate_field(proof)
         labels = [facts[node]['name'] for node in controls
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
-        require(labels.count('Password for ' + APPROVER_ACCOUNTS[PARENT] + ':') == 1,
+        require(labels.count('Password for ' + APPROVER_ACCOUNTS[approver] + ':') == 1,
                 'ui:mate-recipient-context-missing')
-        message = f'Grant {CHILD} 1 minute, 15 seconds and allow soft blocked apps?'
+        message = (f'Grant {child} 30 minutes?' if binding else
+                   f'Grant {CHILD} 1 minute, 15 seconds and allow soft blocked apps?')
         require(labels.count(message) == 1, 'ui:mate-request-context-missing')
         buttons = [node for node in controls if facts[node]['role'] in ('push button', 'button')
                    and facts[node]['showing'] and facts[node]['name'] == 'Cancel']
@@ -4275,22 +4306,41 @@ class AccessibleUI:
                 raise UiError('ui:mate-refusal-accepted')
         return list(MATE_REFUSALS)
 
-    def kiosk_mate_cancel(self, *, refusals=False):
+    def kiosk_mate_cancel(self, *, refusals=False, binding=None):
         """One owned Request, guarded Cancel, complete absence and form readback."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        before = self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')['request']
+        require(binding is None or binding in MULTIPLE_MATE_BINDINGS and not refusals,
+                'ui:mate-binding')
+        child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
+
+        def form():
+            if binding is None:
+                return self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')['request']
+            value = self.kiosk_request_form(enabled=True,
+                expected_selection=('child', CHILD_IDENTITIES[child]))
+            require(value['approver'] == APPROVER_IDENTITIES[approver]
+                    and value['allow_soft'] is False, 'ui:mate-form-binding')
+            status = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
+            require(status is not None and ' '.join(status.get_name().split()).startswith(
+                'Estimated time remaining if approved: '), 'ui:mate-form-estimate')
+            return value
+
+        def prompt(**kwargs):
+            return self.mate_prompt(pid, **kwargs, **({'binding': binding} if binding else {}))
+
+        before = form()
         pid = self.mate_agent_pid()
-        require(self.mate_prompt(pid) is None, 'ui:mate-already-open')
+        require(prompt() is None, 'ui:mate-already-open')
         challenge_id = os.urandom(32).hex()
         try:
-            self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
+            self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', child=child, approver=approver))
             self.invalidate_observation()
-            challenge = self.wait(lambda: self.mate_prompt(pid), 'mate-prompt',
+            challenge = self.wait(lambda: prompt(), 'mate-prompt',
                                   prompt_in_predicate=True)
             provider = self.mate_provider_metadata(pid)
             rejected = self.mate_prompt_refusals(pid, challenge) if refusals else []
             require(self.mate_agent_pid() == pid, 'ui:mate-owner')
-            current = self.mate_prompt(pid, challenge=challenge)
+            current = prompt(challenge=challenge)
             self._invoke_target(current[3])
             self.invalidate_observation()
             def absent():
@@ -4300,13 +4350,15 @@ class AccessibleUI:
                 kind = self.system_prompt_kind(observation=(nodes, snapshot, facts))
                 if kind is None:
                     return True
-                self.mate_prompt(pid, observation=observation, challenge=challenge)
+                prompt(observation=observation, challenge=challenge)
                 return False
             self.wait(absent, 'mate-dismissed', prompt_in_predicate=True)
-            after = self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')['request']
+            after = form()
             require(after == before, 'ui:mate-form-changed')
-            return {'provider': provider, 'child': 'fixture-child', 'approver': 'fixture-parent',
-                    'duration_seconds': 75, 'allow_soft': True, 'cancelled': True,
+            return {'provider': provider, 'child': CHILD_IDENTITIES[child],
+                    'approver': APPROVER_IDENTITIES[approver],
+                    'duration_seconds': 1800 if binding else 75,
+                    'allow_soft': binding is None, 'cancelled': True,
                     'unchanged_form': True, 'no_error': True, 'refusals': refusals,
                     'rejected_proofs': rejected, 'challenge_id': challenge_id,
                     'same_challenge_rechecked': True}
@@ -4469,26 +4521,27 @@ class AccessibleUI:
         self.input_uncertain = False
         return result
 
-    def collapse_kiosk_child_choices(self):
+    def collapse_kiosk_child_choices(self, field='child', *, enabled=False):
         """Collapse the inline list once and independently read the whole form."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         # GatewayDropDown is an inline list, not a popup. Its public trigger
         # collapses it; Escape is the whole form's Cancel action.
-        selector, form, observation = self.kiosk_account_snapshot('child')
+        require(field in ('child', 'approver'), 'ui:kiosk-account-field')
+        selector, form, observation = self.kiosk_account_snapshot(field)
         require(self.snapshot_owned_target(
-            'kiosk-child-choices', root=form, observation=observation) is not None,
+            f'kiosk-{field}-choices', root=form, observation=observation) is not None,
             'ui:kiosk-choices-not-open')
         self._invoke_target(selector)
         self.input_uncertain = True
         self.invalidate_observation()
 
         def closed():
-            _selector, form, observation = self.kiosk_account_snapshot('child')
+            _selector, form, observation = self.kiosk_account_snapshot(field)
             return self.snapshot_owned_target(
-                'kiosk-child-choices', root=form, observation=observation) is None
+                f'kiosk-{field}-choices', root=form, observation=observation) is None
 
         self.wait(closed, 'kiosk-choices-closed', prompt_in_predicate=True)
-        result = self.kiosk_request_form()
+        result = self.kiosk_request_form(enabled=enabled)
         self.input_uncertain = False
         return result
 
@@ -5425,8 +5478,27 @@ class AccessibleUI:
             else:
                 result['request'] = self.kiosk_request_form(
                     enabled=False, expected_selection=('child', CHILD_IDENTITIES[CHILD]))
+        elif operation in ('multiple-child-open', 'multiple-approver-open'):
+            field = operation.split('-')[1]
+            self.select_kiosk_account(field, EXISTING_CHILD if field == 'child' else OTHER_PARENT,
+                expected=(CHILD, EXISTING_CHILD) if field == 'child' else (PARENT, OTHER_PARENT),
+                inspect_only=True)
         elif operation in KIOSK_ACCOUNT_REQUESTS:
-            if operation == 'kiosk-child-select':
+            if operation in ('multiple-child-closed', 'multiple-approver-closed'):
+                result['request'] = self.collapse_kiosk_child_choices(
+                    operation.split('-')[1], enabled=True)
+            elif operation == 'multiple-preserved':
+                result['request'] = self.kiosk_request_form(enabled=True,
+                    expected_selection=('approver', 'fixture-parent'))
+            elif operation.startswith('multiple-'):
+                child, approver = KIOSK_ACCOUNT_REQUESTS[operation]
+                field = 'child' if operation.endswith('-child') else 'approver'
+                identities = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
+                name = next(name for name, canonical in identities.items()
+                            if canonical == (child if field == 'child' else approver))
+                result['request'] = self.select_kiosk_account(field, name,
+                    expected=(CHILD, EXISTING_CHILD) if field == 'child' else (PARENT, OTHER_PARENT))
+            elif operation == 'kiosk-child-select':
                 result['request'] = self.select_kiosk_account(
                     'child', CHILD, expected=(CHILD, EXISTING_CHILD))
             elif operation == 'kiosk-approver-select':
@@ -5470,7 +5542,8 @@ class AccessibleUI:
         elif operation in MATE_APPROVAL_OPERATIONS:
             result['approval'] = self.kiosk_mate_approval(operation)
         elif operation in MATE_OPERATIONS:
-            result['mate'] = self.kiosk_mate_cancel(refusals=operation == 'kiosk-mate-refusals-cancel')
+            result['mate'] = self.kiosk_mate_cancel(refusals=operation == 'kiosk-mate-refusals-cancel',
+                binding=operation if operation in MULTIPLE_MATE_BINDINGS else None)
         elif operation in ('parent-kiosk-valid-refused', 'parent-kiosk-invalid-refused'):
             try:
                 self.kiosk_valid_target('kiosk-request-submit' if operation ==

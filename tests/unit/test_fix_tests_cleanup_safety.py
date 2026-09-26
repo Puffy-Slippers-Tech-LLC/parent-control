@@ -125,7 +125,7 @@ def test_cancellation_waits_for_runner_cleanup_then_fresh_start(checkout, monkey
     assert (run / 'output').exists()
 
 
-@pytest.mark.parametrize('mode,expected', [('agent-pass', 0), ('agent-blocked', 1), ('agent-invalid', 1)])
+@pytest.mark.parametrize('mode,expected', [('agent-pass', 0), ('agent-invalid', 1)])
 def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode, expected):
     root, _ = checkout
     (root / 'mode').write_text(mode)
@@ -157,6 +157,66 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
     assert all(line not in rendered for line in source.splitlines())
     assert (run / 'agent-commands.log').read_text() == (
         f'\nCommand source: cat example.py\n{source}\nExit: 0\n')
+
+
+@pytest.mark.parametrize('mode', ['agent-blocked', 'agent-app-blocked', 'agent-blocked-twice'])
+@pytest.mark.parametrize('custom', [False, True])
+def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkout, monkeypatch,
+                                                                     mode, custom):
+    from launcher_render import LauncherDisplay
+    root, spawned = checkout
+    (root / 'mode').write_text(mode)
+    run, _ = fix_tests.select(root, categories=('unit',))
+    wait_for(run / 'question.json')
+    before = (root / 'calls').read_text()
+    # No terminal, timeout or preselected recommendation may authorize work.
+    time.sleep(.2)
+    assert (root / 'calls').read_text() == before
+    assert spawned[0].poll() is None
+    assert not (run / 'result.json').exists()
+    assert json.loads((run / 'question.json').read_text())['answer'] is None
+    assert fix_tests.select(root) == (run, False)
+    answered = []
+
+    def type_answer(display):
+        if display.question is not None and not display.question.sent:
+            answered.append(display.question.question['id'])
+            assert display.question.selected == 0
+            display.question.feed(b'3Preserve the requirement; repair the product.\r'
+                                  if custom else b'\r')
+
+    monkeypatch.setattr(LauncherDisplay, 'poll_input', type_answer)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    assert len(set(answered)) == (2 if mode == 'agent-blocked-twice' else 1)
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert [call['kind'] for call in calls] == ['test'] + ['agent'] * len(agents) + ['test', 'test']
+    assert len(agents) == (2 if mode == 'agent-blocked' else 3)
+    assert len({agent['pid'] for agent in agents}) == len(agents)
+    answer = 'Preserve the requirement; repair the product.' if custom else 'Restore the specified behavior.'
+    assert answer in agents[-1]['prompt']
+    assert 'fixture result' in agents[-1]['prompt']
+    assert all(agent['prompt'].startswith('LATEST FAILURE ONLY\n') for agent in agents)
+    assert all(agent['args'][agent['args'].index('--model') + 1] == 'gpt-6-astra' for agent in agents)
+    assert all('model_reasoning_effort="low"' in agent['args'] for agent in agents)
+    assert len(json.loads((run / 'developer-answers.json').read_text())) == len(answered)
+    rendered = Text.from_ansi(output.getvalue()).plain
+    assert 'No timeout. Reattach with tools/fix-tests' in rendered
+    assert 'Answer received. Continuing this repair.' in rendered
+
+
+def test_stop_while_awaiting_developer_never_runs_repair_or_tests(checkout):
+    root, spawned = checkout
+    (root / 'mode').write_text('agent-blocked')
+    run, _ = fix_tests.select(root, categories=('unit',))
+    wait_for(run / 'question.json')
+    before = (root / 'calls').read_text()
+    assert fix_tests.select(root, stop=True) == (run, False)
+    assert fix_tests.follow(run, io.StringIO()) == 130
+    spawned[0].wait(timeout=5)
+    assert (root / 'calls').read_text() == before
+    assert json.loads((run / 'question.json').read_text())['answer'] is None
 
 
 @pytest.mark.parametrize('kill_owner', [False, True])
@@ -289,7 +349,7 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
     assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        'gpt-6-sol', 'gpt-6-sol']
+        'gpt-6-astra', 'gpt-6-astra']
     for index, agent in enumerate(agents, 1):
         assert agent['prompt'].startswith(f'LATEST FAILURE ONLY {index}\n')
         assert agent['prompt'].count('LATEST FAILURE ONLY') == 1
@@ -301,7 +361,7 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
 
 @pytest.mark.parametrize('mode, classification', [
     ('agent-app', 'app_issue'), ('agent-uncertain', 'uncertain')])
-def test_app_or_uncertain_classification_starts_fresh_strong_agent(checkout, mode,
+def test_app_or_uncertain_classification_starts_fresh_astra_low_agent(checkout, mode,
                                                                    classification):
     root, _ = checkout
     (root / 'mode').write_text(mode)
@@ -311,8 +371,8 @@ def test_app_or_uncertain_classification_starts_fresh_strong_agent(checkout, mod
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
     assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        'gpt-6-sol', 'gpt-6-astra']
-    assert all('model_reasoning_effort="high"' in agent['args'] for agent in agents)
+        'gpt-6-astra', 'gpt-6-astra']
+    assert all('model_reasoning_effort="low"' in agent['args'] for agent in agents)
     assert agents[1]['prompt'].startswith('LATEST FAILURE ONLY\n')
     assert f'{classification}: fixture result' in agents[1]['prompt']
     assert 'PREVIOUS AGENT TRANSCRIPT' not in agents[1]['prompt']

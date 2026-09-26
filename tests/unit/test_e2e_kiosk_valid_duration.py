@@ -26,7 +26,7 @@ from kiosk_approval import PLAN as APPROVAL_PLAN
 from auth_result import PLAN as AUTH_RESULT_PLAN
 from kiosk_approved_flow import PLAN as APPROVED_FLOW_PLAN, approved_request, obtain_time
 from kiosk_rejection import PLAN as REJECTION_PLAN, KioskRejectionJourney
-from restricted_station import PLAN as STATION_PLAN
+from restricted_station import PLAN as STATION_PLAN, DENIED_PLAN
 import approval_flow
 
 
@@ -113,6 +113,45 @@ def test_station_shortcut_ready_focuses_owned_cancel_without_activating_it():
     cancel.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('phase', ['ready', 'read'])
+@pytest.mark.parametrize('fault', [None, 'duration', 'custom', 'soft', 'surface', 'control'])
+def test_station_restrictions_after_rejection_validate_prepared_form(phase, fault):
+    ui, _, custom = valid_form()
+    ui.timeout = 3
+    ui.kiosk_valid_choice('kiosk-valid-custom-open')
+    ui.kiosk_valid_choice('kiosk-valid-fraction-soft-select')
+    window = ui.find_id('kiosk-request-window')
+    cancel = ui.find_id('kiosk-request-cancel')
+    window.action.get_action_name = lambda _: 'focus.kiosk-request-cancel'
+    window.action.do_action.side_effect = lambda _: cancel.states.add('focused') or True
+    if fault == 'duration':
+        ui.find_id('kiosk-duration-custom').states.discard('pressed')
+        ui.find_id('kiosk-duration-1800').states.add('pressed')
+    elif fault == 'custom':
+        custom.value = '1.5'
+    elif fault == 'soft':
+        ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
+    elif fault == 'surface':
+        desktop = Node(children=[ui.root(), Node(children=[Node()])])
+        ui.api.get_desktop = lambda _: desktop
+    elif fault == 'control':
+        ui.find_id('kiosk-request-form').children.append(
+            Node('Settings', 'push button', identity='kiosk-settings-launch'))
+    operation = DENIED_PLAN.screen_tags[f'after-restriction-overview-{phase}'].removeprefix('ui:')
+    if fault:
+        with pytest.raises(UiError):
+            ui.run(operation, '')
+        window.action.do_action.assert_not_called()
+    else:
+        result = ui.run(operation, '')
+        observer = UiObservations(Mock())
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        assert observer.observe(operation) == result
+        assert ('focused' in cancel.states) == (phase == 'ready')
+    cancel.action.do_action.assert_not_called()
+    ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'named-toggle', 'extra-toggle', 'outside-menu',
                                   'nested-control', 'wrong-menu-id'])
 def test_station_menu_toolkit_toggle_is_not_a_separate_product_action(fault):
@@ -161,6 +200,42 @@ def test_restricted_station_worker_order_and_refusal(monkeypatch, refusal):
         assert sum(event[0] == 'secret' for event in result['events']) == 2
     elif refusal.startswith('restriction-'):
         assert not any(event[0] == 'text' for event in result['events'])
+
+
+@pytest.mark.parametrize('refusal', [None, *DENIED_PLAN.screen_tags])
+def test_denied_station_worker_rechecks_restrictions_then_exits(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_restricted_station').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    worker = worker.replace('    });', "    }, 'denied');")
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(DENIED_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    assert not any(stage.startswith('approval-') for stage in stages)
+    if refusal is None:
+        keys = [event[1] for event in result['events'] if event[0] == 'key']
+        assert [key for key in keys if key in ('super', 'super-a', 'ctrl-alt-t')] == [
+            'super', 'super-a', 'ctrl-alt-t'] * 2
+        assert sum(event[0] == 'secret' for event in result['events']) == 2
+        assert stages.index('flow-preserved') < stages.index('after-restriction-overview-ready')
+        assert stages[-2:] == ['new-cancel', 'new-returned']
+
+
+def test_denied_station_uses_shared_preserved_form_comparison(tmp_path, monkeypatch):
+    journey = approval_flow.ApprovalFlowJourney(
+        SimpleNamespace(directory=tmp_path), Mock(), DENIED_PLAN, actions={})
+    assert journey.plan is DENIED_PLAN
+    monkeypatch.setattr(RequestFlowJourney, 'check_settings', lambda *args: None)
+    observed = {'ui': {'valid_choice': {'request': dict(CHOICES)}}, 'comparison': {}}
+    journey.check_settings('flow-before', observed)
+    journey.check_settings('flow-preserved', observed)
+    assert observed['comparison']['preserved_choices'] is True
+    observed['ui']['valid_choice']['request']['duration_seconds'] = 60
+    with pytest.raises(EvidenceError, match='changed-form'):
+        journey.check_settings('flow-preserved', observed)
 
 
 def test_public_choices_roundtrip_through_real_controller_decoder():

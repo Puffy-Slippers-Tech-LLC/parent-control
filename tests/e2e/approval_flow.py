@@ -37,8 +37,8 @@ CANCEL_PLAN = plan('cancel')
 
 
 class ApprovalFlowJourney(RequestFlowJourney):
-    def __init__(self, context, progress, outcome):
-        super().__init__(context, progress, plan=plan(outcome))
+    def __init__(self, context, progress, plan=REJECTION_PLAN, *, actions=None):
+        super().__init__(context, progress, plan=plan, actions=actions)
         self.before_rejection = None
 
     def check_settings(self, stage, observed):

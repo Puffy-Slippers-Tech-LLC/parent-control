@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">13703</span>/<span style="color: gray">0</span>/13703 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">13830</span>/<span style="color: gray">0</span>/13830 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">152</span>/<span style="color: gray">0</span>/152 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">65</span>/<span style="color: gray">0</span>/65 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">16</span>/<span style="color: gray">226</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">14335</span>/<span style="color: gray">226</span>/14561** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">66</span>/<span style="color: gray">0</span>/66 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">17</span>/<span style="color: gray">225</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">14464</span>/<span style="color: gray">225</span>/14689** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">15</span>/<span style="color: gray">226</span>/241 |
+| customer-journey | <span style="color: green">16</span>/<span style="color: gray">225</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -43,6 +43,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [47](#scenario-47) | Request surface exit behavior (exit: cancel; surface: kiosk) | `E2E-015/kiosk-cancel` | ready |
 | [48](#scenario-48) | Request surface exit behavior (exit: escape; surface: kiosk) | `E2E-015/kiosk-escape` | ready |
 | [50](#scenario-50) | Restricted request station (request: approved) | `E2E-016/approved` | ready |
+| [51](#scenario-51) | Restricted request station (request: denied) | `E2E-016/denied` | ready |
 | [54](#scenario-54) | Kiosk selection and unavailable requests (accounts: no child) | `E2E-017/no-child` | ready |
 | [55](#scenario-55) | Kiosk selection and unavailable requests (accounts: no parent) | `E2E-017/no-parent` | ready |
 | [57](#scenario-57) | Kiosk selection and unavailable requests (accounts: disabled child) | `E2E-017/disabled-child` | ready |
@@ -91,7 +92,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[45](#scenario-45)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-escape`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[46](#scenario-46)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-approved`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[49](#scenario-49)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-approved`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[51](#scenario-51)</span> | <span style="color: gray">Restricted request station (request: denied)</span> | <span style="color: gray">`E2E-016/denied`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[52](#scenario-52)</span> | <span style="color: gray">Restricted request station (request: cancelled)</span> | <span style="color: gray">`E2E-016/cancelled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[53](#scenario-53)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: multiple)</span> | <span style="color: gray">`E2E-017/multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[56](#scenario-56)</span> | <span style="color: gray">Kiosk selection and unavailable requests (accounts: ineligible parent)</span> | <span style="color: gray">`E2E-017/ineligible-parent`</span> | <span style="color: gray">pending</span> |
@@ -392,6 +392,20 @@ Variant: exit: escape; surface: kiosk
 Case: `E2E-016/approved` · Category: customer-journey · Status: **ready**
 
 Variant: request: approved
+
+**Steps:**
+
+- Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears.
+- Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
+- Exit normally or observe automatic exit after approval and verify usable sign-in.
+
+### Scenario 51
+
+**Restricted request station (request: denied)**
+
+Case: `E2E-016/denied` · Category: customer-journey · Status: **ready**
+
+Variant: request: denied
 
 **Steps:**
 
@@ -1313,26 +1327,6 @@ Variant: exit: approved; surface: kiosk
 
 - Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
 - Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 51
-
-**Restricted request station (request: denied)**
-
-Case: `E2E-016/denied` · Category: customer-journey · Status: **pending**
-
-Variant: request: denied
-
-**Steps:**
-
-- Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears.
-- Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
-- Exit normally or observe automatic exit after approval and verify usable sign-in.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

@@ -671,6 +671,23 @@ independently compare the no-error open form with its saved before-observation.
 They end at `flow-preserved`, without retry or exit. Their caller can inspect
 the remaining form before separately composing FLOW05.
 
+Case 51 composes that open-form boundary in `restricted_station.DENIED_PLAN`
+with `ApprovalFlowJourney` and `onpc_restricted_station::run(exchange, 'denied')`.
+The caller repeats `onpc_station::restrictions(journey, 'after-')`, then activates
+Cancel and independently observes usable GDM. Restriction observations declare
+their form state: `kiosk-restriction-ready/read` retains the default disabled
+form contract; `kiosk-restriction-prepared-ready/read` passes `prepared=True` to
+`AccessibleUI.kiosk_restrictions` and independently validates the fixed FLOW04
+child, approver, 75-second custom value, included soft apps and estimate.
+Neither route infers expectations from the current selection. Both retain the
+complete public-tree exclusions, fresh owned recipient and two-second absence
+observation. Case 51 passed in `20260926T183413Z-1058d7dc`, and the affected
+case 50 regression passed in `20260926T183900Z-53757cd3`, with collection, owned
+cleanup and baseline restoration. Case 52 remains unimplemented.
+The host regression exercises both prepared operations through the real decoder,
+including changed choices and forbidden surfaces/controls. It uses private
+trees only; the existing compatible unit scheduling classification still applies.
+
 The qualification explicitly composes a later FLOW05: a fresh read and a
 distinct challenge precede two new recipient proofs, one correct submission,
 explicit success and automatic usable-GDM return. `UiObservations` permits

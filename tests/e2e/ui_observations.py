@@ -160,6 +160,8 @@ OPERATION_LABELS.update({
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
     'kiosk-restriction-ready': 'Checking and focusing the request station before an ordinary shortcut',
     'kiosk-restriction-read': 'Verifying the station remains request-only after an ordinary shortcut',
+    'kiosk-restriction-prepared-ready': 'Checking and focusing the prepared request before an ordinary shortcut',
+    'kiosk-restriction-prepared-read': 'Verifying station restrictions and preserved request choices after an ordinary shortcut',
     'kiosk-disabled-child-select': 'Selecting the disabled child in the request station',
     'kiosk-child-choices-open': 'Inspecting the exact eligible child choices',
     'kiosk-child-choices-closed': 'Collapsing child choices and checking the unchanged unavailable form',

@@ -213,6 +213,12 @@ sub run {
             $ready->{keyring_standard_desktop} ? 1 : 0);
         return;
     }
+    if ($ready->{restricted_station_denied}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_restricted_station::run(\&exchange, 'denied');
+        return;
+    }
     if ($ready->{restricted_station}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

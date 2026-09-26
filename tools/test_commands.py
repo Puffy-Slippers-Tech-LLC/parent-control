@@ -311,6 +311,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_feedback_read'], ['check_e2e_feedback_read.py'],
             ['check_e2e_feedback_privacy'], ['check_e2e_feedback_privacy.py'],
             ['check_e2e_feedback_states'], ['check_e2e_feedback_states.py'],
+            ['check_e2e_format'], ['check_e2e_format.py'],
             ['check_e2e_text'], ['check_e2e_text.py'],
             ['check_e2e_kiosk_eligible_choices'], ['check_e2e_kiosk_eligible_choices.py'],
             ['check_e2e_kiosk_valid_duration'], ['check_e2e_kiosk_valid_duration.py'],

@@ -50,6 +50,7 @@ use onpc_app_rows ();
 use onpc_feedback_read ();
 use onpc_feedback_privacy ();
 use onpc_feedback_states ();
+use onpc_format ();
 use onpc_text ();
 use onpc_parent_discovery ();
 use onpc_journey ();
@@ -451,6 +452,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_text::run(\&exchange);
+        return;
+    }
+    if ($ready->{format_qualification}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_format::run(\&exchange);
         return;
     }
     if ($ready->{feedback_states}) {

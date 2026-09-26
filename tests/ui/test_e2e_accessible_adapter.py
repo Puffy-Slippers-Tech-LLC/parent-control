@@ -218,6 +218,50 @@ def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
         raise
 
 
+def test_format_adapter_reads_real_public_ranges(launch_ui):
+    # Same private preview/display and owned-process fixture as the reviewed
+    # adapter tests; no new shared resource or scheduler exclusion.
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+    from tests.support.keyboard import key_combo, type_text
+
+    launch_ui('parent_component_preview', wait_for_application=False)
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.PARENT_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    identity = 'feedback-editor-input'
+    ui.run('feedback-open', '')
+    ui.run('text-body-first-focus', '')
+    key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
+    ui.run('text-body-first-selected', '')
+    type_text(ui, identity, module.TEXT_VALUES['body-first'][1])
+    ui.run('text-body-first-read', '')
+    ui.run('format-before', '')
+    ui.run('format-focus', '')
+    key_combo(ui, identity, '<Control>Home', state=Atspi.StateType.FOCUSED)
+    ui.run('format-home', '')
+    for _ in range(9):
+        key_combo(ui, identity, '<Shift>Right', state=Atspi.StateType.FOCUSED)
+    ui.run('format-selected', '')
+    try:
+        result = ui.run('format-read', '')['formatting']
+    except module.UiError:
+        # Only declared synthetic offsets and semantic weights; no draft dump.
+        node = ui.text_recipient(identity)
+        text = node.get_text_iface()
+        for offset in (0, 8, 9, 10, 22):
+            attributes, start, end = ui.api.Text.get_attribute_run(text, offset, True)
+            print('Synthetic public weight run:', offset, start, end,
+                  attributes.get('weight'), ui.api.Text.get_character_count(text))
+        raise
+    ui.run('format-close', '')
+    ui.run('format-wrong-entry', '')
+    assert ui.run('format-reopen', '')['formatting'] == result
+
+
 def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module

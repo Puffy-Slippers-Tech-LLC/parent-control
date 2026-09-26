@@ -19,11 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **033 — [Apply and observe rich-text formatting](E2E-Tasks/033-format.md)**.
+Next task: **044a — [Return to an already-open window on one desktop](E2E-Tasks/044a-window-switch.md)**.
 
-Implement UI24 public formatting-attribute reads for an explicit synthetic range,
-then FEED04 keyboard selection and toolbar/menu input. Independently distinguish
-the formatted range from an adjacent unformatted range on the installed app.
+Implement DESK10 same-desktop activation of explicitly identified existing
+Parent, feedback and supporting-viewer windows. Independently observe active
+state and the preserved synthetic draft without relaunching or restoring fields.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -19,14 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **038a — [Read attachment details and remove one item](E2E-Tasks/038a-attachment-items.md)**.
+Next task: **038b — [Qualify offered attachment preview and return](E2E-Tasks/038b-attachment-preview.md)**.
 
-Task 037 qualified the simplified external-tool attachment handoff in
-`20260927T161010Z-7e6515c9`: prepared files, public EditableText/Selection APIs,
-real Add files/Open, exact app attachment readback and independent reopen/Cancel
-preserving attachments. Collection, owned cleanup and baseline restoration
-passed. Reuse the [qualified scope](E2E-Building-Blocks.md#attachment-chooser-handoff);
-native GTK, Save and other fixture profiles remain pending.
+Task 038a qualified exact Parent attachment names, displayed sizes and order,
+one identified removal and the independently observed remaining list through
+`check_e2e_attachment_items` in `20260927T175107Z-aac1d11d`. The shared chooser
+regression passed in `20260927T175421Z-d6087694`. Collection, owned cleanup and
+baseline restoration passed. Reuse the [attachment item scope](E2E-Building-Blocks.md#attachment-item-metadata-and-removal)
+and [chooser handoff](E2E-Building-Blocks.md#attachment-chooser-handoff).
+Offered preview, rejection boundaries and other fixture profiles remain pending.
 No valid feedback submission is authorized.
 
 This pointer must name the first unchecked active queue row. After completion,

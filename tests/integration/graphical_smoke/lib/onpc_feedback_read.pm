@@ -63,9 +63,10 @@ sub run {
 
 sub run_file_chooser {
     onpc_progress::operation('Selecting synthetic feedback files and cancelling independent chooser entry');
-    my ($exchange) = @_;
-    die 'chooser:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'file-chooser', review => 0);
+    my ($exchange, $items) = @_;
+    die 'chooser:arguments' unless (@_ == 1 || (@_ == 2 && $items == 1)) && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $items ? 'attachment-items' : 'file-chooser', review => 0);
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
@@ -74,10 +75,18 @@ sub run_file_chooser {
                    'chooser-accept', 'chooser-attachments', 'chooser-reopen',
                    'chooser-cancel', 'chooser-preserved') {
         $journey->consume_observation($stage, $journey->seen($stage));
+        if ($items && $stage eq 'feedback-open') {
+            $journey->consume_observation('attachment-wrong-entry', $journey->seen('attachment-wrong-entry'));
+        }
         if ($stage eq 'chooser-open') {
             testapi::send_key('ctrl-l');
         } elsif ($stage eq 'chooser-location') {
             testapi::send_key('ret');
+        }
+    }
+    if ($items) {
+        for my $stage ('attachment-details', 'attachment-remove', 'attachment-remaining') {
+            $journey->consume_observation($stage, $journey->seen($stage));
         }
     }
     $journey->finish();

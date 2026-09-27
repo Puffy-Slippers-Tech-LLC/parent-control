@@ -29,6 +29,6 @@ def cleanup_files(journey, guard):
     return journey.chooser_files.call('cleanup')
 
 
-def journey(context, progress):
-    return InstalledJourney(context, progress, PLAN,
+def journey(context, progress, plan=PLAN):
+    return InstalledJourney(context, progress, plan,
                             actions={'chooser-fixtures': stage_files, 'chooser-cleanup': cleanup_files})

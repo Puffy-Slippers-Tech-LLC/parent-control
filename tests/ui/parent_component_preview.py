@@ -182,6 +182,23 @@ if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-attachments":
     parent_main.FeedbackDialog = AttachedFeedbackDialog
 
 
+if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "attachment-items":
+    class AttachmentItemsDialog(feedback.FeedbackDialog):
+        def _collection_done(self, data):
+            result = super()._collection_done(data)
+            # Match the live entry: add only after collection has cleared its
+            # status, using real rows and their normal removal callbacks.
+            if data is not None and not getattr(self, "_items_prepared", False):
+                self._items_prepared = True
+                self._attachments_loaded([
+                    feedback_transport.Attachment.create("Second note.txt", b"ONPC second synthetic attachment\n"),
+                    feedback_transport.Attachment.create("Synthetic note.txt", b"ONPC synthetic attachment\n"),
+                ], None)
+            return result
+
+    parent_main.FeedbackDialog = AttachmentItemsDialog
+
+
 startup_error = None
 if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "startup-denied":
     from gi.repository import Gio

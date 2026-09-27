@@ -20,6 +20,13 @@ and the affected safety/adapter tests. Follow the
 [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
 Use delivered prerequisite scopes; do not open predecessor briefs.
 
+Use the [qualified item scope](../E2E-Building-Blocks.md#attachment-item-metadata-and-removal):
+`AccessibleUI.attachment_operation`, the `details` / `remaining` profiles in
+`feedback_snapshot`, `UiObservations`, and `attachment_items.PLAN` composition.
+Retain the adapter/worker checks in `tests/unit/test_e2e_feedback_read.py`,
+fixture safety in `tests/unit/test_e2e_files_cleanup_safety.py`, and the real-row
+host regression in `tests/ui/test_parent_feedback.py`.
+
 ## Implementation
 
 Reuse 038a's item identities to open only an offered preview, observe its content and close normally. Record an unoffered preview as explicitly inapplicable under the existing contract.

@@ -57,6 +57,15 @@ GROUPS = (
 # Keep pairing identities separate even when buckets have the same reservation.
 # Feedback replacement uses the adapter bucket's private preview, compositor and
 # accessibility bus; keyboard input and app cleanup stay inside that fixture.
+# Synthetic duplication uses that same editor's clipboard on the private
+# display; it adds no helper process or host clipboard access.
+# Combined-format/rejection checks retain this same private preview and bounded
+# 1,200-line document, including close/reopen and decoration removal. No new
+# processes, sockets, caches or shared state; the existing adapter budget applies.
+# UTF-16 boundary checks retain this private preview/display and bounded 5,001-unit
+# drafts; Unicode input adds no process, bus, clipboard service or shared cache.
+# Their clipboard doubles reuse that private editor and display, with no host
+# clipboard or added resource demand; the existing adapter classification applies.
 # Preview allowance focus and rejected-draft reload checks reuse that bucket's
 # private Parent process, keyboard/display and optional tmp_path event log;
 # child reselection adds no shared resources or extra process.

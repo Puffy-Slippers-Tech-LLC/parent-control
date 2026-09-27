@@ -698,6 +698,26 @@ class WindowSwitchQualification(KioskEntryQualification):
         return WindowSwitchJourney(context, progress)
 
 
+class FeedbackLengthQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from feedback_length import FeedbackLengthJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FeedbackLengthJourney(context, progress)
+
+
+class FeedbackRejectionQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from feedback_rejection import FeedbackRejectionJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FeedbackRejectionJourney(context, progress)
+
+
 class FormatQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

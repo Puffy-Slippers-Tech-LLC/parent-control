@@ -27,6 +27,435 @@ from ui_observations import FeedbackStateObservation
 # FEED09 additions use those same resources and require no scheduler change.
 # UI24/FEED04 additions retain the same in-memory and private Perl resources.
 # DESK10 uses the same isolated doubles and waited private Perl processes.
+# Rejection checks retain these resources; no network, shared paths or new buses.
+# UTF-16 checks retain the same in-memory doubles and waited private Perl children.
+
+
+def rejection_ui(case):
+    ui, parent, dialog, controls = feedback_ui()
+    projection, _ = accessible_ui.REJECTION_CASES[case]
+    for binding in accessible_ui.FEEDBACK_PROJECTIONS[projection]:
+        identity, value = accessible_ui.TEXT_VALUES[binding]
+        controls[identity].text.count = len(value)
+        controls[identity].text.value = value
+    ui.api.Text.get_text = Mock(side_effect=lambda text, start, end: text.value[start:end])
+    ui.api.Text.get_character_at_offset = Mock(side_effect=lambda text, offset: ord(text.value[offset]))
+    ui.api.Text.get_attribute_run = Mock(side_effect=lambda text, offset, defaults: (
+        ({'weight': '400', 'style': 'normal', 'underline': 'none', 'strikethrough': 'false'}
+         if projection.startswith('length-') else
+         {'weight': '700', 'style': 'italic', 'underline': 'single', 'strikethrough': 'true'}),
+        offset, offset + 1))
+    ui.activate_id = Mock()
+    return ui, parent, dialog, controls
+
+
+@pytest.mark.parametrize('case', accessible_ui.REJECTION_CASES)
+@pytest.mark.parametrize('fault', ['', 'body', 'reply', 'duplicate', 'owner', 'stale',
+                                  'disabled', 'uncertain', 'wrong-entry'])
+def test_invalid_only_send_requires_exact_fresh_owned_invalid_fixture(case, fault):
+    ui, parent, dialog, controls = rejection_ui(case)
+    if fault == 'body':
+        controls['feedback-editor-input'].text.count += 10
+    elif fault == 'reply':
+        controls['feedback-reply-email'].text.count += 1
+    elif fault == 'duplicate':
+        dialog.children.append(Node(identity='feedback-send'))
+    elif fault == 'owner':
+        ui.api.get_desktop(0).identity = 'other.app'
+    elif fault == 'stale':
+        controls['feedback-editor-input'].states.add('defunct')
+    elif fault == 'disabled':
+        controls['feedback-send'].states.discard('sensitive')
+    elif fault == 'uncertain':
+        ui.input_uncertain = True
+    elif fault == 'wrong-entry':
+        parent.children.clear()
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.reject_invalid_feedback(case)
+        ui.activate_id.assert_not_called()
+    else:
+        ui.reject_invalid_feedback(case)
+        ui.activate_id.assert_called_once_with('feedback-send')
+
+
+def test_rejection_refuses_valid_input_and_missing_format_at_last_line():
+    ui, _, _, controls = rejection_ui('complex')
+    with pytest.raises(accessible_ui.UiError, match='valid-refused'):
+        ui.reject_invalid_feedback('valid')
+    ui.api.Text.get_attribute_run.side_effect = lambda text, offset, defaults: (
+        {'weight': '700', 'style': 'italic', 'underline': 'single',
+         'strikethrough': 'false' if offset == len(accessible_ui.COMPLEX_BODY) - 1 else 'true'},
+        offset, offset + 1)
+    with pytest.raises(accessible_ui.UiError, match='format-proof'):
+        ui.reject_invalid_feedback('complex')
+    ui.activate_id.assert_not_called()
+    ui, _, _, controls = rejection_ui('hidden')
+    controls['feedback-editor-input'].text.value = 'a b'
+    with pytest.raises(accessible_ui.UiError, match='nonempty-draft'):
+        ui.reject_invalid_feedback('hidden')
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('attribute', ['weight', 'style', 'underline', 'strikethrough'])
+@pytest.mark.parametrize('offset', [0, 1200, 2398])
+def test_rejection_reports_missing_format_without_exposing_text(attribute, offset):
+    ui, _, _, _ = rejection_ui('complex')
+    read = ui.api.Text.get_attribute_run.side_effect
+    def missing(text, position, defaults):
+        attributes, first, last = read(text, position, defaults)
+        if position == offset:
+            attributes.pop(attribute)
+        return attributes, first, last
+    ui.api.Text.get_attribute_run.side_effect = missing
+    with pytest.raises(accessible_ui.UiError) as error:
+        ui.reject_invalid_feedback('complex')
+    assert str(error.value) == f'ui:rejection-format-proof:{attribute}:{offset}'
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('boundary', [1, 2, 1200, 2398, 2399])
+def test_rejection_covers_public_runs_without_skipping_unproven_characters(boundary):
+    ui, _, _, _ = rejection_ui('complex')
+    read = ui.api.Text.get_attribute_run.side_effect
+    def ranges(text, offset, defaults):
+        attributes, _, _ = read(text, offset, defaults)
+        if offset < boundary:
+            return attributes, 0, boundary
+        attributes['strikethrough'] = 'false'
+        return attributes, boundary, len(accessible_ui.COMPLEX_BODY)
+    ui.api.Text.get_attribute_run.side_effect = ranges
+    if boundary == len(accessible_ui.COMPLEX_BODY):
+        ui.reject_invalid_feedback('complex')
+        ui.api.Text.get_attribute_run.assert_called_once()
+        ui.activate_id.assert_called_once_with('feedback-send')
+    else:
+        with pytest.raises(accessible_ui.UiError, match='format-proof:strikethrough'):
+            ui.reject_invalid_feedback('complex')
+        assert ui.api.Text.get_attribute_run.call_args.args[1] == boundary + boundary % 2
+        ui.activate_id.assert_not_called()
+
+
+def test_rejection_values_stay_invalid_under_maintained_transport_limits():
+    from common.oh_no_parent_control_ui import feedback_transport as transport
+    assert accessible_ui.TEXT_VALUES['body-hidden'][1] == 'a\x01b'
+    assert (transport.MAX_MESSAGE_UTF16, transport.MAX_HTML_UTF16) == (5000, 50000)
+    html = '<p><strong><em><u><s>x</s></u></em></strong></p>' * accessible_ui.COMPLEX_LINES
+    assert len(html) == 48 * accessible_ui.COMPLEX_LINES > transport.MAX_HTML_UTF16
+    for case, (projection, explanation) in accessible_ui.REJECTION_CASES.items():
+        body, reply = [accessible_ui.TEXT_VALUES[binding][1]
+                       for binding in accessible_ui.FEEDBACK_PROJECTIONS[projection]]
+        units = len(body.encode('utf-16-le')) // 2
+        if explanation == 'length-invalid':
+            assert units == transport.MAX_MESSAGE_UTF16 + 1
+        else:
+            assert units <= transport.MAX_MESSAGE_UTF16
+        error = transport.validation_error(body, reply, '1.2', html if projection == 'rejection-complex' else '')
+        assert accessible_ui.FEEDBACK_VALIDATION[error] == explanation
+
+
+def test_rejection_waits_for_the_independent_public_result_without_replaying_send():
+    ui, _, _, _ = rejection_ui('empty')
+    initial = ui.feedback_snapshot('initial-empty', states=True)
+    rejected = {**initial, 'validation': 'body-required'}
+    ui.feedback_snapshot = Mock(side_effect=[initial, rejected])
+    ui.timeout = 1
+    assert ui.rejection_operation('rejection-empty-read') == rejected
+    assert ui.feedback_snapshot.call_count == 2
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('case', accessible_ui.REJECTION_CASES)
+def test_rejection_requires_independent_explanation_and_decodes_closed_result(case):
+    from ui_observations import UiObservations
+    ui, _, dialog, _ = rejection_ui(case)
+    with pytest.raises(accessible_ui.UiError, match='explanation'):
+        ui.rejection_operation(f'rejection-{case}-read')
+    projection, explanation = accessible_ui.REJECTION_CASES[case]
+    label = next(text for text, name in accessible_ui.FEEDBACK_VALIDATION.items() if name == explanation)
+    dialog.children.append(Node(label, identity='feedback-status'))
+    state = ui.rejection_operation(f'rejection-{case}-read')
+    reader = UiObservations(Mock())
+    response = {'operation': f'rejection-{case}-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+                'feedback_state': state}
+    reader.call = Mock(return_value=(json.dumps(response).encode(), []))
+    assert reader.observe(response['operation']) == response
+    state['validation'] = 'none'
+    reader.call.return_value = (json.dumps(response).encode(), [])
+    with pytest.raises(EvidenceError, match='rejection-response'):
+        reader.observe(response['operation'])
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'rejection-empty-read', 'rejection-hidden-input-read',
+                                  'text-duplicate-body-complex-150-select',
+                                  'text-duplicate-body-complex-selected',
+                                  'text-duplicate-body-complex-read',
+                                  'rejection-format-strike-apply', 'rejection-complex-read'])
+def test_rejection_worker_stops_without_replay_or_followup_input(fault):
+    from feedback_rejection import PLAN, STAGES
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type:' . $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_states::run_rejection(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    assert len(result['stages']) == len(set(result['stages']))
+    assert set(result['stages']) <= set(PLAN.screen_tags)
+    stages = ['parent-selected', *STAGES]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+    if not fault:
+        caret = result['events'].index('rejection-hidden-caret')
+        assert result['events'][caret + 1:caret + 5] == [
+            'ctrl-shift-u', 'type:0001', 'ret', 'rejection-hidden-input-read']
+        assert result['events'].count('ctrl-shift-v') == 4
+        assert result['events'].count('ctrl-c') == 4
+        assert 'type:' + accessible_ui.COMPLEX_BODY not in result['events']
+        for binding in (value for value in accessible_ui.TEXT_DUPLICATIONS
+                        if value.startswith('body-complex')):
+            selected = result['events'].index('text-duplicate-' + binding + '-selected')
+            assert result['events'][selected + 1:selected + 6] == [
+                'ctrl-c', 'ctrl-end', 'ret', 'ctrl-shift-v', 'text-duplicate-' + binding + '-read']
+
+
+@pytest.mark.parametrize('fault', ['', 'unfocused', 'wrong-source', 'selection', 'refused', 'uncertain'])
+@pytest.mark.parametrize('binding', ['body-complex-150', 'body-ascii-5000-double-1'])
+def test_duplicate_source_and_exact_selection_guard_copy(fault, binding):
+    ui, _, _, controls = feedback_ui()
+    node = controls['feedback-editor-input']
+    value = accessible_ui.TEXT_VALUES[accessible_ui.TEXT_DUPLICATIONS[binding]][1]
+    prefix = 'text-duplicate-' + binding
+    node.text.count = len(value) + 1
+    node.states.add('focused')
+    ui.api.Text.get_text = Mock(return_value=value + '\n')
+    ui.api.Text.get_n_selections = Mock(return_value=1)
+    ui.api.Text.set_selection = Mock(return_value=True)
+    ui.api.Text.get_selection = Mock(return_value=SimpleNamespace(start_offset=0, end_offset=len(value)))
+    if fault == 'unfocused':
+        node.states.remove('focused')
+    elif fault == 'wrong-source':
+        ui.api.Text.get_text.return_value = 'y' * len(value) + '\n'
+    elif fault == 'selection':
+        ui.api.Text.get_n_selections.return_value = 0
+    elif fault == 'refused':
+        ui.api.Text.set_selection.return_value = False
+    elif fault == 'uncertain':
+        ui.input_uncertain = True
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.duplicate_text_operation(prefix + '-select')
+        assert ui.api.Text.set_selection.call_count == (1 if fault == 'refused' else 0)
+    else:
+        ui.duplicate_text_operation(prefix + '-select')
+        ui.api.Text.set_selection.assert_called_once_with(node.text, 0, 0, len(value))
+        ui.duplicate_text_operation(prefix + '-selected')
+        ui.api.Text.get_selection.return_value.end_offset += 1
+        with pytest.raises(accessible_ui.UiError, match='duplicate-selection'):
+            ui.duplicate_text_operation(prefix + '-selected')
+
+
+def test_rejection_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_feedback_rejection
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_feedback_rejection, 'smoke', run)
+    assert check_e2e_feedback_rejection.main() == 0
+    assert run.call_args.kwargs['feedback_rejection'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(feedback_rejection=True)
+    with pytest.raises(CommandError, match='feedback-rejection-prerequisites'):
+        smoke.main(feedback_rejection=True, feedback_states=True)
+
+
+@pytest.mark.parametrize('family', ['ascii', 'mixed'])
+def test_length_valid_boundary_cannot_reach_send_even_with_invalid_case_name(family):
+    ui, _, _, controls = rejection_ui(family)
+    value = accessible_ui.TEXT_VALUES[f'body-{family}-5000'][1]
+    body = controls['feedback-editor-input'].text
+    body.value, body.count = value, len(value)
+    assert len(value.encode('utf-16-le')) // 2 == 5000
+    ui.length_operation(f'length-{family}-refusal')
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('family', ['ascii', 'mixed'])
+def test_length_wrong_entry_operation_refuses_without_input(family):
+    ui, parent, _, _ = rejection_ui(family)
+    parent.children.clear()
+    assert ui.length_operation(f'length-{family}-wrong-entry') is None
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('family,fault', [
+    (family, fault) for family in ('ascii', 'mixed')
+    for fault in ('same-length', 'newline', 'formatted',
+                  *(('utf16-offset',) if family == 'mixed' else ()))])
+def test_length_invalid_guard_proves_all_scalars_and_normal_attributes(family, fault):
+    ui, _, _, controls = rejection_ui(family)
+    body = controls['feedback-editor-input'].text
+    if fault == 'same-length':
+        body.value = 'y' + body.value[1:]
+    elif fault == 'newline':
+        body.value += '\n\n'
+        body.count += 2
+    elif fault == 'utf16-offset':
+        # Public offsets count Unicode scalars, never surrogate code units.
+        body.count = len(body.value.encode('utf-16-le')) // 2 + 1
+        body.value += '\nx'
+    else:
+        ui.api.Text.get_attribute_run.side_effect = lambda text, offset, defaults: (
+            {'weight': '700', 'style': 'normal', 'underline': 'none', 'strikethrough': 'false'},
+            0, body.count)
+    with pytest.raises(accessible_ui.UiError):
+        ui.reject_invalid_feedback(family)
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('family', ['ascii', 'mixed'])
+def test_length_reopen_decoder_and_journey_require_independent_prior_result(tmp_path, family):
+    from feedback_length import FeedbackLengthJourney
+    from ui_observations import UiObservations
+    ui, _, _, _ = rejection_ui(family)
+    state = ui.feedback_snapshot(f'length-{family}-5001', states=True)
+    response = {'operation': f'length-{family}-reopen', 'outcome': 'passed',
+                'interface': 'AT-SPI', 'feedback_state': state}
+    reader = UiObservations(Mock())
+    reader.call = Mock(return_value=(json.dumps(response).encode(), []))
+    assert reader.observe(response['operation']) == response
+    frozen = FeedbackStateObservation.from_value(state)
+    with pytest.raises(FrozenInstanceError):
+        frozen.draft = 'other'
+    journey = FeedbackLengthJourney(SimpleNamespace(directory=tmp_path), Mock())
+    with pytest.raises(EvidenceError, match='independent-entry'):
+        journey.check_settings(response['operation'], {'ui': response})
+    rejected = {**response, 'feedback_state': {**state, 'validation': 'length-invalid'}}
+    journey.check_settings(f'rejection-{family}-read', {'ui': rejected})
+    journey.check_settings(response['operation'], {'ui': response})
+    journey.check_settings(f'rejection-{family}-reopened-read', {'ui': rejected})
+    state['send_enabled'] = False
+    reader.call.return_value = (json.dumps(response).encode(), [])
+    with pytest.raises(EvidenceError, match='length-response'):
+        reader.observe(response['operation'])
+
+
+@pytest.mark.parametrize('fault', ['', 'source', 'focus', 'caret', 'uncertain'])
+@pytest.mark.parametrize('kind', ['scalar', 'suffix'])
+def test_scalar_append_requires_exact_source_and_public_character_caret(fault, kind):
+    ui, _, _, controls = rejection_ui('mixed')
+    node = controls['feedback-editor-input']
+    binding = 'body-mixed-5001' if kind == 'scalar' else 'body-mixed-5001-base'
+    sources = accessible_ui.TEXT_SCALARS if kind == 'scalar' else accessible_ui.TEXT_SUFFIXES
+    value = accessible_ui.TEXT_VALUES[sources[binding][0]][1]
+    operation = getattr(ui, kind + '_text_operation')
+    node.text.value, node.text.count = value, len(value)
+    node.states.add('focused')
+    ui.api.Text.get_caret_offset = Mock(return_value=len(value))
+    if fault == 'source':
+        node.text.value = 'y' * len(value)
+    elif fault == 'focus':
+        node.states.remove('focused')
+    elif fault == 'caret':
+        ui.api.Text.get_caret_offset.return_value -= 1
+    elif fault == 'uncertain':
+        ui.input_uncertain = True
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            operation(f'text-{kind}-{binding}-caret')
+    else:
+        operation(f'text-{kind}-{binding}-caret')
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'text-body-ascii-5000-seed-read',
+    *(f'text-duplicate-body-ascii-5000-double-{step}-{action}'
+      for step in range(1, 5) for action in ('select', 'selected', 'read')),
+    'text-suffix-body-ascii-5000-caret', 'text-suffix-body-ascii-5000-read', 'length-ascii-refusal',
+    'rejection-ascii-read', 'length-ascii-reopen', 'text-scalar-body-mixed-5000-caret',
+    'text-scalar-body-mixed-5001-read', 'rejection-mixed-reopened-read'])
+def test_length_worker_matches_controller_and_stops_at_failed_proof(fault):
+    from feedback_length import STAGES, PLAN
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type:' . $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_states::run_length(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = ['parent-selected', *STAGES]
+    assert len(stages) == len(set(stages))
+    assert set(stages) <= set(PLAN.screen_tags)
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+    if not fault:
+        assert result['events'].count('ctrl-c') == 16
+        assert result['events'].count('ctrl-shift-v') == 16
+        typed = [event.removeprefix('type:') for event in result['events'] if event.startswith('type:')]
+        assert sum(value.count('x') for value in typed) == 1278
+        assert max(map(len, typed)) == 312
+        for binding, (seed, *copies) in accessible_ui.TEXT_REPETITIONS.items():
+            assert 'type:' + accessible_ui.TEXT_VALUES[seed][1] in result['events']
+            assert 'type:' + accessible_ui.TEXT_VALUES[binding][1] not in result['events']
+            for target in copies:
+                prefix = 'text-duplicate-' + target
+                selected = result['events'].index(prefix + '-selected')
+                assert result['events'][selected + 1:selected + 5] == [
+                    'ctrl-c', 'ctrl-end', 'ctrl-shift-v', prefix + '-read']
+            caret = result['events'].index(f'text-suffix-{binding}-caret')
+            assert result['events'][caret + 1:caret + 3] == [
+                'type:' + accessible_ui.TEXT_SUFFIXES[binding][1], f'text-suffix-{binding}-read']
+        for units in (5000, 5001):
+            caret = result['events'].index(f'text-scalar-body-mixed-{units}-caret')
+            assert result['events'][caret + 1:caret + 5] == [
+                'ctrl-shift-u', 'type:1f600', 'ret', f'text-scalar-body-mixed-{units}-read']
+
+
+def test_length_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_feedback_length
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_feedback_length, 'smoke', run)
+    assert check_e2e_feedback_length.main() == 0
+    assert run.call_args.kwargs['feedback_length'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(feedback_length=True)
+    with pytest.raises(CommandError, match='feedback-length-prerequisites'):
+        smoke.main(feedback_length=True, feedback_rejection=True)
 
 
 @pytest.mark.parametrize('fault', ['', 'absent', 'wrong-owner', 'duplicate', 'hidden',
@@ -666,9 +1095,13 @@ def test_synthetic_text_exact_bounded_readback(binding):
     identity, value = accessible_ui.TEXT_VALUES[binding]
     controls[identity].text.count = len(value)
     ui.api.Text.get_text = Mock(return_value=value)
+    ui.api.Text.get_character_at_offset = Mock(side_effect=lambda text, offset: ord(value[offset]))
     assert ui.read_synthetic_text(binding) == {
         'binding': binding, 'exact': True, 'length': len(value)}
-    if value:
+    if binding == 'body-hidden':
+        ui.api.Text.get_text.assert_not_called()
+        assert ui.api.Text.get_character_at_offset.call_count == len(value)
+    elif value:
         ui.api.Text.get_text.assert_called_once_with(controls[identity].text, 0, len(value))
     else:
         ui.api.Text.get_text.assert_not_called()

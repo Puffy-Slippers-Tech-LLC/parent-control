@@ -512,14 +512,88 @@ def test_staging_preserves_unrelated_work_and_handles_deletions_and_literal_path
     deleted.unlink()
     literal = tmp_path / ':special[1].py'
     literal.write_text('task code')
-    workflow.stage_task(tmp_path, [workflow.PLAN, workflow.QUEUE, literal.name, deleted.name])
+    brief = tmp_path / 'never-staged-brief.md'
+    brief.write_text('temporary task instructions')
+    brief.unlink()
+    link = tmp_path / 'dangling-link'
+    link.symlink_to('missing-target')
+    paths = [workflow.PLAN, workflow.QUEUE, literal.name, deleted.name, brief.name, link.name]
+    workflow.stage_task(tmp_path, paths)
+    # Retrying close-out is safe even after the deletion left the index.
+    workflow.stage_task(tmp_path, paths)
     baseline = subprocess.run(['git', 'show', ':already-staged.txt'], cwd=tmp_path,
                               capture_output=True, text=True, check=True)
     assert baseline.stdout == 'baseline' and staged.read_text() == 'unrelated unstaged edit'
     files = subprocess.run(['git', 'ls-files', '-z'], cwd=tmp_path,
                            capture_output=True, text=True, check=True).stdout.split(chr(0))
     assert literal.name in files and deleted.name not in files
+    assert brief.name not in files and link.name in files
     assert workflow.PLAN in files and workflow.QUEUE in files
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_restart_stages_retained_completion_before_selecting_next_task(tmp_path, monkeypatch, legacy):
+    prepare(tmp_path)
+    subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
+    _, before = workflow.queue_state(tmp_path)
+    result = reply('task_complete', 'passed', summary='Acceptance passed.', handoff='Implement task 002.')
+    state = dict(workflow.fresh_state('001'), in_flight=True, queue_before=before,
+                 worktree_before={}, stage_candidates=['owned.py'], task_sessions=4)
+    if not legacy:
+        state['pending_completion'] = result
+    previous = tmp_path / 'previous-run'
+    previous.mkdir()
+    (previous / 'checkpoint.json').write_text(json.dumps(state))
+    (previous / 'agent-result.json').write_text(json.dumps(result))
+    retained = (previous / 'checkpoint.json').read_bytes()
+    (tmp_path / workflow.QUEUE).write_text('| [x] | 001 | First |\n| [ ] | 002 | Second |\n')
+    (tmp_path / workflow.PLAN).write_text('Next task: **002 — Second**.\n')
+    (tmp_path / 'owned.py').write_text('task work')
+    (tmp_path / 'unrelated.py').write_text('later work')
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
+    selected = workflow.initial_state(tmp_path, tmp_path)
+    assert selected['task_id'] == '002' and selected['task_sessions'] == 0
+    assert (previous / 'checkpoint.json').read_bytes() == retained
+    files = subprocess.run(['git', 'ls-files', '-z'], cwd=tmp_path,
+                           capture_output=True, text=True, check=True).stdout.split(chr(0))
+    assert set(files) - {''} == {workflow.PLAN, workflow.QUEUE, 'owned.py'}
+
+
+@pytest.mark.parametrize('fault', ['failed-live', 'wrong-task', 'other-task', 'staging'])
+def test_retained_completion_cannot_bypass_acceptance_or_staging(tmp_path, monkeypatch, fault):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), in_flight=True, queue_before=before)
+    result = reply('task_complete', 'passed')
+    if fault == 'failed-live':
+        result['live_result'] = 'failed'
+    elif fault == 'wrong-task':
+        result['task_id'] = '002'
+    state['pending_completion'] = result
+    (tmp_path / workflow.QUEUE).write_text(
+        '| [x] | 001 | First |\n| [' + ('x' if fault == 'other-task' else ' ') + '] | 002 | Second |\n')
+    (tmp_path / workflow.PLAN).write_text('Next task: **002 — Second**.\n')
+    staged = []
+
+    def fail_staging(*args):
+        staged.append(True)
+        raise ValueError('staging refused')
+
+    monkeypatch.setattr(workflow, 'stage_completion', fail_staging)
+    with pytest.raises(ValueError):
+        workflow.recover_completion(tmp_path, tmp_path, state)
+    assert bool(staged) == (fault == 'staging')
+    assert state['in_flight'] and state['phase'] == 'implement'
+
+
+def test_pending_staging_handoff_uses_accepted_result(tmp_path):
+    state = dict(workflow.fresh_state('001'), in_flight=True,
+                 pending_completion=reply('task_complete', 'passed'),
+                 summary='Acceptance passed.', handoff='Implement task 002.')
+    workflow.save_handoff(tmp_path, state, 'staging failed', display=False)
+    text = (tmp_path / 'handoff.txt').read_text()
+    assert 'staging remains' in text and 'Implement task 002.' in text
+    assert 'Recover interrupted task' not in text
 
 
 @pytest.mark.parametrize('path', ['../outside', '/absolute', '.', 'docs', '.git/config', './file'])

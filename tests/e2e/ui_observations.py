@@ -207,8 +207,18 @@ OPERATION_LABELS.update({
 
 OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret field value'
                          for operation in accessible_ui.TEXT_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Copying and doubling declared synthetic editor text'
+                         for operation in accessible_ui.DUPLICATE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Applying and independently reading synthetic range formatting'
                          for operation in accessible_ui.FORMAT_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Qualifying invalid-only feedback input and public rejection'
+                         for operation in accessible_ui.REJECTION_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Qualifying exact UTF-16 boundary drafts without valid submission'
+                         for operation in accessible_ui.LENGTH_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Appending and reading one declared Unicode scalar'
+                         for operation in accessible_ui.SCALAR_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Finishing and reading a clipboard-built synthetic fixture'
+                         for operation in accessible_ui.SUFFIX_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Activating an existing window and independently checking its public state'
                          for operation in accessible_ui.WINDOW_SWITCH_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying kiosk approval and its explicit public result'
@@ -239,7 +249,7 @@ class FeedbackStateObservation:
     def from_value(cls, value):
         require(type(value) is dict and set(value) == {
             'draft', 'attachments', 'collection', 'validation', 'controls', 'send_enabled'}
-            and value['draft'] in accessible_ui.FEEDBACK_STATE_PROJECTIONS.values()
+            and value['draft'] in accessible_ui.FEEDBACK_PROJECTIONS
             and value['attachments'] == ['diagnostic-logs.zip']
             and value['collection'] == 'ready' and value['controls'] == 'ready'
             and value['validation'] in accessible_ui.FEEDBACK_VALIDATION.values()
@@ -731,6 +741,18 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'formatting'}
                     and result['formatting'] == projection, 'ui:format-response')
             expected['formatting'] = projection
+        rejection_case = next((case for case in accessible_ui.REJECTION_CASES
+                               if operation == f'rejection-{case}-read'), None)
+        if rejection_case is not None or operation == 'rejection-reopen':
+            require(type(result) is dict and set(result) == {*expected, 'feedback_state'},
+                    'ui:rejection-response')
+            state = FeedbackStateObservation.from_value(result['feedback_state'])
+            projection, explanation = accessible_ui.REJECTION_CASES[rejection_case or 'complex']
+            if operation == 'rejection-reopen':
+                explanation = 'none'
+            require(state.draft == projection and state.validation == explanation
+                    and state.send_enabled, 'ui:rejection-response')
+            expected['feedback_state'] = result['feedback_state']
         if operation in accessible_ui.FEEDBACK_STATE_PROJECTIONS:
             require(type(result) is dict and set(result) == {*expected, 'feedback_state'},
                     'ui:feedback-state-response')
@@ -738,8 +760,18 @@ class UiObservations:
             require(state.draft == accessible_ui.FEEDBACK_STATE_PROJECTIONS[operation],
                     'ui:feedback-state-response')
             expected['feedback_state'] = result['feedback_state']
-        if operation in accessible_ui.TEXT_OPERATIONS and operation.endswith('-read'):
-            binding, _ = accessible_ui.TEXT_OPERATIONS[operation]
+        if operation in accessible_ui.LENGTH_OBSERVATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'feedback_state'},
+                    'ui:length-response')
+            state = FeedbackStateObservation.from_value(result['feedback_state'])
+            projection, validation = accessible_ui.LENGTH_OBSERVATIONS[operation]
+            require((state.draft, state.validation, state.send_enabled)
+                    == (projection, validation, True), 'ui:length-response')
+            expected['feedback_state'] = result['feedback_state']
+        text_operations = {**accessible_ui.TEXT_OPERATIONS, **accessible_ui.DUPLICATE_OPERATIONS,
+                           **accessible_ui.SCALAR_OPERATIONS, **accessible_ui.SUFFIX_OPERATIONS}
+        if operation in text_operations and operation.endswith('-read'):
+            binding, _ = text_operations[operation]
             projection = {'binding': binding, 'exact': True,
                           'length': len(accessible_ui.TEXT_VALUES[binding][1])}
             require(type(result) is dict and set(result) == {*expected, 'text'}

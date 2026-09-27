@@ -214,6 +214,17 @@ navigation away from the editor is blocked. Editor content crosses the local
 message bridge as plain text, semantic HTML, and a Quill delta used to restore
 the draft after a web-process restart.
 
+Combined underline and strikethrough use explicit decoration styling on the
+nested editor elements. This preserves both visual decorations and exposes both
+through public accessibility text attributes; removing either format removes
+its attribute too. Semantic HTML and the submission contract are unchanged.
+
+Local Send validation rejects NUL (`U+0000`) and SOH (`U+0001`) in the plain-text
+body with the unsupported-hidden-character explanation, before creating a
+submission. Normal tabs, newlines and emoji remain supported within the existing
+UTF-16 limits. New frontend processes load this validation change; no saved-data
+migration or portal change is required.
+
 Ordinary Parent feedback drafts, selected file bytes, and frozen retries remain
 in memory until app exit; closing that dialog preserves them and allows an
 in-flight worker to continue. Error reports have an exit callback instead:

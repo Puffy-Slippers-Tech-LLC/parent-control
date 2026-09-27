@@ -17,6 +17,46 @@ from tests.support.terminal import capture
 from tests.support.preview import boot_preview_session
 
 
+@pytest.mark.parametrize('failure', [False, True])
+def test_paced_keyboard_input_is_single_use_and_latches_partial_delivery(monkeypatch, failure):
+    # Process-local doubles only; no real input, delay, display or added resource.
+    from unittest.mock import Mock
+    from tests.support import keyboard
+    events = []
+    def press(character):
+        events.append(('key', character))
+        if failure and character == 'b':
+            raise RuntimeError('partial delivery')
+    dogtail = ModuleType('dogtail')
+    dogtail.rawinput = SimpleNamespace(pressKey=press, typeText=Mock())
+    monkeypatch.setitem(sys.modules, 'dogtail', dogtail)
+    monkeypatch.setattr(keyboard.time, 'sleep', lambda delay: events.append(('wait', delay)))
+    node = Mock()
+    ui = SimpleNamespace(input_uncertain=False, id_target=Mock(return_value=node),
+                         api=SimpleNamespace(StateType=SimpleNamespace(FOCUSED='focused')))
+    if failure:
+        with pytest.raises(RuntimeError, match='partial delivery'):
+            keyboard.type_text(ui, 'owned-field', 'abc', interval=0.02)
+        assert ui.input_uncertain
+        with pytest.raises(AssertionError, match='uncertain'):
+            keyboard.type_text(ui, 'owned-field', 'abc', interval=0.02)
+        assert events == [('key', 'a'), ('wait', 0.02), ('key', 'b')]
+    else:
+        keyboard.type_text(ui, 'owned-field', 'abc', interval=0.02)
+        assert not ui.input_uncertain
+        assert events == [(kind, value) for c in 'abc'
+                          for kind, value in (('key', c), ('wait', 0.02))]
+    dogtail.rawinput.typeText.assert_not_called()
+    ui.id_target.assert_called_once_with('owned-field')
+
+
+@pytest.mark.parametrize('interval', [-1, 1, float('nan'), True, '0.02'])
+def test_keyboard_pacing_rejects_invalid_intervals_before_input(interval):
+    from tests.support import keyboard
+    with pytest.raises(ValueError, match='interval'):
+        keyboard.type_text(None, 'owned-field', 'abc', interval=interval)
+
+
 @pytest.mark.parametrize('previous', [None, '/var/tmp'])
 @pytest.mark.parametrize('failure', [None, RuntimeError, KeyboardInterrupt])
 def test_graphical_boot_restores_pytest_storage_default(monkeypatch, previous, failure):

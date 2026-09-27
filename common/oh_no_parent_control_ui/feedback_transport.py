@@ -46,7 +46,7 @@ def title_error(title):
 def validation_error(message, reply_email, version, message_html=""):
     if not message.strip():
         return "Please enter your feedback."
-    if "\0" in message:
+    if any(character in message for character in ("\0", "\x01")):
         return "Your feedback contains an unsupported hidden character. Please retype it and try again."
     if len(message.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_MESSAGE_UTF16:
         return "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."

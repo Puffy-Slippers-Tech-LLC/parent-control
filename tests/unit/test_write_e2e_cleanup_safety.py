@@ -76,7 +76,9 @@ def finish_answered_run(run, spawned, output=None):
 
 def test_first_session_success_closes_and_stages_without_another_session(checkout):
     root, _ = checkout
-    script(root, {'result': reply('task_complete', 'passed'), 'close': True})
+    script(root, {'result': reply('task_complete', 'passed',
+                                 stage_paths=[workflow.PLAN, workflow.QUEUE, 'removed-brief.md']),
+                  'close': True})
     run, _ = workflow.select(root, [])
     output = io.StringIO()
     assert launcher.follow(run, output) == 0
@@ -91,6 +93,29 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
     assert state['phase'] == 'complete' and state['live_attempts'] == 1
     staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
     assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
+
+
+def test_staging_failure_keeps_accepted_handoff_and_restarts_without_agent(checkout):
+    root, _ = checkout
+    with (root / '.git/info/exclude').open('a') as stream:
+        stream.write('ignored-task.txt\n')
+    result = reply('task_complete', 'passed', summary='Live acceptance passed.',
+                   handoff='Implement task 002 after staging.',
+                   stage_paths=[workflow.PLAN, workflow.QUEUE, 'ignored-task.txt'])
+    script(root, {'result': result, 'close': True, 'writes': {'ignored-task.txt': 'temporary'}})
+    run, _ = workflow.select(root, [])
+    assert launcher.follow(run, io.StringIO()) == 1
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['pending_completion'] == result
+    assert state['summary'] == result['summary']
+    handoff = (run / 'handoff.txt').read_text()
+    assert 'staging remains' in handoff and result['handoff'] in handoff
+    retained = (run / 'checkpoint.json').read_bytes()
+    (root / 'ignored-task.txt').unlink()
+    selected = workflow.initial_state(root, run.parent)
+    assert selected['task_id'] == '002'
+    assert len(calls(root)) == 1
+    assert (run / 'checkpoint.json').read_bytes() == retained
 
 
 @pytest.mark.parametrize('interrupted', [False, True])

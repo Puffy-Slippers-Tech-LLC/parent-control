@@ -21,9 +21,14 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **032 — [E2E-031: validation](E2E-Tasks/032-case-153.md)**.
 
-Implement complete case 153's feedback validation table through public editor
-input and independent results, then review Privacy and preserved dialog state.
-Reuse the delivered capability scopes; do not infer complete-case readiness.
+Task 031c qualified exact ASCII and mixed-emoji 5,000/5,001 UTF-16 boundaries,
+invalid-only excessive-text rejection and independent reopen in
+`20260927T041209Z-240ad5c2`. Rejection, feedback-state and formatting regressions
+passed in `20260927T044004Z-cc6b2b91`, `20260927T044529Z-89d6d9b4` and
+`20260927T044947Z-fea7011c`; collection, owned cleanup and baseline restoration
+passed. Task 032 must compose the complete case 153 matrix and persistence/Privacy
+checks. Preserve every assertion and the no-valid-submission gate; capability
+qualification supplies no complete-case credit.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

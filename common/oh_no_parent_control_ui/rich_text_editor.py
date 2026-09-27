@@ -185,6 +185,12 @@ class RichTextEditor(Gtk.Box):
 html, body {{ margin: 0; height: 100%; overflow: hidden; background: transparent; color: #292934;
               font: 16px Ubuntu, system-ui, sans-serif; }}
 body {{ display: flex; flex-direction: column; }}
+/* Decorations propagate visually across nested inline elements but are not
+   inherited computed styles. Expose both on combined Quill formats so public
+   accessibility text attributes describe the formatting the customer applied. */
+#feedback-editor-input s u, #feedback-editor-input u s {{
+  text-decoration-line: underline line-through;
+}}
 #feedback-format-toolbar {{ border: 0; border-bottom: 1px solid rgba(36,36,42,.13); flex: none;
             display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
             padding: 7px 10px; background: #fcfcfe; font: inherit; }}

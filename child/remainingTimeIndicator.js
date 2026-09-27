@@ -9,7 +9,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {describeControl, setAutomationId} from './accessibility.js';
-import {queryEstimatedTimes} from './timerQuery.js';
+import {queryEstimatedTimes, timerErrorCategory} from './timerQuery.js';
 import {calculateOwnRemainingTime} from './timeCalculationClient.js';
 import {prepareOwnSession} from './sessionPreparationClient.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
@@ -482,17 +482,20 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         }
 
         this._refreshPending = true;
+        let stage = 'timer-estimate';
         try {
             const estimates = await queryEstimatedTimes();
             if (this._destroyed)
                 return;
 
+            stage = 'allowance-calculation';
             const estimate = estimates[''];
             const currentTime = Main.timeLimitsManager.getCurrentTime();
             const managerLimit = Number(
                 Main.timeLimitsManager.dailyLimitTime ?? 0);
             const effectiveAllowance = effectiveAllowanceRemaining(
                 estimate, currentTime, managerLimit);
+            stage = 'broker-calculation';
             const calculated = await calculateOwnRemainingTime(
                 effectiveAllowance);
             if (this._destroyed)
@@ -508,7 +511,12 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 // A transient daemon/database failure says nothing about the
                 // last successful estimate. Preserve it until a supported
                 // D-Bus query supplies a replacement.
-                logWarning('child.estimate-failed');
+                logWarning('child.refresh-failed', {
+                    stage, category: timerErrorCategory(error),
+                    loaded: this._statusLoaded,
+                    locked: Main.sessionMode.isLocked,
+                    greeter: Main.sessionMode.isGreeter,
+                });
                 this._onError?.(error);
             }
         } finally {

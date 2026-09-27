@@ -662,7 +662,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
-         window_switch=False):
+         window_switch=False, feedback_rejection=False, feedback_length=False):
+    require(type(feedback_length) is bool and not (feedback_length and (
+        feedback_read or feedback_privacy or feedback_states or format_qualification
+        or window_switch or feedback_rejection)), 'smoke:feedback-length-prerequisites')
+    require(type(feedback_rejection) is bool and not (feedback_rejection and (
+        feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch)),
+        'smoke:feedback-rejection-prerequisites')
     require(type(window_switch) is bool and not (window_switch and (
         feedback_privacy or feedback_states or format_qualification or feedback_read)),
         'smoke:window-switch-prerequisites')
@@ -674,7 +680,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:feedback-states-prerequisites')
     require(type(feedback_privacy) is bool and not (feedback_privacy and feedback_read),
             'smoke:feedback-privacy-prerequisites')
-    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch
+    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch or feedback_rejection or feedback_length
     require(type(fresh_thirty_allowance) is bool and type(set_allowance) is bool
             and not (fresh_thirty_allowance and set_allowance),
             'smoke:fresh-thirty-allowance-prerequisites')
@@ -1162,6 +1168,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-format-qualification'
         if window_switch:
             result['scope'] = 'installed-window-switch-qualification'
+        if feedback_rejection:
+            result['scope'] = 'installed-feedback-rejection-qualification'
+        if feedback_length:
+            result['scope'] = 'installed-feedback-length-qualification'
         if text_qualification:
             result['scope'] = 'installed-text-qualification'
         if allowance_presets:
@@ -1363,6 +1373,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if window_switch:
                     from parent_setup_qualification import WindowSwitchQualification
                     qualification_class = WindowSwitchQualification
+                if feedback_rejection:
+                    from parent_setup_qualification import FeedbackRejectionQualification
+                    qualification_class = FeedbackRejectionQualification
+                if feedback_length:
+                    from parent_setup_qualification import FeedbackLengthQualification
+                    qualification_class = FeedbackLengthQualification
                 if text_qualification:
                     from parent_setup_qualification import TextQualification
                     qualification_class = TextQualification

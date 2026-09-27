@@ -32,7 +32,10 @@
 - Reuse session and category-wide authorization. Do not request Codex or Polkit
   prompts, add duplicate rules, broaden shell/interpreter/Git/Make grants,
   or use authentication fallbacks after denial. A missing prerequisite or grant
-  is a blocker to report, not a control to bypass.
+  that cannot be resolved through existing authorized routes is a blocker to
+  report, not a control to bypass. Automatically prepare missing generated test
+  inputs and repair proven mechanical preparation defects; do not ask the
+  developer to choose whether to perform these routine repairs.
 - Executable project `tools/` launchers are preapproved only within the requested
   task. Invoke them directly. Use their scoped out-of-sandbox routes when sockets,
   Polkit or real ownership metadata require them.

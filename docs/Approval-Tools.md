@@ -44,9 +44,14 @@ An executable grant does not itself authorize a release, manual baseline replace
 unrelated destructive action. Auto-mode baseline refresh needed for authorized
 development or testing has standing authorization under the
 [VM mandate](Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
-Missing prerequisites or grants are blockers, not
-invitations to bypass controls or retry authentication. Report the exact blocker
-and required setup or scope decision; continue independent authorized work.
+Missing generated test inputs and proven mechanical preparation defects must be
+repaired automatically through maintained routes within existing authorization.
+Prepare absent named qualification inputs with the artifact builder and resume
+validation; choosing whether to build or restore them is an implementation detail,
+not a developer question. Preserve existing inputs and all validation guards.
+Prerequisites that cannot be repaired within that scope, and missing grants, are
+blockers, not invitations to bypass controls or retry authentication. Report the
+exact blocker and required external action; continue independent authorized work.
 
 New recurring operations should use an existing validated route where possible.
 If a new privileged capability is needed, maintain a scoped helper with argument
@@ -271,7 +276,7 @@ the checkout activity lock.
 | App fixtures | `tools/run-tests fixtures build` / `verify /tmp/onpc-...` | Fixed builder; builds generate an empty private output directory |
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
 | Reusable package/fixture preparation | `tools/run-tests artifacts prepare` | Content-qualified reuse or a fresh build; new private output registered in bounded run retention. No VM or installed product changes. |
-| Named qualification inputs | `tools/run-tests artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-parent-setup-input'` | Replace `/REPO` with this checkout's absolute path. Same unprivileged builder and retention; a new direct managed `onpc-*` allocation only, exclusive creation, no overwrite. `integration check_e2e_toggle` prepares this input automatically when absent. |
+| Named qualification inputs | `tools/run-tests artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-parent-setup-input'` | Replace `/REPO` with this checkout's absolute path. Same unprivileged builder and retention; a new direct managed `onpc-*` allocation only, exclusive creation, no overwrite. Integration qualifications using `named_input()` prepare absent inputs automatically before privileged dispatch; launcher regression coverage checks every consumer. |
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
 | Graphical journeys and harness scenarios | `tools/run-tests e2e` / `tools/run-tests e2e --id 1,3,4` / `tools/run-tests e2e --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Guarded cleanup-safety prerequisites remain mandatory. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |

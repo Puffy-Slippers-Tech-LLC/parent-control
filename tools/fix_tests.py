@@ -84,7 +84,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'behavior, unless that exact behavior change is already explicitly authorized. '
             'Do not weaken, skip or delete tests to obtain a pass. Automatic test edits must '
             'address proven mechanical test, fixture or harness defects while preserving the intended check. '
-            'Report any missing authority or prerequisite using status "blocked" in the final '
+            'Report missing authority or prerequisites requiring developer action using status "blocked" in the final '
             'result; the launcher pauses for developer instructions instead of failing. '
             + BLOCKER_INSTRUCTIONS +
             'Use summary as a standalone repair handoff with evidence paths and remaining work. '

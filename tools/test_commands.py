@@ -289,6 +289,19 @@ def allocate_artifact_output(value):
 def qualification_artifact_command(root, category, args):
     """Prepare fixed Parent inputs in this run, including after retention expiry."""
     if category != 'integration' or args not in (
+            ['check_parent_setup'], ['check_parent_setup.py'],
+            ['check_parent_access'], ['check_parent_access.py'],
+            ['check_parent_input'], ['check_parent_input.py'],
+            ['check_parent_standard_input'], ['check_parent_standard_input.py'],
+            ['check_parent_about'], ['check_parent_about.py'],
+            ['check_e2e_desktop_session'], ['check_e2e_desktop_session.py'],
+            ['check_e2e_kiosk_entry'], ['check_e2e_kiosk_entry.py'],
+            ['check_e2e_request_exit'], ['check_e2e_request_exit.py'],
+            ['check_e2e_read_restricted_station_about'], ['check_e2e_read_restricted_station_about.py'],
+            ['check_e2e_file_chooser'], ['check_e2e_file_chooser.py'],
+            ['check_e2e_attachment_items'], ['check_e2e_attachment_items.py'],
+            ['check_e2e_attachment_preview'], ['check_e2e_attachment_preview.py'],
+            ['check_e2e_attachments'], ['check_e2e_attachments.py'],
             ['check_e2e_gdm_navigation'], ['check_e2e_gdm_navigation.py'],
             ['check_e2e_gdm_recipient'], ['check_e2e_gdm_recipient.py'],
             ['check_e2e_challenges'], ['check_e2e_challenges.py'],
@@ -309,6 +322,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_toggle'], ['check_e2e_toggle.py'],
             ['check_e2e_app_row_observations'], ['check_e2e_app_row_observations.py'],
             ['check_e2e_feedback_read'], ['check_e2e_feedback_read.py'],
+            ['check_e2e_feedback_reset'], ['check_e2e_feedback_reset.py'],
             ['check_e2e_feedback_privacy'], ['check_e2e_feedback_privacy.py'],
             ['check_e2e_feedback_states'], ['check_e2e_feedback_states.py'],
             ['check_e2e_feedback_rejection'], ['check_e2e_feedback_rejection.py'],

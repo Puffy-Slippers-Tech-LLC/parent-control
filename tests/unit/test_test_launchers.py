@@ -1,4 +1,5 @@
 """Boundary and execution tests for all approved test category routes."""
+import ast
 import json
 import os
 import runpy
@@ -11,6 +12,53 @@ import pytest
 from tests.support.paths import ROOT
 import test_launcher as host
 import test_commands as commands
+
+
+def named_qualification_inputs():
+    """Discover consumers independently of the launcher's preparation list."""
+    for path in sorted((ROOT / 'tests/integration').glob('check_*.py')):
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == 'named_input'):
+                package_source = next((ast.literal_eval(kw.value) for kw in node.keywords
+                                       if kw.arg == 'package_source'), False)
+                yield path.stem, package_source
+                break
+
+
+@pytest.mark.parametrize(('name', 'package_source'), list(named_qualification_inputs()))
+@pytest.mark.parametrize('suffix', ['', '.py'])
+@pytest.mark.parametrize('build_status', [0, 7])
+def test_every_named_input_consumer_prepares_before_dispatch(
+        monkeypatch, name, package_source, suffix, build_status):
+    import dev_privileges
+    import regression_process
+    import test_storage
+
+    output = str(test_storage.named_input(package_source=package_source))
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    allocate = Mock(return_value=output)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    execute = Mock(side_effect=[build_status, 0])
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    authorize = Mock()
+    monkeypatch.setattr(dev_privileges, 'check', authorize)
+    selector = name + suffix
+    assert regression_process.category_run(
+        ROOT, 'integration', [selector], pipe=False) == build_status
+    allocate.assert_called_once_with(output)
+    assert execute.call_args_list[0].args[0] == commands.python_file(
+        ROOT, 'tools/build_test_artifacts.py', '--output', output)
+    if build_status:
+        assert execute.call_count == 1
+        authorize.assert_not_called()
+    else:
+        assert execute.call_count == 2
+        authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
+        assert execute.call_args.args[0] == [
+            '/usr/bin/pkexec', '--disable-internal-agent',
+            '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector]
 
 
 def test_named_artifact_build_uses_existing_builder_without_creating_output(monkeypatch):

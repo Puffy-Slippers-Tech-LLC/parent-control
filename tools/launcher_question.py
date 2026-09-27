@@ -10,7 +10,16 @@ import time
 import detached_launcher as launcher
 
 
-BLOCKER_INSTRUCTIONS = """For blocked, supply blocker with explanation, question and options. Write the
+BLOCKER_INSTRUCTIONS = """Reserve blocked for a decision or action that actually requires the developer:
+unresolved product behavior/expectations, missing authority, or a prerequisite
+that cannot be repaired within existing authorization and maintained routes.
+Routine implementation choices and proven mechanical test, fixture, harness or
+input-preparation defects do not require a developer decision. Repair them
+automatically while preserving assertions and evidence, within this launcher's
+execution boundary. Do not ask whether to perform an already-authorized repair
+or offer rebuilding versus restoring generated inputs as a developer choice.
+Never infer permission to bypass a denied grant or overwrite unrelated inputs.
+For blocked, supply blocker with explanation, question and options. Write the
 explanation in concise, user-friendly, scenario-oriented language (at most 200
 words and 2000 characters): what is finished, what the user/test tries to do,
 what actually prevents progress and the practical steps to unblock. Distinguish

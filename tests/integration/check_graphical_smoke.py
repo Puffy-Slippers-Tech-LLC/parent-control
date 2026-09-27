@@ -664,7 +664,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
          synthetic_files=False, file_chooser=False, attachment_items=False, attachment_preview=False,
-         attachment_boundaries=False, feedback_reset=False):
+         attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False):
+    require(type(feedback_block_semantics) is bool and not (
+        feedback_block_semantics and format_qualification), 'smoke:block-prerequisites')
+    format_qualification = format_qualification or feedback_block_semantics
     require(type(feedback_reset) is bool and not (feedback_reset and (
         feedback_read or feedback_privacy or feedback_states or format_qualification
         or window_switch or feedback_rejection or feedback_length or file_chooser
@@ -1199,6 +1202,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-feedback-states-qualification'
         if format_qualification:
             result['scope'] = 'installed-format-qualification'
+        if feedback_block_semantics:
+            result['scope'] = 'installed-feedback-block-semantics-qualification'
         if window_switch:
             result['scope'] = 'installed-window-switch-qualification'
         if feedback_rejection:
@@ -1421,6 +1426,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if format_qualification:
                     from parent_setup_qualification import FormatQualification
                     qualification_class = FormatQualification
+                if feedback_block_semantics:
+                    from parent_setup_qualification import BlockSemanticsQualification
+                    qualification_class = BlockSemanticsQualification
                 if window_switch:
                     from parent_setup_qualification import WindowSwitchQualification
                     qualification_class = WindowSwitchQualification

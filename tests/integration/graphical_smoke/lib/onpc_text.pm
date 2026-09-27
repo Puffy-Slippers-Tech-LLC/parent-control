@@ -18,6 +18,7 @@ my %values = (
     'kiosk-invalid-below' => '0.09', 'kiosk-invalid-over' => '1440.1',
     'kiosk-invalid-comma' => '1,5',
     'body-first' => 'Synthetic feedback first',
+    'body-blocks' => "Heading sample\nSubheading sample\nNumber sample\nBullet sample\nQuote sample\nCode sample\nPlain sample",
     'body-second' => 'Synthetic feedback replacement', 'body-clear' => '',
     'body-whitespace' => '   ',
     'body-hidden-base' => 'ab',

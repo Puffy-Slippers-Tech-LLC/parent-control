@@ -78,6 +78,9 @@ GROUPS = (
 # Station restriction adapter checks reuse the private request preview, its bus,
 # display and tmp_path event log; they add no shared resources or fixture builds.
 # A qualified build companion must never implicitly authorize other UI fixtures.
+# Feedback block meaning/removal/undo checks use the existing private Parent,
+# compositor and accessibility bus; bounded text and tree reads add no shared
+# cache, socket, process or fixture build. Keep the Feedback classification.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')
 

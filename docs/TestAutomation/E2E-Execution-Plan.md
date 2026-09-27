@@ -19,7 +19,21 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **034 — [E2E-031: draft-reopen](E2E-Tasks/034-case-152.md)**.
+Next task: **034a — [Qualify remaining feedback formatting operations](E2E-Tasks/034a-feedback-formats.md)**.
+
+Task 034 remains unchecked: task 034a supplies the remaining link/removal
+observations and complete finite all-format composition before case 152.
+Neither task 034a nor case 152 has had a live attempt.
+
+Task 034aa qualified customer-facing heading levels 1/2, numbered/bulleted list
+items, quote and code semantics with exact `body-blocks` text association through
+`check_e2e_feedback_block_semantics` in `20260927T220402Z-60e41f1b`.
+Independent reopen, wrong-entry refusal, collection, owned cleanup and baseline
+restoration passed. Required `check_e2e_format` and `check_e2e_feedback_rejection`
+regressions passed in `20260927T221053Z-796e5c0f` and
+`20260927T221352Z-4432e213`. Reuse `onpc_format::apply_block`,
+`AccessibleUI.block_operation` / `block_semantics` and the bounded public-tree
+reader in `tests/e2e/block_semantics.py`; the temporary prototype is removed.
 
 Task 030a qualified FEED10 Parent app-exit reset from `synthetic-first` through
 `check_e2e_feedback_reset` in `20260927T205202Z-fc8560e8`. The reopened draft had

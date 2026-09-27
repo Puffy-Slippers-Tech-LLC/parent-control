@@ -298,7 +298,36 @@ identify('.ql-tooltip', 'feedback-link-editor', 'Link editor');
 identify('.ql-tooltip .ql-preview', 'feedback-link-preview', 'Open link preview');
 identify('.ql-tooltip .ql-action', 'feedback-link-save', 'Save link');
 identify('.ql-tooltip .ql-remove', 'feedback-link-remove', 'Remove link');
+// WebKit does not expose all native block meanings in a contenteditable.
+// Derive ARIA from the current content, including undo and restored deltas.
+// Never change the editor role or Quill's document model.
+let semanticNodes = new Set();
+function exposeBlockSemantics() {{
+  const current = new Map();
+  for (const heading of editor.querySelectorAll('h1, h2'))
+    current.set(heading, {{role: 'heading', 'aria-level': heading.tagName.slice(1)}});
+  for (const quote of editor.querySelectorAll('blockquote'))
+    current.set(quote, {{role: 'blockquote'}});
+  for (const block of editor.querySelectorAll('.ql-code-block-container'))
+    current.set(block, {{role: 'code', 'aria-roledescription': 'code block'}});
+  for (const item of editor.querySelectorAll('li[data-list]'))
+    current.set(item, {{'aria-roledescription': item.getAttribute('data-list') === 'ordered'
+      ? 'numbered list item' : 'bulleted list item'}});
+  for (const node of new Set([...semanticNodes, ...current.keys()])) {{
+    const attributes = current.get(node) || {{}};
+    for (const key of ['role', 'aria-level', 'aria-roledescription']) {{
+      if (key in attributes) {{
+        if (node.getAttribute(key) !== attributes[key])
+          node.setAttribute(key, attributes[key]);
+      }} else if (node.hasAttribute(key)) {{
+        node.removeAttribute(key);
+      }}
+    }}
+  }}
+  semanticNodes = new Set(current.keys());
+}}
 function publish() {{
+  exposeBlockSemantics();
   const text = quill.getText().replace(/\\n$/, '');
   bridge.postMessage(JSON.stringify({{
     type: 'change', text,

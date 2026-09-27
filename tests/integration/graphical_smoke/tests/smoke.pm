@@ -454,6 +454,12 @@ sub run {
         onpc_text::run(\&exchange);
         return;
     }
+    if ($ready->{feedback_validation}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_privacy::run(\&exchange, 'validation');
+        return;
+    }
     if ($ready->{feedback_length}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

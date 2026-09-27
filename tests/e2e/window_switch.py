@@ -31,8 +31,8 @@ PLAN = JourneyPlan(
 
 
 class WindowSwitchJourney(InstalledJourney):
-    def __init__(self, context, progress):
-        super().__init__(context, progress, PLAN)
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
         self.windows = {}
 
     def check_settings(self, stage, observed):

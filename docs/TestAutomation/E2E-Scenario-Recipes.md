@@ -645,7 +645,8 @@ Bindings: surface = parent.
 
 ### E2E-031
 
-Implementation status: All cases pending.
+Implementation status: Case 153 passed complete acceptance in `20260927T053552Z-feb94dac`.
+Cases 152, 154 and 155 remain pending.
 
 **Feedback drafts, validation and attachment review.** Cases 152, 153, 154, 155.
 
@@ -653,6 +654,18 @@ Bindings: flow = draft-reopen / validation / attachments / diagnostic-export.
 
 1. P0; draft: FEED01 → UI16(body,email) → FEED04(all formats) → FEED03; validation: FEED01 → repeat input table UI16 → FEED09; attachments: FEED01 → repeat file table FEED06/07/13; export: watch(FEED09){FEED01} → FEED08 with chooser cancel/failure/success branches.
 2. DESK10(feedback) → FEED05 → FEED10(dialog,compare). draft additionally FEED10(app-exit,reset). Never FEED11.
+
+Case 153 binds the edit-only text/email snapshots first, then the ASCII and
+mixed-emoji boundaries and invalid-only rejection fixtures. Closing/reopening
+between rejection groups clears the previous status through the public dialog;
+no backend reset or valid submission is permitted. After independently comparing
+the reopened complex document and rejection, prepare `synthetic-first` for the
+qualified existing-window, Privacy and dialog comparisons. Repeated operations
+have unique invocation IDs in `parent_feedback_validation.PLAN`.
+The guarded invalid-only Send route supplies rejection evidence; FEED11 valid
+delivery remains outside this recipe. Error-report review on all three surfaces,
+diagnostic privacy, byte bounds and role authorization retain their separate
+customer/engineering obligations; this local case does not establish them.
 
 ### E2E-032
 

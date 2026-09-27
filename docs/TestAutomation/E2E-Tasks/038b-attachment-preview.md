@@ -24,6 +24,13 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 Reuse 038a's item identities to open only an offered preview, observe its content and close normally. Record an unoffered preview as explicitly inapplicable under the existing contract.
 
+Prepare attachments through the shared
+[attachment handoff](../E2E-Building-Blocks.md#attachment-chooser-handoff),
+following its consumer guidance. Do not add chooser navigation or launch an
+external editor to manufacture a preview the app does not offer. Compare a
+fresh public list after return with the captured list before preview; fixture
+contents alone do not prove what the preview displayed.
+
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,
 freshness and uncertain-input guards. Reuse the existing attempt envelope,

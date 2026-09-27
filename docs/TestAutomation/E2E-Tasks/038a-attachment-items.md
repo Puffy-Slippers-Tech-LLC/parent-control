@@ -33,6 +33,12 @@ by public APIs, not a folder-browsing exercise. Existing
 attachment IDs for the additional name/size/order observations and one item's
 Remove action.
 
+Follow that shared contract's consumer guidance and regression references.
+The existing sorted attachment-name result is not displayed-order evidence.
+Extend the public observation for actual row order and displayed sizes, and
+bind an exact post-removal expectation; the current two-file boolean cannot
+represent the remaining one-file list. Reuse the prepared two-file input here.
+
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,
 freshness and uncertain-input guards. Reuse the existing attempt envelope,

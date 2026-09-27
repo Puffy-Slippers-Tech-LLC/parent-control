@@ -25,6 +25,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Extend the shared FILE05 fixture helper to change only the declared synthetic source file over guarded SSH. Validate ownership, path and original content before one write; read back the changed file independently. The product feature under test is the attachment snapshot and re-add behavior.
 
+Preserve the [attachment handoff's](../E2E-Building-Blocks.md#attachment-chooser-handoff)
+fixture-controller lifetime and declared-input rules. Keep this source-change
+operation composable with the same owned fixture receipts through cleanup;
+do not require a text-editor GUI for the attachment consumer.
+
 Keep fixed fixture data and all file operations in shared infrastructure. Reject traversal, symlinks, wrong ownership and uncertain writes. For later retained-work consumers, compose the registered APP03/04 work fixture: make one observable edit/save and compare the same work after enforcement. Qualify that binding independently; source-file mutation alone cannot prove that a running app remains usable or retains its activity.
 
 ## Live VM acceptance

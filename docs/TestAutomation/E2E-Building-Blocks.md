@@ -573,6 +573,44 @@ owned fixture removal, collection, worker cleanup and baseline restoration
 passed. Send was untouched. This capability slice does not complete case 152.
 Native GTK, Save and other fixture profiles remain pending under their consumers.
 
+Consumers must carry this handoff forward through the shared implementation:
+
+- Reuse `AccessibleUI.chooser_operation`, the public facade in
+  [public_atspi.py](../../tests/e2e/public_atspi.py), and the worker/plan wiring in
+  [file_chooser.py](../../tests/e2e/file_chooser.py) and
+  [onpc_feedback_read.pm](../../tests/integration/graphical_smoke/lib/onpc_feedback_read.pm).
+  Extend shared leaves for declared inputs; do not copy this qualification's
+  entire journey or create a chooser driver in each consumer.
+- Keep whole-path `EditableText.SetTextContents` with a trailing directory slash
+  and fresh exact text readback. Preserve current `button` and legacy
+  `push button` roles, provider-local Nautilus Close versus native GTK Cancel,
+  public portal Request ownership and snapshot-scoped prompt guards. Keep
+  Nautilus's selection-model and exact file-label handling inside that adapter.
+- The current directory, two-file selection and
+  `feedback_snapshot(attachments=True)` are fixed bindings, not arbitrary-file
+  APIs. A one-file, boundary-size, mixed-validity or source-change consumer must
+  first extend the shared fixture and observation contracts with finite declared
+  inputs. SelectAll is valid only after the prepared view is proved to contain
+  exactly that batch; never select a broader directory or relax the exact check.
+  Keep the fixture controller and ownership receipts through cleanup.
+- The existing attachment result proves IDs/names and ready status. Its sorted
+  name list does **not** prove displayed order, sizes, preview contents, removal
+  or rejection. Add independent public observations for those results, including
+  the exact remaining list after removal and unchanged prior list after rejection.
+  A fixture's expected values or a successful input cannot supply the observation.
+- Before a changed handoff's live attempt, retain the success/refusal coverage in
+  [test_e2e_feedback_read.py](../../tests/unit/test_e2e_feedback_read.py) and
+  [test_public_atspi.py](../../tests/unit/test_public_atspi.py), including realistic
+  provider roles/labels, absent multi-selection hint, partial selection and
+  uncertain-input refusal. Follow [composition preflight](#composition-preflight)
+  through worker dispatch, observation decoding and recorded assertions. Inspect
+  the earliest failed stage and command evidence; a generic worker/SSH failure
+  alone does not establish a product defect or justify longer waits/replay.
+- Reuse only the recorded provider/version/locale/keyboard scope. New profiles
+  and compositions need their own affected qualification; Open does not qualify
+  Save. Supporting source-file changes use shared commands, while offered
+  preview and required app results remain public customer observations.
+
 #### Synthetic file commands
 
 Task 036 qualified `SyntheticFiles.call` and `synthetic_files.qualify` through

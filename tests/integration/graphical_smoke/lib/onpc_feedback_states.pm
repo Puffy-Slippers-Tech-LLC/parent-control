@@ -51,6 +51,18 @@ sub run_rejection {
     onpc_text::replace_text($journey, 'reply-malformed');
     rejection_observe($journey, $_) for ('rejection-malformed-send', 'rejection-malformed-read');
     onpc_text::replace_text($journey, 'reply-clear');
+    input_hidden($journey);
+    rejection_observe($journey, $_) for ('rejection-hidden-send', 'rejection-hidden-read');
+    input_complex($journey);
+    rejection_observe($journey, $_) for ('rejection-complex-send', 'rejection-complex-read',
+        'rejection-close', 'rejection-wrong-entry', 'rejection-reopen',
+        'rejection-reopened-send', 'rejection-reopened-read');
+    $journey->finish();
+}
+
+sub input_hidden {
+    onpc_progress::operation('Entering and independently reading the fixed hidden character');
+    my ($journey) = @_;
     onpc_text::replace_text($journey, 'body-hidden-base');
     rejection_observe($journey, 'rejection-hidden-focus');
     testapi::send_key('ctrl-home');
@@ -61,7 +73,12 @@ sub run_rejection {
     testapi::send_key('ctrl-shift-u');
     testapi::type_string('0001');
     testapi::send_key('ret');
-    rejection_observe($journey, $_) for ('rejection-hidden-input-read', 'rejection-hidden-send', 'rejection-hidden-read');
+    rejection_observe($journey, 'rejection-hidden-input-read');
+}
+
+sub input_complex {
+    onpc_progress::operation('Building and formatting the fixed excessive formatting document');
+    my ($journey) = @_;
     onpc_text::replace_text($journey, 'body-complex-75');
     onpc_text::duplicate_text($journey, $_) for (
         'body-complex-150', 'body-complex-300', 'body-complex-600', 'body-complex');
@@ -70,10 +87,6 @@ sub run_rejection {
         testapi::send_key('ctrl-a');
         rejection_observe($journey, "rejection-format-$kind-apply");
     }
-    rejection_observe($journey, $_) for ('rejection-complex-send', 'rejection-complex-read',
-        'rejection-close', 'rejection-wrong-entry', 'rejection-reopen',
-        'rejection-reopened-send', 'rejection-reopened-read');
-    $journey->finish();
 }
 
 sub run_length {

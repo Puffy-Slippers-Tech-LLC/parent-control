@@ -19,16 +19,14 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **032 — [E2E-031: validation](E2E-Tasks/032-case-153.md)**.
+Next task: **036 — [Prepare synthetic files through shared commands](E2E-Tasks/036-files.md)**.
 
-Task 031c qualified exact ASCII and mixed-emoji 5,000/5,001 UTF-16 boundaries,
-invalid-only excessive-text rejection and independent reopen in
-`20260927T041209Z-240ad5c2`. Rejection, feedback-state and formatting regressions
-passed in `20260927T044004Z-cc6b2b91`, `20260927T044529Z-89d6d9b4` and
-`20260927T044947Z-fea7011c`; collection, owned cleanup and baseline restoration
-passed. Task 032 must compose the complete case 153 matrix and persistence/Privacy
-checks. Preserve every assertion and the no-valid-submission gate; capability
-qualification supplies no complete-case credit.
+Task 036 delivers FILE05 bounded copy/rename and FIX04 synthetic files through
+shared guarded commands. Qualify exact file/content readback, refusal before
+mutation and owned cleanup before the chooser consumer. Case 153 and its
+affected rejection, window-switch and Privacy regressions passed; its delivered
+scope is recorded in task 032 and the catalogue. No valid feedback submission
+is authorized by that local validation case.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

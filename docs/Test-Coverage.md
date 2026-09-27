@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">14088</span>/<span style="color: gray">0</span>/14088 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">14577</span>/<span style="color: gray">0</span>/14577 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">152</span>/<span style="color: gray">0</span>/152 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">157</span>/<span style="color: gray">0</span>/157 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
-| Child Node | <span style="color: green">3</span>/<span style="color: gray">0</span>/3 | Checks child extension JavaScript logic in Node.js. |
+| Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">70</span>/<span style="color: gray">0</span>/70 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">21</span>/<span style="color: gray">221</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">14730</span>/<span style="color: gray">221</span>/14951** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">76</span>/<span style="color: gray">0</span>/76 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">22</span>/<span style="color: gray">220</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">15232</span>/<span style="color: gray">220</span>/15452** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">20</span>/<span style="color: gray">221</span>/241 |
+| customer-journey | <span style="color: green">21</span>/<span style="color: gray">220</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -51,6 +51,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [56](#scenario-56) | Kiosk selection and unavailable requests (accounts: ineligible parent) | `E2E-017/ineligible-parent` | ready |
 | [57](#scenario-57) | Kiosk selection and unavailable requests (accounts: disabled child) | `E2E-017/disabled-child` | ready |
 | [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
+| [153](#scenario-153) | Feedback drafts, validation and attachment review (flow: validation) | `E2E-031/validation` | ready |
 | [158](#scenario-158) | Choose allowances and save edits (flow: boundaries) | `E2E-035/boundaries` | ready |
 | [161](#scenario-161) | Revoke when there is no active grant (balance: zero total) | `E2E-036/zero-total` | ready |
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
@@ -179,7 +180,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[139](#scenario-139)</span> | <span style="color: gray">Install through remove, reinstall and purge</span> | <span style="color: gray">`E2E-027/continuous`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[152](#scenario-152)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: draft reopen)</span> | <span style="color: gray">`E2E-031/draft-reopen`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[154](#scenario-154)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: attachments)</span> | <span style="color: gray">`E2E-031/attachments`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[155](#scenario-155)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: diagnostic export)</span> | <span style="color: gray">`E2E-031/diagnostic-export`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
@@ -509,6 +509,19 @@ Variant: surface: parent
 
 - Log in as Parent, invoke PARENT01 to run the installed oh-no-parent-control-parent command directly and observe its management window, select an existing child, open About, read its product/version information and open the installed license text.
 - Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy.
+
+### Scenario 153
+
+**Feedback drafts, validation and attachment review (flow: validation)**
+
+Case: `E2E-031/validation` · Category: customer-journey · Status: **ready**
+
+Variant: flow: validation
+
+**Steps:**
+
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection.
 
 ### Scenario 158
 
@@ -3058,26 +3071,7 @@ Variant: flow: draft reopen
 **Steps:**
 
 - Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
-- Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 153
-
-**Feedback drafts, validation and attachment review (flow: validation)**
-
-Case: `E2E-031/validation` · Category: customer-journey · Status: **pending**
-
-Variant: flow: validation
-
-**Steps:**
-
-- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
-- Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send.
+- Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -3096,7 +3090,7 @@ Variant: flow: attachments
 **Steps:**
 
 - Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
-- Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send.
+- Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -3115,7 +3109,7 @@ Variant: flow: diagnostic export
 **Steps:**
 
 - Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
-- Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send.
+- Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

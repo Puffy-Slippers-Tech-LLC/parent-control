@@ -1600,7 +1600,7 @@
       "category": "customer-journey",
       "owners": ["parent-navigation"],
       "requirements": ["ONPC-CORE-FEEDBACK-001", "ONPC-CORE-FEEDBACK-002", "ONPC-CORE-FEEDBACK-003", "ONPC-CORE-FEEDBACK-004", "ONPC-CORE-FEEDBACK-005", "ONPC-CORE-FEEDBACK-006", "ONPC-CORE-FEEDBACK-008", "ONPC-CORE-DIAGNOSTICS-001", "ONPC-CORE-FEEDBACK-012", "ONPC-CORE-DIAGNOSTICS-002", "ONPC-CORE-DIAGNOSTICS-003", "ONPC-CORE-DIAGNOSTICS-004"],
-      "requirement_gap": "Requirements are mapped; qualify the declared Parent draft, validation, attachment/export surfaces. Error-report review on all three surfaces remains additional work. Diagnostic privacy, bounds and role authorization also require separate component checks; current Parent export observations do not establish those guarantees.",
+      "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Logging-and-Feedback.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": "ubuntu26.04",
@@ -1614,7 +1614,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools."},
-          {"id": "step-2", "operation": "ui", "description": "Inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Do not Send."}
+          {"id": "step-2", "operation": "ui", "description": "Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1642,7 +1642,7 @@
       },
       "variants": [
         {"coverage_id": 152, "id": "draft-reopen", "owner": "parent-navigation", "parameters": {"flow": "draft-reopen"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 153, "id": "validation", "owner": "parent-navigation", "parameters": {"flow": "validation"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 153, "id": "validation", "owner": "parent-navigation", "parameters": {"flow": "validation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_validation.py", "test_id": "validation"}},
         {"coverage_id": 154, "id": "attachments", "owner": "parent-navigation", "parameters": {"flow": "attachments"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 155, "id": "diagnostic-export", "owner": "parent-navigation", "parameters": {"flow": "diagnostic-export"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]

@@ -429,12 +429,24 @@ def test_every_declared_launch_route_policy_control_combination_remains_pending(
 
 
 def test_unmapped_surfaces_and_external_delivery_are_explicit_pending_work(document):
-    for sid in ['E2E-031', 'E2E-032', 'E2E-033']:
+    for sid in ['E2E-032', 'E2E-033']:
         chosen = family(document, sid)
         assert chosen['requirement_gap']
         assert all(v['status'] == 'pending' for v in chosen['variants'])
     assert {'explicit-external-delivery-authorization', 'dedicated-test-recipient',
             'supported-real-feedback-service-profile'} <= set(family(document, 'E2E-032')['preconditions'])
+
+
+def test_local_feedback_registers_only_the_complete_validation_case(document):
+    chosen = family(document, 'E2E-031')
+    assert chosen['requirement_gap'] is None
+    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {153}
+    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'pending'} == {152, 154, 155}
+    validation = next(v for v in chosen['variants'] if v['coverage_id'] == 153)
+    assert validation['executable'] == {
+        'path': 'tests/e2e/parent_feedback_validation.py', 'test_id': 'validation'}
+    assert not chosen['assertions']['backend'] and not chosen['assertions']['other_user']
+    assert 'delivery' not in chosen['expected_evidence']
 
 
 def test_parent_about_maps_customer_information_without_internal_product_evidence(document):

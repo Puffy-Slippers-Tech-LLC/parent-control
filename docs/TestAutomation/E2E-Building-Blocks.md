@@ -271,7 +271,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 
 DESK10's [`window_switch.PLAN`](../../tests/e2e/window_switch.py) and
 `onpc_feedback_read::run_window_switch` passed `check_e2e_window_switch` in
-report `20260926T230244Z-b7c169a2`. The guarded slice independently entered
+report `20260927T060117Z-111c6b63`. The guarded slice independently entered
 Parent and feedback, activated the supporting viewer and returned twice,
 compared the same public window endpoints/PIDs and exact synthetic body/reply,
 diagnostic attachment and controls before any new edit. Closing the viewer
@@ -599,20 +599,40 @@ only on Send; after these edits the expected state is **enabled Send and no
 validation explanation**, including invalid input. Reopening must preserve the
 valid snapshot before any new input. This does not establish submission rejection.
 The fixed rejection explanation projections are qualified separately below;
-disabled-Send observation still has host coverage only. Full case 153 remains
-pending; never infer rejection from input validity or
+disabled-Send observation still has host coverage only. Complete case 153 is
+qualified [below](#complete-local-validation); never infer rejection from input validity or
 substitute private transport validation for public evidence.
+
+#### Complete local validation
+
+[`parent_feedback_validation.PLAN`](../../tests/e2e/parent_feedback_validation.py)
+composes the complete case 153 [finite table](E2E-Scenario-Recipes.md#feedback-local-values)
+through `record_installed_journey`,
+[`FeedbackValidationJourney`](../../tests/e2e/feedback_composition.py) and
+`onpc_feedback_privacy::run(exchange, 'validation')`. Repeated operations have
+unique invocation IDs. Public snapshots and guarded invalid-only rejection
+cover text/email, ASCII and mixed-emoji UTF-16 boundaries, SOH and excessive
+formatting. Immutable observations compare the complex draft after reopening
+and the synthetic-first draft across existing-window activation, Privacy and
+dialog close/reopen. No valid submission or portal mutation is permitted.
+
+Case 153 passed in `20260927T053552Z-feb94dac`, including collection, owned
+cleanup and baseline restoration. Affected rejection, window-switch and Privacy
+regressions passed in `20260927T055529Z-5492a75e`,
+`20260927T060117Z-111c6b63` and `20260927T060455Z-21012a68`, with the same
+cleanup guarantees. These results do not qualify the other local feedback cases,
+additional surfaces or sending/delivery behavior.
 
 #### Feedback rejection
 
 `feedback_rejection.PLAN` / `FeedbackRejectionJourney`,
 `onpc_feedback_states::run_rejection` and `AccessibleUI.rejection_operation`
-last passed `check_e2e_feedback_rejection` in `20260927T044004Z-cc6b2b91`.
+last passed `check_e2e_feedback_rejection` in `20260927T055529Z-5492a75e`.
 The qualification covers empty body, malformed reply, the authorized SOH fixture
 and excessive formatting, exact public explanations, usable controls, independent
 reopened entry, wrong-entry and valid-input refusal. Collection, owned cleanup
 and baseline restoration passed. No valid report is submitted; complete case 153
-remains a separate pending scenario.
+has separate [composition acceptance](#complete-local-validation).
 
 `reject_invalid_feedback(case)` requires a fresh owned editor, exact bounded
 body/reply and enabled Send. It refuses valid, mismatched, ambiguous, stale or
@@ -669,7 +689,7 @@ Rejection, state and formatting regressions passed in
 `20260927T044004Z-cc6b2b91`, `20260927T044529Z-89d6d9b4` and
 `20260927T044947Z-fea7011c`. All qualifications completed collection, owned
 cleanup and baseline restoration. No valid report was submitted; complete case
-153 remains pending.
+153 has separate [composition acceptance](#complete-local-validation).
 
 #### Synthetic text duplication
 
@@ -2627,6 +2647,9 @@ Before the first live attempt, check the changed boundary end to end on the host
    regression and review of the guard's shared API list, never a case exemption.
 2. Exercise the actual worker sequence against the plan and inject refusal at
    the changed boundary. Check that no later input or successful reply occurs.
+   For a custom journey class, also call the real recorder entry point through
+   worker startup: its constructor must accept and forward `plan` and keyword
+   `actions`. Direct class tests and a mocked recorder do not cover this boundary.
    For a new observation shape, carry realistic-sized output through the real
    controller decoder; an adapter-only mock cannot qualify that boundary. The
    [lessons above](#lessons-to-preserve) identify the recurring representation

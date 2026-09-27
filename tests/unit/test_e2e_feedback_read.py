@@ -2,7 +2,7 @@
 
 from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 import json
 
 import pytest
@@ -29,6 +29,145 @@ from ui_observations import FeedbackStateObservation
 # DESK10 uses the same isolated doubles and waited private Perl processes.
 # Rejection checks retain these resources; no network, shared paths or new buses.
 # UTF-16 checks retain the same in-memory doubles and waited private Perl children.
+# Complete-case composition uses the same private values and waited Perl children;
+# no added shared paths, VM resources, caches, buses or scheduler classification.
+
+
+def test_validation_entry_reaches_worker_and_closes_recorder_on_failure(tmp_path):
+    from parent_feedback_validation import PLAN, ValidationJourney, execute
+
+    recorder = MagicMock(assertion=Mock())
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(),
+                              commands=Mock(), recorder=recorder)
+
+    def worker(**options):
+        journey = options['guarded_observe'].__self__
+        assert type(journey) is ValidationJourney
+        assert journey.context is context and journey.plan is PLAN
+        assert options['validate'].__self__ is journey
+        assert options['authenticate'] is True and options['timeout'] == 1800
+        assert journey.actions == {} and not journey.steps and not journey.states
+        raise EvidenceError('synthetic-worker-stop')
+
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        execute(recorder, context)
+    context.credentials.provision.assert_called_once_with(
+        context.lease, context.verified, tmp_path, context.guestfs, context.commands)
+    context.run_worker.assert_called_once()
+    recorder.step.assert_called_once_with('setup')
+    assert recorder.step.return_value.__exit__.call_args.args[0] is EvidenceError
+    recorder.assertion.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'feedback-state-whitespace', 'length-ascii-valid',
+                                  'rejection-mixed-read', 'rejection-hidden-input-read',
+                                  'rejection-complex-read', 'review-reset-open',
+                                  'switch-feedback-ready', 'feedback-privacy-returned',
+                                  'feedback-draft-reopen'])
+def test_complete_validation_worker_matches_plan_and_stops_at_failed_proof(fault):
+    from parent_feedback_validation import PLAN
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type:' . $_[0]; }
+package main;
+require onpc_feedback_privacy;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_privacy::run(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }, 'validation'); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = list(PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    assert len(stages) == len(set(stages))
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+    if not fault:
+        assert result['events'].count('ctrl-shift-v') == 20
+        assert result['events'].count('alt-tab') == 3
+        assert result['events'].count('ctrl-shift-u') == 3
+        assert result['events'].count('alt-f4') == 2
+        operations = [PLAN.screen_tags[stage] for stage in stages]
+        assert {operation for operation in operations if operation.endswith('-send')} == {
+            'ui:rejection-ascii-send', 'ui:rejection-mixed-send', 'ui:rejection-empty-send',
+            'ui:rejection-malformed-send', 'ui:rejection-hidden-send',
+            'ui:rejection-complex-send', 'ui:rejection-reopened-send'}
+        assert operations.index('ui:feedback-state-whitespace') < operations.index('ui:rejection-empty-send')
+        assert operations.index('ui:rejection-complex-read') < operations.index('ui:feedback-privacy-open')
+
+
+@pytest.mark.parametrize('stage,projection,validation', [
+    ('feedback-state-whitespace', 'states-whitespace', 'none'),
+    ('feedback-state-no-reply', 'states-no-reply', 'none'),
+    ('feedback-state-malformed', 'states-malformed', 'none'),
+    ('length-ascii-valid', 'length-ascii-5000', 'none'),
+    ('length-mixed-valid', 'length-mixed-5000', 'none'),
+    ('rejection-ascii-read', 'length-ascii-5001', 'length-invalid'),
+    ('rejection-mixed-read', 'length-mixed-5001', 'length-invalid'),
+    ('rejection-empty-read', 'initial-empty', 'body-required'),
+    ('rejection-malformed-read', 'states-malformed', 'reply-invalid'),
+    ('rejection-hidden-read', 'rejection-hidden', 'hidden-invalid'),
+    ('rejection-complex-read', 'rejection-complex', 'format-invalid'),
+    ('review-valid', 'synthetic-first', 'none'),
+])
+@pytest.mark.parametrize('fault', ['', 'projection', 'explanation', 'disabled'])
+def test_validation_matrix_requires_each_public_result(tmp_path, stage, projection, validation, fault):
+    from parent_feedback_validation import ValidationJourney
+    journey = ValidationJourney(SimpleNamespace(directory=tmp_path), Mock())
+    value = dict(draft=projection, validation=validation, send_enabled=True,
+                 attachments=['diagnostic-logs.zip'], collection='ready', controls='ready')
+    if fault == 'projection':
+        value['draft'] = 'synthetic-first' if projection != 'synthetic-first' else 'initial-empty'
+    elif fault == 'explanation':
+        value['validation'] = 'none' if validation != 'none' else 'body-required'
+    elif fault == 'disabled':
+        value['send_enabled'] = False
+    if fault:
+        with pytest.raises(EvidenceError, match='matrix-result'):
+            journey.check_settings(stage, {'ui': {'feedback_state': value}})
+    else:
+        journey.check_settings(stage, {'ui': {'feedback_state': value}})
+        with pytest.raises(EvidenceError, match='matrix-replay'):
+            journey.check_settings(stage, {'ui': {'feedback_state': value}})
+
+
+def test_validation_preservation_requires_earlier_evidence(tmp_path):
+    from parent_feedback_validation import ValidationJourney
+    journey = ValidationJourney(SimpleNamespace(directory=tmp_path), Mock())
+    for stage in ('ready', 'setup-detached'):
+        journey.check_settings(stage, {})
+    assert not journey.states and not journey.windows and journey.draft is None
+    value = dict(draft='rejection-complex', validation='none', send_enabled=True,
+                 attachments=['diagnostic-logs.zip'], collection='ready', controls='ready')
+    with pytest.raises(EvidenceError, match='matrix-preservation'):
+        journey.check_settings('rejection-reopen', {'ui': {'feedback_state': value}})
+    rejected = dict(value, validation='format-invalid')
+    journey.check_settings('rejection-complex-read', {'ui': {'feedback_state': rejected}})
+    journey.check_settings('rejection-reopen', {'ui': {'feedback_state': value}})
+    journey.check_settings('rejection-reopened-read', {'ui': {'feedback_state': rejected}})
+    draft = dict(draft='synthetic-first', validation='none', attachments=['diagnostic-logs.zip'],
+                 collection='ready', controls='ready')
+    with pytest.raises(EvidenceError, match='preserved-draft'):
+        journey.check_settings('feedback-draft-reopen', {'ui': {'feedback': draft}})
+    journey.check_settings('feedback-draft', {'ui': {'feedback': draft}})
+    for stage in ('feedback-privacy-returned', 'feedback-draft-reread', 'feedback-draft-reopen'):
+        journey.check_settings(stage, {'ui': {'feedback': draft}})
 
 
 def rejection_ui(case):

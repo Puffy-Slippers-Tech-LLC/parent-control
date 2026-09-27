@@ -37,6 +37,8 @@ APIS = {
     'package_install': {'check_install_result'},
     'package_journey': {'record_package_journey'},
     'ui_observations': {'SettingsObservation'},
+    'feedback_composition': {'FeedbackValidationJourney', 'text_fragment'},
+    'feedback_length': {'input_stages'},
     'serial_harness': {'record_serial_journey'},
 }
 RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_serial_journey')

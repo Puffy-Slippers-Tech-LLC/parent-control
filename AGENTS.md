@@ -62,6 +62,14 @@
   Task IDs and scenario IDs are separate namespaces. Inventory `ready` means
   registered for execution; task completion requires its acceptance and close-out.
   Reconciliation alone supplies no live acceptance or task-completion credit.
+- Keep ready E2E cases as compositions of shared blocks: case code owns finite
+  values, order and expected results; libraries own input, transport, fixtures,
+  evidence and reusable comparisons. Audit both Python bindings and dispatched
+  workers, including imported helpers. Qualification and case workers must call
+  the same shared sequence instead of copying it. Follow the
+  [composition preflight](docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight)
+  before the first live attempt; preserve independent-entry/refusal checks in
+  qualification and complete customer assertions in the case.
 - For “Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md”,
   implement exactly its first unchecked active queue row. Table order is final;
   task IDs are labels, and prerequisites name earlier tasks' delivered scopes.

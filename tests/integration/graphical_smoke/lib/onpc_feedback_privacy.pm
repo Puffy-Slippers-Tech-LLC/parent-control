@@ -55,23 +55,10 @@ sub _validation {
     onpc_feedback_states::rejection_observe($journey, $_) for ('switch-parent-before', 'switch-viewer-launch');
     onpc_feedback_read::activate_existing_window($journey, 'switch-parent');
     onpc_feedback_states::rejection_observe($journey, $_) for ('feedback-open', 'feedback-state-empty');
-    for my $edit (['body-whitespace', 'feedback-state-whitespace'],
-                  ['body-first', 'feedback-state-no-reply'],
-                  ['reply-malformed', 'feedback-state-malformed'],
-                  ['reply-first', 'feedback-state-valid']) {
-        onpc_text::replace_text($journey, $edit->[0]);
-        onpc_feedback_states::rejection_observe($journey, $edit->[1]);
-    }
+    onpc_feedback_states::edit_states($journey);
     onpc_text::replace_text($journey, 'reply-clear', 'length-reply-clear');
     for my $family ('ascii', 'mixed') {
-        for my $units (5000, 5001) {
-            my $binding = "body-$family-$units";
-            onpc_text::replace_text($journey, $binding . ($family eq 'mixed' ? '-base' : ''));
-            onpc_text::append_scalar($journey, $binding) if $family eq 'mixed';
-            onpc_feedback_states::rejection_observe($journey, $_) for ($units == 5000
-                ? ("length-$family-valid", "length-$family-refusal")
-                : ("rejection-$family-send", "rejection-$family-read"));
-        }
+        onpc_feedback_states::length_boundary($journey, $family);
         # Clear the previous public status through the qualified dialog route.
         onpc_feedback_states::rejection_observe($journey, $_) for (
             "length-$family-close", "length-$family-reopen");

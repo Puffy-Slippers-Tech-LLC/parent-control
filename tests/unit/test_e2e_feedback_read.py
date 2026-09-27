@@ -34,6 +34,59 @@ from ui_observations import FeedbackStateObservation
 # FILE03 adds only in-memory provider doubles and waited private Perl children;
 # it retains this module's reviewed unit scheduling and resource ownership.
 # Attachment-item checks retain those same private resources and scheduling.
+# Shared-fragment checks use the same waited private Perl processes and memory.
+
+
+@pytest.mark.parametrize('block,family,fault', [
+    ('edits', '', ''), ('edits', '', 'feedback-state-no-reply'),
+    ('length', 'ascii', ''), ('length', 'mixed', ''),
+    ('length', 'ascii', 'length-ascii-refusal'),
+    ('length', 'mixed', 'text-scalar-body-mixed-5001-caret'),
+    ('length', 'unsupported', ''),
+])
+def test_feedback_fragments_accept_supplied_journey_and_stop_before_later_input(block, family, fault):
+    from feedback_length import length_boundary
+    from feedback_states import edit_states
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages);
+my ($block, $family, $fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type'; }
+package main;
+require onpc_feedback_states;
+my $journey = onpc_journey->new(prefix => 'independent-fragment', review => 0,
+    exchange => sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    });
+my $ok = eval {
+    if ($block eq 'edits') { onpc_feedback_states::edit_states($journey); }
+    else { onpc_feedback_states::length_boundary($journey, $family); }
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', block, family, fault).stdout)
+    if family == 'unsupported':
+        assert result == dict(ok=0, events=[], stages=[])
+        with pytest.raises(EvidenceError, match='length:family'):
+            length_boundary(family)
+        return
+    fragment = edit_states() if block == 'edits' else length_boundary(family)
+    stages = list(fragment)
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert len(result['stages']) == len(set(result['stages']))
+    assert result['events'][-1] == (fault or stages[-1])
+    assert [stage for stage in stages if stage.endswith('-send')] == (
+        [] if block == 'edits' else [f'rejection-{family}-send'])
+    fragment.clear()
+    assert list(edit_states() if block == 'edits' else length_boundary(family)) == stages
 
 
 def attachment_ui():

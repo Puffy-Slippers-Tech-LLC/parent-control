@@ -834,6 +834,59 @@ ATTACHMENT_LABEL_ACTIONS = frozenset((
     'clipboard.copy', 'selection.delete', 'clipboard.paste', 'link.open',
     'clipboard.cut', 'link.copy', 'menu.popup', 'selection.select-all'))
 
+# Finite customer inputs, not an arbitrary-path or attachment injection API.
+BOUNDARY_FILES = {
+    'count': tuple((f'Count {index}.txt', b'C') for index in range(1, 6)),
+    'sixth': (('Count 6.txt', b'C'),),
+    'maximum': (('Maximum.txt', b'M' * (5 * 1024 * 1024)),),
+    'oversized': (('Oversized.txt', b'O' * (5 * 1024 * 1024 + 1)),),
+    'total': (('Total.txt', b'T' * (3 * 1024 * 1024)),),
+    'overflow': (('Overflow.txt', b'X' * (3 * 1024 * 1024 + 1)),),
+}
+BOUNDARY_STATES = {
+    'empty': ((), '2 file attachments ready.', True),
+    'count': (BOUNDARY_FILES['count'], '5 file attachments ready.', True),
+    'count-rejected': (BOUNDARY_FILES['count'], 'Attach at most 5 files.', True),
+    'cleared': ((), 'Attach at most 5 files.', True),
+    'no-logs': ((), 'Attach at most 5 files.', False),
+    'maximum': (BOUNDARY_FILES['maximum'], '1 file attachment ready.', False),
+    'oversized-rejected': (BOUNDARY_FILES['maximum'], 'Each attachment must be 5 MB or smaller.', False),
+    'total': (BOUNDARY_FILES['maximum'] + BOUNDARY_FILES['total'], '2 file attachments ready.', False),
+    'maximum-again': (BOUNDARY_FILES['maximum'], '2 file attachments ready.', False),
+    'overflow-rejected': (BOUNDARY_FILES['maximum'], 'Attachments and diagnostic logs must total 8 MB or less.', False),
+}
+BOUNDARY_BATCHES = {
+    'count': ('empty', 'count'), 'sixth': ('count', 'count-rejected'),
+    'maximum': ('no-logs', 'maximum'), 'oversized': ('maximum', 'oversized-rejected'),
+    'total': ('oversized-rejected', 'total'), 'overflow': ('maximum-again', 'overflow-rejected'),
+}
+BOUNDARY_OPERATIONS = frozenset(
+    ['boundary-clear-small', 'boundary-clear-count', 'boundary-exclude-logs', 'boundary-remove-total']
+    + [f'boundary-{batch}-{step}' for batch in BOUNDARY_BATCHES
+       for step in ('before', 'open', 'location', 'files', 'accept', 'result', 'preserved')])
+OPERATIONS |= BOUNDARY_OPERATIONS
+
+
+def attachment_size(data):
+    size = len(data)
+    return (f'{size} bytes' if size < 1024 else f'{size / 1024:.1f} KB' if size < 1024 * 1024
+            else f'{size / (1024 * 1024):.1f} MB')
+
+
+def boundary_expected(operation):
+    require(operation in BOUNDARY_OPERATIONS, 'ui:boundary-operation')
+    transitions = {'boundary-clear-small': 'empty', 'boundary-clear-count': 'cleared',
+                   'boundary-exclude-logs': 'no-logs', 'boundary-remove-total': 'maximum-again'}
+    if operation in transitions:
+        state = BOUNDARY_STATES[transitions[operation]]
+    else:
+        _, batch, step = operation.split('-')
+        if step in ('open', 'location', 'files', 'accept'):
+            return {'checked': operation}
+        state = BOUNDARY_STATES[BOUNDARY_BATCHES[batch][0 if step == 'before' else 1]]
+    return {'checked': operation, 'items': [[name, attachment_size(data)] for name, data in state[0]],
+            'status': state[1], 'include_logs': state[2]}
+
 
 def validate_chooser_portal_owner(query, caller_pid, provider_pid):
     """Bind the sole Nautilus request to its public portal caller identity.
@@ -1863,7 +1916,9 @@ class AccessibleUI:
         return {'route': route, **validate_shell_metadata({
             'version': version, 'locale': locale, 'keyboard': [list(source) for source in sources]})}
 
-    def chooser_selection(self, expected=None):
+    def chooser_selection(self, expected=None, *, profile='standard'):
+        require(profile == 'standard' or profile in BOUNDARY_FILES, 'ui:chooser-profile')
+        files = CHOOSER_FILES if profile == 'standard' else tuple(name for name, _ in BOUNDARY_FILES[profile])
         window, scoped, ids, facts, accept, cancel, route = self.chooser_snapshot()
         views = [node for node in scoped
                  if (self.has_state(node, self.api.StateType.MULTISELECTABLE)
@@ -1876,13 +1931,13 @@ class AccessibleUI:
         require(len(views) == 1, 'ui:chooser-multiple-mode')
         view = views[0]
         children = [view.get_child_at_index(index) for index in range(view.get_child_count())]
-        require(len(children) == 2 and all(child in scoped for child in children),
+        require(len(children) == len(files) and all(child in scoped for child in children),
                 'ui:chooser-file-set')
         # Nautilus's a11y-name includes the file role, even though the visible
         # basename does not. Keep this exact English provider binding local;
         # do not strip arbitrary suffixes or accept similarly named folders.
         labels = {name + ('. File' if route == 'nautilus-portal' else ''): name
-                  for name in CHOOSER_FILES}
+                  for name in files}
         names = [child.get_name() for child in children]
         if sorted(names) != sorted(labels):
             print(json.dumps({'event': 'chooser-file-labels', 'route': route,
@@ -1891,7 +1946,7 @@ class AccessibleUI:
         require(sorted(names) == sorted(labels), 'ui:chooser-file-set')
         selection = view.get_selection_iface()
         count = self.api.Selection.get_n_selected_children(selection)
-        require(type(count) is int and 0 <= count <= 2, 'ui:chooser-selection')
+        require(type(count) is int and 0 <= count <= len(files), 'ui:chooser-selection')
         selected = [self.api.Selection.get_selected_child(selection, index) for index in range(count)]
         require(len(set(selected)) == count and all(child in children for child in selected),
                 'ui:chooser-selection')
@@ -1899,10 +1954,10 @@ class AccessibleUI:
         require(expected is None or names_selected == list(expected), 'ui:chooser-partial-selection')
         return view, children, names_selected, accept, cancel, route
 
-    def chooser_select_files(self):
+    def chooser_select_files(self, *, profile='standard'):
         # The prepared directory contains only the two declared synthetic
         # files. SelectAll avoids individual row navigation and modifier state.
-        view, _, _, _, _, _ = self.chooser_selection()
+        view, _, _, _, _, _ = self.chooser_selection(profile=profile)
         require(all(self.has_state(view, state) for state in (
                     self.api.StateType.SENSITIVE, self.api.StateType.VISIBLE,
                     self.api.StateType.SHOWING)),
@@ -1912,7 +1967,8 @@ class AccessibleUI:
                 'ui:chooser-selection-refused')
         self.input_uncertain = False
         try:
-            self.wait(lambda: self.chooser_selection(CHOOSER_FILES), 'chooser-selection',
+            files = CHOOSER_FILES if profile == 'standard' else tuple(name for name, _ in BOUNDARY_FILES[profile])
+            self.wait(lambda: self.chooser_selection(files, profile=profile), 'chooser-selection',
                       prompt_in_predicate=True)
         except BaseException:
             self.input_uncertain = True
@@ -1931,13 +1987,14 @@ class AccessibleUI:
                 and field.get_process_id() == window.get_process_id(), 'ui:chooser-location-id')
         return field
 
-    def chooser_set_location(self):
+    def chooser_set_location(self, *, profile='standard'):
+        require(profile == 'standard' or profile in BOUNDARY_FILES, 'ui:chooser-profile')
         field = self.chooser_location_field()
         editable = field.get_editable_text_iface()
         require(editable is not None, 'ui:chooser-location-editable')
         # A trailing slash denotes the prepared directory and avoids path
         # completion extending the final component during keyboard typing.
-        location = CHOOSER_DIRECTORY + '/'
+        location = CHOOSER_DIRECTORY + ('' if profile == 'standard' else '-' + profile) + '/'
         self.input_uncertain = True
         require(self.api.EditableText.set_text_contents(editable, location),
                 'ui:chooser-location-refused')
@@ -1952,8 +2009,10 @@ class AccessibleUI:
             self.input_uncertain = True
             raise
 
-    def chooser_operation(self, operation):
+    def chooser_operation(self, operation, *, profile='standard'):
         require(operation in CHOOSER_OPERATIONS, 'ui:chooser-operation')
+        require(profile == 'standard' or (profile in BOUNDARY_BATCHES and operation in (
+            'chooser-open', 'chooser-location', 'chooser-files', 'chooser-accept')), 'ui:chooser-profile')
         def ready(read, pending):
             def observe():
                 try:
@@ -1972,7 +2031,10 @@ class AccessibleUI:
             else:
                 raise UiError('ui:chooser-refusal-missing')
         elif operation in ('chooser-open', 'chooser-reopen'):
-            self.feedback_snapshot(attachments=operation == 'chooser-reopen')
+            if profile == 'standard':
+                self.feedback_snapshot(attachments=operation == 'chooser-reopen')
+            else:
+                self.feedback_snapshot(attachment_state=BOUNDARY_STATES[BOUNDARY_BATCHES[profile][0]])
             require(self.chooser_snapshot(absent=True), 'ui:chooser-already-open')
             self.activate_id('feedback-add-files')
             ready(self.chooser_snapshot, ('ui:chooser-entry', 'ui:chooser-active'))
@@ -1983,13 +2045,14 @@ class AccessibleUI:
             else:
                 raise UiError('ui:chooser-refusal-missing')
         elif operation == 'chooser-location':
-            self.chooser_set_location()
+            self.chooser_set_location(profile=profile)
         elif operation == 'chooser-files':
-            ready(self.chooser_selection, ('ui:chooser-file-set',))
-            self.chooser_select_files()
+            ready(lambda: self.chooser_selection(profile=profile), ('ui:chooser-file-set',))
+            self.chooser_select_files(profile=profile)
         elif operation in ('chooser-accept', 'chooser-cancel'):
             if operation == 'chooser-accept':
-                _, _, _, accept, cancel, _ = self.chooser_selection(CHOOSER_FILES)
+                files = CHOOSER_FILES if profile == 'standard' else tuple(name for name, _ in BOUNDARY_FILES[profile])
+                _, _, _, accept, cancel, _ = self.chooser_selection(files, profile=profile)
             else:
                 _, _, _, _, accept, cancel, _ = self.chooser_snapshot()
             self._invoke_target(accept if operation == 'chooser-accept' else cancel)
@@ -2030,27 +2093,88 @@ class AccessibleUI:
             return {'checked': operation, 'items': value['items'], 'preview': 'not-offered'}
         if operation == 'attachment-remove':
             name, data = ATTACHMENT_INPUTS[0]
-            key = hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]
-            self.activate_id('feedback-remove-attachment-' + key)
-            def remaining():
+            value = self.remove_attachment(name, data,
+                before=lambda: self.feedback_snapshot(attachments='details'),
+                after=lambda: self.feedback_snapshot(attachments='remaining'))
+        return {'checked': operation, 'items': value['items']}
+
+    def remove_attachment(self, name, data, *, before, after):
+        """One ID-bound removal, with independent complete before/after reads."""
+        before()
+        key = hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]
+        self.activate_id('feedback-remove-attachment-' + key)
+        def remaining():
+            try:
+                return after()
+            except UiError as error:
+                if str(error) != 'ui:feedback-attachment-set':
+                    raise
+                # Only the unchanged valid old list is pending. Wrong-item
+                # removal or changed metadata refuses without replaying input.
+                before()
+                return None
+        try:
+            return self.wait(remaining, 'attachment-remaining', prompt_in_predicate=True)
+        except BaseException:
+            self.input_uncertain = True
+            raise
+
+    def boundary_operation(self, operation):
+        require(operation in BOUNDARY_OPERATIONS, 'ui:boundary-operation')
+        if operation in ('boundary-clear-small', 'boundary-clear-count', 'boundary-remove-total'):
+            if operation == 'boundary-clear-small':
+                state = (ATTACHMENT_INPUTS[1:], '2 file attachments ready.', True)
+                remove = ATTACHMENT_INPUTS[1:]
+            elif operation == 'boundary-clear-count':
+                state = BOUNDARY_STATES['count-rejected']
+                remove = state[0]
+            else:
+                state = BOUNDARY_STATES['total']
+                remove = BOUNDARY_FILES['total']
+            for name, data in remove:
+                new_state = (tuple(item for item in state[0] if item[0] != name), *state[1:])
+                self.remove_attachment(name, data,
+                    before=lambda: self.feedback_snapshot(attachment_state=state),
+                    after=lambda: self.feedback_snapshot(attachment_state=new_state))
+                state = new_state
+            value = self.feedback_snapshot(attachment_state=state)
+        elif operation == 'boundary-exclude-logs':
+            self.feedback_snapshot(attachment_state=BOUNDARY_STATES['cleared'])
+            self.activate_id('feedback-toggle-logs')
+            def excluded():
                 try:
-                    return self.feedback_snapshot(attachments='remaining')
+                    return self.feedback_snapshot(attachment_state=BOUNDARY_STATES['no-logs'])
                 except UiError as error:
-                    if str(error) != 'ui:feedback-attachment-set':
+                    if str(error) != 'ui:feedback-logs':
                         raise
-                    # DoAction acknowledges queued GTK activation. Only the
-                    # unchanged, fully valid old list is a pending result;
-                    # wrong-item removal or changed metadata still refuses.
-                    self.feedback_snapshot(attachments='details')
+                    self.feedback_snapshot(attachment_state=BOUNDARY_STATES['cleared'])
                     return None
             try:
-                value = self.wait(remaining, 'attachment-remaining', prompt_in_predicate=True)
+                value = self.wait(excluded, operation, prompt_in_predicate=True)
             except BaseException:
                 self.input_uncertain = True
                 raise
-        return {'checked': operation, 'items': value['items']}
+        else:
+            _, batch, step = operation.split('-')
+            before, after = (BOUNDARY_STATES[key] for key in BOUNDARY_BATCHES[batch])
+            if step in ('open', 'location', 'files', 'accept'):
+                chooser = self.chooser_operation('chooser-' + step, profile=batch)
+                return {'checked': operation, **({'provider': chooser['provider']} if step == 'open' else {})}
+            state = before if step == 'before' else after
+            def observed():
+                try:
+                    return self.feedback_snapshot(attachment_state=state)
+                except UiError as error:
+                    if step == 'result' and str(error) in ('ui:feedback-validation',
+                            'ui:feedback-attachment-set', 'ui:feedback-control', 'ui:feedback-editor'):
+                        return None
+                    raise
+            value = self.wait(observed, operation, prompt_in_predicate=True)
+        return {'checked': operation, 'items': value['items'], 'status': value['status'],
+                'include_logs': value['include_logs']}
 
-    def feedback_snapshot(self, projection='initial-empty', *, states=False, attachments=False):
+    def feedback_snapshot(self, projection='initial-empty', *, states=False, attachments=False,
+                          attachment_state=None):
         """FEED03: compare a declared synthetic draft, never project arbitrary text.
 
         One complete public snapshot supplies ownership, the exact attachment
@@ -2103,10 +2227,17 @@ class AccessibleUI:
             require(actual in allowed,
                     'ui:feedback-nonempty-draft')
         require(attachments in (False, True, 'details', 'remaining', 'preview'), 'ui:attachment-profile')
+        inputs = tuple((name, data) for name, data in ATTACHMENT_INPUTS
+                       if attachments != 'remaining' or name == 'Synthetic note.txt') if attachments else ()
+        include_logs = True
+        status_expected = '2 file attachments ready.' if attachments else None
+        if attachment_state is not None:
+            require(not states and not attachments and type(attachment_state) is tuple
+                    and len(attachment_state) == 3, 'ui:attachment-profile')
+            inputs, status_expected, include_logs = attachment_state
+            attachments = 'details'
         expected_attachments = ({'feedback-attachment-' + hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]: name
-            for name, data in (('Synthetic note.txt', b'ONPC synthetic attachment\n'),
-                               ('Second note.txt', b'ONPC second synthetic attachment\n'))
-            if attachments != 'remaining' or name == 'Synthetic note.txt'} if attachments else {})
+            for name, data in inputs})
         require({value for value in ids if value.startswith('feedback-attachment-')} == set(expected_attachments),
                 'ui:feedback-attachment-set')
         for identity, name in expected_attachments.items():
@@ -2163,15 +2294,15 @@ class AccessibleUI:
                             and self.has_state(subtitle, self.api.StateType.VISIBLE),
                             'ui:attachment-size-owner')
                     size = subtitle.get_name()
-                    expected_size = next(f'{len(data)} bytes' for name, data in ATTACHMENT_INPUTS
+                    expected_size = next(attachment_size(data) for name, data in inputs
                                          if name == expected_attachments[identity])
                     require(size == expected_size, 'ui:attachment-size')
                     items.append([row.get_name(), size])
-            expected_items = [[name, f'{len(data)} bytes'] for name, data in ATTACHMENT_INPUTS
-                              if attachments != 'remaining' or name == 'Synthetic note.txt']
+            expected_items = [[name, attachment_size(data)] for name, data in inputs]
             require(items == expected_items, 'ui:attachment-details')
         logs = target('feedback-logs-row')
-        require(logs.get_name() == 'diagnostic-logs.zip', 'ui:feedback-logs')
+        require(logs.get_name() == ('diagnostic-logs.zip' if include_logs else 'No logs attached'),
+                'ui:feedback-logs')
         for identity in ('feedback-collection-status', 'feedback-retry-logs',
                          'feedback-send-without-logs'):
             node = self.snapshot_owned_target(identity, root=root, showing=False,
@@ -2182,11 +2313,17 @@ class AccessibleUI:
                                             observation=observation)
         status_text = (status.get_name() if status is not None
                        and self.has_state(status, self.api.StateType.VISIBLE) else '')
-        require(status_text == '2 file attachments ready.' if attachments else
+        require(status_text == status_expected if attachments else
                 status_text in FEEDBACK_VALIDATION if states else status_text == '',
                 'ui:feedback-validation')
         for identity in ('feedback-close', 'feedback-send', 'feedback-add-files',
                          'feedback-download-logs', 'feedback-toggle-logs'):
+            if not include_logs and identity == 'feedback-download-logs':
+                node = self.snapshot_owned_target(identity, root=root, showing=False,
+                                                  observation=observation)
+                require(node is None or not self.has_state(node, self.api.StateType.VISIBLE),
+                        'ui:feedback-logs')
+                continue
             if states and identity == 'feedback-send':
                 continue
             require(self.has_state(target(identity), self.api.StateType.SENSITIVE),
@@ -2197,10 +2334,13 @@ class AccessibleUI:
                     'controls': 'ready',
                     'send_enabled': bool(self.has_state(target('feedback-send'),
                                                        self.api.StateType.SENSITIVE))}
-        result = {'draft': projection, 'attachments': ['diagnostic-logs.zip', *sorted(expected_attachments.values())],
+        result = {'draft': projection, 'attachments': [*(['diagnostic-logs.zip'] if include_logs else []), *sorted(expected_attachments.values())],
                   'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
         if attachments in ('details', 'remaining', 'preview'):
             result['items'] = items
+        if attachment_state is not None:
+            result['status'] = status_text
+            result['include_logs'] = include_logs
         return result
 
     def feedback_state_operation(self, operation):
@@ -6656,6 +6796,8 @@ class AccessibleUI:
             result['chooser'] = self.chooser_operation(operation)
         elif operation in ATTACHMENT_OPERATIONS:
             result['attachment'] = self.attachment_operation(operation)
+        elif operation in BOUNDARY_OPERATIONS:
+            result['boundary'] = self.boundary_operation(operation)
         elif operation in FEEDBACK_READ_OPERATIONS:
             feedback = self.feedback_read_operation(operation)
             if feedback is not None:

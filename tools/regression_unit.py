@@ -23,6 +23,9 @@ with captured pipes and synthetic UI values. Fresh-thirty recorder cases use
 only the existing private tmp_path collector; no additional shared resource.
 Prerequisite-repair launcher tests reuse private checkout/session trees and the
 existing recorded owner/agent doubles; they start no real Codex or VM process.
+Attachment boundary tests retain private tmp_path files (<= 5 MiB+1 each),
+bounded in-memory bytes and waited private Perl children; compatible in unit
+and cleanup scheduling, with no build, shared cache, bus, display or VM.
 """
 
 from pathlib import PurePosixPath

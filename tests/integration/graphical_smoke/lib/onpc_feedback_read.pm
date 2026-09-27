@@ -61,15 +61,11 @@ sub run {
     $journey->finish();
 }
 
-sub run_file_chooser {
-    onpc_progress::operation('Selecting synthetic feedback files and cancelling independent chooser entry');
-    my ($exchange, $items) = @_;
-    die 'chooser:arguments' unless (@_ == 1 || (@_ == 2 && ($items == 1 || $items == 2))) && ref($exchange) eq 'CODE';
-    my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $items ? ($items == 2 ? 'attachment-preview' : 'attachment-items') : 'file-chooser', review => 0);
-    onpc_gdm::reattach_functional();
-    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
-    $journey->consume_observation('parent-selected', $selected);
+sub chooser_handoff {
+    onpc_progress::operation('Supplying the exact prepared files and observing feedback');
+    my ($journey, $items) = @_;
+    die 'chooser:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($items == 0 || $items == 1 || $items == 2 || $items == 3);
     for my $stage ('feedback-open', 'chooser-wrong-entry', 'chooser-open',
                    'chooser-location', 'chooser-files',
                    'chooser-accept', 'chooser-attachments', 'chooser-reopen',
@@ -85,11 +81,54 @@ sub run_file_chooser {
         }
     }
     if ($items) {
-        for my $stage ('attachment-details', ($items == 2
+        for my $stage ('attachment-details', ($items >= 2
                 ? ('attachment-preview', 'attachment-preview-return')
                 : ('attachment-remove', 'attachment-remaining'))) {
             $journey->consume_observation($stage, $journey->seen($stage));
         }
+    }
+}
+
+sub boundary_batch {
+    onpc_progress::operation('Checking a finite attachment boundary and independently preserved list');
+    my ($journey, $batch) = @_;
+    die 'attachment:batch' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $batch =~ /^(count|sixth|maximum|oversized|total|overflow)$/;
+    for my $step ('before', 'open', 'location', 'files', 'accept', 'result', 'preserved') {
+        my $stage = "boundary-$batch-$step";
+        $journey->consume_observation($stage, $journey->seen($stage));
+        testapi::send_key('ctrl-l') if $step eq 'open';
+        testapi::send_key('ret') if $step eq 'location';
+    }
+}
+
+sub run_file_chooser {
+    onpc_progress::operation('Selecting synthetic feedback files and checking public attachment results');
+    my ($exchange, $items) = @_;
+    die 'chooser:arguments' unless (@_ == 1 || (@_ == 2 && ($items == 1 || $items == 2 || $items == 3)))
+        && ref($exchange) eq 'CODE';
+    $items ||= 0;
+    my @prefixes = ('file-chooser', 'attachment-items', 'attachment-preview', 'attachment-boundaries');
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefixes[$items], review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    chooser_handoff($journey, $items);
+    if ($items == 3) {
+        for my $stage ('attachment-remove', 'attachment-remaining', 'boundary-clear-small') {
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        boundary_batch($journey, 'count');
+        boundary_batch($journey, 'sixth');
+        for my $stage ('boundary-clear-count', 'boundary-exclude-logs') {
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        boundary_batch($journey, 'maximum');
+        boundary_batch($journey, 'oversized');
+        boundary_batch($journey, 'total');
+        my $stage = 'boundary-remove-total';
+        $journey->consume_observation($stage, $journey->seen($stage));
+        boundary_batch($journey, 'overflow');
     }
     $journey->finish();
 }

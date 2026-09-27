@@ -19,22 +19,17 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **038 — [Qualify attachment rejection boundaries](E2E-Tasks/038-attachments.md)**.
+Next task: **030a — [Observe draft reset after Parent exits](E2E-Tasks/030a-feedback-reset.md)**.
 
-Task 038a qualified exact Parent attachment names, displayed sizes and order,
-one identified removal and the independently observed remaining list through
-`check_e2e_attachment_items` in `20260927T175107Z-aac1d11d`. The shared chooser
-regression passed in `20260927T175421Z-d6087694`. Collection, owned cleanup and
-baseline restoration passed. Reuse the [attachment item scope](E2E-Building-Blocks.md#attachment-item-metadata-and-removal)
-and [chooser handoff](E2E-Building-Blocks.md#attachment-chooser-handoff).
-Task 038b qualified Parent two-file preview inapplicability and an independently
-observed unchanged attachment list through `check_e2e_attachment_preview` in
-`20260927T193459Z-36234a89`. The affected attachment-items regression passed in
-`20260927T193811Z-d7dfede2`; collection, owned cleanup and baseline restoration
-passed for both. Reuse the [preview applicability scope](E2E-Building-Blocks.md#attachment-preview-applicability).
-Offered-preview content, rejection boundaries and other fixture profiles remain
-pending. Task 038 adds count, per-file and diagnostics-excluded aggregate
-rejection boundaries. No valid feedback submission is authorized.
+Task 038 qualified the declared Parent count, per-file and diagnostics-excluded
+aggregate [attachment boundaries](E2E-Building-Blocks.md#attachment-rejection-boundaries)
+in `20260927T201620Z-2f063a97`. The affected item and preview regressions passed
+in `20260927T202223Z-a017145c` and `20260927T202523Z-dcb2ff2a`; collection,
+owned cleanup and baseline restoration passed for all three. Reuse those shared
+callables and finite profiles. Other filename/mixed-selection/source-change
+profiles, offered previews and complete cases remain pending. Task 030a adds
+app-exit draft reset; its existing dialog-preservation branch remains distinct.
+No valid feedback submission is authorized.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -7,8 +7,11 @@ from watch_activity import operation
 
 
 class SyntheticFiles:
-    def __init__(self, transport):
+    def __init__(self, transport, profile='standard'):
+        require(profile in ('standard', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow'),
+                'files:profile')
         self.transport = transport
+        self.profile = profile
         self.previous = None
         self.failed = False
         self.attempted = set()
@@ -37,7 +40,8 @@ class SyntheticFiles:
         raw = self.transport.call([
             '/usr/sbin/runuser', '--user', 'onpc-parent-jamie', '--',
             '/usr/bin/python3', '-I', '-', name,
-            json.dumps(previous, sort_keys=True)], input=program, timeout=30)
+            json.dumps(previous, sort_keys=True),
+            *([] if self.profile == 'standard' else [self.profile])], input=program, timeout=30)
         require(type(raw) is bytes and 0 < len(raw) <= 4096, 'files:output-bound')
         value = json.loads(raw)
         require(type(value) is dict and raw == (json.dumps(value, sort_keys=True) + '\n').encode(),

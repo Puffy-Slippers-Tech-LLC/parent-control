@@ -688,7 +688,8 @@ class FeedbackDialog(Adw.Window):
                         if content_type else None,
                     ))
                 error = transport.attachments_error(
-                    [*self._user_attachments, *loaded], self._logs,
+                    [*self._user_attachments, *loaded],
+                    self._logs if self._include_logs else None,
                 )
                 if error:
                     raise ValueError(error)

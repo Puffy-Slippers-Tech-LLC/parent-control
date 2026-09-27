@@ -59,6 +59,43 @@ def test_attachment_automation_keys_are_stable_and_never_duplicate():
     assert feedback._attachment_automation_key(other, {first_key}) != first_key
 
 
+# These boundary checks use only bounded in-memory bytes and the fixture's
+# queued worker/widget doubles; no files, threads, display, bus or network.
+# They retain this module's compatible unit scheduling.
+@pytest.mark.parametrize("include_logs,extra_byte", [(False, 0), (True, 0), (False, 1)])
+def test_selected_attachment_total_counts_only_included_diagnostics(dialog, include_logs, extra_byte):
+    dialog._start_collection()
+    finish_collection(dialog)
+    if not include_logs:
+        dialog._toggle_attachment(None)
+    assert dialog._include_logs is include_logs
+    assert dialog._logs == b"validated snapshot"
+    existing = Attachment.create("Maximum.txt", b"M" * (5 * 1024 * 1024))
+    content = b"T" * (3 * 1024 * 1024 + extra_byte)
+    dialog._user_attachments = [existing]
+    dialog._attachments_loaded = Mock()
+    info = SimpleNamespace(get_size=lambda: len(content),
+                           get_display_name=lambda: "Total.txt",
+                           get_content_type=lambda: None)
+    selected_file = SimpleNamespace(query_info=lambda *_: info,
+        load_bytes=lambda _: (SimpleNamespace(get_data=lambda: content), None))
+    selected = SimpleNamespace(get_n_items=lambda: 1, get_item=lambda _: selected_file)
+    chooser = SimpleNamespace(open_multiple_finish=lambda _: selected)
+
+    feedback.FeedbackDialog._attachments_selected(dialog, chooser, None)
+    assert dialog._busy and len(dialog.jobs) == 1
+    dialog.jobs.pop(0)()
+    callback, args = dialog.callbacks.pop(0)
+    assert callback is dialog._attachments_loaded
+    if include_logs or extra_byte:
+        assert args == (None, "Attachments and diagnostic logs must total 8 MB or less.")
+    else:
+        attachments, error = args
+        assert error is None
+        assert [(item.name, item.data) for item in attachments] == [("Total.txt", content)]
+    assert dialog._user_attachments == [existing]
+
+
 def test_kiosk_forbidden_controls_do_not_publish_automation_ids():
     for identity in (
             "feedback-add-files", "feedback-download-logs",

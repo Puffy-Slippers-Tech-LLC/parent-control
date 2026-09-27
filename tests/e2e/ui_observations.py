@@ -24,6 +24,8 @@ RESPONSE_BYTE_LIMITS = {
 OPERATION_LABELS = {
     **{operation: 'Checking public attachment metadata and the declared attachment operation'
        for operation in accessible_ui.ATTACHMENT_OPERATIONS},
+    **{operation: 'Checking declared attachment count and size boundaries: ' + operation
+       for operation in accessible_ui.BOUNDARY_OPERATIONS},
     **{operation: 'Qualifying feedback file selection: ' + operation.removeprefix('chooser-')
        for operation in accessible_ui.CHOOSER_OPERATIONS},
     'parent-kiosk-about-refused': 'Refusing station About entry from Parent management',
@@ -689,6 +691,17 @@ class UiObservations:
                 r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', value)
                         for value in settings['allowance']), 'ui:settings')
             expected['settings'] = settings
+        if operation in accessible_ui.BOUNDARY_OPERATIONS:
+            projection = accessible_ui.boundary_expected(operation)
+            if operation.endswith('-open'):
+                provider = result.get('boundary', {}).get('provider')
+                require(type(provider) is dict and set(provider) == {'route', 'version', 'locale', 'keyboard'}
+                        and provider['route'] in ('gtk-native', 'nautilus-portal'), 'ui:chooser-provider')
+                accessible_ui.validate_shell_metadata({key: value for key, value in provider.items() if key != 'route'})
+                projection['provider'] = provider
+            require(type(result) is dict and set(result) == {*expected, 'boundary'}
+                    and result['boundary'] == projection, 'ui:boundary-response')
+            expected['boundary'] = result['boundary']
         if operation in accessible_ui.ATTACHMENT_OPERATIONS:
             projection = {'checked': operation}
             if operation != 'attachment-wrong-entry':

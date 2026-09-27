@@ -36,6 +36,7 @@ from ui_observations import FeedbackStateObservation
 # Attachment-item checks retain those same private resources and scheduling.
 # Shared-fragment checks use the same waited private Perl processes and memory.
 # Preview applicability adds only those same isolated resources.
+# Boundary checks add bounded in-memory bytes (under 32 MiB), no shared resources.
 
 
 @pytest.mark.parametrize('block,family,fault', [
@@ -194,11 +195,11 @@ def test_attachment_controller_decodes_exact_metadata_and_refuses_corruption(ope
         controller.observe(operation)
 
 
-def chooser_ui(*, portal=False):
+def chooser_ui(*, portal=False, profile='standard'):
     ui, parent, caller, controls = feedback_ui()
     ui.api.StateType.MULTISELECTABLE = 'multiselectable'
-    items = [Node(name + ('. File' if portal else ''), role='list item')
-             for name in accessible_ui.CHOOSER_FILES]
+    names = accessible_ui.CHOOSER_FILES if profile == 'standard' else [name for name, _ in accessible_ui.BOUNDARY_FILES[profile]]
+    items = [Node(name + ('. File' if portal else ''), role='list item') for name in names]
     selected = []
     selection = SimpleNamespace()
     view = Node(role='list', children=items,
@@ -305,6 +306,29 @@ def test_chooser_selects_prepared_files_in_one_api_call(portal):
     accept.action.do_action.assert_not_called()
     assert ui.chooser_selection(accessible_ui.CHOOSER_FILES)[2] == list(accessible_ui.CHOOSER_FILES)
     ui.api.Selection.select_all.assert_called_once()
+
+
+@pytest.mark.parametrize('profile', sorted(accessible_ui.BOUNDARY_FILES))
+@pytest.mark.parametrize('fault', ['', 'extra-file', 'wrong-file', 'partial', 'wrong-owner'])
+def test_boundary_chooser_exact_batch_before_select_all(profile, fault):
+    ui, _, view, items, selected, accept, _ = chooser_ui(portal=True, profile=profile)
+    view.name = 'Content View'
+    view.states.remove('multiselectable')
+    if fault == 'extra-file': view.children.append(Node('Unknown.File', role='list item'))
+    if fault == 'wrong-file': items[0].name = 'Unknown.File'
+    if fault == 'partial':
+        ui.api.Selection.select_all.side_effect = lambda _: selected.extend(items[:-1]) or True
+    if fault == 'wrong-owner':
+        ui.chooser_portal_owner.side_effect = accessible_ui.UiError('ui:chooser-request-caller')
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.chooser_select_files(profile=profile)
+        if fault != 'partial': ui.api.Selection.select_all.assert_not_called()
+    else:
+        ui.chooser_select_files(profile=profile)
+        assert selected == items
+        ui.api.Selection.select_all.assert_called_once()
+    accept.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'single-selection', 'ambiguous', 'missing-interface'])
@@ -604,7 +628,7 @@ def test_chooser_attachment_readback_uses_exact_ids_names_and_status():
         ui.feedback_snapshot(attachments=True)
 
 
-@pytest.mark.parametrize('items', [0, 1, 2])
+@pytest.mark.parametrize('items', [0, 1, 2, 3])
 @pytest.mark.parametrize('fault', ['', 'chooser-open', 'chooser-location',
     'chooser-files', 'chooser-accept', 'chooser-cancel', 'chooser-preserved'])
 def test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, items):
@@ -613,6 +637,8 @@ def test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, items):
         from attachment_items import PLAN as chooser_plan
     if items == 2:
         from attachment_preview import PLAN as chooser_plan
+    if items == 3:
+        from attachment_boundaries import PLAN as chooser_plan
     from tests.support.perl import run_perl
     result = json.loads(run_perl(r'''
 use strict; use warnings; use JSON::PP;
@@ -641,7 +667,110 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
     assert result['ok'] == (not fault)
     assert result['events'][-1] == (fault or 'finish')
     if not fault:
-        assert [event for event in result['events'] if event in ('ctrl-l', 'ctrl-a', 'ret', 'type')] == ['ctrl-l', 'ret']
+        assert [event for event in result['events'] if event in ('ctrl-l', 'ctrl-a', 'ret', 'type')] == ['ctrl-l', 'ret'] * (7 if items == 3 else 1)
+
+
+@pytest.mark.parametrize('fault', sorted(accessible_ui.BOUNDARY_OPERATIONS))
+def test_boundary_worker_stops_at_each_failed_proof(fault):
+    test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, 3)
+
+
+def test_boundary_selector_registration_and_prerequisites(monkeypatch):
+    import check_e2e_attachments
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_attachments, 'smoke', run)
+    assert check_e2e_attachments.main() == 0
+    assert run.call_args.kwargs['attachment_boundaries'] is True
+    with pytest.raises(CommandError, match='attachment-boundaries-prerequisites'):
+        smoke.main(attachment_boundaries=True, attachment_preview=True)
+
+
+@pytest.mark.parametrize('operation', sorted(accessible_ui.BOUNDARY_OPERATIONS))
+def test_boundary_controller_decodes_exact_results_and_rejects_altered_evidence(operation):
+    from ui_observations import UiObservations
+    value = accessible_ui.boundary_expected(operation)
+    if operation.endswith('-open'):
+        value['provider'] = {'route': 'nautilus-portal', 'version': '50.2.2-1',
+                             'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'boundary': value}
+    controller = UiObservations(Mock())
+    controller.call = Mock(return_value=(json.dumps(result).encode(), []))
+    assert controller.observe(operation)['boundary'] == value
+    value['unexpected'] = True
+    controller.call = Mock(return_value=(json.dumps(result).encode(), []))
+    with pytest.raises(EvidenceError, match='boundary-response'):
+        controller.observe(operation)
+
+
+def test_boundary_comparison_preserves_independent_prior_list():
+    from attachment_boundaries import journey
+    controller = journey(SimpleNamespace(), Mock())
+    for batch in ('sixth', 'oversized', 'overflow'):
+        def observation(step):
+            return {'ui': {'boundary': accessible_ui.boundary_expected(f'boundary-{batch}-{step}')}}
+        controller.check_settings(f'boundary-{batch}-before', observation('before'))
+        controller.check_settings(f'boundary-{batch}-result', observation('result'))
+        value = observation('preserved')
+        value['ui']['boundary']['items'].pop()
+        with pytest.raises(EvidenceError, match='rejection-list-changed'):
+            controller.check_settings(f'boundary-{batch}-preserved', value)
+
+
+def boundary_ui(state_name):
+    import hashlib
+    ui, _, dialog, controls = feedback_ui()
+    ui.api.RelationType.DESCRIBED_BY = 'described-by'
+    inputs, status, logs = accessible_ui.BOUNDARY_STATES[state_name]
+    rows = []
+    for name, data in inputs:
+        key = hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]
+        subtitle = Node(accessible_ui.attachment_size(data), role='label')
+        remove = Node(identity='feedback-remove-attachment-' + key)
+        row = Node(name, identity='feedback-attachment-' + key, children=[subtitle, remove])
+        row.relations = [SimpleNamespace(get_relation_type=lambda: 'described-by',
+            get_n_targets=lambda: 1, get_target=lambda _, subtitle=subtitle: subtitle)]
+        remove.action.do_action.side_effect = lambda _, row=row: (dialog.children.remove(row) or True)
+        row.parent = dialog
+        rows.append(row)
+        dialog.children.append(row)
+    dialog.children.append(Node(status, identity='feedback-status'))
+    if not logs:
+        next(node for node in dialog.children if node.identity == 'feedback-logs-row').name = 'No logs attached'
+        controls['feedback-download-logs'].states.remove('visible')
+    return ui, dialog, rows
+
+
+@pytest.mark.parametrize('state', sorted(accessible_ui.BOUNDARY_STATES))
+@pytest.mark.parametrize('fault', ['', 'status', 'logs', 'extra', 'size', 'order'])
+def test_boundary_public_observations_require_exact_state(state, fault):
+    ui, dialog, rows = boundary_ui(state)
+    if fault == 'status': dialog.children[-1].name = 'Reading attachments…'
+    if fault == 'logs':
+        next(node for node in dialog.children if node.identity == 'feedback-logs-row').name = 'Unexpected'
+    if fault == 'extra': dialog.children.append(Node('Unknown', identity='feedback-attachment-unknown'))
+    if fault == 'size':
+        if not rows: return
+        rows[0].children[0].name = '0 bytes'
+    if fault == 'order':
+        if len(rows) < 2: return
+        first, second = dialog.children.index(rows[0]), dialog.children.index(rows[1])
+        dialog.children[first], dialog.children[second] = rows[1], rows[0]
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.feedback_snapshot(attachment_state=accessible_ui.BOUNDARY_STATES[state])
+    else:
+        value = ui.feedback_snapshot(attachment_state=accessible_ui.BOUNDARY_STATES[state])
+        assert value['include_logs'] == accessible_ui.BOUNDARY_STATES[state][2]
+        assert value['status'] == accessible_ui.BOUNDARY_STATES[state][1]
+
+
+@pytest.mark.parametrize('operation,state,result', [
+    ('boundary-clear-count', 'count-rejected', 'cleared'),
+    ('boundary-remove-total', 'total', 'maximum-again')])
+def test_boundary_removal_uses_owned_ids_and_independent_readback(operation, state, result):
+    ui, _, _ = boundary_ui(state)
+    assert ui.boundary_operation(operation) == accessible_ui.boundary_expected(operation)
+    ui.feedback_snapshot(attachment_state=accessible_ui.BOUNDARY_STATES[result])
 
 
 def test_chooser_selector_registration_and_prerequisites(monkeypatch):
@@ -729,15 +858,20 @@ def test_preview_comparison_uses_captured_immutable_list():
         controller.check_settings('attachment-preview-return', value)
 
 
-def test_preview_recorder_reaches_worker_with_plan_and_owned_actions(tmp_path):
+@pytest.mark.parametrize('boundaries', [False, True])
+def test_preview_recorder_reaches_worker_with_plan_and_owned_actions(tmp_path, boundaries):
     from attachment_preview import PLAN, AttachmentPreviewJourney
     from file_chooser import stage_files, cleanup_files
+    if boundaries:
+        from attachment_boundaries import PLAN, AttachmentBoundariesJourney as AttachmentPreviewJourney
+        from attachment_boundaries import stage_boundaries as stage_files, cleanup_boundaries as cleanup_files
     from installed_journey import record_installed_journey
     recorder = MagicMock(assertion=Mock())
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
                               verified=SimpleNamespace(inputs={}), guestfs=Mock(),
                               commands=Mock(), recorder=recorder)
-    actions = {'chooser-fixtures': stage_files, 'chooser-cleanup': cleanup_files}
+    actions = ({'attachment-fixtures': stage_files, 'attachment-cleanup': cleanup_files} if boundaries else
+               {'chooser-fixtures': stage_files, 'chooser-cleanup': cleanup_files})
 
     def worker(**options):
         controller = options['guarded_observe'].__self__

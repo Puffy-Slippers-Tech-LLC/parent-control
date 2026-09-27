@@ -28,6 +28,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Installed journey/setup/About tests write only beneath tmp_path and replace
 # Synthetic file checks use only private tmp_path trees and mocked SSH; no
 # accounts, VM, sockets, subprocesses, caches or shared filesystem mutations.
+# Attachment boundary profiles add <= 5 MiB+1 files in private tmp_path trees;
+# their independent readback/cleanup remains compatible with other buckets.
 # guest operations with process-local doubles. About's matcher reads repository
 # fixtures in its own Perl child; watcher sockets, processes and signals are
 # mocked. These modules therefore share the same isolation as cleanup buckets.

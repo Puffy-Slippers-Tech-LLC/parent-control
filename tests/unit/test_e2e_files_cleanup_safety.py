@@ -36,6 +36,59 @@ def test_exact_copy_rename_and_independent_cleanup(home):
     assert list(home.iterdir()) == []
 
 
+# Boundary profiles retain private pytest storage and process-local transports.
+# Each profile is <= 5 MiB+1 on disk; no build, bus, display or shared resource.
+# This module retains its compatible unit AND cleanup classifications.
+@pytest.mark.parametrize('profile', sorted(guest.BOUNDARY_PROFILES))
+def test_boundary_fixtures_exact_bytes_and_owned_cleanup(home, profile):
+    import accessible_ui
+    expected = guest.BOUNDARY_PROFILES[profile]
+    assert tuple(expected.items()) == accessible_ui.BOUNDARY_FILES[profile]
+    staged = guest.operate(home, 'stage', None, profile)
+    root = home / (guest.DIRECTORY + '-' + profile)
+    assert {path.name: path.read_bytes() for path in root.iterdir()} == expected
+    assert guest.operate(home, 'read', staged, profile) == staged
+    for operation in ('stage', 'copy', 'rename'):
+        with pytest.raises(ValueError):
+            guest.operate(home, operation, staged, profile)
+    assert guest.operate(home, 'cleanup', staged, profile) == {'absent': True}
+    assert guest.operate(home, 'absent', {'absent': True}, profile) == {'absent': True}
+
+
+@pytest.mark.parametrize('fault', ['unknown', 'changed', 'replaced', 'symlink', 'hardlink'])
+def test_boundary_fixture_cleanup_refuses_unknown_or_replaced_files(home, fault):
+    staged = guest.operate(home, 'stage', None, 'maximum')
+    root = home / (guest.DIRECTORY + '-maximum')
+    path = root / 'Maximum.txt'
+    if fault == 'unknown': (root / 'unknown').write_bytes(b'preserve')
+    if fault == 'changed': path.write_bytes(b'changed')
+    if fault == 'replaced':
+        path.rename(home / 'preserve')
+        path.write_bytes(guest.BOUNDARY_PROFILES['maximum']['Maximum.txt'])
+        path.chmod(0o600)
+    if fault == 'symlink':
+        path.rename(home / 'preserve')
+        path.symlink_to(home / 'preserve')
+    if fault == 'hardlink': os.link(path, home / 'preserve')
+    before = {entry.name: entry.lstat() for entry in root.iterdir()}
+    with pytest.raises(ValueError):
+        guest.operate(home, 'cleanup', staged, 'maximum')
+    assert {entry.name: entry.lstat() for entry in root.iterdir()} == before
+
+
+def test_boundary_controller_retains_profiles_receipts_and_independent_cleanup(home):
+    from attachment_boundaries import stage_boundaries, cleanup_boundaries
+    def call(argv, **kwargs):
+        profile = argv[9] if len(argv) == 10 else 'standard'
+        value = guest.operate(home, argv[7], json.loads(argv[8]), profile)
+        return (json.dumps(value, sort_keys=True) + '\n').encode()
+    journey = SimpleNamespace(transport=SimpleNamespace(call=call))
+    stage_boundaries(journey, lambda: None)
+    assert len(list(home.iterdir())) == 7
+    assert cleanup_boundaries(journey, lambda: None) == {'owned_cleanup': True}
+    assert not list(home.iterdir())
+
+
 @pytest.mark.parametrize('operation', ['../copy', '/copy', 'unknown', 'rename', 'stage'])
 def test_wrong_operation_changes_nothing(home, operation):
     before = guest.operate(home, 'stage', None)
@@ -188,7 +241,7 @@ def test_chooser_fixture_lifetime_retains_same_controller_and_owned_receipt(monk
     assert guard.call_count == 2
 
 
-@pytest.mark.parametrize('items', [0, 1, 2])
+@pytest.mark.parametrize('items', [0, 1, 2, 3])
 def test_chooser_qualification_uses_registered_actions_and_installed_snapshot(tmp_path, items):
     from parent_setup_qualification import FileChooserQualification
     from file_chooser import PLAN
@@ -198,10 +251,14 @@ def test_chooser_qualification_uses_registered_actions_and_installed_snapshot(tm
     if items == 2:
         from parent_setup_qualification import AttachmentPreviewQualification as FileChooserQualification
         from attachment_preview import PLAN
+    if items == 3:
+        from parent_setup_qualification import AttachmentBoundariesQualification as FileChooserQualification
+        from attachment_boundaries import PLAN
     context = SimpleNamespace(directory=tmp_path)
     journey = FileChooserQualification.journey(context, Mock())
     assert journey.plan is PLAN
-    assert set(journey.actions) == {'chooser-fixtures', 'chooser-cleanup'}
+    assert set(journey.actions) == ({'attachment-fixtures', 'attachment-cleanup'} if items == 3
+                                    else {'chooser-fixtures', 'chooser-cleanup'})
     assert context.installed_snapshot.startswith('onpc-v')
 
 

@@ -150,6 +150,19 @@ def test_implementation_prompt_preserves_requested_boundary():
 
 
 @pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
+def test_missing_qualification_inputs_are_repaired_without_a_developer_question(phase):
+    prompt = workflow.session_prompt(dict(workflow.fresh_state('030a'), phase=phase))
+    assert 'prepare missing named inputs, then resume validation' in prompt
+    assert 'in this session without asking the developer' in prompt
+    assert 'A preparation failure before VM access is not a failed live VM attempt' in prompt
+    assert 'Repair authorized preparation\ndefects and retry preparation' in prompt
+    assert 'Do not ask whether to perform an already-authorized repair' in prompt
+    assert 'unresolved product behavior/expectations, missing authority' in prompt
+    assert 'Never infer permission to bypass a denied grant or overwrite unrelated inputs' in prompt
+    assert 'If a prerequisite or unresolved blocker prevents' not in prompt
+
+
+@pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
 @pytest.mark.parametrize('attempts', [0, 1, 2])
 def test_every_session_ends_at_validation_before_new_repairs(phase, attempts):
     state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts)

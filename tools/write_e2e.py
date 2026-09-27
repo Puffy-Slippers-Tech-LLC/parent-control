@@ -189,10 +189,17 @@ Run tests through tools/run-tests for owned cancellation; preserve
 ONPC_WORKFLOW_DIRECTORY. Use maintained launchers/viewers for background work
 and wait for tests and owned cleanup before returning.
 
-Return the required structured result; unresolved blockers return blocked so the
-launcher pauses for the user's answer. Keep summary under 600 characters and
-handoff under 16000.
+Return the required structured result; only blockers requiring developer action
+return blocked so the launcher pauses for the user's answer. Keep summary under
+600 characters and handoff under 16000.
 {BLOCKER_INSTRUCTIONS}
+Missing generated qualification assets are routine test preparation. Use the
+maintained artifact builder to prepare missing named inputs, then resume validation
+in this session without asking the developer. Fix missing automatic preparation
+in the runner when appropriate; preserve valid existing inputs and all guards.
+A preparation failure before VM access is not a failed live VM attempt and does
+not trigger the live-failure handoff boundary. Repair authorized preparation
+defects and retry preparation; do not count them as acceptance or advance the task.
 The handoff is a standalone prompt with only remaining work, task ID, exact next
 commands/selectors, evidence paths, blockers and recommended model/effort.
 Carry forward user decisions that still apply to that remaining work.
@@ -235,8 +242,9 @@ host_validated true, live_result failed and a fresh handoff for GPT-6-Astra High
 Leave investigation and repairs of this new failure to the next session; do not
 repair it, retry live acceptance or advance the pointer in this session.
 Do not end a normal session with only host validation: finish live VM validation
-with a passed or failed result. If a prerequisite or unresolved blocker prevents
-validation, return blocked with the actual live_result; do not claim a VM attempt.
+with a passed or failed result. If a prerequisite still prevents validation after
+authorized repair and requires developer action, return blocked with the actual
+live_result and the specific external action needed; do not claim a VM attempt.
 After all acceptance and cleanup pass, complete the plan's close-out and return
 task_complete with live_result passed and the next-task handoff. Leave the next
 task's implementation to a fresh session. Task 192 may instead return

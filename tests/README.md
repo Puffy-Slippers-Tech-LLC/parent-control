@@ -331,9 +331,16 @@ the interrupted operation or blocked prerequisite and owned cleanup. Every live
 failure ends the session after evidence preservation and cleanup; investigation
 and repairs of that new failure belong to the next session. A normal handoff
 requires passing host checks and a completed failed VM attempt, including in
-recovery. An unresolved prerequisite or behavior decision still returns a blocker
-with the actual validation outcome. A passing session completes the plan's
-acceptance, checks the row and advances its sole pointer. It returns an explicit
+recovery. A preparation failure before VM access does not count as a failed live
+attempt: repair authorized mechanical defects or prepare missing generated inputs
+through the maintained artifact builder and resume validation in the same session.
+Do not ask the developer to choose between building and restoring qualification
+inputs. Integration qualifications using `named_input()` register automatic
+preparation in `tools/test_commands.py`; launcher coverage discovers consumers
+independently so new wrappers cannot silently omit preparation.
+Only a prerequisite requiring external action or an unresolved behavior decision
+returns a blocker with the actual validation outcome. A passing session completes
+the plan's acceptance, checks the row and advances its sole pointer. It returns an explicit
 list of task-related code, test and
 close-out files; the launcher stages those files without committing before
 starting another session. This staging uses literal Git paths and needs no
@@ -1218,7 +1225,10 @@ behavioral failure unresolved while continuing independent work.
 Fix mechanical test issues automatically without asking for confirmation when
 the evidence shows a defect in test code, fixtures or the harness and the
 intended behavior check is preserved. Examples include a broken import, an
-incorrect test API call or a harness crash. A product crash, timeout or failed
+incorrect test API call, a harness crash or missing generated qualification
+inputs that the maintained builder can prepare under existing authorization.
+Resolve these implementation details without a developer question, preserving
+existing inputs and validation guards. A product crash, timeout or failed
 assertion can indicate a regression; its failure type alone does not establish
 a mechanical test issue. Report the cause, correction and verification in the
 normal work summary. A test's disagreement with the app alone never justifies

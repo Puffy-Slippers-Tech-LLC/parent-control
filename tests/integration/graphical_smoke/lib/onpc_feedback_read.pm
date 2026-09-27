@@ -61,4 +61,26 @@ sub run {
     $journey->finish();
 }
 
+sub run_file_chooser {
+    onpc_progress::operation('Selecting synthetic feedback files and cancelling independent chooser entry');
+    my ($exchange) = @_;
+    die 'chooser:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'file-chooser', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    for my $stage ('feedback-open', 'chooser-wrong-entry', 'chooser-open',
+                   'chooser-location', 'chooser-files',
+                   'chooser-accept', 'chooser-attachments', 'chooser-reopen',
+                   'chooser-cancel', 'chooser-preserved') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+        if ($stage eq 'chooser-open') {
+            testapi::send_key('ctrl-l');
+        } elsif ($stage eq 'chooser-location') {
+            testapi::send_key('ret');
+        }
+    }
+    $journey->finish();
+}
+
 1;

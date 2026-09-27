@@ -663,7 +663,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
-         synthetic_files=False):
+         synthetic_files=False, file_chooser=False):
+    require(type(file_chooser) is bool and not (file_chooser and (
+        feedback_read or feedback_privacy or feedback_states or format_qualification
+        or window_switch or feedback_rejection or feedback_length or synthetic_files)),
+        'smoke:file-chooser-prerequisites')
     require(type(synthetic_files) is bool and (not synthetic_files or fresh_desktop == 'parent'),
             'smoke:synthetic-files-prerequisites')
     require(type(feedback_length) is bool and not (feedback_length and (
@@ -683,7 +687,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:feedback-states-prerequisites')
     require(type(feedback_privacy) is bool and not (feedback_privacy and feedback_read),
             'smoke:feedback-privacy-prerequisites')
-    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch or feedback_rejection or feedback_length
+    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch or feedback_rejection or feedback_length or file_chooser
     require(type(fresh_thirty_allowance) is bool and type(set_allowance) is bool
             and not (fresh_thirty_allowance and set_allowance),
             'smoke:fresh-thirty-allowance-prerequisites')
@@ -1165,6 +1169,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-app-row-observations-qualification'
         if feedback_read:
             result['scope'] = 'installed-feedback-read-qualification'
+        if file_chooser:
+            result['scope'] = 'installed-file-chooser-qualification'
         if feedback_privacy:
             result['scope'] = 'installed-feedback-privacy-qualification'
         if feedback_states:
@@ -1369,6 +1375,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if feedback_read:
                     from parent_setup_qualification import FeedbackReadQualification
                     qualification_class = FeedbackReadQualification
+                if file_chooser:
+                    from parent_setup_qualification import FileChooserQualification
+                    qualification_class = FileChooserQualification
                 if feedback_privacy:
                     from parent_setup_qualification import FeedbackPrivacyQualification
                     qualification_class = FeedbackPrivacyQualification

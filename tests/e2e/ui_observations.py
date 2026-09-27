@@ -22,6 +22,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Qualifying feedback file selection: ' + operation.removeprefix('chooser-')
+       for operation in accessible_ui.CHOOSER_OPERATIONS},
     'parent-kiosk-about-refused': 'Refusing station About entry from Parent management',
     'kiosk-about-open': 'Opening About from the request station',
     'kiosk-about-read': 'Reading station product and legal information without external actions',
@@ -685,6 +687,19 @@ class UiObservations:
                 r'[0-9]+(?:\.[0-9]+)? (?:minutes?|hours?)', value)
                         for value in settings['allowance']), 'ui:settings')
             expected['settings'] = settings
+        if operation in accessible_ui.CHOOSER_OPERATIONS:
+            projection = {'checked': operation}
+            if operation in ('chooser-open', 'chooser-reopen'):
+                provider = result.get('chooser', {}).get('provider')
+                require(type(provider) is dict and set(provider) == {'route', 'version', 'locale', 'keyboard'}
+                        and provider['route'] in ('gtk-native', 'nautilus-portal'), 'ui:chooser-provider')
+                accessible_ui.validate_shell_metadata({key: value for key, value in provider.items() if key != 'route'})
+                projection['provider'] = provider
+            if operation in ('chooser-attachments', 'chooser-preserved'):
+                projection['attachments'] = ['diagnostic-logs.zip', *accessible_ui.CHOOSER_FILES]
+            require(type(result) is dict and set(result) == {*expected, 'chooser'}
+                    and result['chooser'] == projection, 'ui:chooser-response')
+            expected['chooser'] = result['chooser']
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'toggle'}
                     and result['toggle'] == accessible_ui.TOGGLE_OPERATIONS[operation],

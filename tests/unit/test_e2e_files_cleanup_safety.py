@@ -173,6 +173,31 @@ def test_qualification_entry_and_prerequisites(monkeypatch):
         check_graphical_smoke.main(synthetic_files=True)
 
 
+def test_chooser_fixture_lifetime_retains_same_controller_and_owned_receipt(monkeypatch):
+    # Same reviewed private doubles as FILE05; no additional host resources.
+    import file_chooser
+    fixture = Mock()
+    factory = Mock(return_value=fixture)
+    monkeypatch.setattr(file_chooser, 'SyntheticFiles', factory)
+    journey = SimpleNamespace(transport=Mock())
+    guard = Mock()
+    file_chooser.stage_files(journey, guard)
+    file_chooser.cleanup_files(journey, guard)
+    factory.assert_called_once_with(journey.transport)
+    assert [call.args for call in fixture.call.call_args_list] == [('stage',), ('cleanup',)]
+    assert guard.call_count == 2
+
+
+def test_chooser_qualification_uses_registered_actions_and_installed_snapshot(tmp_path):
+    from parent_setup_qualification import FileChooserQualification
+    from file_chooser import PLAN
+    context = SimpleNamespace(directory=tmp_path)
+    journey = FileChooserQualification.journey(context, Mock())
+    assert journey.plan is PLAN
+    assert set(journey.actions) == {'chooser-fixtures', 'chooser-cleanup'}
+    assert context.installed_snapshot.startswith('onpc-v')
+
+
 @pytest.mark.parametrize('failure', [False, True])
 def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkeypatch, failure):
     from parent_setup_qualification import SyntheticFilesQualification

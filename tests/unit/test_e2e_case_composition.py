@@ -39,6 +39,7 @@ APIS = {
     'ui_observations': {'SettingsObservation'},
     'feedback_composition': {'FeedbackValidationJourney', 'text_fragment'},
     'feedback_length': {'input_stages'},
+    'file_chooser': {'stage_files', 'cleanup_files'},
     'serial_harness': {'record_serial_journey'},
 }
 RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_serial_journey')

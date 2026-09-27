@@ -31,6 +31,491 @@ from ui_observations import FeedbackStateObservation
 # UTF-16 checks retain the same in-memory doubles and waited private Perl children.
 # Complete-case composition uses the same private values and waited Perl children;
 # no added shared paths, VM resources, caches, buses or scheduler classification.
+# FILE03 adds only in-memory provider doubles and waited private Perl children;
+# it retains this module's reviewed unit scheduling and resource ownership.
+
+
+def chooser_ui(*, portal=False):
+    ui, parent, caller, controls = feedback_ui()
+    ui.api.StateType.MULTISELECTABLE = 'multiselectable'
+    items = [Node(name + ('. File' if portal else ''), role='list item')
+             for name in accessible_ui.CHOOSER_FILES]
+    selected = []
+    selection = SimpleNamespace()
+    view = Node(role='list', children=items,
+                states=('visible', 'showing', 'sensitive', 'multiselectable'))
+    view.get_selection_iface = lambda: selection
+    ui.api.Selection = SimpleNamespace(
+        get_n_selected_children=lambda _: len(selected),
+        get_selected_child=lambda _, index: selected[index],
+        select_all=Mock(side_effect=lambda _: selected.__setitem__(slice(None), items) or True))
+    accept = Node('Open', role='push button')
+    cancel = Node('Cancel', role='push button')
+    window = Node(role='file chooser', children=[view, accept, cancel],
+                  states=('visible', 'showing', 'active', 'modal', 'sensitive'))
+    window.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+        get_n_targets=lambda: 1, get_target=lambda _: caller)]
+    parent.children.append(window)
+    window.parent = parent
+    ui.prompt_enabled = True
+    ui.prompt_session = 'desktop'
+    if portal:
+        window.relations = []  # Imported Wayland parents have no GTK relation.
+        # Nautilus cancels through its window close control, not a Cancel button.
+        cancel.name = 'Close'
+        ui.chooser_portal_owner = Mock(side_effect=lambda caller, provider:
+            accessible_ui.validate_chooser_portal_owner(portal_query(), caller, provider))
+        parent.children.remove(window)
+        accept.identity = 'accept_button'
+        window.identity = 'NautilusFileChooser'
+        window.role = 'dialog'
+        application = Node('org.gnome.Nautilus', role='application', children=[window])
+        for node in (application, window, view, *items, accept, window.children[-1]):
+            node.get_process_id = lambda: 200
+        window.get_application = lambda: application
+        desktop = Node(role='desktop', children=[ui.root(), application])
+        ui.api.get_desktop = lambda _: desktop
+    return ui, window, view, items, selected, accept, caller
+
+
+def portal_query():
+    """Public introspection for one live delegated request, no host bus."""
+    def query(bus, path, interface, method, signature, args):
+        if method == 'GetNameOwner':
+            return ':1.20'
+        if method == 'GetConnectionUnixProcessID':
+            return 200 if args == (':1.20',) else Node().get_process_id()
+        if path.endswith('/request'):
+            return '<node><node name="1_10"/></node>'
+        if path.endswith('/1_10'):
+            return '<node><node name="gtk123"/></node>'
+        prefix = 'org.freedesktop.portal' if bus == 'org.freedesktop.portal.Desktop' else 'org.freedesktop.impl.portal'
+        return '<node><interface name="' + prefix + '.Request"/></node>'
+    return query
+
+
+@pytest.mark.parametrize('fault', ['none', 'wrong-provider', 'wrong-caller', 'no-request',
+    'other-request', 'two-tokens', 'path-injection', 'missing-frontend', 'missing-backend',
+    'malformed', 'oversize', 'replaced'])
+def test_portal_request_proves_live_provider_and_caller_or_refuses(fault):
+    baseline = portal_query()
+    calls = []
+    def query(bus, path, interface, method, signature, args):
+        calls.append((bus, path, method, args))
+        if method == 'GetConnectionUnixProcessID':
+            if fault == 'wrong-provider' and args == (':1.20',):
+                return 999
+            if fault == 'wrong-caller' and args == (':1.10',):
+                return 999
+        if method == 'GetNameOwner' and fault == 'replaced' and len(calls) > 1:
+            return ':1.21'
+        if method == 'Introspect':
+            if fault == 'malformed':
+                return '<node'
+            if fault == 'oversize':
+                return 'x' * 65537
+            if path.endswith('/request'):
+                if fault == 'no-request':
+                    return '<node/>'
+                if fault == 'other-request':
+                    return '<node><node name="1_10"/><node name="1_11"/></node>'
+            if path.endswith('/1_10'):
+                if fault == 'two-tokens':
+                    return '<node><node name="a"/><node name="b"/></node>'
+                if fault == 'path-injection':
+                    return '<node><node name="../other"/></node>'
+            if path.endswith('/gtk123') and (
+                    fault == 'missing-frontend' and bus == 'org.freedesktop.portal.Desktop'
+                    or fault == 'missing-backend' and bus == ':1.20'):
+                return '<node/>'
+        return baseline(bus, path, interface, method, signature, args)
+    if fault == 'none':
+        accessible_ui.validate_chooser_portal_owner(query, Node().get_process_id(), 200)
+        assert len(calls) == 9
+    else:
+        with pytest.raises(accessible_ui.UiError, match='chooser-'):
+            accessible_ui.validate_chooser_portal_owner(query, Node().get_process_id(), 200)
+    assert {call[2] for call in calls} <= {'GetNameOwner', 'GetConnectionUnixProcessID', 'Introspect'}
+
+
+@pytest.mark.parametrize('portal', [False, True])
+def test_chooser_selects_prepared_files_in_one_api_call(portal):
+    ui, _, _, items, selected, accept, _ = chooser_ui(portal=portal)
+    ui.chooser_operation('chooser-files')
+    assert selected == items
+    accept.action.do_action.assert_not_called()
+    assert ui.chooser_selection(accessible_ui.CHOOSER_FILES)[2] == list(accessible_ui.CHOOSER_FILES)
+    ui.api.Selection.select_all.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['', 'single-selection', 'ambiguous', 'missing-interface'])
+def test_nautilus_custom_selection_model_without_multiselectable_hint(fault):
+    ui, window, view, items, selected, accept, _ = chooser_ui(portal=True)
+    view.name = 'Content View'
+    view.states.remove('multiselectable')
+    if fault == 'single-selection':
+        ui.api.Selection.select_all.side_effect = lambda _: selected.append(items[0]) or True
+    elif fault == 'ambiguous':
+        duplicate = Node('Content View', role='list')
+        duplicate.get_selection_iface = view.get_selection_iface
+        window.children.append(duplicate)
+    elif fault == 'missing-interface':
+        view.get_selection_iface = lambda: None
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.chooser_select_files()
+        accept.action.do_action.assert_not_called()
+        if fault != 'single-selection':
+            ui.api.Selection.select_all.assert_not_called()
+    else:
+        ui.chooser_select_files()
+        assert selected == items
+
+
+@pytest.mark.parametrize('suffix', ['', '. Folder', '. File. Starred', '. File extra'])
+def test_nautilus_file_labels_require_exact_registered_file_role(suffix):
+    ui, _, _, items, _, accept, _ = chooser_ui(portal=True)
+    items[0].name = accessible_ui.CHOOSER_FILES[0] + suffix
+    with pytest.raises(accessible_ui.UiError, match='file-set'):
+        ui.chooser_select_files()
+    ui.api.Selection.select_all.assert_not_called()
+    accept.action.do_action.assert_not_called()
+
+
+def location_ui(*, portal=False):
+    ui, window, *_ = chooser_ui(portal=portal)
+    field = Node(role='text', identity='entry', states=(
+        'visible', 'showing', 'sensitive', 'editable', 'focused'))
+    field.get_process_id = window.get_process_id
+    field.value = 'old location'
+    field.get_text_iface = field.get_editable_text_iface = lambda: field
+    window.children.append(field)
+    field.parent = window
+    ui.api.Text = SimpleNamespace(get_character_count=lambda node: len(node.value),
+                                 get_text=lambda node, start, end: node.value[start:end])
+    ui.api.EditableText = SimpleNamespace(set_text_contents=Mock(
+        side_effect=lambda node, value: setattr(node, 'value', value) or True))
+    return ui, window, field
+
+
+@pytest.mark.parametrize('portal', [False, True])
+def test_chooser_location_uses_editable_api_and_fresh_readback(portal):
+    ui, _, field = location_ui(portal=portal)
+    snapshot = ui.chooser_snapshot
+    ui.chooser_snapshot = Mock(side_effect=snapshot)
+    ui.chooser_operation('chooser-location')
+    ui.api.EditableText.set_text_contents.assert_called_once_with(
+        field, accessible_ui.CHOOSER_DIRECTORY + '/')
+    assert ui.chooser_snapshot.call_count == 2
+    assert not ui.input_uncertain
+
+
+@pytest.mark.parametrize('fault', ['wrong-owner', 'wrong-id', 'no-focus', 'hidden',
+    'disabled', 'ambiguous', 'no-api', 'refused', 'timeout', 'wrong-text', 'lost-focus'])
+def test_chooser_location_refuses_unsafe_target_and_uncertain_input(fault):
+    ui, window, field = location_ui(portal=True)
+    setter = ui.api.EditableText.set_text_contents
+    after_input = fault in ('refused', 'timeout', 'wrong-text', 'lost-focus')
+    if fault == 'wrong-owner':
+        field.get_process_id = lambda: 999
+    elif fault == 'wrong-id':
+        field.identity = 'search_entry'
+    elif fault in ('no-focus', 'hidden', 'disabled'):
+        field.states.remove({'no-focus': 'focused', 'hidden': 'visible', 'disabled': 'sensitive'}[fault])
+    elif fault == 'ambiguous':
+        window.children.append(Node(role='text', identity='entry', states=field.states))
+    elif fault == 'no-api':
+        field.get_editable_text_iface = lambda: None
+    elif fault == 'timeout':
+        setter.side_effect = TimeoutError
+    elif fault in ('refused', 'wrong-text'):
+        setter.side_effect = None
+        setter.return_value = fault != 'refused'
+    else:
+        setter.side_effect = lambda *_: field.states.remove('focused') or True
+    with pytest.raises((accessible_ui.UiError, TimeoutError)):
+        ui.chooser_operation('chooser-location')
+    if after_input:
+        with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+            ui.chooser_operation('chooser-location')
+        setter.assert_called_once()
+    else:
+        setter.assert_not_called()
+
+
+def test_portal_is_expected_only_inside_fresh_chooser_validation():
+    ui, window, _, _, _, _, _ = chooser_ui(portal=True)
+    assert ui.system_prompt_kind() == 'unknown'
+    assert ui.chooser_snapshot()[-1] == 'nautilus-portal'
+    assert ui.chooser_snapshot(absent=True) is False
+    # A successful chooser read must not exempt this provider in later work.
+    with pytest.raises(accessible_ui.UiError, match='system-prompt-refused'):
+        ui.handle_system_prompt()
+    window.states.clear()
+    assert ui.chooser_snapshot(absent=True) is True
+
+
+@pytest.mark.parametrize('portal', [False, True])
+@pytest.mark.parametrize('button_role', ['push button', 'button'])
+def test_chooser_cancel_invokes_provider_control_once_and_observes_closure(portal, button_role):
+    ui, window, _, items, selected, accept, _ = chooser_ui(portal=portal)
+    # Cancel does not require browsing to or selecting a candidate file.
+    cancel = window.children[-1]
+    accept.role = cancel.role = button_role
+    cancel.action.do_action.side_effect = lambda _: window.states.clear() or True
+    ui.chooser_operation('chooser-cancel')
+    cancel.action.do_action.assert_called_once()
+    accept.action.do_action.assert_not_called()
+    assert ui.chooser_snapshot(absent=True) is True
+
+
+@pytest.mark.parametrize('fault', ['missing', 'ambiguous', 'wrong-owner', 'hidden', 'disabled', 'uncertain'])
+@pytest.mark.parametrize('button_role', ['push button', 'button'])
+def test_portal_cancel_refuses_invalid_control_and_never_replays(fault, button_role):
+    ui, window, _, items, selected, accept, _ = chooser_ui(portal=True)
+    selected.append(items[0])
+    cancel = window.children[-1]
+    accept.role = cancel.role = button_role
+    if fault == 'missing':
+        cancel.name = 'Cancel'
+    elif fault == 'ambiguous':
+        window.children.append(Node('Close', role=button_role))
+    elif fault == 'wrong-owner':
+        cancel.get_process_id = lambda: 999
+    elif fault in ('hidden', 'disabled'):
+        cancel.states.remove('visible' if fault == 'hidden' else 'sensitive')
+    else:
+        cancel.action.do_action.side_effect = TimeoutError
+    with pytest.raises((accessible_ui.UiError, TimeoutError)):
+        ui.chooser_operation('chooser-cancel')
+    accept.action.do_action.assert_not_called()
+    if fault == 'uncertain':
+        with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+            ui.chooser_operation('chooser-cancel')
+        cancel.action.do_action.assert_called_once()
+    else:
+        cancel.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_portal_owner_reads_current_session_without_activation_and_closes(monkeypatch, failed):
+    from gi.repository import Gio
+    connection = Mock()
+    baseline = portal_query()
+    def reply(bus, path, interface, method, parameters, result_type, flags, timeout, cancellable):
+        assert flags == Gio.DBusCallFlags.NO_AUTO_START
+        assert timeout == 2000
+        if failed:
+            raise accessible_ui.UiError('ui:chooser-request-interface')
+        args = parameters.unpack() if parameters is not None else ()
+        return SimpleNamespace(unpack=lambda: (baseline(bus, path, interface, method, '', args),))
+    connection.call_sync.side_effect = reply
+    connect = Mock(return_value=connection)
+    monkeypatch.setattr(Gio.DBusConnection, 'new_for_address_sync', connect)
+    monkeypatch.setenv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/private-test-bus')
+    ui, *_ = chooser_ui()
+    if failed:
+        with pytest.raises(accessible_ui.UiError, match='request-interface'):
+            ui.chooser_portal_owner(Node().get_process_id(), 200)
+    else:
+        ui.chooser_portal_owner(Node().get_process_id(), 200)
+    assert connect.call_args.args[0] == 'unix:path=/private-test-bus'
+    connection.set_exit_on_close.assert_called_once_with(False)
+    connection.close_sync.assert_called_once_with(None)
+
+
+def test_portal_request_failure_prevents_selection_and_open():
+    ui, _, _, _, _, accept, _ = chooser_ui(portal=True)
+    ui.chooser_portal_owner.side_effect = accessible_ui.UiError('ui:chooser-request-caller')
+    with pytest.raises(accessible_ui.UiError, match='request-caller'):
+        ui.chooser_select_files()
+    ui.api.Selection.select_all.assert_not_called()
+    accept.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['wrong-caller', 'wrong-owner', 'secret',
+                                  'authentication-title', 'other-modal', 'nested-modal'])
+def test_portal_guard_rejects_unproven_or_additional_prompts(fault):
+    ui, window, _, _, _, accept, _ = chooser_ui(portal=True)
+    if fault == 'wrong-caller':
+        window.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+            get_n_targets=lambda: 1, get_target=lambda _: Node())]
+    elif fault == 'wrong-owner':
+        window.get_application().name = 'Unrelated application'
+    elif fault == 'secret':
+        window.children.append(Node(role='password text'))
+    elif fault == 'authentication-title':
+        window.name = 'Authentication Required'
+    else:
+        owner = window if fault == 'nested-modal' else window.get_application()
+        owner.children.append(Node(role='dialog'))
+    with pytest.raises(accessible_ui.UiError):
+        ui.chooser_select_files()
+    ui.api.Selection.select_all.assert_not_called()
+    accept.action.do_action.assert_not_called()
+
+
+def test_portal_open_wait_validates_chooser_before_generic_prompt_refusal():
+    ui, window, _, _, _, _, _ = chooser_ui(portal=True)
+    states = window.states.copy()
+    window.states.clear()
+    ui.activate_id = Mock(side_effect=lambda _: window.states.update(states))
+    ui.chooser_metadata = Mock(return_value={'route': 'nautilus-portal'})
+    assert ui.chooser_operation('chooser-open')['provider']['route'] == 'nautilus-portal'
+    ui.activate_id.assert_called_once_with('feedback-add-files')
+
+
+@pytest.mark.parametrize('fault', ['wrong-caller', 'mode', 'inactive', 'not-modal',
+    'ambiguous', 'wrong-file', 'single-mode', 'incomplete', 'disabled', 'uncertain'])
+def test_chooser_refuses_before_selection_or_open(fault):
+    ui, window, view, items, selected, accept, caller = chooser_ui()
+    if fault == 'wrong-caller':
+        window.relations[0].get_target = lambda _: Node()
+    elif fault == 'mode':
+        accept.name = 'Save'
+    elif fault == 'inactive':
+        window.states.remove('active')
+    elif fault == 'not-modal':
+        window.states.remove('modal')
+    elif fault == 'ambiguous':
+        window.parent.children.append(Node(role='file chooser', children=[Node('Open', role='push button')]))
+    elif fault == 'wrong-file':
+        items[0].name = 'Unregistered.txt'
+    elif fault == 'single-mode':
+        view.states.remove('multiselectable')
+    elif fault == 'incomplete':
+        window.get_child_count = Mock(side_effect=LookupError())
+    elif fault == 'disabled':
+        view.states.remove('sensitive')
+    elif fault == 'uncertain':
+        ui.input_uncertain = True
+    with pytest.raises((accessible_ui.UiError, LookupError)):
+        ui.chooser_select_files()
+    ui.api.Selection.select_all.assert_not_called()
+    accept.action.do_action.assert_not_called()
+
+
+def test_chooser_uncertain_selection_cannot_replay_or_open():
+    ui, _, _, _, _, accept, _ = chooser_ui()
+    ui.api.Selection.select_all.side_effect = TimeoutError
+    with pytest.raises(TimeoutError):
+        ui.chooser_select_files()
+    with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+        ui.chooser_operation('chooser-accept')
+    assert ui.api.Selection.select_all.call_count == 1
+    accept.action.do_action.assert_not_called()
+
+
+def test_chooser_refuses_partial_selection_without_opening_or_replaying():
+    ui, _, _, items, selected, accept, _ = chooser_ui()
+    def replace(_):
+        selected[:] = [items[0]]
+        return True
+    ui.api.Selection.select_all.side_effect = replace
+    with pytest.raises(accessible_ui.UiError, match='partial-selection'):
+        ui.chooser_select_files()
+    with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+        ui.chooser_select_files()
+    assert ui.api.Selection.select_all.call_count == 1
+    accept.action.do_action.assert_not_called()
+
+
+def test_chooser_open_refuses_partial_selection_even_without_selection_action():
+    ui, _, _, items, selected, accept, _ = chooser_ui()
+    selected.append(items[0])
+    with pytest.raises(accessible_ui.UiError, match='partial-selection'):
+        ui.chooser_operation('chooser-accept')
+    accept.action.do_action.assert_not_called()
+
+
+def test_chooser_attachment_readback_uses_exact_ids_names_and_status():
+    import hashlib
+    from synthetic_files_guest import FILES
+    ui, _, dialog, _ = feedback_ui()
+    assert sorted(FILES) == list(accessible_ui.CHOOSER_FILES)
+    for name, data in FILES.items():
+        key = hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]
+        dialog.children.append(Node(name, identity='feedback-attachment-' + key))
+    dialog.children.append(Node('2 file attachments ready.', identity='feedback-status'))
+    ui.feedback_snapshot(attachments=True)
+    with pytest.raises(accessible_ui.UiError, match='attachment-set'):
+        ui.feedback_snapshot()
+    dialog.children[-2].name = 'Unexpected.txt'
+    with pytest.raises(accessible_ui.UiError, match='attachment-name'):
+        ui.feedback_snapshot(attachments=True)
+
+
+@pytest.mark.parametrize('fault', ['', 'chooser-open', 'chooser-location',
+    'chooser-files', 'chooser-accept', 'chooser-cancel', 'chooser-preserved'])
+def test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault):
+    from file_chooser import PLAN as chooser_plan
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, $_[0]; }
+sub type_string { push @main::events, 'type'; }
+package main;
+require onpc_feedback_read;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval { onpc_feedback_read::run_file_chooser(sub {
+    push @events, $_[0]; push @stages, $_[0];
+    die 'failed proof' if $_[0] eq $fault;
+    return {observed => $_[0]};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = list(chooser_plan.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert result['ok'] == (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+    if not fault:
+        assert [event for event in result['events'] if event in ('ctrl-l', 'ctrl-a', 'ret', 'type')] == ['ctrl-l', 'ret']
+
+
+def test_chooser_selector_registration_and_prerequisites(monkeypatch):
+    import check_e2e_file_chooser
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_file_chooser, 'smoke', run)
+    assert check_e2e_file_chooser.main() == 0
+    assert run.call_args.kwargs['file_chooser'] is True
+    with pytest.raises(CommandError):
+        smoke.main(file_chooser=True)
+    with pytest.raises(CommandError, match='file-chooser-prerequisites'):
+        smoke.main(file_chooser=True, feedback_read=True)
+
+
+@pytest.mark.parametrize('operation', sorted(accessible_ui.CHOOSER_OPERATIONS))
+def test_chooser_real_controller_decodes_closed_evidence(operation):
+    from ui_observations import UiObservations
+    value = {'checked': operation}
+    if operation in ('chooser-open', 'chooser-reopen'):
+        value['provider'] = {'route': 'nautilus-portal', 'version': '50.1-1',
+                             'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
+    if operation in ('chooser-attachments', 'chooser-preserved'):
+        value['attachments'] = ['diagnostic-logs.zip', *accessible_ui.CHOOSER_FILES]
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'chooser': value}
+    controller = UiObservations(Mock())
+    controller.call = Mock(return_value=(json.dumps(result).encode(), []))
+    assert controller.observe(operation)['chooser'] == value
+    assert controller.call.call_count == 1
+
+
+def test_chooser_controller_rejects_partial_attachment_evidence():
+    from ui_observations import UiObservations
+    controller = UiObservations(Mock())
+    result = {'operation': 'chooser-preserved', 'outcome': 'passed', 'interface': 'AT-SPI',
+              'chooser': {'checked': 'chooser-preserved', 'attachments': ['diagnostic-logs.zip']}}
+    controller.call = Mock(return_value=(json.dumps(result).encode(), []))
+    with pytest.raises(EvidenceError, match='chooser-response'):
+        controller.observe('chooser-preserved')
 
 
 def test_validation_entry_reaches_worker_and_closes_recorder_on_failure(tmp_path):

@@ -762,6 +762,16 @@ class FeedbackPrivacyQualification(KioskEntryQualification):
         return FeedbackPrivacyJourney(context, progress)
 
 
+class FeedbackResetQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from feedback_reset import FeedbackResetJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FeedbackResetJourney(context, progress)
+
+
 class FileChooserQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

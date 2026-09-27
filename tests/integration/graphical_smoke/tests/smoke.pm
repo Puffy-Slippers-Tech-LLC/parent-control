@@ -490,6 +490,12 @@ sub run {
         onpc_feedback_states::run(\&exchange);
         return;
     }
+    if ($ready->{feedback_reset}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_privacy::run_reset(\&exchange);
+        return;
+    }
     if ($ready->{feedback_privacy}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

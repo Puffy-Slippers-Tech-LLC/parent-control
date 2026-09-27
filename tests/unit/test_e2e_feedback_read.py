@@ -36,6 +36,8 @@ from ui_observations import FeedbackStateObservation
 # Attachment-item checks retain those same private resources and scheduling.
 # Shared-fragment checks use the same waited private Perl processes and memory.
 # Preview applicability adds only those same isolated resources.
+# App-exit reset retains private values, pytest paths and waited Perl children;
+# the existing compatible unit classification still applies.
 # Boundary checks add bounded in-memory bytes (under 32 MiB), no shared resources.
 
 
@@ -2001,6 +2003,94 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
         assert result['events'].count('alt-f4') == 3
         assert result['events'].count('type') == 2
         assert result['events'][-1] == 'finish'
+
+
+def test_reset_selector_owned_envelope_and_explicit_empty_expectation(tmp_path, monkeypatch):
+    import check_e2e_feedback_reset as check
+    from feedback_reset import PLAN, FeedbackResetJourney, EMPTY_DRAFT
+    from parent_setup_qualification import FeedbackResetQualification, KioskEntryQualification
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['feedback_reset'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(feedback_reset=True)
+    for conflict in ('feedback_privacy', 'feedback_read', 'app_restart', 'attachment_items'):
+        with pytest.raises(CommandError, match='feedback-reset-prerequisites'):
+            smoke.main(feedback_reset=True, **{conflict: True})
+    context = SimpleNamespace(directory=tmp_path)
+    journey = FeedbackResetQualification.journey(context, Mock())
+    assert type(journey) is FeedbackResetJourney and journey.plan is PLAN
+    from app_snapshot import snapshot_name
+    version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == snapshot_name(version)
+    assert FeedbackResetQualification.finalize is KioskEntryQualification.finalize
+    assert FeedbackResetQualification.prepare_context is KioskEntryQualification.prepare_context
+    ui, _, _, _ = synthetic_feedback_ui()
+    nonempty = {'ui': {'feedback': ui.feedback_snapshot('synthetic-first')}}
+    empty = {'ui': {'feedback': dict(draft='initial-empty', attachments=['diagnostic-logs.zip'],
+                                    collection='ready', validation='none', controls='ready')}}
+    with pytest.raises(EvidenceError, match='missing-entry'):
+        journey.check_settings('feedback-reopen', empty)
+    journey.check_settings('feedback-draft', nonempty)
+    journey.check_settings('feedback-draft-reread', nonempty)
+    with pytest.raises(EvidenceError, match='empty-draft'):
+        journey.check_settings('feedback-reopen', nonempty)
+    journey.check_settings('feedback-reopen', empty)
+    journey.check_settings('feedback-reread', empty)
+    assert FeedbackObservation.from_value(empty['ui']['feedback']) == EMPTY_DRAFT
+    empty['ui']['feedback']['attachments'].append('stale.txt')
+    with pytest.raises(EvidenceError, match='feedback-response'):
+        journey.check_settings('feedback-reread', empty)
+
+
+def test_reset_actual_worker_sequence_and_every_refusal(monkeypatch):
+    from tests.support.perl import run_perl
+    from tests.unit.test_e2e_toggle import ALLOWANCE_WORKER
+    from feedback_reset import PLAN
+    from ui_observations import OPERATION_LABELS
+    script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_feedback_privacy')
+    script = script.replace('onpc_feedback_privacy::run(', 'onpc_feedback_privacy::run_reset(')
+    script = script.replace('sub record_info { }',
+                            "sub record_info { }\nsub type_string { push @main::events, ['text', @_]; }")
+    monkeypatch.setenv('ONPC_TEST_REFUSE', '')
+    success = json.loads(run_perl(script).stdout)
+    assert success['ok'], success['error']
+    stages = list(PLAN.screen_tags)
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
+    assert sum(event[:2] == ['key', 'alt-f4'] for event in success['events']) == 2
+    assert sum(event[0] == 'text' for event in success['events']) == 2
+    for stage in stages:
+        monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
+        result = json.loads(run_perl(script).stdout)
+        assert not result['ok'] and 'fixture:refused' in result['error']
+        boundary = success['events'].index(['stage', stage])
+        assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_reset_recorder_reaches_real_custom_controller(tmp_path):
+    from feedback_reset import PLAN, FeedbackResetJourney
+    from installed_journey import record_installed_journey
+    recorder = MagicMock(assertion=Mock())
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(),
+                              commands=Mock(), recorder=recorder)
+
+    def worker(**options):
+        controller = options['guarded_observe'].__self__
+        assert type(controller) is FeedbackResetJourney
+        assert controller.plan is PLAN and controller.actions == {} and controller.draft is None
+        assert options['validate'].__self__ is controller
+        raise EvidenceError('synthetic-worker-stop')
+
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(recorder, context, PLAN, actions={},
+                                 journey_type=FeedbackResetJourney)
+    context.run_worker.assert_called_once()
+    assert recorder.step.return_value.__exit__.call_args.args[0] is EvidenceError
+    recorder.assertion.assert_not_called()
 
 
 def feedback_ui():

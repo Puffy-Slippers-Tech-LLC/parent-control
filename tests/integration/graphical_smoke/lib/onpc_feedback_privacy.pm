@@ -9,6 +9,37 @@ use onpc_text ();
 use onpc_window ();
 use onpc_feedback_states ();
 use onpc_feedback_read ();
+use onpc_lifecycle ();
+
+# FEED10(app-exit): consume a fresh nonempty draft proof, close feedback,
+# compose LIFE01, and compare the reopened draft before any field input.
+sub app_exit {
+    onpc_progress::operation('Reopening Parent and observing the empty feedback draft');
+    my ($journey, $before) = @_;
+    die 'feedback-reset:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    my $closed = onpc_window::close($journey, 'feedback', $before);
+    $journey->consume_observation('feedback-draft-closed', $closed);
+    onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
+    $journey->seen('feedback-wrong-entry');
+    return $journey->seen('feedback-reopen');
+}
+
+sub run_reset {
+    onpc_progress::operation('Qualifying feedback draft reset after Parent exits');
+    my ($exchange) = @_;
+    die 'feedback-reset:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'feedback-reset', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('feedback-close-refused');
+    $journey->seen('feedback-open');
+    onpc_text::replace_text($journey, $_) for ('body-first', 'reply-first');
+    $journey->seen('feedback-draft');
+    app_exit($journey, $journey->seen('feedback-draft-reread'));
+    $journey->seen('feedback-reread');
+    $journey->finish();
+}
 
 # FEED10(dialog): the supplied before proof and the reopen observation are
 # compared by the controller before this composite returns or any new input.

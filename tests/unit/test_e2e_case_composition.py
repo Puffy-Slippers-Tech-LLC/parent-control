@@ -68,6 +68,7 @@ WORKER_APIS = {
     'onpc_request_flow': {'prepare', 'reject', 'approve'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
+    'onpc_feedback_privacy': {'app_exit', 'preserve_dialog'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child'},
     'onpc_text': {'replace_text'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',

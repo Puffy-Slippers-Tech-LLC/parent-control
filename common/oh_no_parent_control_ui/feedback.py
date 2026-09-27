@@ -723,7 +723,12 @@ class FeedbackDialog(Adw.Window):
             )
             row.automation_key = attachment_key
             set_automation_id(row, f"feedback-attachment-{attachment_key}")
-            row.add_prefix(Gtk.Image(icon_name="mail-attachment-symbolic"))
+            icon = Gtk.Image(icon_name="mail-attachment-symbolic")
+            describe_control(
+                icon, "Preview is not available", "File attachment",
+                automation_id=f"feedback-preview-availability-{attachment_key}",
+            )
+            row.add_prefix(icon)
             remove = Gtk.Button(
                 icon_name="user-trash-symbolic", tooltip_text="Remove attachment",
                 valign=Gtk.Align.CENTER,

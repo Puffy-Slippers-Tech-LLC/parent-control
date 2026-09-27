@@ -674,6 +674,40 @@ same adapter against real GTK rows in the private preview; that seeded fixture
 is engineering coverage, not a substitute for the installed chooser journey.
 Other file sets, rejection boundaries and offered previews remain pending.
 
+#### Attachment preview applicability
+
+`AccessibleUI.attachment_operation('attachment-preview')` qualifies the
+explicitly inapplicable branch for the declared Parent two-file profile.
+`feedback_snapshot(attachments='preview')` resolves each row and its
+`feedback-preview-availability-*` icon by owned public ID, checks the accessible
+"Preview is not available" label and validates the row's public action set.
+The generic `row.activate` action and GTK label text/clipboard/link actions are
+not preview handlers. Unexpected actions, wrong owners, missing or ambiguous
+IDs and changed metadata refuse; a newly offered preview requires its own
+implemented and qualified public route. No external editor or private file
+inspection supplies preview acceptance.
+
+[attachment_preview.py](../../tests/e2e/attachment_preview.py) composes the
+shared `onpc_feedback_read::run_file_chooser` preview branch and retains the
+prepared-file controller through cleanup. `AttachmentPreviewJourney` captures
+an immutable `attachment-details` list, then compares independent
+`attachment-preview` and `attachment-preview-return` observations against it.
+`UiObservations` validates the exact public result, including `not-offered`.
+
+`tools/run-tests integration check_e2e_attachment_preview` qualified this scope
+in `20260927T193459Z-36234a89`: independent entry/wrong-entry refusal, real
+chooser handoff and Cancel, preview inapplicability and unchanged names, sizes
+and order passed. Collection, owned fixture/worker cleanup and baseline
+restoration passed. Reuse the chooser's recorded provider tuple. Send was
+untouched; this supplies no offered-preview content or complete-scenario credit.
+The affected `check_e2e_attachment_items` regression passed in
+`20260927T193811Z-d7dfede2`, including collection, owned cleanup and baseline
+restoration.
+The host adapter/worker/decoder refusals and immutable-list comparison remain in
+[test_e2e_feedback_read.py](../../tests/unit/test_e2e_feedback_read.py), with real
+GTK coverage in [test_parent_feedback.py](../../tests/ui/test_parent_feedback.py).
+Other file profiles and surfaces remain pending.
+
 #### Synthetic file commands
 
 Task 036 qualified `SyntheticFiles.call` and `synthetic_files.qualify` through
@@ -735,7 +769,7 @@ routes remain separate consumers.
 | FEED05 | C | Open Privacy, read the disclosure/diagnostic explanation, then close it. | `AccessibleUI.feedback_privacy(projection)` → `onpc_window::close('feedback-privacy', proof)` → `AccessibleUI.window_closed('feedback-privacy', 'feedback')`: UI04 → UI09 → UI03 → UI18. Reads the actual ID-owned disclosure about delivery, retention and diagnostic/personal content; opens no external link. `feedback_privacy.PLAN` / `check_e2e_feedback_privacy` qualified Parent synthetic-first and independent reopened entry in `20260926T214728Z-4a3ca1b4`, with draft unchanged, collection, owned cleanup and baseline restoration. | ready for Parent synthetic-first; overlay/kiosk and other projections pending |
 | FEED06 | C | Add prepared synthetic attachments through Add files and the actual file chooser, then observe the displayed list or validation. | UI04 → FILE03 → FEED03. The [attachment handoff](#attachment-chooser-handoff) and [item qualification](#attachment-item-metadata-and-removal) cover fixed two-file Parent entry and exact metadata/order readback. Count/size boundaries and other fixture values remain with their declared consumers. | ready for fixed two-file Parent handoff and metadata; other attachment inputs/validation pending |
 | FEED07 | C | Resolve one attachment row by its stable public ID, then read its displayed synthetic name/size and verify its order if required. Order is a result and never identifies the row. Does not preview or remove it. | `AccessibleUI.feedback_snapshot(attachments='details')` / `attachments='remaining'` → exact public `items`; see [qualified item scope](#attachment-item-metadata-and-removal). UI01 → UI03 → UI13(order when required). | ready for declared Parent two-file and remaining-file profiles; other inputs/surfaces pending |
-| FEED12 | C | Open an offered attachment preview, read declared synthetic contents and close it, returning to feedback. | UI01 → UI04 → UI03 → UI18. An unoffered preview does not authorize private storage inspection. | pending |
+| FEED12 | C | Open an offered attachment preview, read declared synthetic contents and close it, returning to feedback. Explicitly record an unoffered preview and independently compare the unchanged list. | `AccessibleUI.attachment_operation('attachment-preview')` / `attachment-preview-return` → `AttachmentPreviewJourney` comparison; [qualified applicability scope](#attachment-preview-applicability). Offered route: UI01 → UI04 → UI03 → UI18. An unoffered preview does not authorize private storage inspection. | ready for declared Parent two-file inapplicability and unchanged-list comparison; offered preview and other bindings pending |
 | FEED13 | C | Remove one explicitly identified attachment and observe the remaining list. | `AccessibleUI.attachment_operation('attachment-remove')` → independent `attachment-remaining`; [qualified item scope](#attachment-item-metadata-and-removal). UI01 → UI04(Remove) → FEED03 → UI12(expected list). | ready for declared Parent single-item removal; other inputs/surfaces pending |
 | FEED08 | C | Explicitly save diagnostic output to a customer-selected location, inspect that exported artifact through the shared read-only SSH helper, and reobserve the preserved feedback draft. | UI04(download) → FILE03(save) → FILE08(exact saved ZIP entries/contents) → FEED03. Caller may instead stop after FILE03(cancel) and inspect its retained draft. Save failure must be observed in the app before choosing another location. Do not inspect original product logs or storage. | pending |
 | FEED09 | C | Observe collection, validation, sending, retry, error or thank-you state and control availability. Snapshot mode reads the current state; transition mode records required transient states around FEED01 or FEED11. | `AccessibleUI.feedback_snapshot(projection, states=True)` → immutable `FeedbackStateObservation`; `feedback_states.PLAN` / `check_e2e_feedback_states` qualify the [edit-only Parent snapshots](#feedback-validation-snapshots). `reject_invalid_feedback` / `rejection_operation` and `feedback_rejection.PLAN` additionally qualify the fixed [invalid-only rejection](#feedback-rejection) inputs and exact explanations. `length_operation` / `feedback_length.PLAN` qualify the [ASCII and mixed-emoji boundaries](#feedback-utf-16-boundaries). UI01 → UI02 → UI03 → UI10, or UI22 with the same projections. No provider receipt or delivery-internal assertion. | ready for declared Parent edit-only snapshots, ASCII/mixed-emoji boundaries and empty/malformed/SOH/complex/excessive-text rejection; other validation inputs, collection transitions, sending/retry/success and other surfaces pending |

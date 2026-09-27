@@ -188,13 +188,16 @@ def test_chooser_fixture_lifetime_retains_same_controller_and_owned_receipt(monk
     assert guard.call_count == 2
 
 
-@pytest.mark.parametrize('items', [False, True])
+@pytest.mark.parametrize('items', [0, 1, 2])
 def test_chooser_qualification_uses_registered_actions_and_installed_snapshot(tmp_path, items):
     from parent_setup_qualification import FileChooserQualification
     from file_chooser import PLAN
-    if items:
+    if items == 1:
         from parent_setup_qualification import AttachmentItemsQualification as FileChooserQualification
         from attachment_items import PLAN
+    if items == 2:
+        from parent_setup_qualification import AttachmentPreviewQualification as FileChooserQualification
+        from attachment_preview import PLAN
     context = SimpleNamespace(directory=tmp_path)
     journey = FileChooserQualification.journey(context, Mock())
     assert journey.plan is PLAN

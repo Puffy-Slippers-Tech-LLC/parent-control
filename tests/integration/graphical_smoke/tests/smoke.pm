@@ -496,6 +496,12 @@ sub run {
         onpc_feedback_privacy::run(\&exchange);
         return;
     }
+    if ($ready->{attachment_preview}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_read::run_file_chooser(\&exchange, 2);
+        return;
+    }
     if ($ready->{attachment_items}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

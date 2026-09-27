@@ -663,10 +663,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
-         synthetic_files=False, file_chooser=False, attachment_items=False):
+         synthetic_files=False, file_chooser=False, attachment_items=False, attachment_preview=False):
+    require(type(attachment_preview) is bool and not (attachment_preview and (attachment_items or file_chooser)),
+            'smoke:attachment-preview-prerequisites')
     require(type(attachment_items) is bool and not (attachment_items and file_chooser),
             'smoke:attachment-items-prerequisites')
-    file_chooser = file_chooser or attachment_items
+    file_chooser = file_chooser or attachment_items or attachment_preview
     require(type(file_chooser) is bool and not (file_chooser and (
         feedback_read or feedback_privacy or feedback_states or format_qualification
         or window_switch or feedback_rejection or feedback_length or synthetic_files)),
@@ -1176,6 +1178,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-file-chooser-qualification'
         if attachment_items:
             result['scope'] = 'installed-attachment-items-qualification'
+        if attachment_preview:
+            result['scope'] = 'installed-attachment-preview-qualification'
         if feedback_privacy:
             result['scope'] = 'installed-feedback-privacy-qualification'
         if feedback_states:
@@ -1386,6 +1390,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if attachment_items:
                     from parent_setup_qualification import AttachmentItemsQualification
                     qualification_class = AttachmentItemsQualification
+                if attachment_preview:
+                    from parent_setup_qualification import AttachmentPreviewQualification
+                    qualification_class = AttachmentPreviewQualification
                 if feedback_privacy:
                     from parent_setup_qualification import FeedbackPrivacyQualification
                     qualification_class = FeedbackPrivacyQualification

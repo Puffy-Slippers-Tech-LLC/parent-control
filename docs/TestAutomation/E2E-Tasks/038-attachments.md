@@ -31,7 +31,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **037** — FILE03 installed feedback open/cancel; actual provider binding.
 - **010** — UI17 Parent Screen time limit binding; installed qualification and owned cleanup passed.
 - **031** — FEED09 validation/control snapshots.
-- **038b** — FEED12 offered preview and unchanged attachment-list return.
+- **038b** — FEED12 Parent two-file preview inapplicability and independently unchanged attachment list; offered-preview content remains pending.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
@@ -40,6 +40,10 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 Extend FIX04 with bounded synthetic files for the declared rejection boundaries.
 Compose the qualified 038a/038b item observations, preview applicability and
 removal; do not reimplement those operations. No private storage reads.
+Reuse `attachment_preview.PLAN`, `AttachmentPreviewJourney` and
+`AccessibleUI.attachment_operation` through the catalogue's
+[qualified applicability scope](../E2E-Building-Blocks.md#attachment-preview-applicability).
+The current binding proves `not-offered`; it does not open or read a preview.
 
 Follow the shared [attachment handoff](../E2E-Building-Blocks.md#attachment-chooser-handoff)
 and its consumer guidance. The current two-file fixture and ready-state readback

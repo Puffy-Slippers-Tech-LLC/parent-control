@@ -14,7 +14,7 @@ from regression_resources import HOST_WORKERS
 
 REVIEWED = frozenset('''
 appsnapshot backing_verification baseline_guest challenges child_preview clean_install customer_reboot dbus_harness e2e_asset_transfer
-e2e_controller_qualification e2e_execution e2e_fixture_credentials
+e2e_controller_qualification e2e_execution e2e_files e2e_fixture_credentials
 e2e_keyring_fixture e2e_leased_recording e2e_recording e2e_startup_cache e2e_suite
 e2e_watch e2e_worker execution_probe fixture fix_tests
 graphical_attachment graphical_serial graphical_smoke graphical_transport
@@ -26,6 +26,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 '''.split())
 
 # Installed journey/setup/About tests write only beneath tmp_path and replace
+# Synthetic file checks use only private tmp_path trees and mocked SSH; no
+# accounts, VM, sockets, subprocesses, caches or shared filesystem mutations.
 # guest operations with process-local doubles. About's matcher reads repository
 # fixtures in its own Perl child; watcher sockets, processes and signals are
 # mocked. These modules therefore share the same isolation as cleanup buckets.

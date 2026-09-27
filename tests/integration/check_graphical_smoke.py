@@ -662,7 +662,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
-         window_switch=False, feedback_rejection=False, feedback_length=False):
+         window_switch=False, feedback_rejection=False, feedback_length=False,
+         synthetic_files=False):
+    require(type(synthetic_files) is bool and (not synthetic_files or fresh_desktop == 'parent'),
+            'smoke:synthetic-files-prerequisites')
     require(type(feedback_length) is bool and not (feedback_length and (
         feedback_read or feedback_privacy or feedback_states or format_qualification
         or window_switch or feedback_rejection)), 'smoke:feedback-length-prerequisites')
@@ -1132,6 +1135,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'product-free-gdm-qualification'
         if fresh_desktop is not None:
             result['scope'] = 'fresh-' + fresh_desktop + '-desktop-qualification'
+        if synthetic_files:
+            result['scope'] = 'synthetic-files-qualification'
         if shell_search_results:
             result['scope'] = 'installed-shell-search-results-qualification'
         if parent_search_launch:
@@ -1292,6 +1297,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if fresh_desktop == 'parent':
                     from parent_setup_qualification import FreshParentDesktopQualification
                     qualification_class = FreshParentDesktopQualification
+                    if synthetic_files:
+                        from parent_setup_qualification import SyntheticFilesQualification
+                        qualification_class = SyntheticFilesQualification
                 if fresh_desktop == 'standard':
                     from parent_setup_qualification import FreshStandardDesktopQualification
                     qualification_class = FreshStandardDesktopQualification

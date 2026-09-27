@@ -825,10 +825,14 @@ CHOOSER_OPERATIONS = frozenset('chooser-' + suffix for suffix in (
     'reopen', 'cancel', 'preserved'))
 OPERATIONS |= CHOOSER_OPERATIONS
 ATTACHMENT_OPERATIONS = frozenset(('attachment-details', 'attachment-remove',
-                                  'attachment-remaining', 'attachment-wrong-entry'))
+                                  'attachment-remaining', 'attachment-wrong-entry',
+                                  'attachment-preview', 'attachment-preview-return'))
 OPERATIONS |= ATTACHMENT_OPERATIONS
 ATTACHMENT_INPUTS = (('Second note.txt', b'ONPC second synthetic attachment\n'),
                      ('Synthetic note.txt', b'ONPC synthetic attachment\n'))
+ATTACHMENT_LABEL_ACTIONS = frozenset((
+    'clipboard.copy', 'selection.delete', 'clipboard.paste', 'link.open',
+    'clipboard.cut', 'link.copy', 'menu.popup', 'selection.select-all'))
 
 
 def validate_chooser_portal_owner(query, caller_pid, provider_pid):
@@ -2018,6 +2022,12 @@ class AccessibleUI:
             return {'checked': operation}
         profile = 'remaining' if operation == 'attachment-remaining' else 'details'
         value = self.feedback_snapshot(attachments=profile)
+        if operation == 'attachment-preview':
+            self.feedback_snapshot(attachments='preview')
+            # This binding qualifies the explicitly inapplicable branch only.
+            # A newly offered action must refuse until its public preview route
+            # is bound; never open an external editor or inspect private bytes.
+            return {'checked': operation, 'items': value['items'], 'preview': 'not-offered'}
         if operation == 'attachment-remove':
             name, data = ATTACHMENT_INPUTS[0]
             key = hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]
@@ -2092,7 +2102,7 @@ class AccessibleUI:
                       self.api.Text.get_text(text, 0, count) if count else '')
             require(actual in allowed,
                     'ui:feedback-nonempty-draft')
-        require(attachments in (False, True, 'details', 'remaining'), 'ui:attachment-profile')
+        require(attachments in (False, True, 'details', 'remaining', 'preview'), 'ui:attachment-profile')
         expected_attachments = ({'feedback-attachment-' + hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]: name
             for name, data in (('Synthetic note.txt', b'ONPC synthetic attachment\n'),
                                ('Second note.txt', b'ONPC second synthetic attachment\n'))
@@ -2102,7 +2112,7 @@ class AccessibleUI:
         for identity, name in expected_attachments.items():
             require(target(identity).get_name() == name, 'ui:feedback-attachment-name')
         items = []
-        if attachments in ('details', 'remaining'):
+        if attachments in ('details', 'remaining', 'preview'):
             # Tree order is an observed result, never a target selector. Resolve
             # each row by its owned ID before reading its public name and size.
             # AdwActionRow exposes its subtitle via DESCRIBED_BY, not Description.
@@ -2110,6 +2120,38 @@ class AccessibleUI:
                 identity = identities[node]
                 if identity in expected_attachments:
                     row = target(identity)
+                    if attachments == 'preview':
+                        row_nodes = self.snapshot_scope(nodes, edges, row)
+                        require(all(child.get_process_id() == root.get_process_id()
+                                    for child in row_nodes), 'ui:attachment-preview-owner')
+                        availability = target(identity.replace('feedback-attachment-',
+                                                               'feedback-preview-availability-'))
+                        require(availability in row_nodes
+                                and availability.get_name() == 'Preview is not available',
+                                'ui:attachment-preview-availability')
+                        remove_id = identity.replace('feedback-attachment-', 'feedback-remove-attachment-')
+                        remove = target(remove_id)
+                        require(remove in row_nodes, 'ui:attachment-remove-owner')
+                        for child in row_nodes:
+                            action = child.get_action_iface()
+                            count = self.api.Action.get_n_actions(action) if action is not None else 0
+                            require(type(count) is int and 0 <= count <= 32, 'ui:attachment-actions')
+                            # set_automation_id publishes row.activate for all
+                            # ListBoxRows, including nonactivatable attachments.
+                            # That generic action is not a preview affordance.
+                            names = [public_action_name(self.api, action, index) for index in range(count)]
+                            expected = ({'row.activate'} if child == row else {'click'} if child == remove else
+                                ATTACHMENT_LABEL_ACTIONS if child.get_role_name() == 'label' and count else set())
+                            # GtkLabel publishes generic text/clipboard/link
+                            # actions even for these plain synthetic labels.
+                            # They are not attachment preview affordances.
+                            matched = len(names) == len(expected) and set(names) == expected
+                            if not matched:
+                                print(json.dumps({'event': 'attachment-action-mismatch',
+                                    'target': 'row' if child == row else 'remove' if child == remove else 'descendant',
+                                    'action_count': count}, sort_keys=True),
+                                    file=sys.stderr, flush=True)
+                            require(matched, 'ui:attachment-preview-offered')
                     descriptions = [relation.get_target(index)
                         for relation in row.get_relation_set()
                         if relation.get_relation_type() == self.api.RelationType.DESCRIBED_BY
@@ -2157,7 +2199,7 @@ class AccessibleUI:
                                                        self.api.StateType.SENSITIVE))}
         result = {'draft': projection, 'attachments': ['diagnostic-logs.zip', *sorted(expected_attachments.values())],
                   'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
-        if attachments in ('details', 'remaining'):
+        if attachments in ('details', 'remaining', 'preview'):
             result['items'] = items
         return result
 

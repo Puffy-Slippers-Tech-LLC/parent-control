@@ -22,7 +22,7 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
-    **{operation: 'Reading attachment metadata and verifying single-item removal'
+    **{operation: 'Checking public attachment metadata and the declared attachment operation'
        for operation in accessible_ui.ATTACHMENT_OPERATIONS},
     **{operation: 'Qualifying feedback file selection: ' + operation.removeprefix('chooser-')
        for operation in accessible_ui.CHOOSER_OPERATIONS},
@@ -694,7 +694,10 @@ class UiObservations:
             if operation != 'attachment-wrong-entry':
                 projection['items'] = [[name, f'{len(data)} bytes']
                     for name, data in accessible_ui.ATTACHMENT_INPUTS
-                    if operation == 'attachment-details' or name == 'Synthetic note.txt']
+                    if operation in ('attachment-details', 'attachment-preview', 'attachment-preview-return')
+                    or name == 'Synthetic note.txt']
+            if operation == 'attachment-preview':
+                projection['preview'] = 'not-offered'
             require(type(result) is dict and set(result) == {*expected, 'attachment'}
                     and result['attachment'] == projection, 'ui:attachment-response')
             expected['attachment'] = result['attachment']

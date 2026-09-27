@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **038b — [Qualify offered attachment preview and return](E2E-Tasks/038b-attachment-preview.md)**.
+Next task: **038 — [Qualify attachment rejection boundaries](E2E-Tasks/038-attachments.md)**.
 
 Task 038a qualified exact Parent attachment names, displayed sizes and order,
 one identified removal and the independently observed remaining list through
@@ -27,8 +27,14 @@ one identified removal and the independently observed remaining list through
 regression passed in `20260927T175421Z-d6087694`. Collection, owned cleanup and
 baseline restoration passed. Reuse the [attachment item scope](E2E-Building-Blocks.md#attachment-item-metadata-and-removal)
 and [chooser handoff](E2E-Building-Blocks.md#attachment-chooser-handoff).
-Offered preview, rejection boundaries and other fixture profiles remain pending.
-No valid feedback submission is authorized.
+Task 038b qualified Parent two-file preview inapplicability and an independently
+observed unchanged attachment list through `check_e2e_attachment_preview` in
+`20260927T193459Z-36234a89`. The affected attachment-items regression passed in
+`20260927T193811Z-d7dfede2`; collection, owned cleanup and baseline restoration
+passed for both. Reuse the [preview applicability scope](E2E-Building-Blocks.md#attachment-preview-applicability).
+Offered-preview content, rejection boundaries and other fixture profiles remain
+pending. Task 038 adds count, per-file and diagnostics-excluded aggregate
+rejection boundaries. No valid feedback submission is authorized.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

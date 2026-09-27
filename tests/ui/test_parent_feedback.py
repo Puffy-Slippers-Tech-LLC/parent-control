@@ -23,6 +23,10 @@ def test_attachment_items_adapter_reads_real_rows_and_removes_one(
         "diagnostics are ready")
     assert automation.reader.attachment_operation('attachment-details')['items'] == [
         ['Second note.txt', '33 bytes'], ['Synthetic note.txt', '26 bytes']]
+    before = automation.reader.attachment_operation('attachment-details')['items']
+    assert automation.reader.attachment_operation('attachment-preview') == {
+        'checked': 'attachment-preview', 'items': before, 'preview': 'not-offered'}
+    assert automation.reader.attachment_operation('attachment-preview-return')['items'] == before
     assert automation.reader.attachment_operation('attachment-remove')['items'] == [
         ['Synthetic note.txt', '26 bytes']]
     assert automation.reader.attachment_operation('attachment-remaining')['items'] == [

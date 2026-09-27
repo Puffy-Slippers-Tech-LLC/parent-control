@@ -35,6 +35,7 @@ from ui_observations import FeedbackStateObservation
 # it retains this module's reviewed unit scheduling and resource ownership.
 # Attachment-item checks retain those same private resources and scheduling.
 # Shared-fragment checks use the same waited private Perl processes and memory.
+# Preview applicability adds only those same isolated resources.
 
 
 @pytest.mark.parametrize('block,family,fault', [
@@ -99,6 +100,14 @@ def attachment_ui():
         remove = Node(identity='feedback-remove-attachment-' + key)
         subtitle = Node(f'{len(data)} bytes', role='label')
         row = Node(name, identity='feedback-attachment-' + key, children=[remove, subtitle])
+        row.action.get_action_name = lambda _: 'row.activate'
+        label_actions = sorted(accessible_ui.ATTACHMENT_LABEL_ACTIONS)
+        subtitle.action.get_n_actions = lambda: len(label_actions)
+        subtitle.action.get_action_name = lambda index: label_actions[index]
+        availability = Node('Preview is not available', identity='feedback-preview-availability-' + key)
+        availability.action = None
+        availability.parent = row
+        row.children.append(availability)
         row.relations = [SimpleNamespace(
             get_relation_type=lambda: 'described-by', get_n_targets=lambda: 1,
             get_target=lambda _, subtitle=subtitle: subtitle)]
@@ -595,13 +604,15 @@ def test_chooser_attachment_readback_uses_exact_ids_names_and_status():
         ui.feedback_snapshot(attachments=True)
 
 
-@pytest.mark.parametrize('items', [False, True])
+@pytest.mark.parametrize('items', [0, 1, 2])
 @pytest.mark.parametrize('fault', ['', 'chooser-open', 'chooser-location',
     'chooser-files', 'chooser-accept', 'chooser-cancel', 'chooser-preserved'])
 def test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, items):
     from file_chooser import PLAN as chooser_plan
-    if items:
+    if items == 1:
         from attachment_items import PLAN as chooser_plan
+    if items == 2:
+        from attachment_preview import PLAN as chooser_plan
     from tests.support.perl import run_perl
     result = json.loads(run_perl(r'''
 use strict; use warnings; use JSON::PP;
@@ -621,7 +632,7 @@ my $ok = eval { onpc_feedback_read::run_file_chooser(sub {
     push @events, $_[0]; push @stages, $_[0];
     die 'failed proof' if $_[0] eq $fault;
     return {observed => $_[0]};
-}, ($items ? (1) : ())); 1; };
+}, ($items ? ($items) : ())); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
 ''', fault, str(int(items))).stdout)
     stages = list(chooser_plan.screen_tags)
@@ -659,6 +670,90 @@ def test_attachment_selector_registration_and_prerequisites(monkeypatch):
     assert run.call_args.kwargs['attachment_items'] is True
     with pytest.raises(CommandError, match='attachment-items-prerequisites'):
         smoke.main(attachment_items=True, file_chooser=True)
+
+
+@pytest.mark.parametrize('fault', ['attachment-wrong-entry', 'attachment-details',
+                                  'attachment-preview', 'attachment-preview-return'])
+def test_preview_worker_stops_at_each_failed_proof(fault):
+    test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, 2)
+
+
+def test_preview_selector_registration_and_prerequisites(monkeypatch):
+    import check_e2e_attachment_preview
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_attachment_preview, 'smoke', run)
+    assert check_e2e_attachment_preview.main() == 0
+    assert run.call_args.kwargs['attachment_preview'] is True
+    with pytest.raises(CommandError, match='attachment-preview-prerequisites'):
+        smoke.main(attachment_preview=True, attachment_items=True)
+
+
+@pytest.mark.parametrize('fault', ['', 'offered', 'extra-action', 'label-action', 'foreign-remove', 'wrong-item', 'availability',
+                                  'wrong-owner', 'stale', 'duplicate', 'missing'])
+def test_preview_public_applicability_refuses_unbound_actions_and_wrong_rows(fault):
+    ui, dialog, rows = attachment_ui()
+    if fault == 'offered': rows[0].action = Node().action
+    if fault == 'availability': rows[0].children[2].name = ''
+    if fault == 'extra-action': rows[0].children.append(Node('Preview'))
+    if fault == 'label-action': rows[0].children[1].action.get_action_name = lambda _: 'preview'
+    if fault == 'foreign-remove':
+        dialog.children.append(rows[0].children.pop(0))
+    if fault == 'wrong-item': rows[0].name = 'Wrong.txt'
+    if fault == 'wrong-owner': rows[0].get_process_id = lambda: 999
+    if fault == 'stale': rows[0].states.add('defunct')
+    if fault == 'duplicate': dialog.children.append(Node(identity=rows[0].identity))
+    if fault == 'missing': dialog.children.remove(rows[0])
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.attachment_operation('attachment-preview')
+    else:
+        result = ui.attachment_operation('attachment-preview')
+        assert result['preview'] == 'not-offered'
+        assert ui.attachment_operation('attachment-preview-return')['items'] == result['items']
+    for row in rows:
+        for child in row.children:
+            if child.action:
+                child.action.do_action.assert_not_called()
+
+
+def test_preview_comparison_uses_captured_immutable_list():
+    from attachment_preview import journey
+    controller = journey(SimpleNamespace(), Mock())
+    value = {'ui': {'attachment': {'items': [['Second note.txt', '33 bytes'],
+                                           ['Synthetic note.txt', '26 bytes']]}}}
+    controller.check_settings('attachment-details', value)
+    controller.check_settings('attachment-preview', value)
+    controller.check_settings('attachment-preview-return', value)
+    value['ui']['attachment']['items'].reverse()
+    with pytest.raises(EvidenceError, match='preview-list-changed'):
+        controller.check_settings('attachment-preview-return', value)
+
+
+def test_preview_recorder_reaches_worker_with_plan_and_owned_actions(tmp_path):
+    from attachment_preview import PLAN, AttachmentPreviewJourney
+    from file_chooser import stage_files, cleanup_files
+    from installed_journey import record_installed_journey
+    recorder = MagicMock(assertion=Mock())
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(),
+                              commands=Mock(), recorder=recorder)
+    actions = {'chooser-fixtures': stage_files, 'chooser-cleanup': cleanup_files}
+
+    def worker(**options):
+        controller = options['guarded_observe'].__self__
+        assert type(controller) is AttachmentPreviewJourney
+        assert controller.plan is PLAN and controller.actions == actions
+        assert controller.before_preview is None
+        assert options['validate'].__self__ is controller
+        raise EvidenceError('synthetic-worker-stop')
+
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(recorder, context, PLAN, actions=actions,
+                                 journey_type=AttachmentPreviewJourney)
+    context.run_worker.assert_called_once()
+    assert recorder.step.return_value.__exit__.call_args.args[0] is EvidenceError
+    recorder.assertion.assert_not_called()
 
 
 @pytest.mark.parametrize('operation', sorted(accessible_ui.CHOOSER_OPERATIONS))

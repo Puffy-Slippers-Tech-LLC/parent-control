@@ -163,6 +163,9 @@ The footer stays outside the form's scrolling area so Close and Send remain
 visible on short displays, including when all five file attachments or a long
 status message are shown. The rich-text editor continues to scroll its own text;
 its formatting dropdown scrolls within the editor viewport when space is tight.
+User-file rows expose their name, size and Remove action. Their attachment icon
+has an accessible label stating that preview is unavailable; they do not open a
+preview. This label activates in newly launched frontends and changes no saved data.
 
 ### Error reports
 

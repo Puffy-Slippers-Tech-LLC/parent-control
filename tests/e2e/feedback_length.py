@@ -20,9 +20,20 @@ def input_stages(family, units):
               if family == 'mixed' else ()))
 
 
+def length_boundary(family):
+    """One FEED09 UTF-16 family, from empty reply to observed length rejection.
+
+    The caller owns dialog return and independent-entry qualification. Valid
+    input is observed and refused by the invalid-only Send guard, never sent.
+    """
+    require(family in ('ascii', 'mixed'), 'length:family')
+    return {stage: 'ui:' + stage for stage in (
+        *input_stages(family, 5000), f'length-{family}-valid', f'length-{family}-refusal',
+        *input_stages(family, 5001), f'rejection-{family}-send', f'rejection-{family}-read')}
+
+
 STAGES = ('feedback-open', *(stage for family in ('ascii', 'mixed') for stage in (
-    *input_stages(family, 5000), f'length-{family}-valid', f'length-{family}-refusal',
-    *input_stages(family, 5001), f'rejection-{family}-send', f'rejection-{family}-read',
+    *length_boundary(family),
     f'length-{family}-close', f'length-{family}-wrong-entry', f'length-{family}-reopen',
     f'rejection-{family}-reopened-send', f'rejection-{family}-reopened-read',
     *(('length-ascii-reset-close', 'length-ascii-reset-open') if family == 'ascii' else ()))))

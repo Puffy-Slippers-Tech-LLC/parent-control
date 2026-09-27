@@ -746,7 +746,7 @@ routes remain separate consumers.
 
 #### Feedback validation snapshots
 
-`check_e2e_feedback_states` last passed in report `20260927T044529Z-89d6d9b4`,
+`check_e2e_feedback_states` last passed in report `20260927T180816Z-1660edb1`,
 including independent reopened entry, wrong-entry refusal, collection, owned
 cleanup and baseline restoration. `AccessibleUI.feedback_state_operation`
 observes edits supplied by the caller through `onpc_text::replace_text`; it never
@@ -772,6 +772,13 @@ disabled-Send observation still has host coverage only. Complete case 153 is
 qualified [below](#complete-local-validation); never infer rejection from input validity or
 substitute private transport validation for public evidence.
 
+`feedback_states.edit_states()` declares the shared edit-only matrix;
+`onpc_feedback_states::edit_states(journey)` executes it for both qualification
+and complete-case composition. Its entry is an open empty Parent feedback
+dialog, and its result is the independently read valid synthetic draft. It
+includes no Send or dialog lifecycle. The caller owns subsequent close/reopen
+and independent-entry checks.
+
 #### Complete local validation
 
 [`parent_feedback_validation.PLAN`](../../tests/e2e/parent_feedback_validation.py)
@@ -784,11 +791,15 @@ cover text/email, ASCII and mixed-emoji UTF-16 boundaries, SOH and excessive
 formatting. Immutable observations compare the complex draft after reopening
 and the synthetic-first draft across existing-window activation, Privacy and
 dialog close/reopen. No valid submission or portal mutation is permitted.
+The case reuses `feedback_states.edit_states`, `feedback_length.length_boundary`
+and the matching `onpc_feedback_states` composites. Qualification-only wrong-entry
+and repeated-rejection checks remain in their callers; shared blocks do not
+choose a case's recorder phases or reset its dialog implicitly.
 
-Case 153 passed in `20260927T053552Z-feb94dac`, including collection, owned
-cleanup and baseline restoration. Affected rejection, window-switch and Privacy
-regressions passed in `20260927T055529Z-5492a75e`,
-`20260927T060117Z-111c6b63` and `20260927T060455Z-21012a68`, with the same
+Case 153 passed in report `20260927T183144Z-a559af49`, including collection,
+owned cleanup and baseline restoration. The shared edit-state and UTF-16
+composites passed their independent qualifications in
+`20260927T180816Z-1660edb1` and `20260927T181813Z-ee5c57b5`, with the same
 cleanup guarantees. These results do not qualify the other local feedback cases,
 additional surfaces or sending/delivery behavior.
 
@@ -835,10 +846,19 @@ precondition, and the live public complexity explanation supplies acceptance.
 
 `feedback_length.PLAN` / `FeedbackLengthJourney`,
 `onpc_feedback_states::run_length` and `AccessibleUI.length_operation` passed
-`check_e2e_feedback_length` in `20260927T041209Z-240ad5c2`. Exact public readback
+`check_e2e_feedback_length` in report `20260927T181813Z-ee5c57b5`. Exact public readback
 qualified 5,000/5,001 ASCII `x` characters and 4,998/4,999 `x` characters followed
 by U+1F600. Public character offsets count scalars; the mixed fixtures contain
 5,000/5,001 UTF-16 units. Only the editor's implicit terminal newline is allowed.
+
+`feedback_length.length_boundary(family)` and
+`onpc_feedback_states::length_boundary(journey, family)` are the shared
+declaration/execution pair for `ascii` or `mixed`. Starting with an open Parent
+feedback dialog and empty reply, they replace the body, observe/refuse the valid
+boundary, then submit only the exact invalid boundary and independently read its
+rejection. They leave that result visible. The caller owns dialog return,
+wrong-entry checks and repeated rejection, so qualification and customer cases
+reuse identical input/result mechanics without inheriting each other's recipe.
 
 UI16 uses the guarded clipboard construction below, followed for mixed input by
 `onpc_text::append_scalar` / `AccessibleUI.scalar_text_operation`: exact ASCII
@@ -854,10 +874,8 @@ compares its preserved draft and repeated rejection independently. Host checks
 also cover mismatched values, formatting, wrong owners, stale/ambiguous targets
 and uncertain input; none may reach Send.
 
-Rejection, state and formatting regressions passed in
-`20260927T044004Z-cc6b2b91`, `20260927T044529Z-89d6d9b4` and
-`20260927T044947Z-fea7011c`. All qualifications completed collection, owned
-cleanup and baseline restoration. No valid report was submitted; complete case
+Qualification completed collection, owned cleanup and baseline restoration.
+No valid report was submitted; complete case
 153 has separate [composition acceptance](#complete-local-validation).
 
 #### Synthetic text duplication
@@ -2801,6 +2819,8 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | Widget doubles omit behavior seen through the real toolkit | Exercise the new projection with the real public adapter before VM qualification. Capture supported representation in the shared leaf and its regression, such as collapsed selectors or rich-editor paragraph endings; link the existing binding contract rather than teaching every consumer to normalize it. |
 | Adding a qualification breaks an older conflict test even though both routes refuse safely | Assert refusal before credentials, storage and VM work. Do not couple a multi-invalid-input test to whichever validator happens to run first. Keep exact diagnostic checks for a single invalid condition. |
 | Later cases escape an earlier composition audit | Discover cases and workers from ready inventory bindings. Review helper methods and subclasses as well as callbacks; moving I/O into a case-local helper is still case-owned mechanics. The [composition guard](../../tests/unit/test_e2e_case_composition.py) enforces this boundary. |
+| Qualified sequences are copied into a complete case | The prepared-request and approval tasks demonstrate reusable composites feeding several complete cases. Apply that pattern to feedback's edit-state and UTF-16 matrices too: expose one declaration/execution pair and call it from qualification and cases. Keep different terminal results and independent-entry checks in the callers. |
+| A long accessibility-driven Parent journey reaches the desktop idle timeout | The allowance case's resolution belongs in the shared desktop-entry envelope: prepare the verified Parent for continuous activity after every qualified entry, including reopening/reboot paths. Never add per-case keepalive input or alter the child's tested expiry behavior. See [shared entry helpers](../../tests/e2e/README.md#shared-system-and-account-entry-helpers). |
 
 ### Composition preflight
 
@@ -2814,6 +2834,10 @@ Before the first live attempt, check the changed boundary end to end on the host
    put transport, fixture lifetime, provider input and reusable comparisons in
    their owning libraries. A new shared API gets a meaningful success/refusal
    regression and review of the guard's shared API list, never a case exemption.
+   Review imported callable references (including recorder classes/actions) and
+   qualified Perl calls, not just direct Python calls. The guard is a source
+   regression check, not proof that an allowlisted library is reusable or safe;
+   inspect the changed helper and its consumers too.
 2. Exercise the actual worker sequence against the plan and inject refusal at
    the changed boundary. Check that no later input or successful reply occurs.
    For a custom journey class, also call the real recorder entry point through
@@ -2830,6 +2854,13 @@ Before the first live attempt, check the changed boundary end to end on the host
    Preserve behavior decisions under the existing
    [failure contract](../../tests/README.md#handling-test-failures); wider retries
    and longer timeouts are not explanations.
+4. Compare the capability worker and each affected ready consumer for copied
+   sequences. Extract a repeated semantic operation with explicit entry/result
+   and finite inputs, then verify both callers' complete stage order and failure
+   stops. Leave scenario values, phase boundaries and distinct assertions in
+   the recipes. A generic callback wrapper or a helper named after one case does
+   not by itself make mechanics reusable. Do not combine independent attempts
+   or add mode flags that silently skip a caller's required checks.
 
 At close-out, fold a newly demonstrated recurring trap into its existing helper,
 regression and owning contract. Correct obsolete capability limits and the next

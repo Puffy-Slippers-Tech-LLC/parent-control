@@ -9,7 +9,8 @@ from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop
 from private_artifacts import require
 from ui_observations import FeedbackStateObservation
-from accessible_ui import TEXT_OPERATIONS, FEEDBACK_STATE_PROJECTIONS
+from accessible_ui import FEEDBACK_STATE_PROJECTIONS
+from feedback_rejection import text_stages
 
 EDITS = (
     ('body-whitespace', 'feedback-state-whitespace'),
@@ -17,15 +18,26 @@ EDITS = (
     ('reply-malformed', 'feedback-state-malformed'),
     ('reply-first', 'feedback-state-valid'),
 )
+
+
+def edit_states():
+    """FEED09 edit-only matrix, ending at the independently read valid draft.
+
+    The caller supplies an open, empty Parent feedback dialog. No Send, close
+    or reopen is included; those are separate recipe decisions.
+    """
+    return {stage: 'ui:' + stage for binding, observed in EDITS
+            for stage in (*text_stages(binding), observed)}
+
+
 SCREENS = {
     **fresh_desktop('parent'),
     'parent-command': 'ui:parent-command-launch',
     **{stage: 'ui:' + stage for stage in (
         'parent-window', 'child-picker-opened', 'child-choice-highlighted',
-        'parent-selected', 'feedback-open', 'feedback-state-empty',
-        *(stage for binding, observed in EDITS for stage in (
-            *(key for key, (value, _) in TEXT_OPERATIONS.items() if value == binding),
-            observed)),
+        'parent-selected', 'feedback-open', 'feedback-state-empty')},
+    **edit_states(),
+    **{stage: 'ui:' + stage for stage in (
         'feedback-state-close', 'feedback-state-wrong-entry', 'feedback-state-reopen')},
 }
 PLAN = JourneyPlan(

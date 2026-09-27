@@ -38,11 +38,42 @@ APIS = {
     'package_journey': {'record_package_journey'},
     'ui_observations': {'SettingsObservation'},
     'feedback_composition': {'FeedbackValidationJourney', 'text_fragment'},
-    'feedback_length': {'input_stages'},
+    'feedback_length': {'length_boundary'},
+    'feedback_states': {'edit_states'},
+    'feedback_rejection': {'STAGES'},
+    'allowance_boundaries': {'BOUNDARY_SCREENS'},
+    'allowance_values': {'REPRESENTATIVE_PRESETS'},
     'file_chooser': {'stage_files', 'cleanup_files'},
-    'serial_harness': {'record_serial_journey'},
+    'serial_harness': {'PLAN', 'SERIAL_STAGES', 'matched_screens', 'record_serial_journey',
+                       'validate_completion', 'validate_stages'},
 }
 RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_serial_journey')
+# Review callable references as well as direct calls: passing an unreviewed
+# class/action to a recorder must not hide case mechanics behind an import.
+WORKER_APIS = {
+    'onpc_progress': {'operation'},
+    'testapi': {'record_info'},
+    'onpc_harness': {'select_console'},
+    'onpc_serial': {'attempt', 'login', 'command', 'logout', 'return_graphics'},
+    'onpc_gdm': {'select_prompt', 'dismiss_product_free_prompt', 'reattach_functional',
+                 'sign_in_challenge', 'enter_station'},
+    'onpc_parent': {'login_functional', 'login_standard_functional', 'enter_desktop',
+                    'sign_in', 'launch', 'select_child', 'open_for_child',
+                    'open_from_app_grid', 'search_whole_query', 'launch_search_result',
+                    'open_search', 'focus_search', 'enter_search_query', 'set_allowance'},
+    'onpc_request_exit': {'enter_station', 'escape'},
+    'onpc_window': {'close'},
+    'onpc_about': {'open_about', 'open_license', 'return_to_parent'},
+    'onpc_documentation': {'read'},
+    'onpc_request_flow': {'prepare', 'reject', 'approve'},
+    'onpc_station': {'restrictions'},
+    'onpc_lifecycle': {'reopen'},
+    'onpc_allowance_boundaries': {'exercise', 'reload_child'},
+    'onpc_text': {'replace_text'},
+    'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
+                             'input_hidden', 'input_complex'},
+    'onpc_feedback_read': {'activate_existing_window'},
+}
 
 
 def composition_errors(source, case_modules):
@@ -52,6 +83,8 @@ def composition_errors(source, case_modules):
     errors = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
+            if isinstance(node, ast.Import):
+                errors.append('unreviewed module import')
             modules = ([node.module or ''] if isinstance(node, ast.ImportFrom)
                        else [item.name for item in node.names])
             if (any(set(module.split('.')) & case_modules for module in modules)
@@ -60,8 +93,10 @@ def composition_errors(source, case_modules):
                 errors.append('case dependency')
             if isinstance(node, ast.ImportFrom):
                 for item in node.names:
-                    if item.name in APIS.get(node.module, set()):
+                    if not node.level and item.name in APIS.get(node.module, set()):
                         allowed.add(item.asname or item.name)
+                    else:
+                        errors.append('unreviewed import: ' + item.name)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if any(not isinstance(statement, (ast.Expr, ast.Assign, ast.Return))
                    for statement in node.body):
@@ -101,6 +136,10 @@ def test_ready_modules_only_declare_and_compose_shared_apis(path):
     'class CaseJourney:\n    def check(self, c):\n        if c: return c\n',
     'def helper(c):\n    with c.lease:\n        pass\n',
     'callback = lambda r, c: c.run_worker()\n',
+    'from installed_journey import record_installed_journey\n'
+    'from helper import Journey\nrecord_installed_journey(r, c, PLAN, journey_type=Journey)\n',
+    'from helper import action\nACTIONS = {"fixture": action}\n',
+    'from .installed_journey import record_installed_journey\n',
 ])
 def test_composition_guard_catches_new_cases_aliases_and_hidden_mechanics(source):
     assert composition_errors(source, {'future_case'})
@@ -162,12 +201,21 @@ def worker_errors(source):
     return (bool(re.search(r'\b(?:open|sysread|syswrite|system|exec|qx|readpipe)\b', code))
             or bool(re.search(r'\b(?:send_key|type_string|mouse_set|mouse_click|assert_screen|check_screen)\b', code))
             or bool(set(re.findall(r'testapi::(\w+)', code)) - {'record_info'})
+            or any(name not in WORKER_APIS.get(module, set())
+                   for module, name in re.findall(r'\b(\w+)::(\w+)\s*\(', code))
+            or bool(set(re.findall(r'->\s*(\w+)\s*\(', code)) - {
+                'new', 'seen', 'consume_observation', 'finish',
+                'declare_invocations', 'declare_challenges'})
+            or any(owner != 'onpc_journey'
+                   for owner in re.findall(r'\b(\w+)->new\s*\(', code))
             or '`' in source)
 
 
 @pytest.mark.parametrize('source', [
     "open my $file, '<', 'input';", "system('command');", 'testapi::send_key("ret");',
     'send_key "ret";', 'my $output = `command`;', 'my $output = qx(command);',
+    'case_local_helper::act($journey);', 'onpc_parent::unreviewed_input($journey);',
+    '$journey->unreviewed_input();', 'CaseMechanics->new();',
 ])
 def test_worker_guard_rejects_bare_and_qualified_io(source):
     assert worker_errors(source)

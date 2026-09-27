@@ -19,13 +19,7 @@ sub run {
     for my $stage ('feedback-open', 'feedback-state-empty') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
-    for my $edit (['body-whitespace', 'feedback-state-whitespace'],
-                  ['body-first', 'feedback-state-no-reply'],
-                  ['reply-malformed', 'feedback-state-malformed'],
-                  ['reply-first', 'feedback-state-valid']) {
-        onpc_text::replace_text($journey, $edit->[0]);
-        $journey->consume_observation($edit->[1], $journey->seen($edit->[1]));
-    }
+    edit_states($journey);
     for my $stage ('feedback-state-close', 'feedback-state-wrong-entry', 'feedback-state-reopen') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
@@ -35,6 +29,37 @@ sub rejection_observe {
     onpc_progress::operation('Observing the declared invalid-only feedback boundary');
     my ($journey, $stage) = @_;
     $journey->consume_observation($stage, $journey->seen($stage));
+}
+
+# FEED09 composition for an already open empty Parent feedback dialog.
+sub edit_states {
+    onpc_progress::operation('Editing feedback fields and independently reading each validation state');
+    my ($journey) = @_;
+    die 'feedback:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    for my $edit (['body-whitespace', 'feedback-state-whitespace'],
+                  ['body-first', 'feedback-state-no-reply'],
+                  ['reply-malformed', 'feedback-state-malformed'],
+                  ['reply-first', 'feedback-state-valid']) {
+        onpc_text::replace_text($journey, $edit->[0]);
+        rejection_observe($journey, $edit->[1]);
+    }
+}
+
+# UI16 + FEED09: retain the empty reply; leave the length rejection showing.
+# Dialog reset and independent-entry checks belong to the caller's recipe.
+sub length_boundary {
+    onpc_progress::operation('Checking one UTF-16 family without submitting its valid draft');
+    my ($journey, $family) = @_;
+    die 'length:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($family) && ($family eq 'ascii' || $family eq 'mixed');
+    for my $units (5000, 5001) {
+        my $binding = "body-$family-$units";
+        onpc_text::replace_text($journey, $binding . ($family eq 'mixed' ? '-base' : ''));
+        onpc_text::append_scalar($journey, $binding) if $family eq 'mixed';
+        rejection_observe($journey, $_) for ($units == 5000
+            ? ("length-$family-valid", "length-$family-refusal")
+            : ("rejection-$family-send", "rejection-$family-read"));
+    }
 }
 
 sub run_rejection {
@@ -99,16 +124,7 @@ sub run_length {
     $journey->consume_observation('parent-selected', $selected);
     rejection_observe($journey, 'feedback-open');
     for my $family ('ascii', 'mixed') {
-        for my $units (5000, 5001) {
-            my $binding = "body-$family-$units";
-            onpc_text::replace_text($journey, $binding . ($family eq 'mixed' ? '-base' : ''));
-            onpc_text::append_scalar($journey, $binding) if $family eq 'mixed';
-            if ($units == 5000) {
-                rejection_observe($journey, $_) for ("length-$family-valid", "length-$family-refusal");
-            } else {
-                rejection_observe($journey, $_) for ("rejection-$family-send", "rejection-$family-read");
-            }
-        }
+        length_boundary($journey, $family);
         rejection_observe($journey, $_) for (
             "length-$family-close", "length-$family-wrong-entry", "length-$family-reopen",
             "rejection-$family-reopened-send", "rejection-$family-reopened-read");

@@ -1,7 +1,8 @@
 """Case 153: the complete local validation matrix, Privacy and dialog retention."""
 
 from feedback_composition import FeedbackValidationJourney, text_fragment
-from feedback_length import input_stages
+from feedback_length import length_boundary
+from feedback_states import edit_states
 from feedback_rejection import STAGES as REJECTION_STAGES
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop
@@ -15,18 +16,14 @@ ENTRY = {
         'feedback-open', 'feedback-state-empty')},
 }
 MATRIX = {
-    **text_fragment('body-whitespace'), 'feedback-state-whitespace': 'ui:feedback-state-whitespace',
-    **text_fragment('body-first'), 'feedback-state-no-reply': 'ui:feedback-state-no-reply',
-    **text_fragment('reply-malformed'), 'feedback-state-malformed': 'ui:feedback-state-malformed',
-    **text_fragment('reply-first'), 'feedback-state-valid': 'ui:feedback-state-valid',
+    **edit_states(),
     **text_fragment('reply-clear', 'length-reply-clear'),
-    **{stage: 'ui:' + stage for stage in (
-        *input_stages('ascii', 5000), 'length-ascii-valid', 'length-ascii-refusal',
-        *input_stages('ascii', 5001), 'rejection-ascii-send', 'rejection-ascii-read',
-        'length-ascii-close', 'length-ascii-reopen',
-        *input_stages('mixed', 5000), 'length-mixed-valid', 'length-mixed-refusal',
-        *input_stages('mixed', 5001), 'rejection-mixed-send', 'rejection-mixed-read',
-        'length-mixed-close', 'length-mixed-reopen')},
+    **length_boundary('ascii'),
+    'length-ascii-close': 'ui:length-ascii-close',
+    'length-ascii-reopen': 'ui:length-ascii-reopen',
+    **length_boundary('mixed'),
+    'length-mixed-close': 'ui:length-mixed-close',
+    'length-mixed-reopen': 'ui:length-mixed-reopen',
     **text_fragment('body-clear'),
     'rejection-empty-send': 'ui:rejection-empty-send',
     'rejection-empty-read': 'ui:rejection-empty-read',

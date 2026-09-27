@@ -9,6 +9,7 @@ use onpc_text ();
 use testapi ();
 
 sub activate_existing_window {
+    onpc_progress::operation('Activating an existing owned window');
     my ($journey, $stage) = @_;
     die 'switch:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && $stage =~ /^switch-(parent|viewer|feedback|viewer-again|feedback-again|viewer-close)$/;

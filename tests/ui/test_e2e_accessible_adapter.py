@@ -286,6 +286,206 @@ def test_format_adapter_reads_real_public_ranges(launch_ui):
     assert ui.run('format-reopen', '')['formatting'] == result
 
 
+def test_duplicate_adapter_builds_exact_formatting_fixture_by_copy_paste(launch_ui):
+    # Clipboard ownership stays in the existing preview on this test's private
+    # display/session. No new helper process, shared clipboard or scheduler scope.
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+    from tests.support.keyboard import key_combo, type_text
+
+    launch_ui('parent_component_preview', wait_for_application=False)
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.PARENT_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    identity = 'feedback-editor-input'
+    ui.run('feedback-open', '')
+    ui.run('text-body-complex-75-focus', '')
+    type_text(ui, identity, module.TEXT_VALUES['body-complex-75'][1])
+    ui.run('text-body-complex-75-read', '')
+    for binding in (value for value in module.TEXT_DUPLICATIONS if value.startswith('body-complex')):
+        prefix = 'text-duplicate-' + binding
+        ui.run(prefix + '-focus', '')
+        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
+        ui.run(prefix + '-select', '')
+        ui.run(prefix + '-selected', '')
+        for chord in ('<Control>c', '<Control>End', 'Return', '<Control><Shift>v'):
+            key_combo(ui, identity, chord, state=Atspi.StateType.FOCUSED)
+        result = ui.run(prefix + '-read', '')['text']
+        assert result['exact'] is True
+    assert result['length'] == 2399
+    for kind in module.REJECTION_FORMATS:
+        ui.run(f'rejection-format-{kind}-focus', '')
+        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
+        ui.run(f'rejection-format-{kind}-apply', '')
+    expected = {'weight': '700', 'style': 'italic', 'underline': 'single',
+                'strikethrough': 'true'}
+    def formats_match():
+        ui.read_synthetic_text('body-complex')
+        text = ui.text_recipient(identity).get_text_iface()
+        offset = 0
+        while offset < len(module.COMPLEX_BODY):
+            attributes, first, last = ui.api.Text.get_attribute_run(text, offset, True)
+            if not (0 <= first <= offset < last <= len(module.COMPLEX_BODY) + 1
+                    and {key: attributes.get(key) for key in expected} == expected):
+                return False
+            offset = last + last % 2
+        return True
+    ui.wait(formats_match, 'combined-formats')
+    ui.rejection_formatting()
+    ui.run('rejection-complex-send', '')
+    assert ui.run('rejection-complex-read', '')['feedback_state']['validation'] == 'format-invalid'
+    ui.run('rejection-close', '')
+    ui.run('rejection-wrong-entry', '')
+    ui.run('rejection-reopen', '')
+    ui.run('rejection-reopened-send', '')
+    assert ui.run('rejection-reopened-read', '')['feedback_state']['validation'] == 'format-invalid'
+    # A public attribute must also disappear when its real format is removed.
+    # These shorter valid drafts never reach Send.
+    for kind, attribute, value in (
+            ('underline', 'underline', 'none'), ('strike', 'strikethrough', 'false')):
+        ui.run(f'rejection-format-{kind}-focus', '')
+        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
+        ui.run(f'rejection-format-{kind}-apply', '')
+        expected[attribute] = value
+        ui.wait(formats_match, 'removed-format')
+
+
+def test_length_adapter_reads_full_ascii_and_non_bmp_boundaries(launch_ui):
+    # Existing owned preview/private display and bus; no shared resources or
+    # external submission. Clipboard ownership stays in this private editor;
+    # the short typed remainder and scalar append retain the public guards.
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+    from tests.support.keyboard import key_combo, type_text
+
+    # The private compositor has no desktop input-method daemon. Select GTK's
+    # built-in numeric Unicode input, scoped to this owned preview process.
+    # https://docs.gtk.org/gtk4/class.IMContextSimple.html
+    launch_ui('parent_component_preview', wait_for_application=False,
+              environment_overrides={'GTK_IM_MODULE': 'gtk-im-context-simple'})
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.PARENT_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    identity = 'feedback-editor-input'
+    def key(chord):
+        key_combo(ui, identity, chord, state=Atspi.StateType.FOCUSED)
+    ui.run('feedback-open', '')
+    for family in ('ascii', 'mixed'):
+        for units in (5000, 5001):
+            binding = f'body-{family}-{units}'
+            source = binding + '-base' if family == 'mixed' else binding
+            seed, *copies = module.TEXT_REPETITIONS[source]
+            ui.run(f'text-{seed}-focus', '')
+            key('<Control>a')
+            ui.run(f'text-{seed}-selected', '')
+            type_text(ui, identity, module.TEXT_VALUES[seed][1], interval=0.02)
+            ui.run(f'text-{seed}-read', '')
+            for target in copies:
+                prefix = f'text-duplicate-{target}'
+                ui.run(prefix + '-focus', '')
+                key('<Control>a')
+                ui.run(prefix + '-select', '')
+                ui.run(prefix + '-selected', '')
+                for chord in ('<Control>c', '<Control>End', '<Control><Shift>v'):
+                    key(chord)
+                ui.run(prefix + '-read', '')
+            prefix = f'text-suffix-{source}'
+            ui.run(prefix + '-focus', '')
+            key('<Control>End')
+            ui.run(prefix + '-caret', '')
+            type_text(ui, identity, module.TEXT_SUFFIXES[source][1], interval=0.02)
+            try:
+                ui.run(prefix + '-read', '')
+            except module.UiError:
+                text = ui.text_recipient(identity).get_text_iface()
+                count = ui.api.Text.get_character_count(text)
+                print('Synthetic replacement public count:', source, count)
+                if 0 <= count <= 5010:
+                    actual = ui.api.Text.get_text(text, 0, count)
+                    print('Synthetic replacement length, x count and final scalars:',
+                          len(actual), actual.count('x'), [ord(c) for c in actual[-10:]])
+                raise
+            if family == 'mixed':
+                ui.run(f'text-scalar-{binding}-focus', '')
+                key('<Control>End')
+                ui.run(f'text-scalar-{binding}-caret', '')
+                key('<Control><Shift>u')
+                type_text(ui, identity, '1f600')
+                key('Return')
+                try:
+                    ui.run(f'text-scalar-{binding}-read', '')
+                except module.UiError:
+                    text = ui.text_recipient(identity).get_text_iface()
+                    count = ui.api.Text.get_character_count(text)
+                    print('Synthetic Unicode public count:', count)
+                    if 4998 <= count <= 5010:
+                        actual = ui.api.Text.get_text(text, 0, count)
+                        print('Synthetic Unicode returned length and final scalars:',
+                              len(actual), [ord(c) for c in actual[-10:]])
+                        print('Synthetic Unicode public offset scalars:',
+                              [ui.api.Text.get_character_at_offset(text, i)
+                               for i in range(4996, count)])
+                    raise
+            if units == 5000:
+                state = ui.run(f'length-{family}-valid', '')['feedback_state']
+                assert state['validation'] == 'none' and state['send_enabled']
+                ui.run(f'length-{family}-refusal', '')
+            else:
+                ui.run(f'rejection-{family}-send', '')
+                state = ui.run(f'rejection-{family}-read', '')['feedback_state']
+                assert state['validation'] == 'length-invalid' and state['send_enabled']
+        ui.run(f'length-{family}-close', '')
+        ui.run(f'length-{family}-wrong-entry', '')
+        state = ui.run(f'length-{family}-reopen', '')['feedback_state']
+        assert state['draft'] == f'length-{family}-5001'
+        ui.run(f'rejection-{family}-reopened-send', '')
+        assert ui.run(f'rejection-{family}-reopened-read', '')['feedback_state']['validation'] == 'length-invalid'
+        if family == 'ascii':
+            # A new independently observed entry clears the previous Send
+            # explanation before the next family's edit-only assertions.
+            ui.run('length-ascii-close', '')
+            assert ui.run('length-ascii-reopen', '')['feedback_state']['validation'] == 'none'
+
+
+def test_rejection_adapter_reads_real_empty_and_malformed_explanations(launch_ui):
+    # Existing private preview/display and owned cleanup; no additional shared
+    # resources. Only proven invalid bodies/replies reach the real Send control.
+    from gi.repository import Atspi, GLib
+    from tests.e2e import accessible_ui as module
+    from tests.support.keyboard import key_combo, type_text
+
+    launch_ui('parent_component_preview', wait_for_application=False)
+    ui = module.AccessibleUI(
+        Atspi, timeout=20, query_errors=(GLib.Error,),
+        application_ids=(module.PARENT_APPLICATION,),
+        application_owners=launch_ui.application_owners,
+        provider_contracts=_qualified_absent_prompt_contracts(module),
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    ui.run('feedback-open', '')
+    ui.run('rejection-empty-send', '')
+    assert ui.run('rejection-empty-read', '')['feedback_state']['validation'] == 'body-required'
+    for binding in ('body-first', 'reply-malformed'):
+        identity, value = module.TEXT_VALUES[binding]
+        if binding.startswith('reply-'):
+            ui.run(f'text-{binding}-anchor', '')
+            key_combo(ui, 'feedback-editor-input', '<Control>Tab', state=Atspi.StateType.FOCUSED)
+        ui.run(f'text-{binding}-focus', '')
+        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
+        ui.run(f'text-{binding}-selected', '')
+        type_text(ui, identity, value)
+        ui.run(f'text-{binding}-read', '')
+        if binding == 'body-first':
+            ui.run('rejection-valid-refusal', '')
+    ui.run('rejection-malformed-send', '')
+    assert ui.run('rejection-malformed-read', '')['feedback_state']['validation'] == 'reply-invalid'
+
+
 def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module

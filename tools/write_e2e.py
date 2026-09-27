@@ -326,6 +326,15 @@ def stage_task(root, paths):
                 or (root / path).is_dir()
                 or any(parent.is_symlink() for parent in (root / path).parents if parent != root)):
             raise ValueError('stage_paths must contain explicit checkout files')
+    indexed = subprocess.run(
+        ['git', '--literal-pathspecs', 'ls-files', '--cached', '-z', '--', *paths],
+        cwd=root, env=launcher.environment(), capture_output=True, check=True)
+    tracked = {os.fsdecode(path) for path in indexed.stdout.split(b'\0') if path}
+    # A temporary brief can be created and removed before ever entering the
+    # index. It has no deletion to stage. Keep indexed deletions and symlinks.
+    paths = [path for path in paths if path in tracked or os.path.lexists(root / path)]
+    if not paths:
+        return
     result = subprocess.run(['git', '--literal-pathspecs', 'add', '--', *paths], cwd=root,
                             env=launcher.environment(), capture_output=True, text=True)
     if result.returncode:
@@ -366,9 +375,43 @@ def session_changes(root, before):
             if before.get(name) != fingerprint]
 
 
+def stage_completion(root, state, result):
+    current = worktree_snapshot(root)
+    changed = [path for path in state['stage_candidates']
+               if path in current and current[path] != state.get('stage_baseline', {}).get(path)]
+    stage_task(root, [*result['stage_paths'], *changed])
+
+
+def recover_completion(root, run, state):
+    """Retry accepted close-out without rerunning an agent or rewriting evidence."""
+    current, after = queue_state(root)
+    if (not state.get('in_flight') or current == state['task_id']
+            or not after.get(state['task_id']) or not state.get('queue_before')):
+        return state
+    result = state.get('pending_completion')
+    if result is None:
+        # Older launchers kept the result but failed before checkpointing it.
+        path = run / 'agent-result.json'
+        if not path.is_file():
+            return state
+        result = json.loads(path.read_text())
+    if not isinstance(result, dict) or result.get('status') != 'task_complete':
+        return state
+    updated = accept_result(root, state, result, state['queue_before'])
+    stage_completion(root, state, result)
+    updated.pop('pending_completion', None)
+    updated.pop('worktree_before', None)
+    print(f"write-e2e: recovered completed task {state['task_id']}; staging passed.", flush=True)
+    return updated
+
+
 def save_handoff(run, state, reason, *, display=True):
     prompt = state['handoff']
-    if state['in_flight']:
+    if state.get('pending_completion'):
+        prompt = (f"Task {state['task_id']} passed acceptance and queue close-out; staging remains. "
+                  "Restart tools/write-e2e to retry staging from the retained result before "
+                  "starting the next task. Do not rerun acceptance.\n" + prompt)
+    elif state['in_flight']:
         prompt = (
             f"Recover interrupted task {state['task_id']}. Inspect {run / 'output'} and "
             f"{run / 'prompt.txt'}; verify retained test results and owned cleanup "
@@ -545,11 +588,9 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 launcher.atomic(run / 'checkpoint.json', state)
             updated = accept_result(root, state, result, before)
             if updated['phase'] == 'complete':
-                current = worktree_snapshot(root)
-                changed = [path for path in state['stage_candidates']
-                           if path in current
-                           and current[path] != state['stage_baseline'].get(path)]
-                stage_task(root, [*result['stage_paths'], *changed])
+                state.update(pending_completion=result, summary=result['summary'], handoff=result['handoff'])
+                launcher.atomic(run / 'checkpoint.json', state)
+                stage_completion(root, state, result)
                 completed += 1
             state = updated
             state.pop('worktree_before', None)
@@ -607,6 +648,7 @@ def initial_state(root, directory):
         # Progress keys name frames in one launcher, unlike cumulative task sessions.
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             saved.pop('progress_keys', None)
+        state = recover_completion(root, previous, state)
         if state.get('in_flight') and state.get('worktree_before') is not None:
             candidates = set(state.get('stage_candidates', []))
             candidates.update(session_changes(root, state['worktree_before']))

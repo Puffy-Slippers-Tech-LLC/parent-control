@@ -53,6 +53,23 @@ def test_text_range_cursor_and_selection_reads_are_live_public_calls():
     ]
 
 
+def test_set_selection_uses_public_text_interface_once():
+    api, _, rpc, _, node = fixture_bus()
+    rpc.side_effect = None
+    rpc.return_value = True
+    assert node.set_selection(0, 0, 149) is True
+    rpc.assert_called_once_with(node.bus, node.path, PREFIX + 'Text', 'SetSelection',
+                                'iii', (0, 0, 149))
+
+
+def test_scalar_character_read_does_not_use_nul_forbidden_dbus_strings():
+    _, _, rpc, _, node = fixture_bus()
+    rpc.side_effect = [97, 0, 98]
+    assert [node.get_character_at_offset(offset) for offset in range(3)] == [97, 0, 98]
+    assert [(call.args[3], call.args[4], call.args[5]) for call in rpc.call_args_list] == [
+        ('GetCharacterAtOffset', 'i', (offset,)) for offset in range(3)]
+
+
 def test_shared_reader_facade_is_not_wrapped_again():
     from tests.e2e.accessible_ui import AccessibleUI
 

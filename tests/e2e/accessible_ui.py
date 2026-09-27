@@ -92,11 +92,15 @@ FEEDBACK_PRIVACY_OPERATIONS = frozenset({
 })
 OPERATIONS |= FEEDBACK_PRIVACY_OPERATIONS
 FEEDBACK_PROJECTIONS = {
+    **{f'length-{family}-{units}': (f'body-{family}-{units}', 'reply-clear')
+       for family in ('ascii', 'mixed') for units in (5000, 5001)},
     'initial-empty': ('body-clear', 'reply-clear'),
     'synthetic-first': ('body-first', 'reply-first'),
     'states-whitespace': ('body-whitespace', 'reply-clear'),
     'states-no-reply': ('body-first', 'reply-clear'),
     'states-malformed': ('body-first', 'reply-malformed'),
+    'rejection-hidden': ('body-hidden', 'reply-clear'),
+    'rejection-complex': ('body-complex', 'reply-clear'),
 }
 FEEDBACK_STATE_PROJECTIONS = {
     'feedback-state-empty': 'initial-empty',
@@ -111,15 +115,52 @@ FEEDBACK_STATE_OPERATIONS = frozenset(FEEDBACK_STATE_PROJECTIONS) | {
 OPERATIONS |= FEEDBACK_STATE_OPERATIONS
 # Exact public explanations only; never return arbitrary status/draft text.
 FEEDBACK_VALIDATION = {
+    'Feedback must be at most 5,000 UTF-16 characters (some emoji count as two).': 'length-invalid',
     '': 'none',
     'Please enter your feedback.': 'body-required',
     'Enter a bare reply email address, or leave it blank.': 'reply-invalid',
+    'Your feedback contains an unsupported hidden character. Please retype it and try again.': 'hidden-invalid',
+    'The formatted feedback is too complex. Remove some formatting and try again.': 'format-invalid',
 }
+# Fixed public fixtures; limits are regression-checked against the product.
+COMPLEX_LINES = 1200
+COMPLEX_BODY = '\n'.join(['x'] * COMPLEX_LINES)
+REJECTION_CASES = {
+    **{family + suffix: (f'length-{family}-5001', 'length-invalid')
+       for family in ('ascii', 'mixed') for suffix in ('', '-reopened')},
+    'empty': ('initial-empty', 'body-required'),
+    'malformed': ('states-malformed', 'reply-invalid'),
+    'hidden': ('rejection-hidden', 'hidden-invalid'),
+    'complex': ('rejection-complex', 'format-invalid'),
+    'reopened': ('rejection-complex', 'format-invalid'),
+}
+REJECTION_FORMATS = ('bold', 'italic', 'underline', 'strike')
+REJECTION_OPERATIONS = frozenset({
+    *(f'rejection-{case}-{action}' for case in REJECTION_CASES for action in ('send', 'read')),
+    *(f'rejection-format-{kind}-{action}' for kind in REJECTION_FORMATS
+      for action in ('focus', 'apply')),
+    'rejection-valid-refusal', 'rejection-close', 'rejection-wrong-entry',
+    'rejection-reopen', 'rejection-hidden-focus', 'rejection-hidden-caret',
+    'rejection-hidden-input-read',
+})
+OPERATIONS |= REJECTION_OPERATIONS
+LENGTH_OBSERVATIONS = {
+    f'length-{family}-{action}': (f'length-{family}-{units}', 'none')
+    for family in ('ascii', 'mixed') for action, units in (('valid', 5000), ('reopen', 5001))
+}
+LENGTH_OPERATIONS = frozenset(LENGTH_OBSERVATIONS) | {
+    f'length-{family}-{action}' for family in ('ascii', 'mixed')
+    for action in ('refusal', 'close', 'wrong-entry')}
+OPERATIONS |= LENGTH_OPERATIONS
 KIOSK_INVALID_VALUES = {
     'empty': '', 'letters': 'abc', 'negative': '-1', 'zero': '0',
     'below': '0.09', 'over': '1440.1', 'comma': '1,5',
 }
 TEXT_VALUES = {
+    **{f'body-ascii-{units}': ('feedback-editor-input', 'x' * units)
+       for units in (5000, 5001)},
+    **{f'body-mixed-{units}' + suffix: ('feedback-editor-input', 'x' * (units - 2) + emoji)
+       for units in (5000, 5001) for suffix, emoji in (('', '\U0001f600'), ('-base', ''))},
     **{'kiosk-invalid-' + key: ('kiosk-custom-duration', value)
        for key, value in KIOSK_INVALID_VALUES.items()},
     'kiosk-fraction': ('kiosk-custom-duration', '1.25'),
@@ -127,6 +168,9 @@ TEXT_VALUES = {
     'body-second': ('feedback-editor-input', 'Synthetic feedback replacement'),
     'body-clear': ('feedback-editor-input', ''),
     'body-whitespace': ('feedback-editor-input', '   '),
+    'body-hidden': ('feedback-editor-input', 'a\x01b'),
+    'body-hidden-base': ('feedback-editor-input', 'ab'),
+    'body-complex': ('feedback-editor-input', COMPLEX_BODY),
     'reply-first': ('feedback-reply-email', 'first@example.invalid'),
     'reply-second': ('feedback-reply-email', 'second@example.invalid'),
     'reply-clear': ('feedback-reply-email', ''),
@@ -136,6 +180,47 @@ TEXT_VALUES = {
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
+TEXT_VALUES.update({'body-complex-' + str(lines): ('feedback-editor-input', '\n'.join(['x'] * lines))
+                    for lines in (75, 150, 300, 600)})
+# UI16's reusable, finite copy/append/paste route. Every source and result has
+# an exact declared public projection; no clipboard daemon or external GUI.
+TEXT_DUPLICATIONS = {
+    'body-complex-150': 'body-complex-75',
+    'body-complex-300': 'body-complex-150',
+    'body-complex-600': 'body-complex-300',
+    'body-complex': 'body-complex-600',
+}
+TEXT_DUPLICATION_SEPARATORS = dict.fromkeys(TEXT_DUPLICATIONS, '\n')
+# Four independently built boundary fixtures: 312 typed characters -> 4,992
+# through four copies, then only 6–9 typed characters. Keep every intermediate
+# source/result finite and exact so a failed paste never triggers input replay.
+TEXT_REPETITIONS = {}
+TEXT_SUFFIXES = {}
+for _binding in ('body-ascii-5000', 'body-ascii-5001',
+                 'body-mixed-5000-base', 'body-mixed-5001-base'):
+    _identity, _value = TEXT_VALUES[_binding]
+    _chain = (_binding + '-seed', *(_binding + '-double-' + str(i) for i in range(1, 5)))
+    for _i, _part in enumerate(_chain):
+        TEXT_VALUES[_part] = (_identity, _value[:len(_value) // 16] * (2 ** _i))
+        if _i:
+            TEXT_DUPLICATIONS[_part] = _chain[_i - 1]
+            TEXT_DUPLICATION_SEPARATORS[_part] = ''
+    TEXT_REPETITIONS[_binding] = _chain
+    TEXT_SUFFIXES[_binding] = (_chain[-1], _value[len(TEXT_VALUES[_chain[-1]][1]):])
+SUFFIX_OPERATIONS = {f'text-suffix-{binding}-{action}': (binding, action)
+                     for binding in TEXT_SUFFIXES for action in ('focus', 'caret', 'read')}
+OPERATIONS |= frozenset(SUFFIX_OPERATIONS)
+DUPLICATE_OPERATIONS = {
+    'text-duplicate-' + binding + '-' + action: (binding, action)
+    for binding in TEXT_DUPLICATIONS
+    for action in ('focus', 'select', 'selected', 'read')
+}
+OPERATIONS |= frozenset(DUPLICATE_OPERATIONS)
+TEXT_SCALARS = {f'body-mixed-{units}': (f'body-mixed-{units}-base', '1f600')
+                for units in (5000, 5001)}
+SCALAR_OPERATIONS = {f'text-scalar-{binding}-{action}': (binding, action)
+                     for binding in TEXT_SCALARS for action in ('focus', 'caret', 'read')}
+OPERATIONS |= frozenset(SCALAR_OPERATIONS)
 FORMAT_OPERATIONS = frozenset({
     'format-before', 'format-focus', 'format-home', 'format-selected',
     'format-read', 'format-close', 'format-wrong-entry', 'format-reopen',
@@ -162,7 +247,7 @@ TEXT_OPERATIONS = {
     'text-' + binding + '-' + action: (binding, action)
     # The qualification controller consumes this order. Each native-entry
     # anchor must precede its focus proof, matching the worker's keyboard route.
-    for binding in TEXT_VALUES
+    for binding in TEXT_VALUES if binding != 'body-hidden'
     for action in (('anchor', 'focus', 'selected', 'read')
                    if binding.startswith('reply-') else ('focus', 'selected', 'read'))
 }
@@ -1631,7 +1716,9 @@ class AccessibleUI:
                        if identity == 'feedback-editor-input' else (expected,))
             require(count in {len(value) for value in allowed},
                     'ui:feedback-nonempty-draft')
-            actual = self.api.Text.get_text(text, 0, count) if count else ''
+            actual = (''.join(chr(self.api.Text.get_character_at_offset(text, offset))
+                              for offset in range(count)) if binding == 'body-hidden' else
+                      self.api.Text.get_text(text, 0, count) if count else '')
             require(actual in allowed,
                     'ui:feedback-nonempty-draft')
         require(not any(value.startswith('feedback-attachment-') for value in ids),
@@ -1689,6 +1776,175 @@ class AccessibleUI:
         if operation == 'feedback-state-reopen':
             self.open_feedback(projection)
         return self.feedback_snapshot(projection, states=True)
+
+    def rejection_formatting(self):
+        """Read each synthetic line's public attributes, never HTML or a draft."""
+        self.read_synthetic_text('body-complex')
+        text = self.text_recipient('feedback-editor-input').get_text_iface()
+        offset = 0
+        while offset < len(COMPLEX_BODY):
+            attributes, first, last = self.api.Text.get_attribute_run(text, offset, True)
+            require(type(attributes) is dict and 0 <= first <= offset < last
+                    <= len(COMPLEX_BODY) + 1, 'ui:rejection-format-range')
+            for key, value in (
+                ('weight', '700'), ('style', 'italic'), ('underline', 'single'),
+                ('strikethrough', 'true')):
+                require(attributes.get(key) == value,
+                        f'ui:rejection-format-proof:{key}:{offset}')
+            # The public run proves every character up to its exclusive end.
+            # Continue at the first unproven x, skipping only paragraph breaks.
+            offset = last + last % 2
+
+    def reject_invalid_feedback(self, case):
+        """One invalid-only action. No valid-body fallback or input repair."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(case in REJECTION_CASES, 'ui:rejection-valid-refused')
+        projection, _ = REJECTION_CASES[case]
+        state = self.feedback_snapshot(projection, states=True)
+        require(state['send_enabled'], 'ui:rejection-send-disabled')
+        if projection.startswith('length-'):
+            body = TEXT_VALUES[FEEDBACK_PROJECTIONS[projection][0]][1]
+            require(len(body.encode('utf-16-le')) // 2 == 5001, 'ui:rejection-length-limit')
+            self.feedback_plain_text(projection)
+        if projection == 'rejection-complex':
+            self.rejection_formatting()
+            # Quill's four inline formats in each normal paragraph require
+            # at least <p><strong><em><u><s>x</s></u></em></strong></p>.
+            # This is a conservative size proof, not acceptance evidence.
+            require(COMPLEX_LINES * 48 > 50000 and len(COMPLEX_BODY) <= 5000,
+                    'ui:rejection-format-limit')
+        # Reacquire the exact public draft after the potentially lengthy range
+        # read. Prompt/ownership/duplicate/stale guards all run again.
+        self.feedback_snapshot(projection, states=True)
+        self.activate_id('feedback-send')
+
+    def feedback_plain_text(self, projection):
+        """Prove normal public attributes over every declared body character."""
+        binding = FEEDBACK_PROJECTIONS[projection][0]
+        self.read_synthetic_text(binding)
+        value = TEXT_VALUES[binding][1]
+        text = self.text_recipient('feedback-editor-input').get_text_iface()
+        offset = 0
+        while offset < len(value):
+            attrs, first, last = self.api.Text.get_attribute_run(text, offset, True)
+            require(type(attrs) is dict and 0 <= first <= offset < last <= len(value) + 1,
+                    'ui:length-attribute-range')
+            require(attrs.get('weight') == '400' and attrs.get('style') == 'normal'
+                    and attrs.get('underline') == 'none' and attrs.get('strikethrough') == 'false',
+                    'ui:length-formatting')
+            offset = last
+
+    def length_operation(self, operation):
+        require(operation in LENGTH_OPERATIONS, 'ui:length-operation')
+        _, family, action = operation.split('-', 2)
+        projection = f'length-{family}-5001'
+        if action == 'wrong-entry':
+            require(self.absent_id('feedback-dialog', within='parent-window'), 'ui:length-entry')
+            try:
+                self.reject_invalid_feedback(family)
+            except UiError as error:
+                require(str(error) == 'ui:feedback-entry', 'ui:length-refusal')
+            else:
+                raise UiError('ui:length-refusal-missing')
+            return
+        if action == 'refusal':
+            self.feedback_snapshot(f'length-{family}-5000', states=True)
+            try:
+                self.reject_invalid_feedback(family)
+            except UiError as error:
+                require(str(error) == 'ui:feedback-nonempty-draft', 'ui:length-refusal')
+            else:
+                raise UiError('ui:length-refusal-missing')
+            return
+        if action == 'close':
+            self.feedback_snapshot(projection, states=True)
+            self.activate_id('feedback-close')
+            self.wait(lambda: self.absent_id('feedback-dialog', within='parent-window'), 'feedback-closed')
+            self.parent()
+            return
+        if action == 'reopen':
+            self.open_feedback(projection)
+        projection, _ = LENGTH_OBSERVATIONS[operation]
+        self.feedback_plain_text(projection)
+        return self.feedback_snapshot(projection, states=True)
+
+    def rejection_operation(self, operation):
+        require(operation in REJECTION_OPERATIONS, 'ui:rejection-operation')
+        if operation == 'rejection-valid-refusal':
+            self.feedback_snapshot('states-no-reply', states=True)
+            try:
+                self.reject_invalid_feedback('valid')
+            except UiError as error:
+                require(str(error) == 'ui:rejection-valid-refused', 'ui:rejection-refusal')
+            else:
+                raise UiError('ui:rejection-refusal-missing')
+            return
+        if operation == 'rejection-wrong-entry':
+            require(self.absent_id('feedback-dialog', within='parent-window'),
+                    'ui:rejection-entry')
+            try:
+                self.reject_invalid_feedback('complex')
+            except UiError as error:
+                require(str(error) == 'ui:feedback-entry', 'ui:rejection-refusal')
+            else:
+                raise UiError('ui:rejection-refusal-missing')
+            return
+        if operation == 'rejection-hidden-focus':
+            self.read_synthetic_text('body-hidden-base')
+            self.focus_text('feedback-editor-input')
+            return
+        if operation == 'rejection-hidden-caret':
+            self.read_synthetic_text('body-hidden-base')
+            node = self.text_recipient('feedback-editor-input', focused=True)
+            require(self.api.Text.get_caret_offset(node.get_text_iface()) == 1,
+                    'ui:rejection-hidden-caret')
+            return
+        if operation == 'rejection-hidden-input-read':
+            self.read_synthetic_text('body-hidden')
+            return
+        if operation.startswith('rejection-format-'):
+            kind, action = operation.removeprefix('rejection-format-').rsplit('-', 1)
+            self.read_synthetic_text('body-complex')
+            if action == 'focus':
+                self.focus_text('feedback-editor-input')
+            else:
+                text = self.text_recipient('feedback-editor-input', focused=True).get_text_iface()
+                require(self.api.Text.get_n_selections(text) == 1, 'ui:rejection-selection')
+                selection = self.api.Text.get_selection(text, 0)
+                require(selection.start_offset == 0 and selection.end_offset
+                        in (len(COMPLEX_BODY), len(COMPLEX_BODY) + 1), 'ui:rejection-selection')
+                self.activate_id('feedback-format-' + kind)
+            return
+        if operation == 'rejection-close':
+            self.feedback_snapshot('rejection-complex', states=True)
+            self.rejection_formatting()
+            self.activate_id('feedback-close')
+            self.wait(lambda: self.absent_id('feedback-dialog', within='parent-window'),
+                      'feedback-closed')
+            self.parent()
+            return
+        if operation == 'rejection-reopen':
+            self.activate_id('parent-feedback-button')
+            self.id_target('feedback-editor-input', sensitive=True)
+            def ready():
+                try:
+                    return self.feedback_snapshot('rejection-complex', states=True)
+                except UiError as error:
+                    if str(error) in ('ui:feedback-collection', 'ui:feedback-target'):
+                        return None
+                    raise
+            result = self.wait(ready, 'feedback-ready')
+            self.rejection_formatting()
+            return result
+        case, action = operation.removeprefix('rejection-').rsplit('-', 1)
+        if action == 'send':
+            self.reject_invalid_feedback(case)
+            return
+        projection, explanation = REJECTION_CASES[case]
+        def rejected():
+            result = self.feedback_snapshot(projection, states=True)
+            return result if result['validation'] == explanation and result['send_enabled'] else None
+        return self.wait(rejected, 'rejection-explanation')
 
     def formatting_attributes(self, start, end):
         """UI24: bounded public weight runs over the declared synthetic body."""
@@ -1812,7 +2068,9 @@ class AccessibleUI:
         count = self.api.Text.get_character_count(text)
         allowed = (expected, expected + '\n') if identity == 'feedback-editor-input' else (expected,)
         require(count in {len(value) for value in allowed}, 'ui:text-value')
-        actual = self.api.Text.get_text(text, 0, count) if count else ''
+        actual = (''.join(chr(self.api.Text.get_character_at_offset(text, offset))
+                          for offset in range(count)) if binding == 'body-hidden' else
+                  self.api.Text.get_text(text, 0, count) if count else '')
         require(actual in allowed, 'ui:text-value')
         return {'binding': binding, 'exact': True, 'length': len(expected)}
 
@@ -1856,6 +2114,64 @@ class AccessibleUI:
                         return None
                     raise
             return self.wait(ready, 'text-exact-value')
+        return None
+
+    def duplicate_text_operation(self, operation):
+        """Select/copy only declared text; independently verify each doubled result."""
+        require(operation in DUPLICATE_OPERATIONS, 'ui:duplicate-operation')
+        binding, action = DUPLICATE_OPERATIONS[operation]
+        source = TEXT_DUPLICATIONS[binding]
+        identity, value = TEXT_VALUES[source]
+        separator = TEXT_DUPLICATION_SEPARATORS[binding]
+        require(TEXT_VALUES[binding] == (identity, value + separator + value),
+                'ui:duplicate-binding')
+        if action == 'read':
+            return self.text_operation('text-' + binding + '-read')
+        self.read_synthetic_text(source)
+        if action == 'focus':
+            self.focus_text(identity)
+            return
+        text = self.text_recipient(identity, focused=True).get_text_iface()
+        require(self.api.Text.get_n_selections(text) == 1, 'ui:duplicate-selection')
+        if action == 'select':
+            # Exclude Quill's implicit terminal paragraph newline explicitly.
+            # Otherwise copy/paste can add blank paragraphs or join two lines.
+            self.input_uncertain = True
+            require(self.api.Text.set_selection(text, 0, 0, len(value)),
+                    'ui:duplicate-selection-refused')
+            self.input_uncertain = False
+            return
+        selected = self.api.Text.get_selection(text, 0)
+        require((selected.start_offset, selected.end_offset) == (0, len(value)),
+                'ui:duplicate-selection')
+        return None
+
+    def scalar_text_operation(self, operation):
+        """Prove the exact source and scalar caret before ordinary Unicode input."""
+        require(operation in SCALAR_OPERATIONS, 'ui:scalar-operation')
+        binding, action = SCALAR_OPERATIONS[operation]
+        source, codepoint = TEXT_SCALARS[binding]
+        return self.append_text_operation(binding, action, source, chr(int(codepoint, 16)))
+
+    def suffix_text_operation(self, operation):
+        """Prove the clipboard-built source before typing its short remainder."""
+        require(operation in SUFFIX_OPERATIONS, 'ui:suffix-operation')
+        binding, action = SUFFIX_OPERATIONS[operation]
+        source, suffix = TEXT_SUFFIXES[binding]
+        return self.append_text_operation(binding, action, source, suffix)
+
+    def append_text_operation(self, binding, action, source, suffix):
+        identity, value = TEXT_VALUES[source]
+        require(TEXT_VALUES[binding] == (identity, value + suffix),
+                'ui:scalar-binding')
+        if action == 'read':
+            return self.text_operation('text-' + binding + '-read')
+        self.read_synthetic_text(source)
+        if action == 'focus':
+            self.focus_text(identity)
+        else:
+            text = self.text_recipient(identity, focused=True).get_text_iface()
+            require(self.api.Text.get_caret_offset(text) == len(value), 'ui:scalar-caret')
         return None
 
     def open_feedback(self, projection='initial-empty'):
@@ -5844,6 +6160,22 @@ class AccessibleUI:
             text = self.text_operation(operation)
             if text is not None:
                 result['text'] = text
+        elif operation in DUPLICATE_OPERATIONS:
+            text = self.duplicate_text_operation(operation)
+            if text is not None:
+                result['text'] = text
+        elif operation in SCALAR_OPERATIONS:
+            text = self.scalar_text_operation(operation)
+            if text is not None:
+                result['text'] = text
+        elif operation in SUFFIX_OPERATIONS:
+            text = self.suffix_text_operation(operation)
+            if text is not None:
+                result['text'] = text
+        elif operation in LENGTH_OPERATIONS:
+            feedback = self.length_operation(operation)
+            if feedback is not None:
+                result['feedback_state'] = feedback
         elif operation in WINDOW_SWITCH_OPERATIONS:
             result['window'] = self.window_switch_operation(operation)
             if operation == 'switch-viewer-launch':
@@ -5852,6 +6184,10 @@ class AccessibleUI:
             formatting = self.format_operation(operation)
             if formatting is not None:
                 result['formatting'] = formatting
+        elif operation in REJECTION_OPERATIONS:
+            feedback = self.rejection_operation(operation)
+            if feedback is not None:
+                result['feedback_state'] = feedback
         elif operation in FEEDBACK_STATE_OPERATIONS:
             feedback = self.feedback_state_operation(operation)
             if feedback is not None:

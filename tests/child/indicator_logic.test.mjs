@@ -335,6 +335,56 @@ test('calculates allowance and preserves a verified estimate on a transient fail
     assert.deepEqual(nextEstimateState(previous, 45, 100), {calculatedEnd: 145, statusLoaded: true});
 });
 
+test('refresh diagnostics identify the failing stage and preserve verified state', async () => {
+    for (const stage of ['timer-estimate', 'allowance-calculation', 'broker-calculation']) {
+        const error = new Error('private@example.test /home/private');
+        const logs = [];
+        const reports = [];
+        const indicator = createIndicator({
+            queryEstimatedTimes: async () => {
+                if (stage === 'timer-estimate')
+                    throw error;
+                return {};
+            },
+            effectiveAllowanceRemaining: () => {
+                if (stage === 'allowance-calculation')
+                    throw error;
+                return 10;
+            },
+            calculateOwnRemainingTime: async () => { throw error; },
+            timerErrorCategory: () => 'other',
+            Main: {sessionMode: {isLocked: true, isGreeter: false},
+                timeLimitsManager: {getCurrentTime: () => 100, dailyLimitTime: 110}},
+            logWarning: (event, fields) => logs.push({event, ...fields}),
+        });
+        Object.assign(indicator, {_calculatedEnd: 150, _statusLoaded: true,
+            _onError: failure => reports.push(failure), _sync() {}});
+        await indicator._refreshEstimate();
+        assert.equal(indicator._calculatedEnd, 150);
+        assert.equal(indicator._statusLoaded, true);
+        assert.equal(indicator._refreshPending, false);
+        assert.deepEqual(reports, [error]);
+        assert.deepEqual(logs, [{event: 'child.refresh-failed', stage,
+            category: 'other', loaded: true, locked: true, greeter: false}]);
+    }
+});
+
+test('a recovered timer refresh updates the countdown without opening an error report', async () => {
+    const indicator = createIndicator({
+        queryEstimatedTimes: async () => ({}),
+        effectiveAllowanceRemaining: () => 20,
+        calculateOwnRemainingTime: async () => 30,
+        nextEstimateState,
+        Main: {timeLimitsManager: {getCurrentTime: () => 100, dailyLimitTime: 120}},
+        logInfo() {},
+    });
+    Object.assign(indicator, {_calculatedEnd: 90, _statusLoaded: true,
+        _onError() { assert.fail('successful recovery must not report an error'); }, _sync() {}});
+    await indicator._refreshEstimate();
+    assert.equal(indicator._calculatedEnd, 130);
+    assert.equal(indicator._statusLoaded, true);
+});
+
 test('classifies bounded busy retries and prevents duplicate request overlays', () => {
     assert.equal(busyRetryDelay('org.example.Error.Busy', 0), 100);
     assert.equal(busyRetryDelay('org.example.Error.Busy', 5), undefined);

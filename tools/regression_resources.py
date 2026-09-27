@@ -48,6 +48,9 @@ DEMANDS = {
     'fixture-runtime': Demand(2, GIB),
     'source': Demand(2, GIB),
     'static': Demand(1, GIB),
+    # Child query/indicator adapters use per-test VM contexts, clocks and fake
+    # buses; GJS classification uses local error objects and owned GLib timers.
+    # Neither accesses a live product bus, writes files or needs exclusivity.
     'child-node': Demand(2, GIB),
     'child-gjs': Demand(1, GIB),
     'backend': Demand(1, GIB),

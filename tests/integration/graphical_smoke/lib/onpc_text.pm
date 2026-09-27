@@ -8,6 +8,10 @@ use onpc_journey ();
 use onpc_parent ();
 
 my %values = (
+    'body-ascii-5000' => 'x' x 5000,
+    'body-ascii-5001' => 'x' x 5001,
+    'body-mixed-5000-base' => 'x' x 4998,
+    'body-mixed-5001-base' => 'x' x 4999,
     'kiosk-fraction' => '1.25',
     'kiosk-invalid-empty' => '', 'kiosk-invalid-letters' => 'abc',
     'kiosk-invalid-negative' => '-1', 'kiosk-invalid-zero' => '0',
@@ -16,6 +20,9 @@ my %values = (
     'body-first' => 'Synthetic feedback first',
     'body-second' => 'Synthetic feedback replacement', 'body-clear' => '',
     'body-whitespace' => '   ',
+    'body-hidden-base' => 'ab',
+    'body-complex' => join("\n", ('x') x 1200),
+    'body-complex-75' => join("\n", ('x') x 75),
     'reply-first' => 'first@example.invalid',
     'reply-second' => 'second@example.invalid', 'reply-clear' => '',
     'reply-malformed' => 'invalid-reply',
@@ -25,6 +32,13 @@ my %values = (
     'daily-invalid-negative' => '-1', 'daily-invalid-fraction' => '0.5',
     'daily-invalid-maximum' => '1440', 'daily-invalid-over' => '1441',
 );
+my %repetitions;
+for my $binding ('body-ascii-5000', 'body-ascii-5001',
+                 'body-mixed-5000-base', 'body-mixed-5001-base') {
+    my @chain = ("$binding-seed", map { "$binding-double-$_" } 1..4);
+    $values{$chain[0]} = substr($values{$binding}, 0, int(length($values{$binding}) / 16));
+    $repetitions{$binding} = \@chain;
+}
 
 # UI16: every keyboard batch consumes a new focused-recipient proof. An
 # exception stops this composite; no input retry or repair is permitted.
@@ -35,6 +49,10 @@ sub replace_text {
         && defined($binding) && exists($values{$binding});
     $prefix //= "text-$binding";
     die 'text:prefix' unless $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    if (exists($repetitions{$binding})) {
+        die 'text:repeat-prefix' unless $prefix eq "text-$binding";
+        return repeat_text($journey, $binding);
+    }
     if ($binding =~ /^reply-/) {
         # GTK's native entry has no Component.GrabFocus implementation. Use
         # the declared keyboard route, then independently prove reply focus.
@@ -53,13 +71,77 @@ sub replace_text {
         # and disable the editor before Return/Tab can reach it. os-autoinst
         # maps newline and tab to ordinary Return and Tab key events.
         my $suffix = $binding eq 'daily-2' ? "\n" : $binding eq 'daily-3' ? "\t" : '';
-        testapi::type_string($values{$binding} . $suffix, max_interval => 20);
+        testapi::type_string($values{$binding} . $suffix,
+            max_interval => $binding eq 'body-complex-75' ? 250 : 20);
     } else {
         testapi::send_key('backspace');
     }
     $stage = "$prefix-read";
     my $result = $journey->seen($stage);
     $journey->consume_observation($stage, $result);
+    return $result;
+}
+
+# The same finite seed/doubling/remainder recipe as the public adapter. Never
+# fall back to full typing after an uncertain or mismatching clipboard result.
+sub repeat_text {
+    onpc_progress::operation('Building synthetic text with a short seed and clipboard doubles');
+    my ($journey, $binding) = @_;
+    die 'text:repeat-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($binding) && exists($repetitions{$binding});
+    my ($seed, @copies) = @{$repetitions{$binding}};
+    replace_text($journey, $seed);
+    duplicate_text($journey, $_) for @copies;
+    onpc_progress::operation('Finishing clipboard-built text with its short typed remainder');
+    my $prefix = "text-suffix-$binding";
+    $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
+    testapi::send_key('ctrl-end');
+    $journey->consume_observation("$prefix-caret", $journey->seen("$prefix-caret"));
+    my $suffix = substr($values{$binding}, length($values{$seed}) * 16);
+    testapi::type_string($suffix, max_interval => 20) if length($suffix);
+    my $result = $journey->seen("$prefix-read");
+    $journey->consume_observation("$prefix-read", $result);
+    return $result;
+}
+
+# Shared UI16 composite: exact synthetic source -> public selection -> one
+# copy/append/plain-text paste batch -> exact doubled result. No input retries.
+sub duplicate_text {
+    onpc_progress::operation('Doubling synthetic text with one ordinary copy and paste');
+    my ($journey, $binding) = @_;
+    die 'text:duplicate-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($binding) && ($binding =~ /\Abody-complex(?:-(?:150|300|600))?\z/
+            || $binding =~ /\Abody-(?:ascii-500[01]|mixed-500[01]-base)-double-[1-4]\z/);
+    my $prefix = "text-duplicate-$binding";
+    $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
+    testapi::send_key('ctrl-a');
+    $journey->consume_observation("$prefix-select", $journey->seen("$prefix-select"));
+    $journey->consume_observation("$prefix-selected", $journey->seen("$prefix-selected"));
+    testapi::send_key('ctrl-c');
+    testapi::send_key('ctrl-end');
+    testapi::send_key('ret') if $binding =~ /\Abody-complex/;
+    testapi::send_key('ctrl-shift-v');
+    my $result = $journey->seen("$prefix-read");
+    $journey->consume_observation("$prefix-read", $result);
+    return $result;
+}
+
+# UI16 finite non-BMP append: normal input-method keys after exact source,
+# focus and public character-caret proofs. No clipboard or private assignment.
+sub append_scalar {
+    onpc_progress::operation('Appending one declared emoji through ordinary Unicode input');
+    my ($journey, $binding) = @_;
+    die 'text:scalar-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($binding) && $binding =~ /\Abody-mixed-500[01]\z/;
+    my $prefix = "text-scalar-$binding";
+    $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
+    testapi::send_key('ctrl-end');
+    $journey->consume_observation("$prefix-caret", $journey->seen("$prefix-caret"));
+    testapi::send_key('ctrl-shift-u');
+    testapi::type_string('1f600');
+    testapi::send_key('ret');
+    my $result = $journey->seen("$prefix-read");
+    $journey->consume_observation("$prefix-read", $result);
     return $result;
 }
 

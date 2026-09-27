@@ -340,6 +340,15 @@ starting another session. This staging uses literal Git paths and needs no
 agent-side Git permission grant. Task 192 retains the plan's explicit host-only exception.
 Staged code is the baseline; agents do not analyze staged diffs.
 
+Close-out ignores reported paths that are absent from both the working tree and
+the Git index, such as temporary briefs created and deleted within the task.
+Tracked deletions still stage normally. If staging fails after acceptance, the
+launcher retains the accepted result and current handoff. Restart revalidates
+that result against the saved queue state and retries only its staging before
+selecting the next task; it does not repeat the completed live acceptance or
+rewrite the previous run's evidence. Unrelated interrupted queue changes still
+refuse recovery.
+
 If a session discovers a missing capability, the plan permits inserting an
 unchecked prerequisite immediately before its unfinished consumer. The launcher
 validates that insertion, preserves the consumer's handoff, staging ownership

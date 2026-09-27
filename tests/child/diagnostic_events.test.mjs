@@ -16,3 +16,20 @@ test('child evidence is validated before serialization', () => {
     assert.throws(() => diagnosticEnvelope(catalog, secret));
     assert.throws(() => diagnosticEnvelope(catalog, 'service.ready'));
 });
+
+test('timer failure diagnostics accept only reviewed categories and bounded state', () => {
+    const fields = {stage: 'timer-estimate', category: 'no-reply', loaded: true,
+        locked: true, greeter: false};
+    assert.deepEqual(JSON.parse(diagnosticEnvelope(catalog, 'child.refresh-failed', fields)).fields, fields);
+    const secret = 'private@example.test /home/private';
+    for (const changed of [{...fields, stage: secret}, {...fields, category: secret},
+        {...fields, loaded: secret}, {...fields, message: secret}])
+        assert.throws(() => diagnosticEnvelope(catalog, 'child.refresh-failed', changed));
+    for (const attempt of [0, 7, NaN, Infinity, secret])
+        assert.throws(() => diagnosticEnvelope(catalog, 'child.timer-read-failed', {
+            category: 'no-reply', attempt, retry: true,
+        }));
+    assert.doesNotThrow(() => diagnosticEnvelope(catalog, 'child.timer-recovered', {attempts: 3}));
+    // Old retained archives keep their original field-free event contract.
+    assert.doesNotThrow(() => diagnosticEnvelope(catalog, 'child.estimate-failed'));
+});

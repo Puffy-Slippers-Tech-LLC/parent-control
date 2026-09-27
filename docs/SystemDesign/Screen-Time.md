@@ -144,6 +144,29 @@ another supported client has the user's timer database open. The extension
 does not modify GNOME Shell's private time-limit state or attach to the native
 lock-screen request flow.
 
+The child estimate client also retries `NoReply`, `NameHasNoOwner`,
+`ServiceUnknown`, and local/remote timeout errors, covering timer-owner loss
+around idle shutdown and suspend/resume. Each retry addresses the well-known
+service name so D-Bus activation can select its new owner. These failures allow
+at most three attempts; busy backoff retains at most six total attempts. Mixed
+failures share those attempt indices and one 25-second monotonic budget, with
+each call limited to five seconds. Authorization, invalid arguments and unknown
+errors are not retried. A successful recovery updates the countdown without
+opening the reporter; exhausted retries retain the previous verified estimate
+and report the failure. No failed read becomes zero remaining time.
+
+Diagnostics record a closed error category, attempt number, retry decision and
+successful recovery. Terminal refresh diagnostics distinguish the timer read,
+local allowance calculation and broker calculation, plus loaded/locked/greeter
+booleans. Categories come only from Gio error domains/codes or the recognized
+busy suffix; raw remote names, messages and stacks never enter events. New event
+IDs preserve the historical field-free `child.estimate-failed` contract. The
+shared catalogue and child enum validator must ship together with the broker;
+child changes require session renewal and the broker loads the catalogue on
+process restart. No saved-data migration is needed. Regression coverage uses
+isolated Node adapter contexts and real GJS error classification; it does not
+claim installed suspend/resume acceptance.
+
 Once an estimate has been successfully loaded, at zero usable time with a daily
 limit enabled the extension invokes the public GNOME ScreenSaver `Lock` method.
 It reevaluates enforcement when the retained desktop is unlocked without new

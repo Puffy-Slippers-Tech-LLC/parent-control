@@ -130,6 +130,23 @@ def test_utf16_validation(message, valid):
     assert (ft.validation_error(message, "", "1.2") is None) == valid
 
 
+@pytest.mark.parametrize("character", ["\0", "\x01"])
+def test_hidden_controls_are_rejected_before_submission_creation(character, monkeypatch):
+    message = "a" + character + "b"
+    explanation = "Your feedback contains an unsupported hidden character. Please retype it and try again."
+    assert ft.validation_error(message, "", "1.2") == explanation
+    new_key = Mock()
+    monkeypatch.setattr(ft.uuid, "uuid4", new_key)
+    with pytest.raises(ValueError) as rejected:
+        ft.Submission.create(message, "", "1.2", "<p>" + message + "</p>")
+    assert str(rejected.value) == explanation
+    new_key.assert_not_called()
+
+
+def test_normal_whitespace_and_emoji_remain_supported():
+    assert ft.validation_error("First\tline\nSecond 😀", "", "1.2") is None
+
+
 def test_formatted_html_utf16_validation():
     assert ft.validation_error("hello", "", "1.2", "😀" * 25_000) is None
     assert ft.validation_error("hello", "", "1.2", "😀" * 25_001)

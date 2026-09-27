@@ -178,7 +178,7 @@ row's ownership, ambiguity, focus, input and independent-result guards.
 | UI19 | A | Type one fixture secret once through the unchanged secret-safe API for one challenge whose surface, recipient and empty masked field were freshly resolved by owned public IDs or a qualified external-provider adapter. Accept a registered secret reference and explicit recipient proof, never plaintext in stage data. Do not submit or infer authentication success. Capture remains sealed and uncertainty/failure forbids replay. | `onpc_password::type_fixture_secret` consumes one proof from `enter_gdm_challenge`; distinct Parent GDM challenges are qualified by `check_e2e_challenges`. Used identities and the terminal failure latch never reset. Serial retains its separate proof binding; other graphical surfaces remain pending. [Challenge contract](#refactoring-the-established-cases). | ready |
 | UI20 | A | **Migration required.** Perform the declared double-click gesture through a supported ID-addressed public route; no coordinates or substitution with a different gesture. An unavailable route blocks the consumer. Record it as one intended gesture; no retry or click repair. | Existing normal pointer API; new consumer is E2E-014. A disabled/hidden target cannot authorize a gesture. This is not two separately retried click blocks. | pending |
 | UI23 | A | Request one public reveal operation for required content observation, or when a direct public action is unavailable. A clipped but directly actionable control does not need reveal. Resolve a nondefunct object by ID without an initial visibility requirement; return input completion only. | `AccessibleUI.reveal_id` resolves the target and its owning surface by ID, invokes the registered semantic focus action and independently reacquires the showing target. Generic `scroll_target`/`reveal` refuse. Qualified for Parent remaining-time/filter controls and About license/footer. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
-| UI24 | A | Resolve the editor by public ID, read the public formatting attributes of one explicit bounded synthetic text range and compare the expected format. Return semantic attributes only. | `AccessibleUI.formatting_attributes(start, end)` reads public Text weight runs for `body-first`. It queries inside the range and requires returned bounds to cover every requested character; mixed, missing or incomplete runs refuse. This avoids WebKit's preceding-run result at an exclusive boundary without trusting toolbar state. `check_e2e_format` qualified bold `[0, 9)` versus normal `[9, 23)` and independent reopen in report `20260926T223708Z-0ea92fd0`, including wrong-entry refusal, collection and owned cleanup. No DOM or saved-draft read. | ready for declared Parent feedback bold/normal ranges; other attributes and bindings pending |
+| UI24 | A | Resolve the editor by public ID, read the public formatting attributes of one explicit bounded synthetic text range and compare the expected format. Return semantic attributes only. | `AccessibleUI.formatting_attributes(start, end)` reads public Text weight runs for `body-first`. It queries inside the range and requires returned bounds to cover every requested character; mixed, missing or incomplete runs refuse. This avoids WebKit's preceding-run result at an exclusive boundary without trusting toolbar state. `check_e2e_format` qualified bold `[0, 9)` versus normal `[9, 23)` and independent reopen; latest regression `20260927T020443Z-8e6d21ca` passed wrong-entry refusal, collection and owned cleanup. `rejection_formatting` also qualifies the four combined attributes on every `body-complex` character range under [feedback rejection](#feedback-rejection). No DOM or saved-draft read. | ready for declared Parent bold/normal and complex-document ranges; other attributes and bindings pending |
 | UI25 | A | Start one bounded read-only public-state trace for registered `automation-id` selectors; return its explicit observation token after readiness. No customer input. | New leaf extracted from UI22; E2E-035/039/046 consumers. | pending |
 | UI26 | A | Finish that trace at its supplied ID-addressed public terminal predicate/deadline and return ordered semantic samples. No input, replay or private reads. | New leaf extracted from UI22; accepts only the caller's explicit token. | pending |
 | UI27 | A | **Migration required.** Reveal hover information through a supported ID-addressed public route. A specifically tested hover gesture requires such a route or blocks its consumer; no coordinate input. | Existing normal pointer interface; PANEL03 consumer. | pending |
@@ -189,7 +189,7 @@ row's ownership, ambiguity, focus, input and independent-result guards.
 | UI14 | C | Highlight one choice through semantic focus with a fresh focus observation. Repository-owned choices use `automation-id`; external choices use their qualified provider adapter. Verify identity and focus/selection before committing; never calculate key counts from list order. | `onpc_journey::highlight_choice` accepts only the adapter's fresh semantic-focus evidence; its retained generic positional-navigation branch refuses. `AccessibleUI.gdm_nonsecret_navigation` is installed-qualified for the prepared Parent, other-parent and station rows; `gdm_product_free_navigation` separately qualifies Parent on the declared product-free baseline. Other GDM and product-owned bindings require their own qualification. [Parent discovery contracts](#parent-discovery-block-contracts). | pending; prepared installed and product-free GDM bindings ready |
 | UI15 | C | Select one ID-addressed value from an ID-addressed dropdown, menu or visible choice group. The registered control kind and commit route are explicit; independently verify the resulting selected value. | Existing child-picker paths require public IDs for the picker, each choice and selected-value projection; labels remain result data only. REQUEST04's `AccessibleUI.select_kiosk_account` qualifies station child/approver selectors through direct public button actions and exact offered sets. `AccessibleUI.kiosk_valid_choice` also qualifies the 300-second, Custom and Rest-of-day button choices; see [valid kiosk choices](#valid-kiosk-choice-qualification). Other dropdowns/groups remain pending. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI21 | C | Focus one showing, enabled nonsecret field through public semantic focus or qualified keyboard navigation; independently require the same field to be focused. Repository-owned fields use `automation-id`; external fields use their qualified provider adapter. | `AccessibleUI.focus_search_field` and `search_ready(focused=True)` qualified fresh Parent SEARCH02 in `check_e2e_shell_search_results`. `focus_text` / `text_recipient` qualify Parent feedback editor focus through public Component.GrabFocus; native reply focus uses that ID-resolved editor anchor, one Ctrl-Tab and independent reply focus proof. Both passed `check_e2e_text` in run `20260925T030015Z-4c7d9b02`. Kiosk `kiosk-custom-duration` focus uses the owned window's `focus.kiosk-custom-duration` action and fresh focused proof; see [valid kiosk choices](#valid-kiosk-choice-qualification). Other bindings require their own scoped resolution and fresh focus readback; ambiguous routes refuse. [Search contracts](#search-and-standard-sign-in-contracts). | pending; fresh Parent search, Parent feedback body/reply and kiosk custom-duration focus ready |
-| UI16 | C | Replace text in one named nonsecret field: focus, select all, type once, then read the exact result. Empty input explicitly means clear. | `onpc_text::replace_text` composes `AccessibleUI.focus_text` / `text_recipient` → UI05(Ctrl-A) → fresh focused proof → UI06(value, max_interval=20), or UI05(Backspace) for empty → `read_synthetic_text` exact bounded comparison. Native reply uses the qualified UI21 editor-anchor/Ctrl-Tab route before its focus proof. `TEXT_VALUES` registers eight body/reply projections; the additional whitespace/malformed bindings are qualified under [feedback validation snapshots](#feedback-validation-snapshots), allowing only the rich editor's terminal paragraph newline. `text_qualification.PLAN` / `check_e2e_text` qualified replacement twice and clear for both fields, exact independent readback, independent reopen and wrong/disabled-target refusal in run `20260925T030015Z-4c7d9b02`, with collection, owned cleanup and baseline restoration; Send untouched. Parent custom bindings `daily-1/2/3` and their exact readback qualified through `check_e2e_allowance` in run `20260925T053812Z-45e24883`; Enter/Tab terminators share the bounded typing batch before debounce can disable the editor. Kiosk `kiosk-fraction` replaces custom text with exact `1.25` through the same helper; see [valid kiosk choices](#valid-kiosk-choice-qualification). The seven `kiosk-invalid-*` bindings, including empty-field clearing, are also [qualified](#invalid-kiosk-choice-qualification). Selecting all alone does not clear a field. Other bindings and complete scenarios remain pending. | ready for declared Parent feedback body/reply, custom daily 1/2/3, kiosk 1.25-minute and finite invalid values; other bindings pending |
+| UI16 | C | Replace text in one named nonsecret field: focus, select all, type once, then read the exact result. Empty input explicitly means clear. | `onpc_text::replace_text` composes `AccessibleUI.focus_text` / `text_recipient` → UI05(Ctrl-A) → fresh focused proof → UI06(value, max_interval=20), or UI05(Backspace) for empty → `read_synthetic_text` exact bounded comparison. Native reply uses the qualified UI21 editor-anchor/Ctrl-Tab route before its focus proof. `TEXT_VALUES` binds exact body/reply projections; whitespace/malformed inputs are qualified under [feedback validation snapshots](#feedback-validation-snapshots), allowing only the rich editor's terminal paragraph newline. [Feedback rejection](#feedback-rejection) additionally qualifies SOH scalar input/readback and [bounded duplication](#synthetic-text-duplication) of the complex document. `text_qualification.PLAN` / `check_e2e_text` qualified replacement twice and clear for both fields, exact independent readback, independent reopen and wrong/disabled-target refusal in run `20260925T030015Z-4c7d9b02`, with collection, owned cleanup and baseline restoration; Send untouched. Parent custom bindings `daily-1/2/3` and their exact readback qualified through `check_e2e_allowance` in run `20260925T053812Z-45e24883`; Enter/Tab terminators share the bounded typing batch before debounce can disable the editor. Kiosk `kiosk-fraction` replaces custom text with exact `1.25` through the same helper; see [valid kiosk choices](#valid-kiosk-choice-qualification). The seven `kiosk-invalid-*` bindings, including empty-field clearing, are also [qualified](#invalid-kiosk-choice-qualification). Selecting all alone does not clear a field. The four length-boundary fixtures are qualified under [synthetic text duplication](#synthetic-text-duplication). Other bindings and complete scenarios remain pending. | ready for declared Parent feedback body/reply, SOH, complex and length-boundary fixtures, custom daily 1/2/3, kiosk 1.25-minute and finite invalid values; other bindings pending |
 | UI17 | C | Set one named toggle to an explicit boolean. Read first, activate once only when different, then independently require the desired state. | `AccessibleUI.set_toggle` through `ParentToggleJourney` / `onpc_parent_toggle::run`. `tools/run-tests integration check_e2e_toggle` qualified Parent's `parent-screen-limit-toggle`: explicit child selection, enable/disable, already-current without activation, wrong/hidden-control refusal and disabled-settings read, with owned cleanup. Hidden controls may be retained or omitted from the complete public tree. Case 57 observes the limits-off state without toggling it. Kiosk `kiosk-soft-apps-toggle` inclusion and exclusion use the same helper; see [valid kiosk choices](#valid-kiosk-choice-qualification). Other toggle bindings remain pending. | pending; Parent and kiosk soft-app bindings qualified |
 | UI18 | C | Close a qualified window with its public Close action or Alt-F4. Repository-owned windows and controls use `automation-id`; external windows use their qualified provider adapter. For keyboard close, first verify that same window is active. Observe its disappearance and the qualified underlying surface. | `onpc_window::close(journey, window, proof)` consumes a fresh registered proof, sends Alt-F4 once and independently observes the destination. Parent→desktop passed `check_e2e_parent_search_launch` with an active owned `parent-window` proof and complete absence/desktop readback. Feedback→Parent and Privacy→feedback (initial and independent entry) passed `check_e2e_feedback_privacy` in `20260926T214728Z-4a3ca1b4`, including wrong-window refusal, collection, owned cleanup and baseline restoration. License→About, About→Parent and management denial→standard desktop retain their consumer evidence and extracted-helper host checks. [About contracts](#about-block-contracts). | ready for Parent→desktop, feedback→Parent and Privacy→feedback; other extracted bindings await live validation |
 
@@ -562,14 +562,14 @@ these blocks, not copies of them.
 | ABOUT03 | C | Close the license, read the About footer, close About and compare the selected child/settings with the supplied earlier observation. | `onpc_about::return_to_parent` composes UI18 → ABOUT04 → UI18; `JourneyPlan.settings_checks` supplies UI12. `onpc_license_viewer_provider::run` qualified those leaves with active-viewer proof, ambiguous-close refusal, single-use close, complete viewer absence, active owned About return, footer read and unchanged child/switch/allowance in run `20260923T201618Z-50520052`. Complete case 151 passed the composed journey, collection and owned cleanup in run `20260923T202401Z-9e9a5886`. | ready for Parent/GNOME Text Editor; other bindings pending |
 | FEED01 | C | Open ordinary Parent feedback through its Feedback action and observe editor/collection state. Error-report entry uses FEED15; no hidden error creation. | `AccessibleUI.open_feedback(projection='initial-empty')`: UI01 → UI04(`parent-feedback-button`) → UI01 → UI02 → UI03. `feedback_read.PLAN` / `onpc_feedback_read::run` qualified initial empty entry and independent reopen through `check_e2e_feedback_read` in run `20260925T011124Z-21d4f936`. `check_e2e_feedback_privacy` additionally qualified preserved `synthetic-first` entry in `20260926T214728Z-4a3ca1b4`; collection, owned cleanup and baseline restoration passed. Send remains untouched. | ready for ordinary Parent initial-empty and synthetic-first entry; other bindings pending |
 | FEED03 | C | Read the visible synthetic draft, exact attachment list and validation/control state into an explicit observation. | `AccessibleUI.feedback_snapshot(projection)` → immutable `FeedbackObservation`: UI01 → UI02 → UI03 → UI13(attachments). `check_e2e_feedback_read` qualified `initial-empty` in `20260925T011124Z-21d4f936`. `check_e2e_feedback_privacy` qualified `synthetic-first` (UI16 `body-first` and `reply-first`) in `20260926T214728Z-4a3ca1b4`: exact bounded fields, exactly `diagnostic-logs.zip`, ready collection/controls and no validation message, with unchanged observations after Privacy and dialog reopening. User attachments and other states remain pending. Never project arbitrary private text. | ready for Parent initial-empty and synthetic-first projections; other bindings pending |
-| FEED04 | C | Apply one offered rich-text format to an explicit synthetic range and observe its public text attributes. Select the range through normal keyboard input, then use its toolbar/menu. | `onpc_format::apply_bold(journey)` / `AccessibleUI.format_operation`: UI21(editor) → Ctrl+Home → observed caret → nine Shift+Right inputs → exact public selection `[0, 9)` → UI04(`feedback-format-bold`) → UI24. `FormatJourney` compares bold with adjacent normal text before and after independent reopen. `check_e2e_format` qualified the Parent `body-first` slice in report `20260926T223708Z-0ea92fd0`; Send untouched. No DOM bridge or direct text/selection assignment. | ready for Parent bold on the declared synthetic range; other formats and complete scenarios pending |
+| FEED04 | C | Apply one offered rich-text format to an explicit synthetic range and observe its public text attributes. Select the range through normal keyboard input, then use its toolbar/menu. | `onpc_format::apply_bold(journey)` / `AccessibleUI.format_operation`: UI21(editor) → Ctrl+Home → observed caret → nine Shift+Right inputs → exact public selection `[0, 9)` → UI04(`feedback-format-bold`) → UI24. `FormatJourney` compares bold with adjacent normal text before and after independent reopen; latest `check_e2e_format` regression passed in `20260927T020443Z-8e6d21ca`, with Send untouched. `onpc_feedback_states::run_rejection` / `rejection_operation` additionally qualify Ctrl-A and exact selection → named bold/italic/underline/strike actions → public combined range proof on `body-complex`; see [feedback rejection](#feedback-rejection). No DOM bridge or private draft assignment. | ready for Parent bold range and declared four-format complex fixture; other formats/bindings and complete scenarios pending |
 | FEED05 | C | Open Privacy, read the disclosure/diagnostic explanation, then close it. | `AccessibleUI.feedback_privacy(projection)` → `onpc_window::close('feedback-privacy', proof)` → `AccessibleUI.window_closed('feedback-privacy', 'feedback')`: UI04 → UI09 → UI03 → UI18. Reads the actual ID-owned disclosure about delivery, retention and diagnostic/personal content; opens no external link. `feedback_privacy.PLAN` / `check_e2e_feedback_privacy` qualified Parent synthetic-first and independent reopened entry in `20260926T214728Z-4a3ca1b4`, with draft unchanged, collection, owned cleanup and baseline restoration. | ready for Parent synthetic-first; overlay/kiosk and other projections pending |
 | FEED06 | C | Add prepared synthetic attachments through Add files and the actual file chooser, then observe the displayed list or validation. | UI04 → FILE03 → FEED03. Repeat finite fixture values for the declared attachment-count and size validation. | pending |
 | FEED07 | C | Resolve one attachment row by its stable public ID, then read its displayed synthetic name/size and verify its order if required. Order is a result and never identifies the row. Does not preview or remove it. | UI01 → UI03 → UI13(order when required). | pending |
 | FEED12 | C | Open an offered attachment preview, read declared synthetic contents and close it, returning to feedback. | UI01 → UI04 → UI03 → UI18. An unoffered preview does not authorize private storage inspection. | pending |
 | FEED13 | C | Remove one explicitly identified attachment and observe the remaining list. | UI01 → UI04(Remove) → FEED03 → UI12(expected list). | pending |
 | FEED08 | C | Explicitly save diagnostic output to a customer-selected location, open that saved output through the file manager/viewer and read the expected public contents. | UI04(download) → FILE03(save) → FILE08(archive) → UI03(registered public entries/contents). Caller may instead stop after FILE03(cancel) and inspect its retained draft. Do not inspect original product logs or storage. | pending |
-| FEED09 | C | Observe collection, validation, sending, retry, error or thank-you state and control availability. Snapshot mode reads the current state; transition mode records required transient states around FEED01 or FEED11. | `AccessibleUI.feedback_snapshot(projection, states=True)` → immutable `FeedbackStateObservation`; `feedback_states.PLAN` / `check_e2e_feedback_states` qualify the [edit-only Parent snapshots](#feedback-validation-snapshots). UI01 → UI02 → UI03 → UI10, or UI22 with the same projections. No provider receipt or delivery-internal assertion. | ready for declared Parent edit-only snapshots; rejection explanations, collection transitions, sending/retry/success and other surfaces pending |
+| FEED09 | C | Observe collection, validation, sending, retry, error or thank-you state and control availability. Snapshot mode reads the current state; transition mode records required transient states around FEED01 or FEED11. | `AccessibleUI.feedback_snapshot(projection, states=True)` → immutable `FeedbackStateObservation`; `feedback_states.PLAN` / `check_e2e_feedback_states` qualify the [edit-only Parent snapshots](#feedback-validation-snapshots). `reject_invalid_feedback` / `rejection_operation` and `feedback_rejection.PLAN` additionally qualify the fixed [invalid-only rejection](#feedback-rejection) inputs and exact explanations. `length_operation` / `feedback_length.PLAN` qualify the [ASCII and mixed-emoji boundaries](#feedback-utf-16-boundaries). UI01 → UI02 → UI03 → UI10, or UI22 with the same projections. No provider receipt or delivery-internal assertion. | ready for declared Parent edit-only snapshots, ASCII/mixed-emoji boundaries and empty/malformed/SOH/complex/excessive-text rejection; other validation inputs, collection transitions, sending/retry/success and other surfaces pending |
 | FEED10 | C | Close/reopen feedback and compare its in-memory draft. `dialog` preserves the supplied draft; `app-exit` explicitly closes/relaunches Parent and expects reset. Return with feedback open. | `onpc_feedback_privacy::preserve_dialog(journey, before)` composes FEED03(before) → UI18(feedback) → FEED01(`synthetic-first`) → FEED03 → UI12 via `FeedbackPrivacyJourney.check_settings` against its explicit immutable earlier observation. `check_e2e_feedback_privacy` qualified body/reply, diagnostic attachment and controls before any new input in `20260926T214728Z-4a3ca1b4`, including wrong-window refusal, collection, owned cleanup and baseline restoration; Send untouched. The pending app-exit branch additionally uses LIFE01(Parent) and expects reset. | ready for Parent dialog/synthetic-first; app-exit, formatting and user attachments pending |
 | FEED11 | C | Submit one already reviewed synthetic report. Require explicit sending authorization and dedicated test-recipient configuration; activate the explicit `Send` or `Send without logs` action once and return. Observe the outcome and dismiss confirmation separately. | UI01 → UI02(enabled) → UI04(Send). Prior FEED03 → FEED05 evidence is supplied, not repeated inside this block. This document grants no sending authorization. | pending |
 | FEED14 | C | Dismiss an observed success confirmation normally and observe the expected return surface. | UI01 → UI04(Close) → UI11(confirmation) → UI01(return surface). FEED09 supplies the earlier success observation. | pending |
@@ -577,7 +577,7 @@ these blocks, not copies of them.
 
 #### Feedback validation snapshots
 
-`check_e2e_feedback_states` passed in report `20260926T220712Z-84c5a59f`,
+`check_e2e_feedback_states` last passed in report `20260927T044529Z-89d6d9b4`,
 including independent reopened entry, wrong-entry refusal, collection, owned
 cleanup and baseline restoration. `AccessibleUI.feedback_state_operation`
 observes edits supplied by the caller through `onpc_text::replace_text`; it never
@@ -598,10 +598,112 @@ ready and the remaining controls usable. The current app validates body/reply
 only on Send; after these edits the expected state is **enabled Send and no
 validation explanation**, including invalid input. Reopening must preserve the
 valid snapshot before any new input. This does not establish submission rejection.
-The reader's closed `body-required` and `reply-invalid` explanation projections
-and disabled-Send observation have host coverage only. Full case 153, its boundary
-matrix, and live rejection explanations remain pending; never infer them from
-input validity or substitute private transport validation for public evidence.
+The fixed rejection explanation projections are qualified separately below;
+disabled-Send observation still has host coverage only. Full case 153 remains
+pending; never infer rejection from input validity or
+substitute private transport validation for public evidence.
+
+#### Feedback rejection
+
+`feedback_rejection.PLAN` / `FeedbackRejectionJourney`,
+`onpc_feedback_states::run_rejection` and `AccessibleUI.rejection_operation`
+last passed `check_e2e_feedback_rejection` in `20260927T044004Z-cc6b2b91`.
+The qualification covers empty body, malformed reply, the authorized SOH fixture
+and excessive formatting, exact public explanations, usable controls, independent
+reopened entry, wrong-entry and valid-input refusal. Collection, owned cleanup
+and baseline restoration passed. No valid report is submitted; complete case 153
+remains a separate pending scenario.
+
+`reject_invalid_feedback(case)` requires a fresh owned editor, exact bounded
+body/reply and enabled Send. It refuses valid, mismatched, ambiguous, stale or
+uncertain input before the single Send action. The subsequent `*-read` operation
+independently observes the exact `FEEDBACK_VALIDATION` explanation and controls;
+input validity alone supplies no rejection credit. Reopening must retain the
+complex text and all formats, clear the previous status after diagnostic
+collection, and permit a second independently guarded rejection.
+
+UI16's hidden fixture is `a\x01b`: ordinary input-method SOH entry (`0001`)
+between `a` and `b`, with exact public `Text.GetCharacterAtOffset` scalar reads
+before Send. The product rejects both NUL and SOH; NUL retains product regression
+coverage. No valid substitute, private editor assignment or arbitrary text export
+is permitted.
+
+The formatting fixture is 1,200 `x` paragraphs separated by newlines (2,399
+UTF-16 units), built through the shared duplication route below. Ctrl-A and a
+fresh exact selection proof precede each named bold, italic, underline and strike
+action. `rejection_formatting` reads public Text attribute runs covering every
+synthetic `x`, advancing only to the first unproven character after each run's
+exclusive end. Every range must prove weight 700, italic, single underline and
+strikethrough true; missing formats or incomplete bounds refuse. The editor's
+explicit combined-decoration CSS exposes both decorations, including after
+reopening; host removal checks confirm that either attribute clears when its
+format is removed. No toolbar-only, DOM or private-draft proof is accepted.
+The maintained paragraph serialization requires at least 57,600 HTML units while
+the body stays below 5,000; transport-limit regressions guard this invalid-only
+precondition, and the live public complexity explanation supplies acceptance.
+
+#### Feedback UTF-16 boundaries
+
+`feedback_length.PLAN` / `FeedbackLengthJourney`,
+`onpc_feedback_states::run_length` and `AccessibleUI.length_operation` passed
+`check_e2e_feedback_length` in `20260927T041209Z-240ad5c2`. Exact public readback
+qualified 5,000/5,001 ASCII `x` characters and 4,998/4,999 `x` characters followed
+by U+1F600. Public character offsets count scalars; the mixed fixtures contain
+5,000/5,001 UTF-16 units. Only the editor's implicit terminal newline is allowed.
+
+UI16 uses the guarded clipboard construction below, followed for mixed input by
+`onpc_text::append_scalar` / `AccessibleUI.scalar_text_operation`: exact ASCII
+source and public caret proofs precede ordinary numeric Unicode input.
+`feedback_plain_text` proves normal public attributes over the entire body.
+At 5,000 units, `LENGTH_OBSERVATIONS` independently confirms enabled Send and
+no validation message; the invalid-only guard must refuse that valid draft.
+At 5,001 units, `REJECTION_CASES` permits one Send only after fresh exact owned
+body/reply and length proofs. Independent public reads require
+`Feedback must be at most 5,000 UTF-16 characters (some emoji count as two).`
+and usable controls. Each family closes, refuses wrong entry, reopens and
+compares its preserved draft and repeated rejection independently. Host checks
+also cover mismatched values, formatting, wrong owners, stale/ambiguous targets
+and uncertain input; none may reach Send.
+
+Rejection, state and formatting regressions passed in
+`20260927T044004Z-cc6b2b91`, `20260927T044529Z-89d6d9b4` and
+`20260927T044947Z-fea7011c`. All qualifications completed collection, owned
+cleanup and baseline restoration. No valid report was submitted; complete case
+153 remains pending.
+
+#### Synthetic text duplication
+
+UI16 also has a shared `onpc_text::duplicate_text(journey, binding)` composite
+for large declared nonsecret fixtures. `TEXT_DUPLICATIONS` maps each result to
+its exact source. `AccessibleUI.duplicate_text_operation` checks that source,
+focuses the ID-owned editor, narrows the Ctrl-A selection with public
+`Text.SetSelection` to exclude the implicit terminal paragraph newline, and
+independently verifies the selected range. One keyboard batch copies, moves to
+the end and pastes as plain text, inserting a newline only for the complex
+paragraph fixture. `TEXT_DUPLICATION_SEPARATORS` declares the exact join;
+public readback must match `source + separator + source`. Any failure stops
+before further input, without falling back to typing the full document.
+No helper application, clipboard service, DOM assignment or private draft read
+is involved. The product editor owns the clipboard in the isolated test session.
+
+The qualified rejection consumer types the declared 75-line seed at the normal
+backend pace (`max_interval=250`), then double to 150, 300, 600 and 1,200 lines.
+This preserves the 2,399-character final fixture and all rejection assertions.
+`check_e2e_feedback_rejection` qualified exact construction and the complete
+consumer in `20260927T015525Z-a02ac59c`, with collection and owned cleanup. New bindings
+must declare exact source/result projections and receive consumer qualification.
+
+The four UTF-16 boundary inputs use `TEXT_REPETITIONS`: a 312-character seed,
+four clipboard doubles to 4,992 characters, and a 6–9-character suffix through
+`onpc_text::repeat_text` / `AccessibleUI.suffix_text_operation`. The host UI test
+uses these same public operations. Each source, selected range, doubled result
+and suffix caret is checked before continuing; the final full-value check and
+ordinary emoji input remain mandatory. This reduces typed `x` input across
+the four cases from 19,998 to 1,278 characters. `check_e2e_feedback_length`
+qualified these bindings in `20260927T041209Z-240ad5c2`: all sixteen clipboard
+doubles, exact ASCII/emoji boundaries, valid-input refusal, invalid-only rejection
+and independent reopen passed, with collection, owned cleanup and baseline
+restoration. This is scoped qualification, not complete case 153 acceptance.
 
 ### Additional public surfaces
 

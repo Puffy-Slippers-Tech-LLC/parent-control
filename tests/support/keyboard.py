@@ -1,5 +1,7 @@
 """Ordinary keyboard input bound to a freshly resolved public automation ID."""
 
+import time
+
 
 def recipient(ui, identity, state):
     """Reacquire ``identity`` and require its declared input-recipient state."""
@@ -31,7 +33,18 @@ def key_combo(ui, identity, keys, *, state):
     deliver(ui, identity, state, lambda: rawinput.keyCombo(keys))
 
 
-def type_text(ui, identity, value):
+def type_text(ui, identity, value, *, interval=0):
     """Type nonsecret text once into the freshly ID-resolved focused control."""
+    if type(interval) not in (int, float) or not 0 <= interval <= 0.25:
+        raise ValueError('Keyboard typing interval must be between 0 and 0.25 seconds')
     from dogtail import rawinput
-    deliver(ui, identity, ui.api.StateType.FOCUSED, lambda: rawinput.typeText(value))
+    def send():
+        if not interval:
+            rawinput.typeText(value)
+            return
+        # The hermetic Mutter backend accepts but ignores Dogtail's delay
+        # argument. Bound sustained input explicitly to avoid losing key events.
+        for character in value:
+            rawinput.pressKey(character)
+            time.sleep(interval)
+    deliver(ui, identity, ui.api.StateType.FOCUSED, send)

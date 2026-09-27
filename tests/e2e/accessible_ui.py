@@ -7,6 +7,7 @@ Only fixed operation names and sanitized results cross the controller boundary.
 
 from contextlib import contextmanager, nullcontext
 from types import MappingProxyType
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -815,6 +816,66 @@ class KioskDiagnostic:
             'tree_reads': self.tree_reads, 'nodes_read': self.nodes_read,
             'incomplete_reads': self.incomplete, 'query_errors': self.query_errors,
         }, sort_keys=True), flush=True)
+
+
+CHOOSER_FILES = ('Second note.txt', 'Synthetic note.txt')
+CHOOSER_DIRECTORY = '/home/onpc-parent-jamie/.onpc-e2e-synthetic-files'
+CHOOSER_OPERATIONS = frozenset('chooser-' + suffix for suffix in (
+    'wrong-entry', 'open', 'location', 'files', 'accept', 'attachments',
+    'reopen', 'cancel', 'preserved'))
+OPERATIONS |= CHOOSER_OPERATIONS
+
+
+def validate_chooser_portal_owner(query, caller_pid, provider_pid):
+    """Bind the sole Nautilus request to its public portal caller identity.
+
+    Portal windows import a Wayland parent surface, not a GtkWindow, so GTK
+    cannot publish CONTROLLED_BY across that boundary. The documented Request
+    path embeds the caller's session-bus name. Nautilus exports that same
+    handle for exactly the lifetime of its chooser. Require one request and
+    one chooser, never infer ownership from a translated window title.
+    """
+    from xml.etree import ElementTree
+
+    bus = 'org.freedesktop.DBus'
+    bus_path = '/org/freedesktop/DBus'
+    def dbus(method, name):
+        return query(bus, bus_path, bus, method, 's', (name,))
+    def inspect(owner, path):
+        xml = query(owner, path, 'org.freedesktop.DBus.Introspectable', 'Introspect', '', ())
+        require(type(xml) is str and len(xml) <= 65536 and '<!ENTITY' not in xml,
+                'ui:chooser-request-observation')
+        try:
+            root = ElementTree.fromstring(xml)
+        except ElementTree.ParseError as error:
+            raise UiError('ui:chooser-request-observation') from error
+        require(root.tag == 'node', 'ui:chooser-request-observation')
+        return root
+    owner = dbus('GetNameOwner', 'org.gnome.Nautilus')
+    require(type(owner) is str and re.fullmatch(r':[0-9]+\.[0-9]+', owner),
+            'ui:chooser-provider-owner')
+    require(dbus('GetConnectionUnixProcessID', owner) == provider_pid,
+            'ui:chooser-provider-owner')
+    base = '/org/freedesktop/portal/desktop/request'
+    senders = inspect(owner, base).findall('node')
+    require(len(senders) == 1, 'ui:chooser-request-ambiguous')
+    sender = senders[0].get('name', '')
+    require(re.fullmatch(r'[0-9]+_[0-9]+', sender), 'ui:chooser-request-caller')
+    caller_name = ':' + sender.replace('_', '.')
+    require(dbus('GetConnectionUnixProcessID', caller_name) == caller_pid,
+            'ui:chooser-request-caller')
+    tokens = inspect(owner, base + '/' + sender).findall('node')
+    require(len(tokens) == 1, 'ui:chooser-request-ambiguous')
+    token = tokens[0].get('name', '')
+    require(re.fullmatch(r'[A-Za-z0-9_]{1,255}', token), 'ui:chooser-request-token')
+    path = base + '/' + sender + '/' + token
+    for service, interface in ((owner, 'org.freedesktop.impl.portal.Request'),
+                               ('org.freedesktop.portal.Desktop', 'org.freedesktop.portal.Request')):
+        interfaces = [item.get('name') for item in inspect(service, path).findall('interface')]
+        require(interfaces.count(interface) == 1, 'ui:chooser-request-interface')
+    require(dbus('GetNameOwner', 'org.gnome.Nautilus') == owner
+            and dbus('GetConnectionUnixProcessID', caller_name) == caller_pid,
+            'ui:chooser-request-replaced')
 
 
 class AccessibleUI:
@@ -1669,7 +1730,277 @@ class AccessibleUI:
     def about(self):
         return self.id_target('about-dialog')
 
-    def feedback_snapshot(self, projection='initial-empty', *, states=False):
+    def chooser_snapshot(self, *, mode='open', absent=False):
+        """FILE03 provider exception, scoped to feedback's transient chooser.
+
+        Native GTK and Nautilus portal routes are separate. Dynamic entries use
+        provider-local names only after owner, transient caller and mode proofs.
+        No title, geometry, global label or positional target fallback.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(mode == 'open', 'ui:chooser-mode')
+        nodes, edges, ids, facts = self.read_snapshot()
+        observation = (nodes, edges, ids, facts)
+        caller = self.snapshot_owned_target('feedback-dialog', observation=observation,
+                                            check_prompt=False)
+        require(caller is not None, 'ui:chooser-caller')
+        caller_pid = caller.get_process_id()
+        candidates = []
+        for node in nodes:
+            if ids[node] not in ('', 'NautilusFileChooser', 'GtkFileChooserDialog') or not facts[node]['showing'] or facts[node]['role'] not in (
+                    'dialog', 'file chooser', 'frame', 'window'):
+                continue
+            scoped = self.snapshot_scope(nodes, edges, node)
+            accepts = [item for item in scoped if ids[item] == 'accept_button']
+            # Native GTK does not expose an accept Builder ID.
+            if not accepts and node.get_process_id() == caller_pid:
+                accepts = [item for item in scoped if facts[item]['role'] in ('button', 'push button')
+                           and facts[item]['name'] == 'Open']
+            if accepts:
+                candidates.append((node, scoped, accepts))
+        require(len(candidates) <= 1, 'ui:chooser-ambiguous')
+        if not candidates:
+            self.handle_system_prompt(observation=(nodes, edges, facts))
+            if absent:
+                return True
+        require(len(candidates) == 1, 'ui:chooser-entry')
+        window, scoped, accepts = candidates[0]
+        pid = window.get_process_id()
+        route = 'gtk-native' if pid == caller_pid else 'nautilus-portal'
+        if route == 'nautilus-portal':
+            application = window.get_application()
+            require(application in nodes and application.get_process_id() == pid
+                    and facts[application]['role'] == 'application'
+                    and (ids[application] == 'org.gnome.Nautilus' or
+                         facts[application]['name'] in ('org.gnome.Nautilus', 'nautilus', 'Files')),
+                    'ui:chooser-provider-owner')
+        relations = [relation for relation in window.get_relation_set()
+                     if relation.get_relation_type() == self.api.RelationType.CONTROLLED_BY]
+        print(json.dumps({'event': 'chooser-ownership', 'route': route,
+                          'caller_relations': len(relations)}, sort_keys=True), file=sys.stderr, flush=True)
+        if route == 'nautilus-portal':
+            # An explicit contradictory relation must never fall back to the
+            # portal proof. The expected imported Wayland parent has no GTK
+            # relation; bind its live request to the already validated caller.
+            require(not relations or (len(relations) == 1 and relations[0].get_n_targets() == 1
+                    and relations[0].get_target(0) == caller), 'ui:chooser-transient-caller')
+            self.chooser_portal_owner(caller_pid, pid)
+        else:
+            require(len(relations) == 1 and relations[0].get_n_targets() == 1
+                    and relations[0].get_target(0) == caller, 'ui:chooser-transient-caller')
+        require(self.has_state(window, self.api.StateType.ACTIVE)
+                and self.has_state(window, self.api.StateType.MODAL), 'ui:chooser-active')
+        require(len(accepts) == 1 and facts[accepts[0]]['name'] == 'Open', 'ui:chooser-mode')
+        # Nautilus sends RESPONSE_USER_CANCELLED from its window close
+        # request. Its GTK window control exposes "Close", with no Builder
+        # ID or separate Cancel button. Keep this binding provider-local;
+        # native GTK still requires its explicit Cancel action.
+        cancel_name = 'Close' if route == 'nautilus-portal' else 'Cancel'
+        # AT-SPI now names PUSH_BUTTON "button"; older readers use
+        # "push button". Both denote the same public control role.
+        cancels = [item for item in scoped if facts[item]['role'] in ('button', 'push button')
+                   and facts[item]['name'] == cancel_name]
+        if len(cancels) != 1:
+            print(json.dumps({'event': 'chooser-cancel-resolution', 'route': route,
+                'label_matches': sum(facts[item]['name'] == cancel_name for item in scoped),
+                'button_matches': len(cancels)}, sort_keys=True), file=sys.stderr, flush=True)
+        require(len(cancels) == 1, 'ui:chooser-cancel')
+        require(all(item.get_process_id() == pid for item in (accepts[0], cancels[0])),
+                'ui:chooser-control-owner')
+        require(all(not self.has_state(item, self.api.StateType.DEFUNCT) for item in scoped),
+                'ui:chooser-stale')
+        require(not any(facts[item]['role'] == 'password text' for item in scoped),
+                'ui:chooser-secret-surface')
+        # The external modal is expected only after this exact snapshot proves
+        # its provider, caller, mode and controls. Other modals (including any
+        # nested prompt) still refuse; this does not exempt the provider app.
+        self.handle_system_prompt(observation=(nodes, edges, facts),
+                                  nonsecret_surface=window)
+        if absent:
+            return False
+        return window, scoped, ids, facts, accepts[0], cancels[0], route
+
+    def chooser_portal_owner(self, caller_pid, provider_pid):
+        from gi.repository import Gio, GLib
+        address = os.environ.get('DBUS_SESSION_BUS_ADDRESS')
+        require(bool(address), 'ui:chooser-session-bus')
+        connection = Gio.DBusConnection.new_for_address_sync(
+            address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
+            Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
+        connection.set_exit_on_close(False)
+        def query(bus, path, interface, method, signature, args):
+            return connection.call_sync(
+                bus, path, interface, method,
+                GLib.Variant('(' + signature + ')', args) if signature else None,
+                None, Gio.DBusCallFlags.NO_AUTO_START, 2000, None).unpack()[0]
+        try:
+            validate_chooser_portal_owner(query, caller_pid, provider_pid)
+        finally:
+            connection.close_sync(None)
+
+    def chooser_metadata(self):
+        from gi.repository import Gio
+        window, _, _, _, _, _, route = self.chooser_snapshot()
+        pid = window.get_process_id()
+        environment = dict(item.split(b'=', 1) for item in
+                           Path('/proc/' + str(pid) + '/environ').read_bytes().split(b'\0') if b'=' in item)
+        locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
+                  or environment.get(b'LANG') or b'C').decode('ascii')
+        package = 'nautilus' if route == 'nautilus-portal' else 'libgtk-4-1'
+        version = subprocess.check_output(
+            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', package],
+            text=True, timeout=5).strip()
+        sources = Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack()
+        return {'route': route, **validate_shell_metadata({
+            'version': version, 'locale': locale, 'keyboard': [list(source) for source in sources]})}
+
+    def chooser_selection(self, expected=None):
+        window, scoped, ids, facts, accept, cancel, route = self.chooser_snapshot()
+        views = [node for node in scoped
+                 if (self.has_state(node, self.api.StateType.MULTISELECTABLE)
+                     or (route == 'nautilus-portal' and facts[node]['name'] == 'Content View'))
+                 and node.get_selection_iface() is not None]
+        # GtkGridView advertises MULTISELECTABLE only for GtkMultiSelection,
+        # but Nautilus uses its own GtkSelectionModel implementation. Bind its
+        # scoped Content View instead; exact two-file readback, not that model
+        # type hint, proves successful multi-selection before Open.
+        require(len(views) == 1, 'ui:chooser-multiple-mode')
+        view = views[0]
+        children = [view.get_child_at_index(index) for index in range(view.get_child_count())]
+        require(len(children) == 2 and all(child in scoped for child in children),
+                'ui:chooser-file-set')
+        # Nautilus's a11y-name includes the file role, even though the visible
+        # basename does not. Keep this exact English provider binding local;
+        # do not strip arbitrary suffixes or accept similarly named folders.
+        labels = {name + ('. File' if route == 'nautilus-portal' else ''): name
+                  for name in CHOOSER_FILES}
+        names = [child.get_name() for child in children]
+        if sorted(names) != sorted(labels):
+            print(json.dumps({'event': 'chooser-file-labels', 'route': route,
+                'expected_matches': sum(name in labels for name in names)}, sort_keys=True),
+                file=sys.stderr, flush=True)
+        require(sorted(names) == sorted(labels), 'ui:chooser-file-set')
+        selection = view.get_selection_iface()
+        count = self.api.Selection.get_n_selected_children(selection)
+        require(type(count) is int and 0 <= count <= 2, 'ui:chooser-selection')
+        selected = [self.api.Selection.get_selected_child(selection, index) for index in range(count)]
+        require(len(set(selected)) == count and all(child in children for child in selected),
+                'ui:chooser-selection')
+        names_selected = sorted(labels[child.get_name()] for child in selected)
+        require(expected is None or names_selected == list(expected), 'ui:chooser-partial-selection')
+        return view, children, names_selected, accept, cancel, route
+
+    def chooser_select_files(self):
+        # The prepared directory contains only the two declared synthetic
+        # files. SelectAll avoids individual row navigation and modifier state.
+        view, _, _, _, _, _ = self.chooser_selection()
+        require(all(self.has_state(view, state) for state in (
+                    self.api.StateType.SENSITIVE, self.api.StateType.VISIBLE,
+                    self.api.StateType.SHOWING)),
+                'ui:chooser-file-target')
+        self.input_uncertain = True
+        require(self.api.Selection.select_all(view.get_selection_iface()),
+                'ui:chooser-selection-refused')
+        self.input_uncertain = False
+        try:
+            self.wait(lambda: self.chooser_selection(CHOOSER_FILES), 'chooser-selection',
+                      prompt_in_predicate=True)
+        except BaseException:
+            self.input_uncertain = True
+            raise
+
+    def chooser_location_field(self):
+        window, scoped, ids, facts, _, _, _ = self.chooser_snapshot()
+        fields = [node for node in scoped if facts[node]['role'] in ('text', 'entry')
+                  and all(self.has_state(node, state) for state in (
+                      self.api.StateType.EDITABLE, self.api.StateType.FOCUSED,
+                      self.api.StateType.SENSITIVE, self.api.StateType.VISIBLE,
+                      self.api.StateType.SHOWING))]
+        require(len(fields) == 1, 'ui:chooser-location-focus')
+        field = fields[0]
+        require(ids[field] in ('filename_entry', 'location_entry', 'entry')
+                and field.get_process_id() == window.get_process_id(), 'ui:chooser-location-id')
+        return field
+
+    def chooser_set_location(self):
+        field = self.chooser_location_field()
+        editable = field.get_editable_text_iface()
+        require(editable is not None, 'ui:chooser-location-editable')
+        # A trailing slash denotes the prepared directory and avoids path
+        # completion extending the final component during keyboard typing.
+        location = CHOOSER_DIRECTORY + '/'
+        self.input_uncertain = True
+        require(self.api.EditableText.set_text_contents(editable, location),
+                'ui:chooser-location-refused')
+        self.input_uncertain = False
+        try:
+            # Reacquire after the mutation; API success alone is not readback.
+            text = self.chooser_location_field().get_text_iface()
+            require(text is not None and self.api.Text.get_character_count(text) == len(location)
+                    and self.api.Text.get_text(text, 0, len(location)) == location,
+                    'ui:chooser-location')
+        except BaseException:
+            self.input_uncertain = True
+            raise
+
+    def chooser_operation(self, operation):
+        require(operation in CHOOSER_OPERATIONS, 'ui:chooser-operation')
+        def ready(read, pending):
+            def observe():
+                try:
+                    return read()
+                except UiError as error:
+                    if str(error) in pending:
+                        return None
+                    raise
+            return self.wait(observe, operation, prompt_in_predicate=True)
+        if operation == 'chooser-wrong-entry':
+            self.feedback_snapshot()
+            try:
+                self.chooser_snapshot()
+            except UiError as error:
+                require(str(error) == 'ui:chooser-entry', 'ui:chooser-refusal')
+            else:
+                raise UiError('ui:chooser-refusal-missing')
+        elif operation in ('chooser-open', 'chooser-reopen'):
+            self.feedback_snapshot(attachments=operation == 'chooser-reopen')
+            require(self.chooser_snapshot(absent=True), 'ui:chooser-already-open')
+            self.activate_id('feedback-add-files')
+            ready(self.chooser_snapshot, ('ui:chooser-entry', 'ui:chooser-active'))
+            try:
+                self.chooser_snapshot(mode='save')
+            except UiError as error:
+                require(str(error) == 'ui:chooser-mode', 'ui:chooser-refusal')
+            else:
+                raise UiError('ui:chooser-refusal-missing')
+        elif operation == 'chooser-location':
+            self.chooser_set_location()
+        elif operation == 'chooser-files':
+            ready(self.chooser_selection, ('ui:chooser-file-set',))
+            self.chooser_select_files()
+        elif operation in ('chooser-accept', 'chooser-cancel'):
+            if operation == 'chooser-accept':
+                _, _, _, accept, cancel, _ = self.chooser_selection(CHOOSER_FILES)
+            else:
+                _, _, _, _, accept, cancel, _ = self.chooser_snapshot()
+            self._invoke_target(accept if operation == 'chooser-accept' else cancel)
+            try:
+                self.wait(lambda: self.chooser_snapshot(absent=True), 'chooser-closed',
+                          prompt_in_predicate=True)
+            except BaseException:
+                self.input_uncertain = True
+                raise
+        else:
+            ready(lambda: self.feedback_snapshot(attachments=True),
+                  ('ui:feedback-attachment-set', 'ui:feedback-control', 'ui:feedback-validation'))
+        result = {'checked': operation}
+        if operation in ('chooser-open', 'chooser-reopen'):
+            result['provider'] = self.chooser_metadata()
+        if operation in ('chooser-attachments', 'chooser-preserved'):
+            result['attachments'] = ['diagnostic-logs.zip', *CHOOSER_FILES]
+        return result
+
+    def feedback_snapshot(self, projection='initial-empty', *, states=False, attachments=False):
         """FEED03: compare a declared synthetic draft, never project arbitrary text.
 
         One complete public snapshot supplies ownership, the exact attachment
@@ -1721,8 +2052,13 @@ class AccessibleUI:
                       self.api.Text.get_text(text, 0, count) if count else '')
             require(actual in allowed,
                     'ui:feedback-nonempty-draft')
-        require(not any(value.startswith('feedback-attachment-') for value in ids),
+        expected_attachments = ({'feedback-attachment-' + hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]: name
+            for name, data in (('Synthetic note.txt', b'ONPC synthetic attachment\n'),
+                               ('Second note.txt', b'ONPC second synthetic attachment\n'))} if attachments else {})
+        require({value for value in ids if value.startswith('feedback-attachment-')} == set(expected_attachments),
                 'ui:feedback-attachment-set')
+        for identity, name in expected_attachments.items():
+            require(target(identity).get_name() == name, 'ui:feedback-attachment-name')
         logs = target('feedback-logs-row')
         require(logs.get_name() == 'diagnostic-logs.zip', 'ui:feedback-logs')
         for identity in ('feedback-collection-status', 'feedback-retry-logs',
@@ -1735,7 +2071,8 @@ class AccessibleUI:
                                             observation=observation)
         status_text = (status.get_name() if status is not None
                        and self.has_state(status, self.api.StateType.VISIBLE) else '')
-        require(status_text in FEEDBACK_VALIDATION if states else status_text == '',
+        require(status_text == '2 file attachments ready.' if attachments else
+                status_text in FEEDBACK_VALIDATION if states else status_text == '',
                 'ui:feedback-validation')
         for identity in ('feedback-close', 'feedback-send', 'feedback-add-files',
                          'feedback-download-logs', 'feedback-toggle-logs'):
@@ -1749,7 +2086,7 @@ class AccessibleUI:
                     'controls': 'ready',
                     'send_enabled': bool(self.has_state(target('feedback-send'),
                                                        self.api.StateType.SENSITIVE))}
-        return {'draft': projection, 'attachments': ['diagnostic-logs.zip'],
+        return {'draft': projection, 'attachments': ['diagnostic-logs.zip', *sorted(expected_attachments.values())],
                 'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
 
     def feedback_state_operation(self, operation):
@@ -5809,7 +6146,7 @@ class AccessibleUI:
         require(len(bindings) <= 1, 'ui:ambiguous-system-prompt')
         return bindings[0] if bindings else None
 
-    def system_prompt_kind(self, *, observation=None):
+    def system_prompt_kind(self, *, observation=None, nonsecret_surface=None):
         """Read one complete tree and classify a visible authentication modal.
 
         This is the provider-specific G02 adapter.  It recognizes only the
@@ -5824,6 +6161,8 @@ class AccessibleUI:
             require(nodes, 'ui:incomplete-tree')
         else:
             nodes, snapshot, facts = observation
+        require(nonsecret_surface is None or nonsecret_surface in nodes,
+                'ui:wrong-prompt-scope')
         identities = {node: facts[node]['identity'] for node in nodes}
         provider_application_ids = {
             contract.get('application_id')
@@ -5859,6 +6198,8 @@ class AccessibleUI:
                                for node in descendants)
                 prompt_title = self._prompt_title(facts[surface]['name'])
                 kind = id_kind or application_kind
+                if surface == nonsecret_surface and not (password or prompt_title or kind):
+                    continue
                 # Shell's logout confirmation is also modal. Known provider
                 # applications need authentication meaning; an unregistered
                 # external modal is itself an unknown surface and must block.
@@ -5878,14 +6219,15 @@ class AccessibleUI:
     def stable_pointer(self, locate, *, stable_seconds=0.4):
         raise UiError('ui:pointer-route-refused')
 
-    def handle_system_prompt(self, *, observation=None):
+    def handle_system_prompt(self, *, observation=None, nonsecret_surface=None):
         """Recognize and refuse session prompts without delivering input."""
         if not self.prompt_enabled or self.handling_prompt:
             return
         self.handling_prompt = True
         try:
-            kind = (self.system_prompt_kind() if observation is None else
-                    self.system_prompt_kind(observation=observation))
+            kind = (self.system_prompt_kind(nonsecret_surface=nonsecret_surface)
+                    if observation is None else self.system_prompt_kind(
+                        observation=observation, nonsecret_surface=nonsecret_surface))
             if kind is not None:
                 require(self.prompt_session in ('station', 'desktop'),
                         'ui:system-prompt-session')
@@ -6196,6 +6538,8 @@ class AccessibleUI:
             feedback = self.feedback_privacy_operation(operation)
             if feedback is not None:
                 result['feedback'] = feedback
+        elif operation in CHOOSER_OPERATIONS:
+            result['chooser'] = self.chooser_operation(operation)
         elif operation in FEEDBACK_READ_OPERATIONS:
             feedback = self.feedback_read_operation(operation)
             if feedback is not None:

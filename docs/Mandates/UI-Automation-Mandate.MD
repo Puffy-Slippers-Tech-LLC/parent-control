@@ -38,6 +38,15 @@
   account changes or offline use does not make GNOME's menus or Settings pages
   product features. Only an explicitly tested product integration, such as its
   app-grid entry, file chooser or external link, needs that GUI route.
+- **Attachment handoff:** Treat the operating system's file chooser as an
+  external tool. Prepare declared synthetic files through shared commands; use
+  supported public APIs and the minimum necessary shortcuts in one shared
+  adapter to supply them to the real chooser. Test the app's Add files entry,
+  returned attachments and unchanged attachments after Cancel. Folder browsing,
+  per-row selection choreography and selecting a candidate before cancellation
+  are not customer acceptance requirements. Keep correct-dialog ownership,
+  bounded input, exact-file guards and independent app readback. Do not inject
+  attachments into private app state or replace the live handoff with a stub.
 - **Parent app launch:** Every case that needs Parent functionality without
   testing app-grid discovery must reuse PARENT01
   ([`onpc_parent::launch`](../../tests/integration/graphical_smoke/lib/onpc_parent.pm)),

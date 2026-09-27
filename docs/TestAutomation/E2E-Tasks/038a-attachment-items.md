@@ -24,7 +24,14 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Reuse the qualified chooser to add finite synthetic files. Bind owned attachment IDs for name/size/order observations and one item's Remove action.
+Reuse the [qualified attachment handoff](../E2E-Building-Blocks.md#attachment-chooser-handoff):
+`file_chooser.PLAN`, `AccessibleUI.chooser_operation` and
+`onpc_feedback_read::run_file_chooser`, with `SyntheticFiles.call('stage')` and
+its retained controller through cleanup. The chooser is an external tool driven
+by public APIs, not a folder-browsing exercise. Existing
+`feedback_snapshot(attachments=True)` reads the fixed two-file set; bind owned
+attachment IDs for the additional name/size/order observations and one item's
+Remove action.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,

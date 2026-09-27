@@ -40,6 +40,8 @@ class PublicAtspi:
         self._generation = 0
         self.Action = BusNode
         self.Text = BusNode
+        self.EditableText = BusNode
+        self.Selection = BusNode
 
     def __getattr__(self, name):
         return getattr(self.native, name)
@@ -457,6 +459,27 @@ class BusNode:
 
     def get_text_iface(self):
         return self.interface('Text')
+
+    def get_editable_text_iface(self):
+        return self.interface('EditableText')
+
+    def set_text_contents(self, contents):
+        return self.call('EditableText', 'SetTextContents', 's', (contents,))
+
+    def get_selection_iface(self):
+        return self.interface('Selection')
+
+    def get_n_selected_children(self):
+        return self.property('NSelectedChildren', 'Selection')
+
+    def get_selected_child(self, index):
+        return self.api.node(self.call('Selection', 'GetSelectedChild', 'i', (index,)))
+
+    def select_child(self, index):
+        return self.call('Selection', 'SelectChild', 'i', (index,))
+
+    def select_all(self):
+        return self.call('Selection', 'SelectAll')
 
     def get_component_iface(self):
         return self.interface('Component')

@@ -62,6 +62,32 @@ def test_set_selection_uses_public_text_interface_once():
                                 'iii', (0, 0, 149))
 
 
+def test_file_selection_uses_public_interface_and_returns_owned_reference():
+    api, _, rpc, _, node = fixture_bus()
+    rpc.side_effect = [[PREFIX + 'Selection'], 1, (node.bus, node.path), True]
+    assert node.get_selection_iface() is node
+    assert api.Selection.get_n_selected_children(node) == 1
+    assert api.Selection.get_selected_child(node, 0) is node
+    assert api.Selection.select_child(node, 1) is True
+    assert [(call.args[3], call.args[4], call.args[5]) for call in rpc.call_args_list] == [
+        ('GetInterfaces', '', ()), ('Get', 'ss', (PREFIX + 'Selection', 'NSelectedChildren')),
+        ('GetSelectedChild', 'i', (0,)), ('SelectChild', 'i', (1,))]
+
+
+def test_chooser_preparation_uses_public_editable_text_and_select_all():
+    api, _, rpc, _, node = fixture_bus()
+    rpc.side_effect = [[PREFIX + 'EditableText'], True, True]
+    assert node.get_editable_text_iface() is node
+    assert api.EditableText.set_text_contents(node, '/synthetic files/') is True
+    assert api.Selection.select_all(node) is True
+    assert [(call.args[2], call.args[3], call.args[4], call.args[5])
+            for call in rpc.call_args_list] == [
+        (PREFIX + 'Accessible', 'GetInterfaces', '', ()),
+        (PREFIX + 'EditableText', 'SetTextContents', 's', ('/synthetic files/',)),
+        (PREFIX + 'Selection', 'SelectAll', '', ()),
+    ]
+
+
 def test_scalar_character_read_does_not_use_nul_forbidden_dbus_strings():
     _, _, rpc, _, node = fixture_bus()
     rpc.side_effect = [97, 0, 98]

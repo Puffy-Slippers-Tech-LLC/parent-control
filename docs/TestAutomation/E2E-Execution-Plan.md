@@ -19,15 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **037 — [Select multiple files or cancel through the installed chooser](E2E-Tasks/037-file-chooser.md)**.
+Next task: **038a — [Read attachment details and remove one item](E2E-Tasks/038a-attachment-items.md)**.
 
-Task 037 delivers FILE03 for the actual chooser opened by installed Parent
-feedback: exact two-file selection, Open and independent attachment readback,
-then Cancel preserving the prior list. Task 036 qualified the shared synthetic
-text fixture commands, exact readback, refusals and owned cleanup in
-`20260927T062302Z-0a76f9d8`; use a fresh fixture entry. Chooser provider and
-caller ownership still require qualification. No valid feedback submission
-is authorized by this slice.
+Task 037 qualified the simplified external-tool attachment handoff in
+`20260927T161010Z-7e6515c9`: prepared files, public EditableText/Selection APIs,
+real Add files/Open, exact app attachment readback and independent reopen/Cancel
+preserving attachments. Collection, owned cleanup and baseline restoration
+passed. Reuse the [qualified scope](E2E-Building-Blocks.md#attachment-chooser-handoff);
+native GTK, Save and other fixture profiles remain pending.
+No valid feedback submission is authorized.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -1209,6 +1209,12 @@ prepared finite file batches, public APIs and independent app results. Extend
 its fixed two-file binding for the selected table row in the shared helpers,
 not a case-local chooser driver. Cancel requires no candidate selection or
 folder browsing. The Open qualification does not cover case 155's Save route.
+For Save, prepare exact destination permissions through shared commands and
+supply the path/name through supported chooser APIs and minimal shortcuts.
+The product still performs the save and reports its own failures. Inspect only
+the resulting customer-selected artifact through FILE08's bounded filesystem/
+archive APIs over guarded SSH, then independently reread the feedback draft.
+Files, archive viewers and editors add no acceptance requirement to this route.
 
 | Owner | Complete finite data and checks |
 | --- | --- |
@@ -1216,7 +1222,7 @@ folder browsing. The Open qualification does not cover case 155's Save route.
 | 153 text/email | Empty, whitespace, ordinary ASCII, exactly 5000 and 5001 UTF-16 units, and mixed emoji at those boundaries. Empty/valid synthetic/malformed reply addresses. Include a hidden control character and the declared excessive-formatting document; read rejection without submitting valid content. Exact hidden-character and formatting fixtures come from the current specification/maintained transport limits, and must be reviewed before binding. |
 | 154 attachments | Chooser Cancel; one file then Remove; 5 files accepted and a sixth rejected; per-file 5 MiB accepted and 5 MiB+1 rejected. With diagnostics excluded, two files totaling 8 MiB accepted and 8 MiB+1 rejected. One invalid file in a multi-selection adds none and preserves existing attachments. Names of 180 characters accepted, 181 and hidden controls rejected; an empty filename is not creatable through normal file tools and remains technical validation. |
 | 154 original file change | FEED06 attaches the synthetic text file; FILE09 changes its original through the shared fixture-file command. FEED07 reads the original attachment's unchanged name/size, then FEED13 → FEED06 re-adds it → FEED07 reads the larger size. Frozen contents are inspected only if the app offers a genuine public preview; otherwise byte immutability remains transport coverage. |
-| 155 diagnostic ZIP | Observe collection, then save via FILE03. Cancel preserves draft and prepared archive. Choose a visibly unwritable destination, read the save error, then choose a writable location. Open the saved ZIP in a normal archive viewer; read the system-information entry and Parent/Child/Kiosk/Broker folders, empty folders where applicable, and the actual bounded contents. Do not open original product logs. |
+| 155 diagnostic ZIP | Observe collection, then save via FILE03. Cancel preserves draft and prepared archive. Prepare an actually unwritable destination through shared fixture commands, verify its permissions as the saving user, observe the app's save error, then choose a writable location. Bind FILE08 to the exact newly saved ZIP and inspect it through the shared read-only SSH archive helper: system-information entry, Parent/Child/Kiosk/Broker folders, empty folders where applicable, and actual bounded contents. Independently reobserve the same feedback dialog and preserved draft. Do not open original product logs or substitute a staged ZIP. |
 | 155 privacy | FEED05 reads what is sent, optional logs/files/email and retention disclosure. Review exported synthetic data for forbidden personal values. Absence in one archive is not a proof of every producer's sanitization; all privacy, date-retention and byte bounds keep their engineering tests. |
 
 Formatting complexity and hidden-character sets require fixed reviewed input

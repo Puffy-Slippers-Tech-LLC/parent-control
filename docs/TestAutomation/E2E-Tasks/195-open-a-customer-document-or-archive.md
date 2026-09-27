@@ -1,4 +1,4 @@
-# 195 — Qualify archive contents and compose document opening
+# 195 — Inspect declared ZIP artifacts through guarded SSH
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
@@ -12,25 +12,37 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 
 ## Scope and prerequisites
 
-Deliver **FILE08**. First scheduled consumer: [E2E-031, case 155](../E2E-Scenario-Recipes.md#e2e-031).
+Deliver **FILE08 bounded ZIP entry/content reads over SSH**. First scheduled consumer: [E2E-031, case 155](../E2E-Scenario-Recipes.md#e2e-031).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
-- **195a** — FILE08 text-document identity/content and normal close/return.
+- **195a** — FILE08 bounded text-artifact identity/content reads over SSH.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Reuse task 195a's text-document Open/read/close binding. Add the actual File Roller archive route: exact archive identity, declared entry, its content handler, meaningful public content and normal close/return. Resolve archive and entry separately inside the provider adapter. Compose FILE08 only after the document and archive leaves are qualified; no extraction or PDF reader is required by this consumer.
+Reuse task 195a's guarded artifact identity and bounded content comparisons.
+Add a fixed ZIP inspection operation using a maintained public archive API in
+the shared SSH helper. Enumerate the exact member set, including empty directory
+entries, and read only declared text/JSON members with explicit archive, member,
+expanded-byte and time limits. Reject malformed archives, duplicate/unsafe member
+names and replacement. Read members without extracting or launching Files,
+File Roller or an editor. Observe actual bytes independently of the product's
+export implementation; neither fixture expectations nor command success prove
+the archive's contents. Source product logs and collector internals stay outside
+this reader's allowed paths.
 
 ## Live VM acceptance
 
-On the VM, open each staged synthetic file through its normal handler and read the identifying public contents/window. Use shared direct handler launch and qualify an independently opened document; a missing file or unexpected handler fails without a fallback launch.
-
-For the archive, read its identifying public entry/content and close normally to the expected surrounding Files surface. Refuse wrong archive/entry, ambiguous handler, unrelated content and uncertain close. A window title alone cannot identify the document.
+On the VM, inspect the declared synthetic ZIP through guarded SSH and compare
+its exact entries, empty folders and bounded text/JSON contents. Repeat with an
+independently prepared valid archive. Qualify wrong archive/entry/owner,
+replacement, malformed/duplicate entries and over-limit refusal. Require owned
+cleanup and sanitized evidence. Task 045 binds these reads to a real product
+Download/Save result; staged files alone cannot pass that export assertion.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

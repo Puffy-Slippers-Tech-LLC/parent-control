@@ -15,6 +15,14 @@ entry/session helpers. Wrong-account visits and keyring exercises are isolated
 harness safety checks. Task 003's menu implementation is superseded by DESK03/04
 system commands; its checked status does not qualify the replacement.
 
+External supporting operations use the shared command/API route under the
+[automation mandate](../Mandates/UI-Automation-Mandate.MD). Tasks 195a/195 inspect
+declared text/ZIP artifacts over guarded SSH; 037a/045/046 retain the real
+Download/Save interaction and product results without Files/editor/archive-viewer
+choreography. Explicit enforcement launch routes, offered previews, information
+links, retained app activity and unavoidable graphical authentication keep their
+own GUI assertions. These route corrections do not complete or qualify a task.
+
 The system-operation audit removed unnecessary menu/dialog tasks 003ca/003da,
 Terminal-help task 001ta (INFO02 already reads SSH stdout), Users-wizard tasks
 184d/184a/184e, and Shell-calendar task 191a. File-preparation slices 036e/036c/036d
@@ -159,8 +167,8 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 038 | [Qualify attachment rejection boundaries](E2E-Tasks/038-attachments.md) | 037, 010, 031, 038b | FEED06, FEED07, FEED12, FEED13 | 20–30 |
 | [ ] | 030a | [Observe draft reset after Parent exits](E2E-Tasks/030a-feedback-reset.md) | 028, 030 | FEED10 app-exit reset | 20–30 |
 | [ ] | 034 | [E2E-031: draft-reopen](E2E-Tasks/034-case-152.md) | 033, 030a, 038, 044a | Cases 152 | 20–30 |
-| [ ] | 195a | [Qualify the installed text-document handler](E2E-Tasks/195a-document-open.md) | 036 | FILE08 text-document identity/content and normal close/return | 20–30 |
-| [ ] | 195 | [Qualify archive contents and compose document opening](E2E-Tasks/195-open-a-customer-document-or-archive.md) | 036, 195a | FILE08 | 20–30 |
+| [ ] | 195a | [Read declared text artifacts through guarded SSH](E2E-Tasks/195a-document-open.md) | 036 | FILE08 bounded text-artifact identity/content reads over SSH | 20–30 |
+| [ ] | 195 | [Inspect declared ZIP artifacts through guarded SSH](E2E-Tasks/195-open-a-customer-document-or-archive.md) | 036, 195a | FILE08 bounded ZIP entry/content reads over SSH | 20–30 |
 | [ ] | 196 | [Prepare synthetic source changes and retained work](E2E-Tasks/196-edit-and-save-an-open-synthetic-document.md) | 036 | FILE09 | 20–30 |
 | [ ] | 039 | [E2E-031: attachments](E2E-Tasks/039-case-154.md) | 038, 030, 196, 044a | Cases 154 | 35–55 (exception) |
 | [ ] | 016b | [Start and collect a trace of an unchanged public state](E2E-Tasks/016b-trace-stable-state.md) | 004a, 031 | UI25/26 observer readiness, token lifetime and stable-state collection | 40–60 (exception) |
@@ -170,7 +178,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 201 | [E2E-035: save-order](E2E-Tasks/201-case-159.md) | 180, 017a, 028 | Cases 159 | 20–30 |
 | [ ] | 031a | [Observe diagnostic collection from its start](E2E-Tasks/031a-feedback-collection.md) | 016a, 030 | FEED09 collection trace | 20–30 |
 | [ ] | 037a | [Save to a selected location through the installed chooser](E2E-Tasks/037a-save-chooser.md) | 037, 031a | FILE03 installed feedback save; actual provider binding | 20–30 |
-| [ ] | 045 | [Save and open customer-selected diagnostics](E2E-Tasks/045-diagnostic-export.md) | 037a, 044a, 195 | FEED08 | 20–30 |
+| [ ] | 045 | [Save diagnostics and inspect the exported artifact through SSH](E2E-Tasks/045-diagnostic-export.md) | 037a, 044a, 195 | FEED08 real Save handoff, SSH export inspection and preserved-draft readback | 20–30 |
 | [ ] | 046 | [E2E-031: diagnostic-export](E2E-Tasks/046-case-155.md) | 045 | Cases 155 | 35–55 (exception) |
 | [ ] | 052c | [Wait a bounded real interval under the attempt guard](E2E-Tasks/052c-wait-a-bounded-real-interval-under-the-attempt-guard.md) | Baseline | TIME03 | 15–30 |
 | [ ] | 185w | [Qualify the Parent website destination](E2E-Tasks/185w-website-destination.md) | 044a, 001s | INFO01 Parent website browser identity and close/return | 20–30 |

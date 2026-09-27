@@ -26,7 +26,11 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Bind only the verified remove command, permitted authentication and final reboot notice. Compose normal customer reboot and ordinary child entry using existing qualified operations.
+Bind only the verified remove command to AUTH03's administrator authority and
+shared guarded SSH package helper. Independently read completion and the final
+reboot notice through FILE06; no Terminal or unrelated password prompt is
+needed. Compose the shared LIFE02 reboot command and ordinary child entry using
+existing qualified operations.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,

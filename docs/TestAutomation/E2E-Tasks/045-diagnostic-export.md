@@ -1,4 +1,4 @@
-# 045 — Save and open customer-selected diagnostics
+# 045 — Save diagnostics and inspect the exported artifact through SSH
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
@@ -19,19 +19,27 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **037a** — FILE03 installed feedback save; actual provider binding.
 - **044a** — DESK10 same-desktop window switching.
-- **195** — FILE08.
+- **195** — FILE08 bounded ZIP entry/content reads over SSH.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Compose the real Download, Save chooser, file-manager navigation and actual viewer. Register bounded expected public export headings and the viewer/feedback DESK10 bindings, without opening source product logs or collector internals.
-
-Use task 037a's recorded Save binding for the actual caller and the qualified File Roller/archive-entry and text-handler routes. The current export consumer reads ZIP/text contents; it has no PDF-viewer prerequisite. Keep saved-document identity and normal close/return distinct from source log inspection.
+Compose the real Download and task 037a's caller-bound Save chooser with FILE08's
+shared read-only ZIP inspection over guarded SSH. Bind the exact newly saved
+artifact, attempt and user before reading its declared entries, system information
+and bounded contents. Preserve file identity through inspection and register
+sanitized comparisons as evidence. No Files, archive-viewer or editor GUI is
+needed. Do not open source product logs or collector internals, call the broker
+export API in place of Download, or reuse a staged ZIP as the product result.
 
 ## Live VM acceptance
 
-On the VM observe diagnostic collection, save output to the selected directory, open it through the file manager and read the expected public headings. Return to the still-open feedback dialog without editing its draft.
+On the VM observe diagnostic collection, save output to the selected directory,
+then independently inspect that exported file through FILE08 and compare the
+expected public entries/headings and contents. Reobserve the still-open feedback
+dialog and unchanged draft without editing. Command success alone cannot pass
+the export assertion; no viewer window is required for the return check.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

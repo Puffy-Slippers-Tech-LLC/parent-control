@@ -25,7 +25,12 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Bind the exact verified purge command, permitted challenge and final notice. After ordinary activation, use the qualified install route again before inspecting fresh defaults. Keep file/account cleanup assertions in existing mechanical tests.
+Bind the exact verified purge command to AUTH03's administrator authority and
+shared guarded SSH package helper, then independently read completion and the
+final notice through FILE06. No Terminal or unrelated password prompt is needed.
+After ordinary activation, use the qualified install route again before
+inspecting fresh defaults. Keep file/account cleanup assertions in existing
+mechanical tests.
 
 ## Live VM acceptance
 

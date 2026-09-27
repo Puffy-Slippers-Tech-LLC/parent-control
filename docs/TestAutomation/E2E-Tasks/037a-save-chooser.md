@@ -26,6 +26,13 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Extend FILE03 for the actual Gtk.FileDialog save chooser reached from feedback Download after public collection completion. Resolve and record its provider and caller independently of the Open binding; qualify this Save route even when the owner matches. Bind directory, filename, Save and closure; reject wrong modes and unknown overwrite dialogs. FEED08 owns opening and reading the resulting archive.
 
+Prepare the declared writable/unwritable destinations through shared filesystem
+commands. Supply the exact location and filename through supported public chooser
+APIs and minimal necessary shortcuts in the shared adapter; no folder browsing
+or Files window is required. Keep the real Download, Save and Cancel actions,
+exact-destination guards and independent file/app readback. Never replace Save
+with a helper that writes the diagnostic ZIP itself.
+
 ## Live VM acceptance
 
 On the live VM, observe collection complete, open Download's chooser, choose a synthetic destination and filename, then Save. Independently observe chooser closure and verify the named file through the shared FILE05 readback. Exercise Cancel from a fresh chooser and prove that no second file was created.

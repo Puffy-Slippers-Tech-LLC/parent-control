@@ -328,6 +328,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_feedback_rejection'], ['check_e2e_feedback_rejection.py'],
             ['check_e2e_feedback_length'], ['check_e2e_feedback_length.py'],
             ['check_e2e_format'], ['check_e2e_format.py'],
+            ['check_e2e_feedback_block_semantics'], ['check_e2e_feedback_block_semantics.py'],
             ['check_e2e_window_switch'], ['check_e2e_window_switch.py'],
             ['check_e2e_text'], ['check_e2e_text.py'],
             ['check_e2e_files'], ['check_e2e_files.py'],

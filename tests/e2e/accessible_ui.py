@@ -227,6 +227,9 @@ FORMAT_OPERATIONS = frozenset({
     'format-read', 'format-close', 'format-wrong-entry', 'format-reopen',
 })
 OPERATIONS |= FORMAT_OPERATIONS
+import block_semantics
+TEXT_VALUES['body-blocks'] = ('feedback-editor-input', block_semantics.BODY)
+OPERATIONS |= block_semantics.OPERATIONS
 WINDOW_SWITCH_OPERATIONS = frozenset({
     'switch-parent-before', 'switch-viewer-launch', 'switch-parent',
     'switch-draft-before', 'switch-viewer', 'switch-feedback',
@@ -2536,6 +2539,52 @@ class AccessibleUI:
             result = self.feedback_snapshot(projection, states=True)
             return result if result['validation'] == explanation and result['send_enabled'] else None
         return self.wait(rejected, 'rejection-explanation')
+
+    def block_semantics(self):
+        self.read_synthetic_text('body-blocks')
+        return block_semantics.read_blocks(self.text_recipient('feedback-editor-input'), require)
+
+    def block_operation(self, operation):
+        require(operation in block_semantics.OPERATIONS, 'ui:block-operation')
+        if operation == 'block-wrong-entry':
+            require(self.absent_id('feedback-dialog', within='parent-window'), 'ui:block-entry')
+            try:
+                self.block_semantics()
+            except UiError as error:
+                require(str(error) == 'ui:text-entry', 'ui:block-refusal')
+            else:
+                raise UiError('ui:block-refusal-missing')
+            return None
+        if operation == 'block-reopen':
+            self.activate_id('parent-feedback-button')
+            self.wait(lambda: self.id_target('feedback-editor-input', sensitive=True),
+                      'block-editor')
+        self.read_synthetic_text('body-blocks')
+        if operation == 'block-close':
+            self.activate_id('feedback-close')
+            self.wait(lambda: self.absent_id('feedback-dialog', within='parent-window'),
+                      'feedback-closed')
+            self.parent()
+        elif operation.endswith('-focus'):
+            self.focus_text('feedback-editor-input')
+        elif operation.endswith(('-home', '-selected')):
+            text = self.text_recipient('feedback-editor-input', focused=True).get_text_iface()
+            if operation.endswith('-home'):
+                require(self.api.Text.get_caret_offset(text) == 0, 'ui:block-caret')
+            else:
+                kind = operation.removeprefix('block-').removesuffix('-selected')
+                require(self.api.Text.get_n_selections(text) == 1, 'ui:block-selection')
+                selected = self.api.Text.get_selection(text, 0)
+                require((selected.start_offset, selected.end_offset) == block_semantics.RANGES[kind],
+                        'ui:block-selection')
+                if kind.startswith('heading-'):
+                    self.activate_id('feedback-format-style')
+                self.activate_id('feedback-format-' + kind)
+        else:
+            result = self.block_semantics()
+            require(result == block_semantics.expected(operation), 'ui:block-result')
+            return result
+        return None
 
     def formatting_attributes(self, start, end):
         """UI24: bounded public weight runs over the declared synthetic body."""
@@ -6776,6 +6825,10 @@ class AccessibleUI:
             result['window'] = self.window_switch_operation(operation)
             if operation == 'switch-viewer-launch':
                 result['provider'] = self.license_provider_metadata()
+        elif operation in block_semantics.OPERATIONS:
+            blocks = self.block_operation(operation)
+            if blocks is not None:
+                result['blocks'] = blocks
         elif operation in FORMAT_OPERATIONS:
             formatting = self.format_operation(operation)
             if formatting is not None:

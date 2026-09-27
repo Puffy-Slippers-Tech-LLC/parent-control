@@ -222,6 +222,12 @@ nested editor elements. This preserves both visual decorations and exposes both
 through public accessibility text attributes; removing either format removes
 its attribute too. Semantic HTML and the submission contract are unchanged.
 
+The editor exposes heading levels, numbered/bulleted list-item descriptions,
+quotations and code blocks to assistive technology. These semantics follow the
+formatted content after edits, removal, undo/redo and delta restoration, without
+changing the editor root role or Quill document model. New frontend processes
+load this accessibility change; no saved-data migration is required.
+
 Local Send validation rejects NUL (`U+0000`) and SOH (`U+0001`) in the plain-text
 body with the unsupported-hidden-character explanation, before creating a
 submission. Normal tabs, newlines and emoji remain supported within the existing

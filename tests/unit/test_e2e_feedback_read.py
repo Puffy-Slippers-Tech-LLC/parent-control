@@ -39,6 +39,149 @@ from ui_observations import FeedbackStateObservation
 # App-exit reset retains private values, pytest paths and waited Perl children;
 # the existing compatible unit classification still applies.
 # Boundary checks add bounded in-memory bytes (under 32 MiB), no shared resources.
+# Block semantics add bounded trees and private, waited Perl/Python children;
+# isolated observer import checks add no paths, sockets, buses or shared caches.
+
+
+@pytest.mark.parametrize('fault', ['', 'duplicate', 'wrong-text', 'normal-in-container',
+                                  'missing-level', 'list-kind', 'incomplete'])
+def test_block_reader_associates_exact_text_and_refuses_ambiguous_trees(fault):
+    from block_semantics import FORMATS, LINES, projection, read_blocks
+
+    def node(role='paragraph', attrs=None, value=None, children=()):
+        item = Mock()
+        item.get_role_name.return_value = role
+        item.get_attributes.return_value = attrs or {}
+        item.get_text_iface.return_value = None if value is None else Mock(
+            get_text=Mock(return_value=value), get_character_count=Mock(return_value=len(value)))
+        item.get_child_count.return_value = len(children)
+        item.get_child_at_index.side_effect = lambda index: children[index]
+        return item
+
+    nodes = [node('heading', {'level': '1'}, LINES[0]),
+             node('heading', {'level': '2'}, LINES[1]),
+             node('list item', {'roledescription': 'numbered list item'}, LINES[2]),
+             node('list item', {'roledescription': 'bulleted list item'}, LINES[3]),
+             node(attrs={'xml-roles': 'blockquote'}, value=LINES[4]),
+             node(attrs={'xml-roles': 'code'}, children=[node(value=LINES[5])])]
+    if fault == 'duplicate':
+        nodes.append(nodes[0])
+    elif fault == 'wrong-text':
+        nodes[0].get_text_iface.return_value.get_text.return_value = LINES[-1]
+    elif fault == 'normal-in-container':
+        nodes[-1] = node(attrs={'xml-roles': 'code'}, children=[
+            node(value=LINES[5]), node(value=LINES[-1])])
+    elif fault == 'missing-level':
+        nodes[0].get_attributes.return_value = {}
+    elif fault == 'list-kind':
+        nodes[2].get_attributes.return_value = {}
+    elif fault == 'incomplete':
+        nodes.append(None)
+    root = node(children=nodes)
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            read_blocks(root, accessible_ui.require)
+    else:
+        assert read_blocks(root, accessible_ui.require) == projection(FORMATS)
+
+
+def test_block_decoder_and_independent_recorder(tmp_path):
+    from feedback_block_semantics import BlockSemanticsJourney
+    from block_semantics import FORMATS, projection
+    from ui_observations import UiObservations
+    value = projection(FORMATS)
+    reader = UiObservations(Mock())
+    reply = {'operation': 'block-reopen', 'outcome': 'passed', 'interface': 'AT-SPI',
+             'blocks': value}
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    assert reader.observe('block-reopen') == reply
+    # Execute the exact shipped program without __main__, in isolated Python:
+    # guest imports cannot depend on the host checkout or pytest's sys.path.
+    import subprocess
+    import sys
+    program = reader.call.call_args.kwargs['input']
+    subprocess.run([sys.executable, '-I', '-c',
+                    "import sys; namespace={'__name__':'observer'}; "
+                    "exec(compile(sys.stdin.read(), 'observer.py', 'exec'), namespace); "
+                    "assert 'block-reopen' in namespace['OPERATIONS']"],
+                   input=program, check=True, capture_output=True, timeout=20)
+    journey = BlockSemanticsJourney(SimpleNamespace(directory=tmp_path), Mock())
+    with pytest.raises(EvidenceError, match='blocks:independent-entry'):
+        journey.check_settings('block-reopen', {'ui': reply})
+    journey.check_settings('block-code-read', {'ui': reply})
+    journey.check_settings('block-reopen', {'ui': reply})
+    reply['blocks'] = value[:-1]
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    with pytest.raises(EvidenceError, match='ui:block-response'):
+        reader.observe('block-reopen')
+
+
+@pytest.mark.parametrize('fault', ['', 'block-heading-1-home', 'block-ordered-selected',
+                                  'block-code-read', 'block-wrong-entry', 'block-reopen'])
+def test_block_worker_stops_on_refusal(fault):
+    from feedback_block_semantics import STAGES
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type'; }
+package main;
+require onpc_format;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_format::run_blocks(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = ['parent-selected', *STAGES]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+
+
+def test_block_recorder_reaches_real_custom_controller(tmp_path):
+    from feedback_block_semantics import PLAN, BlockSemanticsJourney
+    from installed_journey import record_installed_journey
+    recorder = MagicMock(assertion=Mock())
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(),
+                              commands=Mock(), recorder=recorder)
+
+    def worker(**options):
+        controller = options['guarded_observe'].__self__
+        assert type(controller) is BlockSemanticsJourney
+        assert controller.plan is PLAN and controller.actions == {} and controller.formatted is None
+        raise EvidenceError('synthetic-worker-stop')
+
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(recorder, context, PLAN, actions={},
+                                 journey_type=BlockSemanticsJourney)
+    context.run_worker.assert_called_once()
+    recorder.assertion.assert_not_called()
+
+
+def test_block_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_feedback_block_semantics as check_blocks
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_blocks, 'smoke', run)
+    assert check_blocks.main() == 0
+    assert run.call_args.kwargs['feedback_block_semantics'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(feedback_block_semantics=True)
+    with pytest.raises(CommandError, match='block-prerequisites'):
+        smoke.main(feedback_block_semantics=True, format_qualification=True)
 
 
 @pytest.mark.parametrize('block,family,fault', [

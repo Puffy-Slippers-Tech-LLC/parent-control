@@ -12,6 +12,83 @@ from tests.support.feedback import (
 pytestmark = pytest.mark.ui
 
 
+def block_semantic_tree(node):
+    """Retain bounded public-tree diagnostics for the declared synthetic editor."""
+    remaining = 128
+
+    def describe(item, depth):
+        nonlocal remaining
+        remaining -= 1
+        assert remaining >= 0 and depth < 12
+        text = item.get_text_iface()
+        length = text.get_character_count() if text else 0
+        assert 0 <= length <= 128
+        count = item.get_child_count()
+        assert 0 <= count <= 32
+        attrs = item.get_attributes()
+        return {'role': item.get_role_name(),
+                'attributes': {key: attrs[key] for key in ('level', 'xml-roles', 'roledescription')
+                               if key in attrs},
+                'text': text.get_text(0, length) if text else None,
+                'children': [describe(item.get_child_at_index(i), depth + 1)
+                             for i in range(count)]}
+
+    return describe(node, 0)
+
+
+def test_feedback_restored_block_semantics(launch_ui, automation, wait_for_accessible_state):
+    from tests.e2e.block_semantics import FORMATS, projection
+    open_feedback(launch_ui, automation, wait_for_accessible_state,
+                  scenario='feedback-restored-blocks')
+    wait_for_accessible_state(
+        lambda: automation.reader.block_semantics() == projection(FORMATS),
+        'restored delta exposes current public block meanings')
+    print('BLOCK_SEMANTICS_RESTORED', block_semantic_tree(
+        automation.target('feedback-editor-input')), flush=True)
+
+
+def test_feedback_block_semantics(
+        launch_ui, automation, wait_for_accessible_state):
+    """Real product semantics, shared reader, independent reopen and removal."""
+    from tests.e2e.block_semantics import BODY, FORMATS, RANGES, projection
+    from tests.support.keyboard import key_combo
+    ui = automation
+    editor, _log = open_feedback(launch_ui, ui, wait_for_accessible_state)
+    type_feedback(ui, BODY, wait_for_accessible_state)
+    assert ui.reader.block_operation('block-before') == []
+    for kind in FORMATS:
+        ui.reader.block_operation(f'block-{kind}-focus')
+        key_combo(ui, editor, '<Control>Home', state=ui.api.StateType.FOCUSED)
+        ui.reader.block_operation(f'block-{kind}-home')
+        start, end = RANGES[kind]
+        for _ in range(start):
+            key_combo(ui, editor, 'Right', state=ui.api.StateType.FOCUSED)
+        for _ in range(end - start):
+            key_combo(ui, editor, '<Shift>Right', state=ui.api.StateType.FOCUSED)
+        ui.reader.block_operation(f'block-{kind}-selected')
+        ui.reader.block_operation(f'block-{kind}-read')
+    assert ui.reader.block_semantics() == projection(FORMATS)
+    ui.activate("feedback-close")
+    wait_for_accessible_state(
+        lambda: ui.absent("feedback-dialog", within="parent-window"), "feedback closed")
+    ui.reader.block_operation('block-wrong-entry')
+    ui.activate("parent-feedback-button")
+    wait_for_accessible_state(lambda: ui.showing("feedback-dialog"), "feedback reopened")
+    feedback_editor(ui, wait_for_accessible_state)
+    assert ui.reader.block_semantics() == projection(FORMATS)
+    print('BLOCK_SEMANTICS_REOPEN', block_semantic_tree(ui.target(editor)), flush=True)
+    ui.focus(editor)
+    key_combo(ui, editor, '<Control>a', state=ui.api.StateType.FOCUSED)
+    ui.activate('feedback-format-clear')
+    wait_for_accessible_state(lambda: ui.reader.block_semantics() == [], 'block roles removed')
+    ui.focus(editor)
+    key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
+    wait_for_accessible_state(lambda: ui.reader.block_semantics() == projection(FORMATS),
+                             'undo restores every meaning')
+    key_combo(ui, editor, '<Control><Shift>z', state=ui.api.StateType.FOCUSED)
+    wait_for_accessible_state(lambda: ui.reader.block_semantics() == [], 'redo removes every meaning')
+
+
 # Attachment adapter coverage uses the existing private preview/display/bus and
 # owned-process cleanup; it retains the reviewed Feedback scheduler bucket.
 def test_attachment_items_adapter_reads_real_rows_and_removes_one(

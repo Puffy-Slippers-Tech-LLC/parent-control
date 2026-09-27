@@ -170,6 +170,23 @@ feedback_session.post.side_effect = feedback_post
 feedback_transport.requests.Session = lambda: feedback_session
 
 
+if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-restored-blocks":
+    class RestoredBlockEditor(feedback.RichTextEditor):
+        """Engineering fixture: ordinary startup restore of a declared delta."""
+        def __init__(self, attachment_requested):
+            super().__init__(attachment_requested)
+            lines = (('Heading sample', {'header': 1}),
+                     ('Subheading sample', {'header': 2}),
+                     ('Number sample', {'list': 'ordered'}),
+                     ('Bullet sample', {'list': 'bullet'}),
+                     ('Quote sample', {'blockquote': True}),
+                     ('Code sample', {'code-block': 'plain'}), ('Plain sample', {}))
+            self._delta = json.dumps({'ops': [op for text, attrs in lines for op in (
+                {'insert': text}, {'insert': '\n', 'attributes': attrs})]})
+
+    feedback.RichTextEditor = RestoredBlockEditor
+
+
 if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-attachments":
     class AttachedFeedbackDialog(feedback.FeedbackDialog):
         def __init__(self, *args, **kwargs):

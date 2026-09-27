@@ -217,6 +217,8 @@ OPERATION_LABELS.update({operation: 'Copying and doubling declared synthetic edi
                          for operation in accessible_ui.DUPLICATE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Applying and independently reading synthetic range formatting'
                          for operation in accessible_ui.FORMAT_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Reading feedback block meaning and associated synthetic text'
+                         for operation in accessible_ui.block_semantics.OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying invalid-only feedback input and public rejection'
                          for operation in accessible_ui.REJECTION_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying exact UTF-16 boundary drafts without valid submission'
@@ -569,12 +571,13 @@ class UiObservations:
         if self.progress is not None:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
-        reader = (system.ROOT / 'tests/e2e/public_atspi.py').read_text()
-        program = ('import sys, types\n'
-                   'public_atspi = types.ModuleType("public_atspi")\n'
-                   'sys.modules["public_atspi"] = public_atspi\n'
-                   'exec(compile(' + repr(reader) + ', "public_atspi.py", "exec"), '
-                   'public_atspi.__dict__)\n' + program)
+        modules = 'import sys, types\n'
+        for name in ('public_atspi', 'block_semantics'):
+            source = (system.ROOT / f'tests/e2e/{name}.py').read_text()
+            modules += (f'{name} = types.ModuleType("{name}")\n'
+                        f'sys.modules["{name}"] = {name}\n'
+                        f'exec(compile({source!r}, "{name}.py", "exec"), {name}.__dict__)\n')
+        program = modules + program
         version = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
         self.boot_proof = None
         binding = []
@@ -775,6 +778,12 @@ class UiObservations:
                 FeedbackObservation.from_value(value['feedback'])
                 require(value['feedback']['draft'] == 'synthetic-first', 'ui:switch-response')
             expected['window'] = value
+        if operation in accessible_ui.block_semantics.OPERATIONS and (
+                operation in ('block-before', 'block-reopen') or operation.endswith('-read')):
+            projection = accessible_ui.block_semantics.expected(operation)
+            require(type(result) is dict and set(result) == {*expected, 'blocks'}
+                    and result['blocks'] == projection, 'ui:block-response')
+            expected['blocks'] = projection
         if operation in ('format-before', 'format-read', 'format-reopen'):
             projection = [
                 {'start': 0, 'end': 9, 'weight': 'normal' if operation == 'format-before' else 'bold'},

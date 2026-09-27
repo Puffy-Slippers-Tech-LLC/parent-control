@@ -115,6 +115,8 @@ write_e2e write_e2e_cleanup_safety
 # doubles; its journey adds private tmp_path evidence, with no live VM or bus.
 # Feedback replacement also runs short, isolated Perl API-double children with
 # captured pipes and a timeout; it writes no shared files or caches.
+# Feedback block semantics also validate standalone imports in a bounded,
+# waited isolated Python child; no shared files, caches, sockets or buses.
 # Package-content tests build small archives in tmp_path and run only bounded,
 # read-only dpkg-deb children. Suite tests use the same private archive fixtures
 # with mocked VM operations; neither needs build admission or exclusive state.

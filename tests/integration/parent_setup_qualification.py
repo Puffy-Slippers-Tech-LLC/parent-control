@@ -732,6 +732,16 @@ class FeedbackRejectionQualification(KioskEntryQualification):
         return FeedbackRejectionJourney(context, progress)
 
 
+class BlockSemanticsQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from feedback_block_semantics import BlockSemanticsJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return BlockSemanticsJourney(context, progress)
+
+
 class FormatQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

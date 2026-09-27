@@ -395,7 +395,11 @@ class FeedbackDialog(Adw.Window):
             orientation=Gtk.Orientation.VERTICAL, spacing=12,
             margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,
         )
-        privacy_body = Gtk.Label(label=privacy_text, wrap=True, xalign=0)
+        # Wrapping alone leaves the natural width at the longest paragraph.
+        # Bound the preferred width so the dialog requests a readable text column.
+        privacy_body = Gtk.Label(
+            label=privacy_text, wrap=True, max_width_chars=64, xalign=0,
+        )
         set_automation_id(privacy_body, "feedback-privacy-text")
         privacy_content.append(privacy_body)
         portal_link = Gtk.LinkButton(

@@ -664,7 +664,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
          synthetic_files=False, file_chooser=False, attachment_items=False, attachment_preview=False,
-         attachment_boundaries=False):
+         attachment_boundaries=False, feedback_reset=False):
+    require(type(feedback_reset) is bool and not (feedback_reset and (
+        feedback_read or feedback_privacy or feedback_states or format_qualification
+        or window_switch or feedback_rejection or feedback_length or file_chooser
+        or attachment_items or attachment_preview or attachment_boundaries or app_restart)),
+        'smoke:feedback-reset-prerequisites')
+    feedback_read = feedback_read or feedback_reset
     require(type(attachment_boundaries) is bool and not (attachment_boundaries and (
         attachment_preview or attachment_items or file_chooser)), 'smoke:attachment-boundaries-prerequisites')
     require(type(attachment_preview) is bool and not (attachment_preview and (attachment_items or file_chooser)),
@@ -1187,6 +1193,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-attachment-boundaries-qualification'
         if feedback_privacy:
             result['scope'] = 'installed-feedback-privacy-qualification'
+        if feedback_reset:
+            result['scope'] = 'installed-feedback-reset-qualification'
         if feedback_states:
             result['scope'] = 'installed-feedback-states-qualification'
         if format_qualification:
@@ -1404,6 +1412,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if feedback_privacy:
                     from parent_setup_qualification import FeedbackPrivacyQualification
                     qualification_class = FeedbackPrivacyQualification
+                if feedback_reset:
+                    from parent_setup_qualification import FeedbackResetQualification
+                    qualification_class = FeedbackResetQualification
                 if feedback_states:
                     from parent_setup_qualification import FeedbackStatesQualification
                     qualification_class = FeedbackStatesQualification

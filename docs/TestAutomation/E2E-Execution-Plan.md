@@ -19,17 +19,16 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **030a — [Observe draft reset after Parent exits](E2E-Tasks/030a-feedback-reset.md)**.
+Next task: **034 — [E2E-031: draft-reopen](E2E-Tasks/034-case-152.md)**.
 
-Task 038 qualified the declared Parent count, per-file and diagnostics-excluded
-aggregate [attachment boundaries](E2E-Building-Blocks.md#attachment-rejection-boundaries)
-in `20260927T201620Z-2f063a97`. The affected item and preview regressions passed
-in `20260927T202223Z-a017145c` and `20260927T202523Z-dcb2ff2a`; collection,
-owned cleanup and baseline restoration passed for all three. Reuse those shared
-callables and finite profiles. Other filename/mixed-selection/source-change
-profiles, offered previews and complete cases remain pending. Task 030a adds
-app-exit draft reset; its existing dialog-preservation branch remains distinct.
-No valid feedback submission is authorized.
+Task 030a qualified FEED10 Parent app-exit reset from `synthetic-first` through
+`check_e2e_feedback_reset` in `20260927T205202Z-fc8560e8`. The reopened draft had
+empty body/reply fields and no customer-selected files, with fresh default
+diagnostics. The affected dialog-preservation regression passed in
+`20260927T205545Z-2fd1c308`; collection, owned cleanup and baseline restoration
+passed for both. Reuse the shared reset/dialog callables and qualified attachment
+profiles. Case 152's complete formatted, one-file preservation/reset history
+remains pending. No valid feedback submission is authorized.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

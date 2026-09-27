@@ -520,7 +520,7 @@ Variant: flow: validation
 
 **Steps:**
 
-- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper, without Files, archive-viewer or editor GUI.
 - Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection.
 
 ### Scenario 158
@@ -3070,7 +3070,7 @@ Variant: flow: draft reopen
 
 **Steps:**
 
-- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper, without Files, archive-viewer or editor GUI.
 - Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3089,7 +3089,7 @@ Variant: flow: attachments
 
 **Steps:**
 
-- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper, without Files, archive-viewer or editor GUI.
 - Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3108,10 +3108,10 @@ Variant: flow: diagnostic export
 
 **Steps:**
 
-- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export save and open the chosen ZIP through normal file tools.
+- Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper, without Files, archive-viewer or editor GUI.
 - Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Real Download/Save and bounded SSH artifact readers require qualification; resume when FILE03 Save, FILE08 exported-ZIP inspection and FEED08 composition are qualified for full installed acceptance.
 
 </div>
 

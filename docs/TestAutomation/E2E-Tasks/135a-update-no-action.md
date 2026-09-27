@@ -26,7 +26,10 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Bind the verified no-action old/new package pair and visible update command. Observe its actual notice without adding a restart; retain mechanical activation/migration checks.
+Bind the verified no-action old/new package pair to the shared LIFE04
+administrator SSH package command. Independently read completion and its actual
+notice through FILE06 without adding a restart; retain mechanical
+activation/migration checks. No Terminal rendering or password-prompt exercise.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,

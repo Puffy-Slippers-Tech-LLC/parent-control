@@ -527,7 +527,7 @@ these blocks, not copies of them.
 | FILE07 | C | Navigate an open file manager/chooser to one declared customer directory. Use its normal Location shortcut, enter the directory and observe the destination. | UI05(Location shortcut) → UI16(location field) → UI05(Enter) → UI01 → UI03(destination). Directory identity comes from prepared synthetic fixtures or the selected save location. | pending |
 | FILE03 | C | Choose files, save a named file, or cancel in an already open chooser. Mode and selected files are explicit. Observe selection/closure; the caller observes its later result separately. | Open: FILE07(directory) → UI14(first file) → UI05 for declared additional modifier/navigation selection → UI13(exact selected set) → UI04(Open) → UI11(chooser). Save: FILE07 → UI16(filename) → UI04(Save) → UI11. Cancel: UI04(Cancel) → UI11. No unmodified second selection that silently drops earlier files. | pending |
 | FILE04 | C | Open the file manager directly at a declared directory only when the case tests that launch route or product file-picker integration. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands. | pending |
-| FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | Owned synthetic fixtures only; reject traversal, symlinks and wrong ownership. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | pending |
+| FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text binding ready; other profiles pending |
 | FILE08 | C | Open a declared customer-selected artifact directly with its registered handler and observe its intended contents/window. | Shared bounded `gio open` or fixed viewer command → owned handler observation. No file-manager navigation merely to open a supporting document; no private product files. | pending |
 | FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | Fixed file commands for source preparation; UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | pending |
 | APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 over SSH as the child desktop user without Terminal UI. Never substitute the tested route after failure. | pending |
@@ -536,6 +536,38 @@ these blocks, not copies of them.
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | APP02(present) → UI03 → UI12 only for compare. A newly launched window cannot satisfy retained-activity expectations. No hidden process/window inspection. | pending |
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. Task 296 qualifies the Lunar/Minecraft and Shell tray provider bindings, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
+
+#### Synthetic file commands
+
+Task 036 qualified `SyntheticFiles.call` and `synthetic_files.qualify` through
+`tools/run-tests integration check_e2e_files` in report
+`20260927T062302Z-0a76f9d8`. Two independent entries staged `Synthetic note.txt`
+and `Second note.txt`, copied the first to `Synthetic copy.txt`, renamed that
+copy to `Renamed synthetic note.txt`, and independently listed/read exact bytes
+after each operation. The fixed bytes/names live in
+[synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py).
+
+The guarded SSH helper runs as the canonical Parent fixture account beneath
+its private `.onpc-e2e-synthetic-files` home directory. It accepts only fixed
+operations, takes a nonblocking shared directory lock, checks canonical paths,
+ownership, modes, regular single-link files, exact contents and previous inode
+receipts before mutation, and refuses unknown entries or replaced objects.
+Copy uses exclusive creation; rename refuses an existing destination.
+Cleanup requires the full owned receipt and independently observes absence.
+An uncertain command permanently stops that controller; it cannot replay or
+attempt cleanup with guessed ownership. The enclosing VM lease retains failed
+evidence and owns baseline restoration.
+
+Live qualification proved traversal/unregistered-operation, wrong-order and
+duplicate-destination refusal without changing the fixture, independent entry,
+exact content readback and owned cleanup. Host
+[safety regressions](../../tests/unit/test_e2e_files_cleanup_safety.py) also cover
+symlink/hardlink/wrong-owner/replaced/unknown-file refusal, concurrent commands,
+uncertain transport and no acknowledgement after a failed fixture action.
+Collection, worker shutdown and baseline restoration passed. This is fixture
+capability evidence, not a complete product scenario. Chooser GUI, attachment
+boundary profiles, original-file editing and application-enforcement launch
+routes remain separate consumers.
 
 ### Time and ordinary lifecycle boundaries
 
@@ -1015,7 +1047,7 @@ authentication outcome or app behavior being tested.
 
 | ID | Kind | Supporting operation and boundary | Existing source | Status |
 | --- | --- | --- | --- | --- |
-| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. New game/Snap/Flatpak/attachment profiles still need preparation with their consumers. | ready |
+| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage the fixed synthetic-text profile through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [qualified synthetic text files](#synthetic-file-commands). Game/Snap/Flatpak and attachment-boundary profiles still need preparation with their consumers. | existing transfer and synthetic-text ready |
 | FIX03 | A | Prepare one declared account-eligibility profile before a kiosk journey: multiple, no child, no approver or ineligible approver. Do not generalize FIX02 into arbitrary account mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes only the two canonical children's account type, preserving identities, existing administrators and the station; outer lease cleanup restores the profile. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` qualified this profile through `check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, with shared station navigation requalified in run `20260924T173643Z-8d742069`. `AccessibleUI.kiosk_request_form(no_child=True)` and `RequestObservation.from_request` independently require the exact empty child set and no-child explanation, disabled Request/duration/soft-app/approver controls and no authentication prompt. Valid station entry, wrong-entry refusal, repeated public readback, sanitized collection, owned cleanup and baseline restoration passed without product-policy mutation. Complete case 54 separately passed via `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` and `tools/run-tests e2e --id '54'`, adding public Cancel/GDM return; wrong-entry refusal remains qualification-only. The no-approver callables and independent case 55 acceptance below supply the second ready profile. `kiosk_multiple.PLAN` / `onpc_kiosk_multiple::run` supply the qualified multiple profile below. `kiosk_multiple.INELIGIBLE_PLAN` / `KioskIneligibleJourney` supplies the locked-administrator exclusion profile qualified below. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |

@@ -19,14 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **036 — [Prepare synthetic files through shared commands](E2E-Tasks/036-files.md)**.
+Next task: **037 — [Select multiple files or cancel through the installed chooser](E2E-Tasks/037-file-chooser.md)**.
 
-Task 036 delivers FILE05 bounded copy/rename and FIX04 synthetic files through
-shared guarded commands. Qualify exact file/content readback, refusal before
-mutation and owned cleanup before the chooser consumer. Case 153 and its
-affected rejection, window-switch and Privacy regressions passed; its delivered
-scope is recorded in task 032 and the catalogue. No valid feedback submission
-is authorized by that local validation case.
+Task 037 delivers FILE03 for the actual chooser opened by installed Parent
+feedback: exact two-file selection, Open and independent attachment readback,
+then Cancel preserving the prior list. Task 036 qualified the shared synthetic
+text fixture commands, exact readback, refusals and owned cleanup in
+`20260927T062302Z-0a76f9d8`; use a fresh fixture entry. Chooser provider and
+caller ownership still require qualification. No valid feedback submission
+is authorized by this slice.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

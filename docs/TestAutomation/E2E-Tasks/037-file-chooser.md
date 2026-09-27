@@ -23,6 +23,16 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
+For fixture preparation, reuse `SyntheticFiles.call('stage')` from
+[`synthetic_files.py`](../../../tests/e2e/synthetic_files.py), retaining its
+receipt/controller through `call('cleanup')`. The two declared files, exact
+bytes and canonical Parent-home directory are in
+[`synthetic_files_guest.py`](../../../tests/e2e/synthetic_files_guest.py).
+Read the catalogue's [synthetic-file contract](../E2E-Building-Blocks.md#synthetic-file-commands)
+and [`test_e2e_files_cleanup_safety.py`](../../../tests/unit/test_e2e_files_cleanup_safety.py).
+Do not use the qualification composite, which intentionally removes its files
+before returning, as chooser preparation.
+
 ## Implementation
 
 Bind the actual chooser reached from installed feedback's Gtk.FileDialog Add files action. Record whether that caller uses the native GTK or portal/Nautilus provider and implement that scoped binding, with its real owner/dialog/caller relationship. Use available Builder IDs and provider-local semantics for dynamic entries. Include the owned Add files invocation and exact attachment-list readback leaves; task 038 owns the remaining attachment behavior. Navigate, read the exact multi-selection, Open once and observe closure and caller result. Preserve modifiers so the second selection cannot silently drop the first.

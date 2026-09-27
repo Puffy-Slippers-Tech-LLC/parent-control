@@ -616,10 +616,11 @@ Consumers must carry this handoff forward through the shared implementation:
   inputs. SelectAll is valid only after the prepared view is proved to contain
   exactly that batch; never select a broader directory or relax the exact check.
   Keep the fixture controller and ownership receipts through cleanup.
-- The existing attachment result proves IDs/names and ready status. Its sorted
+- The `attachments=True` result proves IDs/names and ready status. Its sorted
   name list does **not** prove displayed order, sizes, preview contents, removal
-  or rejection. Add independent public observations for those results, including
-  the exact remaining list after removal and unchanged prior list after rejection.
+  or rejection. Reuse the [item observations](#attachment-item-metadata-and-removal)
+  for the qualified metadata/removal profiles; extend independent public
+  observations for other results, including the unchanged prior list after rejection.
   A fixture's expected values or a successful input cannot supply the observation.
 - Before a changed handoff's live attempt, retain the success/refusal coverage in
   [test_e2e_feedback_read.py](../../tests/unit/test_e2e_feedback_read.py) and
@@ -633,6 +634,45 @@ Consumers must carry this handoff forward through the shared implementation:
   and compositions need their own affected qualification; Open does not qualify
   Save. Supporting source-file changes use shared commands, while offered
   preview and required app results remain public customer observations.
+
+#### Attachment item metadata and removal
+
+`AccessibleUI.feedback_snapshot(attachments='details')` reads the prepared
+`Second note.txt` / `Synthetic note.txt` rows in displayed order, with exact
+sizes of 33 / 26 bytes. Each row is resolved by its public attachment ID;
+order is an observed result, never a selector. Read the displayed subtitle via
+the row's public `DESCRIBED_BY` relation: GTK's `Description` property is empty.
+Require one visible relation target within that row's complete current subtree.
+Missing, duplicate, stale, foreign or mismatching metadata refuses.
+
+`AccessibleUI.attachment_operation` binds `attachment-details`,
+`attachment-wrong-entry`, `attachment-remove` and `attachment-remaining`.
+Remove targets `Second note.txt` by its owned Remove ID exactly once. Because
+GTK queues activation, the bounded result wait permits only the unchanged valid
+old list while pending. It requires the exact remaining `Synthetic note.txt`
+row and 26-byte size; wrong-item removal refuses and uncertain input is never
+replayed. The `attachments='remaining'` profile and `UiObservations` decoder
+retain this exact one-file expectation and the diagnostic attachment.
+
+[attachment_items.py](../../tests/e2e/attachment_items.py) composes
+`file_chooser.journey` and the shared `onpc_feedback_read::run_file_chooser`
+items branch, retaining the prepared-file controller through owned cleanup.
+`tools/run-tests integration check_e2e_attachment_items` qualified the slice in
+`20260927T175107Z-aac1d11d`; the shared chooser regression passed in
+`20260927T175421Z-d6087694`. Real Add files/Open, independent reopen/Cancel,
+wrong-entry refusal, metadata/order, removal and fresh remaining-list readback
+passed with collection, worker cleanup and baseline restoration. Send was
+untouched. Reuse the chooser's recorded provider tuple; no additional provider
+binding or complete scenario is qualified here.
+
+Host regression coverage in
+[test_e2e_feedback_read.py](../../tests/unit/test_e2e_feedback_read.py) retains
+metadata/ownership/order refusals, queued action completion, stale and wrong-item
+removal without replay, worker sequencing and exact decoder checks.
+[test_parent_feedback.py](../../tests/ui/test_parent_feedback.py) exercises the
+same adapter against real GTK rows in the private preview; that seeded fixture
+is engineering coverage, not a substitute for the installed chooser journey.
+Other file sets, rejection boundaries and offered previews remain pending.
 
 #### Synthetic file commands
 
@@ -693,10 +733,10 @@ routes remain separate consumers.
 | FEED03 | C | Read the visible synthetic draft, exact attachment list and validation/control state into an explicit observation. | `AccessibleUI.feedback_snapshot(projection)` → immutable `FeedbackObservation`: UI01 → UI02 → UI03 → UI13(attachments). `check_e2e_feedback_read` qualified `initial-empty` in `20260925T011124Z-21d4f936`. `check_e2e_feedback_privacy` qualified `synthetic-first` in `20260926T214728Z-4a3ca1b4`, including unchanged Privacy/dialog reopening. `feedback_snapshot(attachments=True)` additionally qualifies exact IDs/names for the two declared files plus `diagnostic-logs.zip`, ready controls and no validation through the [attachment handoff](#attachment-chooser-handoff). Other attachment profiles/states remain pending. Never project arbitrary private text. | ready for Parent initial-empty, synthetic-first and fixed two-file readback; other bindings pending |
 | FEED04 | C | Apply one offered rich-text format to an explicit synthetic range and observe its public text attributes. Select the range through normal keyboard input, then use its toolbar/menu. | `onpc_format::apply_bold(journey)` / `AccessibleUI.format_operation`: UI21(editor) → Ctrl+Home → observed caret → nine Shift+Right inputs → exact public selection `[0, 9)` → UI04(`feedback-format-bold`) → UI24. `FormatJourney` compares bold with adjacent normal text before and after independent reopen; latest `check_e2e_format` regression passed in `20260927T020443Z-8e6d21ca`, with Send untouched. `onpc_feedback_states::run_rejection` / `rejection_operation` additionally qualify Ctrl-A and exact selection → named bold/italic/underline/strike actions → public combined range proof on `body-complex`; see [feedback rejection](#feedback-rejection). No DOM bridge or private draft assignment. | ready for Parent bold range and declared four-format complex fixture; other formats/bindings and complete scenarios pending |
 | FEED05 | C | Open Privacy, read the disclosure/diagnostic explanation, then close it. | `AccessibleUI.feedback_privacy(projection)` → `onpc_window::close('feedback-privacy', proof)` → `AccessibleUI.window_closed('feedback-privacy', 'feedback')`: UI04 → UI09 → UI03 → UI18. Reads the actual ID-owned disclosure about delivery, retention and diagnostic/personal content; opens no external link. `feedback_privacy.PLAN` / `check_e2e_feedback_privacy` qualified Parent synthetic-first and independent reopened entry in `20260926T214728Z-4a3ca1b4`, with draft unchanged, collection, owned cleanup and baseline restoration. | ready for Parent synthetic-first; overlay/kiosk and other projections pending |
-| FEED06 | C | Add prepared synthetic attachments through Add files and the actual file chooser, then observe the displayed list or validation. | UI04 → FILE03 → FEED03. The [attachment handoff](#attachment-chooser-handoff) qualifies the fixed two-file Parent entry and exact list readback. Attachment details, count/size boundaries and other fixture values remain with their declared consumers. | ready for fixed two-file Parent handoff; other attachment inputs/validation pending |
-| FEED07 | C | Resolve one attachment row by its stable public ID, then read its displayed synthetic name/size and verify its order if required. Order is a result and never identifies the row. Does not preview or remove it. | UI01 → UI03 → UI13(order when required). | pending |
+| FEED06 | C | Add prepared synthetic attachments through Add files and the actual file chooser, then observe the displayed list or validation. | UI04 → FILE03 → FEED03. The [attachment handoff](#attachment-chooser-handoff) and [item qualification](#attachment-item-metadata-and-removal) cover fixed two-file Parent entry and exact metadata/order readback. Count/size boundaries and other fixture values remain with their declared consumers. | ready for fixed two-file Parent handoff and metadata; other attachment inputs/validation pending |
+| FEED07 | C | Resolve one attachment row by its stable public ID, then read its displayed synthetic name/size and verify its order if required. Order is a result and never identifies the row. Does not preview or remove it. | `AccessibleUI.feedback_snapshot(attachments='details')` / `attachments='remaining'` → exact public `items`; see [qualified item scope](#attachment-item-metadata-and-removal). UI01 → UI03 → UI13(order when required). | ready for declared Parent two-file and remaining-file profiles; other inputs/surfaces pending |
 | FEED12 | C | Open an offered attachment preview, read declared synthetic contents and close it, returning to feedback. | UI01 → UI04 → UI03 → UI18. An unoffered preview does not authorize private storage inspection. | pending |
-| FEED13 | C | Remove one explicitly identified attachment and observe the remaining list. | UI01 → UI04(Remove) → FEED03 → UI12(expected list). | pending |
+| FEED13 | C | Remove one explicitly identified attachment and observe the remaining list. | `AccessibleUI.attachment_operation('attachment-remove')` → independent `attachment-remaining`; [qualified item scope](#attachment-item-metadata-and-removal). UI01 → UI04(Remove) → FEED03 → UI12(expected list). | ready for declared Parent single-item removal; other inputs/surfaces pending |
 | FEED08 | C | Explicitly save diagnostic output to a customer-selected location, inspect that exported artifact through the shared read-only SSH helper, and reobserve the preserved feedback draft. | UI04(download) → FILE03(save) → FILE08(exact saved ZIP entries/contents) → FEED03. Caller may instead stop after FILE03(cancel) and inspect its retained draft. Save failure must be observed in the app before choosing another location. Do not inspect original product logs or storage. | pending |
 | FEED09 | C | Observe collection, validation, sending, retry, error or thank-you state and control availability. Snapshot mode reads the current state; transition mode records required transient states around FEED01 or FEED11. | `AccessibleUI.feedback_snapshot(projection, states=True)` → immutable `FeedbackStateObservation`; `feedback_states.PLAN` / `check_e2e_feedback_states` qualify the [edit-only Parent snapshots](#feedback-validation-snapshots). `reject_invalid_feedback` / `rejection_operation` and `feedback_rejection.PLAN` additionally qualify the fixed [invalid-only rejection](#feedback-rejection) inputs and exact explanations. `length_operation` / `feedback_length.PLAN` qualify the [ASCII and mixed-emoji boundaries](#feedback-utf-16-boundaries). UI01 → UI02 → UI03 → UI10, or UI22 with the same projections. No provider receipt or delivery-internal assertion. | ready for declared Parent edit-only snapshots, ASCII/mixed-emoji boundaries and empty/malformed/SOH/complex/excessive-text rejection; other validation inputs, collection transitions, sending/retry/success and other surfaces pending |
 | FEED10 | C | Close/reopen feedback and compare its in-memory draft. `dialog` preserves the supplied draft; `app-exit` explicitly closes/relaunches Parent and expects reset. Return with feedback open. | `onpc_feedback_privacy::preserve_dialog(journey, before)` composes FEED03(before) → UI18(feedback) → FEED01(`synthetic-first`) → FEED03 → UI12 via `FeedbackPrivacyJourney.check_settings` against its explicit immutable earlier observation. `check_e2e_feedback_privacy` qualified body/reply, diagnostic attachment and controls before any new input in `20260926T214728Z-4a3ca1b4`, including wrong-window refusal, collection, owned cleanup and baseline restoration; Send untouched. The pending app-exit branch additionally uses LIFE01(Parent) and expects reset. | ready for Parent dialog/synthetic-first; app-exit, formatting and user attachments pending |

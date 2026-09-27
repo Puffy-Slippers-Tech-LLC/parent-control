@@ -12,6 +12,23 @@ from tests.support.feedback import (
 pytestmark = pytest.mark.ui
 
 
+# Attachment adapter coverage uses the existing private preview/display/bus and
+# owned-process cleanup; it retains the reviewed Feedback scheduler bucket.
+def test_attachment_items_adapter_reads_real_rows_and_removes_one(
+        launch_ui, automation, wait_for_accessible_state):
+    open_feedback(launch_ui, automation, wait_for_accessible_state,
+                  scenario="attachment-items")
+    wait_for_accessible_state(
+        lambda: automation.text("feedback-logs-row") == "diagnostic-logs.zip",
+        "diagnostics are ready")
+    assert automation.reader.attachment_operation('attachment-details')['items'] == [
+        ['Second note.txt', '33 bytes'], ['Synthetic note.txt', '26 bytes']]
+    assert automation.reader.attachment_operation('attachment-remove')['items'] == [
+        ['Synthetic note.txt', '26 bytes']]
+    assert automation.reader.attachment_operation('attachment-remaining')['items'] == [
+        ['Synthetic note.txt', '26 bytes']]
+
+
 def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None,
                   collection_release=None):
     environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario}

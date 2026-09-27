@@ -33,6 +33,103 @@ from ui_observations import FeedbackStateObservation
 # no added shared paths, VM resources, caches, buses or scheduler classification.
 # FILE03 adds only in-memory provider doubles and waited private Perl children;
 # it retains this module's reviewed unit scheduling and resource ownership.
+# Attachment-item checks retain those same private resources and scheduling.
+
+
+def attachment_ui():
+    import hashlib
+    ui, parent, dialog, controls = feedback_ui()
+    ui.api.RelationType.DESCRIBED_BY = 'described-by'
+    rows = []
+    for name, data in accessible_ui.ATTACHMENT_INPUTS:
+        key = hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]
+        remove = Node(identity='feedback-remove-attachment-' + key)
+        subtitle = Node(f'{len(data)} bytes', role='label')
+        row = Node(name, identity='feedback-attachment-' + key, children=[remove, subtitle])
+        row.relations = [SimpleNamespace(
+            get_relation_type=lambda: 'described-by', get_n_targets=lambda: 1,
+            get_target=lambda _, subtitle=subtitle: subtitle)]
+        remove.action.do_action.side_effect = lambda _, row=row: (dialog.children.remove(row) or True)
+        row.parent = dialog
+        dialog.children.append(row)
+        rows.append(row)
+    dialog.children.append(Node('2 file attachments ready.', identity='feedback-status'))
+    return ui, dialog, rows
+
+
+@pytest.mark.parametrize('fault', ['', 'name', 'size', 'order', 'duplicate', 'stale', 'missing',
+                                  'inactive', 'no-size', 'ambiguous-size', 'foreign-size', 'hidden-size'])
+def test_attachment_items_public_metadata_and_refusals(fault):
+    ui, dialog, rows = attachment_ui()
+    if fault == 'name': rows[0].name = 'Unexpected.txt'
+    if fault == 'size': rows[0].children[1].name = '999 bytes'
+    if fault == 'no-size': rows[0].relations = []
+    if fault == 'ambiguous-size': rows[0].relations *= 2
+    if fault == 'foreign-size': rows[0].relations = rows[1].relations
+    if fault == 'hidden-size': rows[0].children[1].states.remove('visible')
+    if fault == 'order': dialog.children[-3:-1] = reversed(rows)
+    if fault == 'duplicate': dialog.children.append(Node(identity=rows[0].identity))
+    if fault == 'stale': rows[0].states.add('defunct')
+    if fault == 'missing': dialog.children.remove(rows[0])
+    if fault == 'inactive': dialog.states.remove('active')
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.attachment_operation('attachment-remove')
+        rows[0].children[0].action.do_action.assert_not_called()
+    else:
+        assert ui.attachment_operation('attachment-details')['items'] == [
+            ['Second note.txt', '33 bytes'], ['Synthetic note.txt', '26 bytes']]
+        assert ui.attachment_operation('attachment-remove')['items'] == [['Synthetic note.txt', '26 bytes']]
+        assert ui.attachment_operation('attachment-remaining')['items'] == [['Synthetic note.txt', '26 bytes']]
+
+
+def test_attachment_removal_refuses_stale_list_and_wrong_item_without_replay():
+    for wrong in (False, True):
+        ui, dialog, rows = attachment_ui()
+        action = rows[0].children[0].action.do_action
+        action.side_effect = (lambda _: (dialog.children.remove(rows[1]) or True)) if wrong else None
+        with pytest.raises(accessible_ui.UiError):
+            ui.attachment_operation('attachment-remove')
+        assert ui.input_uncertain
+        with pytest.raises(accessible_ui.UiError):
+            ui.attachment_operation('attachment-remove')
+        assert action.call_count == 1
+
+
+def test_attachment_removal_waits_for_queued_action_without_replay(monkeypatch):
+    ui, dialog, rows = attachment_ui()
+    ui.timeout = 1
+    action = rows[0].children[0].action.do_action
+    action.side_effect = None
+    dispatch = Mock(side_effect=lambda _: dialog.children.remove(rows[0]))
+    monkeypatch.setattr(accessible_ui.time, 'sleep', dispatch)
+    assert ui.attachment_operation('attachment-remove')['items'] == [['Synthetic note.txt', '26 bytes']]
+    assert action.call_count == 1
+    assert dispatch.call_count == 1
+
+
+def test_attachment_wrong_entry_is_publicly_checked():
+    ui, _, _, _ = feedback_ui()
+    assert ui.attachment_operation('attachment-wrong-entry') == {'checked': 'attachment-wrong-entry'}
+
+
+@pytest.mark.parametrize('operation', sorted(accessible_ui.ATTACHMENT_OPERATIONS))
+def test_attachment_controller_decodes_exact_metadata_and_refuses_corruption(operation):
+    from ui_observations import UiObservations
+    ui, _, _ = attachment_ui()
+    if operation == 'attachment-wrong-entry':
+        ui, _, _, _ = feedback_ui()
+    if operation == 'attachment-remaining':
+        ui.attachment_operation('attachment-remove')
+    value = ui.attachment_operation(operation)
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'attachment': value}
+    controller = UiObservations(Mock())
+    controller.call = Mock(return_value=(json.dumps(result).encode(), []))
+    assert controller.observe(operation)['attachment'] == value
+    value['items'] = [['Unexpected.txt', '0 bytes']]
+    controller.call.return_value = (json.dumps(result).encode(), [])
+    with pytest.raises(EvidenceError, match='attachment-response'):
+        controller.observe(operation)
 
 
 def chooser_ui(*, portal=False):
@@ -445,14 +542,17 @@ def test_chooser_attachment_readback_uses_exact_ids_names_and_status():
         ui.feedback_snapshot(attachments=True)
 
 
+@pytest.mark.parametrize('items', [False, True])
 @pytest.mark.parametrize('fault', ['', 'chooser-open', 'chooser-location',
     'chooser-files', 'chooser-accept', 'chooser-cancel', 'chooser-preserved'])
-def test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault):
+def test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, items):
     from file_chooser import PLAN as chooser_plan
+    if items:
+        from attachment_items import PLAN as chooser_plan
     from tests.support.perl import run_perl
     result = json.loads(run_perl(r'''
 use strict; use warnings; use JSON::PP;
-our (@events, @stages); our $fault = shift @ARGV;
+our (@events, @stages); our $fault = shift @ARGV; our $items = shift @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
@@ -468,9 +568,9 @@ my $ok = eval { onpc_feedback_read::run_file_chooser(sub {
     push @events, $_[0]; push @stages, $_[0];
     die 'failed proof' if $_[0] eq $fault;
     return {observed => $_[0]};
-}); 1; };
+}, ($items ? (1) : ())); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
-''', fault).stdout)
+''', fault, str(int(items))).stdout)
     stages = list(chooser_plan.screen_tags)
     stages = stages[stages.index('parent-selected'):]
     assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
@@ -490,6 +590,22 @@ def test_chooser_selector_registration_and_prerequisites(monkeypatch):
         smoke.main(file_chooser=True)
     with pytest.raises(CommandError, match='file-chooser-prerequisites'):
         smoke.main(file_chooser=True, feedback_read=True)
+
+
+@pytest.mark.parametrize('fault', ['attachment-wrong-entry', 'attachment-details',
+                                  'attachment-remove', 'attachment-remaining'])
+def test_attachment_worker_stops_at_each_failed_proof(fault):
+    test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, True)
+
+
+def test_attachment_selector_registration_and_prerequisites(monkeypatch):
+    import check_e2e_attachment_items
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_attachment_items, 'smoke', run)
+    assert check_e2e_attachment_items.main() == 0
+    assert run.call_args.kwargs['attachment_items'] is True
+    with pytest.raises(CommandError, match='attachment-items-prerequisites'):
+        smoke.main(attachment_items=True, file_chooser=True)
 
 
 @pytest.mark.parametrize('operation', sorted(accessible_ui.CHOOSER_OPERATIONS))

@@ -824,6 +824,11 @@ CHOOSER_OPERATIONS = frozenset('chooser-' + suffix for suffix in (
     'wrong-entry', 'open', 'location', 'files', 'accept', 'attachments',
     'reopen', 'cancel', 'preserved'))
 OPERATIONS |= CHOOSER_OPERATIONS
+ATTACHMENT_OPERATIONS = frozenset(('attachment-details', 'attachment-remove',
+                                  'attachment-remaining', 'attachment-wrong-entry'))
+OPERATIONS |= ATTACHMENT_OPERATIONS
+ATTACHMENT_INPUTS = (('Second note.txt', b'ONPC second synthetic attachment\n'),
+                     ('Synthetic note.txt', b'ONPC synthetic attachment\n'))
 
 
 def validate_chooser_portal_owner(query, caller_pid, provider_pid):
@@ -2000,6 +2005,41 @@ class AccessibleUI:
             result['attachments'] = ['diagnostic-logs.zip', *CHOOSER_FILES]
         return result
 
+    def attachment_operation(self, operation):
+        require(operation in ATTACHMENT_OPERATIONS, 'ui:attachment-operation')
+        if operation == 'attachment-wrong-entry':
+            self.feedback_snapshot()
+            try:
+                self.feedback_snapshot(attachments='details')
+            except UiError as error:
+                require(str(error) == 'ui:feedback-attachment-set', 'ui:attachment-refusal')
+            else:
+                raise UiError('ui:attachment-refusal-missing')
+            return {'checked': operation}
+        profile = 'remaining' if operation == 'attachment-remaining' else 'details'
+        value = self.feedback_snapshot(attachments=profile)
+        if operation == 'attachment-remove':
+            name, data = ATTACHMENT_INPUTS[0]
+            key = hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]
+            self.activate_id('feedback-remove-attachment-' + key)
+            def remaining():
+                try:
+                    return self.feedback_snapshot(attachments='remaining')
+                except UiError as error:
+                    if str(error) != 'ui:feedback-attachment-set':
+                        raise
+                    # DoAction acknowledges queued GTK activation. Only the
+                    # unchanged, fully valid old list is a pending result;
+                    # wrong-item removal or changed metadata still refuses.
+                    self.feedback_snapshot(attachments='details')
+                    return None
+            try:
+                value = self.wait(remaining, 'attachment-remaining', prompt_in_predicate=True)
+            except BaseException:
+                self.input_uncertain = True
+                raise
+        return {'checked': operation, 'items': value['items']}
+
     def feedback_snapshot(self, projection='initial-empty', *, states=False, attachments=False):
         """FEED03: compare a declared synthetic draft, never project arbitrary text.
 
@@ -2052,13 +2092,42 @@ class AccessibleUI:
                       self.api.Text.get_text(text, 0, count) if count else '')
             require(actual in allowed,
                     'ui:feedback-nonempty-draft')
+        require(attachments in (False, True, 'details', 'remaining'), 'ui:attachment-profile')
         expected_attachments = ({'feedback-attachment-' + hashlib.sha256(name.encode() + b'\0' + data).hexdigest()[:16]: name
             for name, data in (('Synthetic note.txt', b'ONPC synthetic attachment\n'),
-                               ('Second note.txt', b'ONPC second synthetic attachment\n'))} if attachments else {})
+                               ('Second note.txt', b'ONPC second synthetic attachment\n'))
+            if attachments != 'remaining' or name == 'Synthetic note.txt'} if attachments else {})
         require({value for value in ids if value.startswith('feedback-attachment-')} == set(expected_attachments),
                 'ui:feedback-attachment-set')
         for identity, name in expected_attachments.items():
             require(target(identity).get_name() == name, 'ui:feedback-attachment-name')
+        items = []
+        if attachments in ('details', 'remaining'):
+            # Tree order is an observed result, never a target selector. Resolve
+            # each row by its owned ID before reading its public name and size.
+            # AdwActionRow exposes its subtitle via DESCRIBED_BY, not Description.
+            for node in scoped:
+                identity = identities[node]
+                if identity in expected_attachments:
+                    row = target(identity)
+                    descriptions = [relation.get_target(index)
+                        for relation in row.get_relation_set()
+                        if relation.get_relation_type() == self.api.RelationType.DESCRIBED_BY
+                        for index in range(relation.get_n_targets())]
+                    require(len(descriptions) == 1, 'ui:attachment-size-relation')
+                    subtitle = descriptions[0]
+                    require(subtitle != row
+                            and subtitle in self.snapshot_scope(nodes, edges, row)
+                            and self.has_state(subtitle, self.api.StateType.VISIBLE),
+                            'ui:attachment-size-owner')
+                    size = subtitle.get_name()
+                    expected_size = next(f'{len(data)} bytes' for name, data in ATTACHMENT_INPUTS
+                                         if name == expected_attachments[identity])
+                    require(size == expected_size, 'ui:attachment-size')
+                    items.append([row.get_name(), size])
+            expected_items = [[name, f'{len(data)} bytes'] for name, data in ATTACHMENT_INPUTS
+                              if attachments != 'remaining' or name == 'Synthetic note.txt']
+            require(items == expected_items, 'ui:attachment-details')
         logs = target('feedback-logs-row')
         require(logs.get_name() == 'diagnostic-logs.zip', 'ui:feedback-logs')
         for identity in ('feedback-collection-status', 'feedback-retry-logs',
@@ -2086,8 +2155,11 @@ class AccessibleUI:
                     'controls': 'ready',
                     'send_enabled': bool(self.has_state(target('feedback-send'),
                                                        self.api.StateType.SENSITIVE))}
-        return {'draft': projection, 'attachments': ['diagnostic-logs.zip', *sorted(expected_attachments.values())],
-                'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+        result = {'draft': projection, 'attachments': ['diagnostic-logs.zip', *sorted(expected_attachments.values())],
+                  'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+        if attachments in ('details', 'remaining'):
+            result['items'] = items
+        return result
 
     def feedback_state_operation(self, operation):
         """FEED09 reads after caller-owned edits; never invokes Send."""
@@ -6540,6 +6612,8 @@ class AccessibleUI:
                 result['feedback'] = feedback
         elif operation in CHOOSER_OPERATIONS:
             result['chooser'] = self.chooser_operation(operation)
+        elif operation in ATTACHMENT_OPERATIONS:
+            result['attachment'] = self.attachment_operation(operation)
         elif operation in FEEDBACK_READ_OPERATIONS:
             feedback = self.feedback_read_operation(operation)
             if feedback is not None:

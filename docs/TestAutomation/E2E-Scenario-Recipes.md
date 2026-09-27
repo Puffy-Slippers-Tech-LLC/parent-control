@@ -1203,6 +1203,13 @@ Cases 152–155 run without external submission. Public state or validation
 messages must establish the result; a private draft, DOM, transport payload or
 collector read is never substituted.
 
+Attachment inputs reuse the shared
+[chooser handoff and consumer guidance](E2E-Building-Blocks.md#attachment-chooser-handoff):
+prepared finite file batches, public APIs and independent app results. Extend
+its fixed two-file binding for the selected table row in the shared helpers,
+not a case-local chooser driver. Cancel requires no candidate selection or
+folder browsing. The Open qualification does not cover case 155's Save route.
+
 | Owner | Complete finite data and checks |
 | --- | --- |
 | 152 formatting/draft | Synthetic heading, bold, italic, underline, strike, numbered/bulleted list, quote, code block, link and remove-formatting. FEED04/UI24 reads actual public range attributes, not only a pressed toolbar control. Include one file and a synthetic reply address for close/reopen preservation. App exit/relaunch resets text, formatting, address and files. |

@@ -37,9 +37,18 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Extend FIX04 with bounded synthetic files. Implement add/list result, one item's name/size/order, optional offered preview, and removal with exact remaining list. No private storage reads; unoffered preview is explicitly inapplicable.
+Extend FIX04 with bounded synthetic files for the declared rejection boundaries.
+Compose the qualified 038a/038b item observations, preview applicability and
+removal; do not reimplement those operations. No private storage reads.
 
-Task 037 qualifies the installed caller's actual Open/Cancel route. Reuse only that recorded provider binding and retain exact selection/caller-result checks. Repository-owned attachment and editor controls use public IDs; provider semantics never replace them.
+Follow the shared [attachment handoff](../E2E-Building-Blocks.md#attachment-chooser-handoff)
+and its consumer guidance. The current two-file fixture and ready-state readback
+do not support count/size rejection profiles yet. Extend those shared contracts
+with each finite batch and its expected public acceptance/rejection before live
+use; do not widen SelectAll to an unverified directory. Capture existing
+attachments before rejection and independently prove they remain unchanged.
+Repository-owned attachment and editor controls use public IDs; provider
+semantics never replace them.
 
 ## Live VM acceptance
 

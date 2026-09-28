@@ -1,10 +1,10 @@
 ## v1.2 - 2026-09-28
 ### Bug Fixes
 - Software Updater: Fixed the description to match app name
-- Harden execution probes with isolated D-Bus clients, retained late replies, recoverable cleanup, and stricter execution identity checks.
 - Packaging: Removed some non-product files (internal tools, docs) from package.
-- Screen-time changes failed when fapolicyd 1.3.6 couldn’t represent certain filenames; the fix skips unnecessary exceptions for already-blocked files and validates rules before changing  settings, with clearer errors for unsupported cases.
+- Screen time bug: Screen-time changes failed when fapolicyd 1.3.6 couldn’t represent certain filenames; the fix skips unnecessary exceptions for already-blocked files and validates rules before changing  settings, with clearer errors for unsupported cases.
 - Broker: Lunar client still auto launches and can launch in-memory AppImage of Minecraft even when it's soft blocked
+- Broker: Harden execution probes with isolated D-Bus clients, retained late replies, recoverable cleanup, and stricter execution identity checks.
 - Child App: Fixed Child App timer recovery after waking from suspend and added privacy-safe diagnostics for countdown refresh failures (thanks for the crash report on 9/27/2026, dear user!)
 
 
@@ -16,7 +16,7 @@
 - Child App: Added "oh-no-parent-control-child" command as an alias for "oh-no-parent-control --child-overlay". Easier for future expansion to other distros and desktop environments
 
 ### Non Product Changes
-- Automated 22 e2e cases (serious efforts on serious high quality testing, as advertised)
+- Automated 24 E2E cases (serious efforts on serious high quality testing, as advertised)
 
 ## v1.1 — 2026-09-11
 ### Bug Fixes

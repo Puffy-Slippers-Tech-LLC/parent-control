@@ -1,6 +1,7 @@
 """Shared installed controller with real durable recorder; no VM operations."""
 
 from dataclasses import replace
+import copy
 import hashlib
 import json
 from types import SimpleNamespace
@@ -112,6 +113,13 @@ SYNTHETIC = journeys.JourneyPlan(
 )
 
 
+@pytest.fixture
+def journey_inventory():
+    # Read-only template: each case copies only its family before mutation.
+    # Avoid writing the entire customer catalogue for every recorder fault.
+    return inventory.read_json(ROOT / 'tests/e2e/scenarios.json')[0]
+
+
 def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guard(tmp_path):
     journey = journeys.InstalledJourney(
         SimpleNamespace(directory=tmp_path), Mock(), parent_access.PLAN)
@@ -211,10 +219,9 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'station-about-case'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
-        tmp_path, monkeypatch, plan, failure):
+        tmp_path, monkeypatch, journey_inventory, plan, failure):
     # A different trusted plan exercises the same recorder phase shape without
     # registering a synthetic scenario or awarding it any customer coverage.
-    document, _ = inventory.read_json(ROOT / 'tests/e2e/scenarios.json')
     selector = ('E2E-003/existing-and-new' if plan is parent_discovery.PLAN else 'E2E-030/parent')
     if plan is parent_discovery.EMPTY_PLAN:
         selector = 'E2E-003/none'
@@ -241,6 +248,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     if plan is restricted_station.PLAN:
         selector = 'E2E-016/approved'
     scenario_id, variant_id = selector.split('/', 1)
+    document = {**journey_inventory, 'scenarios': [copy.deepcopy(next(
+        scenario for scenario in journey_inventory['scenarios'] if scenario['id'] == scenario_id))]}
     selected = next(
         variant
         for scenario in document['scenarios'] if scenario['id'] == scenario_id
@@ -469,14 +478,14 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         assert all(call.args == ('boot',) for call in boot.read.call_args_list)
 
 
-def test_repeated_assertion_write_failure_prevents_reply_and_latches(tmp_path, monkeypatch):
+def test_repeated_assertion_write_failure_prevents_reply_and_latches(tmp_path, monkeypatch, journey_inventory):
     test_shared_plan_records_before_input_and_latches_transition_failures(
-        tmp_path, monkeypatch, repeated_operations.PLAN, 'assertion-write')
+        tmp_path, monkeypatch, journey_inventory, repeated_operations.PLAN, 'assertion-write')
 
 
-def test_challenge_assertion_write_failure_prevents_reply_and_latches(tmp_path, monkeypatch):
+def test_challenge_assertion_write_failure_prevents_reply_and_latches(tmp_path, monkeypatch, journey_inventory):
     test_shared_plan_records_before_input_and_latches_transition_failures(
-        tmp_path, monkeypatch, challenges.PLAN, 'assertion-write')
+        tmp_path, monkeypatch, journey_inventory, challenges.PLAN, 'assertion-write')
 
 
 def test_invalid_phase_plan_refuses_before_credentials_or_worker(tmp_path):

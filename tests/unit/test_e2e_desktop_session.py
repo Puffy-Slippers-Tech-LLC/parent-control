@@ -13,6 +13,66 @@ from tests.support.desktop_session import RUN_PROBE, props
 from tests.support.perl import run_perl
 
 
+def test_session_readback_does_not_combine_both_sides_of_a_seat_switch(monkeypatch):
+    # The source is read before the switch, then GDM after it. There was never
+    # more than one active session, but the first sequential scan says otherwise.
+    source = props(locked='yes')
+    greeter = props('120', active='no', kind='greeter')
+    reads = []
+
+    def call(argv):
+        if argv[1] == 'list-sessions':
+            return '7 1000\n8 120\n'
+        identity = argv[2]
+        reads.append(identity)
+        value = dict(source if identity == '7' else greeter)
+        if len(reads) == 1:
+            source['Active'] = 'no'
+            greeter['Active'] = 'yes'
+        return '\n'.join(f'{key}={item}' for key, item in value.items())
+
+    monkeypatch.setattr(control, 'call', call)
+    current = control.sessions()
+    assert reads == ['7', '8'] * 3
+    assert current == {'7': source, '8': greeter}
+    assert control.destination(current, '7', 1000, 'switch-user')
+
+
+def test_stable_multiple_active_sessions_still_refuse(monkeypatch):
+    current = {'7': props(locked='yes'), '8': props('120', kind='greeter')}
+    scan = Mock(return_value=current)
+    monkeypatch.setattr(control, 'session_scan', scan)
+    with pytest.raises(control.SessionError, match='ambiguous-destination'):
+        control.destination(control.sessions(), '7', 1000, 'switch-user')
+    assert scan.call_count == 2
+
+
+def test_continuously_changing_sessions_refuse_with_bounded_reads(monkeypatch):
+    scan = Mock(side_effect=[{'7': props(locked=value)}
+                             for value in ('no', 'yes', 'no', 'yes')])
+    monkeypatch.setattr(control, 'session_scan', scan)
+    with pytest.raises(control.SessionError, match='unstable-observation'):
+        control.sessions()
+    assert scan.call_count == 4
+
+
+def test_stabilized_wrong_source_owner_still_refuses(monkeypatch):
+    switched = {'7': props('1001', active='no', locked='yes'),
+                '8': props('120', kind='greeter')}
+    monkeypatch.setattr(control, 'session_scan', Mock(side_effect=[
+        {'7': props()}, switched, switched]))
+    with pytest.raises(control.SessionError, match='source-replaced'):
+        control.destination(control.sessions(), '7', 1000, 'switch-user')
+
+
+def test_session_scan_errors_are_not_retried_as_transitions(monkeypatch):
+    scan = Mock(side_effect=control.SessionError('session:session-properties'))
+    monkeypatch.setattr(control, 'session_scan', scan)
+    with pytest.raises(control.SessionError, match='session-properties'):
+        control.sessions()
+    scan.assert_called_once_with()
+
+
 @pytest.mark.parametrize('fault', ['wrong-owner', 'remote', 'wrong-seat', 'greeter',
                                    'wrong-lock-state', 'multiple-active', 'multiple-owned', 'missing'])
 @pytest.mark.parametrize('locked', [False, True])

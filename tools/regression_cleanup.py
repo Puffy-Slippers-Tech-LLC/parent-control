@@ -72,22 +72,58 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Native fixture ownership checks compile only into tmp_path. Their synthetic
 # child blocks/waits for SIGTERM locally; no worker signal mask is changed.
 
-# Measured costs guide packing and dispatch only; never reuse passing results.
-ESTIMATES = {'test_backing_verification_cleanup_safety.py': 11,
-             'test_fix_tests_cleanup_safety.py': 14,
-             'test_e2e_leased_recording_cleanup_safety.py': 10,
-             'test_e2e_suite_cleanup_safety.py': 9,
-             'test_graphical_lease.py': 7,
-             'test_e2e_execution_cleanup_safety.py': 14,
-             'test_e2e_recording_cleanup_safety.py': 8.5,
-             'test_graphical_smoke_cleanup_safety.py': 4,
+# Measured four-worker costs guide packing only; never reuse passing results.
+# Recorder shards include their concurrent durable-write cost (higher than a
+# single worker's elapsed time). Recalibrate from --durations=0 after growth.
+ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
+             'test_fix_tests_cleanup_safety.py': 38,
+             'test_write_e2e_cleanup_safety.py': 54,
+             'test_installed_journey_cleanup_safety.py': 181,
+             'test_e2e_leased_recording_cleanup_safety.py': 12,
+             'test_e2e_suite_cleanup_safety.py': 21,
+             'test_graphical_lease.py': 8.5,
+             'test_e2e_execution_cleanup_safety.py': 20,
+             'test_e2e_recording_cleanup_safety.py': 10,
+             'test_test_storage_cleanup_safety.py': 17,
+             'test_e2e_startup_cache_cleanup_safety.py': 10,
+             'test_vm_control_cleanup_safety.py': 6.5,
+             'test_e2e_controller_qualification_cleanup_safety.py': 2,
+             'test_graphical_smoke_cleanup_safety.py': 2,
              'test_execution_probe_cleanup_safety.py': 3,
              'test_regression_cleanup_safety.py': 4,
-             'test_test_retention_cleanup_safety.py': 4,
+             'test_test_retention_cleanup_safety.py': 16,
              'test_child_preview_cleanup_safety.py': 2,
              'test_appsnapshot_cleanup_safety.py': 1,
              'test_baseline_guest_cleanup_safety.py': 1,
              'test_ui_watch_cleanup_safety.py': 1}
+
+
+def work_units(path, ids, kind, estimate):
+    """Split only the reviewed function-isolated journey matrix into exact IDs.
+
+    Its fixtures, recorder, evidence and mocks are all function-local. It has no
+    shared module/class fixture, live guest, process or mutable output. Other
+    modules remain whole, including unknown additions and their fixtures. Eight
+    pieces leave enough packing choices alongside the slower launcher modules.
+    Both unit and cleanup scheduling use this review and the same partition.
+    """
+    matrix = path == 'tests/unit/test_installed_journey_cleanup_safety.py'
+    if not matrix or len(ids) < 32:
+        return [Bucket(path, (path,), tuple(ids), kind, estimate)]
+    groups = [[] for _ in range(8)]
+    weights = [0.0] * len(groups)
+    def weight(node):
+        if '::test_shared_plan_records_before_input_and_latches_transition_failures[' in node:
+            return 2.0 if '[None-' in node else 1.0
+        return .05
+    for node in sorted(ids, key=lambda node: (-weight(node), node)):
+        index = min(range(len(groups)), key=lambda index: weights[index])
+        groups[index].append(node)
+        weights[index] += weight(node)
+    total = sum(weights)
+    return [Bucket(f'{path} [{index + 1}]', tuple(sorted(group)), tuple(sorted(group)),
+                   kind, estimate * weights[index] / total)
+            for index, group in enumerate(groups) if group]
 
 
 def buckets(nodeids):
@@ -113,8 +149,8 @@ def buckets(nodeids):
             exclusive.append(Bucket('Cleanup — ' + filename.removeprefix('test_').removesuffix('.py'),
                                     (path,), tuple(ids), 'cleanup-exclusive', 1 + len(ids) * .05))
         else:
-            modules.append(Bucket(path, (path,), tuple(ids), 'cleanup',
-                                  ESTIMATES.get(filename, .3 + len(ids) * .02)))
+            modules.extend(work_units(path, ids, 'cleanup',
+                                      ESTIMATES.get(filename, .3 + len(ids) * .02)))
     groups = [[] for _ in range(min(HOST_WORKERS, len(modules)))]
     estimates = [0.0] * len(groups)
     for module in sorted(modules, key=lambda item: (-item.estimate, item.name)):

@@ -14,6 +14,47 @@ from regression_process import Control
 from regression_resources import compatible, HOST_WORKERS
 
 
+def test_function_private_journey_matrix_balances_with_slow_modules_in_both_schedulers():
+    from regression_unit import buckets as unit_buckets
+    path = 'tests/unit/test_installed_journey_cleanup_safety.py'
+    nodes = [path + '::test_shared_plan_records_before_input_and_latches_transition_failures'
+             f'[{fault}-plan-{index}]' for fault in ('None', 'write', 'loss', 'transition')
+             for index in range(57)]
+    nodes += [f'tests/unit/test_{name}_cleanup_safety.py::test_case' for name in (
+        'fix_tests', 'write_e2e', 'e2e_suite', 'e2e_execution', 'test_storage',
+        'test_retention', 'e2e_leased_recording', 'backing_verification', 'e2e_recording',
+        'e2e_startup_cache', 'vm_control', 'graphical_smoke', 'regression')]
+    plans = [partition(nodes) for partition in (buckets, unit_buckets)]
+    for plan in plans:
+        assert len(plan) == HOST_WORKERS
+        assert Counter(node for bucket in plan for node in bucket.nodeids) == Counter(nodes)
+        assert sum(any(node.startswith(path + '::') for node in b.nodeids) for b in plan) > 1
+        # Every command must execute precisely its assigned cases. Passing the
+        # bare module alongside a shard would silently execute its whole matrix.
+        for bucket in plan:
+            selected = [node for node in nodes if node in bucket.paths
+                        or node.partition('::')[0] in bucket.paths]
+            assert Counter(selected) == Counter(bucket.nodeids)
+        costs = [bucket.estimate for bucket in plan]
+        assert max(costs) / min(costs) < 1.1
+    assert [b.paths for b in plans[0]] == [b.paths for b in plans[1]]
+    assert plans[0] == buckets(list(reversed(nodes)))
+
+
+def test_sharded_journey_module_retains_function_scoped_fixtures():
+    import ast
+    from tests.support.paths import ROOT
+    tree = ast.parse((ROOT / 'tests/unit/test_installed_journey_cleanup_safety.py').read_text())
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+            assert not node.name.startswith(('setup_module', 'teardown_module',
+                                             'setup_class', 'teardown_class'))
+            for decorator in node.decorator_list:
+                if isinstance(decorator, ast.Call) and ast.unparse(decorator.func) == 'pytest.fixture':
+                    assert all(keyword.arg != 'scope' or ast.literal_eval(keyword.value) == 'function'
+                               for keyword in decorator.keywords)
+
+
 def test_partition_keeps_modules_whole_and_future_cases_exclusive():
     paths = [f'tests/unit/test_{name}_cleanup_safety.py' for name in sorted(REVIEWED)]
     paths += ['tests/unit/test_graphical_lease.py', 'tests/unit/test_future_cleanup_safety.py']

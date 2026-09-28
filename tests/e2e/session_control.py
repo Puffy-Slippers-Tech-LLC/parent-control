@@ -58,7 +58,8 @@ def session_ids():
     return identities
 
 
-def sessions():
+def session_scan():
+    """Collect properties sequentially; this alone is not a stable snapshot."""
     result = {}
     for identity in session_ids():
         try:
@@ -77,6 +78,25 @@ def sessions():
             'User', 'Active', 'Remote', 'Class', 'Type', 'Seat', 'LockedHint'}, 'session-properties')
         result[identity] = props
     return result
+
+
+def sessions():
+    """Require convergent readback before interpreting session relationships.
+
+    A seat switch can happen between show-session calls: the old desktop can
+    be read active before the switch and the greeter active afterward. Never
+    treat that torn scan as evidence of two simultaneously active sessions.
+    Compare complete scans, including ownership and lock state, rather than
+    filtering away an unexpected session. Stable ambiguity still reaches the
+    caller's refusal checks. Only observations repeat, never session input.
+    """
+    previous = session_scan()
+    for _ in range(3):
+        current = session_scan()
+        if current == previous:
+            return current
+        previous = current
+    raise SessionError('session:unstable-observation')
 
 
 def local_graphical(props):

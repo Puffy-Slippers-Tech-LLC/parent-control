@@ -318,9 +318,11 @@ commands and their results remain visually separate, including without color.
 task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
 
-Every session uses GPT-6-Sol Medium as coordinator and implementer. Settled
-implementation, mechanical repairs, test execution and close-out stay with that
-coordinator. Unresolved root causes, security, concurrency, ownership and risky
+Each task's initial implementation session uses GPT-6-Astra Low with delegation
+disabled. Subsequent sessions, including retries and recovery, use GPT-6-Sol
+Medium as coordinator and implementer. Settled implementation, mechanical
+repairs, test execution and close-out stay with that coordinator. Unresolved
+root causes, security, concurrency, ownership and risky
 correctness questions can use one bounded GPT-6-Astra High consultation through
 the [read-only adviser](../tools/write_e2e_adviser.toml). Never use Sol High;
 select Astra Low explicitly whenever Sol High would otherwise be considered.

@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **195a — [Read declared text artifacts through guarded SSH](E2E-Tasks/195a-document-open.md)**.
+Next task: **195 — [Inspect declared ZIP artifacts through guarded SSH](E2E-Tasks/195-open-a-customer-document-or-archive.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

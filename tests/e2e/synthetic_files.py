@@ -1,8 +1,9 @@
 """FILE05/FIX04 shared finite commands and task-local qualification."""
 import json
+import hashlib
 from pathlib import Path
 
-from private_artifacts import require
+from private_artifacts import EvidenceError, require
 from watch_activity import operation
 
 
@@ -47,6 +48,24 @@ class SyntheticFiles:
         require(type(value) is dict and raw == (json.dumps(value, sort_keys=True) + '\n').encode(),
                 'files:output-schema')
         return value
+
+
+def read_declared_text(transport, receipt, *, attempt, user='onpc-parent-jamie',
+                       artifact='synthetic-note'):
+    """Inspect the fixed synthetic text through a fresh guarded SSH command."""
+    require(type(attempt) is str and attempt and type(transport.config) is dict
+            and transport.config.get('run') == attempt, 'text:attempt')
+    require(user == 'onpc-parent-jamie' and artifact == 'synthetic-note', 'text:declaration')
+    require(type(receipt) is dict and set(receipt) == {'directory', 'files'}
+            and type(receipt['files']) is dict and 'Synthetic note.txt' in receipt['files'],
+            'text:receipt')
+    files = SyntheticFiles(transport)
+    with operation('Reading declared synthetic text artifact'):
+        result = files._command('open-text', {'receipt': receipt, 'artifact': artifact})
+    expected = b'ONPC synthetic attachment\n'
+    require(result == {'artifact': artifact, 'matched': True, 'size': len(expected),
+                       'sha256': hashlib.sha256(expected).hexdigest()}, 'text:comparison')
+    return result
 
 
 def fixture_actions(profiles, *, stage='chooser-fixtures', cleanup='chooser-cleanup'):
@@ -113,3 +132,44 @@ def qualify(journey, guard):
     second = _qualify_entry(journey, guard)
     require(first == second, 'files:independent-entry')
     return {**second, 'independent_entries': 2}
+
+
+def qualify_text(journey, guard):
+    """Two independent prepared entries through the same shared reader."""
+    attempt = journey.transport.config['run']
+    expected = {'artifact': 'synthetic-note', 'matched': True,
+                'size': len(b'ONPC synthetic attachment\n'),
+                'sha256': hashlib.sha256(b'ONPC synthetic attachment\n').hexdigest()}
+    for _ in range(2):
+        guard()
+        fixtures = SyntheticFiles(journey.transport)
+        receipt = fixtures.call('stage')
+        require(read_declared_text(journey.transport, receipt, attempt=attempt) == expected,
+                'text:valid-entry')
+        with operation('Checking declared text refusal boundaries'):
+            for options in ({'attempt': attempt + '-wrong'},
+                            {'attempt': attempt, 'user': 'onpc-child-alex'},
+                            {'attempt': attempt, 'artifact': '../synthetic-note'}):
+                try:
+                    read_declared_text(journey.transport, receipt, **options)
+                except EvidenceError:
+                    pass
+                else:
+                    require(False, 'text:controller-wrong-entry')
+            for bad in (
+                    {'receipt': receipt, 'artifact': '../synthetic-note'},
+                    {'receipt': receipt, 'artifact': '/synthetic-note'},
+                    {'receipt': {'directory': [0], 'files': receipt['files']},
+                     'artifact': 'synthetic-note'},
+                    {'receipt': receipt, 'artifact': 'unrelated'}):
+                require(fixtures._command('open-text', bad) == {'refused': True},
+                        'text:wrong-entry')
+            require(fixtures._command('probe-text', receipt) ==
+                    {'refused': ['missing', 'symlink', 'replaced', 'empty', 'different', 'oversized'],
+                     'owned_cleanup': True}, 'text:fault-refusal')
+            require(fixtures._command('read', receipt) == receipt, 'text:fixture-preserved')
+        fixtures.call('cleanup')
+        guard()
+    return {'artifact': 'synthetic-note', 'exact_content': True,
+            'independent_entries': 2, 'wrong_entry_refused': True,
+            'fault_matrix_refused': True, 'owned_cleanup': True}

@@ -7,6 +7,22 @@ from installed_journey import InstalledJourney
 from private_artifacts import require
 
 
+def formatted_draft_expected(*, reset=False):
+    from feedback_formats import expected
+    return {'draft': 'initial-empty' if reset else 'formatted-file',
+            'attachments': ['diagnostic-logs.zip', *([] if reset else ['Synthetic note.txt'])],
+            'collection': 'ready', 'validation': 'none', 'controls': 'ready',
+            'items': [] if reset else [['Synthetic note.txt', '26 bytes']],
+            'formats': ({'blocks': [], 'inline': [], 'link': None,
+                         'normal_comparison': True, 'text_exact': True} if reset else
+                        expected('formats-kept-reopen'))}
+
+
+def compare_formatted_draft(value, *, reset=False):
+    require(value == formatted_draft_expected(reset=reset), 'feedback:formatted-draft')
+    return value
+
+
 def file_handoff(prefix='chooser'):
     return {f'{prefix}-{step}': f'ui:{prefix}-{step}'
             for step in ('open', 'location', 'files', 'accept')}

@@ -97,6 +97,8 @@ FEEDBACK_PROJECTIONS = {
        for family in ('ascii', 'mixed') for units in (5000, 5001)},
     'initial-empty': ('body-clear', 'reply-clear'),
     'synthetic-first': ('body-first', 'reply-first'),
+    'formatted': ('body-blocks', 'reply-first'),
+    'formatted-file': ('body-blocks', 'reply-first'),
     'states-whitespace': ('body-whitespace', 'reply-clear'),
     'states-no-reply': ('body-first', 'reply-clear'),
     'states-malformed': ('body-first', 'reply-malformed'),
@@ -832,6 +834,13 @@ CHOOSER_OPERATIONS = frozenset('chooser-' + suffix for suffix in (
     'wrong-entry', 'open', 'location', 'files', 'accept', 'attachments',
     'reopen', 'cancel', 'preserved'))
 OPERATIONS |= CHOOSER_OPERATIONS
+DRAFT_OPERATIONS = frozenset('draft-' + name for name in (
+    'chooser-open', 'chooser-location', 'chooser-files', 'chooser-accept',
+    'feedback-draft', 'feedback-draft-reread', 'feedback-draft-reopen',
+    'feedback-privacy-open', 'feedback-privacy-returned',
+    'feedback-reopen', 'feedback-reread',
+    'switch-draft-before', 'switch-feedback'))
+OPERATIONS |= DRAFT_OPERATIONS
 ATTACHMENT_OPERATIONS = frozenset(('attachment-details', 'attachment-remove',
                                   'attachment-remaining', 'attachment-wrong-entry',
                                   'attachment-preview', 'attachment-preview-return'))
@@ -844,6 +853,7 @@ ATTACHMENT_LABEL_ACTIONS = frozenset((
 
 # Finite customer inputs, not an arbitrary-path or attachment injection API.
 BOUNDARY_FILES = {
+    'single': (('Synthetic note.txt', b'ONPC synthetic attachment\n'),),
     'count': tuple((f'Count {index}.txt', b'C') for index in range(1, 6)),
     'sixth': (('Count 6.txt', b'C'),),
     'maximum': (('Maximum.txt', b'M' * (5 * 1024 * 1024)),),
@@ -2019,7 +2029,7 @@ class AccessibleUI:
 
     def chooser_operation(self, operation, *, profile='standard'):
         require(operation in CHOOSER_OPERATIONS, 'ui:chooser-operation')
-        require(profile == 'standard' or (profile in BOUNDARY_BATCHES and operation in (
+        require(profile == 'standard' or (profile in (*BOUNDARY_BATCHES, 'single') and operation in (
             'chooser-open', 'chooser-location', 'chooser-files', 'chooser-accept')), 'ui:chooser-profile')
         def ready(read, pending):
             def observe():
@@ -2039,7 +2049,9 @@ class AccessibleUI:
             else:
                 raise UiError('ui:chooser-refusal-missing')
         elif operation in ('chooser-open', 'chooser-reopen'):
-            if profile == 'standard':
+            if profile == 'single':
+                self.feedback_snapshot('formatted')
+            elif profile == 'standard':
                 self.feedback_snapshot(attachments=operation == 'chooser-reopen')
             else:
                 self.feedback_snapshot(attachment_state=BOUNDARY_STATES[BOUNDARY_BATCHES[profile][0]])
@@ -2189,6 +2201,12 @@ class AccessibleUI:
         set and controls. Only closed comparison values leave this method.
         """
         require(projection in FEEDBACK_PROJECTIONS, 'ui:feedback-projection')
+        if projection == 'formatted-file':
+            require(not states and not attachments and attachment_state is None,
+                    'ui:attachment-profile')
+            # Collection on reopening clears the previous attachment status;
+            # both states are successful, while the exact file list is fixed.
+            attachment_state = (BOUNDARY_FILES['single'], ('', '1 file attachment ready.'), True)
         edges, identities, facts = {}, {}, {}
         nodes = list(self.nodes(strict=True, snapshot=edges, identities=identities, facts=facts))
         observation = (nodes, edges, identities, facts)
@@ -2321,7 +2339,8 @@ class AccessibleUI:
                                             observation=observation)
         status_text = (status.get_name() if status is not None
                        and self.has_state(status, self.api.StateType.VISIBLE) else '')
-        require(status_text == status_expected if attachments else
+        require((status_text in status_expected if type(status_expected) is tuple
+                 else status_text == status_expected) if attachments else
                 status_text in FEEDBACK_VALIDATION if states else status_text == '',
                 'ui:feedback-validation')
         for identity in ('feedback-close', 'feedback-send', 'feedback-add-files',
@@ -2349,7 +2368,37 @@ class AccessibleUI:
         if attachment_state is not None:
             result['status'] = status_text
             result['include_logs'] = include_logs
+        if projection in ('formatted', 'formatted-file'):
+            result['formats'] = feedback_formats.read(self, require, 'formats-kept-reopen')
         return result
+
+    def feedback_draft_operation(self, operation):
+        """Shared formatted/file-bearing observations around public lifecycle actions."""
+        require(operation in DRAFT_OPERATIONS, 'ui:draft-operation')
+        base = operation.removeprefix('draft-')
+        if base.startswith('chooser-'):
+            return {'chooser': self.chooser_operation(base, profile='single')}
+        if base.startswith('switch-'):
+            return {'window': self.window_switch_operation(base, projection='formatted-file')}
+        if base in ('feedback-reopen', 'feedback-reread'):
+            value = self.feedback_read_operation(base)
+            root = self.text_recipient('feedback-editor-input')
+            require(block_semantics.read_blocks(root, require) == []
+                    and feedback_formats.read_links(root, require) is None, 'ui:draft-reset-format')
+            text = root.get_text_iface()
+            attrs, first, last = text.get_attribute_run(0, True)
+            require(type(attrs) is dict and first == 0 and last >= 0
+                    and all(attrs.get(key) == expected for key, expected in (
+                        ('weight', '400'), ('style', 'normal'), ('underline', 'none'),
+                        ('strikethrough', 'false'))), 'ui:draft-reset-format')
+            return {'draft_state': {**value, 'items': [], 'formats': {
+                'blocks': [], 'inline': [], 'link': None, 'normal_comparison': True,
+                'text_exact': True}}}
+        value = self.feedback_privacy_operation(base, projection='formatted-file')
+        if value is None:
+            return {}
+        return {'draft_state': {key: item for key, item in value.items()
+                                if key not in ('status', 'include_logs')}}
 
     def feedback_state_operation(self, operation):
         """FEED09 reads after caller-owned edits; never invokes Send."""
@@ -2877,9 +2926,8 @@ class AccessibleUI:
         ):
             require(fragment in text, 'ui:feedback-privacy-disclosure')
 
-    def feedback_privacy_operation(self, operation):
+    def feedback_privacy_operation(self, operation, *, projection='synthetic-first'):
         require(operation in FEEDBACK_PRIVACY_OPERATIONS, 'ui:feedback-operation')
-        projection = 'synthetic-first'
         if operation == 'feedback-privacy-open':
             self.feedback_privacy(projection)
         elif operation == 'feedback-privacy-returned':
@@ -3234,7 +3282,7 @@ class AccessibleUI:
         require(self.existing_window_active(binding) is None, 'ui:switch-already-active')
         return self.window_switch_proof(binding, active=False)
 
-    def window_switch_proof(self, binding, *, active=True):
+    def window_switch_proof(self, binding, *, active=True, projection='synthetic-first'):
         root = self.existing_window(binding)
         require(self.has_state(root, self.api.StateType.ACTIVE) is active, 'ui:switch-active')
         # Public AT-SPI endpoint identity distinguishes two windows of one PID.
@@ -3244,27 +3292,38 @@ class AccessibleUI:
                 'ui:switch-endpoint')
         proof = {'binding': binding, 'pid': pid, 'endpoint': [bus, path], 'active': active}
         if binding == 'feedback' and active:
-            proof['feedback'] = self.feedback_snapshot('synthetic-first')
+            proof['feedback'] = self.feedback_snapshot(projection)
+            if projection == 'formatted-file':
+                proof['feedback'] = {key: item for key, item in proof['feedback'].items()
+                                     if key not in ('status', 'include_logs')}
         return proof
 
-    def window_switch_operation(self, operation):
+    def window_switch_operation(self, operation, *, projection='synthetic-first'):
         require(operation in WINDOW_SWITCH_OPERATIONS, 'ui:switch-operation')
         if operation.endswith('-ready'):
             return self.window_switch_ready(*WINDOW_SWITCH_TARGETS[operation[:-6]])
         if operation == 'switch-viewer-launch':
             require(not self.input_uncertain, 'ui:uncertain-input')
-            require(self.existing_window_active('parent') is not None, 'ui:switch-entry')
-            viewer, _, _ = self.license_viewer_snapshot()
-            require(viewer is None, 'ui:switch-viewer-exists')
+            def entry():
+                require(self.existing_window_active('parent') is not None, 'ui:switch-entry')
+                viewer, _, _ = self.license_viewer_snapshot()
+                require(viewer is None, 'ui:switch-viewer-exists')
+                return True
+            # A transitioning public tree cannot establish entry or absence.
+            # Retry only complete observations, never the launch command.
+            self.wait(entry, 'switch-viewer-entry', prompt_in_predicate=True)
             self.input_uncertain = True
+            self.invalidate_observation()
             subprocess.run([
                 '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
                 '--service-type=exec', '/usr/bin/gnome-text-editor', '--new-window',
                 '/usr/share/oh-no-parent-control/LICENSE',
             ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
             self.license_content()
+            proof = self.wait(lambda: self.window_switch_proof('viewer'),
+                              'switch-viewer-proof', prompt_in_predicate=True)
             self.input_uncertain = False
-            return self.window_switch_proof('viewer')
+            return proof
         if operation == 'switch-viewer-absent':
             viewer, _, _ = self.license_viewer_snapshot()
             require(viewer is None, 'ui:switch-viewer-exists')
@@ -3281,7 +3340,7 @@ class AccessibleUI:
         if operation not in ('switch-parent-before', 'switch-draft-before'):
             self.wait(lambda: self.existing_window_active(binding), 'switch-active',
                       prompt_in_predicate=True)
-        return self.window_switch_proof(binding)
+        return self.window_switch_proof(binding, projection=projection)
 
     def license_content(self):
         """Read the ID-scoped registered viewer, without title discovery."""
@@ -6826,10 +6885,13 @@ class AccessibleUI:
             feedback = self.length_operation(operation)
             if feedback is not None:
                 result['feedback_state'] = feedback
+        elif operation in DRAFT_OPERATIONS:
+            result.update(self.feedback_draft_operation(operation))
         elif operation in WINDOW_SWITCH_OPERATIONS:
             result['window'] = self.window_switch_operation(operation)
             if operation == 'switch-viewer-launch':
-                result['provider'] = self.license_provider_metadata()
+                result['provider'] = self.wait(self.license_provider_metadata,
+                    'switch-viewer-provider', prompt_in_predicate=True)
         elif operation in feedback_formats.OPERATIONS:
             formats = feedback_formats.operate(self, operation, require, UiError)
             if formats is not None:

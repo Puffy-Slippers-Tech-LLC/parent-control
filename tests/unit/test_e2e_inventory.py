@@ -119,7 +119,7 @@ def test_invalid_selection_fails_without_broadening(document, selector, category
 
 
 @pytest.mark.parametrize('selector', [None, 'E2E-005', 'E2E-023/fullscreen',
-    'E2E-031/draft-reopen', 'E2E-051/riley',
+    'E2E-031/attachments', 'E2E-051/riley',
     'E2E-052/appimagelauncher-login-autostart'])
 def test_pending_selection_cannot_run(document, selector):
     with pytest.raises(inventory.InventoryError, match='selection:pending'):
@@ -437,11 +437,14 @@ def test_unmapped_surfaces_and_external_delivery_are_explicit_pending_work(docum
             'supported-real-feedback-service-profile'} <= set(family(document, 'E2E-032')['preconditions'])
 
 
-def test_local_feedback_registers_only_the_complete_validation_case(document):
+def test_local_feedback_registers_complete_draft_and_validation_cases(document):
     chosen = family(document, 'E2E-031')
     assert chosen['requirement_gap'] is None
-    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {153}
-    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'pending'} == {152, 154, 155}
+    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {152, 153}
+    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'pending'} == {154, 155}
+    draft = next(v for v in chosen['variants'] if v['coverage_id'] == 152)
+    assert draft['executable'] == {
+        'path': 'tests/e2e/parent_feedback_draft.py', 'test_id': 'draft-reopen'}
     validation = next(v for v in chosen['variants'] if v['coverage_id'] == 153)
     assert validation['executable'] == {
         'path': 'tests/e2e/parent_feedback_validation.py', 'test_id': 'validation'}

@@ -8,7 +8,7 @@ from watch_activity import operation
 
 class SyntheticFiles:
     def __init__(self, transport, profile='standard'):
-        require(profile in ('standard', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow'),
+        require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow'),
                 'files:profile')
         self.transport = transport
         self.profile = profile
@@ -57,7 +57,7 @@ def fixture_actions(profiles, *, stage='chooser-fixtures', cleanup='chooser-clea
     input; the attempt envelope owns recovery after a failed action.
     """
     require(type(profiles) is tuple and profiles and len(set(profiles)) == len(profiles)
-            and all(profile in ('standard', 'count', 'sixth', 'maximum', 'oversized',
+            and all(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized',
                                 'total', 'overflow') for profile in profiles), 'files:profiles')
     require(stage != cleanup, 'files:action-names')
 

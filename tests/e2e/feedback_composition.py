@@ -54,3 +54,26 @@ class FeedbackValidationJourney(WindowSwitchJourney):
             else:
                 require(self.draft is not None and current == self.draft,
                         'feedback:preserved-draft')
+
+
+class FeedbackDraftJourney(WindowSwitchJourney):
+    """Compare complete independent file-bearing drafts and a fresh empty app."""
+    def __init__(self, context, progress, plan, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        self.draft = None
+
+    def check_settings(self, stage, observed):
+        from attachment_composition import compare_formatted_draft
+        super().check_settings(stage, observed)
+        operation = self.plan.screen_tags.get(stage, '').removeprefix('ui:')
+        if 'draft_state' not in observed.get('ui', {}):
+            return
+        reset = operation in ('draft-feedback-reopen', 'draft-feedback-reread')
+        value = compare_formatted_draft(observed['ui']['draft_state'], reset=reset)
+        if operation == 'draft-feedback-draft':
+            require(self.draft is None, 'feedback:replay')
+            self.draft = value
+        else:
+            require(self.draft is not None, 'feedback:missing-prior-draft')
+            if not reset:
+                require(value == self.draft, 'feedback:preserved-draft')

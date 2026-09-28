@@ -1,10 +1,33 @@
 """Reusable installation snapshot preparation under an existing suite lease."""
 import re
 import json
+import time
 import xml.etree.ElementTree as ET
 
 import system_runner as system
 import package_content
+
+
+def mode_mismatch(xml, mode, *, now=None):
+    """Use libvirt's saved state and host UTC creation time, not guest time."""
+    try:
+        root = ET.fromstring(xml)
+        memory = root.find('memory')
+        online = memory is not None and memory.get('snapshot') == 'internal'
+        if online != (mode == 'online'):
+            return 'snapshot mode changed'
+        if online:
+            if root.findtext('state') != 'running':
+                return 'online snapshot is not running'
+            created = int(root.findtext('creationTime', ''))
+            age = (time.time() if now is None else now) - created
+            if created <= 0 or age < 0:
+                return 'invalid online snapshot creation time'
+            if age > 24 * 60 * 60:
+                return 'online snapshot is more than 24 hours old'
+        return None
+    except (ET.ParseError, ValueError, TypeError):
+        return 'missing or invalid snapshot metadata'
 
 
 def input_identity(lease, assets, bundle, commands):
@@ -64,12 +87,13 @@ def preparation(message):
         system.watch_progress.suite_preparation(message)
 
 
-def prepare(suite, directory, assets, selection, *, root, overwrite=True):
+def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='offline'):
     """Ensure a current snapshot; overwrite forces even a matching rebuild."""
     from installed_setup import stage, InstalledSetup
     from provenance import VerifiedInputs
     from vm_transport import Transport
     system.require(type(overwrite) is bool, 'suite:invalid-overwrite')
+    system.require(mode in ('online', 'offline'), 'suite:invalid-snapshot-mode')
     lease = suite.lease
     version = suite.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
                                   'Version']).decode().strip()
@@ -83,7 +107,14 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
         lease.capture.vm_ownership.check_owner()
         lease.capture.revalidate()
         xml = lease.source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
-        reason = mismatch(xml, expected)
+        mode_reason = mode_mismatch(xml, mode)
+        reason = mode_reason or mismatch(xml, expected)
+        if mode_reason is not None:
+            overwrite = True
+        if reason is None and mode == 'online':
+            from online_snapshot import load
+            if load(lease.source, name, xml) is None:
+                reason = 'online snapshot credentials missing'
         if reason is None:
             if json.loads(ET.fromstring(xml).findtext('description'))['schema_version'] == 1:
                 preparation('Recording content fingerprint for existing snapshot ' + name)
@@ -120,21 +151,25 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True):
         'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
         'run': lease.state['run']}, suite.commands, guard=lambda _: lease.guard())
     transport.probe_ready()
-    # Install without rebooting: this disk-only snapshot's next boot activates
-    # the package. Verify its installed bytes before the clean shutdown.
-    InstalledSetup(setup, verified, transport).run(lease.guard, verify=False)
+    # Online snapshots capture activated services after a verified reboot.
+    # Offline snapshots retain the original install/verify/shutdown sequence.
+    InstalledSetup(setup, verified, transport).run(lease.guard, verify=mode == 'online')
     transport.call(system.guest_command(lease.state['run'], 'verify-snapshot'), timeout=660)
     lease.guard()
     verified.recheck()
     lease.capture.retire_vm_ownership()
-    lease.source.shutdown(lease.guard, requested=False)
-    lease.guard(off=True)
-    lease.close_watch()
+    if mode == 'offline':
+        lease.source.shutdown(lease.guard, requested=False)
+        lease.guard(off=True)
+        lease.close_watch()
     preparation('Taking snapshot ' + name)
-    lease.create_installed()
+    lease.create_installed(mode=mode)
+    if mode == 'online':
+        from online_snapshot import publish
+        publish(lease, setup, host_key)
     # A completed snapshot is reusable across runs, including interrupted runs.
     lease.state.pop('e2e_snapshot', None)
-    lease.save('isolated')
+    lease.save('running' if mode == 'online' else 'isolated')
     suite.prepared = True
     if system.watch_progress is not None:
         system.watch_progress.suite_prepared()

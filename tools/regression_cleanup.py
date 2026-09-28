@@ -25,7 +25,11 @@ system_caller system_enforcement system_probe_sandbox system_runner storage_migr
 test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session write_e2e
 '''.split())
 
-# Installed journey/setup/About tests write only beneath tmp_path and replace
+# Online snapshot, baseline CPU and maintenance recovery/rollback regressions
+# retain private tmp_path journals and VM/transport doubles. No new shared
+# resource or heavy fixture is introduced; their reviewed buckets still apply.
+# Resume refusal and delayed-clock checks use those same private journals and
+# VM/SSH/time doubles, with no live guest, host clock or process mutation.
 # Synthetic file checks use only private tmp_path trees and mocked SSH; no
 # accounts, VM, sockets, subprocesses, caches or shared filesystem mutations.
 # Attachment boundary profiles add <= 5 MiB+1 files in private tmp_path trees;
@@ -34,6 +38,7 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # no new process, account, socket or shared resource in either scheduler.
 # Source-change checks use tiny private files and process-local transport/write
 # doubles, retaining compatible cleanup and unit scheduling.
+# Installed journey/setup/About tests write only beneath tmp_path and replace
 # guest operations with process-local doubles. About's matcher reads repository
 # fixtures in its own Perl child; watcher sockets, processes and signals are
 # mocked. These modules therefore share the same isolation as cleanup buckets.

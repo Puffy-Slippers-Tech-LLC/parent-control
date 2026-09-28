@@ -220,12 +220,33 @@ def test_baseline_boot_uses_shared_endpoint_and_collector(preparation, monkeypat
         assert copied.find('gl').get('enable') == 'no'
         start.assert_not_called()
         p.boot()
+    xml = p.capture.source.domain.XMLDesc.return_value
+    p.capture.source.domain.XMLDesc.return_value = xml.replace('<devices>',
+        '<cpu mode="host-passthrough" migratable="off"/><devices><memballoon model="virtio"/>')
     p.capture.source.domain.create.side_effect = boot
     guest.prepare(p.capture, Mock(), 'fixture-password')
     adapter = start.call_args.args[0]
     assert isinstance(adapter, e2e_watch.DisplayAdapter)
     assert adapter.source is p.capture.source and adapter.domain_id == 15
     observer.close.assert_called_once()
+    cpu = ET.fromstring(p.capture.source.connection.defineXML.call_args.args[0]).find('cpu')
+    assert cpu.get('migratable') == 'on'
+    assert cpu.find("feature[@name='invtsc']").get('policy') == 'disable'
+    configured = ET.fromstring(p.capture.source.connection.defineXML.call_args.args[0])
+    assert configured.find('devices/memballoon').get('freePageReporting') == 'on'
+
+
+@pytest.mark.parametrize('model', ['virtio', 'virtio-transitional', 'virtio-non-transitional', 'none'])
+def test_memory_reporting_preserves_memory_allocation_and_device_identity(model):
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring('<domain><memory>12288000</memory><currentMemory>6144000</currentMemory>'
+        f'<devices><memballoon model="{model}"><address slot="5"/></memballoon></devices></domain>')
+    guest.configure_snapshot_memory(root)
+    assert root.findtext('memory') == '12288000'
+    assert root.findtext('currentMemory') == '6144000'
+    assert root.find('devices/memballoon/address').get('slot') == '5'
+    assert root.find('devices/memballoon').get('freePageReporting') == (
+        None if model == 'none' else 'on')
 
 
 @pytest.mark.parametrize('changed,accepted', [

@@ -15,12 +15,18 @@ from test_recovery import cleanup
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--overwrite', nargs='?', const='true', default='true',
+    parser.add_argument('--mode', choices=('online', 'offline'), default='online',
+                        help='snapshot after reboot with memory (online, default), '
+                             'or after shutdown (offline)')
+    parser.add_argument('--overwrite', nargs='?', const='true', default=None,
                         choices=('true', 'false'),
                         help='rebuild the current source before installing and replacing '
-                             'a matching version snapshot (default: true); false keeps '
+                             'a matching version snapshot (default: false online, true offline); false keeps '
                              'an existing version snapshot without building, or creates it if missing')
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.overwrite is None:
+        args.overwrite = 'false' if args.mode == 'online' else 'true'
+    return args
 
 
 def main(argv=None):
@@ -35,11 +41,16 @@ def main(argv=None):
             environment = test_launcher.environment(root)
             if args.overwrite == 'false':
                 status = control.run(['/usr/bin/pkexec', '--disable-internal-agent',
-                    helper, 'appsnapshot', '--probe'], cwd=root, env=environment)
-                # Only the guarded probe's missing-snapshot result permits a
-                # build. Existing snapshots and errors both finish immediately.
+                    helper, 'appsnapshot', '--probe', '--mode', args.mode],
+                    cwd=root, env=environment)
+                if status == 4:
+                    return control.run(['/usr/bin/pkexec', '--disable-internal-agent',
+                        helper, 'appsnapshot', '--resume', '--mode', args.mode],
+                        cwd=root, env=environment)
+                # Missing, expired or differently-mode snapshots require a build.
                 if status != 3:
                     return status
+                args.overwrite = 'true'
             cleanup(root)
             if control.stopped.is_set():
                 return 130
@@ -52,10 +63,15 @@ def main(argv=None):
                     cwd=root, env=environment)
                 if status:
                     return status
-                return control.run(['/usr/bin/pkexec', '--disable-internal-agent', helper,
+                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', helper,
                     '--retention-run=' + run, '--unattended', 'appsnapshot',
-                    '--overwrite', args.overwrite, '--artifacts', directory],
+                    '--overwrite', args.overwrite, '--artifacts', directory,
+                    '--mode', args.mode],
                     cwd=root, env=environment, cooperative=True)
+            if status or args.mode == 'offline':
+                return status
+            return control.run(['/usr/bin/pkexec', '--disable-internal-agent', helper,
+                'appsnapshot', '--resume', '--mode', args.mode], cwd=root, env=environment)
     except (ValueError, OSError) as error:
         print('prepare-appsnapshot: ' + str(error), file=sys.stderr)
         return 2

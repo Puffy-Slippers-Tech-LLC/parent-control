@@ -103,8 +103,13 @@ write_e2e write_e2e_cleanup_safety
 # mutation. Version checks spawn only bounded read-only dpkg comparisons with
 # no shared mutable files, sockets, displays, package locks or heavy fixtures.
 # These modules remain compatible in both unit and cleanup scheduling.
-# Snapshot/suite/maintenance cleanup tests use the
-# private VM doubles; qualification storage uses private retention trees. Repair
+# Online restore, explicit recovery and CPU rollback additions use the same
+# private VM doubles and tiny tmp_path XML/credential files; no real VM, socket,
+# display, account or process is touched. Both scheduler classifications hold.
+# Resume refusal and delayed-clock checks retain that isolation: real journals
+# are tmp_path-local and VM/SSH/time operations are process-local doubles.
+# Snapshot/suite/maintenance cleanup tests use private VM doubles;
+# qualification storage uses private retention trees. Repair
 # loop and write-E2E tests use private checkouts and recorded child identities;
 # UI watcher tests use private sockets/memfds. E2E case contracts use API doubles
 # or isolated Perl workers. Storage and startup-cache checks use private test

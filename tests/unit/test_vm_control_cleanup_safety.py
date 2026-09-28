@@ -1,8 +1,11 @@
 """VM maintenance uses real lease files/locks with exclusively mocked VM calls."""
 import json
+import hashlib
 from pathlib import Path
 import runpy
 import os
+import time
+import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -175,3 +178,141 @@ def test_reset_leaves_vm_off_and_never_creates_snapshot_or_vm(lease_rig):
     lease.source.domain.create.assert_not_called()
     assert len(lease.source.creations) == snapshots
     assert lease.source.off
+
+
+@pytest.mark.parametrize('running', [False, True])
+@pytest.mark.parametrize('fault', ['expired', 'credentials', 'baseline', 'restore'])
+def test_online_resume_refusal_preserves_idle_or_running_ownership(
+        lease_rig, monkeypatch, tmp_path, running, fault):
+    import online_snapshot
+    import prepare_snapshot as controller
+    from tools import test_retention
+    lease, current = lease_rig
+    lease.view.graphics_type = 'vnc'
+    if running:
+        start(lease)
+        previous_journal = lease.journal.read_bytes()
+        previous_owner = (lease.directory / 'vm-control.json').read_bytes()
+        held = reopened(lease)
+    else:
+        held = lease
+    held.capture.directory_identity = held.capture.private_directory()
+    baseline_sha256 = hashlib.sha256(runner.baseline.encode(
+        held.capture.read_state())).hexdigest()
+    root = ET.Element('domainsnapshot')
+    ET.SubElement(root, 'memory', snapshot='internal')
+    ET.SubElement(root, 'state').text = 'running'
+    ET.SubElement(root, 'creationTime').text = str(int(time.time()) - (
+        86401 if fault == 'expired' else 0))
+    ET.SubElement(root, 'description').text = json.dumps({
+        'baseline_sha256': 'f' * 64 if fault == 'baseline' else baseline_sha256})
+    root.append(ET.fromstring(runner.isolated_xml(
+        current['xml'], UUID, 'e' * 32, graphics_type='vnc')))
+    snapshot = Mock()
+    snapshot.getXMLDesc.return_value = ET.tostring(root, encoding='unicode')
+    lease.source.domain.snapshotLookupByName.return_value = snapshot
+    lease.source.close = Mock()
+    monkeypatch.setattr(controller, 'open_source', lambda: (lease.source, Mock()))
+    monkeypatch.setattr(controller, 'check_identity', Mock())
+    monkeypatch.setattr(controller, 'Commands', lambda: lease.commands)
+    monkeypatch.setattr(controller.system, 'Lease', lambda *a, **kw: held)
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v1.1')
+    monkeypatch.setattr(test_retention, 'allocate', lambda *a, **kw: str(tmp_path))
+    monkeypatch.setattr(online_snapshot, 'load', lambda *a: (
+        None if fault == 'credentials' else {'run': 'e' * 32}))
+    lease.source.domain.revertToSnapshot.reset_mock()
+    lease.source.domain.revertToSnapshot.side_effect = runner.Error('fixture:restore-interrupted')
+    with pytest.raises(RuntimeError, match={
+            'expired': 'expired-or-invalid', 'credentials': 'credentials-missing',
+            'baseline': 'baseline-changed', 'restore': 'restore-interrupted'}[fault]):
+        controller.resume(UUID)
+    assert held.fd is None
+    state = json.loads(lease.journal.read_bytes())
+    if fault == 'restore':
+        assert state['phase'] == 'start-requested' and state['domain_id'] is None
+        lease.source.domain.revertToSnapshot.assert_called_once()
+        if running:
+            assert state['run'] != json.loads(previous_journal)['run']
+    else:
+        lease.source.domain.revertToSnapshot.assert_not_called()
+        if running:
+            assert lease.journal.read_bytes() == previous_journal
+            assert (lease.directory / 'vm-control.json').read_bytes() == previous_owner
+        else:
+            assert state['phase'] == 'complete'
+
+
+@pytest.mark.parametrize('fault', [None, 'instance', 'owner', 'credentials', 'sharing', 'baseline'])
+def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(lease_rig, monkeypatch, fault):
+    import online_snapshot
+    lease, current = lease_rig
+    start(lease)
+    saved_run = lease.state['run']
+    tree = ET.Element('domainsnapshot')
+    ET.SubElement(tree, 'state').text = 'running'
+    ET.SubElement(tree, 'memory', snapshot='internal')
+    ET.SubElement(tree, 'description').text = json.dumps({
+        'baseline_sha256': lease.state['baseline_sha256'] if fault != 'baseline' else 'f' * 64})
+    tree.append(ET.fromstring(current['xml']))
+    snapshot = Mock()
+    snapshot.getName.return_value = 'onpc-v1.1'
+    snapshot.getXMLDesc.return_value = ET.tostring(tree, encoding='unicode')
+    lease.source.domain.listAllSnapshots.return_value = [snapshot]
+    monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=
+        None if fault == 'credentials' else {'run': saved_run}))
+    lease.state.update(phase='start-requested', domain_id=None, run='b' * 32)
+    lease.journal.write_bytes(runner.baseline.encode(lease.state))
+    control.save_owner(lease)
+    if fault == 'owner':
+        (lease.directory / 'vm-control.json').write_text('{}')
+    if fault == 'sharing':
+        current['xml'] = current['xml'].replace('</devices>', '<channel/></devices>')
+    resumed = reopened(lease)
+    calls = lease.source.domain.revertToSnapshot.call_count
+    try:
+        if fault:
+            with pytest.raises(RuntimeError):
+                control.operate(resumed, 'recover-online', [72 if fault == 'instance' else 71])
+            assert lease.source.domain.revertToSnapshot.call_count == calls
+        else:
+            control.operate(resumed, 'recover-online', [71])
+            assert resumed.state['phase'] == 'complete'
+            assert lease.source.off
+            assert lease.source.domain.revertToSnapshot.call_count == calls + 1
+        assert lease.source.domain.create.call_count == 1
+    finally:
+        resumed.release()
+
+
+@pytest.mark.parametrize('fault', [None, 'uuid', 'running'])
+def test_restore_cpu_uses_only_pinned_backup_without_restoring_disks(lease_rig, monkeypatch, tmp_path, fault):
+    lease, current = lease_rig
+    current['xml'] = current['xml'].replace('<devices>',
+        '<cpu mode="host-passthrough" migratable="on"><feature name="invtsc" policy="disable"/></cpu><devices>')
+    original = current['xml']
+    backup = original.replace('migratable="on"', 'migratable="off"').replace(
+        '<feature name="invtsc" policy="disable"/>', '')
+    if fault == 'uuid':
+        backup = backup.replace(UUID, 'f' * 36)
+    if fault == 'running':
+        lease.source.off, current['id'] = False, 71
+    (tmp_path / 'config').mkdir()
+    (tmp_path / 'config/test-vm-original.xml').write_text(backup)
+    monkeypatch.setattr(runner, 'ROOT', tmp_path)
+    try:
+        if fault:
+            with pytest.raises(RuntimeError):
+                control.operate(lease, 'restore-cpu', [])
+            lease.source.connection.defineXML.assert_not_called()
+        else:
+            control.operate(lease, 'restore-cpu', [])
+            assert ET.fromstring(current['xml']).find('cpu').get('migratable') == 'off'
+            assert ET.fromstring(current['xml']).find('cpu/feature') is None
+            before, after = ET.fromstring(original), ET.fromstring(current['xml'])
+            before.remove(before.find('cpu')); after.remove(after.find('cpu'))
+            assert ET.tostring(before) == ET.tostring(after)
+        assert lease.state['phase'] == 'complete'
+        lease.source.domain.revertToSnapshot.assert_not_called()
+        lease.source.domain.create.assert_not_called()
+    finally:
+        lease.release()

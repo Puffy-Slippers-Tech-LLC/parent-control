@@ -334,10 +334,10 @@ def category_run(root, category, argv, *, pipe=True):
             if privileged:
                 from dev_privileges import check
                 check(command[1])
-                command = [command[0], '--disable-internal-agent', command[1],
+                command = [command[0], '--disable-internal-agent', '--keep-cwd', command[1],
                            '--unattended', *command[2:]]
                 if category in ('system', 'e2e') and test_retention.token() is not None:
-                    command.insert(3, '--retention-run=' + test_retention.token())
+                    command.insert(4, '--retention-run=' + test_retention.token())
             status = control.run(command, cwd=root, env=env, cooperative=privileged)
             if status:
                 return status

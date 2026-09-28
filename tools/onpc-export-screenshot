@@ -12,7 +12,7 @@ from pathlib import Path
 
 MAX_BYTES = 32 * 1024 * 1024
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
+CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 
 
 def caller():

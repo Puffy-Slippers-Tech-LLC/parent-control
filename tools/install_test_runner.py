@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Install the development test dispatcher, bound to this checkout."""
+"""Install development helpers that resolve the invoking repository root."""
 
 from contextlib import ExitStack
 import json
@@ -90,8 +90,11 @@ def pinned_vm_uuid(directory=None, *, owner=0):
 
 def render_helper(root, name, identity):
     source = (root / 'tools' / name).read_text()
-    source = source.replace('CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.',
-                            f'CHECKOUT = {str(root)!r}')
+    # Embed the resolver: privileged helpers must not import checkout code to
+    # decide which checkout to trust. No installation-time path is retained.
+    resolver = (root / 'tools/dev_checkout.py').read_text()
+    source = source.replace('CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.',
+                            resolver + '\nCHECKOUT = str(checkout_root())\n')
     source = source.replace('VM_UUID = None  # Pinned from finalized baseline state by install_test_runner.py.',
                             f'VM_UUID = {identity!r}')
     return source

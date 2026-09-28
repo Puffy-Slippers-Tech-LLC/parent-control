@@ -57,7 +57,7 @@ def test_every_named_input_consumer_prepares_before_dispatch(
         assert execute.call_count == 2
         authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
         assert execute.call_args.args[0] == [
-            '/usr/bin/pkexec', '--disable-internal-agent',
+            '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
             '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector]
 
 

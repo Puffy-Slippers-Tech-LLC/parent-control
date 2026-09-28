@@ -610,6 +610,7 @@ def _main(argv=None, *, detached=False):
         if commands[-1][0] == '/usr/bin/pkexec':
             from dev_privileges import check
             check(commands[-1][1])
+            commands[-1].insert(1, '--keep-cwd')
         print('run-tests: validated category starting', file=sys.stderr, flush=True)
         from test_storage import scratch_descriptors
         return subprocess.run(commands[-1], env=env, pass_fds=scratch_descriptors(),

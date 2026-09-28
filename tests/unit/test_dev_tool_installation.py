@@ -63,13 +63,71 @@ def test_unsafe_baseline_cannot_pin_vm(baseline, kind):
         installer['pinned_vm_uuid'](baseline, owner=os.getuid())
 
 
-def test_rendered_dispatcher_pins_checkout_and_uuid():
+def test_rendered_dispatcher_resolves_checkout_and_pins_uuid(monkeypatch):
+    monkeypatch.chdir(ROOT)
     source = installer['render_helper'](ROOT, 'onpc-test-runner', UUID)
     namespace = {}
     exec(compile(source, '<installed-dispatcher-fixture>', 'exec'), namespace)
     assert namespace['CHECKOUT'] == str(ROOT)
     assert namespace['VM_UUID'] == UUID
     assert namespace['selection'](ROOT, ['vm', 'reboot'])[-3:] == ['--expected-uuid', UUID, 'reboot']
+    assert str(ROOT) not in source
+
+
+@pytest.mark.parametrize('name', ['onpc-test-runner', 'onpc-setup',
+                                 'onpc-test-artifacts', 'onpc-export-screenshot'])
+def test_same_installed_helper_follows_two_repositories(tmp_path, monkeypatch, name):
+    source = installer['render_helper'](ROOT, name, UUID)
+    for directory in ('first checkout', 'second checkout'):
+        checkout = tmp_path / directory
+        for relative in ('setup.sh', 'Makefile', 'tools/onpc-test-runner',
+                         'tools/install_test_runner.py',
+                         'config/com.puffyslippers.onpc.development.policy'):
+            target = checkout / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text('fixture')
+        monkeypatch.chdir(checkout)
+        namespace = {}
+        exec(compile(source, '<installed-helper>', 'exec'), namespace)
+        assert namespace['CHECKOUT'] == str(checkout)
+        if name == 'onpc-setup':
+            assert namespace['command'](Path(namespace['CHECKOUT']), ['test-tools']) == [
+                '/usr/bin/python3', '-IB', str(checkout / 'tools/install_test_runner.py')]
+        elif name == 'onpc-test-artifacts':
+            path = str(checkout / 'output/result.json')
+            assert namespace['source_parts'](path, namespace['CHECKOUT']) == path.split('/')[1:]
+
+
+@pytest.mark.parametrize('defect', ['missing', 'symlink', 'writable', 'writable-tools', 'owner',
+                                  'shared-group'])
+def test_checkout_resolver_refuses_unsafe_inputs(tmp_path, monkeypatch, defect):
+    from dev_checkout import checkout_root
+    for relative in ('setup.sh', 'Makefile', 'tools/onpc-test-runner',
+                     'tools/install_test_runner.py',
+                     'config/com.puffyslippers.onpc.development.policy'):
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text('fixture')
+    target = tmp_path / 'setup.sh'
+    if defect == 'missing':
+        target.unlink()
+    elif defect == 'symlink':
+        target.unlink()
+        target.symlink_to(tmp_path / 'Makefile')
+    elif defect == 'writable':
+        target.chmod(0o666)
+    elif defect == 'writable-tools':
+        (tmp_path / 'tools').chmod(0o777)
+    elif defect == 'owner':
+        monkeypatch.setenv('PKEXEC_UID', str(os.getuid() + 1))
+    else:
+        import grp
+        from types import SimpleNamespace
+        target.chmod(0o664)
+        monkeypatch.setattr(grp, 'getgrgid', lambda gid: SimpleNamespace(gr_mem=['unrelated-user']))
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match='repository'):
+        checkout_root()
 
 
 def test_atomic_helper_install_and_symlink_refusal(tmp_path, monkeypatch):

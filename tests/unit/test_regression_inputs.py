@@ -48,3 +48,13 @@ def test_reconnect_output_does_not_change_source_identity(tmp_path):
     (output / 'frame.json').write_text('["finished"]')
     (output / 'result').write_text('0')
     assert identity(tmp_path) == before
+
+
+def test_untracked_nested_checkout_directory_is_not_a_source_file(tmp_path):
+    subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
+    (tmp_path / 'source.py').write_text('source')
+    before = identity(tmp_path)
+    nested = tmp_path / 'nested'
+    subprocess.run(['git', 'init', '-q', str(nested)], check=True)
+    (nested / 'unrelated').write_text('external work')
+    assert identity(tmp_path) == before

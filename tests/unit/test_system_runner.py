@@ -479,14 +479,32 @@ def test_selected_pytest_command_forwards_only_resolved_case_and_prerequisites()
         runner.pytest_command(RUN, 'installed', selection)
 
 
-def test_readiness_timeout_is_bounded_without_fixed_sleep(monkeypatch):
+@pytest.mark.parametrize('lease_count', [0, 2])
+def test_readiness_timeout_is_bounded_without_fixed_sleep(monkeypatch, capsys, lease_count):
     source = Mock()
-    source.domain.interfaceAddresses.return_value = {}
+    source.api.VIR_IP_ADDR_TYPE_IPV4 = 1
+    source.domain.interfaceAddresses.return_value = {
+        str(index): {'addrs': [{'type': 1, 'addr': f'192.168.122.{index + 2}'}]}
+        for index in range(lease_count)}
     clock = iter([0, 0, 2, 2])
     monkeypatch.setattr(runner.time, 'monotonic', lambda: next(clock))
     monkeypatch.setattr(runner.threading, 'Event', Mock)
     with pytest.raises(runner.Error, match='readiness-timeout'):
         runner.address(source, timeout=1)
+    assert f'ipv4-lease-count={lease_count}' in capsys.readouterr().err
+    source.api.virEventRemoveTimeout.assert_called_once()
+
+
+def test_address_waits_for_one_valid_lease_after_initial_absence(monkeypatch):
+    source = Mock()
+    source.api.VIR_IP_ADDR_TYPE_IPV4 = 1
+    source.domain.interfaceAddresses.side_effect = [
+        {}, {'eth0': {'addrs': [{'type': 1, 'addr': '192.168.122.14'}]}}]
+    monkeypatch.setattr(runner.time, 'monotonic', lambda: 0)
+    event = Mock()
+    monkeypatch.setattr(runner.threading, 'Event', lambda: event)
+    assert runner.address(source, timeout=1) == '192.168.122.14'
+    event.wait.assert_called_once()
     source.api.virEventRemoveTimeout.assert_called_once()
 
 

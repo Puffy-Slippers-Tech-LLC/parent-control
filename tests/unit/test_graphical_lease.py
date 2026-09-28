@@ -485,7 +485,7 @@ def test_public_callback_exit_status_matches_generalhw(action, result, code):
         peer.recv.return_value = result
         assert graphical.callback('/private/generalhw.sock', RUN, action) == code
         peer.sendall.assert_called_once_with(f'{action} {RUN}\n'.encode())
-        peer.settimeout.assert_called_once_with(240)
+        peer.settimeout.assert_called_once_with(900)
 
 
 @pytest.mark.parametrize('path', [

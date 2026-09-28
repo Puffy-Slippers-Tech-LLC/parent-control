@@ -1106,17 +1106,20 @@ def address(source, timeout=300):
     deadline = time.monotonic() + timeout
     event = threading.Event()
     timer = source.api.virEventAddTimeout(500, lambda *_: event.set(), None)
+    observed_count = 0
     try:
         while time.monotonic() < deadline:
             interfaces = source.domain.interfaceAddresses(source.api.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)
             addresses = [a['addr'] for item in interfaces.values() for a in item.get('addrs', [])
                          if a['type'] == source.api.VIR_IP_ADDR_TYPE_IPV4]
+            observed_count = len(addresses)
             if len(addresses) == 1:
                 value = ipaddress.ip_address(addresses[0])
                 require(value.is_private and not value.is_loopback, 'network:address')
                 return str(value)
             event.wait(max(0, deadline - time.monotonic()))
             event.clear()
+        log(f'network:readiness-timeout ipv4-lease-count={observed_count}')
         raise Error('network:readiness-timeout')
     finally:
         source.api.virEventRemoveTimeout(timer)

@@ -400,10 +400,11 @@ def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,
         module_result(directory)
     # VT6 authentication performs ten mandatory full baseline rechecks (802s
     # measured in attempt 10). Reserve 1200s for those checks plus the existing
-    # 600s smoke allowance, including the synchronous off restore and backend exit.
+    # 600s smoke allowance after readiness, plus bounded online-snapshot
+    # power-on preparation and synchronous off restore/backend exit.
     # This is one finite total budget; no callback or retry renews it.
     timeout = 1800 if vt6_auth else (
-        960 if installation is not None and not installation.refusal else 600)
+        1500 if installation is not None and not installation.refusal else 1200)
     try:
         worker_result = e2e_worker.run_distribution(
             directory, lease, ledger, expected_inputs=expected_inputs,

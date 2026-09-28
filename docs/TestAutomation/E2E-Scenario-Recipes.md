@@ -651,7 +651,8 @@ Implementation status comes from the inventory. The UI/E2E allocation
 compositions passed independently: 152 in `20260928T164519Z-04c77547`, 153 in
 `20260928T165013Z-99382b18`, and 154 in `20260928T165312Z-34f506c3`, including
 collection and cleanup. Coverage was refreshed after each pass. Task 039's
-shared qualifications and close-out, and case 155, remain unfinished.
+shared attachment, Privacy and window-switch qualifications also passed with
+owned cleanup. Case 155 remains unfinished.
 
 **Feedback drafts, validation and attachment review.** Cases 152, 153, 154, 155.
 

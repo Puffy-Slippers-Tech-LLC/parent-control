@@ -309,8 +309,10 @@ def callback(path, run, action):
             'graphics:invalid-callback')
     with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
         # The controller owns the bounded restore and off-state verification.
-        # Allow its callback to finish before the worker supervisor expires.
-        peer.settimeout(240)
+        # Online snapshot restoration may spend 300s on DHCP discovery and
+        # another 330s on authenticated SSH readiness before power-on replies.
+        # Keep this below the ordinary worker's total 1200s deadline.
+        peer.settimeout(900)
         peer.connect(str(path))
         peer.sendall(f'{action} {run}\n'.encode('ascii'))
         result = peer.recv(16)

@@ -43,69 +43,51 @@ prefix_rule(
 
 # Operator authorization: direct execution of every executable project tool
 # is preapproved, with validated arguments.
-# Setup expands this placeholder to exact tools/, ./tools/ and checkout-absolute
-# paths. Prefix rules have no filename glob; new executables need a rules refresh.
+# Setup expands this placeholder to exact tools/ and ./tools/ paths.
+# Run from the project root so these grants work in every checkout/worktree.
+# Prefix rules have no filename glob; new executables need a rules refresh.
 # This trusts the tools and their future edits. It does not validate arguments
 # or grant unrelated task scope, general interpreters, shells or root wrappers.
 prefix_rule(
     pattern = [[
         "tools/cleanup-e2e",
         "./tools/cleanup-e2e",
-        "/Data/Code/PST/parent-control/tools/cleanup-e2e",
         "tools/cleanup-screenshots",
         "./tools/cleanup-screenshots",
-        "/Data/Code/PST/parent-control/tools/cleanup-screenshots",
         "tools/diagnose",
         "./tools/diagnose",
-        "/Data/Code/PST/parent-control/tools/diagnose",
         "tools/fix-tests",
         "./tools/fix-tests",
-        "/Data/Code/PST/parent-control/tools/fix-tests",
         "tools/generate_test_coverage.sh",
         "./tools/generate_test_coverage.sh",
-        "/Data/Code/PST/parent-control/tools/generate_test_coverage.sh",
         "tools/onpc-diagnostics",
         "./tools/onpc-diagnostics",
-        "/Data/Code/PST/parent-control/tools/onpc-diagnostics",
         "tools/prepare-appsnapshot",
         "./tools/prepare-appsnapshot",
-        "/Data/Code/PST/parent-control/tools/prepare-appsnapshot",
         "tools/prepare-baseline",
         "./tools/prepare-baseline",
-        "/Data/Code/PST/parent-control/tools/prepare-baseline",
         "tools/prepare-e2e-needle",
         "./tools/prepare-e2e-needle",
-        "/Data/Code/PST/parent-control/tools/prepare-e2e-needle",
         "tools/publish.py",
         "./tools/publish.py",
-        "/Data/Code/PST/parent-control/tools/publish.py",
         "tools/publishing/signing.py",
         "./tools/publishing/signing.py",
-        "/Data/Code/PST/parent-control/tools/publishing/signing.py",
         "tools/read-only",
         "./tools/read-only",
-        "/Data/Code/PST/parent-control/tools/read-only",
         "tools/run-tests",
         "./tools/run-tests",
-        "/Data/Code/PST/parent-control/tools/run-tests",
         "tools/run-ui-tests",
         "./tools/run-ui-tests",
-        "/Data/Code/PST/parent-control/tools/run-ui-tests",
         "tools/run-unit-tests",
         "./tools/run-unit-tests",
-        "/Data/Code/PST/parent-control/tools/run-unit-tests",
         "tools/test-vm",
         "./tools/test-vm",
-        "/Data/Code/PST/parent-control/tools/test-vm",
         "tools/watch-ui",
         "./tools/watch-ui",
-        "/Data/Code/PST/parent-control/tools/watch-ui",
         "tools/watchvm",
         "./tools/watchvm",
-        "/Data/Code/PST/parent-control/tools/watchvm",
         "tools/write-e2e",
-        "./tools/write-e2e",
-        "/Data/Code/PST/parent-control/tools/write-e2e"
+        "./tools/write-e2e"
     ]],
     decision = "allow",
     justification = "The user preapproves direct execution of this project's tools, without repeated command approval.",

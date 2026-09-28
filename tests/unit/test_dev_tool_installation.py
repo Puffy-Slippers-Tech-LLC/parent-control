@@ -220,7 +220,11 @@ def test_rules_render_for_a_checkout_with_spaces(tmp_path):
     shutil.copy2(ROOT / 'config/codex-tests.rules', root / 'config/codex-tests.rules')
     rendered = rules['render'](root)
     assert '@CHECKOUT@' not in rendered
-    assert str(root / 'tools/run-tests') in rendered
+    assert str(root) not in rendered
+    moved = tmp_path / 'another enlistment'
+    root.rename(moved)
+    assert rules['render'](moved) == rendered
+    root = moved
     ast.parse(rendered)  # This declaration-only rules subset has valid string literals.
     (root / 'tools/test-vm').chmod(0o644)
     with pytest.raises(ValueError):
@@ -236,7 +240,7 @@ def test_project_tool_allow_covers_new_nested_executables_without_manual_invento
     executable.chmod(0o755)
     (nested / 'support.py').write_text('# import-only module\n')
     assert rules['project_tool_paths'](root) == [
-        'tools/future/new-tool', './tools/future/new-tool', str(executable)]
+        'tools/future/new-tool', './tools/future/new-tool']
     executable.chmod(0o644)
     with pytest.raises(ValueError, match='no executable project tools'):
         rules['project_tool_paths'](root)

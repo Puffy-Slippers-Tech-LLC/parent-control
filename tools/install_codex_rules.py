@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Install machine-wide reads and render checkout-specific Codex prefixes."""
+"""Install machine-wide reads and render portable project Codex prefixes."""
 import json
 import os
 from pathlib import Path
@@ -62,7 +62,7 @@ def project_tool_paths(root):
             raise ValueError('symlink in project tools path')
         if stat.S_ISREG(info.st_mode) and info.st_mode & 0o111:
             relative = path.relative_to(root).as_posix()
-            paths.extend((relative, './' + relative, str(path)))
+            paths.extend((relative, './' + relative))
     if not paths:
         raise ValueError('no executable project tools')
     return paths
@@ -81,8 +81,7 @@ def render(root):
     # JSON quoting produces literal Starlark tokens even for spaces and quotes.
     paths = '[\n        ' + ',\n        '.join(
         json.dumps(path) for path in project_tool_paths(root)) + '\n    ]'
-    return source.replace(placeholder, paths).replace(
-        '@CHECKOUT@', json.dumps(str(root))[1:-1])
+    return source.replace(placeholder, paths)
 
 
 def main():

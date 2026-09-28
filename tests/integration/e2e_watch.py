@@ -19,10 +19,12 @@ from e2e_watch_protocol import BASE, require
 
 
 def configuration_digest(xml):
-    """Bind live configuration without mistaking balloon reports for edits.
+    """Bind live configuration without mistaking runtime reports for edits.
 
     currentMemory's numeric value changes during boot. Keep its attributes,
-    configured maximum memory, all devices and ownership metadata bound.
+    configured maximum memory, device identities and ownership metadata bound.
+    Carrier state can change during guarded online-snapshot DHCP renewal; it
+    does not change the interface's network, MAC, model or display authority.
     """
     root = ET.fromstring(xml)
     reports = root.findall('currentMemory')
@@ -31,6 +33,20 @@ def configuration_digest(xml):
         require(len(report) == 0 and re.fullmatch('[0-9]+', report.text or ''),
                 'session-memory-report')
         report.text = 'runtime'
+    for interface in root.findall('devices/interface'):
+        if interface.get('type') == 'network':
+            source = interface.find('source')
+            if source is not None:
+                # Libvirt allocates a runtime network-port UUID on reconnect.
+                # The network, bridge, portgroup and NIC identity stay bound.
+                source.attrib.pop('portid', None)
+        links = interface.findall('link')
+        require(len(links) <= 1, 'session-network-link')
+        for link in links:
+            require(set(link.attrib) == {'state'} and link.get('state') in ('up', 'down')
+                    and len(link) == 0 and not (link.text or '').strip(),
+                    'session-network-link')
+            interface.remove(link)
     return hashlib.sha256(ET.tostring(root)).hexdigest()
 
 

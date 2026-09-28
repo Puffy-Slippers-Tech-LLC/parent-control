@@ -3,6 +3,7 @@ from contextlib import nullcontext
 import runpy
 import time
 from unittest.mock import Mock
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -177,6 +178,136 @@ def test_online_bootstrap_never_mounts_or_writes_offline_guest(tmp_path, monkeyp
     assert controller.system.bootstrap(commands, lease, tmp_path, guestfs) == 'ssh-ed25519 fixture'
     staged.assert_called_once_with(commands, lease, tmp_path)
     guestfs.GuestFS.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'interrupt', 'replaced', 'down-not-applied',
+                                 'up-not-applied'])
+def test_online_network_reconnect_is_live_guarded_and_restores_carrier(monkeypatch, fault):
+    import online_snapshot
+    lease = Mock()
+    domain = lease.source.domain
+    lease.source.api.VIR_DOMAIN_AFFECT_LIVE = 1
+    current = ET.fromstring('''<domain><devices><interface type="network">
+        <mac address="52:54:00:11:22:33"/><source network="default"/>
+        <model type="virtio"/><target dev="vnet7"/>
+        </interface></devices></domain>''')
+    domain.XMLDesc.side_effect = lambda _: ET.tostring(current, encoding='unicode')
+    changes = []
+    events = []
+
+    def update(xml, flags):
+        assert flags == 1
+        interface = ET.fromstring(xml)
+        assert interface.find('mac').get('address') == '52:54:00:11:22:33'
+        assert interface.find('source').get('network') == 'default'
+        state = interface.find('link').get('state')
+        changes.append(state)
+        events.append(state)
+        if fault == state + '-not-applied':
+            return
+        devices = current.find('devices')
+        devices.remove(devices.find('interface'))
+        devices.append(interface)
+
+    def wait(seconds):
+        assert seconds > 6
+        events.append('carrier-loss-grace')
+        if fault == 'interrupt':
+            raise KeyboardInterrupt()
+        if fault == 'replaced':
+            lease.guard.side_effect = RuntimeError('guard:domain-replaced')
+
+    domain.updateDeviceFlags.side_effect = update
+    monkeypatch.setattr(online_snapshot.time, 'sleep', wait)
+    if fault:
+        with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else RuntimeError):
+            online_snapshot.reconnect_network(lease)
+    else:
+        online_snapshot.reconnect_network(lease)
+        assert events == ['down', 'carrier-loss-grace', 'up']
+    assert changes == (['down'] if fault == 'replaced' else ['down', 'up'])
+    assert lease.guard.call_count >= 4
+    lease.source.connection.defineXML.assert_not_called()
+    domain.destroy.assert_not_called()
+    domain.create.assert_not_called()
+
+
+@pytest.mark.parametrize('interface', [
+    '', '<interface type="bridge"/>', '<interface type="network"/>',
+    '<interface type="network"><mac address="invalid"/><source network="default"/></interface>',
+    '<interface type="network"><mac address="52:54:00:11:22:33"/><source network="default"/>'
+    '<link state="invalid"/></interface>',
+    '<interface type="network"/><interface type="network"/>'])
+def test_online_network_invalid_layout_refuses_before_mutation(interface):
+    import online_snapshot
+    lease = Mock()
+    lease.source.domain.XMLDesc.return_value = '<domain><devices>' + interface + '</devices></domain>'
+    with pytest.raises(RuntimeError, match='network-layout'):
+        online_snapshot.reconnect_network(lease)
+    lease.source.domain.updateDeviceFlags.assert_not_called()
+
+
+def test_memory_restore_reconnects_before_waiting_for_host_dhcp(monkeypatch):
+    import json
+    import online_snapshot
+    import vm_control
+    import e2e_watch
+    lease = Mock()
+    lease.state = {'run': 'a' * 32, 'baseline_sha256': 'b' * 64}
+    lease.capture.state = {'source': {'layout': {'source_shares': []}}}
+    lease.source.uuid = 'fixture-uuid'
+    lease.source.api.VIR_DOMAIN_AFFECT_LIVE = 1
+    lease.source.api.VIR_DOMAIN_AFFECT_CONFIG = 2
+    lease.installed_xml = ('<domainsnapshot><description>' +
+        json.dumps({'baseline_sha256': 'b' * 64}) + '</description><domain>'
+        '<uuid>fixture-uuid</uuid><description>onpc-system-run:' + 'c' * 32 +
+        '</description></domain></domainsnapshot>')
+    lease.source.domain.snapshotLookupByName.return_value.getXMLDesc.return_value = lease.installed_xml
+    lease.source.connection.lookupByUUIDString.return_value = lease.source.domain
+    lease.source.domain.ID.return_value = 71
+    lease.snapshot_status.return_value = nullcontext()
+    monkeypatch.setattr(app_snapshot, 'mode_mismatch', lambda *a: None)
+    monkeypatch.setattr(controller.system.baseline, 'domain_layout', lambda *a: {'source_shares': []})
+    monkeypatch.setattr(controller.system, 'validate_private_vnc', Mock())
+    monkeypatch.setattr(vm_control, 'check_identity', Mock())
+    events = []
+    lease.source.domain.revertToSnapshot.side_effect = lambda *a: events.append('memory')
+    monkeypatch.setattr(e2e_watch, 'attach', lambda _: events.append('watch'))
+    monkeypatch.setattr(online_snapshot, 'reconnect_network', lambda _: events.append('reconnect'))
+
+    def address(source):
+        assert source is lease.source
+        assert events == ['memory', 'watch', 'reconnect']
+        return '192.168.122.10'
+
+    monkeypatch.setattr(controller.system, 'address', address)
+    assert online_snapshot.restore(lease, {'run': 'c' * 32}) == '192.168.122.10'
+
+
+def test_disconnected_snapshot_restores_without_carrier_grace(monkeypatch):
+    import online_snapshot
+    update = Mock()
+    monkeypatch.setattr(online_snapshot, 'network_link', lambda _: ('down', update))
+    wait = Mock(side_effect=AssertionError('restore must not repeat preparation wait'))
+    monkeypatch.setattr(online_snapshot.time, 'sleep', wait)
+    online_snapshot.reconnect_network(Mock())
+    update.assert_called_once_with('up')
+    wait.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_network_disconnected_through_snapshot_and_restored_on_capture_failure(monkeypatch, failure):
+    import online_snapshot
+    events = []
+    monkeypatch.setattr(online_snapshot, 'network_link', lambda _: ('up', events.append))
+    monkeypatch.setattr(online_snapshot.time, 'sleep', lambda seconds: events.append(seconds))
+    with pytest.raises(RuntimeError) if failure else nullcontext():
+        with online_snapshot.disconnected_network(Mock()):
+            assert events == ['down', 10]
+            events.append('capture-memory')
+            if failure:
+                raise RuntimeError('snapshot-failed')
+    assert events == ['down', 10, 'capture-memory', 'up']
 
 
 @pytest.mark.parametrize('running', [False, True])

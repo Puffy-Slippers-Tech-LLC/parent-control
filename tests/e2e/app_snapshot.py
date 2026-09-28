@@ -1,5 +1,6 @@
 """Reusable installation snapshot preparation under an existing suite lease."""
 import re
+from contextlib import nullcontext
 import json
 import time
 import xml.etree.ElementTree as ET
@@ -163,10 +164,11 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
         lease.guard(off=True)
         lease.close_watch()
     preparation('Taking snapshot ' + name)
-    lease.create_installed(mode=mode)
-    if mode == 'online':
-        from online_snapshot import publish
-        publish(lease, setup, host_key)
+    from online_snapshot import disconnected_network, publish
+    with disconnected_network(lease) if mode == 'online' else nullcontext():
+        lease.create_installed(mode=mode)
+        if mode == 'online':
+            publish(lease, setup, host_key)
     # A completed snapshot is reusable across runs, including interrupted runs.
     lease.state.pop('e2e_snapshot', None)
     lease.save('running' if mode == 'online' else 'isolated')

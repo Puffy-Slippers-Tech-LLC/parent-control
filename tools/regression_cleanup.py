@@ -30,6 +30,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # resource or heavy fixture is introduced; their reviewed buckets still apply.
 # Resume refusal and delayed-clock checks use those same private journals and
 # VM/SSH/time doubles, with no live guest, host clock or process mutation.
+# Restored-network checks mock link updates, carrier waits and replacement;
+# both schedulers retain their private, compatible classification.
+# Maintenance viewer carrier/identity checks use in-memory XML and API doubles.
 # Synthetic file checks use only private tmp_path trees and mocked SSH; no
 # accounts, VM, sockets, subprocesses, caches or shared filesystem mutations.
 # Attachment boundary profiles add <= 5 MiB+1 files in private tmp_path trees;

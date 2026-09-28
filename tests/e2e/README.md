@@ -473,6 +473,19 @@ disk plus memory. A fresh matching online snapshot is restored without building
 or booting, leaving a running isolated guest under the shared VM-maintenance
 ownership record. `tools/test-vm stop` stops that recorded guest. Offline mode
 keeps the installation, verification, shutdown and disk-only snapshot sequence.
+Online snapshot creation disconnects the owned guest's live network interface
+before saving memory. Host DHCP leases are not restored with guest memory.
+The carrier-down interval is ten seconds, exceeding
+[NetworkManager's default six-second grace](https://www.networkmanager.dev/docs/api/latest/NetworkManager.conf.html),
+and runs once during preparation. Restoring that snapshot immediately reconnects
+the interface, then uses the existing bounded DHCP and authenticated SSH checks.
+Older snapshots remain usable but pay the disconnect interval on each restore
+until rebuilt. Link changes
+use libvirt's live device API, preserve persistent configuration and recheck
+ownership before each update, including interruption cleanup.
+The maintenance viewer tolerates carrier up/down changes while continuing to
+bind the interface identity, network and other device configuration; libvirt's
+runtime network-port UUID is excluded from the viewer's configuration digest.
 Baseline preparation enables CPU migration and masks `invtsc`, which otherwise
 prevents QEMU from saving memory. App-snapshot preparation does not patch CPU
 configuration. Restoring a retained snapshot also restores that snapshot's saved

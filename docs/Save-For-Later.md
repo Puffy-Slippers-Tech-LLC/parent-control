@@ -7,6 +7,8 @@ approval and manual pause/resume**. It records the agreed customer behavior and
 GUI direction from the design discussion, plus explicit engineering decisions
 needed to implement them. No feature implementation or installed acceptance is
 claimed by this document or its draft images.
+The [design gates](#design-gates-before-implementation) remain unresolved;
+this is not yet an implementation-ready transaction specification.
 
 Start product work at [System design](System-Design.md), then use this document
 as the feature handoff. The current [specification](Specification.md),
@@ -20,20 +22,25 @@ the proposed behavior as already shipped.
 The feature does not require changes to GDM, GNOME Shell internals, PAM ordering,
 or Malcontent's meaning of an active extension. The following decisions are
 part of this proposed design: the balance formula, treatment of rest-of-day and
-legacy grants, app-policy timing, and recovery protocol. They are made explicit
-below so a new session does not have to infer them from screenshots.
+legacy grants, and app-policy timing. Recovery requirements and their remaining
+gaps are explicit below so a new session does not infer guarantees from the
+screenshots or the journal outline.
 
 ## Customer contract
 
 - A parent can approve additional time in the kiosk for immediate use or for
   later use. Both request modes authenticate the selected parent.
 - Requesting time for later also saves the remaining active grant. After
-  approval, the combined grant is saved and its timer is stopped.
+  a fixed-duration approval, the combined grant is saved and its timer is
+  stopped. Rest-of-day approval instead replaces the balance and retains its
+  midnight deadline, as specified below.
 - The kiosk can pause an existing active grant without another parent approval.
 - The kiosk's **Use saved time** action starts either paused time or time
   approved in advance. These are the exact same backend operation and state.
 - A saved fixed-duration grant survives kiosk exit, logout, broker restart,
-  shutdown, and reboot without losing seconds.
+  shutdown, and reboot without losing seconds once saving has committed.
+  Revocation, control toggles, account invalidation, and package removal still
+  clear it. Interrupted transfers must meet the recovery gate below.
 - Opening the kiosk, locking, switching users, signing out, or suspending does
   not automatically pause an active grant. Time runs until the pause/save
   transaction takes effect. Once restarted, it runs during the return to sign-in
@@ -41,7 +48,8 @@ below so a new session does not have to infer them from screenshots.
 - Save-for-later, Pause, and Use saved time are available only in the dedicated
   kiosk session. The child-session overlay retains its current title, layout,
   and immediate, parent-authenticated request action. It gets no tabs or timer
-  management controls. Backend authorization enforces this separation too.
+  management controls. The kiosk and child overlay continue to share their form
+  and validation code. Backend authorization enforces this separation too.
 - Parent **Revoke** clears both running and saved grants, including when only a
   saved grant exists. Existing strict-app-policy and termination behavior remains.
 - Daily allowance is independent. Pausing a one-time grant does not pause daily
@@ -125,7 +133,9 @@ responsive/scaled layout rather than hardcoding these image dimensions.
 - Primary split-button action: **Request & use now**.
 - Dropdown action: **Request & save for later**.
 - The dropdown is a menu/popover, not a permanently expanded second button.
-  Dismiss it on selection, outside click, or Escape without submitting a request.
+  Selecting its action closes the menu and submits that request after validation.
+  Outside click or Escape dismisses the menu without submitting; that Escape
+  must not also close the form.
 - Both modes use the same duration/app validation and selected-parent Polkit
   flow. The trusted prompt must explicitly name immediate versus saved use and
   explain that saved use pauses any existing grant. UI mode cannot change during
@@ -175,7 +185,10 @@ Open Request more time by default to preserve today's initial task. Returning
 from Pause/save selects Approved time. Within one form, preserve the selected tab
 when switching children but discard stale asynchronous replies. Tab switching
 does not save a request, authenticate, pause, redeem, or reset duration choices.
-Cancel/Escape closes the form using current rules; closing does not pause time.
+Cancel/Escape closes the idle form using current rules, after dismissing an open
+menu first. During authentication, cancellation belongs to the trusted prompt.
+After a mutation starts, closing or losing the frontend is not proof of rollback;
+on return, read its outcome and current status. Closing does not itself pause time.
 
 Use existing duration formatting and error-report routes. Only the approved
 time page has the large one-time balance; do not relabel daily time as saved.
@@ -195,9 +208,11 @@ for the numeric example. Riley has an active grant and locks the desktop.
 2. On Request more time, select the parent, Custom **20 minutes**, the app choice,
    and **Request & save for later**.
 3. The selected parent authenticates in the trusted prompt. Assume **18 minutes
-   remain at the broker's approval calculation**, not at form opening.
-4. The broker calculates `18 + 20 = 38 minutes`, commits the saved balance, and
-   clears `ActiveExtension` to `(0, 0)` through the shared defer operation.
+   remain at the broker's accounting transfer point**, not at form opening.
+4. The shared defer operation produces `18 + 20 = 38 minutes` at its qualified
+   accounting transfer point and verifies `ActiveExtension = (0, 0)` before
+   publishing the committed saved balance. Establishing that transfer point
+   across interruptions is a design gate, not supplied by a JSON write alone.
 5. Kiosk displays Approved time: **Saved for later — 38m**. Waiting does not reduce
    this fixed-duration balance. Closing the kiosk, signing out, and rebooting
    preserve it. Riley's existing locked desktop is retained unless the machine
@@ -217,6 +232,10 @@ the ordinary elapsed decrease of an already running grant.
 
 ### Scenario 2: pause existing granted time, then use it later
 
+Precondition: enabled screen-time control and a fixed-duration grant approved
+with this feature's mode metadata. Rest-of-day and adopted legacy grants retain
+their deadlines and are covered separately.
+
 1. Riley uses an active grant, locks the screen, and opens the kiosk.
 2. On Approved time, click **Pause timer**. At the broker's transfer point,
    suppose **18m 42s** remain.
@@ -226,9 +245,10 @@ the ordinary elapsed decrease of an already running grant.
    unchanged. A second Pause cannot add another copy of the old active grant.
 5. Later click **Use saved time**. This calls exactly the same redemption method
    as Scenario 1, starts the saved seconds, and returns to sign-in.
-6. Repeat pause/use cycles. Total granted seconds are conserved across transfers;
-   only running intervals consume time. Another child's balance and session are
-   unaffected.
+6. Repeat pause/use cycles. The acceptance target is conservation of granted
+   seconds across transfers: only running intervals consume time. The recovery
+   gate must establish this for interrupted transfers too. Another child's
+   balance and session are unaffected.
 
 These are separate customer acceptance cases even though their transitions share
 backend code and reusable test blocks.
@@ -285,18 +305,22 @@ as daily allowance itself rolling over, and do not add that daily remainder
 again on redemption. This is the deliberate consequence of preserving the
 existing approval formula while including saved approvals.
 
-All newly approved immediate requests use the same C calculation, including an
-ordinary parent-authenticated child-overlay request. Such a new approval replaces
-the existing saved/running grant and starts C; it must not leave a saved copy.
+All newly approved fixed-duration immediate requests use the same C calculation,
+including an ordinary parent-authenticated child-overlay request. Such a new
+approval replaces the existing saved/running grant and starts C; it must not
+leave a saved copy.
 This does not expose a child-callable Pause or unauthenticated redemption method.
 Include saved time in the existing estimate/approval explanation so that using
 it as part of the new approval is not hidden. No child-overlay controls change.
 
-Use integer seconds, reject invalid values and uint32 overflow, and retain
+Use integer seconds, reject invalid values and uint32 duration overflow, and retain
 current clipping/merging of daily usage. Do not treat a failed usage read as zero.
-Capture A late, after authentication/preflight and immediately before the durable
-transfer intent, rather than reusing the earlier form estimate. Use the same
-capture for all balance writes within that transaction.
+Validate issuance/deadline timestamps separately against the public uint64
+timestamp bounds. Capture balances after authentication/preflight, rather than
+reusing the earlier form estimate. The qualified transfer protocol must define
+the capture point and account for time still enforced by the old tuple; writing
+an intent alone does not stop that tuple. All committed balances must use the
+same established accounting boundary.
 
 ### Rest of the day and pre-feature grants
 
@@ -306,8 +330,11 @@ Saving or pausing such a grant carries a fixed `valid_until` for that same
 midnight. Effective S is `min(stored_seconds, max(0, valid_until - now))`.
 Redemption never moves that deadline. Display the deadline in saved UI; it is
 not a frozen fixed-duration bank. Midnight calculation must retain timezone/DST
-handling. A later parent-approved fixed request replaces the mode/deadline using
-normal fixed-request arithmetic; a new rest-of-day request replaces the balance.
+handling. Calculate an absolute deadline at approval; later timezone changes do
+not move an existing cap. Once expiry is recorded, a clock rollback must not
+revive the saved entitlement. A later parent-approved fixed request replaces the
+mode/deadline using normal fixed-request arithmetic; a new rest-of-day request
+replaces the balance.
 
 Existing ActiveExtension tuples do not reveal whether they came from fixed or
 rest-of-day approval. During one-time compatibility adoption, preserve the exact
@@ -340,35 +367,53 @@ wire signatures together in both introspection definitions and clients.
 | RequestDeferredAccess | Configured kiosk caller and eligible target only; selected-parent authentication; invokes shared defer with new approval |
 | PauseOneTimeGrant | Configured kiosk caller only; requires positive active grant; shared defer without new approval |
 | UseSavedTime | Configured kiosk caller only; requires positive effective saved balance; shared redeem |
-| GetGrantStatus | Same target-read boundary as GetTimeStatus; explicit active/saved state and balances, deadline, revision, availability |
+| GetGrantStatus | Same target-read boundary as GetTimeStatus; explicit state, coherent D/A/S, usable U, total including saved T, optional new-request estimate C, mode/deadline, evaluation time, revision, and availability |
 | Existing RevokeOneTimeGrant | Administrator only; clears all grant state and pending old transitions |
 
-Bind kiosk mutations to the configured kiosk UID and a verified live local kiosk
-session using supported caller/session identity. Reuse existing identity helpers
-where applicable; do not accept a frontend `is_kiosk` boolean. Deny new methods
-to child, unrelated, and administrator frontend callers; management still uses
-its authorized revoke path. The kiosk may operate the selected managed child
+Bind the new kiosk mutations to the configured kiosk UID and a verified active,
+local, unlocked kiosk session using supported caller/session identity. Recheck
+the original connection/session immediately before the durable mutation boundary.
+Reuse existing identity helpers where applicable; do not accept a frontend
+`is_kiosk` boolean. Deny new mutation methods to child, unrelated, and
+administrator frontend callers; management still uses its authorized revoke
+path. The kiosk may operate the selected managed child
 without another parent challenge because that time is already approved; it is
 not proof that the person at the keyboard owns the selected child account.
 This shared-station redemption behavior must be documented, not advertised as
 child-password-protected control of a saved balance.
 
 All new mutations require enabled screen-time control and revalidate account
-eligibility at commit. Pause cannot mint time, extend a deadline, or modify app
-permission. Redeem cannot edit amount or app choice. Only the ordinary selected-
-parent approval flow can add/change those authorizations. Bind deferred mode to
+eligibility at commit. Close the existing `RequestAccess` disabled-control gap
+too: both immediate entry points must refuse disabled control before prompting
+and at commit. This intentionally tightens the old kiosk D-Bus contract while
+matching the existing installed form's availability rule. Pause cannot mint
+time, extend a deadline, or modify app permission. Redeem cannot edit amount or
+app choice. Only the ordinary selected-parent approval flow can add/change those
+authorizations. Bind deferred mode to
 the trusted Polkit prompt; preserve prompt cancellation, caller-liveness,
 preference revalidation, and successful-new-request cooldown. Pause/redeem need
 serialization and replay protection, not a new parent prompt or the approval
 cooldown. All balances are broker-derived, never supplied by the form.
 
-Keep the existing GetTimeStatus tuple backward compatible: its one-time operand
-becomes G and calculated total becomes T (or C with additional seconds). Parent
-uses GetGrantStatus to label it saved/running and enables Revoke for either.
+Keep both the wire shape and meaning of GetTimeStatus backward compatible: its
+one-time operand remains A and its calculation remains `max(D, A) + additional`.
+Changing that operand to G would silently label saved time as usable in older
+clients. Updated request forms use GetGrantStatus for estimates including S;
+Parent distinguishes usable now from saved time and keeps Revoke available for
+daily-only, running, or saved time. Do not label T as current desktop access.
+
+Existing immediate request methods use the shared C calculation for fixed
+requests regardless of client version. The trusted approval prompt must explain
+consumption/replacement of a saved grant, including rest-of-day replacement;
+an older client's estimate
+cannot supply that explanation. New clients connected to an older broker report
+saved-time features unavailable and never treat an unknown method as a zero
+balance or silently substitute an immediate request for a deferred request.
+
 The child countdown and PAM must use U, **never T**: saved time is not desktop
-access until redeemed. CalculateOwnRemainingTime must continue reading only the
-actual active extension. Add contract tests preventing saved seconds from leaking
-into countdown/login authorization.
+access until redeemed. CalculateOwnRemainingTime continues using the actual
+active extension and the supplied validated daily estimate. Add contract tests
+preventing saved seconds from leaking into countdown/login authorization.
 
 ## Persistent state and recoverable transactions
 
@@ -388,31 +433,42 @@ Polkit authorization. Do not log stored identity fields.
 
 AccountsService remains the OS's active enforcement input. The runtime record
 owns saved entitlement and recovery intent, and tracks the exact committed
-running tuple. An AccountService tuple and a saved record are never two grants.
-Allow the explicit one-time adoption of pre-feature tuples; after adoption,
-unexpected external changes are conflicts, not silently imported approval.
+running tuple. An AccountsService tuple and a saved record are never two grants.
+Allow the explicit one-time adoption of pre-feature tuples; persist completion
+of adoption so a missing/corrupt record cannot reopen that route. After adoption,
+unexpected external changes, including a grant from the native Ignore flow,
+are conflicts, not silently imported approval. Quarantine the saved entitlement
+from spending and report unavailable status; do not sum it with, or silently
+overwrite, the external tuple. Quarantine is not an OS admission barrier.
 Deleting/recreating an account must not attach saved time to a reused UID. Use
-the account-lifecycle validation contract and removal observation; if continuity
-cannot be established after downtime, quarantine the entitlement rather than
-guessing from UID alone. Identity-binding qualification is an implementation gate.
+live account validation and removal observation, but do not mistake them for an
+existing durable account-incarnation identifier. If continuity cannot be
+established after downtime, quarantine the entitlement rather than guessing from
+UID alone. Resolving that uncertainty while preserving ordinary reboot behavior
+is an identity-binding design gate.
 
 Reuse the broker's transaction boundary, but extend it to screen-time toggles,
-relevant allowance edits, and all grant-state readers/writers. Today
+relevant allowance edits, and all grant-state writers. Readers must obtain a
+coherent revision/snapshot or a bounded busy/unavailable result; they must not
+wait behind an unbounded parent prompt or combine different revisions. Today
 SetParentControl does not take that lock; leaving this gap would allow a toggle
 or revoke to race saved-time activation. Never hold two unrelated locks in
 inconsistent order. Do not let a long parent prompt silently resurrect a stale
 grant generation.
 
 Use a durable write-ahead intent and idempotent recovery, because JSON and
-AccountsService cannot be atomically committed together:
+AccountsService cannot be atomically committed together. The following is an
+ordering framework, subject to the transfer gate below, not a complete recovery
+algorithm:
 
 1. Under serialization, validate caller/target/revision and read a complete
    source snapshot. Finish authentication, usage reads, and nonmutating
    app-policy preflight. No account/app writes have happened yet.
-2. Capture the transfer balance and write/fsync a bounded intent containing the
-   source, exact desired destination, generation, operation ID, and any app-side
-   recovery obligation. The captured intent establishes the accounting transfer
-   instant; never recalculate/refund from a later UI retry.
+2. Write/fsync a bounded intent containing the source, desired transition,
+   generation, operation ID, and app-side recovery obligation. Record the running
+   issuance tuple before publishing it. For saving, the qualified protocol must
+   establish how the final saved amount relates to the actual clear boundary;
+   do not declare the timer stopped merely because the intent is durable.
 3. For a new approval, apply and verify the selected app policy and required
    account-limit setup under that intent, before publishing its time state.
    Journal entry into irreversible termination before signalling processes;
@@ -424,26 +480,42 @@ AccountsService cannot be atomically committed together:
 4. Atomically replace/fsync the committed record and its directory. Only then
    return success and publish status. Pending state is unavailable to ordinary
    balance reads and cannot be spent by another call.
-5. On interruption, recover the recorded intent idempotently before registering
-   mutating service availability. A lost reply leads the UI to reread status;
-   it does not create a second operation. Repeating the same operation ID returns
-   its known result. A stale revision is refused with refresh guidance.
+5. On interruption, recover the recorded phase idempotently before exposing
+   ordinary mutations. Recovery must distinguish completing a time transition
+   from rolling back a failed app transaction. A lost reply leads the UI to
+   reread status; it does not create a second operation. Bind each operation ID
+   to the authorized caller, target, expected revision and complete request
+   payload. Reusing it with different arguments is refused. A duplicate returns
+   its recorded outcome without applying effects again, plus current status;
+   historical success is not proof that time still exists after revoke/expiry.
+   Expired replay entries cannot bypass revision checks or create a new grant.
+   A new operation with a stale revision is refused with refresh guidance.
 
-Before durable intent, failure preserves the prior state, subject to already
-irreversible app termination rules. After intent, an uncertain result must be
-reported as such and completed/reconciled on retry/startup; never report a
-definitive cancellation while subsequently committing hidden extra time.
-While an interrupted pause is pending, only the old active tuple is enforced;
-the future saved record is not redeemable. An interrupted redemption uses the
+Before durable intent, failure preserves prior policy/time state except ordinary
+elapsed time; the preflight above has performed no app termination. After intent,
+an uncertain result must be reported as such and completed/reconciled on
+retry/startup; never report a definitive cancellation while subsequently
+committing hidden extra time.
+While an interrupted pause is pending, the old active tuple may still be enforced
+until clearing is verified; the future saved record is not redeemable. Freezing
+its intent-time balance regardless of that interval would refund time and is
+not an acceptable recovery algorithm. An interrupted redemption uses the
 original recorded deadline and can expire during downtime. This can consume
 time after the requested start but cannot refund it by restarting the tuple.
 
 Revocation invalidates saved state and any older generation under the same
-recovery protocol. If a transition is unresolved, finish resolving it before
-revoking its resulting generation; once revoke reports success, recovery must
-never replay that older grant. Retain bounded replay/tombstone state as needed.
-Rollback and termination semantics must extend the existing contract, including
-restoring all prior active/saved time state after a failed app transaction.
+recovery protocol. Resolve or durably supersede an unresolved transition under
+serialization; do not publish a pending approval merely to revoke it. Once
+revoke reports success, recovery must never replay that older grant. Retain
+bounded replay/tombstone state as needed. Apply the same invalidation rule to
+control toggles and package removal.
+Rollback and termination semantics must extend the existing contract. A failed
+app transaction before time publication restores prior active/saved time state;
+restore the original running tuple, not a refreshed duration, and retain stricter
+policy once termination may have occurred. Journal rollback before applying it
+so restart cannot instead complete an abandoned approval. A possibly published
+running destination must not be refunded into a full saved balance without
+accounting for its enforced interval. Report rollback failure distinctly.
 
 Recovery does not constitute a PAM/GDM admission barrier. Do not claim that an
 OS login cannot race an already published active tuple during service failure.
@@ -486,6 +558,14 @@ runtime store. Package upgrade preserves valid records and reconciles pending
 intents before exposing mutations. Handle old clients and disabled-control races
 explicitly; do not permit an older immediate-request route to strand saved state.
 
+Extend the existing removal snapshot and `abort-remove` recovery to the runtime
+records, pending phases and adoption/replay metadata. An aborted removal restores
+the entitlement consistently with its original running tuple or saved balance;
+a completed removal durably invalidates it before dropping rollback material.
+Removal must discover grant records as well as preference records and must not
+replay a pending approval merely to clear it. Retry and reinstall must preserve
+the distinction between aborted and completed removal.
+
 Give this store its own format constant, validator, migration registry, and pass
 in `migrate_all_state()` following [Data migration](SystemDesign/Data-Migration.md).
 Do not insert AccountsService reads into pure JSON migration. Runtime adoption
@@ -494,6 +574,35 @@ in provisioning/removal and classify package activation using the existing
 classifier. Broker changes require process restart; kiosk changes require new
 frontend/session loading according to that classifier. This design introduces
 no PAM profile change or new reboot requirement by itself.
+
+## Design gates before implementation
+
+These are unresolved requirements, not permission to weaken the customer
+contract or to claim qualification from this document:
+
+1. **Transfer accounting across service failure.** An intent storing 18 minutes
+   followed by a crash before clearing ActiveExtension leaves the old grant
+   ticking. Recovering that entire 18 minutes later duplicates the interval in
+   which the old grant remained usable. Conversely, always deducting through
+   recovery can lose seconds if clearing succeeded before the crash. Read-back
+   after restart identifies the tuple, not when it changed. Specify a protocol
+   supported by the available public APIs and prove its accounting at each
+   interruption boundary, including rollback after possible publication. Do not
+   treat a journal, operation ID, or unavailable broker status as an enforcement
+   barrier. If exact conservation cannot be met, obtain an explicit product
+   decision about failure-time accounting before implementation; neither silent
+   loss nor refunded access is already authorized by this design.
+2. **Account continuity.** Identify and qualify the durable evidence that binds
+   a grant to one account incarnation across broker downtime and reboot. The
+   current eligible-account checks, UID, and a matching username alone do not
+   prove that an account was not deleted and recreated. Quarantine on uncertainty
+   is required, but quarantining every ordinary reboot would fail the feature's
+   persistence contract. Resolve both obligations before choosing the store's
+   identity schema.
+3. **Native unlock recovery.** Qualify a normal public grant against the retained
+   exhausted-session shield on the supported system. Source inspection explains
+   the intended notification path; it is not installed acceptance. Keep the
+   public-API and child-password boundaries if that path fails.
 
 ## Implementation map
 
@@ -528,21 +637,28 @@ Do not advance the existing E2E queue or claim case completion from this design.
 
 ### Engineering regressions
 
-- Arithmetic: D/A/S zero/nonzero combinations, 18+20=38 at approval, existing
+- Arithmetic: D/A/S zero/nonzero combinations, 18+20=38 at the transfer point, existing
   saved balance plus new approval, pure pause/redeem conservation, overflow,
-  fractional request rounding, expiry during parent decision, midnight/DST.
+  fractional request rounding, expiry during parent decision, midnight/DST,
+  timezone changes, clock adjustments, and no revival of recorded expiry.
 - Model/state-machine tests: one spendable generation; no active/saved duplication;
   repeated calls, lost replies, stale revisions, multiple kiosk clients,
   independent children, normal immediate requests replacing saved balances.
 - Fault injection at each intent fsync, ActiveExtension write/read-back, record
   replacement, reply, and startup boundary. Revoke/toggle cannot be undone by
   delayed recovery. Preserve prior time on denied/failed approval and applicable
-  irreversible app effects. Test rollback failure distinctly.
+  irreversible app effects. Test rollback failure distinctly. Include long
+  downtime both before and after a successful clear/write, and prove that a
+  retry neither refunds an enforced interval nor consumes committed saved time.
 - Storage: ownership/mode, symlinks, malformed/future schemas, legacy adoption,
-  deadline caps, deletion/UID reuse, migration interruption, upgrade/removal/purge.
+  deadline caps, missing records after adoption, deletion/UID reuse while offline,
+  migration interruption, upgrade/removal/purge, aborted removal and reinstall.
 - Authorization: child and unrelated callers cannot invoke the kiosk methods or
   forge mode/target/session. Pause/redeem cannot mint time or relax apps. Selected
-  parent sees correct mode; denial/cancel/session loss leaves no new approval.
+  parent sees correct mode; denial/cancel/session loss before durable mutation
+  leaves no new approval. Later disconnect must reconcile the original operation,
+  not create a second one or promise cancellation. Exercise payload-mismatched
+  IDs, stale revisions, replay after revoke, and disabled old immediate routes.
 - App policy: both soft choices, hard blocks, current running-app effects, parent
   edits between save/redeem, expiry markers, other-user isolation.
 - UI: all tab states and public identities, no missing approver, keyboard/focus
@@ -551,6 +667,9 @@ Do not advance the existing E2E queue or claim case completion from this design.
   usable estimates, pending/error/retry behavior.
 - Existing login/PAM and child countdown regressions: saved-only time with D=0
   is still exhausted until kiosk redemption; no accidental T-for-U substitution.
+- Compatibility: old GetTimeStatus semantics, new clients with an old broker,
+  old immediate-request clients with a saved balance, and external native grants
+  conflicting with a saved record. Status reads remain bounded during prompts.
 
 ### Installed customer acceptance
 
@@ -573,6 +692,9 @@ Require visible evidence that:
    child overlay; the child overlay exposes no saved-time controls.
 6. Deadline-capped saved time expires at its original deadline; cancellation,
    backend failure, disabled control, and absent saved time do not report success.
+7. With daily allowance remaining, saving the one-time grant leaves that daily
+   time usable and separately labelled. A parent app-policy edit while time is
+   saved remains effective after redemption.
 
 Internal state probes/fault injection remain engineering evidence, separate from
 public customer journeys. A stale native shield, inconsistent balances, duplicated
@@ -588,9 +710,11 @@ and its reference images alone do not require a package build.
 
 ## Implementation order and completion conditions
 
-1. Confirm the proposed contract above against current source and choose exact
-   additive wire signatures. Qualify native shield recovery with a normal public
-   grant before claiming the retained-session path works.
+1. Resolve the design gates above and choose exact additive wire signatures,
+   including revision, operation-ID and status/error semantics. Qualify native
+   shield recovery with a normal public grant before claiming the retained-session
+   path works. Do not start feature implementation from an unresolved transfer or
+   account-continuity protocol.
 2. Implement versioned runtime state, balance model, durable transitions,
    recovery/replay protection and concurrency coverage. Integrate revoke/toggle
    and account/package lifecycle before exposing new UI actions.

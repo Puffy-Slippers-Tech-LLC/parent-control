@@ -187,6 +187,22 @@ if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-restored-blocks
     feedback.RichTextEditor = RestoredBlockEditor
 
 
+if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-restored-link":
+    class RestoredLinkEditor(feedback.RichTextEditor):
+        """Engineering startup restoration; observations still use public Text."""
+        def __init__(self, attachment_requested):
+            super().__init__(attachment_requested)
+            from tests.e2e.block_semantics import BODY
+            self._delta = json.dumps({'ops': [
+                {'insert': BODY[:-len('Plain sample')]},
+                {'insert': 'Plain', 'attributes': {
+                    'bold': True, 'italic': True, 'underline': True, 'strike': True,
+                    'link': 'https://example.com/feedback'}},
+                {'insert': ' sample\n'}]})
+
+    feedback.RichTextEditor = RestoredLinkEditor
+
+
 if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-attachments":
     class AttachedFeedbackDialog(feedback.FeedbackDialog):
         def __init__(self, *args, **kwargs):

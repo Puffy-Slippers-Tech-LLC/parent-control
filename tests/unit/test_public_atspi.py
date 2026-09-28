@@ -62,6 +62,39 @@ def test_set_selection_uses_public_text_interface_once():
                                 'iii', (0, 0, 149))
 
 
+def test_hyperlink_reads_use_public_interface_without_activation():
+    _, _, rpc, _, node = fixture_bus()
+    rpc.side_effect = [[PREFIX + 'Hyperlink'], 1, 0, 1, True, 'https://example.com/feedback']
+    assert node.get_hyperlink() is node
+    assert node.get_n_anchors() == 1
+    assert node.get_start_index() == 0
+    assert node.get_end_index() == 1
+    assert node.is_valid() is True
+    assert node.get_uri(0) == 'https://example.com/feedback'
+    assert [(call.args[2], call.args[3], call.args[4], call.args[5])
+            for call in rpc.call_args_list] == [
+        (PREFIX + 'Accessible', 'GetInterfaces', '', ()),
+        ('org.freedesktop.DBus.Properties', 'Get', 'ss', (PREFIX + 'Hyperlink', 'NAnchors')),
+        ('org.freedesktop.DBus.Properties', 'Get', 'ss', (PREFIX + 'Hyperlink', 'StartIndex')),
+        ('org.freedesktop.DBus.Properties', 'Get', 'ss', (PREFIX + 'Hyperlink', 'EndIndex')),
+        (PREFIX + 'Hyperlink', 'IsValid', '', ()),
+        (PREFIX + 'Hyperlink', 'GetURI', 'i', (0,)),
+    ]
+
+
+def test_link_attributes_are_read_in_link_local_text_coordinates():
+    _, _, rpc, _, node = fixture_bus()
+    attrs = {'weight': '700', 'style': 'italic', 'underline': 'single', 'strikethrough': 'true'}
+    rpc.side_effect = [[PREFIX + 'Text'], 5, 'Plain', (attrs, 0, 5)]
+    text = node.get_text_iface()
+    assert text.get_character_count() == 5
+    assert text.get_text(0, 5) == 'Plain'
+    assert text.get_attribute_run(2, True) == (attrs, 0, 5)
+    assert [(call.args[3], call.args[4], call.args[5]) for call in rpc.call_args_list] == [
+        ('GetInterfaces', '', ()), ('Get', 'ss', (PREFIX + 'Text', 'CharacterCount')),
+        ('GetText', 'ii', (0, 5)), ('GetAttributeRun', 'ib', (2, True))]
+
+
 def test_file_selection_uses_public_interface_and_returns_owned_reference():
     api, _, rpc, _, node = fixture_bus()
     rpc.side_effect = [[PREFIX + 'Selection'], 1, (node.bus, node.path), True]

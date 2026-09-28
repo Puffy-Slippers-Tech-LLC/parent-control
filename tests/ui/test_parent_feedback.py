@@ -47,11 +47,19 @@ def test_feedback_restored_block_semantics(launch_ui, automation, wait_for_acces
         automation.target('feedback-editor-input')), flush=True)
 
 
+def test_feedback_restored_link_semantics(launch_ui, automation, wait_for_accessible_state):
+    from tests.e2e import feedback_formats as formats
+    from tests.e2e.accessible_ui import require
+    open_feedback(launch_ui, automation, wait_for_accessible_state,
+                  scenario='feedback-restored-link')
+    assert formats.read(automation.reader, require, 'linked-kept-reopen') == formats.expected('linked-kept-reopen')
+
+
 def test_feedback_block_semantics(
         launch_ui, automation, wait_for_accessible_state):
     """Real product semantics, shared reader, independent reopen and removal."""
     from tests.e2e.block_semantics import BODY, FORMATS, RANGES, projection
-    from tests.support.keyboard import key_combo
+    from tests.support.keyboard import key_combo, repeat_cursor
     ui = automation
     editor, _log = open_feedback(launch_ui, ui, wait_for_accessible_state)
     type_feedback(ui, BODY, wait_for_accessible_state)
@@ -61,10 +69,8 @@ def test_feedback_block_semantics(
         key_combo(ui, editor, '<Control>Home', state=ui.api.StateType.FOCUSED)
         ui.reader.block_operation(f'block-{kind}-home')
         start, end = RANGES[kind]
-        for _ in range(start):
-            key_combo(ui, editor, 'Right', state=ui.api.StateType.FOCUSED)
-        for _ in range(end - start):
-            key_combo(ui, editor, '<Shift>Right', state=ui.api.StateType.FOCUSED)
+        repeat_cursor(ui, editor, 'Right', start)
+        repeat_cursor(ui, editor, '<Shift>Right', end - start)
         ui.reader.block_operation(f'block-{kind}-selected')
         ui.reader.block_operation(f'block-{kind}-read')
     assert ui.reader.block_semantics() == projection(FORMATS)
@@ -91,6 +97,64 @@ def test_feedback_block_semantics(
 
 # Attachment adapter coverage uses the existing private preview/display/bus and
 # owned-process cleanup; it retains the reviewed Feedback scheduler bucket.
+# Linked inline, restoration and undo/redo retain those same private resources.
+@pytest.mark.parametrize('linked', [False, True], ids=['all-formats', 'linked-inline'])
+def test_feedback_complete_format_sequence(launch_ui, automation, wait_for_accessible_state, linked):
+    # Same private preview/display/bus and owned cleanup as block qualification.
+    from tests.e2e import feedback_formats as formats
+    from tests.e2e.block_semantics import BODY, FORMATS, RANGES
+    from tests.support.keyboard import key_combo, type_text, repeat_cursor
+    from tests.e2e.accessible_ui import UiError, require
+    ui = automation
+    editor, _log = open_feedback(launch_ui, ui, wait_for_accessible_state)
+    type_feedback(ui, BODY, wait_for_accessible_state)
+
+    def operation(stage):
+        if linked and not stage.startswith('formats-clear'):
+            stage = stage.replace('formats-', 'linked-', 1)
+        print('FORMAT_STAGE', stage, flush=True)
+        return formats.operate(ui.reader, stage, require, UiError)
+
+    def select(prefix, start, end, run):
+        print('FORMAT_SELECTION', prefix, flush=True)
+        run(prefix + '-focus')
+        key_combo(ui, editor, '<Control>Home', state=ui.api.StateType.FOCUSED)
+        run(prefix + '-home')
+        if prefix == 'formats-clear':
+            key_combo(ui, editor, '<Control><Shift>End', state=ui.api.StateType.FOCUSED)
+        else:
+            if prefix.startswith('formats-'):
+                key_combo(ui, editor, '<Control>End', state=ui.api.StateType.FOCUSED)
+                repeat_cursor(ui, editor, 'Left', len(BODY) - start)
+            else:
+                repeat_cursor(ui, editor, 'Right', start)
+            repeat_cursor(ui, editor, '<Shift>Right', end - start)
+        run(prefix + '-selected')
+
+    operation('formats-before')
+    for kind in (() if linked else FORMATS):
+        select('block-' + kind, *RANGES[kind], ui.reader.block_operation)
+        ui.reader.block_operation('block-' + kind + '-read')
+    for kind in (*formats.INLINE, 'link'):
+        select('formats-' + kind, formats.START, formats.END, operation)
+        if kind == 'link':
+            operation('formats-link-target')
+            type_text(ui, 'feedback-link-target', formats.LINK)
+            operation('formats-link-save')
+        operation('formats-' + kind + '-read')
+    for action in ('close', 'wrong-entry', 'reopen'):
+        operation('formats-kept-' + action)
+    select('formats-clear', 0, len(BODY), operation)
+    operation('formats-clear-read')
+    ui.focus(editor)
+    key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
+    formats.read(ui.reader, require, 'linked-kept-reopen' if linked else 'formats-kept-reopen')
+    key_combo(ui, editor, '<Control><Shift>z', state=ui.api.StateType.FOCUSED)
+    formats.read(ui.reader, require, 'formats-clear-read')
+    for action in ('close', 'wrong-entry', 'reopen'):
+        operation('formats-cleared-' + action)
+
+
 def test_attachment_items_adapter_reads_real_rows_and_removes_one(
         launch_ui, automation, wait_for_accessible_state):
     open_feedback(launch_ui, automation, wait_for_accessible_state,

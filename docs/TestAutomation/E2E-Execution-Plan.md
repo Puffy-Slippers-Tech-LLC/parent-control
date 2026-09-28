@@ -19,34 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **034 — [E2E-031: draft-reopen](E2E-Tasks/034-case-152.md)**.
-
-Task 034a qualified the complete `body-blocks` format/removal composition through
-`check_e2e_feedback_formats` in `20260928T005139Z-951ec3ec`: heading levels 1/2,
-numbered/bulleted lists, quote, code, all four inline styles, exact link
-text/destination, unchanged text after removal, independent reopen and
-wrong-entry refusal. Bold and rejection regressions passed in
-`20260928T005856Z-1f56e149` and `20260928T010152Z-75515a1c`; collection,
-owned cleanup and baseline restoration passed throughout.
-Reuse `onpc_format::apply_all` / `apply_inline`,
-`feedback_formats.read` / `operate` / `root_offset` and the qualified
-`block_semantics` binding. Public semantic structure associated with exact
-text ranges complements the independent inline and link proof; no DOM,
-private-draft, toolbar-only or cosmetic substitution is permitted.
-
-Reuse the shared attachment handoff `onpc_feedback_read::supply_files`,
-`synthetic_files.fixture_actions` and `attachment_composition` comparisons.
-The composition refactor passed host checks and all four affected live
-qualifications, including collection, owned cleanup and baseline restoration;
-see [attachment composition validation](E2E-Building-Blocks.md#attachment-item-metadata-and-removal).
-This review supplies no complete-case credit or queue advancement.
-
-Case 152 remains pending and has had no live attempt. Compose its formatted,
-one-file draft, synthetic reply address, Privacy, close/reopen preservation and
-Parent exit/relaunch reset using shared operations. Task 030a's FEED10
-qualification covers `synthetic-first` without customer-selected files; extend
-the shared observation profiles for this complete history. No Send or link
-navigation is authorized.
+Next task: **195a — [Read declared text artifacts through guarded SSH](E2E-Tasks/195a-document-open.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -182,6 +182,14 @@ def format_stages(kind):
             f'formats-{kind}-read')
 
 
+def all_formats(prefix=''):
+    """Independent callers bind unique invocations to the same public operations."""
+    stages = (*(f'block-{kind}-{action}' for kind in blocks.FORMATS
+                for action in ('focus', 'home', 'selected', 'read')),
+              *(stage for kind in (*INLINE, 'link') for stage in format_stages(kind)))
+    return {prefix + stage: 'ui:' + stage for stage in stages}
+
+
 STAGES = ('feedback-open', 'text-body-blocks-focus', 'text-body-blocks-selected',
           'text-body-blocks-read', 'formats-before',
           *(f'block-{kind}-{action}' for kind in blocks.FORMATS

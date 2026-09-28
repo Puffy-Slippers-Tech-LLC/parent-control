@@ -10,15 +10,18 @@ use onpc_window ();
 use onpc_feedback_states ();
 use onpc_feedback_read ();
 use onpc_lifecycle ();
+use onpc_format ();
 
 # FEED10(app-exit): consume a fresh nonempty draft proof, close feedback,
 # compose LIFE01, and compare the reopened draft before any field input.
 sub app_exit {
     onpc_progress::operation('Reopening Parent and observing the empty feedback draft');
-    my ($journey, $before) = @_;
-    die 'feedback-reset:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey';
-    my $closed = onpc_window::close($journey, 'feedback', $before);
-    $journey->consume_observation('feedback-draft-closed', $closed);
+    my ($journey, $before, $invocation) = @_;
+    $invocation //= '';
+    die 'feedback-reset:arguments' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    my $closed = onpc_window::close($journey, 'feedback', $before, $invocation);
+    $journey->consume_observation($invocation . 'feedback-draft-closed', $closed);
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     $journey->seen('feedback-wrong-entry');
     return $journey->seen('feedback-reopen');
@@ -58,8 +61,9 @@ sub run {
     onpc_progress::operation('Reviewing local feedback through the declared composition');
     my ($exchange, $flow) = @_;
     die 'feedback:arguments' unless ref($exchange) eq 'CODE'
-        && (@_ == 1 || @_ == 2 && defined($flow) && $flow eq 'validation');
-    return _validation($exchange) if defined($flow);
+        && (@_ == 1 || @_ == 2 && defined($flow) && ($flow eq 'validation' || $flow eq 'draft'));
+    return _validation($exchange) if defined($flow) && $flow eq 'validation';
+    return _draft($exchange) if defined($flow) && $flow eq 'draft';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'feedback-privacy', review => 0);
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
@@ -73,6 +77,36 @@ sub run {
     preserve_dialog($journey, $journey->seen('feedback-draft-reread'));
     $returned = onpc_window::close($journey, 'feedback-privacy-independent', $journey->seen('privacy-independent'));
     $journey->consume_observation('privacy-independent-returned', $returned);
+    $journey->finish();
+}
+
+sub _draft {
+    onpc_progress::operation('Reviewing a formatted one-file draft and its complete preservation and reset history');
+    my ($exchange) = @_;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'feedback-draft', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    for my $stage ('switch-parent-before', 'switch-viewer-launch') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    onpc_feedback_read::activate_existing_window($journey, 'switch-parent');
+    $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
+    onpc_text::replace_text($journey, $_) for ('body-blocks', 'reply-first');
+    $journey->consume_observation('formats-before', $journey->seen('formats-before'));
+    onpc_format::apply_all($journey);
+    onpc_format::apply_inline($journey, 'clear');
+    onpc_format::apply_all($journey, 'restore-');
+    onpc_feedback_read::supply_files($journey, 'draft-chooser');
+    for my $stage ('feedback-draft', 'switch-draft-before') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    onpc_feedback_read::activate_existing_window($journey, $_) for ('switch-viewer', 'switch-feedback');
+    my $returned = onpc_window::close($journey, 'feedback-privacy', $journey->seen('feedback-privacy-open'));
+    $journey->consume_observation('feedback-privacy-returned', $returned);
+    preserve_dialog($journey, $journey->seen('feedback-draft-reread'));
+    app_exit($journey, $journey->seen('reset-feedback-draft-reread'), 'reset-');
+    $journey->seen('feedback-reread');
     $journey->finish();
 }
 

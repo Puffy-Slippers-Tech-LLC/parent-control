@@ -43,6 +43,154 @@ from ui_observations import FeedbackStateObservation
 # isolated observer import checks add no paths, sockets, buses or shared caches.
 # Complete formatting uses these same bounded trees and waited private children.
 # Linked-format qualification retains that isolation and existing unit bucket.
+# Draft composition retains the same private paths, bounded values and waited
+# Perl/Python children; there are no new shared resources or scheduler changes.
+# Viewer-launch retries use only in-memory observers and mocked commands/clocks;
+# they retain the compatible unit bucket and create no processes or shared state.
+
+
+def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch):
+    from tests.support.perl import run_perl
+    from tests.unit.test_e2e_toggle import ALLOWANCE_WORKER
+    from parent_feedback_draft import PLAN
+    from ui_observations import OPERATION_LABELS
+    script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_feedback_privacy')
+    script = script.replace('::run($exchange)', "::run($exchange, 'draft')")
+    script = script.replace('sub record_info { }',
+                            "sub record_info { }\nsub type_string { push @main::events, ['text', @_]; }")
+    monkeypatch.setenv('ONPC_TEST_REFUSE', '')
+    success = json.loads(run_perl(script).stdout)
+    assert success['ok'], success['error']
+    stages = list(PLAN.screen_tags)
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
+    assert sum(event[:2] == ['key', 'alt-f4'] for event in success['events']) == 4
+    assert sum(event[:2] == ['key', 'alt-tab'] for event in success['events']) == 3
+    assert not any('send' in operation for operation in PLAN.screen_tags.values())
+    for stage in stages:
+        monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
+        result = json.loads(run_perl(script).stdout)
+        assert not result['ok'] and 'fixture:refused' in result['error']
+        boundary = success['events'].index(['stage', stage])
+        assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_draft_recorder_reaches_real_controller_and_retains_owned_actions(tmp_path):
+    from parent_feedback_draft import execute, PLAN, ACTIONS
+    from feedback_composition import FeedbackDraftJourney
+    recorder = MagicMock(assertion=Mock())
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(),
+                              commands=Mock(), recorder=recorder)
+    def worker(**options):
+        controller = options['guarded_observe'].__self__
+        assert type(controller) is FeedbackDraftJourney
+        assert controller.plan is PLAN and controller.actions == ACTIONS and controller.draft is None
+        assert options['validate'].__self__ is controller
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        execute(recorder, context)
+    context.run_worker.assert_called_once()
+    recorder.assertion.assert_not_called()
+
+
+@pytest.mark.parametrize('reset', [False, True])
+@pytest.mark.parametrize('fault', ['', 'file', 'format', 'reply', 'extra'])
+def test_formatted_draft_decoder_and_independent_prior_comparison(tmp_path, reset, fault):
+    from attachment_composition import formatted_draft_expected
+    from feedback_composition import FeedbackDraftJourney
+    from parent_feedback_draft import PLAN, ACTIONS
+    from ui_observations import UiObservations
+    operation = 'draft-feedback-reopen' if reset else 'draft-feedback-draft-reopen'
+    value = formatted_draft_expected(reset=reset)
+    if fault == 'file': value['items'] = [['Other.txt', '26 bytes']]
+    if fault == 'format': value['formats']['link'] = 'https://example.com/wrong'
+    if fault == 'reply': value['draft'] = 'states-no-reply'
+    if fault == 'extra': value['private'] = 'refuse'
+    reply = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed', 'draft_state': value}
+    reader = UiObservations(Mock())
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    if fault:
+        with pytest.raises(EvidenceError, match='formatted-draft'):
+            reader.observe(operation)
+        return
+    assert reader.observe(operation) == reply
+    journey = FeedbackDraftJourney(SimpleNamespace(directory=tmp_path), lambda *_: None, PLAN, actions=ACTIONS)
+    stage = 'feedback-reopen' if reset else 'feedback-draft-reopen'
+    with pytest.raises(EvidenceError, match='missing-prior-draft'):
+        journey.check_settings(stage, {'ui': reply})
+    journey.check_settings('feedback-draft', {'ui': {'draft_state': formatted_draft_expected()}})
+    journey.check_settings(stage, {'ui': reply})
+
+
+@pytest.mark.parametrize('fault', ['', 'file', 'text', 'format', 'status'])
+def test_formatted_file_public_snapshot_requires_exact_fields_metadata_and_formats(monkeypatch, fault):
+    ui, dialog, rows = attachment_ui()
+    dialog.children.remove(rows[0])
+    controls = {node.identity: node for node in dialog.children}
+    for binding in ('body-blocks', 'reply-first'):
+        identity, value = accessible_ui.TEXT_VALUES[binding]
+        controls[identity].text.value = value
+        controls[identity].text.count = len(value)
+    ui.api.Text.get_text = Mock(side_effect=lambda text, start, end: text.value[start:end])
+    controls['feedback-status'].name = '1 file attachment ready.'
+    from feedback_formats import expected
+    read = Mock(return_value=expected('formats-kept-reopen'))
+    monkeypatch.setattr(accessible_ui.feedback_formats, 'read', read)
+    if fault == 'text': controls['feedback-reply-email'].text.value = 'wrong'
+    if fault == 'status': controls['feedback-status'].name = 'Attach at most 5 files.'
+    if fault == 'format': read.side_effect = accessible_ui.UiError('ui:formats-result')
+    if fault == 'file': dialog.children.append(Node(identity='feedback-attachment-unknown'))
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.feedback_snapshot('formatted-file')
+    else:
+        value = ui.feedback_snapshot('formatted-file')
+        assert value['items'] == [['Synthetic note.txt', '26 bytes']]
+        assert value['formats'] == expected('formats-kept-reopen')
+
+
+def test_formatted_window_decoder_preserves_endpoint_and_complete_draft(tmp_path):
+    import copy
+    from attachment_composition import formatted_draft_expected
+    from feedback_composition import FeedbackDraftJourney
+    from parent_feedback_draft import PLAN, ACTIONS
+    from ui_observations import UiObservations
+    value = {'binding': 'feedback', 'pid': 123, 'endpoint': [':1.123', '/org/a11y/atspi/accessible/42'],
+             'active': True, 'feedback': formatted_draft_expected()}
+    reply = {'operation': 'draft-switch-feedback', 'outcome': 'passed', 'interface': 'AT-SPI', 'window': value}
+    reader = UiObservations(Mock())
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    assert reader.observe('draft-switch-feedback') == reply
+    journey = FeedbackDraftJourney(SimpleNamespace(directory=tmp_path), Mock(), PLAN, actions=ACTIONS)
+    journey.check_settings('switch-draft-before', {'ui': copy.deepcopy(reply)})
+    journey.check_settings('switch-feedback', {'ui': reply})
+    value['endpoint'][1] += '1'
+    with pytest.raises(EvidenceError, match='window-or-draft-changed'):
+        journey.check_settings('switch-feedback', {'ui': reply})
+    value['feedback']['items'] = []
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    with pytest.raises(EvidenceError, match='formatted-draft'):
+        reader.observe('draft-switch-feedback')
+
+
+@pytest.mark.parametrize('fault', ['', 'blocks', 'link', 'attributes', 'body'])
+def test_empty_draft_reset_observes_formatting_before_any_input(monkeypatch, fault):
+    ui, _, _, controls = feedback_ui()
+    root = controls['feedback-editor-input']
+    root.text.get_attribute_run = Mock(return_value=({'weight': '700' if fault == 'attributes' else '400',
+        'style': 'normal', 'underline': 'none', 'strikethrough': 'false'}, 0, 1))
+    monkeypatch.setattr(accessible_ui.block_semantics, 'read_blocks', Mock(return_value=['heading'] if fault == 'blocks' else []))
+    monkeypatch.setattr(accessible_ui.feedback_formats, 'read_links', Mock(return_value='link' if fault == 'link' else None))
+    if fault == 'body': root.text.count = 12
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.feedback_draft_operation('draft-feedback-reread')
+    else:
+        assert ui.feedback_draft_operation('draft-feedback-reread')['draft_state']['items'] == []
+    for node in controls.values():
+        node.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'uri', 'text', 'duplicate', 'missing-interface',
@@ -2084,6 +2232,68 @@ def test_window_switch_absent_target_never_launches(monkeypatch):
     monkeypatch.setattr(accessible_ui.subprocess, 'run', launch)
     assert ui.window_switch_operation('switch-viewer-absent')['binding'] == 'feedback'
     launch.assert_not_called()
+
+
+@pytest.mark.parametrize('boundary', ['entry', 'proof', 'metadata'])
+@pytest.mark.parametrize('failure', ['transient', 'incomplete', 'wrong-owner'])
+def test_window_viewer_launch_retries_only_complete_reads(monkeypatch, boundary, failure):
+    ui = ui_for(Node())
+    ui.timeout = 1 if failure == 'transient' else 0
+    ui.handle_system_prompt = Mock()
+    ui.existing_window_active = Mock(return_value=Node())
+    ui.license_viewer_snapshot = Mock(return_value=(None, None, None))
+    proof = {'binding': 'viewer', 'pid': 123, 'endpoint': [':1.2', '/viewer'], 'active': True}
+    metadata = {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
+    ui.window_switch_proof = Mock(return_value=proof)
+    ui.license_provider_metadata = Mock(return_value=metadata)
+    ui.license_content = Mock(return_value=True)
+    observer, value = {
+        'entry': (ui.license_viewer_snapshot, (None, None, None)),
+        'proof': (ui.window_switch_proof, proof),
+        'metadata': (ui.license_provider_metadata, metadata),
+    }[boundary]
+    error = accessible_ui.UiError('ui:document-owner' if failure == 'wrong-owner'
+                                  else 'ui:incomplete-tree')
+    observer.side_effect = [error, value] if failure == 'transient' else error
+    launch = Mock()
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', launch)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', Mock())
+    if failure == 'transient':
+        result = ui.run('switch-viewer-launch', '1.1')
+        assert result['window'] == proof and result['provider'] == metadata
+        assert observer.call_count == 2
+        assert ui.incomplete_observations
+    else:
+        with pytest.raises(accessible_ui.UiError, match=(
+                'document-owner' if failure == 'wrong-owner' else 'timeout:')):
+            ui.run('switch-viewer-launch', '1.1')
+        assert observer.call_count == 1
+    assert launch.call_count == (0 if boundary == 'entry' and failure != 'transient' else 1)
+    if launch.called:
+        assert launch.call_args.args[0] == [
+            '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+            '--service-type=exec', '/usr/bin/gnome-text-editor', '--new-window',
+            '/usr/share/oh-no-parent-control/LICENSE']
+    if boundary == 'proof' and failure != 'transient':
+        assert ui.input_uncertain
+        with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+            ui.run('switch-viewer-launch', '1.1')
+        assert launch.call_count == 1
+
+
+def test_window_viewer_launch_failure_never_replays_command(monkeypatch):
+    ui = ui_for(Node())
+    ui.existing_window_active = Mock(return_value=Node())
+    ui.license_viewer_snapshot = Mock(return_value=(None, None, None))
+    ui.license_content = Mock()
+    launch = Mock(side_effect=accessible_ui.subprocess.TimeoutExpired('viewer', 15))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', launch)
+    with pytest.raises(accessible_ui.subprocess.TimeoutExpired):
+        ui.window_switch_operation('switch-viewer-launch')
+    with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+        ui.window_switch_operation('switch-viewer-launch')
+    launch.assert_called_once()
+    ui.license_content.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'wrong-owner', 'ambiguous', 'unrelated', 'hidden', 'wrong-pid'])

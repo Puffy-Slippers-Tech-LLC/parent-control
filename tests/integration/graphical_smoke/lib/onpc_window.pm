@@ -8,7 +8,8 @@ use testapi ();
 # checkpoint independently observes absence and the expected underlying surface.
 sub close {
     onpc_progress::operation('Closing the current window');
-    my ($journey, $window, $proof) = @_;
+    my ($journey, $window, $proof, $invocation) = @_;
+    $invocation //= '';
     my %stages = (
         license => ['license', 'license-closed'],
         'license-qualified' => ['license-provider-refusals', 'license-closed'],
@@ -23,9 +24,12 @@ sub close {
         'feedback-privacy' => ['feedback-privacy-open', 'feedback-privacy-returned'],
         'feedback-privacy-independent' => ['privacy-independent', 'privacy-independent-returned'],
     );
-    die 'window:close-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && defined($window) && exists($stages{$window});
+    die 'window:close-binding' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
+        && defined($window) && exists($stages{$window})
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
     my ($before, $after) = @{$stages{$window}};
+    $before = $invocation . $before;
+    $after = $invocation . $after;
     $journey->consume_observation($before, $proof);
     testapi::send_key('alt-f4');
     return $journey->seen($after);

@@ -221,6 +221,8 @@ OPERATION_LABELS.update({operation: 'Reading feedback block meaning and associat
                          for operation in accessible_ui.block_semantics.OPERATIONS})
 OPERATION_LABELS.update({operation: 'Applying and reading all feedback formats, links and removal'
                          for operation in accessible_ui.feedback_formats.OPERATIONS})
+OPERATION_LABELS.update({operation: 'Comparing the formatted draft, reply address and selected file'
+                         for operation in accessible_ui.DRAFT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying invalid-only feedback input and public rejection'
                          for operation in accessible_ui.REJECTION_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying exact UTF-16 boundary drafts without valid submission'
@@ -608,6 +610,21 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in accessible_ui.DRAFT_OPERATIONS and not operation.startswith('draft-switch-'):
+            from attachment_composition import compare_formatted_draft
+            base = operation.removeprefix('draft-')
+            if base.startswith('chooser-'):
+                projection = {'checked': base}
+                if base == 'chooser-open':
+                    provider = result.get('chooser', {}).get('provider')
+                    require(type(provider) is dict and set(provider) == {'route', 'version', 'locale', 'keyboard'}
+                            and provider['route'] in ('gtk-native', 'nautilus-portal'), 'ui:chooser-provider')
+                    accessible_ui.validate_shell_metadata({key: value for key, value in provider.items() if key != 'route'})
+                    projection['provider'] = provider
+                expected['chooser'] = projection
+            elif base != 'feedback-privacy-open':
+                expected['draft_state'] = compare_formatted_draft(result.get('draft_state'),
+                    reset=base in ('feedback-reopen', 'feedback-reread'))
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'approval'}, 'ui:mate-response')
             value = result['approval']
@@ -757,14 +774,14 @@ class UiObservations:
                 'synthetic-first' if operation in accessible_ui.FEEDBACK_PRIVACY_OPERATIONS
                 else 'initial-empty'), 'ui:feedback-response')
             expected['feedback'] = result['feedback']
-        if operation in accessible_ui.WINDOW_SWITCH_OPERATIONS:
+        if operation in accessible_ui.WINDOW_SWITCH_OPERATIONS or operation.startswith('draft-switch-'):
             if operation == 'switch-viewer-launch':
                 expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
             require(type(result) is dict and set(result) == {*expected, 'window'},
                     'ui:switch-response')
             value = result['window']
             ready = operation.endswith('-ready')
-            stage = operation[:-6] if ready else operation
+            stage = (operation[:-6] if ready else operation).removeprefix('draft-')
             binding = ('parent' if stage in ('switch-parent-before', 'switch-parent') else
                        'viewer' if stage in ('switch-viewer-launch', 'switch-viewer',
                            'switch-viewer-again', 'switch-viewer-close') else 'feedback')
@@ -777,8 +794,12 @@ class UiObservations:
                 and value['endpoint'][0].startswith(':') and value['endpoint'][1].startswith('/'),
                 'ui:switch-response')
             if binding == 'feedback' and not ready:
-                FeedbackObservation.from_value(value['feedback'])
-                require(value['feedback']['draft'] == 'synthetic-first', 'ui:switch-response')
+                if operation.startswith('draft-'):
+                    from attachment_composition import compare_formatted_draft
+                    compare_formatted_draft(value['feedback'])
+                else:
+                    FeedbackObservation.from_value(value['feedback'])
+                    require(value['feedback']['draft'] == 'synthetic-first', 'ui:switch-response')
             expected['window'] = value
         if operation in accessible_ui.feedback_formats.OPERATIONS and (
                 operation.endswith(('-read', '-reopen')) or operation in ('formats-before', 'linked-before')):

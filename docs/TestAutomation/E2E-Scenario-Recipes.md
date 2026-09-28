@@ -645,8 +645,8 @@ Bindings: surface = parent.
 
 ### E2E-031
 
-Implementation status: Case 153 passed complete acceptance in `20260927T053552Z-feb94dac`.
-Cases 152, 154 and 155 remain pending.
+Implementation status: Case 152 passed complete acceptance in `20260928T030531Z-1c1850d6`;
+case 153 passed in `20260927T053552Z-feb94dac`. Cases 154 and 155 remain pending.
 
 **Feedback drafts, validation and attachment review.** Cases 152, 153, 154, 155.
 
@@ -654,6 +654,15 @@ Bindings: flow = draft-reopen / validation / attachments / diagnostic-export.
 
 1. P0; draft: FEED01 → UI16(body,email) → FEED04(all formats) → FEED03; validation: FEED01 → repeat input table UI16 → FEED09; attachments: FEED01 → repeat file table FEED06/07/13; export: watch(FEED09){FEED01} → FEED08 with chooser cancel/failure/success branches.
 2. DESK10(feedback) → FEED05 → FEED10(dialog,compare). draft additionally FEED10(app-exit,reset). Never FEED11.
+
+Case 152 binds `parent_feedback_draft.PLAN`: apply every `body-blocks` format,
+remove them while observing unchanged text, then reapply through uniquely named
+shared invocations. Supply the `single` fixture (`Synthetic note.txt`, 26 bytes)
+through the guarded chooser and independently read its metadata. The shared
+`FeedbackDraftJourney` compares the complete formatted draft and reply address
+after window switching, Privacy and dialog reopening, then observes empty text,
+reply address, formatting and customer-file list after Parent exits/relaunches,
+before any new input. Fresh diagnostics remain separate from the customer draft.
 
 Case 153 binds the edit-only text/email snapshots first, then the ASCII and
 mixed-emoji boundaries and invalid-only rejection fixtures. Closing/reopening

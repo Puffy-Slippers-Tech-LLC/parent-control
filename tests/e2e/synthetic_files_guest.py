@@ -20,6 +20,7 @@ RENAMED = 'Renamed synthetic note.txt'
 CONTENTS = {**FILES, COPY: FILES['Synthetic note.txt'],
             RENAMED: FILES['Synthetic note.txt']}
 BOUNDARY_PROFILES = {
+    'single': {'Synthetic note.txt': FILES['Synthetic note.txt']},
     'count': {f'Count {index}.txt': b'C' for index in range(1, 6)},
     'sixth': {'Count 6.txt': b'C'},
     'maximum': {'Maximum.txt': b'M' * (5 * 1024 * 1024)},

@@ -67,7 +67,7 @@ sub supply_files {
     onpc_progress::operation('Supplying a declared file set through the owned chooser');
     my ($journey, $prefix) = @_;
     die 'chooser:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && $prefix =~ /^(chooser|boundary-(count|sixth|maximum|oversized|total|overflow))$/;
+        && $prefix =~ /^(chooser|draft-chooser|boundary-(count|sixth|maximum|oversized|total|overflow))$/;
     for my $step ('open', 'location', 'files', 'accept') {
         my $stage = "$prefix-$step";
         $journey->consume_observation($stage, $journey->seen($stage));

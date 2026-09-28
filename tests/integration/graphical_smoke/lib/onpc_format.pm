@@ -23,11 +23,13 @@ sub apply_bold {
 
 sub apply_block {
     onpc_progress::operation('Applying a declared feedback block and reading its public meaning');
-    my ($journey, $kind) = @_;
+    my ($journey, $kind, $invocation) = @_;
+    $invocation //= '';
     my %ranges = ('heading-1' => [0, 14], 'heading-2' => [15, 32],
         ordered => [33, 46], bulleted => [47, 60], quote => [61, 73], code => [74, 85]);
-    die 'blocks:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey' && exists $ranges{$kind};
-    my $prefix = "block-$kind";
+    die 'blocks:arguments' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && exists $ranges{$kind} && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    my $prefix = "${invocation}block-$kind";
     $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
     testapi::send_key('ctrl-home');
     $journey->consume_observation("$prefix-home", $journey->seen("$prefix-home"));
@@ -40,11 +42,14 @@ sub apply_block {
 
 sub apply_inline {
     onpc_progress::operation('Applying a bounded inline format or removing all formatting');
-    my ($journey, $kind, $namespace) = @_;
+    my ($journey, $kind, $namespace, $invocation) = @_;
     $namespace //= 'formats';
-    die 'formats:arguments' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+    $invocation //= '';
+    die 'formats:arguments' unless (@_ >= 2 && @_ <= 4) && ref($journey) eq 'onpc_journey'
         && ($namespace eq 'formats' || $namespace eq 'linked')
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/
         && grep { $_ eq $kind } ('bold', 'italic', 'underline', 'strike', 'link', 'clear');
+    $namespace = $invocation . $namespace;
     my $prefix = "$namespace-$kind";
     $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
     testapi::send_key('ctrl-home');
@@ -67,10 +72,12 @@ sub apply_inline {
 
 sub apply_all {
     onpc_progress::operation('Composing every declared feedback format through shared operations');
-    my ($journey) = @_;
-    die 'formats:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
-    apply_block($journey, $_) for ('heading-1', 'heading-2', 'ordered', 'bulleted', 'quote', 'code');
-    apply_inline($journey, $_) for ('bold', 'italic', 'underline', 'strike', 'link');
+    my ($journey, $invocation) = @_;
+    $invocation //= '';
+    die 'formats:arguments' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    apply_block($journey, $_, $invocation) for ('heading-1', 'heading-2', 'ordered', 'bulleted', 'quote', 'code');
+    apply_inline($journey, $_, 'formats', $invocation) for ('bold', 'italic', 'underline', 'strike', 'link');
 }
 
 sub run_formats {

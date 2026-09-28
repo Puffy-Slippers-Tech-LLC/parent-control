@@ -1,4 +1,4 @@
-## v1.2
+## v1.2 - 2026-09-28
 ### Bug Fixes
 - Software Updater: Fixed the description to match app name
 - Harden execution probes with isolated D-Bus clients, retained late replies, recoverable cleanup, and stricter execution identity checks.

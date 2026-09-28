@@ -1428,6 +1428,39 @@ def test_rejection_requires_explicit_message_then_one_cancel_and_public_form(fau
     field.get_child_count.assert_not_called()
 
 
+@pytest.mark.parametrize('state', ['visible', 'sensitive', 'focused'])
+@pytest.mark.parametrize('recovers', [True, False])
+def test_rejection_waits_for_retry_field_without_accepting_unready_state(monkeypatch, state, recovers):
+    ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()
+    desktop.children.append(agent)
+    challenge = ui.mate_prompt(100)
+    label = Node('Your authentication attempt was unsuccessful. Please try again.', 'label')
+    label.parent = dialog
+    dialog.children.append(label)
+    field.states.discard(state)
+    ui.timeout = 1 if recovers else 0
+
+    def restore(_seconds):
+        cancel.action.do_action.assert_not_called()
+        field.states.add(state)
+
+    sleep = Mock(side_effect=restore)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    if recovers:
+        assert ui.kiosk_mate_rejected(100, challenge) == {
+            'rejected': True, 'cancelled': True, 'no_error': True}
+        sleep.assert_called_once()
+        cancel.action.do_action.assert_called_once()
+        assert agent not in desktop.children
+    else:
+        with pytest.raises(UiError, match='ui:timeout:mate-rejection'):
+            ui.kiosk_mate_rejected(100, challenge)
+        cancel.action.do_action.assert_not_called()
+        sleep.assert_not_called()
+    submit.action.do_action.assert_not_called()
+    field.get_child_count.assert_not_called()
+
+
 def test_rejection_plan_independent_form_comparison(tmp_path, monkeypatch):
     monkeypatch.setattr(RequestFlowJourney, 'check_settings', lambda *_: None)
     journey = KioskRejectionJourney(SimpleNamespace(directory=tmp_path), Mock())

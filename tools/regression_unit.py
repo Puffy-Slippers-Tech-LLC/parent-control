@@ -108,6 +108,9 @@ write_e2e write_e2e_cleanup_safety
 # display, account or process is touched. Both scheduler classifications hold.
 # Resume refusal and delayed-clock checks retain that isolation: real journals
 # are tmp_path-local and VM/SSH/time operations are process-local doubles.
+# Restored-network checks also mock link updates, carrier waits and ownership
+# replacement; they use no real network, VM or timer resource.
+# Maintenance viewer carrier/identity checks use only in-memory XML and API doubles.
 # Snapshot/suite/maintenance cleanup tests use private VM doubles;
 # qualification storage uses private retention trees. Repair
 # loop and write-E2E tests use private checkouts and recorded child identities;

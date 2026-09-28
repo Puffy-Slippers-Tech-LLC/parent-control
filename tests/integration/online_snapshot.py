@@ -5,6 +5,7 @@ credentials are usable only for the exact snapshot XML recorded under the VM
 lease; they are never printed or placed in libvirt's public description.
 """
 import hashlib
+from contextlib import contextmanager
 import inspect
 import json
 import os
@@ -216,7 +217,76 @@ def restore(lease, record, *, maintenance=False):
     lease.save('running')
     from e2e_watch import attach
     attach(lease)
+    reconnect_network(lease)
     return system.address(lease.source)
+
+
+def network_link(lease):
+    """Return the guarded live-only carrier updater for the one guest NIC."""
+    lease.guard()
+    domain = lease.source.domain
+    interfaces = ET.fromstring(domain.XMLDesc(0)).findall('devices/interface')
+    system.require(len(interfaces) == 1 and interfaces[0].get('type') == 'network',
+                   'online-snapshot:network-layout')
+    interface = interfaces[0]
+    mac = interface.find('mac')
+    network = interface.find('source')
+    link = interface.find('link')
+    system.require(mac is not None and re.fullmatch(
+        r'(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', mac.get('address', '')) is not None
+        and network is not None and bool(network.get('network'))
+        and (link is None or link.get('state') in ('up', 'down')),
+        'online-snapshot:network-layout')
+    state = 'up' if link is None else link.get('state')
+    if link is None:
+        link = ET.SubElement(interface, 'link')
+
+    def update(state):
+        lease.guard()
+        link.set('state', state)
+        domain.updateDeviceFlags(ET.tostring(interface, encoding='unicode'),
+                                 lease.source.api.VIR_DOMAIN_AFFECT_LIVE)
+        lease.guard()
+        current = ET.fromstring(domain.XMLDesc(0)).findall('devices/interface')
+        system.require(len(current) == 1
+            and current[0].find('mac') is not None
+            and current[0].find('mac').attrib == mac.attrib
+            and current[0].find('link') is not None
+            and current[0].find('link').get('state') == state,
+            'online-snapshot:network-link-not-applied')
+    return state, update
+
+
+@contextmanager
+def disconnected_network(lease):
+    """Pay NetworkManager's carrier-loss grace once, before saving memory."""
+    with system.operation('Disconnecting the VM network for a reusable snapshot'):
+        state, update = network_link(lease)
+        system.require(state == 'up', 'online-snapshot:network-already-down')
+        try:
+            update('down')
+            # NetworkManager's default carrier-wait-timeout is six seconds.
+            time.sleep(10)
+            yield
+        finally:
+            update('up')
+
+
+@system.observed('Renewing the restored VM network connection')
+def reconnect_network(lease):
+    """New snapshots already contain disconnected networking; reconnect now.
+
+    Older snapshots retain DHCP state in RAM and need the carrier-loss grace
+    on restore. Neither path relies on SSH or a potentially expired host lease.
+    """
+    state, update = network_link(lease)
+    if state == 'down':
+        update('up')
+        system.log('online-snapshot:network-reconnected')
+        return
+    with disconnected_network(lease):
+        pass
+    system.log('online-snapshot:network-reconnected')
 
 
 def saved_transport(lease, directory, record, hostname):

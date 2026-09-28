@@ -293,7 +293,9 @@ def prepared_suite(snapshots, tmp_path, monkeypatch):
     import installed_setup
     import provenance
     import vm_transport
+    import online_snapshot
     lease, names, events, add, baseline_name = snapshots
+    monkeypatch.setattr(online_snapshot, 'disconnected_network', lambda _: nullcontext())
     owner = suite_lease.Suite(Mock())
     owner.snapshot_mode = 'offline'  # Preserve explicit disk-only transition coverage.
     owner.lease = lease
@@ -330,9 +332,18 @@ def current_xml(owner, directory):
 
 def test_online_creation_reboots_and_captures_memory_before_shutdown(prepared_suite, monkeypatch):
     import online_snapshot
+    from contextlib import contextmanager
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     publish = Mock()
     monkeypatch.setattr(online_snapshot, 'publish', publish)
+    @contextmanager
+    def disconnected(owned):
+        assert owned is lease
+        before = len(events)
+        yield
+        assert any(event == ('create', 'onpc-v1.1') for event in events[before:])
+        publish.assert_called_once()
+    monkeypatch.setattr(online_snapshot, 'disconnected_network', disconnected)
     with lease:
         owner.prepare_installed(directory, directory, {}, root=directory, mode='online')
         setup.run.assert_called_once_with(lease.guard, verify=True)
@@ -368,6 +379,8 @@ def test_online_restore_records_instance_without_booting(prepared_suite, monkeyp
     import online_snapshot
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     monkeypatch.setattr(online_snapshot, 'publish', Mock())
+    reconnect = Mock()
+    monkeypatch.setattr(online_snapshot, 'reconnect_network', reconnect)
     lease.source.api.VIR_DOMAIN_METADATA_DESCRIPTION = 0
     lease.source.api.VIR_DOMAIN_AFFECT_LIVE = 1
     lease.source.api.VIR_DOMAIN_AFFECT_CONFIG = 2
@@ -411,8 +424,10 @@ def test_online_restore_records_instance_without_booting(prepared_suite, monkeyp
             with pytest.raises(RuntimeError):
                 online_snapshot.restore(lease, record)
             assert lease.source.domain.revertToSnapshot.call_count == previous
+            reconnect.assert_not_called()
         else:
             assert online_snapshot.restore(lease, record) == 'fixture-host'
+            reconnect.assert_called_once_with(lease)
             assert not lease.source.off and lease.state['domain_id'] == 72
             assert lease.state['phase'] == 'running'
             lease.source.domain.setMetadata.assert_called_once_with(

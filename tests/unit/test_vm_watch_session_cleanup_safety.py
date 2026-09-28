@@ -124,3 +124,28 @@ def test_maintenance_release_detaches_and_releases_controller_lock(lease_rig):
     observer.close.assert_not_called()
     assert lease.watch is None and lease.fd is None
     assert not lease.source.off
+
+
+def test_carrier_renewal_keeps_viewing_but_network_identity_remains_bound():
+    connection = Mock()
+    connection.getURI.return_value = 'qemu:///system'
+    domain = connection.lookupByUUIDString.return_value
+    domain.UUIDString.return_value, domain.ID.return_value = 'pinned', 71
+    xml = ('<domain><devices><interface type="network">'
+           '<mac address="52:54:00:11:22:33"/><source network="default"/>'
+           '<model type="virtio"/></interface></devices></domain>')
+    digest = session.configuration_digest(xml)
+    for state in ('down', 'up'):
+        domain.XMLDesc.return_value = xml.replace('</interface>', f'<link state="{state}"/></interface>')
+        assert session.matches(connection, 'pinned', 71, digest)
+    domain.XMLDesc.return_value = xml.replace('network="default"',
+        'portid="runtime-port" network="default"')
+    assert session.matches(connection, 'pinned', 71, digest)
+    for original, replacement in [('network="default"', 'network="other"'),
+            ('52:54:00:11:22:33', '52:54:00:11:22:44'), ('type="virtio"', 'type="e1000"')]:
+        domain.XMLDesc.return_value = xml.replace(original, replacement)
+        assert not session.matches(connection, 'pinned', 71, digest)
+    for link in ('<link state="invalid"/>', '<link state="up" extra="ignored"/>',
+                 '<link state="up"><other/></link>', '<link state="up"/><link state="down"/>'):
+        with pytest.raises(ValueError, match='session-network-link'):
+            session.configuration_digest(xml.replace('</interface>', link + '</interface>'))

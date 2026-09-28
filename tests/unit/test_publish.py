@@ -720,6 +720,45 @@ def test_invalid_history_stops_before_preparation(repository, monkeypatch):
         publish.publish(repository)
 
 
+@pytest.mark.parametrize('failure', [None, 'publication', 'ancestry', 'phase'])
+def test_reconcile_retains_journal_and_newer_work(repository, monkeypatch, failure):
+    revision = git(repository, 'rev-parse', 'HEAD')
+    git(repository, 'commit', '--allow-empty', '-m', 'newer development')
+    head = git(repository, 'rev-parse', 'HEAD')
+    state = dict(checkout=str(repository), phase='upload-started',
+                 revision=revision, version='1.1+ppa1~ubuntu26.04.1',
+                 directory=str(repository / 'missing-artifacts'))
+    if failure == 'ancestry':
+        state['revision'] = '0' * 40
+    if failure == 'phase':
+        state['phase'] = 'push-started'
+    with publish.locked(repository) as path:
+        publish.save(path, state)
+    original = path.read_bytes()
+    notes = (repository / publish.HISTORY).read_bytes()
+    calls = []
+
+    def verify(candidate):
+        calls.append(candidate)
+        if failure == 'publication':
+            raise ValueError('publication failed')
+
+    monkeypatch.setattr(publish, 'wait_for_publication', verify)
+    if failure:
+        with pytest.raises(ValueError):
+            publish.reconcile(repository)
+        assert path.read_bytes() == original
+    else:
+        publish.reconcile(repository)
+        assert json.loads(path.read_text()) == dict(state, phase='complete')
+        assert (path.parent / ('reconciled-' + revision + '.json')).read_bytes() == original
+        publish.reconcile(repository)
+        assert (path.parent / ('reconciled-' + revision + '.json')).read_bytes() == original
+    assert bool(calls) is (failure in (None, 'publication'))
+    assert git(repository, 'rev-parse', 'HEAD') == head
+    assert (repository / publish.HISTORY).read_bytes() == notes
+
+
 @pytest.mark.parametrize('phase,replaced', [('signed', True), ('built', True),
                                          ('push-started', False), ('upload-started', False)])
 def test_corrected_source_can_replace_only_attempts_without_public_writes(repository, tmp_path, monkeypatch, phase, replaced):

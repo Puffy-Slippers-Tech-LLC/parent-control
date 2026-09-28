@@ -222,6 +222,14 @@ with the same signed refs; no tags are recreated. If development advanced during
 publication, reconcile it with the recorded release commit before resuming local
 completion. The command does not discard work or roll back public releases.
 
+If the recorded release commit is already an ancestor of checkout HEAD, run
+`tools/publish.py --reconcile`. This verifies the exact remote publication,
+preserves the original journal in `onpc-publish/reconciled-REVISION.json`, and
+marks the active journal complete without changing checkout files or uploading.
+It works even when the old temporary artifacts are gone. Failed verification
+leaves the active journal unchanged. Commit current release inputs before
+running `make publish` for the next release.
+
 Before every upload, verify a clean binary build with its declared tests,
 inspect the final installed licenses/notices and both front-end About displays,
 and confirm that the public privacy page matches the feedback disclosure in

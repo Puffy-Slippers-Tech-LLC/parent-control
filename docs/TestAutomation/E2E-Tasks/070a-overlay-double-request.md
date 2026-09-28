@@ -24,6 +24,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
+Complete the overlay UI duration matrix before the customer cases: every preset,
+all valid/invalid custom values and exact estimates from the recipe table. Reuse
+the shared kiosk/overlay selection, input and public-read operations; installed
+cases sample one value while retaining real authorization and time assertions.
+
 Bind the existing double-click and public trace projections to the overlay's Request control and desktop agent. Do not reimplement the gesture or widen the kiosk qualification.
 
 ## Live VM acceptance

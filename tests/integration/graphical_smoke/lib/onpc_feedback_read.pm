@@ -80,7 +80,7 @@ sub supply_files {
     onpc_progress::operation('Supplying a declared file set through the owned chooser');
     my ($journey, $prefix) = @_;
     die 'chooser:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && $prefix =~ /^(chooser|draft-chooser|boundary-(count|sixth|maximum|oversized|total|overflow))$/;
+        && $prefix =~ /^(chooser|draft-chooser|boundary-(count|sixth|maximum|oversized|total|overflow|name180|name181|hidden|mixed|single|changed))$/;
     for my $step ('open', 'location', 'files', 'accept') {
         my $stage = "$prefix-$step";
         $journey->consume_observation($stage, $journey->seen($stage));
@@ -93,7 +93,7 @@ sub boundary_batch {
     onpc_progress::operation('Checking a finite attachment boundary and independently preserved list');
     my ($journey, $batch) = @_;
     die 'attachment:batch' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && $batch =~ /^(count|sixth|maximum|oversized|total|overflow)$/;
+        && $batch =~ /^(count|sixth|maximum|oversized|total|overflow|name180|name181|hidden|mixed|single|changed)$/;
     my $prefix = "boundary-$batch";
     $journey->consume_observation("$prefix-before", $journey->seen("$prefix-before"));
     supply_files($journey, $prefix);
@@ -101,6 +101,26 @@ sub boundary_batch {
         my $stage = "$prefix-$step";
         $journey->consume_observation($stage, $journey->seen($stage));
     }
+}
+
+sub attachment_limits {
+    onpc_progress::operation('Checking the full count and size attachment table');
+    my ($journey) = @_;
+    die 'attachment:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    for my $stage ('attachment-remove', 'attachment-remaining', 'boundary-clear-small') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    boundary_batch($journey, 'count');
+    boundary_batch($journey, 'sixth');
+    for my $stage ('boundary-clear-count', 'boundary-exclude-logs') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    boundary_batch($journey, 'maximum');
+    boundary_batch($journey, 'oversized');
+    boundary_batch($journey, 'total');
+    my $stage = 'boundary-remove-total';
+    $journey->consume_observation($stage, $journey->seen($stage));
+    boundary_batch($journey, 'overflow');
 }
 
 sub run_file_chooser {
@@ -130,20 +150,7 @@ sub run_file_chooser {
         }
     }
     if ($items == 3) {
-        for my $stage ('attachment-remove', 'attachment-remaining', 'boundary-clear-small') {
-            $journey->consume_observation($stage, $journey->seen($stage));
-        }
-        boundary_batch($journey, 'count');
-        boundary_batch($journey, 'sixth');
-        for my $stage ('boundary-clear-count', 'boundary-exclude-logs') {
-            $journey->consume_observation($stage, $journey->seen($stage));
-        }
-        boundary_batch($journey, 'maximum');
-        boundary_batch($journey, 'oversized');
-        boundary_batch($journey, 'total');
-        my $stage = 'boundary-remove-total';
-        $journey->consume_observation($stage, $journey->seen($stage));
-        boundary_batch($journey, 'overflow');
+        attachment_limits($journey);
     }
     $journey->finish();
 }

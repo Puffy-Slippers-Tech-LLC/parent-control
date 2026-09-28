@@ -1,5 +1,11 @@
 # Reusable customer E2E building blocks
 
+Apply the [UI/E2E allocation](UI-and-E2E-Coverage.md) when composing consumers.
+UI tests own full local GUI matrices; installed cases select representative
+values from the same shared operations and retain integration assertions.
+Full matrix qualification probes remain optional engineering diagnostics, while
+new or changed provider routes still require scoped entry/refusal qualification.
+
 This is the contract catalogue for the operations used by customer scenarios.
 The [documentation map](README.md) defines document ownership and status terms;
 the [execution plan](E2E-Execution-Plan.md) owns task selection and live
@@ -532,7 +538,7 @@ these blocks, not copies of them.
 | FILE04 | C | Open the file manager directly at a declared directory only when the case tests that launch route or product file-picker integration. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands. | pending |
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text binding ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify the synthetic text/ZIP bindings; see [artifact-read boundary](#customer-artifact-read-boundary). Saved-product bindings remain pending. Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text and ZIP bindings ready; product-exported artifact and retained-work bindings pending |
-| FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change). UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to case 154; retained-work binding pending |
+| FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change). UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to the attachment UI matrix; retained-work binding pending |
 | APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 over SSH as the child desktop user without Terminal UI. Never substitute the tested route after failure. | pending |
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | pending |
@@ -610,8 +616,8 @@ passed in `20260928T050905Z-0e6857aa`: independent standard/single entries,
 changed-content readback, refusal probes and owned cleanup. Collection, worker
 shutdown and baseline restoration passed. The affected FILE05 copy/rename/read/
 cleanup regression `check_e2e_files` passed in `20260928T051104Z-c57dd2ac`.
-Case 154 still owns the real attachment's unchanged public metadata followed
-by Remove/re-add and larger-size observation. This source preparation supplies
+The attachment UI matrix owns the real attachment's unchanged public metadata
+followed by Remove/re-add and larger-size observation. This source preparation supplies
 no attachment snapshot or APP03/04 retained-work acceptance.
 
 #### Attachment chooser handoff
@@ -705,8 +711,9 @@ uses the existing public chooser with `profile='single'`; exact-directory and
 selection guards remain unchanged. This adds the one-file Parent Open binding
 to FILE03/FEED06, without qualifying Save or another provider tuple.
 
-`AccessibleUI.feedback_snapshot('formatted')` reads the `body-blocks` body,
-synthetic reply and all public format/link meanings. `formatted-file` additionally
+`AccessibleUI.feedback_snapshot('formatted')` reads the `body-smoke` text/emoji,
+synthetic reply and the bold/normal public ranges. Full `body-blocks` formatting
+is owned by UI tests using the same worker composites. `formatted-file` additionally
 requires the exact attachment ID, name, displayed 26-byte size and diagnostics.
 The finite success statuses allow the original attachment confirmation or its
 cleared state after collection on reopen; errors still refuse. The shared
@@ -986,17 +993,15 @@ and independent-entry checks.
 #### Complete local validation
 
 [`parent_feedback_validation.PLAN`](../../tests/e2e/parent_feedback_validation.py)
-composes the complete case 153 [finite table](E2E-Scenario-Recipes.md#feedback-local-values)
+composes the installed case 153 [sample](E2E-Scenario-Recipes.md#feedback-local-values)
 through `record_installed_journey`,
 [`FeedbackValidationJourney`](../../tests/e2e/feedback_composition.py) and
 `onpc_feedback_privacy::run(exchange, 'validation')`. Repeated operations have
 unique invocation IDs. Public snapshots and guarded invalid-only rejection
-cover text/email, ASCII and mixed-emoji UTF-16 boundaries, SOH and excessive
-formatting. Immutable observations compare the complex draft after reopening
-and the synthetic-first draft across existing-window activation, Privacy and
-dialog close/reopen. No valid submission or portal mutation is permitted.
-The case reuses `feedback_states.edit_states`, `feedback_length.length_boundary`
-and the matching `onpc_feedback_states` composites. Qualification-only wrong-entry
+cover an empty send followed by body/reply editing and recovery after reopening.
+UI tests retain text/email, ASCII/emoji boundaries, SOH and excessive formatting,
+using the shared text/format/state composites and public comparisons.
+No valid submission or portal mutation is permitted. Qualification-only wrong-entry
 and repeated-rejection checks remain in their callers; shared blocks do not
 choose a case's recorder phases or reset its dialog implicitly.
 

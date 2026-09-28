@@ -38,6 +38,10 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
+Complete the overlay UI content/action/callback matrix, sharing Parent's
+information-route operations. Installed acceptance owns each actual child-session
+handler and return; it does not repeat local layout or content permutations.
+
 Bind overlay About, license viewer and the offered information links. Reuse the shared About reader and destination-specific normal exits; retain the request form's earlier observation.
 
 Reuse the destination-specific browser, mail and document operations from Parent qualification, then bind each offered overlay action to the actual child-session handler. Verify its owner/destination afresh; Parent evidence cannot certify a different handler or child-session route. Preserve each explicit close/return and no-mail-submission rule.

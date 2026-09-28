@@ -25,9 +25,11 @@ sub reload_child {
 
 sub exercise {
     onpc_progress::operation('Checking accepted and rejected custom daily allowances');
-    my ($journey) = @_;
-    die 'allowance-boundaries:journey' unless @_ == 1 && ref($journey) eq 'onpc_journey';
-    for my $value (0, 1, 15, 1439) {
+    my ($journey, $profile) = @_;
+    $profile //= 'full';
+    die 'allowance-boundaries:journey' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && ($profile eq 'full' || $profile eq 'installed');
+    for my $value ($profile eq 'installed' ? (1) : (0, 1, 15, 1439)) {
         my $prefix = "boundary-$value";
         seen($journey, "$prefix-open");
         onpc_text::replace_text($journey, "daily-$value", "$prefix-text");
@@ -35,7 +37,7 @@ sub exercise {
         reload_child($journey, $prefix);
         seen($journey, "$prefix-reopen");
     }
-    for my $binding ('empty', 'letters', 'negative', 'fraction', 'maximum', 'over') {
+    for my $binding ($profile eq 'installed' ? ('over') : ('empty', 'letters', 'negative', 'fraction', 'maximum', 'over')) {
         my $prefix = "invalid-$binding";
         seen($journey, "$prefix-$_") for ('baseline', 'baseline-read', 'open');
         onpc_text::replace_text($journey, "daily-invalid-$binding", "$prefix-text");

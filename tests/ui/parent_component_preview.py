@@ -169,6 +169,11 @@ feedback_session.__exit__ = Mock(return_value=False)
 feedback_session.post.side_effect = feedback_post
 feedback_transport.requests.Session = lambda: feedback_session
 
+if os.environ.get('ONPC_FEEDBACK_CHOOSER_INPUTS'):
+    from gi.repository import Gtk, Gio, GLib
+    from tests.support.feedback import install_component_chooser
+    install_component_chooser(os.environ['ONPC_FEEDBACK_CHOOSER_INPUTS'], Gtk, Gio, GLib)
+
 
 if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-restored-blocks":
     class RestoredBlockEditor(feedback.RichTextEditor):

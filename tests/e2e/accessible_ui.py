@@ -97,8 +97,9 @@ FEEDBACK_PROJECTIONS = {
        for family in ('ascii', 'mixed') for units in (5000, 5001)},
     'initial-empty': ('body-clear', 'reply-clear'),
     'synthetic-first': ('body-first', 'reply-first'),
-    'formatted': ('body-blocks', 'reply-first'),
-    'formatted-file': ('body-blocks', 'reply-first'),
+    'formatted': ('body-smoke', 'reply-first'),
+    'formatted-file': ('body-smoke', 'reply-first'),
+    'attachment-file': ('body-first', 'reply-first'),
     'states-whitespace': ('body-whitespace', 'reply-clear'),
     'states-no-reply': ('body-first', 'reply-clear'),
     'states-malformed': ('body-first', 'reply-malformed'),
@@ -168,6 +169,7 @@ TEXT_VALUES = {
        for key, value in KIOSK_INVALID_VALUES.items()},
     'kiosk-fraction': ('kiosk-custom-duration', '1.25'),
     'body-first': ('feedback-editor-input', 'Synthetic feedback first'),
+    'body-smoke': ('feedback-editor-input', 'Synthetic feedback first\U0001f600'),
     'body-second': ('feedback-editor-input', 'Synthetic feedback replacement'),
     'body-clear': ('feedback-editor-input', ''),
     'body-whitespace': ('feedback-editor-input', '   '),
@@ -221,6 +223,7 @@ DUPLICATE_OPERATIONS = {
 OPERATIONS |= frozenset(DUPLICATE_OPERATIONS)
 TEXT_SCALARS = {f'body-mixed-{units}': (f'body-mixed-{units}-base', '1f600')
                 for units in (5000, 5001)}
+TEXT_SCALARS['body-smoke'] = ('body-first', '1f600')
 SCALAR_OPERATIONS = {f'text-scalar-{binding}-{action}': (binding, action)
                      for binding in TEXT_SCALARS for action in ('focus', 'caret', 'read')}
 OPERATIONS |= frozenset(SCALAR_OPERATIONS)
@@ -841,6 +844,11 @@ DRAFT_OPERATIONS = frozenset('draft-' + name for name in (
     'feedback-reopen', 'feedback-reread',
     'switch-draft-before', 'switch-feedback'))
 OPERATIONS |= DRAFT_OPERATIONS
+FILE_REVIEW_OPERATIONS = frozenset('files-' + name for name in (
+    'feedback-draft', 'feedback-draft-reread', 'feedback-draft-reopen',
+    'feedback-privacy-open', 'feedback-privacy-returned',
+    'switch-draft-before', 'switch-feedback'))
+OPERATIONS |= FILE_REVIEW_OPERATIONS
 ATTACHMENT_OPERATIONS = frozenset(('attachment-details', 'attachment-remove',
                                   'attachment-remaining', 'attachment-wrong-entry',
                                   'attachment-preview', 'attachment-preview-return'))
@@ -860,7 +868,12 @@ BOUNDARY_FILES = {
     'oversized': (('Oversized.txt', b'O' * (5 * 1024 * 1024 + 1)),),
     'total': (('Total.txt', b'T' * (3 * 1024 * 1024)),),
     'overflow': (('Overflow.txt', b'X' * (3 * 1024 * 1024 + 1)),),
+    'name180': (('N' * 176 + '.txt', b'N'),),
+    'name181': (('N' * 177 + '.txt', b'N'),),
+    'hidden': (('Hidden\u200b.txt', b'H'),),
+    'mixed': (('Accepted.txt', b'A'), ('Oversized.txt', b'O' * (5 * 1024 * 1024 + 1))),
 }
+CHANGED_ATTACHMENT = (('Synthetic note.txt', b'ONPC changed synthetic attachment\n'),)
 BOUNDARY_STATES = {
     'empty': ((), '2 file attachments ready.', True),
     'count': (BOUNDARY_FILES['count'], '5 file attachments ready.', True),
@@ -872,14 +885,31 @@ BOUNDARY_STATES = {
     'total': (BOUNDARY_FILES['maximum'] + BOUNDARY_FILES['total'], '2 file attachments ready.', False),
     'maximum-again': (BOUNDARY_FILES['maximum'], '2 file attachments ready.', False),
     'overflow-rejected': (BOUNDARY_FILES['maximum'], 'Attachments and diagnostic logs must total 8 MB or less.', False),
+    'large-cleared': ((), 'Attachments and diagnostic logs must total 8 MB or less.', False),
+    'name180': (BOUNDARY_FILES['name180'], '1 file attachment ready.', False),
+    'name-rejected': (BOUNDARY_FILES['name180'], 'Choose an attachment with a shorter valid filename.', False),
+    'mixed-rejected': (BOUNDARY_FILES['name180'], 'Each attachment must be 5 MB or smaller.', False),
+    'names-cleared': ((), 'Each attachment must be 5 MB or smaller.', False),
+    'single': (BOUNDARY_FILES['single'], '1 file attachment ready.', False),
+    'single-cleared': ((), '1 file attachment ready.', False),
+    'changed': (CHANGED_ATTACHMENT, '1 file attachment ready.', False),
 }
 BOUNDARY_BATCHES = {
     'count': ('empty', 'count'), 'sixth': ('count', 'count-rejected'),
     'maximum': ('no-logs', 'maximum'), 'oversized': ('maximum', 'oversized-rejected'),
     'total': ('oversized-rejected', 'total'), 'overflow': ('maximum-again', 'overflow-rejected'),
+    'name180': ('large-cleared', 'name180'), 'name181': ('name180', 'name-rejected'),
+    'hidden': ('name-rejected', 'name-rejected'), 'mixed': ('name-rejected', 'mixed-rejected'),
+    'single': ('names-cleared', 'single'), 'changed': ('single-cleared', 'changed'),
+}
+BOUNDARY_REMOVALS = {
+    'boundary-clear-maximum': ('overflow-rejected', 'large-cleared'),
+    'boundary-clear-name': ('mixed-rejected', 'names-cleared'),
+    'boundary-remove-single': ('single', 'single-cleared'),
 }
 BOUNDARY_OPERATIONS = frozenset(
-    ['boundary-clear-small', 'boundary-clear-count', 'boundary-exclude-logs', 'boundary-remove-total']
+    ['boundary-clear-small', 'boundary-clear-count', 'boundary-exclude-logs', 'boundary-remove-total',
+     'boundary-source-unchanged', *BOUNDARY_REMOVALS]
     + [f'boundary-{batch}-{step}' for batch in BOUNDARY_BATCHES
        for step in ('before', 'open', 'location', 'files', 'accept', 'result', 'preserved')])
 OPERATIONS |= BOUNDARY_OPERATIONS
@@ -894,7 +924,9 @@ def attachment_size(data):
 def boundary_expected(operation):
     require(operation in BOUNDARY_OPERATIONS, 'ui:boundary-operation')
     transitions = {'boundary-clear-small': 'empty', 'boundary-clear-count': 'cleared',
-                   'boundary-exclude-logs': 'no-logs', 'boundary-remove-total': 'maximum-again'}
+                   'boundary-exclude-logs': 'no-logs', 'boundary-remove-total': 'maximum-again',
+                   'boundary-source-unchanged': 'single',
+                   **{key: value[1] for key, value in BOUNDARY_REMOVALS.items()}}
     if operation in transitions:
         state = BOUNDARY_STATES[transitions[operation]]
     else:
@@ -2027,8 +2059,10 @@ class AccessibleUI:
             self.input_uncertain = True
             raise
 
-    def chooser_operation(self, operation, *, profile='standard'):
+    def chooser_operation(self, operation, *, profile='standard', boundary=None):
         require(operation in CHOOSER_OPERATIONS, 'ui:chooser-operation')
+        require(boundary is None or boundary in BOUNDARY_BATCHES
+                and profile == ('single' if boundary == 'changed' else boundary), 'ui:chooser-boundary')
         require(profile == 'standard' or (profile in (*BOUNDARY_BATCHES, 'single') and operation in (
             'chooser-open', 'chooser-location', 'chooser-files', 'chooser-accept')), 'ui:chooser-profile')
         def ready(read, pending):
@@ -2049,7 +2083,9 @@ class AccessibleUI:
             else:
                 raise UiError('ui:chooser-refusal-missing')
         elif operation in ('chooser-open', 'chooser-reopen'):
-            if profile == 'single':
+            if boundary is not None:
+                self.feedback_snapshot(attachment_state=BOUNDARY_STATES[BOUNDARY_BATCHES[boundary][0]])
+            elif profile == 'single':
                 self.feedback_snapshot('formatted')
             elif profile == 'standard':
                 self.feedback_snapshot(attachments=operation == 'chooser-reopen')
@@ -2141,16 +2177,22 @@ class AccessibleUI:
 
     def boundary_operation(self, operation):
         require(operation in BOUNDARY_OPERATIONS, 'ui:boundary-operation')
-        if operation in ('boundary-clear-small', 'boundary-clear-count', 'boundary-remove-total'):
+        if operation == 'boundary-source-unchanged':
+            value = self.feedback_snapshot(attachment_state=BOUNDARY_STATES['single'])
+        elif operation in ('boundary-clear-small', 'boundary-clear-count', 'boundary-remove-total',
+                           *BOUNDARY_REMOVALS):
             if operation == 'boundary-clear-small':
                 state = (ATTACHMENT_INPUTS[1:], '2 file attachments ready.', True)
                 remove = ATTACHMENT_INPUTS[1:]
             elif operation == 'boundary-clear-count':
                 state = BOUNDARY_STATES['count-rejected']
                 remove = state[0]
-            else:
+            elif operation == 'boundary-remove-total':
                 state = BOUNDARY_STATES['total']
                 remove = BOUNDARY_FILES['total']
+            else:
+                state = BOUNDARY_STATES[BOUNDARY_REMOVALS[operation][0]]
+                remove = state[0]
             for name, data in remove:
                 new_state = (tuple(item for item in state[0] if item[0] != name), *state[1:])
                 self.remove_attachment(name, data,
@@ -2178,7 +2220,8 @@ class AccessibleUI:
             _, batch, step = operation.split('-')
             before, after = (BOUNDARY_STATES[key] for key in BOUNDARY_BATCHES[batch])
             if step in ('open', 'location', 'files', 'accept'):
-                chooser = self.chooser_operation('chooser-' + step, profile=batch)
+                chooser = self.chooser_operation('chooser-' + step,
+                    profile='single' if batch == 'changed' else batch, boundary=batch)
                 return {'checked': operation, **({'provider': chooser['provider']} if step == 'open' else {})}
             state = before if step == 'before' else after
             def observed():
@@ -2207,6 +2250,10 @@ class AccessibleUI:
             # Collection on reopening clears the previous attachment status;
             # both states are successful, while the exact file list is fixed.
             attachment_state = (BOUNDARY_FILES['single'], ('', '1 file attachment ready.'), True)
+        if projection == 'attachment-file':
+            require(not states and not attachments and attachment_state is None,
+                    'ui:attachment-profile')
+            attachment_state = (CHANGED_ATTACHMENT, ('', '1 file attachment ready.'), False)
         edges, identities, facts = {}, {}, {}
         nodes = list(self.nodes(strict=True, snapshot=edges, identities=identities, facts=facts))
         observation = (nodes, edges, identities, facts)
@@ -2369,8 +2416,20 @@ class AccessibleUI:
             result['status'] = status_text
             result['include_logs'] = include_logs
         if projection in ('formatted', 'formatted-file'):
-            result['formats'] = feedback_formats.read(self, require, 'formats-kept-reopen')
+            result['formats'] = self.basic_feedback_formatting()
         return result
+
+    def basic_feedback_formatting(self):
+        """Installed sample: exact ordinary text/emoji and one bold range."""
+        self.read_synthetic_text('body-smoke')
+        root = self.text_recipient('feedback-editor-input')
+        require(block_semantics.read_blocks(root, require) == []
+                and feedback_formats.read_links(root, require) is None, 'ui:draft-basic-format')
+        for start, end, weight in ((0, 9, 'bold'), (9, len(TEXT_VALUES['body-smoke'][1]), 'normal')):
+            require(self.formatting_attributes(start, end, binding='body-smoke')['weight'] == weight,
+                    'ui:draft-basic-format')
+        return {'blocks': [], 'inline': ['bold'], 'link': None,
+                'normal_comparison': True, 'text_exact': True}
 
     def feedback_draft_operation(self, operation):
         """Shared formatted/file-bearing observations around public lifecycle actions."""
@@ -2399,6 +2458,15 @@ class AccessibleUI:
             return {}
         return {'draft_state': {key: item for key, item in value.items()
                                 if key not in ('status', 'include_logs')}}
+
+    def attachment_review_operation(self, operation):
+        require(operation in FILE_REVIEW_OPERATIONS, 'ui:file-review-operation')
+        base = operation.removeprefix('files-')
+        if base.startswith('switch-'):
+            return {'window': self.window_switch_operation(base, projection='attachment-file')}
+        value = self.feedback_privacy_operation(base, projection='attachment-file')
+        return {} if value is None else {'file_draft': {
+            key: item for key, item in value.items() if key != 'status'}}
 
     def feedback_state_operation(self, operation):
         """FEED09 reads after caller-owned edits; never invokes Send."""
@@ -2640,12 +2708,12 @@ class AccessibleUI:
             return result
         return None
 
-    def formatting_attributes(self, start, end):
+    def formatting_attributes(self, start, end, *, binding='body-first'):
         """UI24: bounded public weight runs over the declared synthetic body."""
-        require(type(start) is int and type(end) is int
-                and 0 <= start < end <= len(TEXT_VALUES['body-first'][1]),
+        require(binding in ('body-first', 'body-smoke') and type(start) is int and type(end) is int
+                and 0 <= start < end <= len(TEXT_VALUES[binding][1]),
                 'ui:format-range')
-        self.read_synthetic_text('body-first')
+        self.read_synthetic_text(binding)
         node = self.text_recipient('feedback-editor-input')
         text = node.get_text_iface()
         # Query inside the requested run: WebKit can report the preceding run
@@ -3296,6 +3364,8 @@ class AccessibleUI:
             if projection == 'formatted-file':
                 proof['feedback'] = {key: item for key, item in proof['feedback'].items()
                                      if key not in ('status', 'include_logs')}
+            elif projection == 'attachment-file':
+                proof['feedback'].pop('status')
         return proof
 
     def window_switch_operation(self, operation, *, projection='synthetic-first'):
@@ -3795,9 +3865,14 @@ class AccessibleUI:
         self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
 
     def custom_allowance(self, child, minutes, *, action):
-        """Ordinary custom editor; save and reopened public readback are separate."""
+        """Read a saved editor after reload or reopen its retained custom choice.
+
+        ``reopen`` follows a child/window reload, which canonicalizes 0/15 to
+        presets. ``reopen-current`` keeps the existing custom selection, as
+        autosave intentionally preserves the ongoing editor and its focus.
+        """
         require(type(minutes) is int and minutes in (0, 1, 2, 3, 15, 1439)
-                and action in ('open', 'saved', 'reopen'),
+                and action in ('open', 'saved', 'reopen', 'reopen-current'),
                 'ui:allowance-binding')
         self.allowance_entry(child)
         if action == 'open':
@@ -3807,20 +3882,20 @@ class AccessibleUI:
                 # Reuse that visible editor without an unnecessary picker action.
                 self.text_recipient('parent-custom-daily-limit')
                 return {'minutes': minutes, 'action': action}
-        if action in ('open', 'reopen'):
+        if action in ('open', 'reopen', 'reopen-current'):
             self.parent_save_snapshot(child, True)
             if action == 'reopen' and minutes in (0, 15):
                 self.allowance_preset(child, minutes, action='read')
             self.activate_id('parent-daily-limit-selector')
             choice = self.id_target('parent-daily-limit-custom', sensitive=True)
-            if action == 'reopen' and minutes not in (0, 15):
+            if action == 'reopen-current' or action == 'reopen' and minutes not in (0, 15):
                 require(choice.get_description() == 'Selected daily allowance: Custom amount',
                         'ui:allowance-selection')
             self.activate_id('parent-daily-limit-custom')
             self.wait(lambda: self.absent_id('parent-daily-limit-choices',
                                             within='parent-window'), 'allowance-picker-close')
             self.text_recipient('parent-custom-daily-limit')
-        if action in ('saved', 'reopen'):
+        if action in ('saved', 'reopen', 'reopen-current'):
             if action == 'saved' and minutes == 1:
                 # No navigation/input before this pause. Observe the save
                 # independently of the editor's retained typing focus.
@@ -6887,6 +6962,8 @@ class AccessibleUI:
                 result['feedback_state'] = feedback
         elif operation in DRAFT_OPERATIONS:
             result.update(self.feedback_draft_operation(operation))
+        elif operation in FILE_REVIEW_OPERATIONS:
+            result.update(self.attachment_review_operation(operation))
         elif operation in WINDOW_SWITCH_OPERATIONS:
             result['window'] = self.window_switch_operation(operation)
             if operation == 'switch-viewer-launch':

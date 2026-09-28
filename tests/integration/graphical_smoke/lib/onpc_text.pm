@@ -133,7 +133,7 @@ sub append_scalar {
     onpc_progress::operation('Appending one declared emoji through ordinary Unicode input');
     my ($journey, $binding) = @_;
     die 'text:scalar-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && defined($binding) && $binding =~ /\Abody-mixed-500[01]\z/;
+        && defined($binding) && $binding =~ /\A(?:body-mixed-500[01]|body-smoke)\z/;
     my $prefix = "text-scalar-$binding";
     $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
     testapi::send_key('ctrl-end');

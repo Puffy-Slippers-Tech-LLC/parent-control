@@ -9,7 +9,8 @@ from watch_activity import operation
 
 class SyntheticFiles:
     def __init__(self, transport, profile='standard'):
-        require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow', 'zip'),
+        require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow',
+                            'name180', 'name181', 'hidden', 'mixed', 'zip'),
                 'files:profile')
         self.transport = transport
         self.profile = profile
@@ -77,7 +78,8 @@ def fixture_actions(profiles, *, stage='chooser-fixtures', cleanup='chooser-clea
     """
     require(type(profiles) is tuple and profiles and len(set(profiles)) == len(profiles)
             and all(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized',
-                                'total', 'overflow') for profile in profiles), 'files:profiles')
+                                'total', 'overflow', 'name180', 'name181', 'hidden', 'mixed')
+                    for profile in profiles), 'files:profiles')
     require(stage != cleanup, 'files:action-names')
 
     def prepare(journey, guard):

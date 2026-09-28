@@ -73,7 +73,8 @@ sub run {
     onpc_progress::operation('Reviewing local feedback through the declared composition');
     my ($exchange, $flow) = @_;
     die 'feedback:arguments' unless ref($exchange) eq 'CODE'
-        && (@_ == 1 || @_ == 2 && defined($flow) && ($flow eq 'validation' || $flow eq 'draft'));
+        && (@_ == 1 || @_ == 2 && defined($flow) && ($flow eq 'validation' || $flow eq 'draft' || $flow eq 'attachments'));
+    return _attachments($exchange) if defined($flow) && $flow eq 'attachments';
     return _validation($exchange) if defined($flow) && $flow eq 'validation';
     return _draft($exchange) if defined($flow) && $flow eq 'draft';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'feedback-privacy', review => 0);
@@ -100,11 +101,11 @@ sub _draft {
     $journey->consume_observation('parent-selected', $selected);
     onpc_feedback_read::prepare_window_switch($journey);
     $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
-    onpc_text::replace_text($journey, $_) for ('body-blocks', 'reply-first');
-    $journey->consume_observation('formats-before', $journey->seen('formats-before'));
-    onpc_format::apply_all($journey);
-    onpc_format::apply_inline($journey, 'clear');
-    onpc_format::apply_all($journey, 'restore-');
+    onpc_text::replace_text($journey, 'body-first');
+    $journey->consume_observation('format-before', $journey->seen('format-before'));
+    onpc_format::apply_bold($journey);
+    onpc_text::append_scalar($journey, 'body-smoke');
+    onpc_text::replace_text($journey, 'reply-first');
     onpc_feedback_read::supply_files($journey, 'draft-chooser');
     for my $stage ('feedback-draft', 'switch-draft-before') {
         $journey->consume_observation($stage, $journey->seen($stage));
@@ -117,45 +118,34 @@ sub _draft {
     $journey->finish();
 }
 
+sub _attachments {
+    onpc_progress::operation('Checking installed attachment handoff, Cancel and removal');
+    my ($exchange) = @_;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'feedback-attachments', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
+    onpc_feedback_read::supply_files($journey, 'chooser');
+    for my $stage ('chooser-attachments', 'chooser-reopen', 'chooser-cancel', 'chooser-preserved',
+                   'attachment-details', 'attachment-remove', 'attachment-remaining') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    $journey->finish();
+}
+
 sub _validation {
-    onpc_progress::operation('Checking the complete local feedback validation matrix without valid submission');
+    onpc_progress::operation('Checking installed empty-message rejection and editing recovery');
     my ($exchange) = @_;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'feedback-validation', review => 0);
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
-    onpc_feedback_read::prepare_window_switch($journey);
     onpc_feedback_states::rejection_observe($journey, $_) for ('feedback-open', 'feedback-state-empty');
-    onpc_feedback_states::edit_states($journey);
-    onpc_text::replace_text($journey, 'reply-clear', 'length-reply-clear');
-    for my $family ('ascii', 'mixed') {
-        onpc_feedback_states::length_boundary($journey, $family);
-        # Clear the previous public status through the qualified dialog route.
-        onpc_feedback_states::rejection_observe($journey, $_) for (
-            "length-$family-close", "length-$family-reopen");
-    }
-    onpc_text::replace_text($journey, 'body-clear');
     onpc_feedback_states::rejection_observe($journey, $_) for ('rejection-empty-send', 'rejection-empty-read');
-    onpc_text::replace_text($journey, 'body-first', 'invalid-body-first');
-    onpc_feedback_states::rejection_observe($journey, 'rejection-valid-refusal');
-    onpc_text::replace_text($journey, 'reply-malformed', 'invalid-reply-malformed');
-    onpc_feedback_states::rejection_observe($journey, $_) for ('rejection-malformed-send', 'rejection-malformed-read');
-    onpc_text::replace_text($journey, 'reply-clear');
-    onpc_feedback_states::input_hidden($journey);
-    onpc_feedback_states::rejection_observe($journey, $_) for ('rejection-hidden-send', 'rejection-hidden-read');
-    onpc_feedback_states::input_complex($journey);
+    onpc_text::replace_text($journey, $_) for ('body-first', 'reply-first');
     onpc_feedback_states::rejection_observe($journey, $_) for (
-        'rejection-complex-send', 'rejection-complex-read',
-        'rejection-close', 'rejection-wrong-entry', 'rejection-reopen',
-        'rejection-reopened-send', 'rejection-reopened-read',
-        'review-reset-close', 'review-reset-open');
-    onpc_text::replace_text($journey, 'body-first', 'review-body-first');
-    onpc_text::replace_text($journey, 'reply-first', 'review-reply-first');
-    onpc_feedback_states::rejection_observe($journey, $_) for ('review-valid', 'switch-draft-before');
-    onpc_feedback_read::activate_existing_window($journey, $_) for ('switch-viewer', 'switch-feedback');
-    onpc_feedback_states::rejection_observe($journey, 'feedback-draft');
-    review_privacy($journey);
-    preserve_dialog($journey, $journey->seen('feedback-draft-reread'));
+        'recovery-close', 'recovery-reopen', 'review-valid', 'feedback-state-close');
     $journey->finish();
 }
 1;

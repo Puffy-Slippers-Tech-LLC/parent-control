@@ -344,7 +344,9 @@ def test_parent_daily_preset_and_custom_limit_autosave(
         other = "parent-daily-limit-15" if minutes == 0 else "parent-daily-limit-0"
         assert ui.target(other).get_description() == (
             "Daily allowance: 15 minutes" if minutes == 0 else "Daily allowance: 0 minutes")
-    for minutes, terminator in ((1, ''), (2, '\n'), (3, '\t')):
+    # Full custom GUI boundaries stay here when the installed case samples 1.
+    # The later incremental edit also reaches and verifies the 1439 maximum.
+    for minutes, terminator in ((0, ''), (15, ''), (1, ''), (2, '\n'), (3, '\t')):
         reader.custom_allowance(CHILD, minutes, action='open')
         reader.focus_text('parent-custom-daily-limit')
         key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
@@ -356,7 +358,7 @@ def test_parent_daily_preset_and_custom_limit_autosave(
                         for record in read_events(path)), 'custom commit saves')
         reader.custom_allowance(CHILD, minutes, action='saved')
         assert reader.settings(CHILD)['allowance'] == [str(minutes) + ' minutes']
-        reader.custom_allowance(CHILD, minutes, action='reopen')
+        reader.custom_allowance(CHILD, minutes, action='reopen-current')
 
     # Match the live boundary-to-invalid transition: the reopened custom
     # editor still owns focus when the next saved preset is requested.

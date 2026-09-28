@@ -22,6 +22,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Comparing the file-bearing feedback draft across public review and return'
+       for operation in accessible_ui.FILE_REVIEW_OPERATIONS},
     **{operation: 'Checking public attachment metadata and the declared attachment operation'
        for operation in accessible_ui.ATTACHMENT_OPERATIONS},
     **{operation: 'Checking declared attachment count and size boundaries: ' + operation
@@ -610,6 +612,10 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in accessible_ui.FILE_REVIEW_OPERATIONS and not operation.startswith('files-switch-'):
+            from attachment_composition import compare_file_draft
+            if operation != 'files-feedback-privacy-open':
+                expected['file_draft'] = compare_file_draft(result.get('file_draft'))
         if operation in accessible_ui.DRAFT_OPERATIONS and not operation.startswith('draft-switch-'):
             from attachment_composition import compare_formatted_draft
             base = operation.removeprefix('draft-')
@@ -774,14 +780,14 @@ class UiObservations:
                 'synthetic-first' if operation in accessible_ui.FEEDBACK_PRIVACY_OPERATIONS
                 else 'initial-empty'), 'ui:feedback-response')
             expected['feedback'] = result['feedback']
-        if operation in accessible_ui.WINDOW_SWITCH_OPERATIONS or operation.startswith('draft-switch-'):
+        if operation in accessible_ui.WINDOW_SWITCH_OPERATIONS or operation.startswith(('draft-switch-', 'files-switch-')):
             if operation == 'switch-viewer-launch':
                 expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
             require(type(result) is dict and set(result) == {*expected, 'window'},
                     'ui:switch-response')
             value = result['window']
             ready = operation.endswith('-ready')
-            stage = (operation[:-6] if ready else operation).removeprefix('draft-')
+            stage = (operation[:-6] if ready else operation).removeprefix('draft-').removeprefix('files-')
             binding = ('parent' if stage in ('switch-parent-before', 'switch-parent') else
                        'viewer' if stage in ('switch-viewer-launch', 'switch-viewer',
                            'switch-viewer-again', 'switch-viewer-close') else 'feedback')
@@ -797,6 +803,9 @@ class UiObservations:
                 if operation.startswith('draft-'):
                     from attachment_composition import compare_formatted_draft
                     compare_formatted_draft(value['feedback'])
+                elif operation.startswith('files-'):
+                    from attachment_composition import compare_file_draft
+                    compare_file_draft(value['feedback'])
                 else:
                     FeedbackObservation.from_value(value['feedback'])
                     require(value['feedback']['draft'] == 'synthetic-first', 'ui:switch-response')

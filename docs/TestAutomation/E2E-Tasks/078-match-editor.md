@@ -36,11 +36,18 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
+UI owns the full local empty/unrelated-input, Cancel and Reset matrix, sharing
+the installed editor input/read operations. This remains required task scope.
+
 Implement PARENT13 first, then PARENT15 Save, Cancel, Reset and local invalid-draft results. Compare Cancel with the supplied old rule and Reset with its immediate default save. Broker-rejected wildcard reporting is qualified separately with FEED15.
 
 ## Live VM acceptance
 
-In installed Parent, enter a valid same-directory wildcard, Cancel and read the old rule; reopen, Save and read the new rule. Empty/unrelated precise input must leave the editor open with validation. Reset saves the detected default immediately. Bind inputs before execution and use no preference reads.
+In installed Parent, save one valid same-directory wildcard and read the new
+rule, then Reset and read the immediately saved detected default. Keep one local
+invalid-input refusal to qualify that input route; full validation permutations
+and Cancel comparisons run in UI. Bind inputs before execution and use no
+preference reads. Real broker-rejected reporting remains task 186.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

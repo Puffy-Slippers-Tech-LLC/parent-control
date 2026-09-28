@@ -38,11 +38,18 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
+Own the complete UI preview matrix: five queries × four match subsets × eight
+access subsets from the recipe, including zero results and unchanged policies.
+Keep finite values and exact comparisons shared with the installed sample.
+
 Reuse PARENT12 and the complete app-row reader. Bind native fixture identities, then implement public search with exact bounded result sets and both access/match filter popovers using UI17. Empty expected results are explicit; search reads no installed catalogue backend.
 
 ## Live VM acceptance
 
-On installed Parent, search the prepared native app and an absent name, then change each filter's declared option set. Observe exact rows including zero and read the named app's current access/match settings.
+On installed Parent, search one prepared native app, select a combined precise
+and Allowed filter, then clear. Observe the exact real catalogue rows and unchanged
+policy. Preserve independent-entry and wrong-entry refusal qualification; the full
+query/filter cross-product runs in UI tests.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

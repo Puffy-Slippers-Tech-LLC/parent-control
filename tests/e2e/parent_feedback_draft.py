@@ -1,7 +1,6 @@
-"""Case 152: formatted one-file draft preservation and app-exit reset."""
+"""Case 152: text, bold and emoji in an installed file-bearing draft lifecycle."""
 from attachment_composition import file_handoff
 from feedback_composition import FeedbackDraftJourney, privacy_review, text_fragment
-from feedback_formats import all_formats, format_stages
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop
 from synthetic_files import fixture_actions
@@ -14,10 +13,11 @@ ENTRY = {
     **window_switch_entry(), 'feedback-open': 'ui:feedback-open',
 }
 EDIT = {
-    **text_fragment('body-blocks'), **text_fragment('reply-first'),
-    'formats-before': 'ui:formats-before', **all_formats(),
-    **{stage: 'ui:' + stage for stage in format_stages('clear')},
-    **all_formats('restore-'), **file_handoff('draft-chooser'),
+    **text_fragment('body-first'),
+    **{stage: 'ui:' + stage for stage in (
+        'format-before', 'format-focus', 'format-home', 'format-selected', 'format-read',
+        'text-scalar-body-smoke-focus', 'text-scalar-body-smoke-caret', 'text-scalar-body-smoke-read')},
+    **text_fragment('reply-first'), **file_handoff('draft-chooser'),
     'feedback-draft': 'ui:draft-feedback-draft',
 }
 REVIEW = {

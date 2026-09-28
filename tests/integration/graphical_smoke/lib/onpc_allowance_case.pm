@@ -18,10 +18,10 @@ sub run {
         onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child'));
     $journey->seen('editor-disabled');
     $journey->seen('allowance-configured');
-    for my $value (0, 60, 90, 1410) {
+    for my $value (15) {
         $journey->seen("preset-$value-$_") for ('select', 'read');
     }
-    onpc_allowance_boundaries::exercise($journey);
+    onpc_allowance_boundaries::exercise($journey, 'installed');
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     onpc_allowance_boundaries::reload_child($journey, 'persist');
     $journey->seen('persist-saved');

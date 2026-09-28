@@ -733,8 +733,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Enable limits in Parent and provide daily time for overlay entry. Open the selected form and exercise every preset or every listed custom valid/invalid value, or Rest of the day, as declared."},
-          {"id": "step-2", "operation": "ui", "description": "Read each footer and prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details and cancel except for the representative successful value. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval."},
+          {"id": "step-1", "operation": "ui", "description": "Enable limits in Parent and provide daily time for overlay entry. Open the selected form and exercise preset 5 minutes, custom 1.25 minutes after rejecting 0.09, or Rest of the day. UI tests own the full local duration matrices."},
+          {"id": "step-2", "operation": "ui", "description": "Read the selected footer and actual prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval."},
           {"id": "step-3", "operation": "ui", "description": "Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit."}
         ],
         "end": [
@@ -747,7 +747,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Every finite value has the expected validation and estimate. Invalid input never reaches authentication; one duplicate gesture leaves one visible request to approve."}
+          {"id": "visible-result", "step_id": "step-3", "description": "The installed sample has the expected validation, estimate and real approved time. Invalid input never reaches authentication; one duplicate gesture leaves one visible request to approve."}
         ],
         "backend": [],
         "other_user": []
@@ -762,7 +762,7 @@
         "full_combinations": [
           ["surface", "choice"]
         ],
-        "rationale": "Both surfaces by three duration kinds are fully combined. All values are checked; only one representative per kind is approved to avoid redundant long grants."
+        "rationale": "Both surfaces by three duration kinds are fully combined for installed authorization and grant semantics. UI tests own local preset/custom matrices; each installed case checks one representative and real duplicate-submission protection."
       },
       "variants": [
         {"coverage_id": 38, "id": "child-overlay-predefined", "owner": "request-form", "parameters": {"surface": "child-overlay", "choice": "predefined"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -1613,8 +1613,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open Send Feedback in Parent. For draft-reopen enter synthetic text, formatting and reply address; for validation exercise the message/email table; for attachments exercise the file-selection table; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper, without Files, archive-viewer or editor GUI."},
-          {"id": "step-2", "operation": "ui", "description": "Return to the existing feedback window, inspect Privacy, close/reopen feedback and read before editing. Draft-reopen also exits and relaunches Parent to verify reset. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback; validation permits only guarded invalid-input rejection."}
+          {"id": "step-1", "operation": "ui", "description": "Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests own exhaustive local formatting, validation and attachment boundaries."},
+          {"id": "step-2", "operation": "ui", "description": "Draft-reopen returns to the existing window, inspects Privacy, closes/reopens feedback to compare the draft, then exits/relaunches Parent to verify reset. Validation reopens and reads recovered valid state. Attachments removes one file and reads the remaining file. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1626,7 +1626,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-2", "description": "The selected editor, boundary, attachment or export behavior matches the recipe. Closing feedback preserves the draft, app exit clears it, and privacy is accessible."}
+          {"id": "visible-result", "step_id": "step-2", "description": "The selected installed editor, rejection/recovery, real chooser or export behavior matches the recipe. Draft-reopen establishes preservation, app-exit reset and accessible privacy; attachments establishes Open, Cancel preservation and Remove."}
         ],
         "backend": [],
         "other_user": []
@@ -1638,12 +1638,12 @@
           "flow": ["draft-reopen", "validation", "attachments", "diagnostic-export"]
         },
         "full_combinations": [],
-        "rationale": "Four distinct local feedback contracts. Boundary tables are not repeated for every report surface; private bytes and diagnostic-origin checks remain engineering work."
+        "rationale": "Four installed feedback contracts. Full GUI-only formatting, validation and attachment matrices belong to UI tests. E2E retains component samples, real chooser/export and lifecycle results; private bytes and diagnostic-origin checks remain engineering work."
       },
       "variants": [
         {"coverage_id": 152, "id": "draft-reopen", "owner": "parent-navigation", "parameters": {"flow": "draft-reopen"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_draft.py", "test_id": "draft-reopen"}},
         {"coverage_id": 153, "id": "validation", "owner": "parent-navigation", "parameters": {"flow": "validation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_validation.py", "test_id": "validation"}},
-        {"coverage_id": 154, "id": "attachments", "owner": "parent-navigation", "parameters": {"flow": "attachments"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 154, "id": "attachments", "owner": "parent-navigation", "parameters": {"flow": "attachments"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_attachments.py", "test_id": "attachments"}},
         {"coverage_id": 155, "id": "diagnostic-export", "owner": "parent-navigation", "parameters": {"flow": "diagnostic-export"}, "status": "pending", "pending_reason": "Real Download/Save and bounded SSH artifact readers require qualification; resume when FILE03 Save, FILE08 exported-ZIP inspection and FEED08 composition are qualified for full installed acceptance.", "executable": null}
       ]
     },
@@ -1770,7 +1770,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent."},
-          {"id": "step-2", "operation": "ui", "description": "For boundaries, exercise representative whole-hour and half-hour presets plus both extremes, and the finite valid/invalid custom table. For save-order, commit by pause, Enter and focus leave, then make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values."},
+          {"id": "step-2", "operation": "ui", "description": "For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests own the full preset/custom and commit-path matrices. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values."},
           {"id": "step-3", "operation": "ui", "description": "Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value."}
         ],
         "end": [
@@ -1783,7 +1783,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "All editor boundaries and save triggers preserve the intended per-child allowance."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Representative installed editing, rejection and real save ordering preserve the intended per-child allowance across selection and restart."}
         ],
         "backend": [],
         "other_user": []
@@ -1795,7 +1795,7 @@
           "flow": ["boundaries", "save-order"]
         },
         "full_combinations": [],
-        "rationale": "Owns editor validation once; E2E-005 owns changes followed by child use."
+        "rationale": "UI tests own exhaustive local editor validation. Installed samples establish real saving, ordering and persistence; E2E-005 owns changes followed by child use."
       },
       "variants": [
         {"coverage_id": 158, "id": "boundaries", "owner": "continuous-journeys", "parameters": {"flow": "boundaries"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/allowance_case.py", "test_id": "boundaries"}},
@@ -2096,7 +2096,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child."},
-          {"id": "step-2", "operation": "ui", "description": "Run the selected finite search/filter, Save/Cancel/Reset, reopening, shared-launcher, special-path or pattern-file recipe. Use shared FILE05 commands for copies/renames and Parent's UI for all rules."},
+          {"id": "step-2", "operation": "ui", "description": "Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules."},
           {"id": "step-3", "operation": "ui", "description": "Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save."}
         ],
         "end": [
@@ -2121,7 +2121,7 @@
           "flow": ["search-filters", "match-editor", "match-reopen", "shared-launchers", "special-paths", "pattern-files"]
         },
         "full_combinations": [],
-        "rationale": "Six distinct contracts; the recipe enumerates filter sets and boundary files."
+        "rationale": "Six installed contracts; UI owns full query/filter and local editor matrices. E2E samples the real catalogue and retains saved rules, broker rejection, persistence and actual launches."
       },
       "variants": [
         {"coverage_id": 184, "id": "search-filters", "owner": "continuous-journeys", "parameters": {"flow": "search-filters"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},

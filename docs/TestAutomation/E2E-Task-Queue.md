@@ -35,6 +35,13 @@ guarded acceptance and cleanup.
 
 ## Ordered task queue
 
+The [UI/E2E allocation](UI-and-E2E-Coverage.md) applies to every remaining row.
+Tasks 070/070a, 077, 078/078a and 185p/185o deliver their declared complete UI
+matrices before the corresponding small installed cases. Case 154's changed
+chooser composition and moved UI matrix passed validation; its outstanding
+shared qualifications remain recorded below. No row is closed
+by this review.
+
 Requires lists **task IDs**, not block IDs. Reuse their delivered capability
 scopes; prerequisites apply transitively. Block IDs live in Delivered scope and
 the catalogue. A qualified slice can be reused while unrelated bindings remain
@@ -172,8 +179,8 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [x] | 034 | E2E-031: draft-reopen | 033, 030a, 038, 044a, 034a | Case 152: complete formatted, one-file draft preservation/reset history passed in `20260928T030531Z-1c1850d6`. Bounded viewer-launch observations preserve single-use input; window-switch/chooser regressions passed in `20260928T025758Z-911df7f2`, with unchanged formatting/reset/Privacy passes in `20260928T022907Z-f877531d`. Collection, owned cleanup and baseline restoration passed; coverage regenerated. No Send or link navigation. | 20–30 |
 | [x] | 195a | Read declared text artifacts through guarded SSH | 036 | FILE08 fixed synthetic text identity/content read through `read_declared_text` / `open-text` qualified by `check_e2e_document_open` in `20260928T044018Z-75574827`: two independent entries, exact size/digest, wrong-entry and missing/replaced/empty/different/oversized refusal, owned cleanup, collection and baseline restoration. ZIP, product-exported artifacts and retained work remain pending. | 20–30 |
 | [x] | 195 | Inspect declared ZIP artifacts through guarded SSH | 036, 195a | FILE08 synthetic ZIP binding qualified through `read_declared_zip` / `open-zip` in `20260928T045842Z-69443040`: two independent entries, exact members/empty folder/text/JSON, identity and malformed/duplicate/unsafe/limit refusal, owned cleanup, collection and baseline restoration. Shared text regression passed in `20260928T050106Z-51ffa8ad`. Product-export and retained-work bindings remain pending. | 20–30 |
-| [x] | 196 | Change a synthetic attachment source | 036 | FILE09 standard/single source preparation qualified by `change_attachment_source` / `check_e2e_edit_and_save_an_open_synthetic_document` in `20260928T050905Z-0e6857aa`: exact changed bytes, independent entries, wrong path/owner and unsafe-file refusal, owned receipt lifetime and cleanup. Collection, worker shutdown and baseline restoration passed; FILE05 regression passed in `20260928T051104Z-c57dd2ac`. Product snapshot/re-add remains case 154; retained-work binding pending. | 20–30 |
-| [ ] | 039 | [E2E-031: attachments](E2E-Tasks/039-case-154.md) | 038, 030, 196, 044a | Cases 154 | 35–55 (exception) |
+| [x] | 196 | Change a synthetic attachment source | 036 | FILE09 standard/single source preparation qualified by `change_attachment_source` / `check_e2e_edit_and_save_an_open_synthetic_document` in `20260928T050905Z-0e6857aa`: exact changed bytes, independent entries, wrong path/owner and unsafe-file refusal, owned receipt lifetime and cleanup. Collection, worker shutdown and baseline restoration passed; FILE05 regression passed in `20260928T051104Z-c57dd2ac`. Product snapshot/re-add belongs to the attachment UI matrix; retained-work binding pending. | 20–30 |
+| [ ] | 039 | [E2E-031: attachments](E2E-Tasks/039-case-154.md) | 038, 030, 196, 044a | Reduced case 154 passed in `20260928T165312Z-34f506c3`, including collection and cleanup; coverage refreshed. Full attachment UI matrix and affected UI regressions passed in `20260928T170041Z-082c53f0`. The three existing shared qualifications and close-out remain required. | 35–55 (exception) |
 | [ ] | 016b | [Start and collect a trace of an unchanged public state](E2E-Tasks/016b-trace-stable-state.md) | 004a, 031 | UI25/26 observer readiness, token lifetime and stable-state collection | 40–60 (exception) |
 | [ ] | 016 | [Trace one public state transition](E2E-Tasks/016-trace.md) | 004a, 031, 016b | UI25/26 trace start/readiness and finish | 40–60 (exception) |
 | [ ] | 016a | [Compose observation around one caller input](E2E-Tasks/016a-compose-observation-around-one-caller-input.md) | 016 | UI22 | 15–30 |

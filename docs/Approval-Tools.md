@@ -61,7 +61,7 @@ validation and regression coverage. Do not normalize per-command approvals.
 
 Run `./setup.sh --test-tools-only`, then restart Codex with this checkout trusted.
 Setup installs root-owned helpers and scoped Polkit rules, pins the finalized
-test baseline's VM UUID, and renders this checkout's absolute command prefixes.
+test baseline's VM UUID, and renders portable project-relative command prefixes.
 First install uses `./setup.sh --bootstrap-tools` and can require administrator
 authentication to establish the grant. Repeated bootstrap and routine refreshes
 reuse the dedicated `onpc-setup` helper without asking for authentication.
@@ -80,8 +80,11 @@ never install dependencies. Full setup includes these prerequisites too.
 The [rules renderer](../tools/install_codex_rules.py) validates its required
 launcher inventory, then discovers every regular executable under `tools/`
 without following symlinks. The user preapproves direct project-tool execution;
-setup renders one allow rule containing the exact `tools/`, `./tools/` and
-checkout-absolute executable paths. This includes validated launcher actions and
+setup renders one allow rule containing the exact `tools/` and `./tools/`
+executable paths. Run these commands with the intended checkout root as the
+working directory; the same rules then apply across worktrees and local
+enlistments without embedding checkout locations. Installed system helpers keep
+their fixed absolute paths. This includes validated launcher actions and
 argument orders. A new executable joins the grant at the next rules refresh;
 removed or nonexecutable tools leave it. Codex matches literal argument tokens,
 so a `tools/*` string is not a directory-wide grant. General shells/interpreters

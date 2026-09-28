@@ -1,5 +1,8 @@
 """Finite all-format composition and public inline/link readback; never Send."""
-import block_semantics as blocks
+if __package__:
+    from . import block_semantics as blocks
+else:
+    import block_semantics as blocks
 
 INLINE = ('bold', 'italic', 'underline', 'strike')
 LINK = 'https://example.com/feedback'

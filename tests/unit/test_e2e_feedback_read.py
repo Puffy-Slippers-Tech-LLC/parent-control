@@ -163,7 +163,7 @@ def test_review_fragments_reject_unregistered_profiles_and_invalid_invocations()
 @pytest.mark.parametrize('flow', ['draft', 'attachments'])
 def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch, flow):
     from tests.support.perl import run_perl
-    from tests.unit.test_e2e_toggle import ALLOWANCE_WORKER
+    from tests.support.perl import ALLOWANCE_WORKER
     from parent_feedback_draft import PLAN as DRAFT_PLAN
     from parent_feedback_attachments import PLAN as FILE_PLAN
     PLAN = DRAFT_PLAN if flow == 'draft' else FILE_PLAN
@@ -3009,7 +3009,7 @@ def test_reset_selector_owned_envelope_and_explicit_empty_expectation(tmp_path, 
 
 def test_reset_actual_worker_sequence_and_every_refusal(monkeypatch):
     from tests.support.perl import run_perl
-    from tests.unit.test_e2e_toggle import ALLOWANCE_WORKER
+    from tests.support.perl import ALLOWANCE_WORKER
     from feedback_reset import PLAN
     from ui_observations import OPERATION_LABELS
     script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_feedback_privacy')

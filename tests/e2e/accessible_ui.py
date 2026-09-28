@@ -232,8 +232,13 @@ FORMAT_OPERATIONS = frozenset({
     'format-read', 'format-close', 'format-wrong-entry', 'format-reopen',
 })
 OPERATIONS |= FORMAT_OPERATIONS
-import block_semantics
-import feedback_formats
+# Host probes import this as a package; the isolated guest payload installs
+# these same helpers as top-level modules before executing this file.
+if __package__:
+    from . import block_semantics, feedback_formats
+else:
+    import block_semantics
+    import feedback_formats
 TEXT_VALUES['link-target'] = ('feedback-link-target', feedback_formats.LINK)
 TEXT_VALUES['link-initial'] = ('feedback-link-target', block_semantics.BODY[
     feedback_formats.START:feedback_formats.END])
@@ -5678,7 +5683,18 @@ class AccessibleUI:
                 return False
             require(labels.count(message) == 1, 'ui:mate-rejection-ambiguous')
             # The retry field must be empty, focused and on the same challenge.
-            return self.mate_prompt(pid, observation=observation, challenge=challenge)
+            # MATE 1.26 hides the password grid after submission and publishes
+            # rejection before starting the next PAM prompt (including an
+            # event-dispatching error animation). The label alone therefore
+            # does not mean the retry field is ready. Retry only observation,
+            # within wait's original deadline; never submit again or accept
+            # rejection until the complete unchanged prompt proof succeeds.
+            try:
+                return self.mate_prompt(pid, observation=observation, challenge=challenge)
+            except UiError as error:
+                if str(error) != 'ui:mate-field-state':
+                    raise
+                return False
         current = self.wait(rejected, 'mate-rejection', prompt_in_predicate=True)
         require(self.mate_agent_pid() == pid, 'ui:mate-owner')
         current = self.mate_prompt(pid, challenge=current)

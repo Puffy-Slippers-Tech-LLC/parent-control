@@ -21,6 +21,17 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **034a — [Qualify remaining feedback formatting operations](E2E-Tasks/034a-feedback-formats.md)**.
 
+Task 034ab qualified linked bold/italic/underline/strike on `Plain`, its exact
+destination and adjacent normal text through `check_e2e_feedback_link_semantics`
+in `20260928T000001Z-b07e2a8f`, including independent reopen and wrong-entry refusal.
+The shared reader associates unique public link text and uses its observed
+embedded width for root attribute/selection boundaries, never its local start
+index as an editor offset. Host removal, undo/redo and restoration pass.
+Required format/rejection regressions passed in `20260928T000512Z-196ba37b` and
+`20260928T000805Z-44ce5cac`; collection, owned cleanup and baseline restoration
+passed throughout. Reuse `feedback_formats.read` / `root_offset`,
+`onpc_format::apply_inline` and `FeedbackLinkJourney`.
+
 Task 034 remains unchecked: task 034a supplies the remaining link/removal
 observations and complete finite all-format composition before case 152.
 Neither task 034a nor case 152 has had a live attempt.

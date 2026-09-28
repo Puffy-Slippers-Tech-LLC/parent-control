@@ -478,6 +478,18 @@ sub run {
         onpc_feedback_read::run_window_switch(\&exchange);
         return;
     }
+    if ($ready->{feedback_link_semantics}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_format::run_links(\&exchange);
+        return;
+    }
+    if ($ready->{feedback_formats}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_format::run_formats(\&exchange);
+        return;
+    }
     if ($ready->{feedback_block_semantics}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

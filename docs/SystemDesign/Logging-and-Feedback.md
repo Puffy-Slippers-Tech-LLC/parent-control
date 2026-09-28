@@ -218,7 +218,8 @@ message bridge as plain text, semantic HTML, and a Quill delta used to restore
 the draft after a web-process restart.
 
 Combined underline and strikethrough use explicit decoration styling on the
-nested editor elements. This preserves both visual decorations and exposes both
+nested editor elements, including links inside struck text. This preserves both
+visual decorations and exposes both
 through public accessibility text attributes; removing either format removes
 its attribute too. Semantic HTML and the submission contract are unchanged.
 

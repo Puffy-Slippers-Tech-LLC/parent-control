@@ -219,6 +219,8 @@ OPERATION_LABELS.update({operation: 'Applying and independently reading syntheti
                          for operation in accessible_ui.FORMAT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Reading feedback block meaning and associated synthetic text'
                          for operation in accessible_ui.block_semantics.OPERATIONS})
+OPERATION_LABELS.update({operation: 'Applying and reading all feedback formats, links and removal'
+                         for operation in accessible_ui.feedback_formats.OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying invalid-only feedback input and public rejection'
                          for operation in accessible_ui.REJECTION_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying exact UTF-16 boundary drafts without valid submission'
@@ -572,7 +574,7 @@ class UiObservations:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
         modules = 'import sys, types\n'
-        for name in ('public_atspi', 'block_semantics'):
+        for name in ('public_atspi', 'block_semantics', 'feedback_formats'):
             source = (system.ROOT / f'tests/e2e/{name}.py').read_text()
             modules += (f'{name} = types.ModuleType("{name}")\n'
                         f'sys.modules["{name}"] = {name}\n'
@@ -778,6 +780,12 @@ class UiObservations:
                 FeedbackObservation.from_value(value['feedback'])
                 require(value['feedback']['draft'] == 'synthetic-first', 'ui:switch-response')
             expected['window'] = value
+        if operation in accessible_ui.feedback_formats.OPERATIONS and (
+                operation.endswith(('-read', '-reopen')) or operation in ('formats-before', 'linked-before')):
+            projection = accessible_ui.feedback_formats.expected(operation)
+            require(type(result) is dict and set(result) == {*expected, 'formats'}
+                    and result['formats'] == projection, 'ui:formats-response')
+            expected['formats'] = projection
         if operation in accessible_ui.block_semantics.OPERATIONS and (
                 operation in ('block-before', 'block-reopen') or operation.endswith('-read')):
             projection = accessible_ui.block_semantics.expected(operation)

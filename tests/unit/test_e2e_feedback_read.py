@@ -41,6 +41,281 @@ from ui_observations import FeedbackStateObservation
 # Boundary checks add bounded in-memory bytes (under 32 MiB), no shared resources.
 # Block semantics add bounded trees and private, waited Perl/Python children;
 # isolated observer import checks add no paths, sockets, buses or shared caches.
+# Complete formatting uses these same bounded trees and waited private children.
+# Linked-format qualification retains that isolation and existing unit bucket.
+
+
+@pytest.mark.parametrize('fault', ['', 'uri', 'text', 'duplicate', 'missing-interface',
+                                  'invalid', 'incomplete', 'cycle', 'extent'])
+def test_formats_link_reader_requires_exact_text_and_public_destination(fault):
+    import feedback_formats as formats
+    link = Mock()
+    link.get_role_name.return_value = 'link'
+    link.get_text_iface.return_value = Mock(get_character_count=Mock(return_value=5),
+                                          get_text=Mock(return_value='Plain'))
+    link.get_hyperlink.return_value = Mock(get_n_anchors=Mock(return_value=1),
+        is_valid=Mock(return_value=True), get_uri=Mock(return_value=formats.LINK),
+        get_start_index=Mock(return_value=0), get_end_index=Mock(return_value=1))
+    link.get_child_count.return_value = 0
+    children = [link]
+    root = Mock(get_role_name=Mock(return_value='section'))
+    if fault == 'uri':
+        link.get_hyperlink.return_value.get_uri.return_value = 'https://example.com/wrong'
+    elif fault == 'text':
+        link.get_text_iface.return_value.get_text.return_value = 'Other'
+    elif fault == 'duplicate':
+        children.append(link)
+    elif fault == 'missing-interface':
+        link.get_hyperlink.return_value = None
+    elif fault == 'invalid':
+        link.get_hyperlink.return_value.is_valid.return_value = False
+    elif fault == 'extent':
+        link.get_hyperlink.return_value.get_end_index.return_value = 5
+    elif fault == 'incomplete':
+        children.append(None)
+    elif fault == 'cycle':
+        children.append(root)
+    root.get_child_count.return_value = len(children)
+    root.get_child_at_index.side_effect = lambda index: children[index]
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            formats.read_links(root, accessible_ui.require)
+    else:
+        assert formats.read_links(root, accessible_ui.require) == formats.LINK
+
+
+@pytest.mark.parametrize('fault', ['', 'strike', 'normal', 'range', 'partial', 'link-text'])
+def test_linked_attributes_use_independent_link_text_and_embedded_width(fault):
+    import feedback_formats as formats
+    normal = {'weight': '400', 'style': 'normal', 'underline': 'none', 'strikethrough': 'false'}
+    styled = {'weight': '700', 'style': 'italic', 'underline': 'single', 'strikethrough': 'true'}
+    def run(offset, defaults):
+        if offset < formats.START:
+            return normal, 0, formats.START
+        return ({**normal, 'weight': '700'} if fault == 'normal' else normal,
+                formats.START + 1, len(formats.blocks.BODY) - 4)
+    text = Mock(get_character_count=Mock(return_value=len(formats.blocks.BODY)),
+                get_attribute_run=Mock(side_effect=run))
+    link_text = Mock(get_character_count=Mock(return_value=5),
+                     get_text=Mock(return_value='Other' if fault == 'link-text' else 'Plain'),
+                     get_attribute_run=Mock(return_value=(
+                         {**styled, 'strikethrough': 'false'} if fault == 'strike' else styled,
+                         1 if fault == 'partial' else 0, 4 if fault == 'range' else 5)))
+    link = Mock(get_role_name=Mock(return_value='link'),
+                get_attributes=Mock(return_value={}), get_text_iface=Mock(return_value=link_text),
+                get_child_count=Mock(return_value=0))
+    link.get_hyperlink.return_value = Mock(get_n_anchors=Mock(return_value=1),
+        is_valid=Mock(return_value=True), get_uri=Mock(return_value=formats.LINK),
+        get_start_index=Mock(return_value=0), get_end_index=Mock(return_value=1))
+    root = Mock(get_role_name=Mock(return_value='entry'), get_attributes=Mock(return_value={}),
+                get_text_iface=Mock(return_value=text), get_child_count=Mock(return_value=1),
+                get_child_at_index=Mock(return_value=link))
+    text.get_text.return_value = formats.blocks.BODY
+    ui = Mock(text_recipient=Mock(return_value=root))
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            formats.read(ui, accessible_ui.require, 'linked-kept-reopen')
+    else:
+        assert formats.read(ui, accessible_ui.require, 'linked-kept-reopen') == formats.expected('linked-kept-reopen')
+        link_text.get_attribute_run.assert_called_once_with(2, True)
+        # The suffix query uses the public embedded width, not flattened 94.
+        assert text.get_attribute_run.call_args_list[0].args == (90, True)
+        ui.api.Text.get_n_selections.return_value = 1
+        ui.api.Text.get_selection.return_value = SimpleNamespace(start_offset=0, end_offset=94)
+        formats.operate(ui, 'formats-clear-selected', accessible_ui.require, accessible_ui.UiError)
+        ui.activate_id.assert_called_once_with('feedback-format-clear')
+        ui.activate_id.reset_mock()
+        ui.api.Text.get_selection.return_value.end_offset = 98
+        with pytest.raises(accessible_ui.UiError, match='ui:formats-selection'):
+            formats.operate(ui, 'formats-clear-selected', accessible_ui.require, accessible_ui.UiError)
+        ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('linked', [False, True])
+@pytest.mark.parametrize('fault', ['', 'formats-bold-home', 'formats-link-target',
+                                  'formats-link-save', 'formats-link-read',
+                                  'formats-kept-wrong-entry', 'formats-clear-selected',
+                                  'formats-cleared-reopen'])
+def test_complete_format_worker_uses_shared_sequence_and_stops_on_refusal(fault, linked):
+    from feedback_formats import STAGES, LINK_STAGES, START, END, LINK, blocks
+    if linked:
+        fault = fault.replace('formats-', 'linked-')
+        if fault and fault not in LINK_STAGES:
+            fault = 'linked-kept-reopen'
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); our $fault = shift @ARGV; my $linked = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, $_[0]; }
+sub type_string { push @events, 'type:' . $_[0]; }
+package main;
+require onpc_format;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    my $worker = $linked ? \&onpc_format::run_links : \&onpc_format::run_formats;
+    $worker->(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault, '1' if linked else '0').stdout)
+    stages = ['parent-selected', *(LINK_STAGES if linked else STAGES)]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+    if not fault:
+        events = [event.replace('linked-', 'formats-') for event in result['events']]
+        for kind in ('bold', 'italic', 'underline', 'strike', 'link', *(() if linked else ('clear',))):
+            keys = events[events.index(f'formats-{kind}-home') + 1:
+                          events.index(f'formats-{kind}-selected')]
+            assert keys == (['ctrl-shift-end'] if kind == 'clear' else
+                            ['ctrl-end'] + ['left'] * (len(blocks.BODY) - START)
+                            + ['shift-right'] * (END - START))
+        assert events[events.index('formats-link-target') + 1] == 'type:' + LINK
+
+
+@pytest.mark.parametrize('linked', [False, True])
+def test_formats_decoder_independent_recorder_and_shipped_imports(tmp_path, linked):
+    import feedback_formats as formats
+    from feedback_formats_qualification import PLAN, FeedbackFormatsJourney
+    if linked:
+        from feedback_formats_qualification import LINK_PLAN as PLAN, FeedbackLinkJourney as FeedbackFormatsJourney
+    prefix = 'linked' if linked else 'formats'
+    from installed_journey import record_installed_journey
+    from ui_observations import UiObservations
+    reader = UiObservations(Mock())
+    reply = {'operation': prefix + '-kept-reopen', 'outcome': 'passed', 'interface': 'AT-SPI',
+             'formats': formats.expected(prefix + '-kept-reopen')}
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    assert reader.observe(prefix + '-kept-reopen') == reply
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, '-I', '-c',
+                    "import sys; ns={'__name__':'observer'}; "
+                    "exec(compile(sys.stdin.read(), 'observer.py', 'exec'), ns); "
+                    "assert 'formats-cleared-reopen' in ns['OPERATIONS']"],
+                   input=reader.call.call_args.kwargs['input'], check=True,
+                   capture_output=True, timeout=20)
+    journey = FeedbackFormatsJourney(SimpleNamespace(directory=tmp_path), Mock())
+    with pytest.raises(EvidenceError, match='formats:independent-entry'):
+        journey.check_settings(prefix + '-kept-reopen', {'ui': reply})
+    journey.check_settings(prefix + '-link-read', {'ui': reply})
+    journey.check_settings(prefix + '-kept-reopen', {'ui': reply})
+    reply['formats']['link'] = None
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    with pytest.raises(EvidenceError, match='ui:formats-response'):
+        reader.observe(prefix + '-kept-reopen')
+    recorder = MagicMock(assertion=Mock())
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(),
+                              commands=Mock(), recorder=recorder)
+    def worker(**options):
+        controller = options['guarded_observe'].__self__
+        assert type(controller) is FeedbackFormatsJourney
+        assert controller.plan is PLAN and controller.actions == {}
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(recorder, context, PLAN, actions={},
+                                 journey_type=FeedbackFormatsJourney)
+    context.run_worker.assert_called_once()
+    recorder.assertion.assert_not_called()
+
+
+def test_formats_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_feedback_formats as check_formats
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_formats, 'smoke', run)
+    assert check_formats.main() == 0
+    assert run.call_args.kwargs['feedback_formats'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(feedback_formats=True)
+    with pytest.raises(CommandError, match='formats-prerequisites'):
+        smoke.main(feedback_formats=True, feedback_block_semantics=True)
+
+
+def test_link_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_feedback_link_semantics as check_links
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_links, 'smoke', run)
+    assert check_links.main() == 0
+    assert run.call_args.kwargs['feedback_link_semantics'] is True
+    with pytest.raises(CommandError, match='feedback-read-prerequisites'):
+        smoke.main(feedback_link_semantics=True)
+    with pytest.raises(CommandError, match='linked-prerequisites'):
+        smoke.main(feedback_link_semantics=True, feedback_formats=True)
+
+
+@pytest.mark.parametrize('fault', ['', 'unfocused', 'wrong-text', 'selection', 'uncertain',
+                                  'missing', 'duplicate', 'wrong-owner'])
+def test_formats_selection_refuses_before_toolbar_input(fault):
+    import feedback_formats as formats
+    ui, parent, dialog, controls = feedback_ui()
+    editor = controls['feedback-editor-input']
+    editor.states.add('focused')
+    editor.text.count = len(formats.blocks.BODY)
+    ui.api.Text.get_text = Mock(return_value=formats.blocks.BODY)
+    ui.api.Text.get_n_selections = Mock(return_value=1)
+    ui.api.Text.get_selection = Mock(return_value=SimpleNamespace(
+        start_offset=formats.START, end_offset=formats.END))
+    ui.activate_id = Mock()
+    if fault == 'unfocused':
+        editor.states.remove('focused')
+    elif fault == 'wrong-text':
+        ui.api.Text.get_text.return_value = 'x' * editor.text.count
+    elif fault == 'selection':
+        ui.api.Text.get_selection.return_value.end_offset += 1
+    elif fault == 'uncertain':
+        ui.input_uncertain = True
+    elif fault == 'missing':
+        dialog.children.remove(editor)
+    elif fault == 'duplicate':
+        dialog.children.append(Node(identity='feedback-editor-input'))
+    elif fault == 'wrong-owner':
+        parent.parent.identity = 'unrelated-application'
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            formats.operate(ui, 'formats-link-selected', accessible_ui.require, accessible_ui.UiError)
+        ui.activate_id.assert_not_called()
+    else:
+        formats.operate(ui, 'formats-link-selected', accessible_ui.require, accessible_ui.UiError)
+        ui.activate_id.assert_called_once_with('feedback-format-link')
+
+
+@pytest.mark.parametrize('fault', ['', 'text', 'selection', 'unfocused'])
+def test_link_entry_requires_selected_synthetic_prefill(fault):
+    import feedback_formats as formats
+    ui, _, dialog, controls = feedback_ui()
+    editor = controls['feedback-editor-input']
+    editor.text.count = len(formats.blocks.BODY)
+    target = Node(identity='feedback-link-target', role='text',
+                  states=('showing', 'visible', 'sensitive', 'editable', 'focused'))
+    target.text = SimpleNamespace(count=5)
+    target.get_text_iface = lambda: target.text
+    dialog.children.append(target)
+    target.parent = dialog
+    ui.api.Text.get_text = Mock(side_effect=lambda text, *_:
+        formats.blocks.BODY if text is editor.text else 'Other' if fault == 'text' else 'Plain')
+    ui.api.Text.get_n_selections = Mock(return_value=1)
+    ui.api.Text.get_selection = Mock(return_value=SimpleNamespace(
+        start_offset=0, end_offset=4 if fault == 'selection' else 5))
+    ui.activate_id = Mock()
+    if fault == 'unfocused':
+        target.states.remove('focused')
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            formats.operate(ui, 'formats-link-target', accessible_ui.require, accessible_ui.UiError)
+    else:
+        formats.operate(ui, 'formats-link-target', accessible_ui.require, accessible_ui.UiError)
+    ui.activate_id.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'duplicate', 'wrong-text', 'normal-in-container',

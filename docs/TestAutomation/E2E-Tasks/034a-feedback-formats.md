@@ -21,8 +21,10 @@ Start at `tests/e2e/format_qualification.py`,
 `tests/unit/test_e2e_feedback_read.py` cover the qualified independent envelope.
 Follow the existing format
 dispatch, observations and `tests/unit/test_accessible_e2e_ui.py` checks.
-The current weight-only reader and four-style rejection reader do not implement
-the remaining recipe operations. Inspect public editor identities and APIs as
+For links, reuse `feedback_formats.read` / `read_links` / `root_offset`,
+`FeedbackLinkJourney` and `onpc_format::apply_inline`. The weight-only reader and
+four-style rejection reader alone do not implement the remaining recipe operations.
+Inspect public editor identities and APIs as
 needed; no DOM, private draft, toolbar-only or screenshot-only proof.
 
 ## Scope and prerequisites
@@ -31,6 +33,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **033** — UI24/FEED04 bold-range input and public attribute observation.
 - **034aa** — Customer-facing block semantics and shared public text association.
+- **034ab** — Linked inline attributes and exact public text/range association.
 
 ## Session boundary
 
@@ -38,6 +41,13 @@ Task 034aa has delivered and qualified the editor accessibility capability.
 Reuse its heading/list/quote/code operations and bounded reader; this task retains link,
 remove-formatting and the complete finite all-format composition. No format
 assertion or guard is removed, and case 152 remains separate.
+
+Task 034ab delivered linked inline attributes, exact public text/destination
+association and root coordinate mapping in `20260928T000001Z-b07e2a8f`.
+The public link's local index is not an editor offset: the shared reader uses
+unique synthetic text and the observed embedded width. The complete host
+composition, removal and undo/redo pass in `20260927T234730Z-324c8a1c`.
+Complete installed all-format/removal acceptance remains this task's work.
 
 ## Implementation and expected results
 
@@ -94,13 +104,24 @@ Neither DOM/private-state reads, toolbar-only proof nor cosmetic comparisons are
 permitted. A result node's role is observation after resolving the editor by ID;
 it is not a replacement input selector.
 
-No `check_e2e_feedback_formats` selector has been implemented or invoked, and
-no live VM attempt or complete host validation of this capability occurred.
+`check_e2e_feedback_formats` now binds the shared `body-blocks` document:
+the six distinct block lines retain their qualified ranges; `Plain` at `[86, 91)`
+receives bold, italic, underline, strike and the link
+`https://example.com/feedback`, while the adjacent ` sample` stays normal.
+The public Hyperlink interface must independently expose that exact destination
+and associated text. Close/reopen preserves the complete formatting. Clear then
+selects the whole 98-character document (with public selection boundaries mapped
+through the observed link width) and must remove all six block meanings, all four inline styles
+and the link while preserving exact text; independent close/reopen repeats that
+proof. No link navigation or Send is authorized. Qualification and the later
+consumer reuse `onpc_format::apply_all` and `apply_inline`, with public readback
+in `feedback_formats.read` / `operate`. Host units and the actual product-preview
+composition pass, including removal and undo/redo. This is not complete installed
+qualification; no task 034a live attempt has occurred.
 
 ## Live VM acceptance
 
-Implement the planned argument-free selector
-`check_e2e_feedback_formats` before invoking it. Complete affected host and
+The argument-free selector `check_e2e_feedback_formats` is registered. Complete affected host and
 cleanup-safety checks through `tools/run-tests`, then prepare the app snapshot
 and open the maintained viewer under the live contract. Execute:
 

@@ -188,7 +188,8 @@ body {{ display: flex; flex-direction: column; }}
 /* Decorations propagate visually across nested inline elements but are not
    inherited computed styles. Expose both on combined Quill formats so public
    accessibility text attributes describe the formatting the customer applied. */
-#feedback-editor-input s u, #feedback-editor-input u s {{
+#feedback-editor-input s u, #feedback-editor-input u s,
+#feedback-editor-input s a {{
   text-decoration-line: underline line-through;
 }}
 #feedback-format-toolbar {{ border: 0; border-bottom: 1px solid rgba(36,36,42,.13); flex: none;

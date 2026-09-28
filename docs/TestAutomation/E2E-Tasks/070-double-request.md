@@ -24,6 +24,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
+Complete the kiosk UI duration matrix before the customer cases: every preset,
+all valid/invalid custom values and exact estimates from the recipe table. Reuse
+the same selection/input/read blocks in preview and installed tests. UI owns
+these local permutations; the live slice below owns real prompt concurrency.
+
 Implement one deliberate native double-click gesture first. Surround it with UI22 prompt/form-count and Request availability traces; REQUEST10 also independently checks final counts. No input repair or internal exactly-once claim.
 
 ## Live VM acceptance

@@ -1,63 +1,35 @@
-"""Case 153: the complete local validation matrix, Privacy and dialog retention."""
+"""Case 153: installed empty-message rejection and recovery to usable editing."""
 
-from feedback_composition import FeedbackValidationJourney, privacy_review, text_fragment
-from feedback_length import length_boundary
-from feedback_states import edit_states
-from feedback_rejection import STAGES as REJECTION_STAGES
+from feedback_composition import FeedbackValidationJourney, text_fragment
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop
-from window_switch import window_switch_entry
 
 
 ENTRY = {
     **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
     **{stage: 'ui:' + stage for stage in (
         'parent-window', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected')},
-    **window_switch_entry(),
     'feedback-open': 'ui:feedback-open', 'feedback-state-empty': 'ui:feedback-state-empty',
 }
 MATRIX = {
-    **edit_states(),
-    **text_fragment('reply-clear', 'length-reply-clear'),
-    **length_boundary('ascii'),
-    'length-ascii-close': 'ui:length-ascii-close',
-    'length-ascii-reopen': 'ui:length-ascii-reopen',
-    **length_boundary('mixed'),
-    'length-mixed-close': 'ui:length-mixed-close',
-    'length-mixed-reopen': 'ui:length-mixed-reopen',
-    **text_fragment('body-clear'),
     'rejection-empty-send': 'ui:rejection-empty-send',
     'rejection-empty-read': 'ui:rejection-empty-read',
-    **text_fragment('body-first', 'invalid-body-first'),
-    'rejection-valid-refusal': 'ui:rejection-valid-refusal',
-    **text_fragment('reply-malformed', 'invalid-reply-malformed'),
-    'rejection-malformed-send': 'ui:rejection-malformed-send',
-    'rejection-malformed-read': 'ui:rejection-malformed-read',
-    **text_fragment('reply-clear'),
-    **{stage: 'ui:' + stage for stage in REJECTION_STAGES
-       if stage not in ('feedback-open', 'rejection-empty-send', 'rejection-empty-read',
-                        'rejection-valid-refusal', 'rejection-malformed-send', 'rejection-malformed-read',
-                        *text_fragment('body-first'), *text_fragment('reply-malformed'),
-                        *text_fragment('reply-clear'))},
-    'review-reset-close': 'ui:rejection-close', 'review-reset-open': 'ui:rejection-reopen',
-    **text_fragment('body-first', 'review-body-first'),
-    **text_fragment('reply-first', 'review-reply-first'),
-    'review-valid': 'ui:feedback-state-valid',
+    **text_fragment('body-first'), **text_fragment('reply-first'),
 }
-REVIEW = {**{stage: 'ui:' + stage for stage in (
-    'switch-draft-before', 'switch-viewer-ready', 'switch-viewer',
-    'switch-feedback-ready', 'switch-feedback', 'feedback-draft')},
-    **privacy_review(),
-    **{stage: 'ui:' + stage for stage in (
-        'feedback-draft-reread', 'feedback-draft-closed', 'feedback-draft-reopen')}}
+REVIEW = {
+    'recovery-close': 'ui:feedback-state-close',
+    'recovery-reopen': 'ui:feedback-state-reopen',
+    'review-valid': 'ui:feedback-state-valid',
+    'feedback-state-close': 'ui:feedback-state-close',
+}
 SCREENS = {**ENTRY, **MATRIX, **REVIEW}
 PLAN = JourneyPlan(
     prefix='feedback-validation', worker_mode='feedback_validation', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in (*ENTRY, *MATRIX)}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in REVIEW}},
-    advance_after={'review-valid': 'step-2'},
-    invocations=tuple(stage for stage, operation in MATRIX.items() if operation != 'ui:' + stage),
+    advance_after={'text-reply-first-read': 'step-2'},
+    invocations=tuple(stage for stage, operation in SCREENS.items() if operation != 'ui:' + stage),
 )
 
 

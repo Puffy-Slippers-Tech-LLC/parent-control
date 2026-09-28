@@ -889,6 +889,11 @@ release-acceptance roadmap.
 
 ## Test layers
 
+Full GUI-only matrices belong in preview UI tests. Installed E2E retains a small
+component check plus distinct backend, persistence and OS integration results.
+Both layers reuse shared GUI operations and public readers; see the
+[coverage allocation and duplicate review](../docs/TestAutomation/UI-and-E2E-Coverage.md).
+
 The [2026-09-14 customer scope](../docs/TestAutomation/E2E-Building-Blocks.md) changes
 unfinished E2E plans, not completed lower-level tests. Keep all established
 regressions and applicable safety execution intact. Customer E2E uses real

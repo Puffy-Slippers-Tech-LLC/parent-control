@@ -386,24 +386,24 @@ def test_allowance_boundaries_worker_and_every_refusal(monkeypatch, module_name)
         assert result['events'] == success['events'][:boundary + 1]
 
 
-def test_complete_allowance_case_preserves_finite_matrix_and_reopen_checks():
+def test_allowance_installed_sample_preserves_rejection_and_real_reopen_checks():
     from allowance_case import PLAN
-    from allowance_values import REPRESENTATIVE_PRESETS, ACCEPTED, INVALID
+    from allowance_boundaries import BOUNDARY_SCREENS
     from ui_observations import SettingsObservation
     stages = list(PLAN.screen_tags)
     assert 'system:parent-continuous-activity' not in PLAN.screen_tags.values()
-    assert REPRESENTATIVE_PRESETS == (0, 60, 90, 1410)
     presets = [PLAN.screen_tags[stage] for stage in stages if stage.startswith('preset-')]
-    assert presets == [f'ui:allowance-{value}-{action}' for value in REPRESENTATIVE_PRESETS
+    assert presets == [f'ui:allowance-{value}-{action}' for value in (15,)
                        for action in ('select', 'read')]
-    for value in ACCEPTED:
+    for value in (1,):
         assert stages.index(f'boundary-{value}-saved') < stages.index(f'boundary-{value}-reopen')
-    for binding in INVALID:
+    for binding in ('over',):
         prefix = 'invalid-' + binding
         assert PLAN.screen_tags[prefix + '-baseline'] == 'ui:allowance-15-select'
         assert PLAN.screen_tags[prefix + '-unchanged'] == 'ui:allowance-15-read'
         assert PLAN.screen_tags[prefix + '-reopen'] == 'ui:custom-15-reopen'
         assert stages.index(prefix + '-rejected') < stages.index(prefix + '-unchanged')
+    assert len(PLAN.screen_tags) < len(BOUNDARY_SCREENS)
     assert stages.index('initial-selection') < stages.index('persist-away-open')
     assert PLAN.settings_checks['persist-away-selected'] == SettingsObservation(
         'existing-fixture-child', False, ('0 minutes',))
@@ -593,6 +593,36 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
         result = json.loads(run_perl(script).stdout)
         assert result['events'] == (stages[:stages.index(refused) + 1] if refused else stages)
         assert bool(result['ok']) == (not refused), result['error']
+
+
+@pytest.mark.parametrize('minutes', [0, 15])
+@pytest.mark.parametrize('action', ['reopen', 'reopen-current'])
+@pytest.mark.parametrize('wrong_selection', [False, True])
+def test_custom_reopen_checks_the_declared_reload_or_retained_selection(
+        minutes, action, wrong_selection):
+    # In-memory public observations only; no additional shared resources.
+    from accessible_ui import AccessibleUI, CHILD, UiError
+    ui = Mock()
+    choice = ui.id_target.return_value
+    choice.get_description.return_value = (
+        'Daily allowance: Custom amount' if wrong_selection else
+        'Selected daily allowance: Custom amount')
+    if wrong_selection:
+        ui.allowance_preset.side_effect = UiError('ui:allowance-value')
+        with pytest.raises(UiError):
+            AccessibleUI.custom_allowance(ui, CHILD, minutes, action=action)
+        assert 'parent-daily-limit-custom' not in [
+            call.args[0] for call in ui.activate_id.call_args_list]
+        ui.read_synthetic_text.assert_not_called()
+    else:
+        assert AccessibleUI.custom_allowance(ui, CHILD, minutes, action=action) == {
+            'minutes': minutes, 'action': action}
+        ui.read_synthetic_text.assert_called_once_with('daily-' + str(minutes))
+        if action == 'reopen':
+            ui.allowance_preset.assert_called_once_with(CHILD, minutes, action='read')
+        else:
+            ui.allowance_preset.assert_not_called()
+            choice.get_description.assert_called_once_with()
 
 
 def test_custom_allowance_selector_and_prerequisites(monkeypatch, tmp_path):

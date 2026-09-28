@@ -49,6 +49,42 @@ from ui_observations import FeedbackStateObservation
 # they retain the compatible unit bucket and create no processes or shared state.
 # Shared review fragments retain those same private, waited Perl children and
 # in-memory observers; no scheduler or resource admission change is needed.
+# Case 154 retains bounded in-memory profiles, pytest-owned paths and waited
+# private Perl children. No VM, bus, display, cache or shared-path resources.
+
+
+@pytest.mark.parametrize('fault', ['', 'text-body-first-selected', 'format-home',
+                                  'text-scalar-body-smoke-caret'])
+def test_host_gui_blocks_share_worker_input_and_stop_at_refused_observation(monkeypatch, fault):
+    from tests.support import gui_blocks
+    events = []
+    ui = Mock()
+    def observe(stage, version):
+        events.append(('observe', stage))
+        if stage == fault:
+            raise ValueError('refused')
+        return {'stage': stage}
+    ui.run.side_effect = observe
+    monkeypatch.setattr(gui_blocks.keyboard, 'key_combo',
+        lambda _ui, identity, key, **_: events.append(('key', identity, key)))
+    monkeypatch.setattr(gui_blocks.keyboard, 'repeat_cursor',
+        lambda _ui, identity, key, count: events.extend([('key', identity, key)] * count))
+    monkeypatch.setattr(gui_blocks.keyboard, 'type_text',
+        lambda _ui, identity, value, **_: events.append(('text', identity, value)))
+    def execute():
+        gui_blocks.run_block(ui, 'replace', 'body-first')
+        gui_blocks.run_block(ui, 'bold')
+        gui_blocks.run_block(ui, 'scalar', 'body-smoke')
+    if fault:
+        with pytest.raises(ValueError, match='refused'):
+            execute()
+        assert events[-1] == ('observe', fault)
+    else:
+        execute()
+        assert ('text', 'feedback-editor-input', 'Synthetic feedback first') in events
+        assert events.count(('key', 'feedback-editor-input', '<Shift>Right')) == 9
+        assert ('text', 'feedback-editor-input', '1f600') in events
+        assert events[-1] == ('observe', 'text-scalar-body-smoke-read')
 
 
 @pytest.mark.parametrize('fragment', ['window', 'privacy'])
@@ -124,13 +160,16 @@ def test_review_fragments_reject_unregistered_profiles_and_invalid_invocations()
         'ui:draft-feedback-privacy-open', 'ui:draft-feedback-privacy-returned']
 
 
-def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch):
+@pytest.mark.parametrize('flow', ['draft', 'attachments'])
+def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch, flow):
     from tests.support.perl import run_perl
     from tests.unit.test_e2e_toggle import ALLOWANCE_WORKER
-    from parent_feedback_draft import PLAN
+    from parent_feedback_draft import PLAN as DRAFT_PLAN
+    from parent_feedback_attachments import PLAN as FILE_PLAN
+    PLAN = DRAFT_PLAN if flow == 'draft' else FILE_PLAN
     from ui_observations import OPERATION_LABELS
     script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_feedback_privacy')
-    script = script.replace('::run($exchange)', "::run($exchange, 'draft')")
+    script = script.replace('::run($exchange)', "::run($exchange, '" + flow + "')")
     script = script.replace('sub record_info { }',
                             "sub record_info { }\nsub type_string { push @main::events, ['text', @_]; }")
     monkeypatch.setenv('ONPC_TEST_REFUSE', '')
@@ -139,8 +178,8 @@ def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch):
     stages = list(PLAN.screen_tags)
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
     assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
-    assert sum(event[:2] == ['key', 'alt-f4'] for event in success['events']) == 4
-    assert sum(event[:2] == ['key', 'alt-tab'] for event in success['events']) == 3
+    assert sum(event[:2] == ['key', 'alt-f4'] for event in success['events']) == (4 if flow == 'draft' else 0)
+    assert sum(event[:2] == ['key', 'alt-tab'] for event in success['events']) == (3 if flow == 'draft' else 0)
     assert not any('send' in operation for operation in PLAN.screen_tags.values())
     for stage in stages:
         monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
@@ -150,17 +189,22 @@ def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch):
         assert result['events'] == success['events'][:boundary + 1]
 
 
-def test_draft_recorder_reaches_real_controller_and_retains_owned_actions(tmp_path):
-    from parent_feedback_draft import execute, PLAN, ACTIONS
+@pytest.mark.parametrize('flow', ['draft', 'attachments'])
+def test_draft_recorder_reaches_real_controller_and_retains_owned_actions(tmp_path, flow):
+    import parent_feedback_draft
+    import parent_feedback_attachments
     from feedback_composition import FeedbackDraftJourney
+    from attachment_composition import AttachmentJourney
+    module = parent_feedback_draft if flow == 'draft' else parent_feedback_attachments
+    execute, PLAN, ACTIONS = module.execute, module.PLAN, module.ACTIONS
     recorder = MagicMock(assertion=Mock())
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
                               verified=SimpleNamespace(inputs={}), guestfs=Mock(),
                               commands=Mock(), recorder=recorder)
     def worker(**options):
         controller = options['guarded_observe'].__self__
-        assert type(controller) is FeedbackDraftJourney
-        assert controller.plan is PLAN and controller.actions == ACTIONS and controller.draft is None
+        assert type(controller) is (FeedbackDraftJourney if flow == 'draft' else AttachmentJourney)
+        assert controller.plan is PLAN and controller.actions == ACTIONS
         assert options['validate'].__self__ is controller
         raise EvidenceError('synthetic-worker-stop')
     context.run_worker = Mock(side_effect=worker)
@@ -168,6 +212,106 @@ def test_draft_recorder_reaches_real_controller_and_retains_owned_actions(tmp_pa
         execute(recorder, context)
     context.run_worker.assert_called_once()
     recorder.assertion.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', sorted(accessible_ui.FILE_REVIEW_OPERATIONS))
+def test_file_review_decoder_and_preservation(operation):
+    from attachment_composition import AttachmentJourney, compare_file_draft
+    from installed_journey import JourneyPlan
+    PLAN = JourneyPlan(prefix='file-library', worker_mode='fixture', phases={}, screen_tags={
+        stage: 'ui:files-' + stage for stage in ('feedback-draft', 'feedback-draft-reopen')})
+    from ui_observations import UiObservations
+    draft = {'draft': 'attachment-file', 'attachments': ['Synthetic note.txt'],
+        'collection': 'ready', 'validation': 'none', 'controls': 'ready',
+        'items': [['Synthetic note.txt', '34 bytes']], 'include_logs': False}
+    compare_file_draft(draft)
+    value = ({'window': {'binding': 'feedback', 'pid': 42, 'endpoint': [':1.42', '/window'],
+                        'active': True, 'feedback': draft}} if 'switch-' in operation else
+             {} if operation.endswith('privacy-open') else {'file_draft': draft})
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', **value}
+    transport = Mock()
+    observer = UiObservations(transport)
+    observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+    assert observer.observe(operation) == result
+    journey = AttachmentJourney(SimpleNamespace(), Mock(), PLAN)
+    journey.check_settings('feedback-draft', {'ui': {'file_draft': draft}})
+    journey.check_settings('feedback-draft-reopen', {'ui': {'file_draft': dict(draft)}})
+    draft['items'] = [['Synthetic note.txt', '26 bytes']]
+    if value:
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        with pytest.raises(EvidenceError):
+            observer.observe(operation)
+    with pytest.raises(EvidenceError, match='preserved-draft'):
+        journey.check_settings('feedback-draft-reopen', {'ui': {'file_draft': draft}})
+
+
+def test_source_snapshot_and_readd_compare_independent_public_results():
+    from attachment_composition import AttachmentJourney
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='source-library', worker_mode='fixture', phases={}, screen_tags={
+        stage: 'ui:' + stage for stage in accessible_ui.BOUNDARY_OPERATIONS})
+    journey = AttachmentJourney(SimpleNamespace(), Mock(), plan)
+    def observation(operation):
+        return {'ui': {'boundary': accessible_ui.boundary_expected(operation)}}
+    for stage in ('boundary-single-before', 'boundary-single-preserved',
+                  'boundary-source-unchanged', 'boundary-changed-before', 'boundary-changed-preserved'):
+        journey.check_settings(stage, observation(stage))
+    changed = observation('boundary-source-unchanged')
+    changed['ui']['boundary']['items'][0][1] = '34 bytes'
+    with pytest.raises(EvidenceError, match='source-result'):
+        journey.check_settings('boundary-source-unchanged', changed)
+    stale = observation('boundary-changed-preserved')
+    stale['ui']['boundary']['items'][0][1] = '26 bytes'
+    with pytest.raises(EvidenceError, match='source-result'):
+        journey.check_settings('boundary-changed-preserved', stale)
+
+
+@pytest.mark.parametrize('fault', ['', 'text', 'file', 'size', 'logs', 'status'])
+def test_changed_file_draft_public_snapshot_requires_exact_result(fault):
+    ui, dialog, rows = boundary_ui('changed')
+    controls = {node.identity: node for node in dialog.children}
+    for binding in ('body-first', 'reply-first'):
+        identity, value = accessible_ui.TEXT_VALUES[binding]
+        controls[identity].text.value = value
+        controls[identity].text.count = len(value)
+    ui.api.Text.get_text = Mock(side_effect=lambda text, start, end: text.value[start:end])
+    if fault == 'text': controls['feedback-reply-email'].text.value = 'wrong'
+    if fault == 'file': dialog.children.remove(rows[0])
+    if fault == 'size': rows[0].children[0].name = '26 bytes'
+    if fault == 'logs': controls['feedback-logs-row'].name = 'diagnostic-logs.zip'
+    if fault == 'status': controls['feedback-status'].name = 'Reading attachments…'
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.feedback_snapshot('attachment-file')
+    else:
+        from attachment_composition import compare_file_draft
+        value = ui.feedback_snapshot('attachment-file')
+        value.pop('status')
+        compare_file_draft(value)
+
+
+@pytest.mark.parametrize('batch', ['name180', 'name181', 'hidden', 'mixed', 'single', 'changed'])
+def test_new_boundary_handoff_keeps_exact_entry_and_source_profile(monkeypatch, batch):
+    ui, _, _ = boundary_ui(accessible_ui.BOUNDARY_BATCHES[batch][0])
+    operation = Mock(return_value={'checked': 'chooser-open', 'provider': {'fixture': True}})
+    monkeypatch.setattr(ui, 'chooser_operation', operation)
+    assert ui.boundary_operation('boundary-' + batch + '-open') == {
+        'checked': 'boundary-' + batch + '-open', 'provider': {'fixture': True}}
+    operation.assert_called_once_with('chooser-open',
+        profile='single' if batch == 'changed' else batch, boundary=batch)
+    ui, _, _ = boundary_ui(accessible_ui.BOUNDARY_BATCHES[batch][0])
+    ui.activate_id = Mock(side_effect=RuntimeError('input reached'))
+    ui.chooser_snapshot = Mock(return_value=True)
+    with pytest.raises(RuntimeError, match='input reached'):
+        ui.chooser_operation('chooser-open', profile='single' if batch == 'changed' else batch,
+                             boundary=batch)
+    ui.activate_id.assert_called_once_with('feedback-add-files')
+    ui, _, _ = boundary_ui('empty')
+    ui.activate_id = Mock()
+    with pytest.raises(accessible_ui.UiError):
+        ui.chooser_operation('chooser-open', profile='single' if batch == 'changed' else batch,
+                             boundary=batch)
+    ui.activate_id.assert_not_called()
 
 
 @pytest.mark.parametrize('reset', [False, True])
@@ -204,15 +348,16 @@ def test_formatted_file_public_snapshot_requires_exact_fields_metadata_and_forma
     ui, dialog, rows = attachment_ui()
     dialog.children.remove(rows[0])
     controls = {node.identity: node for node in dialog.children}
-    for binding in ('body-blocks', 'reply-first'):
+    for binding in ('body-smoke', 'reply-first'):
         identity, value = accessible_ui.TEXT_VALUES[binding]
         controls[identity].text.value = value
         controls[identity].text.count = len(value)
     ui.api.Text.get_text = Mock(side_effect=lambda text, start, end: text.value[start:end])
     controls['feedback-status'].name = '1 file attachment ready.'
-    from feedback_formats import expected
-    read = Mock(return_value=expected('formats-kept-reopen'))
-    monkeypatch.setattr(accessible_ui.feedback_formats, 'read', read)
+    from attachment_composition import formatted_draft_expected
+    expected = formatted_draft_expected()['formats']
+    read = Mock(return_value=expected)
+    monkeypatch.setattr(ui, 'basic_feedback_formatting', read)
     if fault == 'text': controls['feedback-reply-email'].text.value = 'wrong'
     if fault == 'status': controls['feedback-status'].name = 'Attach at most 5 files.'
     if fault == 'format': read.side_effect = accessible_ui.UiError('ui:formats-result')
@@ -223,7 +368,7 @@ def test_formatted_file_public_snapshot_requires_exact_fields_metadata_and_forma
     else:
         value = ui.feedback_snapshot('formatted-file')
         assert value['items'] == [['Synthetic note.txt', '26 bytes']]
-        assert value['formats'] == expected('formats-kept-reopen')
+        assert value['formats'] == expected
 
 
 def test_formatted_window_decoder_preserves_endpoint_and_complete_draft(tmp_path):
@@ -1346,7 +1491,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     assert result == {'ok': int(not fault), 'events': expected}
 
 
-@pytest.mark.parametrize('fault', sorted(accessible_ui.BOUNDARY_OPERATIONS))
+@pytest.mark.parametrize('fault', sorted(
+    set(__import__('attachment_boundaries').PLAN.screen_tags) & accessible_ui.BOUNDARY_OPERATIONS))
 def test_boundary_worker_stops_at_each_failed_proof(fault):
     test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, 3)
 
@@ -1379,9 +1525,12 @@ def test_boundary_controller_decodes_exact_results_and_rejects_altered_evidence(
 
 
 def test_boundary_comparison_preserves_independent_prior_list():
-    from attachment_boundaries import journey
-    controller = journey(SimpleNamespace(), Mock())
-    for batch in ('sixth', 'oversized', 'overflow'):
+    from attachment_composition import AttachmentJourney
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='boundary-library', worker_mode='fixture', phases={}, screen_tags={
+        stage: 'ui:' + stage for stage in accessible_ui.BOUNDARY_OPERATIONS})
+    controller = AttachmentJourney(SimpleNamespace(), Mock(), plan)
+    for batch in ('sixth', 'oversized', 'overflow', 'name181', 'hidden', 'mixed'):
         def observation(step):
             return {'ui': {'boundary': accessible_ui.boundary_expected(f'boundary-{batch}-{step}')}}
         controller.check_settings(f'boundary-{batch}-before', observation('before'))
@@ -1442,7 +1591,8 @@ def test_boundary_public_observations_require_exact_state(state, fault):
 
 @pytest.mark.parametrize('operation,state,result', [
     ('boundary-clear-count', 'count-rejected', 'cleared'),
-    ('boundary-remove-total', 'total', 'maximum-again')])
+    ('boundary-remove-total', 'total', 'maximum-again'),
+    *[(key, *value) for key, value in accessible_ui.BOUNDARY_REMOVALS.items()]])
 def test_boundary_removal_uses_owned_ids_and_independent_readback(operation, state, result):
     ui, _, _ = boundary_ui(state)
     assert ui.boundary_operation(operation) == accessible_ui.boundary_expected(operation)
@@ -1696,11 +1846,10 @@ def test_validation_entry_reaches_worker_and_closes_recorder_on_failure(tmp_path
     recorder.assertion.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['', 'feedback-state-whitespace', 'length-ascii-valid',
-                                  'rejection-mixed-read', 'rejection-hidden-input-read',
-                                  'rejection-complex-read', 'review-reset-open',
-                                  'switch-feedback-ready', 'feedback-privacy-returned',
-                                  'feedback-draft-reopen'])
+@pytest.mark.parametrize('fault', ['', 'feedback-state-empty', 'rejection-empty-send',
+                                  'rejection-empty-read', 'text-body-first-selected',
+                                  'text-reply-first-read', 'recovery-reopen',
+                                  'review-valid', 'feedback-state-close'])
 def test_complete_validation_worker_matches_plan_and_stops_at_failed_proof(fault):
     from parent_feedback_validation import PLAN
     from tests.support.perl import run_perl
@@ -1734,17 +1883,11 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
     assert bool(result['ok']) is (not fault)
     assert result['events'][-1] == (fault or 'finish')
     if not fault:
-        assert result['events'].count('ctrl-shift-v') == 20
-        assert result['events'].count('alt-tab') == 3
-        assert result['events'].count('ctrl-shift-u') == 3
-        assert result['events'].count('alt-f4') == 2
+        assert not set(result['events']) & {'ctrl-shift-v', 'alt-tab', 'ctrl-shift-u', 'alt-f4'}
         operations = [PLAN.screen_tags[stage] for stage in stages]
         assert {operation for operation in operations if operation.endswith('-send')} == {
-            'ui:rejection-ascii-send', 'ui:rejection-mixed-send', 'ui:rejection-empty-send',
-            'ui:rejection-malformed-send', 'ui:rejection-hidden-send',
-            'ui:rejection-complex-send', 'ui:rejection-reopened-send'}
-        assert operations.index('ui:feedback-state-whitespace') < operations.index('ui:rejection-empty-send')
-        assert operations.index('ui:rejection-complex-read') < operations.index('ui:feedback-privacy-open')
+            'ui:rejection-empty-send'}
+        assert operations.index('ui:rejection-empty-read') < operations.index('ui:feedback-state-reopen')
 
 
 @pytest.mark.parametrize('stage,projection,validation', [
@@ -1763,8 +1906,11 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
 ])
 @pytest.mark.parametrize('fault', ['', 'projection', 'explanation', 'disabled'])
 def test_validation_matrix_requires_each_public_result(tmp_path, stage, projection, validation, fault):
-    from parent_feedback_validation import ValidationJourney
-    journey = ValidationJourney(SimpleNamespace(directory=tmp_path), Mock())
+    from feedback_composition import FeedbackValidationJourney
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='validation-library', worker_mode='fixture', phases={}, screen_tags={
+        stage: 'ui:' + ('feedback-state-valid' if stage == 'review-valid' else stage)})
+    journey = FeedbackValidationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
     value = dict(draft=projection, validation=validation, send_enabled=True,
                  attachments=['diagnostic-logs.zip'], collection='ready', controls='ready')
     if fault == 'projection':
@@ -1783,8 +1929,13 @@ def test_validation_matrix_requires_each_public_result(tmp_path, stage, projecti
 
 
 def test_validation_preservation_requires_earlier_evidence(tmp_path):
-    from parent_feedback_validation import ValidationJourney
-    journey = ValidationJourney(SimpleNamespace(directory=tmp_path), Mock())
+    from feedback_composition import FeedbackValidationJourney
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='validation-library', worker_mode='fixture', phases={}, screen_tags={
+        stage: 'ui:' + stage for stage in (
+            'rejection-complex-read', 'rejection-reopen', 'rejection-reopened-read',
+            'feedback-draft', 'feedback-privacy-returned', 'feedback-draft-reread', 'feedback-draft-reopen')})
+    journey = FeedbackValidationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
     for stage in ('ready', 'setup-detached'):
         journey.check_settings(stage, {})
     assert not journey.states and not journey.windows and journey.draft is None

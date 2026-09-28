@@ -302,24 +302,8 @@ def test_duplicate_adapter_builds_exact_formatting_fixture_by_copy_paste(launch_
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     identity = 'feedback-editor-input'
     ui.run('feedback-open', '')
-    ui.run('text-body-complex-75-focus', '')
-    type_text(ui, identity, module.TEXT_VALUES['body-complex-75'][1])
-    ui.run('text-body-complex-75-read', '')
-    for binding in (value for value in module.TEXT_DUPLICATIONS if value.startswith('body-complex')):
-        prefix = 'text-duplicate-' + binding
-        ui.run(prefix + '-focus', '')
-        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
-        ui.run(prefix + '-select', '')
-        ui.run(prefix + '-selected', '')
-        for chord in ('<Control>c', '<Control>End', 'Return', '<Control><Shift>v'):
-            key_combo(ui, identity, chord, state=Atspi.StateType.FOCUSED)
-        result = ui.run(prefix + '-read', '')['text']
-        assert result['exact'] is True
-    assert result['length'] == 2399
-    for kind in module.REJECTION_FORMATS:
-        ui.run(f'rejection-format-{kind}-focus', '')
-        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
-        ui.run(f'rejection-format-{kind}-apply', '')
+    from tests.support.gui_blocks import run_block
+    run_block(ui, 'complex')
     expected = {'weight': '700', 'style': 'italic', 'underline': 'single',
                 'strikethrough': 'true'}
     def formats_match():
@@ -372,74 +356,14 @@ def test_length_adapter_reads_full_ascii_and_non_bmp_boundaries(launch_ui):
         application_owners=launch_ui.application_owners,
         provider_contracts=_qualified_absent_prompt_contracts(module),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
-    identity = 'feedback-editor-input'
-    def key(chord):
-        key_combo(ui, identity, chord, state=Atspi.StateType.FOCUSED)
+    from tests.support.gui_blocks import run_block
     ui.run('feedback-open', '')
     for family in ('ascii', 'mixed'):
-        for units in (5000, 5001):
-            binding = f'body-{family}-{units}'
-            source = binding + '-base' if family == 'mixed' else binding
-            seed, *copies = module.TEXT_REPETITIONS[source]
-            ui.run(f'text-{seed}-focus', '')
-            key('<Control>a')
-            ui.run(f'text-{seed}-selected', '')
-            type_text(ui, identity, module.TEXT_VALUES[seed][1], interval=0.02)
-            ui.run(f'text-{seed}-read', '')
-            for target in copies:
-                prefix = f'text-duplicate-{target}'
-                ui.run(prefix + '-focus', '')
-                key('<Control>a')
-                ui.run(prefix + '-select', '')
-                ui.run(prefix + '-selected', '')
-                for chord in ('<Control>c', '<Control>End', '<Control><Shift>v'):
-                    key(chord)
-                ui.run(prefix + '-read', '')
-            prefix = f'text-suffix-{source}'
-            ui.run(prefix + '-focus', '')
-            key('<Control>End')
-            ui.run(prefix + '-caret', '')
-            type_text(ui, identity, module.TEXT_SUFFIXES[source][1], interval=0.02)
-            try:
-                ui.run(prefix + '-read', '')
-            except module.UiError:
-                text = ui.text_recipient(identity).get_text_iface()
-                count = ui.api.Text.get_character_count(text)
-                print('Synthetic replacement public count:', source, count)
-                if 0 <= count <= 5010:
-                    actual = ui.api.Text.get_text(text, 0, count)
-                    print('Synthetic replacement length, x count and final scalars:',
-                          len(actual), actual.count('x'), [ord(c) for c in actual[-10:]])
-                raise
-            if family == 'mixed':
-                ui.run(f'text-scalar-{binding}-focus', '')
-                key('<Control>End')
-                ui.run(f'text-scalar-{binding}-caret', '')
-                key('<Control><Shift>u')
-                type_text(ui, identity, '1f600')
-                key('Return')
-                try:
-                    ui.run(f'text-scalar-{binding}-read', '')
-                except module.UiError:
-                    text = ui.text_recipient(identity).get_text_iface()
-                    count = ui.api.Text.get_character_count(text)
-                    print('Synthetic Unicode public count:', count)
-                    if 4998 <= count <= 5010:
-                        actual = ui.api.Text.get_text(text, 0, count)
-                        print('Synthetic Unicode returned length and final scalars:',
-                              len(actual), [ord(c) for c in actual[-10:]])
-                        print('Synthetic Unicode public offset scalars:',
-                              [ui.api.Text.get_character_at_offset(text, i)
-                               for i in range(4996, count)])
-                    raise
-            if units == 5000:
-                state = ui.run(f'length-{family}-valid', '')['feedback_state']
-                assert state['validation'] == 'none' and state['send_enabled']
-                ui.run(f'length-{family}-refusal', '')
-            else:
-                ui.run(f'rejection-{family}-send', '')
-                state = ui.run(f'rejection-{family}-read', '')['feedback_state']
-                assert state['validation'] == 'length-invalid' and state['send_enabled']
+        observations = run_block(ui, 'length', family)
+        state = observations[f'length-{family}-valid']['feedback_state']
+        assert state['validation'] == 'none' and state['send_enabled']
+        state = observations[f'rejection-{family}-read']['feedback_state']
+        assert state['validation'] == 'length-invalid' and state['send_enabled']
         ui.run(f'length-{family}-close', '')
         ui.run(f'length-{family}-wrong-entry', '')
         state = ui.run(f'length-{family}-reopen', '')['feedback_state']
@@ -447,8 +371,6 @@ def test_length_adapter_reads_full_ascii_and_non_bmp_boundaries(launch_ui):
         ui.run(f'rejection-{family}-reopened-send', '')
         assert ui.run(f'rejection-{family}-reopened-read', '')['feedback_state']['validation'] == 'length-invalid'
         if family == 'ascii':
-            # A new independently observed entry clears the previous Send
-            # explanation before the next family's edit-only assertions.
             ui.run('length-ascii-close', '')
             assert ui.run('length-ascii-reopen', '')['feedback_state']['validation'] == 'none'
 
@@ -505,20 +427,12 @@ def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
                                'reply-first', 'reply-second', 'reply-clear')}
     assert len(bindings) == 6
 
+    from tests.support.gui_blocks import run_block
+
     def replace(binding):
-        identity, value = module.TEXT_VALUES[binding]
-        if binding.startswith('reply-'):
-            ui.run(f'text-{binding}-anchor', '')
-            key_combo(ui, 'feedback-editor-input', '<Control>Tab',
-                      state=Atspi.StateType.FOCUSED)
-        ui.run(f'text-{binding}-focus', '')
-        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
-        ui.run(f'text-{binding}-selected', '')
-        if value:
-            type_text(ui, identity, value)
-        else:
-            press_key(ui, identity, 'BackSpace', state=Atspi.StateType.FOCUSED)
-        assert ui.run(f'text-{binding}-read', '')['text'] == {
+        value = module.TEXT_VALUES[binding][1]
+        result = run_block(ui, 'replace', binding)
+        assert result[f'text-{binding}-read']['text'] == {
             'binding': binding, 'exact': True, 'length': len(value)}
 
     for binding in bindings:

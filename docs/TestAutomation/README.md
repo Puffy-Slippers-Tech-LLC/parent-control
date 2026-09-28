@@ -20,6 +20,7 @@ concurrent developer edits.
 | [`tests/e2e/scenarios.json`](../../tests/e2e/scenarios.json) | Persistent scenario IDs, customer steps, runtime status and executable binding | A pass merely because a declaration exists |
 | [E2E building blocks](E2E-Building-Blocks.md) | Atomic/composite operation contracts, callables, scoped qualification and provider gaps | Scenario readiness or task order |
 | [Scenario recipes](E2E-Scenario-Recipes.md) | Exact scenario composition, finite inputs and expected public results | Current runner status or scheduling |
+| [UI and E2E coverage](UI-and-E2E-Coverage.md) | GUI matrix ownership, duplicate review and minimal installed checks | A test pass, task completion or another task queue |
 | [Execution plan](E2E-Execution-Plan.md) | Sole entry point, fixed task sequence, implementation workflow and scoped reading routes | Product behavior or reusable block semantics |
 | [Execution contracts](E2E-Execution-Contracts.md) | Detailed sizing, provider qualification, live verification and close-out rules delegated by the execution plan | A second task queue, alternate selection or optional acceptance |
 | [Task queue](E2E-Task-Queue.md) | Single ordered checklist, including provider prerequisites and retained regressions, and delivered task scope | Current block or scenario readiness |

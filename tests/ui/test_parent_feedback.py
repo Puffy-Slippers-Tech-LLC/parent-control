@@ -2,6 +2,7 @@
 
 import pytest
 from tests.support.automation_ids import audit_product_controls
+from tests.support.gui_blocks import run_block
 from tests.support.feedback import (
     dismiss_feedback_dialog,
     feedback_editor,
@@ -59,20 +60,13 @@ def test_feedback_block_semantics(
         launch_ui, automation, wait_for_accessible_state):
     """Real product semantics, shared reader, independent reopen and removal."""
     from tests.e2e.block_semantics import BODY, FORMATS, RANGES, projection
-    from tests.support.keyboard import key_combo, repeat_cursor
+    from tests.support.keyboard import key_combo
     ui = automation
     editor, _log = open_feedback(launch_ui, ui, wait_for_accessible_state)
-    type_feedback(ui, BODY, wait_for_accessible_state)
+    run_block(ui.reader, 'replace', 'body-blocks')
     assert ui.reader.block_operation('block-before') == []
     for kind in FORMATS:
-        ui.reader.block_operation(f'block-{kind}-focus')
-        key_combo(ui, editor, '<Control>Home', state=ui.api.StateType.FOCUSED)
-        ui.reader.block_operation(f'block-{kind}-home')
-        start, end = RANGES[kind]
-        repeat_cursor(ui, editor, 'Right', start)
-        repeat_cursor(ui, editor, '<Shift>Right', end - start)
-        ui.reader.block_operation(f'block-{kind}-selected')
-        ui.reader.block_operation(f'block-{kind}-read')
+        run_block(ui.reader, 'block', kind)
     assert ui.reader.block_semantics() == projection(FORMATS)
     ui.activate("feedback-close")
     wait_for_accessible_state(
@@ -102,12 +96,11 @@ def test_feedback_block_semantics(
 def test_feedback_complete_format_sequence(launch_ui, automation, wait_for_accessible_state, linked):
     # Same private preview/display/bus and owned cleanup as block qualification.
     from tests.e2e import feedback_formats as formats
-    from tests.e2e.block_semantics import BODY, FORMATS, RANGES
-    from tests.support.keyboard import key_combo, type_text, repeat_cursor
+    from tests.support.keyboard import key_combo
     from tests.e2e.accessible_ui import UiError, require
     ui = automation
     editor, _log = open_feedback(launch_ui, ui, wait_for_accessible_state)
-    type_feedback(ui, BODY, wait_for_accessible_state)
+    run_block(ui.reader, 'replace', 'body-blocks')
 
     def operation(stage):
         if linked and not stage.startswith('formats-clear'):
@@ -115,37 +108,15 @@ def test_feedback_complete_format_sequence(launch_ui, automation, wait_for_acces
         print('FORMAT_STAGE', stage, flush=True)
         return formats.operate(ui.reader, stage, require, UiError)
 
-    def select(prefix, start, end, run):
-        print('FORMAT_SELECTION', prefix, flush=True)
-        run(prefix + '-focus')
-        key_combo(ui, editor, '<Control>Home', state=ui.api.StateType.FOCUSED)
-        run(prefix + '-home')
-        if prefix == 'formats-clear':
-            key_combo(ui, editor, '<Control><Shift>End', state=ui.api.StateType.FOCUSED)
-        else:
-            if prefix.startswith('formats-'):
-                key_combo(ui, editor, '<Control>End', state=ui.api.StateType.FOCUSED)
-                repeat_cursor(ui, editor, 'Left', len(BODY) - start)
-            else:
-                repeat_cursor(ui, editor, 'Right', start)
-            repeat_cursor(ui, editor, '<Shift>Right', end - start)
-        run(prefix + '-selected')
-
     operation('formats-before')
-    for kind in (() if linked else FORMATS):
-        select('block-' + kind, *RANGES[kind], ui.reader.block_operation)
-        ui.reader.block_operation('block-' + kind + '-read')
-    for kind in (*formats.INLINE, 'link'):
-        select('formats-' + kind, formats.START, formats.END, operation)
-        if kind == 'link':
-            operation('formats-link-target')
-            type_text(ui, 'feedback-link-target', formats.LINK)
-            operation('formats-link-save')
-        operation('formats-' + kind + '-read')
+    if linked:
+        for kind in (*formats.INLINE, 'link'):
+            run_block(ui.reader, 'inline', kind, 'linked')
+    else:
+        run_block(ui.reader, 'formats')
     for action in ('close', 'wrong-entry', 'reopen'):
         operation('formats-kept-' + action)
-    select('formats-clear', 0, len(BODY), operation)
-    operation('formats-clear-read')
+    run_block(ui.reader, 'inline', 'clear')
     ui.focus(editor)
     key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
     formats.read(ui.reader, require, 'linked-kept-reopen' if linked else 'formats-kept-reopen')
@@ -153,6 +124,45 @@ def test_feedback_complete_format_sequence(launch_ui, automation, wait_for_acces
     formats.read(ui.reader, require, 'formats-clear-read')
     for action in ('close', 'wrong-entry', 'reopen'):
         operation('formats-cleared-' + action)
+
+
+def test_feedback_basic_installed_edit_sequence(
+        launch_ui, automation, wait_for_accessible_state):
+    """The same text, bold and emoji sample used by installed case 152."""
+    open_feedback(launch_ui, automation, wait_for_accessible_state)
+    reader = automation.reader
+    run_block(reader, 'replace', 'body-first')
+    run_block(reader, 'bold')
+    run_block(reader, 'scalar', 'body-smoke')
+    assert reader.basic_feedback_formatting() == {
+        'blocks': [], 'inline': ['bold'], 'link': None,
+        'normal_comparison': True, 'text_exact': True}
+
+
+def test_feedback_unicode_and_hidden_character_validation(
+        launch_ui, automation, wait_for_accessible_state):
+    """Non-ASCII, combining marks and multi-scalar emoji remain exact in the GUI."""
+    from tests.support.keyboard import key_combo, type_text
+    editor, _ = open_feedback(launch_ui, automation, wait_for_accessible_state)
+    ui = automation
+    ui.focus(editor)
+    value = 'é' + 'e\u0301' + '漢' + '😀' + '👍🏽' + '👩\u200d💻'
+    for character in value:
+        key_combo(ui, editor, '<Control><Shift>u', state=ui.api.StateType.FOCUSED)
+        type_text(ui, editor, format(ord(character), 'x'))
+        key_combo(ui, editor, 'Return', state=ui.api.StateType.FOCUSED)
+    wait_for_accessible_state(lambda: ui.content(editor).rstrip('\n') == value,
+                              'all Unicode scalars remain exact')
+    ui.activate('feedback-close')
+    wait_for_accessible_state(lambda: ui.absent('feedback-dialog', within='parent-window'),
+                              'Unicode draft closes')
+    ui.activate('parent-feedback-button')
+    feedback_editor(ui, wait_for_accessible_state)
+    wait_for_accessible_state(lambda: ui.content(editor).rstrip('\n') == value,
+                              'Unicode draft survives reopening')
+    run_block(ui.reader, 'hidden')
+    ui.reader.run('rejection-hidden-send', '')
+    assert ui.reader.run('rejection-hidden-read', '')['feedback_state']['validation'] == 'hidden-invalid'
 
 
 def test_attachment_items_adapter_reads_real_rows_and_removes_one(
@@ -175,12 +185,15 @@ def test_attachment_items_adapter_reads_real_rows_and_removes_one(
 
 
 def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None,
-                  collection_release=None):
-    environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario}
+                  collection_release=None, chooser_inputs=None):
+    environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario,
+                   "GTK_IM_MODULE": "gtk-im-context-simple"}
     if status is not None:
         environment["ONPC_FEEDBACK_STATUS"] = str(status)
     if collection_release is not None:
         environment["ONPC_FEEDBACK_COLLECTION_RELEASE"] = str(collection_release)
+    if chooser_inputs is not None:
+        environment['ONPC_FEEDBACK_CHOOSER_INPUTS'] = str(chooser_inputs)
     _process, log = launch_ui(
         "parent_component_preview", environment_overrides=environment,
         wait_for_application=False,
@@ -191,6 +204,42 @@ def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None,
     wait(lambda: ui.showing("feedback-dialog"), "feedback dialog opens")
     editor = feedback_editor(ui, wait)
     return editor, log
+
+
+def test_attachment_validation_matrix_and_source_snapshot(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    """Full frontend matrix, real file reads, private declared chooser inputs."""
+    from tests.support.feedback import attachment_choices, add_component_attachments
+    from tests.e2e.accessible_ui import CHANGED_ATTACHMENT
+    batches = ('standard', 'count', 'sixth', 'maximum', 'oversized', 'total',
+               'overflow', 'name180', 'name181', 'hidden', 'mixed', 'single')
+    manifest, paths = attachment_choices(tmp_path, batches)
+    open_feedback(launch_ui, automation, wait_for_accessible_state, chooser_inputs=manifest)
+    ui = automation.reader
+    ui.feedback_snapshot()
+    ui.activate_id('feedback-add-files')
+    ui.chooser_operation('chooser-attachments')
+    ui.attachment_operation('attachment-remove')
+    ui.attachment_operation('attachment-remaining')
+    ui.boundary_operation('boundary-clear-small')
+    for batch in ('count', 'sixth'):
+        add_component_attachments(ui, batch)
+    ui.boundary_operation('boundary-clear-count')
+    ui.boundary_operation('boundary-exclude-logs')
+    for batch in ('maximum', 'oversized', 'total'):
+        add_component_attachments(ui, batch)
+    ui.boundary_operation('boundary-remove-total')
+    add_component_attachments(ui, 'overflow')
+    ui.boundary_operation('boundary-clear-maximum')
+    for batch in ('name180', 'name181', 'hidden', 'mixed'):
+        add_component_attachments(ui, batch)
+    ui.boundary_operation('boundary-clear-name')
+    add_component_attachments(ui, 'single')
+    paths['single'][0].write_bytes(CHANGED_ATTACHMENT[0][1])
+    ui.boundary_operation('boundary-source-unchanged')
+    ui.boundary_operation('boundary-remove-single')
+    assert add_component_attachments(ui, 'changed')['items'] == [
+        ['Synthetic note.txt', '34 bytes']]
 
 
 def test_feedback_footer_is_semantically_reachable_without_page_assumptions(

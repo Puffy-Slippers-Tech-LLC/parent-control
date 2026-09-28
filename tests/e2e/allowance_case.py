@@ -1,9 +1,8 @@
-"""Case 158: representative presets, custom boundaries and per-child persistence."""
+"""Case 158: one preset, custom edit and rejection with real per-child persistence."""
 
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management
-from allowance_boundaries import BOUNDARY_SCREENS
-from allowance_values import REPRESENTATIVE_PRESETS
+from allowance_boundaries import boundary_screens
 from ui_observations import SettingsObservation
 
 
@@ -14,8 +13,8 @@ ENTRY = {
 }
 VALUES = {
     **{f'preset-{value}-{action}': f'ui:allowance-{value}-{action}'
-       for value in REPRESENTATIVE_PRESETS for action in ('select', 'read')},
-    **BOUNDARY_SCREENS,
+       for value in (15,) for action in ('select', 'read')},
+    **boundary_screens(accepted=(1,), invalid=('over',)),
 }
 PERSISTENCE = {
     'prior-window': 'ui:parent-window',

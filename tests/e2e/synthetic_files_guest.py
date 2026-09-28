@@ -58,6 +58,10 @@ BOUNDARY_PROFILES = {
     'oversized': {'Oversized.txt': b'O' * (5 * 1024 * 1024 + 1)},
     'total': {'Total.txt': b'T' * (3 * 1024 * 1024)},
     'overflow': {'Overflow.txt': b'X' * (3 * 1024 * 1024 + 1)},
+    'name180': {'N' * 176 + '.txt': b'N'},
+    'name181': {'N' * 177 + '.txt': b'N'},
+    'hidden': {'Hidden\u200b.txt': b'H'},
+    'mixed': {'Accepted.txt': b'A', 'Oversized.txt': b'O' * (5 * 1024 * 1024 + 1)},
 }
 
 

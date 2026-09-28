@@ -44,7 +44,7 @@ APIS = {
     'feedback_length': {'length_boundary'},
     'feedback_states': {'edit_states'},
     'feedback_rejection': {'STAGES'},
-    'allowance_boundaries': {'BOUNDARY_SCREENS'},
+    'allowance_boundaries': {'BOUNDARY_SCREENS', 'boundary_screens'},
     'allowance_values': {'REPRESENTATIVE_PRESETS'},
     'file_chooser': {'stage_files', 'cleanup_files'},
     'synthetic_files': {'fixture_actions', 'read_declared_text', 'read_declared_zip',
@@ -76,12 +76,12 @@ WORKER_APIS = {
     'onpc_lifecycle': {'reopen'},
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child'},
-    'onpc_text': {'replace_text'},
+    'onpc_text': {'replace_text', 'append_scalar'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
                              'input_hidden', 'input_complex'},
     'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
-                            'supply_files', 'boundary_batch'},
+                            'supply_files', 'boundary_batch', 'attachment_limits'},
 }
 
 
@@ -190,6 +190,7 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
         assert set(plan.phases.values()) <= set(steps)
         positions = [steps.index(plan.phases[stage]) for stage in plan.stages]
         assert positions == sorted(positions), 'recorder phase moves backwards'
+        assert 'start' in plan.phases.values(), 'recorder start step is never opened'
         assert set(plan.advance_after) <= set(plan.screen_tags)
         for stage, following in plan.advance_after.items():
             index = plan.stages.index(stage)

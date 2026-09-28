@@ -27,6 +27,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
+Complete the Parent UI matrix for Help/About content, offered actions and URI
+callbacks using the existing information-route readers. Installed acceptance
+below owns actual handlers, destination identity and return behavior, without
+repeating layout/scale/content permutations.
+
 Reuse the separately qualified website, privacy, support and license handlers from tasks 185w, 185v, 185s and 185l. Qualify the owned Help/About entry and the remaining Legal notices destination through its actual document handler, then compose INFO01 Parent from those completed leaves. Keep exact public destination identity/content, normal close/return and Parent state comparison.
 
 ## Live VM acceptance

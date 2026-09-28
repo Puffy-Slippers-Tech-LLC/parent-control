@@ -46,7 +46,7 @@ class WindowSwitchJourney(InstalledJourney):
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
-        stage = self.plan.screen_tags.get(stage, '').removeprefix('ui:').removeprefix('draft-')
+        stage = self.plan.screen_tags.get(stage, '').removeprefix('ui:').removeprefix('draft-').removeprefix('files-')
         if not stage.startswith('switch-'):
             return
         value = observed['ui']['window']

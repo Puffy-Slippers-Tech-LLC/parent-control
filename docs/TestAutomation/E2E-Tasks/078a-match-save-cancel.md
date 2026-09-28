@@ -25,6 +25,10 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 Bind the owned match editor, one valid same-directory wildcard and explicit Save/Cancel. Compare Cancel with the earlier immutable rule and Save with independent row readback.
 
+Keep the complete local precise-target/basename and Cancel matrix in UI preview,
+using the same input and public result blocks. The installed qualification below
+samples one rule and establishes its real saved value.
+
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,
 freshness and uncertain-input guards. Reuse the existing attempt envelope,

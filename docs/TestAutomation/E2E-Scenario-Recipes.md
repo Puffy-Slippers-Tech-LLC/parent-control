@@ -147,12 +147,12 @@ Large durations test selection and displayed arithmetic without waiting to expir
 
 | Data | Complete finite set / expected result |
 | --- | --- |
-| Daily presets (158) | 0 and 1410 (both extremes), 60 (whole hour), 90 (half hour). Select/read each representative class; no login per value. |
-| Daily custom (158) | Accept 0, 1, 15, 1439. Reject empty, abc, −1, 0.5, 1440, 1441. Start invalid attempts with saved 15; reopen and read 15 afterward. The API's 1440 allowance belongs to engineering tests. |
-| Daily saving (159) | Save 2 by pause, 3 by Enter, 4 by leaving focus. Then type valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, save 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Qualify the public window-count projection with this consumer. Close/reopen and repeat the value read. Do not assert a minimum visible Saving animation duration. |
+| Daily presets (158) | Select/read 15 minutes. The complete preset matrix belongs to UI tests. |
+| Daily custom (158) | Accept 1; reject 1441 with saved 15, then reopen and read 15. UI tests retain 0, 1, 15, 1439 and invalid empty, abc, −1, 0.5, 1440, 1441. The API's 1440 allowance remains engineering coverage. |
+| Daily saving (159) | Type valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, save 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Qualify the public window-count projection with this consumer. Close/reopen and repeat the value read. Pause/Enter/focus commit permutations belong to UI tests; real save ordering stays here. Do not assert a minimum visible Saving animation duration. |
 | E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0→5 minutes; grant-only 0→4→0. At zero, daily-only must deny access while combined retains its grant. Re-read actual D and the original grant deadline; if navigation exhausts a required margin, fail preparation rather than inject usage. |
-| Request presets (38/41) | 5, 15, 30, 60, 120, 240 minutes. Read every footer and matching prompt, cancel each review, then approve representative 5. |
-| Request custom (39/42) | Accept 0.1, 0.5, 1.25, 1440; reject empty, abc, −1, 0, 0.09, 1440.1 and comma decimal 1,5. Valid prompts reflect whole seconds (6, 30, 75, 86400). Approve representative 1.25. |
+| Request presets (38/41) | Select 5 minutes, read its footer and actual approval prompt, then approve. UI tests own all 5, 15, 30, 60, 120, 240 choices on both surfaces. |
+| Request custom (39/42) | Reject 0.09 locally, then request and approve 1.25 minutes (75 seconds). UI tests own valid 0.1, 0.5, 1.25, 1440 and invalid empty, abc, −1, 0, 0.09, 1440.1, comma decimal 1,5, including whole-second display conversion. |
 | Rest of the day (40/43) | First approve a 1440-minute fixed grant, read its later deadline, then choose/approve Rest of the day. Read PARENT09 before and after: the replacement interval is shorter and the footer says until midnight. Calendar cases own the exact deadline check. No 24-hour wait. |
 | Shared choices (58–61) | Jordan custom 1.25, soft included; Riley custom 2.5, soft excluded. Seed station approver Jamie and each overlay approver Sam. Compare shared values and local selectors before edits; reverse direction/primary child per variant. |
 | Short time | Natural daily tests use 2–4 minutes and verify positive D before entry. Grant-only uses 2 minutes; replacement uses 3. Active reboot/update uses 15–20 minutes. These are preparation choices, not bypasses of observed balances. |
@@ -161,7 +161,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | App transitions (13–16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in limits-off cases temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
 | Match/control/route matrix | Preserve all four precise/pattern × on/off cases and all 48 route × rule × on/off cases. Alias, special-path, update and file-pattern data run only in their owning cases. |
 
-The daily picker offers 50 presets; case 158 samples the four classes above.
+The daily picker offers 50 presets; case 158 checks one installed choice.
 Noninteracting combinations, such as every attachment size with every app launch
 route, add no app-behavior coverage and are not multiplied. Every declared
 interacting matrix is complete; this is a finite coverage model, not a claim
@@ -201,9 +201,11 @@ disabled or exhausted child's overlay is never a preparation shortcut.
 
 ### Coverage and execution policy
 
-Exhaust every declared finite interacting matrix. For values that share the
-same result mechanism, enumerate boundary/representative inputs inside the
-owning case instead of multiplying unrelated dimensions. E2E-019 owns baseline
+Exhaust each declared finite matrix in its owning layer under the
+[UI/E2E allocation](UI-and-E2E-Coverage.md). Local GUI permutations belong to UI
+tests; E2E samples the installed component and retains every distinct backend or
+OS result. For values sharing a backend mechanism, enumerate representative
+inputs inside the owning case. E2E-019 owns baseline
 launch rules; E2E-049 owns temporary exceptions on those same eight routes and
 both request surfaces. E2E-048 owns elapsed time during authentication; gameplay
 extension remains E2E-024. Long routines own the **ordered history**, not another
@@ -379,7 +381,7 @@ Implementation status: All cases pending.
 
 Bindings: surface = child-overlay / kiosk; choice = predefined / custom / rest-of-day.
 
-1. FLOW16(enable and selected daily allowance) → request-entry(surface). Iterate the duration table with REQUEST04/05 → REQUEST03 → REQUEST08.
+1. FLOW16(enable and selected daily allowance) → request-entry(surface). Select the installed sample from the duration table with REQUEST04/05 → REQUEST03 → REQUEST08; full local validation belongs to the request UI capability tasks.
 2. Invalid: REQUEST09(validation) → UI11(prompt). Valid: REQUEST09 → AUTH01(exact details) → AUTH02(cancel) → REQUEST11(cancel). Rest-of-day first obtains 1440 minutes with FLOW05, reopens and selects Rest of the day.
 3. REQUEST10(representative) → AUTH01 → AUTH02(correct) → REQUEST11 → REQUEST12(automatic) → C if kiosk → TIME01 → UI12(expected time).
 
@@ -645,32 +647,35 @@ Bindings: surface = parent.
 
 ### E2E-031
 
-Implementation status: Case 152 passed complete acceptance in `20260928T030531Z-1c1850d6`;
-case 153 passed in `20260927T053552Z-feb94dac`. Cases 154 and 155 remain pending.
+Implementation status comes from the inventory. The UI/E2E allocation
+compositions passed independently: 152 in `20260928T164519Z-04c77547`, 153 in
+`20260928T165013Z-99382b18`, and 154 in `20260928T165312Z-34f506c3`, including
+collection and cleanup. Coverage was refreshed after each pass. Task 039's
+shared qualifications and close-out, and case 155, remain unfinished.
 
 **Feedback drafts, validation and attachment review.** Cases 152, 153, 154, 155.
 
 Bindings: flow = draft-reopen / validation / attachments / diagnostic-export.
 
-1. P0; draft: FEED01 → UI16(body,email) → FEED04(all formats) → FEED03; validation: FEED01 → repeat input table UI16 → FEED09; attachments: FEED01 → repeat file table FEED06/07/13; export: watch(FEED09){FEED01} → FEED08 with chooser cancel/failure/success branches.
-2. DESK10(feedback) → FEED05 → FEED10(dialog,compare). draft additionally FEED10(app-exit,reset). Never FEED11.
+1. P0; draft: FEED01 → UI16(body,email) → FEED04(bold) → UI16(emoji) → FEED06(single file) → FEED03; validation: FEED01 → FEED09(empty rejection) → UI16(body,email); attachments: FEED01 → FEED06(two files, then Cancel) → FEED07; export: watch(FEED09){FEED01} → FEED08 with chooser cancel/failure/success branches.
+2. Draft: DESK10(feedback) → FEED05 → FEED10(dialog,compare) → FEED10(app-exit,reset). Validation: FEED10(dialog) → FEED09(recovered valid state). Attachments: FEED13(remove one) → FEED07(remaining file). Never FEED11.
 
-Case 152 binds `parent_feedback_draft.PLAN`: apply every `body-blocks` format,
-remove them while observing unchanged text, then reapply through uniquely named
-shared invocations. Supply the `single` fixture (`Synthetic note.txt`, 26 bytes)
+Case 152 binds `parent_feedback_draft.PLAN`: type `body-first`, apply bold to
+`Synthetic`, then append the emoji through the shared `body-smoke` binding.
+The full formatting/removal/undo matrix stays in UI tests using the same worker
+composites. Supply the `single` fixture (`Synthetic note.txt`, 26 bytes)
 through the guarded chooser and independently read its metadata. The shared
 `FeedbackDraftJourney` compares the complete formatted draft and reply address
 after window switching, Privacy and dialog reopening, then observes empty text,
 reply address, formatting and customer-file list after Parent exits/relaunches,
 before any new input. Fresh diagnostics remain separate from the customer draft.
 
-Case 153 binds the edit-only text/email snapshots first, then the ASCII and
-mixed-emoji boundaries and invalid-only rejection fixtures. Closing/reopening
-between rejection groups clears the previous status through the public dialog;
-no backend reset or valid submission is permitted. After independently comparing
-the reopened complex document and rejection, prepare `synthetic-first` for the
-qualified existing-window, Privacy and dialog comparisons. Repeated operations
-have unique invocation IDs in `parent_feedback_validation.PLAN`.
+Case 153 rejects an empty send, then types the shared ordinary body and reply.
+Closing/reopening clears the earlier validation status through the public dialog;
+the final public read establishes recovery. The full ASCII/emoji, hidden-character,
+reply and excessive-formatting matrices stay in UI tests. No backend reset or
+valid submission is permitted. Stage bindings live in
+`parent_feedback_validation.PLAN`.
 The guarded invalid-only Send route supplies rejection evidence; FEED11 valid
 delivery remains outside this recipe. Error-report review on all three surfaces,
 diagnostic privacy, byte bounds and role authorization retain their separate
@@ -703,10 +708,9 @@ Bindings: delivery = retry.
 
 ### E2E-035
 
-Implementation status: Complete case 158 passed in `20260926T034552Z-b0849af0`,
-including representative presets 0/60/90/1410, the full valid/invalid custom
-table, Parent reopen persistence, collection, owned cleanup and baseline
-restoration. Case 159 remains pending.
+Implementation status comes from the inventory. Case 158's reduced installed
+composition passed in `20260928T165553Z-a580e06a`, including collection and
+cleanup; coverage was refreshed. Case 159 remains pending.
 
 Parent desktop preparation belongs to the shared installed envelope, with no
 case-specific idle step; see the [shared entry contract](../../tests/e2e/README.md#shared-system-and-account-entry-helpers).
@@ -721,7 +725,7 @@ to compare saved values. Task 028 qualifies only this LIFE01 slice.
 Bindings: flow = boundaries / save-order.
 
 1. P → PARENT03(off,zero,editor disabled) → FLOW16(allowance=0,final=on).
-2. boundaries: repeat allowance table {PARENT06 → PARENT08 → PARENT03 → UI12}; save-order: watch(PARENT08){PARENT06(commit trigger)} for each trigger, then rapid edits and PARENT02(other).
+2. boundaries: installed samples from the allowance table {PARENT06 → PARENT08 → PARENT03 → UI12}; save-order: watch(PARENT08){PARENT06(rapid edits)} → PARENT02(other), retaining real save ordering and single-instance checks.
 3. LIFE01(Parent) → PARENT02(each child) → PARENT03 → UI12(last accepted values).
 
 ### E2E-036
@@ -1134,8 +1138,8 @@ saved rows and, when stated, using the app as the child.
 
 | Case | Exact block/data expansion |
 | --- | --- |
-| 184 search-filters | PARENT10 for exact name, a unique description word, launcher identifier, empty query and no-match query. For each query, PARENT11 for all four subsets of {precise,pattern} and all eight subsets of {allowed,hard,soft}; UI13/UI12 compares the exact intersection from the declared fixture list. Empty selections show no rows. Restore all filters, compare PARENT12 with initial policies. These 160 cheap observations do not require new logins. |
-| 185 match-editor | PARENT13 → UI16 → PARENT15 for full precise target, unambiguous basename, empty text, unrelated precise target, custom same-directory wildcard, Cancel and Reset to Default. Empty/unrelated precise text stays open with explanation; Cancel preserves the earlier value; Reset saves the detected default immediately. Save a wildcard for a different directory and observe failed-save reporting, close that report, then reread confirmed choices. |
+| 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Task 077 owns the full UI matrix: five queries (name, description, identifier, empty, no match) × four precise/pattern subsets × eight allowed/hard/soft subsets, including empty selections. |
+| 185 match-editor | PARENT13 → UI16 → PARENT15 saves a same-directory wildcard. Save a wildcard for a different directory and observe the real broker's failed-save report, close it and reread confirmed choices. Tasks 078/078a own the UI matrix for precise target/basename, empty/unrelated input, Cancel and Reset, including exact explanations and unchanged values. Real saved-rule and enforcement observations remain E2E. |
 | 186 match-reopen | Save custom same-directory wildcard; change access to Allowed; LIFE01 → PARENT02 → PARENT12 verifies remembered custom wildcard. Save precise on an app with a suggested pattern; reselect the child and reopen Parent, reading the documented suggested pattern each time. Reselect precise before a subsequent save. Repeat restoration after a customer-rejected pattern save, closing its report before reading. This records the current limitation, not desired new behavior. |
 | 187 shared-launchers | Two visible launchers for one supported app: PARENT16(first,Hard) → PARENT16(second,Allowed); C → FLOW08(each supported launch,denied). P → allow first → C → FLOW08(each,usable). Reverse which launcher holds the block and repeat. No claim of independent rules overriding the shared target. |
 | 188 special-paths | For a known native app whose displayed precise path contains a space, then a comma, FILE05 copies its executable to the declared second name/location. PARENT16(Hard) → C → FLOW08(original and identical copy,denied), with existing distinct N usable. Repeat under Soft with no exception. These supported path cases do not assert universal copied-program control. |
@@ -1227,10 +1231,10 @@ Files, archive viewers and editors add no acceptance requirement to this route.
 
 | Owner | Complete finite data and checks |
 | --- | --- |
-| 152 formatting/draft | Synthetic heading, bold, italic, underline, strike, numbered/bulleted list, quote, code block, link and remove-formatting. FEED04/UI24 reads actual public inline range attributes, block semantics associated with exact text ranges, and the link's exact text/destination; toolbar state alone is insufficient. Reuse the shared `body-blocks` binding and `onpc_format::apply_all` / `apply_inline` with `feedback_formats.read` for the complete format/removal composition. Include one file and a synthetic reply address for close/reopen preservation. App exit/relaunch resets text, formatting, address and files. |
-| 153 text/email | Empty, whitespace, ordinary ASCII, exactly 5000 and 5001 UTF-16 units, and mixed emoji at those boundaries. Empty/valid synthetic/malformed reply addresses. Include a hidden control character and the declared excessive-formatting document; read rejection without submitting valid content. Exact hidden-character and formatting fixtures come from the current specification/maintained transport limits, and must be reviewed before binding. |
-| 154 attachments | Chooser Cancel; one file then Remove; 5 files accepted and a sixth rejected; per-file 5 MiB accepted and 5 MiB+1 rejected. With diagnostics excluded, two files totaling 8 MiB accepted and 8 MiB+1 rejected. One invalid file in a multi-selection adds none and preserves existing attachments. Names of 180 characters accepted, 181 and hidden controls rejected; an empty filename is not creatable through normal file tools and remains technical validation. |
-| 154 original file change | FEED06 attaches the synthetic text file; FILE09 `change_attachment_source` changes its original through the retained `fixture_actions` controller (`standard` or `single`, 26 to 34 bytes). Keep that updated receipt through cleanup. FEED07 reads the original attachment's unchanged name/size, then FEED13 → FEED06 re-adds it → FEED07 reads the larger size. Frozen contents are inspected only if the app offers a genuine public preview; otherwise byte immutability remains transport coverage. |
+| 152 formatting/draft | `body-smoke`: ordinary text, bold first word, emoji; public range attributes and exact text. Include one file and reply address for preservation and app-exit reset. UI owns heading, all inline formats, numbered/bulleted list, quote, code, link, clear/reapply and undo/redo through the same `onpc_format` composites and public semantic readers. |
+| 153 text/email | Empty-send rejection followed by body/reply editing and dialog recovery. UI owns empty/whitespace/valid body, reply variants, 5000/5001 UTF-16 ASCII and emoji, hidden controls and excessive formatting, including invalid-send preservation. |
+| 154 attachments | Actual chooser Open with the shared two-file batch, Cancel preservation, metadata read and removal of one file. UI owns five/six files, 5 MiB/5 MiB+1 per file, no-diagnostics 8 MiB/8 MiB+1 total, atomic invalid multi-selection and names 180/181/hidden characters. Empty filename remains engineering validation. |
+| UI original file change | Attach the shared 26-byte text file, change its original to 34 bytes, observe the retained attachment's original size, remove/re-add and read the new size. UI performs real frontend file loading through a fixture chooser. Byte immutability beyond public metadata remains transport coverage; FILE09 stays available for explicit engineering qualification. |
 | 155 diagnostic ZIP | Observe collection, then save via FILE03. Cancel preserves draft and prepared archive. Prepare an actually unwritable destination through shared fixture commands, verify its permissions as the saving user, observe the app's save error, then choose a writable location. Bind FILE08 to the exact newly saved ZIP and inspect it through the shared read-only SSH archive helper: system-information entry, Parent/Child/Kiosk/Broker folders, empty folders where applicable, and actual bounded contents. Independently reobserve the same feedback dialog and preserved draft. Do not open original product logs or substitute a staged ZIP. |
 | 155 privacy | FEED05 reads what is sent, optional logs/files/email and retention disclosure. Review exported synthetic data for forbidden personal values. Absence in one archive is not a proof of every producer's sanitization; all privacy, date-retention and byte bounds keep their engineering tests. |
 

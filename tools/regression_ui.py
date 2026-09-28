@@ -81,6 +81,11 @@ GROUPS = (
 # Feedback block meaning/removal/undo checks use the existing private Parent,
 # compositor and accessibility bus; bounded text and tree reads add no shared
 # cache, socket, process or fixture build. Keep the Feedback classification.
+# Shared GUI blocks add only short, waited, read-only Perl trace processes in
+# Feedback/Accessible adapter; actual input stays on each private compositor.
+# The attachment matrix uses pytest disk scratch (bounded 5 MiB files), a fake
+# external chooser and the real frontend worker. No shared path/cache/service,
+# additional display or heavy fixture build; retain both compatible buckets.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')
 

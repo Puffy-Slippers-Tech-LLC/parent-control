@@ -36,6 +36,7 @@ doubles, retaining compatible unit and cleanup scheduling.
 
 from pathlib import PurePosixPath
 
+from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
 from regression_resources import HOST_WORKERS
 from regression_ui import Bucket
 
@@ -153,10 +154,9 @@ write_e2e write_e2e_cleanup_safety
 BUILD_REVIEWED = frozenset({'test_applications'})
 
 # Ordering hints only; default weight balances selected case counts. Keep whole
-# modules together, including their module-scoped native build fixtures.
+# module fixtures together; work_units owns the function-private exception.
 ESTIMATES = {
-    'test_e2e_suite_cleanup_safety.py': 10,
-    'test_fix_tests_cleanup_safety.py': 20,
+    **CLEANUP_ESTIMATES,
     'test_regression.py': 30,
     'test_regression_schedule.py': 25,
     'test_regression_session.py': 15,
@@ -189,8 +189,12 @@ def buckets(nodeids):
                  and filename.removeprefix('test_').removesuffix('.py') in BUILD_REVIEWED)
         bucket = Bucket('Unit — ' + path.removeprefix('tests/unit/'), (path,), tuple(ids),
                         'unit' if reviewed else 'artifacts' if build else 'unit-exclusive',
-                        ESTIMATES.get(filename, .3 + len(ids) * .05))
-        (modules if reviewed else builds if build else exclusive).append(bucket)
+                        ESTIMATES.get(filename, .3 + len(ids) * (
+                            .02 if filename.endswith('_cleanup_safety.py') else .05)))
+        if reviewed:
+            modules.extend(work_units(path, ids, bucket.kind, bucket.estimate))
+        else:
+            (builds if build else exclusive).append(bucket)
     groups = [[] for _ in range(min(HOST_WORKERS, len(modules)))]
     estimates = [0.0] * len(groups)
     for module in sorted(modules, key=lambda item: (-item.estimate, item.name)):

@@ -581,8 +581,14 @@ memory and swap admission. Host-wide I/O pressure is recorded but does not gate
 ordinary host tests, including cleanup and UI buckets: background disk traffic
 must not strand otherwise available branches. Publishing, artifact builds, VM
 launches and host work overlapping builds retain their I/O admission limits and
-recovery window. Reviewed cleanup modules run in balanced buckets
-with their fixtures kept together. **Join cleanup prerequisites** requires every
+recovery window. Reviewed cleanup modules run in balanced buckets using measured
+module costs shared with unit scheduling. Modules keep their fixtures together;
+the large installed-journey safety matrix explicitly permits eight pieces of
+exact test IDs because its fixtures and outputs are function-local. This review
+applies to both schedulers, with a regression guard against shared fixture scope.
+Its synthetic inventories contain only the exercised scenario family, preserving
+that family's complete matrix and the real durable recorder while avoiding copies
+of unrelated families for every injected fault. **Join cleanup prerequisites** requires every
 bucket to pass and exit before downstream execution. UI, component and
 fixture-runtime workers validate the shared passing gate. Standalone prerequisite
 calls and foreground/unattended VM dispatch share content-qualified cleanup

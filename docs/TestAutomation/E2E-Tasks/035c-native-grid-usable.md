@@ -35,7 +35,7 @@ observer and worker; add no independent runner or fixture framework.
 
 On the VM, launch the declared fixture from the grid, perform its normal action and independently observe the effect. Qualify separately supplied valid grid entry and wrong-target/uncertain-input refusal.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

@@ -30,7 +30,7 @@ Implement and register this planned fixed qualification and its cleanup coverage
 tools/run-tests integration check_e2e_read_local_calendar_and_timezone
 ```
 
-Use the shared watchvm intent, display and guarded command transport. Pass
+Use the shared watch intent, display and guarded command transport. Pass
 applicable cleanup/ownership checks in isolation first. Require independent
 result readback, sanitized evidence and owned cleanup. Host tests alone do not
 qualify a live route or complete a customer scenario.

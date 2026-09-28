@@ -35,7 +35,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Publicly prepare short daily-only time, enter the child and observe successive minute samples over real intervals. Qualify independently supplied child entry and refuse reversed, stale or wrong-owner samples.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

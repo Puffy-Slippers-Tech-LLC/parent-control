@@ -27,7 +27,7 @@ def test_headless_feed_import_needs_no_checkout_or_desktop_environment():
 
 @pytest.mark.parametrize('argument', ['-h', '--help'])
 def test_help_exits_before_inspecting_or_launching_the_desktop(monkeypatch, capsys, argument):
-    import e2e_watch_viewer as viewer
+    import watch_viewer as viewer
     monkeypatch.setattr(viewer.os, 'getuid', Mock(
         side_effect=AssertionError('Help must not inspect the desktop user')))
     monkeypatch.setattr(viewer.Path, 'read_text', Mock(
@@ -42,12 +42,12 @@ def test_help_exits_before_inspecting_or_launching_the_desktop(monkeypatch, caps
 
     assert stopped.value.code == 0
     output = capsys.readouterr()
-    assert 'Watch VM activity.' in output.out
+    assert 'Watch test output, UI tests and VM activity.' in output.out
     assert output.err == ''
 
 
 def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
-    from e2e_watch_viewer import desktop_launch_command
+    from watch_viewer import desktop_launch_command
     monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')
     monkeypatch.setenv('SNAP', '/snap/code/current')
     monkeypatch.setenv('LD_PRELOAD', '/editor/injected.so')
@@ -55,17 +55,17 @@ def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
     assert command[0] == '/usr/bin/systemd-run'
     assert '--user' in command and '--service-type=exec' in command
     assert '--scope' not in command
-    assert '--wait' in command and '--collect' in command
+    assert '--wait' not in command and '--pipe' not in command and '--collect' in command
     assert '--setenv=WAYLAND_DISPLAY=wayland-test' in command
     assert not any('SNAP' in item or 'LD_PRELOAD' in item for item in command)
     assert command[-3] == '--'
-    assert command[-2].endswith('/tools/watchvm')
+    assert command[-2].endswith('/tools/watch')
     assert command[-1] == '--desktop-session'
 
 
 def test_snap_launch_propagates_service_failure_without_opening_editor_owned_window(monkeypatch):
-    import e2e_watch_viewer as viewer
-    monkeypatch.setattr('sys.argv', ['watchvm'])
+    import watch_viewer as viewer
+    monkeypatch.setattr('sys.argv', ['watch'])
     monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
     monkeypatch.setattr(viewer.Path, 'read_text', lambda self: 'snap.code.code (complain)\n')
     launch = Mock(return_value=Mock(returncode=7))
@@ -78,8 +78,8 @@ def test_snap_launch_propagates_service_failure_without_opening_editor_owned_win
 
 
 def test_snap_identity_after_delegation_refuses_instead_of_launching_forever(monkeypatch):
-    import e2e_watch_viewer as viewer
-    monkeypatch.setattr('sys.argv', ['watchvm', '--desktop-session'])
+    import watch_viewer as viewer
+    monkeypatch.setattr('sys.argv', ['watch', '--desktop-session'])
     monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
     monkeypatch.setattr(viewer.Path, 'read_text', lambda self: 'snap.code.code (complain)\n')
     launch = Mock(side_effect=AssertionError('Do not retry delegation'))
@@ -104,6 +104,24 @@ def receive(source):
         server.sendmsg([b'ONPC-WATCH-1'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
                                          array.array('i', [source.read_fd]))])
         return protocol.receive_frames(client, owner=os.getuid())
+
+
+def test_hidden_feed_reads_only_metadata_and_resumes_current_pixels(frames):
+    frames.publish(b'\x01\x02\x03\0' * 4, state='live', width=2, height=2,
+                   stride=8, format=0x20020888)
+    class HeaderOnly:
+        def __getitem__(self, key):
+            assert key.stop <= protocol.HEADER, 'hidden viewer copied pixels'
+            return frames.memory[key]
+    hidden = protocol.read_frame(HeaderOnly(), pixels=False)
+    assert hidden[1]['state'] == 'live' and hidden[2:] == (b'', b'')
+    feed = Feed()
+    feed.memory = receive(frames)
+    try:
+        assert feed.poll(pixels=False)[2:] == (b'', b'')
+        assert feed.poll()[2] == b'\x01\x02\x03\0' * 4
+    finally:
+        feed.close()
 
 
 def test_readers_cannot_modify_frames_even_by_reopening_fd(frames):

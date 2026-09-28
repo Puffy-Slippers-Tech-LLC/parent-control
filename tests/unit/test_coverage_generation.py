@@ -110,12 +110,20 @@ def test_invalid_numeric_selection_refuses_before_privileges(options, monkeypatc
         coverage.test_commands.plan(ROOT, 'e2e', ['--list', *options])
 
 
-def test_pending_number_refuses_execution_before_artifact_or_privilege_checks():
+@pytest.fixture
+def fixture_password(monkeypatch):
+    # Command planning requires configured credentials, but these host-only
+    # selector checks must not depend on the developer's private .envrc.
+    monkeypatch.setattr(runner['password_config'], 'read_password',
+                        lambda *args: 'fixture-password')
+
+
+def test_pending_number_refuses_execution_before_artifact_or_privilege_checks(fixture_password):
     with pytest.raises(ValueError, match='selection:pending'):
         coverage.test_commands.plan(ROOT, 'e2e', ['--id', '7'])
 
 
-def test_numeric_execution_forwards_exact_case_to_existing_installed_dispatcher():
+def test_numeric_execution_forwards_exact_case_to_existing_installed_dispatcher(fixture_password):
     with tempfile.TemporaryDirectory(prefix='onpc-coverage-selector-', dir='/tmp') as directory:
         commands, safety = coverage.test_commands.plan(
             ROOT, 'e2e', ['--id', '1', '--artifacts', directory])

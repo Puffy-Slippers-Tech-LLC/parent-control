@@ -38,7 +38,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Enter the wildcard, Cancel and read the old rule; reopen, Save and read the new rule. Qualify an independently open editor and wrong-app/ambiguous-control refusal.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

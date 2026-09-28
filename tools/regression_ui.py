@@ -42,7 +42,7 @@ GROUPS = (
     ('Screen fidelity', ('test_screen_preview.py',), 12),
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
     ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
-    ('Test spectators', ('test_e2e_watch.py', 'test_ui_watch.py'), 6),
+    ('Test spectators', ('test_e2e_watch.py', 'test_ui_watch.py', 'test_watch.py'), 6),
     ('Automation identity', ('test_automation_identity.py',), 12),
     ('Fixture GUI', ('test_fixture_gui.py',), 30),
 )
@@ -51,6 +51,8 @@ GROUPS = (
 # hermetic compositor; it does not publish Nested Shell's stable latest paths.
 # The spectator fixture uses process-local memfds and per-test output. Its live
 # checks only read a running E2E feed and are excluded from host aggregates.
+# The combined watcher has private memfds, runtime sockets and tmp_path launcher
+# locks/logs, on this same private display/bus; it starts no real runner or VM.
 # Automation identity uses the standard private preview session. Fixture GUI
 # builds its payload and Flatpak installation below its private pytest root;
 # both use the worker's private compositor, accessibility bus and runtime.

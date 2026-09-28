@@ -7,7 +7,6 @@ import re
 import socket
 import stat
 import struct
-import subprocess
 import time
 
 from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames, require
@@ -210,7 +209,7 @@ class Feed:
         except (OSError, ValueError, KeyError, TypeError):
             return None
 
-    def poll(self):
+    def poll(self, *, pixels=True):
         now = time.monotonic()
         try:
             if self.memory is None:
@@ -218,7 +217,9 @@ class Feed:
                     return None
                 self.next_connect = now + 1
                 self.connect()
-            frame = read_frame(self.memory, self.sequence)
+            frame = read_frame(self.memory, self.sequence if pixels == getattr(self, '_pixels', True) else 0,
+                               pixels=pixels)
+            self._pixels = pixels
             if frame is None:
                 # A killed/stopped writer can leave an odd seqlock indefinitely.
                 if now - self.last_frame > 3:
@@ -237,29 +238,15 @@ class Feed:
             return 'waiting'
 
 
-def application(feed=None):
-    # Importing transport helpers for tests does not connect to the host desktop.
-    from common.oh_no_parent_control_ui.gtk_automation import (
-        add_identified_window_controls,
-        set_automation_id,
-    )
+def panel(feed=None):
+    # Importing transport helpers never connects to the host desktop.
+    from common.oh_no_parent_control_ui.gtk_automation import set_automation_id
+    from watch_output import terminal, TerminalWriter
     import gi
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')
     gi.require_version('Graphene', '1.0')
-    try:
-        gi.require_version('Vte', '3.91')
-    except ValueError as error:
-        raise RuntimeError('watchvm needs GTK 4 VTE; run ./setup.sh --test-tools-only') from error
-    from gi.repository import Gdk, Gio, GLib, Graphene, Gtk, Pango, Vte
-
-    # A terminal launched by an editor can pass its desktop/startup identity
-    # down to us. Give this separate window its own shell association.
-    for name in ('GIO_LAUNCHED_DESKTOP_FILE', 'GIO_LAUNCHED_DESKTOP_FILE_PID',
-                 'DESKTOP_STARTUP_ID', 'XDG_ACTIVATION_TOKEN'):
-        os.environ.pop(name, None)
-    GLib.set_prgname(APPLICATION_ID)
-    GLib.set_application_name(TITLE)
+    from gi.repository import Gdk, GLib, Graphene, Gtk, Pango
 
     class Screen(Gtk.Widget):
         def __init__(self):
@@ -307,34 +294,14 @@ def application(feed=None):
                 snapshot.append_texture(self.cursor, rect)
             snapshot.pop()
 
-    class Viewer(Gtk.Application):
+    class Panel(Gtk.Box):
         def __init__(self):
-            # watchvm observes the single pinned VM. Session-bus registration
-            # serializes concurrent launches and forwards activation to its viewer.
-            super().__init__(application_id=APPLICATION_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+            super().__init__(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
             self.feed = feed if feed is not None else Feed()
-            self.window = None
             self.metadata = {}
-
-        def do_activate(self):
-            if self.window is not None:
-                self.window.present()
-                return
-            self.window = Gtk.ApplicationWindow(application=self, title=TITLE)
-            set_automation_id(self.window, 'e2e-watch-window')
-            self.window.set_icon_name(APPLICATION_ID)
-            header = Gtk.HeaderBar()
-            add_identified_window_controls(header, 'e2e-watch-window-controls')
-            header.pack_start(Gtk.Image(
-                icon_name=APPLICATION_ID, pixel_size=32, valign=Gtk.Align.CENTER))
-            close = Gtk.Button(icon_name='window-close-symbolic', tooltip_text='Close spectator')
-            close.update_property([Gtk.AccessibleProperty.LABEL], ['Close spectator'])
-            set_automation_id(close, 'e2e-watch-close')
-            close.connect('clicked', lambda _button: self.window.close())
-            header.pack_end(close)
-            self.window.set_titlebar(header)
-            self.window.set_default_size(1050, 820)
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            self.active = False
+            self.heading = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
+            set_automation_id(self.heading, 'e2e-watch-heading')
             self.screen = Screen()
             set_automation_id(self.screen, 'e2e-watch-display')
             self.screen.update_property([Gtk.AccessibleProperty.LABEL], ['VM display'])
@@ -342,141 +309,74 @@ def application(feed=None):
                                   wrap_mode=Pango.WrapMode.WORD_CHAR,
                                   ellipsize=Pango.EllipsizeMode.END, lines=3)
             set_automation_id(self.step, 'e2e-watch-progress')
-            # Reserve exactly three font lines, including for short/empty steps.
             metrics = self.step.get_pango_context().get_metrics(None, None)
             line_height = (metrics.get_ascent() + metrics.get_descent()) / Pango.SCALE
             self.step.set_size_request(-1, int(line_height * 3 + .999))
-            self.step.set_margin_start(8)
-            self.step.set_margin_end(8)
-            self.step.set_margin_top(8)
             self.status = Gtk.Label(label=WAITING, xalign=0,
                                     ellipsize=Pango.EllipsizeMode.END, single_line_mode=True)
             set_automation_id(self.status, 'e2e-watch-status')
-            self.status.set_margin_start(8)
-            self.status.set_margin_end(8)
-            self.status.set_margin_top(8)
-            self.status.set_margin_bottom(8)
-            box.append(self.step)
+            for widget in (self.heading, self.step, self.status):
+                widget.set_margin_start(8)
+                widget.set_margin_end(8)
+                widget.set_margin_top(4)
+                widget.set_margin_bottom(4)
+            self.append(self.heading)
+            self.append(self.step)
             pane = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+            set_automation_id(pane, 'e2e-watch-split')
             pane.set_start_child(self.screen)
             pane.set_resize_start_child(True)
             pane.set_shrink_start_child(True)
-            self.terminal = Vte.Terminal()
-            set_automation_id(self.terminal, 'e2e-watch-output')
-            self.terminal.set_input_enabled(False)
-            self.terminal.set_allow_hyperlink(False)
-            self.terminal.set_audible_bell(False)
-            self.terminal.set_bold_is_bright(True)
-            self.terminal.set_scrollback_lines(2000)
-            self.terminal.set_scroll_on_output(True)
-            self.terminal.set_font(Pango.FontDescription('Ubuntu Mono 12'))
-            def color(value):
-                rgba = Gdk.RGBA()
-                rgba.parse(value)
-                return rgba
-            self.terminal.set_colors(color('#eeeeec'), color('#300a24'), list(map(color, (
-                '#2e3436', '#cc0000', '#4e9a06', '#c4a000',
-                '#3465a4', '#75507b', '#06989a', '#d3d7cf',
-                '#555753', '#ef2929', '#8ae234', '#fce94f',
-                '#729fcf', '#ad7fa8', '#34e2e2', '#eeeeec'))))
-            self.terminal.add_css_class('vm-terminal')
-            terminal_style = Gtk.CssProvider()
-            terminal_style.load_from_data(b'''
-                .vm-terminal { padding: 8px 10px; }
-            ''')
-            Gtk.StyleContext.add_provider_for_display(self.window.get_display(),
-                terminal_style, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-            self.terminal.update_property([Gtk.AccessibleProperty.LABEL], ['VM command input and output'])
-            scroll = Gtk.ScrolledWindow(min_content_height=150)
-            scroll.set_child(self.terminal)
+            self.terminal, scroll = terminal('e2e-watch-output', 'VM command input and output')
+            self.writer = TerminalWriter(self.terminal)
             pane.set_end_child(scroll)
-            pane.set_position(540)
-            box.append(pane)
+            pane.set_resize_end_child(False)
+            pane.set_shrink_end_child(True)
+            pane.set_position(400)
+            self.append(pane)
+            self.append(self.status)
             self.activity_identity = None
             self.activity_end = 0
-            box.append(self.status)
-            self.window.set_child(box)
-            self.window.present()  # User launches present it; feed updates never do.
-            self.timer = GLib.timeout_add(33, self.tick)
 
-        def tick(self):
+        def tick(self, *, render=True):
+            frame = self.feed.poll(pixels=render)
+            if frame == 'waiting':
+                self.metadata = {}
+            elif frame is not None:
+                self.metadata = frame[1]
+            progress = self.feed.progress()
+            self.active = bool(self.metadata or progress)
+            if not render:
+                return
             activity = self.feed.activity()
+            self.active = self.active or bool(activity and activity.get('operation_active'))
             if activity is not None:
                 identity = (activity['run'], activity['sequence'])
                 if identity != self.activity_identity:
                     offset = activity.get('offset', 0)
                     end = offset + len(activity['text'])
-                    if (self.activity_identity is None or self.activity_identity[0] != activity['run']
-                            or not offset <= self.activity_end <= end
-                            or 'offset' not in activity):
-                        self.terminal.reset(True, True)
+                    reset = (self.activity_identity is None or self.activity_identity[0] != activity['run']
+                             or not offset <= self.activity_end <= end or 'offset' not in activity)
+                    if reset:
                         self.activity_end = offset
                     text = activity['text'][self.activity_end - offset:]
-                    # SSH pipes carry LF; a terminal normally receives CRLF
-                    # from its PTY. Preserve existing CR/erase/cursor sequences.
-                    self.terminal.feed(re.sub(r'(?<!\r)\n', '\r\n', text).encode('utf-8'))
+                    self.writer.feed(text.encode('utf-8'), reset=reset)
                     self.activity_identity = identity
                     self.activity_end = end
-            frame = self.feed.poll()
-            if frame == 'waiting':
+            if not self.metadata or self.metadata.get('state') != 'live':
                 self.screen.clear()
-                self.metadata = {}
             elif frame is not None:
-                self.metadata = frame[1]
-                if frame[1]['state'] == 'live':
-                    self.screen.update(frame)
-                else:
-                    self.screen.clear()
-            progress = self.feed.progress()
+                self.screen.update(frame)
             meta = dict(self.metadata)
             if progress:
                 meta['progress'] = progress
             title, step, operation = progress_text(meta)
-            self.window.set_title(title)
+            self.heading.set_label(title)
             self.step.set_label(step)
             self.status.set_label(activity_text(activity, meta.get('progress')) or operation or
                 ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else WAITING))
-            return True
 
-        def do_shutdown(self):
-            if hasattr(self, 'timer'):
-                GLib.source_remove(self.timer)
+        def close(self):
             self.feed.close()
-            Gtk.Application.do_shutdown(self)
 
-    return Viewer()
-
-
-def desktop_launch_command():
-    """Start through the user manager, without an editor's Snap process label.
-
-    A scope would retain the caller as parent and inherit its AppArmor label.
-    A user service starts from the desktop user manager instead. Forward only
-    the desktop connection variables, not the editor's Snap/loader environment.
-    """
-    command = ['/usr/bin/systemd-run', '--user', '--quiet', '--collect',
-               '--wait', '--pipe', '--service-type=exec']
-    for name in ('DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY',
-                 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS'):
-        if name in os.environ:
-            command.append('--setenv=' + name + '=' + os.environ[name])
-    return command + ['--', str(Path(__file__).resolve().with_name('watchvm')),
-                      '--desktop-session']
-
-
-def main(argv=None):
-    import argparse
-    parser = argparse.ArgumentParser(description='Watch VM activity. Close this window whenever you want.')
-    parser.add_argument('--desktop-session', action='store_true', help=argparse.SUPPRESS)
-    args = parser.parse_args(argv)
-    require(os.getuid() != 0, 'launch-as-your-desktop-user')
-    # Mutter derives Snap identity from this kernel label, not environment
-    # variables or GTK's application ID. Do not modify the security profile.
-    try:
-        snap_parent = Path('/proc/self/attr/current').read_text().startswith('snap.')
-    except FileNotFoundError:
-        snap_parent = False
-    if snap_parent:
-        require(not args.desktop_session, 'desktop-session-still-has-snap-identity')
-        return subprocess.run(desktop_launch_command(), check=False).returncode
-    return application().run(['watchvm'])
+    return Panel()

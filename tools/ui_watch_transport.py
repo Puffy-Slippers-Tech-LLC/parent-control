@@ -105,7 +105,7 @@ class Feeds:
         self.pending = {}
         self.next_scan = 0
 
-    def poll(self):
+    def poll(self, *, pixels=True, selected=None):
         now = time.monotonic()
         if now >= self.next_scan:
             self.next_scan = now + .5
@@ -140,7 +140,7 @@ class Feeds:
             try:
                 require(now - started < 1, 'ui-handshake-expired')
                 memory = receive_frames(peer, owner=os.getuid())
-                self.connections[run] = [memory, 0, None, now]
+                self.connections[run] = [memory, 0, None, now, False]
             except BlockingIOError:
                 continue
             except (OSError, ValueError):
@@ -149,16 +149,18 @@ class Feeds:
             del self.pending[run]
         result = {}
         for run, connection in tuple(self.connections.items()):
-            memory, sequence, frame, last_read = connection
+            memory, sequence, frame, last_read, had_pixels = connection
+            include_pixels = pixels and (selected is None or selected == run)
             try:
-                new = read_frame(memory, sequence)
+                new = read_frame(memory, sequence if had_pixels == include_pixels else 0,
+                                 pixels=include_pixels)
                 if new is not None:
                     require(new[1]['run'] == run, 'ui-run-identity')
                     require(new[1]['state'] in ('live', 'waiting', 'unavailable'), 'ui-state')
                     require(0 <= time.monotonic_ns() - new[1]['updated_ns'] < FRESH_NS,
                             'ui-stale')
                     frame, last_read = new, now
-                    connection[:] = [memory, new[0], frame, last_read]
+                    connection[:] = [memory, new[0], frame, last_read, include_pixels]
                 require(now - last_read < 3, 'ui-stalled')
                 if frame is not None:
                     result[run] = frame

@@ -51,7 +51,7 @@ Implement and register this fixed qualification in the existing envelope:
 tools/run-tests integration check_e2e_lunar_provider
 ```
 
-Pass affected safety/adapter checks before the VM run. Use shared watchvm intent,
+Pass affected safety/adapter checks before the VM run. Use shared watch intent,
 observation and transport throughout; require collection and owned cleanup.
 
 ## Close out

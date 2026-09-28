@@ -35,7 +35,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Qualify new-form/fresh-child and open-form/fresh-child in a fresh guarded attempt. Approve once per invocation, read success and automatic exit, then perform fresh child entry and compare countdown with elapsed-time bounds.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

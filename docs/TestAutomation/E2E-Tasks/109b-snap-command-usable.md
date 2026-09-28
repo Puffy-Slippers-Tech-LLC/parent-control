@@ -34,7 +34,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Launch each declared Snap fixture, perform its normal action, capture S and open a distinguishable second instance while the earlier activity remains. Qualify independent guarded SSH command entry and wrong-scope/echo-only/uncertain-input refusal.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

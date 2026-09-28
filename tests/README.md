@@ -1108,7 +1108,15 @@ development tools, not customer E2E commands.
 
 ### Watching host UI tests
 
-Open `tools/watch-ui` as the desktop user before or during a run. It discovers
+Open `tools/watch` (or `make watch`) as the desktop user before or during a run.
+Both return after launching and repeated launches present the singleton VM
+watcher. The left terminal follows active `fix-tests` output before `run-tests`,
+using VS Code Dark+ colors, wrapping and vertical scrollback. The initial
+horizontal split is 30%/70%, adjustable by dragging. On the right, **Active**
+shows UI, VM, or both with an adjustable 50%/50% vertical split. **UI** and **VM**
+select a single viewer. Hidden panels inspect only small activity metadata;
+they do not copy frame pixels, query VM transcripts or update widgets.
+The viewer discovers
 private UI workers from this checkout for both `tools/run-ui-tests` and all
 aggregate paths (`tools/run-tests ui`, `host`, `all`, and mixed selections).
 **All branches** lays out up to four workers in a 2×2 grid, with a separate tab
@@ -1117,10 +1125,12 @@ appear when their private compositor fixture starts, disappear on shutdown or
 expired heartbeat, and later workers reconnect automatically. The viewer may be
 opened, closed, resized or reopened without controlling the tests. Runs started
 before this feature was loaded need to finish and start again to publish frames.
-The viewer prints its private `/var/tmp/onpc-ui-viewer-*/viewer.log` location
-at startup and records Python and native GTK output there, so later warnings
-cannot interrupt the launching terminal. Reopen an existing viewer to load changes
-to its output handling.
+The detached service records Python and native GTK output in a retained
+`onpc-watch-viewer-*/viewer.log` allocation under this checkout's test storage.
+Its location is printed in the service journal. Close and reopen the viewer to
+load source changes or to follow a different worktree's UI feeds and runner logs.
+The VM feed remains shared across worktrees. The viewer does not create runner
+state, consume results, send cancellation or change test ownership.
 
 The shared [fixture](ui/conftest.py) owns an optional
 [collector](../tools/ui_watch_capture.py) and private PipeWire/WirePlumber
@@ -1147,7 +1157,7 @@ Frames are review aids, never automation targets or acceptance evidence.
 Activation is `none`: new test fixtures and viewer invocations load the source;
 no product package, service or data migration is involved. The existing
 `./setup.sh --test-tools-only` route installs the optional viewer desktop/icon
-identity, and the existing executable-tool discovery includes `tools/watch-ui`
+identity, and the existing executable-tool discovery includes `tools/watch`
 at the next rules refresh. No broader command or privilege grant is needed.
 
 The bare-Mutter fixture disables its opening-window scale effect through

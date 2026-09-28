@@ -12,6 +12,7 @@ Usage: ./setup.sh [MODE]
   --dependencies-only   Install development, build, UI/GUI-fixture and VM host dependencies
   --ppa-build-tools     Install clean local PPA build prerequisites
   --test-tools-only     Refresh test helpers/policies/rules, viewer icon and old bytecode ownership
+  --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
@@ -29,7 +30,7 @@ if (( $# > 1 )); then
 fi
 readonly mode="${1-}"
 case "$mode" in
-    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
+    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--ui-tests-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -81,6 +82,9 @@ install_test_tools() {
 }
 
 case "$mode" in
+    --ui-tests-only)
+        /bin/bash "$script_dir/tools/setup_checkout.sh" --ui-tests-only
+        ;;
     --ppa-build-tools)
         echo 'setup: [stage:ppa-build-tools]'
         run_root ppa-build-tools /bin/bash "$script_dir/tools/setup_dependencies.sh" --ppa-build-tools

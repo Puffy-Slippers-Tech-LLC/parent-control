@@ -13,7 +13,7 @@
 ## VM observation mandate
 
 - Every VM operation, experiment, qualification, setup, maintenance and test must
-  use the shared `watchvm` infrastructure, regardless of its caller or whether it
+  use the shared `watch` infrastructure, regardless of its caller or whether it
   is E2E. Start display observation through the shared VM lease; route host/SSH
   commands through the guarded command transport and publish a nonsecret intention
   through `watch_activity.operation` (or its `observed` decorator) before performing
@@ -25,7 +25,10 @@
   or alternate intention channels. A missing integration must be fixed in this
   shared infrastructure before adding its consumer. Preserve private-input
   filtering and the existing VM ownership/identity checks.
-- `tools/watchvm` must remain read-only, live and interruption-free. Users can
+- The VM panels in `tools/watch` must remain read-only, live and interruption-free.
+  The left runner terminal may request its displayed command's cooperative
+  cancellation, including the owned cleanup of a VM test; it never sends direct
+  input to the VM. Users can
   connect, disconnect and reconnect at any time, including between maintenance
   commands, without affecting VM operations. Viewer lifetime must never control
   the VM, its input, command execution or collector lifetime. Qualify new routes

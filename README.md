@@ -45,13 +45,17 @@ real value in `.envrc.example`.
 | Refresh dependencies | `./setup.sh --dependencies-only` |
 | Install clean PPA build tools | `./setup.sh --ppa-build-tools` |
 | Refresh test helpers and policies | `./setup.sh --test-tools-only` |
+| Prepare UI tests in another worktree | `./setup.sh --ui-tests-only` |
 | Refresh Codex rules | `./setup.sh --codex-rules-only` |
 | Show all setup modes | `./setup.sh --help` |
 
-Full setup and `--test-tools-only` install the `tools/watchvm` desktop identity,
+Full setup and `--test-tools-only` install the `tools/watch` desktop identity,
 supplied app logo and refreshed icon cache for the viewer's dock icon.
-Run it at any time to see the guarded VM screen, SSH output and current operation
-across tests, setup and maintenance. Closing it leaves VM work running.
+Run `tools/watch` or `make watch` at any time. Both return after launching;
+subsequent launches present the same window for the pinned VM, across worktrees.
+The window retains the former VM viewer's dock and title-bar icons. Its UI feeds
+and runner logs belong to the checkout that opened it; close it and reopen from
+another worktree to follow that worktree instead. Closing it leaves tests running.
 
 Restart Codex after refreshing rules; trust this checkout.
 
@@ -66,7 +70,16 @@ Restart Codex after refreshing rules; trust this checkout.
 
 Close the preview or press Ctrl+C to stop. Use **Change Screens** in kiosk/overlay previews to set resolution and scale.
 
-To watch automated UI tests, open `tools/watch-ui` at any time. **All branches**
+The watcher has a draggable 30%/70% split. The left terminal uses VS Code Dark+
+colors, wraps at its current width and scrolls vertically. It follows `fix-tests`
+when active, otherwise `run-tests`, and retains the last output after completion.
+Live progress redraws in place; use the mouse wheel to scroll retained log output.
+On the right, **Active** follows UI or VM work automatically, splitting equally
+with a draggable divider when both run. **UI** and **VM** show their respective
+viewers. Hidden viewers suspend pixel copying and rendering; only small activity
+metadata checks continue. The VM view retains its guarded command transcript.
+
+Within the UI viewer, **All branches**
 shows concurrent UI workers in a 2×2 grid; each worker also has its own tab with
 the current test and phase. It follows `tools/run-ui-tests` and every
 `tools/run-tests` selection that includes UI work, including `ui`, `host` and
@@ -74,6 +87,11 @@ the current test and phase. It follows `tools/run-ui-tests` and every
 receives only copied frames and cannot send keyboard, pointer or resize input
 to tests. It can stay open between runs; capture starts with the UI fixture, so
 already-running workers from before this feature need a new test run.
+
+Worktrees keep their own UI Python environment and test output below the checkout
+root. On an already configured host, `./setup.sh --ui-tests-only` prepares the
+local environment from the pinned requirements without changing host packages
+or Git configuration. Missing system prerequisites still require normal setup.
 
 ## Build and install locally
 

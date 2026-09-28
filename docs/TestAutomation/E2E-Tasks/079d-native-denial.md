@@ -35,7 +35,7 @@ observer and worker; add no independent runner or fixture framework.
 
 In fresh VM attempts with no earlier target window, save each declared access choice and observe native grid/command results, including an unaffected allowed target. Qualify independent valid entry; incomplete absence cannot pass.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

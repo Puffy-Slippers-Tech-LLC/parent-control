@@ -603,6 +603,29 @@ def publish(root=ROOT):
         execute(root, state, state_path)
 
 
+def reconcile(root=ROOT):
+    """Close a verified release already incorporated into this checkout."""
+    with locked(root) as state_path:
+        state = json.loads(state_path.read_text())
+        if state.get('checkout') != str(root) or state.get('phase') not in (
+                'upload-started', 'published', 'complete'):
+            raise ValueError('reconciliation requires an uploaded release from this checkout')
+        revision = state['revision']
+        if not re.fullmatch(r'[0-9a-f]{40}', revision):
+            raise ValueError('invalid recorded release revision')
+        try:
+            command('git', 'merge-base', '--is-ancestor', revision, 'HEAD', cwd=root)
+        except ValueError:
+            raise ValueError('recorded release is not incorporated into checkout HEAD') from None
+        # Verify remotely even if artifacts were removed. Never repeat an upload
+        # or rewrite newer checkout work to make it match the old inputs.
+        wait_for_publication({'version': state['version']})
+        if state['phase'] != 'complete':
+            save(state_path.parent / ('reconciled-' + revision + '.json'), state)
+            save(state_path, dict(state, phase='complete'))
+        say(f'reconciled published {state["version"]}; checkout preserved', success=True)
+
+
 class PublisherParser(argparse.ArgumentParser):
     def error(self, message):
         say('use make publish or make publish-status; use --help for usage', error=True)
@@ -611,8 +634,11 @@ class PublisherParser(argparse.ArgumentParser):
 
 def main(argv=None):
     parser = PublisherParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--status', action='store_true',
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--status', action='store_true',
                         help='monitor the latest recorded release without publishing or changing local files')
+    modes.add_argument('--reconcile', action='store_true',
+                       help='verify and close an uploaded release already incorporated into HEAD')
     args = parser.parse_args(argv)
     original_env = dict(os.environ)
     safe_env = environment()
@@ -621,6 +647,8 @@ def main(argv=None):
         os.environ.update(safe_env)
         if args.status:
             publication_status()
+        elif args.reconcile:
+            reconcile()
         else:
             publish()
     except ValueError as error:

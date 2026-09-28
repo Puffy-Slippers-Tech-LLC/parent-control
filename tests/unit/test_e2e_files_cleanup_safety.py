@@ -137,7 +137,7 @@ def test_wrong_operation_changes_nothing(home, operation):
     assert guest.snapshot(home / guest.DIRECTORY) == before
 
 
-@pytest.mark.parametrize('operation', ['copy', 'rename', 'cleanup'])
+@pytest.mark.parametrize('operation', ['copy', 'rename', 'cleanup', 'change-source'])
 @pytest.mark.parametrize('fault', ['unknown', 'symlink', 'hardlink', 'content', 'owner', 'directory', 'replaced'])
 def test_unsafe_fixture_refuses_before_any_mutation(home, monkeypatch, operation, fault):
     before = guest.operate(home, 'stage', None)
@@ -452,14 +452,17 @@ def test_chooser_qualification_uses_registered_actions_and_installed_snapshot(tm
 
 
 @pytest.mark.parametrize('failure', [False, True])
-@pytest.mark.parametrize('archive', [False, True])
+@pytest.mark.parametrize('archive', [False, True, 'source'])
 def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkeypatch, failure, archive):
-    from parent_setup_qualification import SyntheticFilesQualification, ArchiveOpenQualification
+    from parent_setup_qualification import (SyntheticFilesQualification, ArchiveOpenQualification,
+                                            SourceChangeQualification)
     import installed_journey
     context = SimpleNamespace(directory=tmp_path)
     progress = Mock()
     qualification = ArchiveOpenQualification if archive else SyntheticFilesQualification
     action_name = 'archive-open' if archive else 'synthetic-files'
+    if archive == 'source':
+        qualification, action_name = SourceChangeQualification, 'source-change'
     journey = qualification.journey(context, progress)
     assert journey.plan.worker_mode == 'fresh_parent_desktop'
     assert journey.plan.stage_actions == {'desktop': action_name}
@@ -486,3 +489,84 @@ def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkey
         assert journey.steps[-1]['fixture'] == {'owned_cleanup': True}
         assert (tmp_path / 'desktop.reply.json').exists()
     action.assert_called_once()
+
+
+# Source mutation adds only tiny private files and process-local doubles. Both
+# unit and cleanup classifications remain compatible; no new host resources.
+def test_source_change_qualification_and_lifetime(home):
+    calls = []
+    def call(argv, **kwargs):
+        name, receipt = argv[7], json.loads(argv[8])
+        profile = argv[9] if len(argv) == 10 else 'standard'
+        calls.append((name, profile))
+        try:
+            value = guest.operate(home, name, receipt, profile)
+        except (ValueError, OSError):
+            value = {'refused': True}
+        return (json.dumps(value, sort_keys=True) + '\n').encode()
+    journey = SimpleNamespace(transport=SimpleNamespace(call=call))
+    result = controller.qualify_source_change(journey, lambda: None)
+    assert result['independent_entries'] == 2 and result['exact_changed_content']
+    assert result['wrong_entry_refused'] and result['owned_cleanup']
+    assert not list(home.iterdir())
+    for profile in ('standard', 'single'):
+        assert [name for name, current in calls if current == profile] == [
+            'stage', 'read', 'probe-source', 'read', 'change-source', 'read',
+            'change-source', 'read', 'cleanup', 'absent']
+
+
+@pytest.mark.parametrize('profile', ['standard', 'single'])
+def test_source_write_changes_only_original_and_requires_new_receipt(home, profile):
+    original = guest.operate(home, 'stage', None, profile)
+    changed = guest.operate(home, 'change-source', original, profile)
+    root = home / (guest.DIRECTORY + ('' if profile == 'standard' else '-single'))
+    assert (root / guest.TEXT_NAME).read_bytes() == b'ONPC changed synthetic attachment\n'
+    assert changed['files'][guest.TEXT_NAME]['identity'][:5] == original['files'][guest.TEXT_NAME]['identity'][:5]
+    for operation in ('cleanup', 'change-source', 'read'):
+        with pytest.raises(ValueError):
+            guest.operate(home, operation, original, profile)
+    assert guest.operate(home, 'read', changed, profile) == changed
+    assert guest.operate(home, 'cleanup', changed, profile) == {'absent': True}
+
+
+def test_source_short_write_is_uncertain_and_never_replayed(home, monkeypatch):
+    def call(argv, **kwargs):
+        try:
+            result = guest.operate(home, argv[7], json.loads(argv[8]))
+        except (ValueError, OSError):
+            result = {'refused': True}
+        return (json.dumps(result, sort_keys=True) + '\n').encode()
+    files = controller.SyntheticFiles(SimpleNamespace(call=call))
+    original = files.call('stage')
+    write = guest.os.write
+    writes = []
+    def partial(fd, data):
+        writes.append(data)
+        return write(fd, data[:3])
+    monkeypatch.setattr(guest.os, 'write', partial)
+    with pytest.raises(EvidenceError, match='guest-refusal'):
+        files.call('change-source')
+    for name in ('change-source', 'cleanup', 'read'):
+        with pytest.raises(EvidenceError, match='replay'):
+            files.call(name)
+    assert writes == [guest.CHANGED_TEXT]
+    assert files.previous == original
+
+
+def test_source_entry_registration_and_refusal(tmp_path, monkeypatch):
+    import check_e2e_edit_and_save_an_open_synthetic_document as entry
+    import check_graphical_smoke
+    from parent_setup_qualification import SourceChangeQualification
+    run = Mock(return_value=0)
+    monkeypatch.setattr(entry, 'smoke', run)
+    assert entry.main() == 0
+    assert run.call_args.kwargs['source_change'] is True
+    with pytest.raises(CommandError, match='source-change-prerequisites'):
+        check_graphical_smoke.main(source_change=True)
+    journey = SourceChangeQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan.stage_actions == {'desktop': 'source-change'}
+    assert journey.actions == {'source-change': controller.qualify_source_change}
+    guard = Mock()
+    with pytest.raises(EvidenceError, match='source-entry'):
+        controller.change_attachment_source(SimpleNamespace(), guard)
+    guard.assert_not_called()

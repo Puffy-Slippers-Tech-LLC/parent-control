@@ -49,6 +49,7 @@ CONTENTS = {**FILES, COPY: FILES['Synthetic note.txt'],
 TEXT_ARTIFACT = 'synthetic-note'
 TEXT_NAME = 'Synthetic note.txt'
 TEXT_LIMIT = 1024
+CHANGED_TEXT = b'ONPC changed synthetic attachment\n'
 BOUNDARY_PROFILES = {
     'single': {'Synthetic note.txt': FILES['Synthetic note.txt']},
     'count': {f'Count {index}.txt': b'C' for index in range(1, 6)},
@@ -320,9 +321,68 @@ def probe_text_refusals(home):
     return {'refused': list(faults), 'owned_cleanup': True}
 
 
+def change_source(root, receipt, contents):
+    """One fixed write, after pinning and validating the original owned bytes."""
+    require(snapshot(root, contents) == receipt and TEXT_NAME in receipt['files'])
+    root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        expected = receipt['files'][TEXT_NAME]
+        require(read_pinned(root_fd, root, receipt, expected, TEXT_NAME, TEXT_LIMIT)
+                == FILES[TEXT_NAME])
+        fd = os.open(TEXT_NAME, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root_fd)
+        try:
+            require(identity(os.fstat(fd)) == expected['identity'])
+            require(os.read(fd, TEXT_LIMIT + 1) == FILES[TEXT_NAME])
+            require(identity(os.stat(TEXT_NAME, dir_fd=root_fd, follow_symlinks=False))
+                    == expected['identity'] and identity(root.lstat()) == receipt['directory'])
+            os.lseek(fd, 0, os.SEEK_SET)
+            require(os.write(fd, CHANGED_TEXT) == len(CHANGED_TEXT))
+            os.ftruncate(fd, len(CHANGED_TEXT))
+            os.fsync(fd)
+            require(identity(os.stat(TEXT_NAME, dir_fd=root_fd, follow_symlinks=False))
+                    == identity(os.fstat(fd)))
+        finally:
+            os.close(fd)
+        require(identity(root.lstat()) == receipt['directory'])
+    finally:
+        os.close(root_fd)
+    return snapshot(root, {**contents, TEXT_NAME: CHANGED_TEXT})
+
+
+def probe_source_refusals(home):
+    faults = ('path', 'owner', 'symlink', 'replaced', 'different', 'hardlink')
+    for fault in faults:
+        with tempfile.TemporaryDirectory(prefix='.onpc-e2e-source-probe-', dir=home) as temporary:
+            probe_home = Path(temporary)
+            receipt = operate(probe_home, 'stage', None)
+            root = probe_home / DIRECTORY
+            target = root / TEXT_NAME
+            if fault == 'path':
+                receipt['files']['../Synthetic note.txt'] = receipt['files'].pop(TEXT_NAME)
+            if fault == 'owner': receipt['files'][TEXT_NAME]['identity'][2] += 1
+            if fault in ('symlink', 'replaced'):
+                target.rename(probe_home / 'preserved')
+                if fault == 'symlink': target.symlink_to(probe_home / 'preserved')
+                else:
+                    target.write_bytes(FILES[TEXT_NAME])
+                    target.chmod(0o600)
+            if fault == 'different': target.write_bytes(b'preserve this unrelated content')
+            if fault == 'hardlink': os.link(target, probe_home / 'preserved')
+            before = target.read_bytes()
+            identities = {p.name: p.lstat() for p in root.iterdir()}
+            try:
+                operate(probe_home, 'change-source', receipt)
+            except (ValueError, OSError):
+                require(target.read_bytes() == before
+                        and {p.name: p.lstat() for p in root.iterdir()} == identities)
+            else:
+                raise ValueError('files:source-probe-accepted-' + fault)
+    return {'refused': list(faults), 'owned_cleanup': True}
+
+
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
-    require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip'))
+    require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source'))
     require(profile in ('standard', 'zip') or profile in BOUNDARY_PROFILES)
     require(profile == 'standard' or operation not in ('copy', 'rename'))
     directory(home)
@@ -341,6 +401,20 @@ def _operate(home, operation, previous, profile):
     root = home / (DIRECTORY + ('' if profile == 'standard' else '-' + profile))
     files = FILES if profile == 'standard' else ZIP_FILES if profile == 'zip' else BOUNDARY_PROFILES[profile]
     contents = CONTENTS if profile == 'standard' else files
+    if operation in ('change-source', 'probe-source'):
+        require(profile in ('standard', 'single'))
+        if operation == 'change-source':
+            require(type(previous) is dict and set(previous.get('files', {})) == set(files))
+            return change_source(root, previous, contents)
+        require(snapshot(root, contents) == previous)
+        return probe_source_refusals(home)
+    # The carried exact receipt selects the sole declared changed state. Other
+    # commands still require original bytes; no copy/rename of changed sources.
+    if (operation in ('read', 'cleanup') and profile in ('standard', 'single')
+            and type(previous) is dict
+            and previous.get('files', {}).get(TEXT_NAME, {}).get('sha256')
+            == hashlib.sha256(CHANGED_TEXT).hexdigest()):
+        contents = {**contents, TEXT_NAME: CHANGED_TEXT}
     if operation == 'open-zip':
         require(profile == 'zip')
         return read_zip(home, previous)

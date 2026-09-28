@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **196 — [Prepare synthetic source changes and retained work](E2E-Tasks/196-edit-and-save-an-open-synthetic-document.md)**.
+Next task: **039 — [E2E-031: attachments](E2E-Tasks/039-case-154.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

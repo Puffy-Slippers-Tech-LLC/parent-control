@@ -448,6 +448,21 @@ class ArchiveOpenQualification(KioskEntryQualification):
         return InstalledJourney(context, progress, plan, actions={'archive-open': qualify_zip})
 
 
+class SourceChangeQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from dataclasses import replace
+        from app_snapshot import snapshot_name
+        from fresh_desktop import PARENT_PLAN
+        from installed_journey import InstalledJourney
+        from synthetic_files import qualify_source_change
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        plan = replace(PARENT_PLAN, stage_actions={'desktop': 'source-change'})
+        return InstalledJourney(context, progress, plan,
+                                actions={'source-change': qualify_source_change})
+
+
 class ShellSearchResultsQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

@@ -395,6 +395,8 @@ class InstalledJourney:
                     if plan.stage_actions[stage] == 'document-open'
                     else 'Inspecting declared ZIP entries and contents'
                     if plan.stage_actions[stage] == 'archive-open'
+                    else 'Changing the declared synthetic attachment source'
+                    if plan.stage_actions[stage] == 'source-change'
                     else 'Preparing the declared child-account fixture')
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)

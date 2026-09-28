@@ -98,6 +98,32 @@ Parent, child, and kiosk events record displayed calculation inputs, request
 and countdown transitions, session preparation, UI/resource failures, editor
 lifecycle, and feedback collection/delivery/retry outcomes.
 
+The shared request form records valid duration snapshots when preferences are
+restored, form choices are edited, and a request is submitted. Each
+`kiosk.duration-selection` includes only a fixed stage, preset/custom/rest-of-day
+kind, validated seconds and the overlay flag. Form edits include changes to
+other choices; an edited snapshot does not itself mean the duration changed.
+Each snapshot has a fresh local diagnostic operation number so rapid duration
+reversions survive identical-event suppression. Invalid custom text, account
+identities, labels and unused custom values are never logged.
+`kiosk.estimate-calculated` records daily, previous-grant, additional and total
+seconds at INFO after rejecting stale replies. This is the frontend's accepted
+estimate, not evidence that authentication completed or that the footer was
+visible over a higher-priority status. Broker grant-calculation and verified
+write events remain authoritative for approval. These events help distinguish
+a restored custom duration from an edit and from time added by grant arithmetic;
+they do not establish which controls a person saw or intended to select.
+
+The new catalogue entries preserve existing events and stored reports. Ship the
+catalogue and frontend together. The kiosk payload is classified as
+`session-renewal`, which also restarts the broker to load its catalogue reader;
+new request-form processes load the frontend changes. No saved-data migration
+is needed. Selection, stale-reply, storage suppression and call-site privacy
+regressions are covered in
+[request selections](../../tests/unit/test_request_selections.py),
+[request estimates](../../tests/unit/test_request_time_estimate.py), and the
+catalogue-wide privacy checks.
+
 [grant_diagnostics.py](../../broker/oh_no_parent_control/grant_diagnostics.py)
 observes live grants after supported AccountsService change signals and bounded
 periodic reconciliation. New `grant.observed-timed` events identify `source=our-app`

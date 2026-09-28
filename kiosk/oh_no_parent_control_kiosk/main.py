@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import cairo
 import logging
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, operation_scope
 from common.oh_no_parent_control_ui.diagnostic_events import record_payload, ConsoleHandler, log_version
 import json
 import math
@@ -1406,6 +1406,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._applying_preferences = False
             self._queue_time_estimate()
             LOG.info("kiosk.021")
+            self._log_duration_selection("restored")
         except Exception as error:
             LOG.warning("kiosk.022", error_type=error_code(error))
             self._show_error(error)
@@ -1413,6 +1414,24 @@ class RequestWindow(Adw.ApplicationWindow):
     def _form_values_changed(self):
         self._queue_time_estimate()
         self._persist_form_values()
+
+    @operation_scope
+    def _log_duration_selection(self, stage):
+        if self._preview and not self._interactive_preview:
+            return
+        try:
+            _uid, _label, _approver, seconds, _allow_soft = self._request_content.selected()
+            selected, _custom, _allow_soft = self._request_content.selected_preferences()
+        except ValueError:
+            # Invalid custom text is never diagnostic input.
+            return
+        kind = "custom" if selected == "custom" else (
+            "rest-of-day" if seconds == 0 else "preset"
+        )
+        # Only the validated duration and fixed categories leave the form.
+        # A separate operation preserves rapid A -> B -> A edits in storage.
+        LOG.info("kiosk.duration-selection", stage=stage, kind=kind,
+                 duration_seconds=seconds, overlay=self._child_overlay)
 
     def _queue_time_estimate(self):
         # Invalidate replies immediately, including when the form becomes invalid.
@@ -1460,13 +1479,15 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _time_estimate_done(self, revision, selection, connection, result):
         try:
-            _daily, _grant, _additional, calculated = connection.call_finish(result).unpack()
+            daily, grant, additional, calculated = connection.call_finish(result).unpack()
         except Exception as error:
             self._finish_time_estimate(revision, selection, error=error)
         else:
-            self._finish_time_estimate(revision, selection, seconds=calculated)
+            self._finish_time_estimate(revision, selection, seconds=calculated,
+                                       operands=(daily, grant, additional))
 
-    def _finish_time_estimate(self, revision, selection, *, seconds=None, error=None):
+    def _finish_time_estimate(self, revision, selection, *, seconds=None, error=None,
+                              operands=None):
         self._estimate_in_flight = False
         if self._estimate_closed:
             return
@@ -1484,6 +1505,11 @@ class RequestWindow(Adw.ApplicationWindow):
         else:
             LOG.debug("kiosk.024", seconds=seconds)
             self._request_content.set_time_estimate(_time_estimate_label(seconds))
+            if operands is not None:
+                daily, grant, additional = operands
+                LOG.info("kiosk.estimate-calculated", daily=daily, grant=grant,
+                         additional=additional, calculated=seconds,
+                         overlay=self._child_overlay)
 
     def _persist_form_values(self):
         if (self._preview and not self._interactive_preview) or self._applying_preferences:
@@ -1495,6 +1521,7 @@ class RequestWindow(Adw.ApplicationWindow):
             selected, custom, allow_soft = self._request_content.selected_preferences()
         except ValueError:
             return
+        self._log_duration_selection("edited")
         try:
             self._bus_call(
                 "UpdateRequestPreferences",
@@ -1561,6 +1588,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_content.show_validation_error(str(error))
             return
         self._set_request_controls(False)
+        self._log_duration_selection("submitted")
         LOG.info(
             "kiosk.028",
             duration_seconds=duration_seconds,

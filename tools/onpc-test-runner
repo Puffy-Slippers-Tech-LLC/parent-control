@@ -94,7 +94,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                             nargs='?', const='true')
     vm = categories.add_parser('vm', allow_abbrev=False)
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
-                                      'reset', 'screenshot', 'send-key', 'recover-online', 'restore-cpu'))
+                                      'reset', 'screenshot', 'send-key', 'recover-online'))
     vm.add_argument('keys', nargs='*', type=int)
     args = parser.parse_args(argv)
     if args.category == 'appsnapshot':

@@ -5,7 +5,7 @@
 - Packaging: Removed some non-product files (internal tools, docs) from package.
 - Screen-time changes failed when fapolicyd 1.3.6 couldn’t represent certain filenames; the fix skips unnecessary exceptions for already-blocked files and validates rules before changing  settings, with clearer errors for unsupported cases.
 - Broker: Lunar client still auto launches and can launch in-memory AppImage of Minecraft even when it's soft blocked
-- Child App: Fixed Child App timer recovery after waking from suspend and added privacy-safe diagnostics for countdown refresh failures (thanks for the crash report, dear anonymous user!)
+- Child App: Fixed Child App timer recovery after waking from suspend and added privacy-safe diagnostics for countdown refresh failures (thanks for the crash report on 9/27/2026, dear anonymous user!)
 
 
 ### New Features

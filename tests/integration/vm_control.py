@@ -16,7 +16,6 @@ import re
 import sys
 import tempfile
 import threading
-import xml.etree.ElementTree as ET
 
 import system_runner as runner
 from watch_activity import operation
@@ -115,27 +114,6 @@ def operate(lease, action, keys):
 
 
 def _operate(lease, action, keys):
-    if action == 'restore-cpu':
-        lease.__enter__()
-        # Configuration-only, atomic and retryable: no disk or guest lifetime
-        # changes create a cleanup obligation, including refusal/read failure.
-        lease.save('complete')
-        runner.require(lease.source.domain.ID() == -1, 'vm-control:source-running')
-        original = ET.fromstring(lease.original_xml)
-        backup = ET.fromstring((runner.ROOT / 'config/test-vm-original.xml').read_text())
-        runner.require(backup.findtext('uuid') == lease.source.uuid and
-                       backup.findtext('name') == runner.baseline.DOMAIN and
-                       len(backup.findall('cpu')) == 1 and len(original.findall('cpu')) == 1,
-                       'vm-control:cpu-backup-identity')
-        position = list(original).index(original.find('cpu'))
-        original.remove(original.find('cpu'))
-        original.insert(position, backup.find('cpu'))
-        lease.source.connection.defineXML(ET.tostring(original, encoding='unicode'))
-        lease.capture.revalidate(off=True)
-        result = ET.fromstring(lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE))
-        runner.require(ET.tostring(result.find('cpu')) == ET.tostring(backup.find('cpu')),
-                       'vm-control:cpu-restore-mismatch')
-        return
     if action in ('start', 'reset'):
         lease.__enter__()
         # Don't shut down an existing manually started VM to claim ownership.
@@ -190,7 +168,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reset',
-                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'restore-cpu'))
+                                          'reboot', 'send-key', 'screenshot', 'recover-online'))
     parser.add_argument('keys', nargs='*', type=int)
     args = parser.parse_args(argv)
     source = lease = connection = None

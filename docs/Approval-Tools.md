@@ -435,7 +435,6 @@ replacement by name alone.
 | `tools/test-vm screenshot` | Capture the owned running guest to a new private `/tmp/onpc-vm-screen-*` artifact |
 | `tools/test-vm stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off |
 | `tools/test-vm reset` | Restore the accepted outer baseline while idle, leaving the VM off |
-| `tools/test-vm restore-cpu` | While idle and off, restore only CPU settings from the identity-matching tracked original XML |
 | `tools/test-vm recover-online ID` | After explicit authorization of the inspected instance, recover an interrupted online start with matching maintenance, snapshot and isolation proofs; restore the baseline and leave it off |
 
 Every mutation shares the runner's nonblocking exclusive lock. Reopened

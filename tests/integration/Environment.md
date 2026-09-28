@@ -76,11 +76,7 @@ records success (or a required reboot) and powers off.
 The shared watch display uses CPU frame copies; preparation disables SPICE
 OpenGL and guest 3D acceleration to keep that display compatible with QEMU.
 Preparation also enables migration for a host-passthrough CPU and disables
-`invtsc` so later app snapshots can save memory. The tracked
-[original VM XML](../../config/test-vm-original.xml) preserves the previous CPU
-settings. With maintenance stopped and the VM off, `tools/test-vm restore-cpu`
-restores only that CPU element after checking the backup's VM identity. A later
-baseline preparation reapplies the memory-compatible settings.
+`invtsc` so later app snapshots can save memory.
 The virtio balloon also enables
 [`freePageReporting`](https://www.libvirt.org/formatdomain.html#memory-balloon-device),
 allowing unused guest pages to return to the host instead of preserving stale

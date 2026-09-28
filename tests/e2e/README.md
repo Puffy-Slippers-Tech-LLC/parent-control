@@ -475,12 +475,8 @@ ownership record. `tools/test-vm stop` stops that recorded guest. Offline mode
 keeps the installation, verification, shutdown and disk-only snapshot sequence.
 Baseline preparation enables CPU migration and masks `invtsc`, which otherwise
 prevents QEMU from saving memory. App-snapshot preparation does not patch CPU
-configuration. The pre-change persistent XML is tracked in
-[`config/test-vm-original.xml`](../../config/test-vm-original.xml). With maintenance
-stopped and the VM off, `tools/test-vm restore-cpu` restores only its CPU element
-after checking the backup's pinned VM identity. It preserves other configuration
-and snapshots. Baseline preparation reapplies the snapshot-compatible settings;
-restoring a retained snapshot still restores that snapshot's saved CPU settings.
+configuration. Restoring a retained snapshot also restores that snapshot's saved
+CPU settings.
 
 Online mode defaults to `--overwrite false`; offline mode retains the previous
 `--overwrite true` default. Explicit `--overwrite true` always rebuilds. Reuse

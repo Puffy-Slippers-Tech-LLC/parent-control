@@ -282,37 +282,3 @@ def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(lease_ri
         assert lease.source.domain.create.call_count == 1
     finally:
         resumed.release()
-
-
-@pytest.mark.parametrize('fault', [None, 'uuid', 'running'])
-def test_restore_cpu_uses_only_pinned_backup_without_restoring_disks(lease_rig, monkeypatch, tmp_path, fault):
-    lease, current = lease_rig
-    current['xml'] = current['xml'].replace('<devices>',
-        '<cpu mode="host-passthrough" migratable="on"><feature name="invtsc" policy="disable"/></cpu><devices>')
-    original = current['xml']
-    backup = original.replace('migratable="on"', 'migratable="off"').replace(
-        '<feature name="invtsc" policy="disable"/>', '')
-    if fault == 'uuid':
-        backup = backup.replace(UUID, 'f' * 36)
-    if fault == 'running':
-        lease.source.off, current['id'] = False, 71
-    (tmp_path / 'config').mkdir()
-    (tmp_path / 'config/test-vm-original.xml').write_text(backup)
-    monkeypatch.setattr(runner, 'ROOT', tmp_path)
-    try:
-        if fault:
-            with pytest.raises(RuntimeError):
-                control.operate(lease, 'restore-cpu', [])
-            lease.source.connection.defineXML.assert_not_called()
-        else:
-            control.operate(lease, 'restore-cpu', [])
-            assert ET.fromstring(current['xml']).find('cpu').get('migratable') == 'off'
-            assert ET.fromstring(current['xml']).find('cpu/feature') is None
-            before, after = ET.fromstring(original), ET.fromstring(current['xml'])
-            before.remove(before.find('cpu')); after.remove(after.find('cpu'))
-            assert ET.tostring(before) == ET.tostring(after)
-        assert lease.state['phase'] == 'complete'
-        lease.source.domain.revertToSnapshot.assert_not_called()
-        lease.source.domain.create.assert_not_called()
-    finally:
-        lease.release()

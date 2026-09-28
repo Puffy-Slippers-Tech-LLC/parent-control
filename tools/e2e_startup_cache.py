@@ -104,7 +104,9 @@ def source_identity(root):
         # .pyc files, but Python/pytest may load those bytes instead of source.
         # Include sibling caches even for deleted indexed modules, and parent
         # package directories where a sourceless module can still be imported.
-        return sorted({p for p in listed if os.path.lexists(root / p)} | bytecode_paths(root, listed))
+        return sorted({p for p in listed if os.path.lexists(root / p) and
+                       (not (root / p).is_dir() or (root / p).is_symlink())}
+                      | bytecode_paths(root, listed))
     before = paths()
     result = files_digest(root, before)
     if not before or paths() != before:

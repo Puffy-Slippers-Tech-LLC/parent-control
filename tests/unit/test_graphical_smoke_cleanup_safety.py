@@ -649,9 +649,9 @@ def test_login_window_preparation_gates_worker_and_outer_restoration(qualificati
 
 
 @pytest.mark.parametrize('vt6_auth,install,refusal,expected', [
-    (True, False, False, 1800), (False, False, False, 600),
-    (False, True, False, 960), (False, True, True, 600)])
-def test_vt6_worker_uses_existing_finite_extended_budget(tmp_path, vt6_auth, install, refusal, expected):
+    (True, False, False, 1800), (False, False, False, 1200),
+    (False, True, False, 1500), (False, True, True, 1200)])
+def test_worker_budget_covers_bounded_online_snapshot_poweron(tmp_path, vt6_auth, install, refusal, expected):
     installation = Mock(refusal=refusal) if install else None
     with patch.object(smoke, 'Smoke', return_value=Mock(steps=[])), \
             patch.object(smoke.e2e_worker, 'run_distribution') as run:

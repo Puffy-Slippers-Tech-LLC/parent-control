@@ -19,15 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **039 — [E2E-031: attachments](E2E-Tasks/039-case-154.md)**.
-
-Task 039's reduced case 154 passed product, infrastructure, collection and
-cleanup in `20260928T165312Z-34f506c3`; coverage was refreshed. Its real chooser
-Open/Cancel/Remove composition follows the UI/E2E allocation below. The attachment
-UI matrix and affected UI regressions passed in `20260928T170041Z-082c53f0`.
-Keep this pointer until the three existing shared
-qualifications (`check_e2e_attachments`, `check_e2e_feedback_privacy` and
-`check_e2e_window_switch`) and close-out requirements pass.
+Next task: **016b — [Start and collect a trace of an unchanged public state](E2E-Tasks/016b-trace-stable-state.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

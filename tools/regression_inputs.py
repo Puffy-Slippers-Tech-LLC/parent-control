@@ -14,6 +14,10 @@ def identity(root):
             raise ValueError('source inputs contain a symlink')
         if not path.exists():
             continue  # Indexed deletion already present at the start.
+        if path.is_dir():
+            # Git reports an untracked nested checkout as a directory entry.
+            # It is not a source file in this checkout.
+            continue
         digest.update(name + b'\0')
         digest.update(str(path.stat().st_mode & 0o777).encode() + b'\0')
         with path.open('rb') as stream:

@@ -49,6 +49,22 @@ def test_source_inventory_additions_and_deletions_invalidate(tmp_path, monkeypat
     assert cache.source_identity(tmp_path) not in (first, second)
 
 
+def test_nested_checkout_entry_is_skipped_but_directory_symlink_refused(tmp_path, monkeypatch):
+    (tmp_path / 'source.py').write_text('source')
+    nested = tmp_path / 'nested'
+    nested.mkdir()
+    (nested / 'external').write_text('unrelated')
+    listing = Mock(return_value=SimpleNamespace(stdout=b'source.py\0nested\0'))
+    monkeypatch.setattr(cache.subprocess, 'run', listing)
+    first = cache.source_identity(tmp_path)
+    (nested / 'external').write_text('changed')
+    assert cache.source_identity(tmp_path) == first
+    (tmp_path / 'nested-link').symlink_to(nested, target_is_directory=True)
+    listing.return_value.stdout = b'source.py\0nested-link\0'
+    with pytest.raises(ValueError, match='linked input'):
+        cache.source_identity(tmp_path)
+
+
 @pytest.mark.parametrize('relative, invalidates', [
     ('README.md', False), ('AGENTS.md', False),
     ('tests/README.md', False), ('tests/e2e/README.md', False),

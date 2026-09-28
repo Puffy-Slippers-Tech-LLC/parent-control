@@ -845,6 +845,17 @@ The declared [rejection boundary profiles](#attachment-rejection-boundaries)
 add qualified metadata/removal bindings. Other file sets and offered previews
 remain pending.
 
+Complete reduced case 154, `parent_feedback_attachments.PLAN` /
+`onpc_feedback_privacy::_attachments`, passed in
+`20260928T165312Z-34f506c3`. It reused the shared two-file chooser Open,
+reopen/Cancel preservation, exact displayed metadata and removal/remaining-list
+comparison; the full boundary matrix remains in the UI test. The affected
+`check_e2e_attachments`, `check_e2e_feedback_privacy` and
+`check_e2e_window_switch` qualifications passed separately in
+`20260928T171342Z-7bca2287`, `20260928T182554Z-16a03049` and
+`20260928T182911Z-8db012de`, with collection, owned cleanup and baseline
+restoration. No Send or diagnostic export.
+
 #### Attachment preview applicability
 
 `AccessibleUI.attachment_operation('attachment-preview')` qualifies the

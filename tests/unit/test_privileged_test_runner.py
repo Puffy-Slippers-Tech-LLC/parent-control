@@ -127,8 +127,12 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     root = Path(__file__).resolve().parents[2]
     tools = checkout / 'tools'
     for name in ('onpc-test-runner', 'regression_process.py', 'test_launcher.py', 'test_activity.py',
-                 'test_retention.py', 'test_storage.py'):
+                 'test_retention.py', 'test_storage.py', 'dev_checkout.py', 'install_test_runner.py'):
         shutil.copy2(root / 'tools' / name, tools / name)
+    for relative in ('setup.sh', 'Makefile', 'config/com.puffyslippers.onpc.development.policy'):
+        target = checkout / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, target)
     installer = runpy.run_path(str(root / 'tools/install_test_runner.py'))
     rendered = installer['render_helper'](checkout, 'onpc-test-runner', None)
     installed = checkout.parent / 'installed-test-runner'

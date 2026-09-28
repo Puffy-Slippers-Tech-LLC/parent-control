@@ -62,6 +62,12 @@ validation and regression coverage. Do not normalize per-command approvals.
 Run `./setup.sh --test-tools-only`, then restart Codex with this checkout trusted.
 Setup installs root-owned helpers and scoped Polkit rules, pins the finalized
 test baseline's VM UUID, and renders portable project-relative command prefixes.
+Installed helpers resolve the invoking repository root at execution time, rather
+than retaining the installation checkout. Launchers select their repository root
+and preserve it through `pkexec --keep-cwd`. Direct artifact and screenshot helper
+invocations must likewise use `--keep-cwd` from the intended repository root.
+The embedded resolver checks repository markers, ownership, permissions and
+symlinks before loading checkout code. It does not replace Polkit authorization.
 First install uses `./setup.sh --bootstrap-tools` and can require administrator
 authentication to establish the grant. Repeated bootstrap and routine refreshes
 reuse the dedicated `onpc-setup` helper without asking for authentication.
@@ -225,8 +231,8 @@ answer the tool's existing confirmation prompt with `y`. Manual mode requires
 explicit developer authorization. Both modes require the VM off and retain the
 tool's confirmation and safety checks. Auto restores the accepted baseline and updates Ubuntu; manual
 prepares the current disk state. Both capture `onpc_baseline` after validation.
-The dispatcher uses fixed modules from its pinned trusted checkout and a clean
-environment; trust includes edits to that checkout's setup code. The dependency
+The dispatcher uses fixed modules relative to the invoking repository root and a
+clean environment; trust includes edits to that checkout's setup code. The dependency
 operation runs only the fixed host-package module with noninteractive package
 configuration. Checkout Git settings and the UI virtual environment run afterward
 as the invoking user, outside the privileged dispatcher. Full clean-machine

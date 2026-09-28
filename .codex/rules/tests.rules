@@ -82,10 +82,8 @@ prefix_rule(
         "./tools/run-unit-tests",
         "tools/test-vm",
         "./tools/test-vm",
-        "tools/watch-ui",
-        "./tools/watch-ui",
-        "tools/watchvm",
-        "./tools/watchvm",
+        "tools/watch",
+        "./tools/watch",
         "tools/write-e2e",
         "./tools/write-e2e"
     ]],

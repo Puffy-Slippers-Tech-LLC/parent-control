@@ -12,7 +12,7 @@ import stat
 import sys
 import tempfile
 
-CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
+CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 
 
 def caller():

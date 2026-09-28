@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Installed development-only dispatcher; trust the configured test checkout."""
+"""Installed development-only dispatcher; use the invoking repository root."""
 
 # Disable bytecode in this privileged interpreter as well as its children.
 # Checkout imports must never leave root-owned caches that break package clean.
@@ -38,7 +38,7 @@ def retention_guard(root):
     finally:
         os.close(fd)
 
-CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
+CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 VM_UUID = None  # Pinned from finalized baseline state by install_test_runner.py.
 
 

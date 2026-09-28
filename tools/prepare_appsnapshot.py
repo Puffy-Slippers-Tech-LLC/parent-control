@@ -40,11 +40,11 @@ def main(argv=None):
             check(helper)
             environment = test_launcher.environment(root)
             if args.overwrite == 'false':
-                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent',
+                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
                     helper, 'appsnapshot', '--probe', '--mode', args.mode],
                     cwd=root, env=environment)
                 if status == 4:
-                    return control.run(['/usr/bin/pkexec', '--disable-internal-agent',
+                    return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
                         helper, 'appsnapshot', '--resume', '--mode', args.mode],
                         cwd=root, env=environment)
                 # Missing, expired or differently-mode snapshots require a build.
@@ -63,14 +63,14 @@ def main(argv=None):
                     cwd=root, env=environment)
                 if status:
                     return status
-                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', helper,
+                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                     '--retention-run=' + run, '--unattended', 'appsnapshot',
                     '--overwrite', args.overwrite, '--artifacts', directory,
                     '--mode', args.mode],
                     cwd=root, env=environment, cooperative=True)
             if status or args.mode == 'offline':
                 return status
-            return control.run(['/usr/bin/pkexec', '--disable-internal-agent', helper,
+            return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                 'appsnapshot', '--resume', '--mode', args.mode], cwd=root, env=environment)
     except (ValueError, OSError) as error:
         print('prepare-appsnapshot: ' + str(error), file=sys.stderr)

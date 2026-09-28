@@ -64,6 +64,7 @@ class Category:
     nodeids: tuple[str, ...] | None = None
     phase: str = 'host'
     retry_category: str | None = None
+    count_overall: bool = True
 
     def duration(self, now):
         seconds = self.elapsed + (now - self.started if self.started is not None else 0)
@@ -209,7 +210,7 @@ class Dashboard:
                     lines.extend(self.branches(phase_items, now, item.phase))
             else:
                 lines.append(('│  ' if hosts else '') + self.category(item, now))
-        counted = [item for item in self.categories if item.phase != 'cleanup']
+        counted = [item for item in self.categories if item.phase != 'cleanup' and item.count_overall]
         done = sum(item.done for item in counted)
         known = all(item.total is not None for item in counted)
         total = sum(item.total or 0 for item in counted)
@@ -600,7 +601,7 @@ class Run:
             self.report.write('\nBuild scheduling: ' + ('after host join (serial comparison)' if serial_builds else
                               'qualified host companions') + '\n')
         self.report.write('\nVM backing verification: ' + self.verification_mode + '\n')
-        self.categories = [Category('Discovery and prerequisites', 1)]
+        self.categories = [Category('Discovery and prerequisites', 1, count_overall=False)]
         self.dashboard = Dashboard(self.categories)
         self.dashboard.controller_category = (self.phases[0], 1, len(self.phases))
         self.dashboard.control = control
@@ -883,7 +884,7 @@ class Run:
     def run_vm_only(self):
         """Prepare verified inputs; keep all selected VM work sequential."""
         discovery = self.categories[0]
-        build = Category('Package input preparation', 1)
+        build = Category('Package input preparation', 1, count_overall=False)
         system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
         graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
         self.categories.extend([build, *(item for item in (system, graphical) if item is not None)])

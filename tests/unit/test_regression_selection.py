@@ -21,6 +21,17 @@ def source_identity(monkeypatch):
     monkeypatch.setattr(regression_selection, 'source_identity', lambda _: 'fixed-test-inputs')
 
 
+@pytest.mark.parametrize('action,counted', [('prepare', False), ('build', True)])
+def test_selected_package_preparation_does_not_count_as_tests(tmp_path, action, counted):
+    report = regression.Report(tmp_path)
+    try:
+        run = regression_selection.SelectedRun(tmp_path, report, regression.Control(),
+                                               [('artifacts', [action])])
+        assert run.categories[0].count_overall is counted
+    finally:
+        report.close()
+
+
 def test_edits_during_a_category_do_not_block_later_categories(tmp_path, monkeypatch):
     target = tmp_path / 'source.py'
     target.write_text('before')

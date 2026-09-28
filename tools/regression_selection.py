@@ -40,6 +40,7 @@ class SelectedRun(Run):
                         'Package verification' if kind == 'artifacts' else 'Test fixture verification')
             events = self.events(kind, args)
             item = Category(name, None if events or kind == CLEANUP_SELECTION else 1,
+                            count_overall=not (kind == 'artifacts' and args == ['prepare']),
                             host=kind not in ('system', 'e2e', 'integration'),
                             phase='cleanup' if kind == CLEANUP_SELECTION else 'host')
             if kind == 'e2e' and events:

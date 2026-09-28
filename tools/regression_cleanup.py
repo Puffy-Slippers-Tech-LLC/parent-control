@@ -32,6 +32,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # their independent readback/cleanup remains compatible with other buckets.
 # ZIP reader/refusal additions retain private trees and bounded in-memory ZIPs;
 # no new process, account, socket or shared resource in either scheduler.
+# Source-change checks use tiny private files and process-local transport/write
+# doubles, retaining compatible cleanup and unit scheduling.
 # guest operations with process-local doubles. About's matcher reads repository
 # fixtures in its own Perl child; watcher sockets, processes and signals are
 # mocked. These modules therefore share the same isolation as cleanup buckets.

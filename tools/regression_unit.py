@@ -30,6 +30,8 @@ bounded in-memory bytes and waited private Perl children; compatible in unit
 and cleanup scheduling, with no build, shared cache, bus, display or VM.
 ZIP reader checks use the same private trees and process-local transport doubles,
 with archives bounded to 64 KiB; no new process, socket or shared resource.
+Source-change checks add tiny private files and process-local write/transport
+doubles, retaining compatible unit and cleanup scheduling.
 """
 
 from pathlib import PurePosixPath

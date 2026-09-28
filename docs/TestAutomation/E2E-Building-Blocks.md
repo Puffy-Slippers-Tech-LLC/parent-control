@@ -532,7 +532,7 @@ these blocks, not copies of them.
 | FILE04 | C | Open the file manager directly at a declared directory only when the case tests that launch route or product file-picker integration. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands. | pending |
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text binding ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify the synthetic text/ZIP bindings; see [artifact-read boundary](#customer-artifact-read-boundary). Saved-product bindings remain pending. Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text and ZIP bindings ready; product-exported artifact and retained-work bindings pending |
-| FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | Fixed file commands for source preparation; UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | pending |
+| FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change). UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to case 154; retained-work binding pending |
 | APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 over SSH as the child desktop user without Terminal UI. Never substitute the tested route after failure. | pending |
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | pending |
@@ -586,6 +586,33 @@ remain pending; this slice supplies no case 155 or real Download/Save acceptance
 The affected synthetic text qualification also passed in
 `20260928T050106Z-51ffa8ad`, including both entries, refusal checks, collection,
 owned cleanup and baseline restoration through the shared file-identity reader.
+
+#### Synthetic source change
+
+`change_attachment_source(journey, guard, profile='standard')` in
+[synthetic_files.py](../../tests/e2e/synthetic_files.py) reuses the controller
+created by `fixture_actions` and carries its updated receipt through the same
+cleanup action. The `standard` and `single` profiles change only
+`Synthetic note.txt` from the fixed 26-byte original to the fixed 34-byte
+`ONPC changed synthetic attachment\n`. Other files and the directory identity
+must remain unchanged. No caller-supplied path or content is accepted.
+
+The guest validates the complete original receipt, owner, mode, link count and
+bytes, pins the directory/file descriptors and performs one bounded write.
+Independent guarded SSH readback checks exact changed bytes and the new receipt.
+Uncertain writes latch controller failure, preventing replay and cleanup against
+an obsolete receipt. Traversal, wrong declared owner, symlink, replacement,
+changed original and hard-link probes must refuse without mutation. Cleanup
+accepts only the carried exact receipt and independently confirms absence.
+
+`tools/run-tests integration check_e2e_edit_and_save_an_open_synthetic_document`
+passed in `20260928T050905Z-0e6857aa`: independent standard/single entries,
+changed-content readback, refusal probes and owned cleanup. Collection, worker
+shutdown and baseline restoration passed. The affected FILE05 copy/rename/read/
+cleanup regression `check_e2e_files` passed in `20260928T051104Z-c57dd2ac`.
+Case 154 still owns the real attachment's unchanged public metadata followed
+by Remove/re-add and larger-size observation. This source preparation supplies
+no attachment snapshot or APP03/04 retained-work acceptance.
 
 #### Attachment chooser handoff
 
@@ -1326,8 +1353,10 @@ recipient and GDM09 dismisses; HAR05/06/07/08 separate serial login, command,
 logout and return; FILE02 submits
 and FILE06 observes; FEED07 reads an attachment, FEED12 previews and FEED13
 removes; FEED11 submits and FEED09 observes before FEED14 dismisses success.
-FILE08 opens a customer-selected file, FILE09 edits/saves its already-open
-document, and FEED08 composes download, chooser and archive viewing. An atomic
+FILE08 reads a declared customer artifact, FILE09 changes its declared synthetic
+source, and FEED08 composes download, chooser and independent archive inspection.
+An explicitly retained-work binding instead needs an already-open document's
+observable edit/save and activity comparison; source mutation does not qualify it. An atomic
 block never hides any of those extra inputs. Existing multi-action rows remain
 explicit composites; do not relabel an entire sign-in or approval as atomic.
 Recipes own the order. This prevents a completion wait from blocking required

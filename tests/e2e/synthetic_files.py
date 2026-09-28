@@ -19,7 +19,7 @@ class SyntheticFiles:
 
     def call(self, name):
         require(not self.failed and name not in self.attempted, 'files:replay')
-        require(name in ('stage', 'read', 'copy', 'rename', 'cleanup'), 'files:operation')
+        require(name in ('stage', 'read', 'copy', 'rename', 'cleanup', 'change-source'), 'files:operation')
         self.attempted.add(name)
         self.failed = True  # Includes interrupted or uncertain transport results.
         with operation('Synthetic fixtures: ' + name):
@@ -101,6 +101,49 @@ def fixture_actions(profiles, *, stage='chooser-fixtures', cleanup='chooser-clea
         return {'owned_cleanup': True}
 
     return {stage: prepare, cleanup: release}
+
+
+def change_attachment_source(journey, guard, *, profile='standard'):
+    """Mutate the declared source using its existing chooser lifetime owner."""
+    require(profile in ('standard', 'single'), 'files:source-profile')
+    fixtures = getattr(journey, 'attachment_files', ())
+    matches = [files for files in fixtures if files.profile == profile]
+    require(len(matches) == 1, 'files:source-entry')
+    guard()
+    before = matches[0].previous
+    changed = matches[0].call('change-source')
+    expected = b'ONPC changed synthetic attachment\n'
+    source = changed['files']['Synthetic note.txt']
+    require(source['size'] == len(expected)
+            and source['sha256'] == hashlib.sha256(expected).hexdigest(), 'files:source-content')
+    require(changed['directory'] == before['directory']
+            and set(changed['files']) == set(before['files'])
+            and all(value == before['files'][name] for name, value in changed['files'].items()
+                    if name != 'Synthetic note.txt'), 'files:source-unrelated')
+    return changed
+
+
+def qualify_source_change(journey, guard):
+    for profile in ('standard', 'single'):
+        actions = fixture_actions((profile,))
+        actions['chooser-fixtures'](journey, guard)
+        files = journey.attachment_files[0]
+        receipt = files.previous
+        with operation('Checking synthetic source refusal boundaries'):
+            require(files._command('probe-source', receipt) == {
+                'refused': ['path', 'owner', 'symlink', 'replaced', 'different', 'hardlink'],
+                'owned_cleanup': True}, 'files:source-refusals')
+            require(files._command('read', receipt) == receipt, 'files:source-preserved')
+        changed = change_attachment_source(journey, guard, profile=profile)
+        with operation('Checking source replay refusal'):
+            require(files._command('change-source', changed) == {'refused': True},
+                    'files:source-replay')
+            require(files._command('read', changed) == changed, 'files:source-replay-preserved')
+        actions['chooser-cleanup'](journey, guard)
+        del journey.attachment_files
+        guard()
+    return {'independent_entries': 2, 'profiles': ['standard', 'single'],
+            'exact_changed_content': True, 'wrong_entry_refused': True, 'owned_cleanup': True}
 
 
 def read_declared_zip(transport, receipt, *, attempt, user='onpc-parent-jamie',

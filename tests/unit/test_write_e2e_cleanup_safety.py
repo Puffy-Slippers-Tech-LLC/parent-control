@@ -88,6 +88,11 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
     assert re.search(r'- Total launcher sessions: 1\n─+\n?$',
                      Text.from_ansi(output.getvalue()).plain)
     assert len(calls(root)) == 1
+    invocation = calls(root)[0]
+    assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6-astra'
+    assert 'model_reasoning_effort="low"' in invocation['args']
+    assert 'features.multi_agent=false' in invocation['args']
+    assert 'agents.enabled=false' in invocation['args']
     assert workflow.queue_state(root)[0] == '002'
     state = json.loads((run / 'checkpoint.json').read_text())
     assert state['phase'] == 'complete' and state['live_attempts'] == 1
@@ -195,15 +200,19 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert 'Next session prompt:' in (second / 'handoff.txt').read_text()
     invocations = calls(root)
     assert len({call['pid'] for call in invocations}) == 2
-    for call in invocations:
+    for index, call in enumerate(invocations):
         assert call['thread'] is None
         assert '--ephemeral' in call['args']
         assert not {'resume', 'fork', '--last'} & set(call['args'])
-        assert call['args'][call['args'].index('--model') + 1] == 'gpt-6-sol'
-        assert 'model_reasoning_effort="medium"' in call['args']
-        assert 'agents.max_concurrent_threads_per_session=1' in call['args']
-        assert 'agents.max_depth=1' in call['args']
-        assert 'features.multi_agent=true' in call['args']
+        model, effort = ('gpt-6-astra', 'low') if index == 0 else ('gpt-6-sol', 'medium')
+        assert call['args'][call['args'].index('--model') + 1] == model
+        assert f'model_reasoning_effort="{effort}"' in call['args']
+        if index == 0:
+            assert 'features.multi_agent=false' in call['args']
+        else:
+            assert 'agents.max_concurrent_threads_per_session=1' in call['args']
+            assert 'agents.max_depth=1' in call['args']
+            assert 'features.multi_agent=true' in call['args']
         assert '--output-schema' in call['args']
     assert 'LATEST LIVE HANDOFF' in invocations[1]['prompt']
     assert workflow.queue_state(root)[0] == '002'
@@ -385,6 +394,11 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
     run, _ = workflow.select(root, args)
     assert launcher.follow(run, io.StringIO()) == 0
     assert len(calls(root)) == sessions
+    for index, call in enumerate(calls(root)):
+        # A newly selected task starts on Astra again, even within the same run.
+        model, effort = ('gpt-6-astra', 'low') if index % 2 == 0 else ('gpt-6-sol', 'medium')
+        assert call['args'][call['args'].index('--model') + 1] == model
+        assert f'model_reasoning_effort="{effort}"' in call['args']
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
     assert reason in (run / 'handoff.txt').read_text()
@@ -729,6 +743,9 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     wait_for(root / 'agent-ready-1')
     (run / 'cancel').touch()
     assert launcher.follow(run, io.StringIO()) == 130
+    handoff = (run / 'handoff.txt').read_text()
+    assert 'Continue with GPT-6-Sol Medium and bounded sequential Astra advice' in handoff
+    assert 'Continue with GPT-6-Astra High' not in handoff
     recovered, started = workflow.select(root, ['--sessions', '1'])
     assert started and recovered != run
     assert launcher.follow(recovered, io.StringIO()) == 0

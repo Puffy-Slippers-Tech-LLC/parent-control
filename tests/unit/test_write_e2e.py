@@ -10,13 +10,14 @@ import write_e2e as workflow
 from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
-def test_sequential_adviser_config_preserves_coordinator_and_transport_boundaries(tmp_path, monkeypatch):
+@pytest.mark.parametrize('phase', ['live', 'recover'])
+def test_sequential_adviser_config_preserves_coordinator_and_transport_boundaries(tmp_path, monkeypatch, phase):
     monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/opt/codex')
     # Parse the actual CLI overrides as TOML, including a path containing spaces.
     adviser = tmp_path / 'adviser with spaces.toml'
     adviser.write_bytes(workflow.ADVISER_CONFIG.read_bytes())
-    command = workflow.launcher.agent_command(tmp_path, workflow.MODEL, workflow.EFFORT,
-                                              adviser_config=adviser)
+    monkeypatch.setattr(workflow, 'ADVISER_CONFIG', adviser)
+    command = workflow.session_command(tmp_path, phase)
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert command[command.index('--model') + 1] == 'gpt-6-sol'
     assert config['model_reasoning_effort'] == 'medium'
@@ -40,12 +41,29 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     assert command[-1] == '-' and '--ephemeral' in command
 
 
-@pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
-def test_every_phase_keeps_implementation_and_acceptance_with_sol_medium(phase):
+def test_initial_session_uses_astra_low_without_delegation(tmp_path, monkeypatch):
+    monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/opt/codex')
+    command = workflow.session_command(tmp_path, 'implement', tmp_path)
+    config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
+    assert command[command.index('--model') + 1] == 'gpt-6-astra'
+    assert config['model_reasoning_effort'] == 'low'
+    assert config['features']['multi_agent'] is config['features']['multi_agent_v2'] is False
+    assert config['agents'] == {'enabled': False}
+    assert '--output-schema' in command and '--ephemeral' in command
+    prompt = workflow.session_prompt(workflow.fresh_state('001'))
+    assert 'GPT-6-Astra Low initial implementer' in prompt
+    assert 'Do not spawn subagents in this initial session' in prompt
+    assert 'e2e_adviser agent' not in prompt
+    assert 'Never use Sol High' in prompt
+    assert 'Leave investigation and repairs of this new failure to the next session' in prompt
+
+
+@pytest.mark.parametrize('phase', ['live', 'recover'])
+def test_follow_up_keeps_implementation_and_acceptance_with_sol_medium(phase):
     state = dict(workflow.fresh_state('001'), phase=phase,
                  handoff='Legacy recommendation: continue with Astra High.')
     prompt = workflow.session_prompt(state)
-    assert 'GPT-6-Sol Medium coordinator and implementer in every phase' in prompt
+    assert 'GPT-6-Sol Medium coordinator and implementer for this follow-up session' in prompt
     assert 'Never use Sol High; use GPT-6-Astra Low' in prompt
     assert 'Ignore model recommendations in older handoffs' in prompt
     assert 'delegate one bounded diagnosis or review to the e2e_adviser agent' in prompt

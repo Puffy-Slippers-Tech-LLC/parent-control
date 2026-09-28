@@ -36,6 +36,46 @@ def test_exact_copy_rename_and_independent_cleanup(home):
     assert list(home.iterdir()) == []
 
 
+def test_declared_text_read_and_disposable_refusal_probes(home):
+    receipt = guest.operate(home, 'stage', None)
+    expected = guest.operate(home, 'open-text',
+                             {'receipt': receipt, 'artifact': guest.TEXT_ARTIFACT})
+    assert expected == {'artifact': guest.TEXT_ARTIFACT, 'matched': True,
+                        'size': len(guest.FILES[guest.TEXT_NAME]),
+                        'sha256': receipt['files'][guest.TEXT_NAME]['sha256']}
+    for artifact in ('../synthetic-note', '/synthetic-note', 'unrelated'):
+        with pytest.raises(ValueError):
+            guest.operate(home, 'open-text', {'receipt': receipt, 'artifact': artifact})
+    assert guest.operate(home, 'probe-text', receipt) == {
+        'refused': ['missing', 'symlink', 'replaced', 'empty', 'different', 'oversized'],
+        'owned_cleanup': True}
+    assert guest.operate(home, 'read', receipt) == receipt
+    assert guest.operate(home, 'cleanup', receipt) == {'absent': True}
+    assert list(home.iterdir()) == []
+
+
+def test_declared_text_reader_binds_attempt_and_user_without_transport(home):
+    receipt = guest.operate(home, 'stage', None)
+    calls = []
+
+    def call(argv, **kwargs):
+        calls.append(argv)
+        value = guest.operate(home, argv[-2], json.loads(argv[-1]))
+        return (json.dumps(value, sort_keys=True) + '\n').encode()
+
+    transport = SimpleNamespace(config={'run': 'owned-attempt'}, call=call)
+    expected = controller.read_declared_text(transport, receipt, attempt='owned-attempt')
+    assert expected['matched'] is True
+    assert calls[0][2] == 'onpc-parent-jamie'
+    for options in ({'attempt': 'wrong-attempt'},
+                    {'attempt': 'owned-attempt', 'user': 'onpc-child-alex'},
+                    {'attempt': 'owned-attempt', 'artifact': '../synthetic-note'}):
+        with pytest.raises(EvidenceError):
+            controller.read_declared_text(transport, receipt, **options)
+    assert len(calls) == 1
+    assert guest.operate(home, 'cleanup', receipt) == {'absent': True}
+
+
 # Boundary profiles retain private pytest storage and process-local transports.
 # Each profile is <= 5 MiB+1 on disk; no build, bus, display or shared resource.
 # This module retains its compatible unit AND cleanup classifications.
@@ -224,6 +264,49 @@ def test_qualification_entry_and_prerequisites(monkeypatch):
     assert run.call_args.kwargs['fresh_desktop'] == 'parent'
     with pytest.raises(CommandError, match='synthetic-files-prerequisites'):
         check_graphical_smoke.main(synthetic_files=True)
+
+
+def test_document_open_entry_and_prerequisites(monkeypatch):
+    import check_e2e_document_open
+    import check_graphical_smoke
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_document_open, 'smoke', run)
+    assert check_e2e_document_open.main() == 0
+    assert run.call_args.kwargs['document_open'] is True
+    assert run.call_args.kwargs['fresh_desktop'] == 'parent'
+    with pytest.raises(CommandError, match='document-open-prerequisites'):
+        check_graphical_smoke.main(document_open=True)
+
+
+def test_document_open_qualification_registers_exact_worker_action(tmp_path):
+    from parent_setup_qualification import DocumentOpenQualification
+    context = SimpleNamespace(directory=tmp_path)
+    journey = DocumentOpenQualification.journey(context, Mock())
+    assert journey.plan.worker_mode == 'fresh_parent_desktop'
+    assert journey.plan.stage_actions == {'desktop': 'document-open'}
+    assert journey.actions == {'document-open': controller.qualify_text}
+
+
+def test_document_open_qualification_uses_shared_reader_and_cleans_both_entries(home):
+    operations = []
+
+    def call(argv, **kwargs):
+        operation = argv[-2]
+        operations.append(operation)
+        try:
+            value = guest.operate(home, operation, json.loads(argv[-1]))
+        except (ValueError, OSError):
+            value = {'refused': True}
+        return (json.dumps(value, sort_keys=True) + '\n').encode()
+
+    transport = SimpleNamespace(config={'run': 'owned-attempt'}, call=call)
+    result = controller.qualify_text(SimpleNamespace(transport=transport), lambda: None)
+    assert result['independent_entries'] == 2
+    assert result['fault_matrix_refused'] and result['owned_cleanup']
+    assert operations.count('open-text') == 10
+    assert operations.count('probe-text') == 2
+    assert operations.count('cleanup') == 2
+    assert not list(home.iterdir())
 
 
 def test_chooser_fixture_lifetime_retains_same_controller_and_owned_receipt(monkeypatch):

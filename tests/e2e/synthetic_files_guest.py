@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import stat
 import sys
+import tempfile
 
 DIRECTORY = '.onpc-e2e-synthetic-files'
 FILES = {'Synthetic note.txt': b'ONPC synthetic attachment\n',
@@ -19,6 +20,9 @@ COPY = 'Synthetic copy.txt'
 RENAMED = 'Renamed synthetic note.txt'
 CONTENTS = {**FILES, COPY: FILES['Synthetic note.txt'],
             RENAMED: FILES['Synthetic note.txt']}
+TEXT_ARTIFACT = 'synthetic-note'
+TEXT_NAME = 'Synthetic note.txt'
+TEXT_LIMIT = 1024
 BOUNDARY_PROFILES = {
     'single': {'Synthetic note.txt': FILES['Synthetic note.txt']},
     'count': {f'Count {index}.txt': b'C' for index in range(1, 6)},
@@ -87,9 +91,97 @@ def snapshot(root, contents=CONTENTS):
     return result
 
 
+def read_text(home, request):
+    """Read one declared text artifact against its preparation receipt.
+
+    All path components are fixed here. Open descriptors pin the directory and
+    file while comparing the receipt, reading bytes and checking replacement.
+    """
+    require(type(request) is dict and set(request) == {'receipt', 'artifact'}
+            and request['artifact'] == TEXT_ARTIFACT)
+    receipt = request['receipt']
+    require(type(receipt) is dict and set(receipt) == {'directory', 'files'}
+            and type(receipt['files']) is dict and TEXT_NAME in receipt['files'])
+    expected = receipt['files'][TEXT_NAME]
+    require(type(expected) is dict and set(expected) == {'identity', 'sha256', 'size'})
+    root = home / DIRECTORY
+    home_fd = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        require(identity(os.fstat(home_fd)) == identity(home.lstat()))
+        root_fd = os.open(DIRECTORY, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                          dir_fd=home_fd)
+        try:
+            return _read_text_open(root_fd, home, receipt, expected)
+        finally:
+            os.close(root_fd)
+    finally:
+        os.close(home_fd)
+
+
+def _read_text_open(root_fd, home, receipt, expected):
+    root = home / DIRECTORY
+    root_info = os.fstat(root_fd)
+    require(identity(root_info) == receipt['directory'] and stat.S_ISDIR(root_info.st_mode)
+            and root_info.st_uid == os.getuid() and stat.S_IMODE(root_info.st_mode) == 0o700)
+    before = os.stat(TEXT_NAME, dir_fd=root_fd, follow_symlinks=False)
+    require(identity(before) == expected['identity'] and stat.S_ISREG(before.st_mode)
+            and before.st_uid == os.getuid() and before.st_nlink == 1
+            and stat.S_IMODE(before.st_mode) == 0o600 and 0 < before.st_size <= TEXT_LIMIT)
+    fd = os.open(TEXT_NAME, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root_fd)
+    try:
+        require(identity(os.fstat(fd)) == identity(before))
+        content = os.read(fd, TEXT_LIMIT + 1)
+        require(len(content) == before.st_size and os.read(fd, 1) == b'')
+        require(content == FILES[TEXT_NAME])
+        content.decode('utf-8', errors='strict')
+        require(identity(os.fstat(fd)) == identity(before))
+        require(identity(os.stat(TEXT_NAME, dir_fd=root_fd, follow_symlinks=False)) == identity(before))
+        require(identity(os.fstat(root_fd)) == receipt['directory']
+                and identity(root.lstat()) == receipt['directory'])
+        return {'artifact': TEXT_ARTIFACT, 'matched': True,
+                'size': len(content), 'sha256': hashlib.sha256(content).hexdigest()}
+    finally:
+        os.close(fd)
+
+
+def probe_text_refusals(home):
+    """Finite disposable fault fixtures; never mutate the owned staged file."""
+    faults = ('missing', 'symlink', 'replaced', 'empty', 'different', 'oversized')
+    for fault in faults:
+        with tempfile.TemporaryDirectory(prefix='.onpc-e2e-text-probe-', dir=home) as temporary:
+            probe_home = Path(temporary)
+            probe_root = probe_home / DIRECTORY
+            probe_root.mkdir(mode=0o700)
+            target = probe_root / TEXT_NAME
+            target.write_bytes(FILES[TEXT_NAME])
+            target.chmod(0o600)
+            receipt = snapshot(probe_root)
+            if fault == 'missing':
+                target.unlink()
+            elif fault == 'symlink':
+                target.rename(probe_root / 'preserved')
+                target.symlink_to(probe_root / 'preserved')
+            elif fault == 'replaced':
+                target.rename(probe_root / 'preserved')
+                target.write_bytes(FILES[TEXT_NAME])
+                target.chmod(0o600)
+            elif fault == 'empty':
+                target.write_bytes(b'')
+            elif fault == 'different':
+                target.write_bytes(b'unrelated')
+            elif fault == 'oversized':
+                target.write_bytes(b'x' * (TEXT_LIMIT + 1))
+            try:
+                read_text(probe_home, {'receipt': receipt, 'artifact': TEXT_ARTIFACT})
+            except (ValueError, OSError):
+                continue
+            raise ValueError('files:probe-accepted-' + fault)
+    return {'refused': list(faults), 'owned_cleanup': True}
+
+
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
-    require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent'))
+    require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text'))
     require(profile == 'standard' or profile in BOUNDARY_PROFILES)
     require(profile == 'standard' or operation not in ('copy', 'rename'))
     directory(home)
@@ -108,6 +200,12 @@ def _operate(home, operation, previous, profile):
     root = home / (DIRECTORY + ('' if profile == 'standard' else '-' + profile))
     files = FILES if profile == 'standard' else BOUNDARY_PROFILES[profile]
     contents = CONTENTS if profile == 'standard' else files
+    if operation == 'open-text':
+        require(profile == 'standard')
+        return read_text(home, previous)
+    if operation == 'probe-text':
+        require(profile == 'standard' and snapshot(root) == previous)
+        return probe_text_refusals(home)
     if operation == 'absent':
         require(previous == {'absent': True} and not os.path.lexists(root))
         return {'absent': True}

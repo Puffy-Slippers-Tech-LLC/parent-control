@@ -139,6 +139,8 @@ def test_agent_is_ephemeral_low_astra_with_policy_and_without_parent_context(mon
     assert command[command.index('--model') + 1] == 'gpt-6-astra'
     assert 'model_reasoning_effort="low"' in command
     assert 'features.memories=false' in command and 'history.persistence="none"' in command
+    assert 'agents.enabled=false' in command and 'features.multi_agent=false' in command
+    assert 'features.multi_agent_v2=false' in command
     assert 'workspace-write' in command
     assert '--json' in command
     assert command[command.index('--color') + 1] == 'never'

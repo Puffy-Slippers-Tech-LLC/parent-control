@@ -20,7 +20,9 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
-MODEL = 'gpt-6-astra'
+MODEL = 'gpt-6-sol'
+EFFORT = 'medium'
+ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
 INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
 through host validation and the first live VM test. Close the task if it passes;
@@ -183,11 +185,32 @@ This tools/write-e2e session stops at the phase boundary below.
 
 Treat staged code as the baseline. Do not analyze staged diffs or compare it to
 HEAD; read current source as needed. The launcher owns staging. Do not commit,
-push, publish, start other agents, invoke write-e2e/fix-tests, or access prior
+push, publish, invoke write-e2e/fix-tests, or access prior
 Codex sessions, memories or transcripts.
 Run tests through tools/run-tests for owned cancellation; preserve
 ONPC_WORKFLOW_DIRECTORY. Use maintained launchers/viewers for background work
 and wait for tests and owned cleanup before returning.
+
+You are the GPT-6-Sol Medium coordinator and implementer in every phase.
+Use Sol Medium for settled implementation, mechanical repairs, test execution
+and close-out. Never use Sol High; use GPT-6-Astra Low whenever you would
+otherwise consider Sol High. Ignore model recommendations in older handoffs
+that conflict with this policy.
+For unresolved root cause, security, concurrency, ownership or risky correctness
+questions, delegate one bounded diagnosis or review to the e2e_adviser agent
+using GPT-6-Astra High. Use that same adviser with explicit low reasoning for
+the Astra Low substitution. Do not delegate routine work or the whole task.
+Give it the exact question, relevant file/evidence paths, applicable contracts,
+user decisions and expected deliverable; use a fresh context rather than a full
+conversation fork. Request concise findings, evidence, a proposed correction,
+remaining uncertainty and required regressions. The adviser is read-only.
+No parallel agents or overlapping work: wait for the adviser, collect its result
+and close it before resuming your work or starting another consultation. The
+adviser must not spawn agents, edit files, run tests, control the VM or close tasks.
+You alone implement the settled correction, run all validation, own cleanup,
+update the queue and return the structured result. Check advice against source
+and contracts; advice is not acceptance evidence. Escalate again only for a new
+unresolved question or review of a risky correction, not repeated routine work.
 
 Return the required structured result; only blockers requiring developer action
 return blocked so the launcher pauses for the user's answer. Keep summary under
@@ -222,7 +245,7 @@ that prerequisite in a fresh session without counting this task complete.
         preparation = INITIAL_PROMPT + common + "\nImplement this task and complete host validation.\n"
     else:
         preparation = common + """
-Continue this task with GPT-6-Astra High from the handoff and current source/evidence.
+Continue this task with GPT-6-Sol Medium from the handoff and current source/evidence.
 Start by investigating the previous VM validation error, when present. Review
 unstaged code (including new files) and retained failure evidence, apply the
 repository failure contract and repair authorized defects. For interrupted or
@@ -238,7 +261,8 @@ Use this same validation and handoff boundary in every session, including recove
 After host checks pass, run this task's live VM acceptance, including required
 regressions, under the plan. Wait for validation and owned cleanup to finish.
 If live acceptance fails, preserve failure evidence and return ready_for_vm with
-host_validated true, live_result failed and a fresh handoff for GPT-6-Astra High.
+host_validated true, live_result failed and a fresh handoff for GPT-6-Sol Medium
+with bounded Astra advice when needed under the policy above.
 Leave investigation and repairs of this new failure to the next session; do not
 repair it, retry live acceptance or advance the pointer in this session.
 Do not end a normal session with only host validation: finish live VM validation
@@ -475,14 +499,14 @@ def show_session_limit(state):
     sys.stdout.flush()
 
 
-def execute(root, run, owner, effort):
+def execute(root, run, owner):
     (run / 'agent-result.json').write_text('')
     with launcher.lock(run / 'nested-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         (run / 'nested-closed').unlink(missing_ok=True)
         launcher.atomic(run / 'nested.json', [])
     command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-               '--supervise', str(root), str(run), str(owner), effort]
+               '--supervise', str(root), str(run), str(owner)]
     with subprocess.Popen(command, cwd=root, env=launcher.environment(),
                           stdin=subprocess.PIPE, start_new_session=True,
                           pass_fds=(owner, *launcher.scratch_descriptors())) as child:
@@ -573,7 +597,6 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state.setdefault('started_at', time.time())
             state['task_sessions'] = state.get('task_sessions', 0) + 1
             state.setdefault('progress_keys', []).append(str(count))
-            effort = 'low' if state['phase'] == 'implement' else 'high'
             prompt = session_prompt(state)
             (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
             state.setdefault('stage_baseline', worktree_snapshot(root))
@@ -586,9 +609,9 @@ def worker(root, run, owner, sessions, tasks, state_json):
             progress_lines = session_progress(root, state, total)
             publish_progress(run, str(count), progress_lines)
             print(f"\nwrite-e2e: session {count}{'/' + str(sessions) if sessions else ''}; "
-                  f"task {task}; {MODEL} {effort}", flush=True)
+                  f"task {task}; {MODEL} {EFFORT}", flush=True)
             try:
-                result = execute(root, run, owner, effort)
+                result = execute(root, run, owner)
             finally:
                 candidates = set(state['stage_candidates'])
                 candidates.update(session_changes(root, state['worktree_before']))
@@ -737,7 +760,7 @@ def select(root, argv):
         state = initial_state(root, run.parent)
         # Preflight transport/rendering only; do not spend a model session here.
         from launcher_render import AgentRenderer
-        launcher.agent_command(root, MODEL, 'low')
+        launcher.agent_command(root, MODEL, EFFORT, adviser_config=ADVISER_CONFIG)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.sessions),
                 json.dumps(args.tasks), json.dumps(state)]
@@ -786,8 +809,9 @@ if __name__ == '__main__':
                         json.loads(options[1]), options[2]))
     if mode == '--supervise':
         root, run = Path(root), Path(run)
-        command = launcher.agent_command(root, MODEL, options[0], run,
-                                        schema=Path(__file__).with_name('write_e2e_response.schema.json'))
+        command = launcher.agent_command(root, MODEL, EFFORT, run,
+                                        schema=Path(__file__).with_name('write_e2e_response.schema.json'),
+                                        adviser_config=ADVISER_CONFIG)
         command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_WORKFLOW_DIRECTORY=' + json.dumps(str(run))]
         sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True,
                                     hide_task_completion=True))

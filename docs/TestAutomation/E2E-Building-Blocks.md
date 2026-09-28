@@ -664,6 +664,17 @@ projection, and `FeedbackDraftJourney` requires independent earlier evidence
 before preservation or reset comparisons. DESK10 retains the same window/PID
 and draft across switching. FEED05 reads Privacy without following a link.
 
+Cases and qualifications share the declaration/execution pairs
+`window_switch.window_switch_entry` / `onpc_feedback_read::prepare_window_switch`
+and `feedback_composition.privacy_review` / `onpc_feedback_privacy::review_privacy`.
+The former observes Parent, launches the supporting viewer once, then returns
+through the guarded existing-window operation. The latter opens Privacy and
+closes it through UI18 before independently comparing the returned draft.
+Callers select the qualified draft profile and own phase boundaries, independent
+entry/refusal checks and later preservation/reset assertions. Invocation prefixes
+rename evidence, not operations; window comparisons resolve the plan's operation
+so a renamed invocation cannot bypass identity or draft checks.
+
 FEED10 reuses `preserve_dialog` and `app_exit`; the latter and `onpc_window::close`
 accept a unique invocation prefix for repeated close proofs. Parent relaunch
 must expose empty body/reply, no user files, no block/link semantics and normal
@@ -2968,6 +2979,8 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | A generic row activation looks like a preview (038b) | Prove the app's offered capability through its public availability and action contract first. Record an explicit inapplicable result and an independently unchanged list when no preview is offered; do not invent an external-editor route or claim offered-preview coverage. |
 | Rich text is exposed through different public structures (034aa/034ab/034a) | Probe real block semantics, inline Text attributes and Hyperlink text/URI independently before composing all formats. Associate each with exact unique synthetic ranges; Hyperlink indices are local embedded-object positions, not editor-global offsets. Regress linked and unlinked ranges, removal preserving text and independent reopen. |
 | A reset check could accidentally restore the draft it is meant to inspect (030a) | Capture a nonempty draft, compose the shared app lifecycle, then independently read the empty result before any restorative input. Keep dialog preservation and app-exit reset as separate assertions; extend profiles explicitly for formatted/file-bearing consumers. |
+| A supporting viewer command succeeds before its public window is ready (034) | Keep launch and observation as separate states in the shared adapter. Submit once, retry only read-only observations within the existing deadline, require a complete snapshot for acceptance, and refuse wrong ownership or ambiguity immediately. Regress delayed appearance, terminal refusal and command timeout with an exact one-launch assertion; never retry the whole operation to fix a slow result. |
+| Individually qualified draft operations must preserve a combined formatted/file-bearing draft (034) | Before the live case, carry the complete profile through the real decoder and recorder: text/reply, formatting/link meaning, exact attachment list and window identity. Exercise dialog return and app-exit reset independently; helper success alone does not prove the combined history. Reuse the same Privacy/window preparation fragments in qualifications and cases. |
 
 ### Composition preflight
 
@@ -3015,8 +3028,13 @@ Before the first live attempt, check the changed boundary end to end on the host
    Include capability qualifications in this review: future cases must import
    shared operations and comparisons, not inherit a qualification's private
    fixture lifecycle. Keep the finite recipe in its owner and test the shared
-   fragment from an independent caller with renamed invocation IDs. The
-   attachment composition guard covers this boundary before case 152 exists.
+   fragment from an independent caller with renamed invocation IDs. Keep the
+   inventory-driven composition guard and shared-fragment regressions together:
+   neither allowlisted imports nor a passing case prove independent reuse.
+   Resolve comparisons through the declared operation, not a case's stage-name
+   spelling: a renamed invocation must still reject a changed window or draft.
+   Preserve the full worker event order in regression tests when extracting a
+   fragment, including failure at each boundary before any later input.
 
 At close-out, fold a newly demonstrated recurring trap into its existing helper,
 regression and owning contract. Correct obsolete capability limits and the next

@@ -5,6 +5,17 @@ from feedback_rejection import text_stages
 from private_artifacts import require
 from ui_observations import FeedbackObservation, FeedbackStateObservation
 from window_switch import WindowSwitchJourney
+import re
+
+
+def privacy_review(*, profile='synthetic-first', prefix=''):
+    """FEED05: inspect Privacy and independently compare the returned draft."""
+    require(profile in ('synthetic-first', 'formatted-file'), 'feedback:privacy-profile')
+    require(isinstance(prefix, str) and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
+            'feedback:privacy-invocation')
+    operation_prefix = 'draft-' if profile == 'formatted-file' else ''
+    return {prefix + stage: 'ui:' + operation_prefix + stage
+            for stage in ('feedback-privacy-open', 'feedback-privacy-returned')}
 
 
 def text_fragment(binding, prefix=None):

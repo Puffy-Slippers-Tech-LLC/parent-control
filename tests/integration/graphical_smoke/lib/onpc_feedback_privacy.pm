@@ -57,6 +57,18 @@ sub preserve_dialog {
     return $reopened;
 }
 
+sub review_privacy {
+    onpc_progress::operation('Reading Privacy and independently comparing the returned draft');
+    my ($journey, $invocation) = @_;
+    $invocation //= '';
+    die 'feedback:arguments' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    my $returned = onpc_window::close($journey, 'feedback-privacy',
+        $journey->seen($invocation . 'feedback-privacy-open'), $invocation);
+    $journey->consume_observation($invocation . 'feedback-privacy-returned', $returned);
+    return $returned;
+}
+
 sub run {
     onpc_progress::operation('Reviewing local feedback through the declared composition');
     my ($exchange, $flow) = @_;
@@ -72,10 +84,9 @@ sub run {
     $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
     onpc_text::replace_text($journey, $_) for ('body-first', 'reply-first');
     $journey->consume_observation('feedback-draft', $journey->seen('feedback-draft'));
-    my $returned = onpc_window::close($journey, 'feedback-privacy', $journey->seen('feedback-privacy-open'));
-    $journey->consume_observation('feedback-privacy-returned', $returned);
+    review_privacy($journey);
     preserve_dialog($journey, $journey->seen('feedback-draft-reread'));
-    $returned = onpc_window::close($journey, 'feedback-privacy-independent', $journey->seen('privacy-independent'));
+    my $returned = onpc_window::close($journey, 'feedback-privacy-independent', $journey->seen('privacy-independent'));
     $journey->consume_observation('privacy-independent-returned', $returned);
     $journey->finish();
 }
@@ -87,10 +98,7 @@ sub _draft {
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
-    for my $stage ('switch-parent-before', 'switch-viewer-launch') {
-        $journey->consume_observation($stage, $journey->seen($stage));
-    }
-    onpc_feedback_read::activate_existing_window($journey, 'switch-parent');
+    onpc_feedback_read::prepare_window_switch($journey);
     $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
     onpc_text::replace_text($journey, $_) for ('body-blocks', 'reply-first');
     $journey->consume_observation('formats-before', $journey->seen('formats-before'));
@@ -102,8 +110,7 @@ sub _draft {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
     onpc_feedback_read::activate_existing_window($journey, $_) for ('switch-viewer', 'switch-feedback');
-    my $returned = onpc_window::close($journey, 'feedback-privacy', $journey->seen('feedback-privacy-open'));
-    $journey->consume_observation('feedback-privacy-returned', $returned);
+    review_privacy($journey);
     preserve_dialog($journey, $journey->seen('feedback-draft-reread'));
     app_exit($journey, $journey->seen('reset-feedback-draft-reread'), 'reset-');
     $journey->seen('feedback-reread');
@@ -117,8 +124,7 @@ sub _validation {
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
-    onpc_feedback_states::rejection_observe($journey, $_) for ('switch-parent-before', 'switch-viewer-launch');
-    onpc_feedback_read::activate_existing_window($journey, 'switch-parent');
+    onpc_feedback_read::prepare_window_switch($journey);
     onpc_feedback_states::rejection_observe($journey, $_) for ('feedback-open', 'feedback-state-empty');
     onpc_feedback_states::edit_states($journey);
     onpc_text::replace_text($journey, 'reply-clear', 'length-reply-clear');
@@ -148,8 +154,7 @@ sub _validation {
     onpc_feedback_states::rejection_observe($journey, $_) for ('review-valid', 'switch-draft-before');
     onpc_feedback_read::activate_existing_window($journey, $_) for ('switch-viewer', 'switch-feedback');
     onpc_feedback_states::rejection_observe($journey, 'feedback-draft');
-    my $returned = onpc_window::close($journey, 'feedback-privacy', $journey->seen('feedback-privacy-open'));
-    $journey->consume_observation('feedback-privacy-returned', $returned);
+    review_privacy($journey);
     preserve_dialog($journey, $journey->seen('feedback-draft-reread'));
     $journey->finish();
 }

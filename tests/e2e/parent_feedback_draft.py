@@ -1,17 +1,17 @@
 """Case 152: formatted one-file draft preservation and app-exit reset."""
 from attachment_composition import file_handoff
-from feedback_composition import FeedbackDraftJourney, text_fragment
+from feedback_composition import FeedbackDraftJourney, privacy_review, text_fragment
 from feedback_formats import all_formats, format_stages
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop
 from synthetic_files import fixture_actions
+from window_switch import window_switch_entry
 
 ENTRY = {
     **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
     **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
-        'switch-parent-before', 'switch-viewer-launch', 'switch-parent-ready', 'switch-parent',
-        'feedback-open')},
+        'parent-window', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected')},
+    **window_switch_entry(), 'feedback-open': 'ui:feedback-open',
 }
 EDIT = {
     **text_fragment('body-blocks'), **text_fragment('reply-first'),
@@ -24,8 +24,8 @@ REVIEW = {
     'switch-draft-before': 'ui:draft-switch-draft-before',
     'switch-viewer-ready': 'ui:switch-viewer-ready', 'switch-viewer': 'ui:switch-viewer',
     'switch-feedback-ready': 'ui:switch-feedback-ready', 'switch-feedback': 'ui:draft-switch-feedback',
-    **{stage: 'ui:draft-' + stage for stage in (
-        'feedback-privacy-open', 'feedback-privacy-returned', 'feedback-draft-reread')},
+    **privacy_review(profile='formatted-file'),
+    'feedback-draft-reread': 'ui:draft-feedback-draft-reread',
     'feedback-draft-closed': 'ui:feedback-draft-closed',
     'feedback-draft-reopen': 'ui:draft-feedback-draft-reopen',
     'reset-feedback-draft-reread': 'ui:draft-feedback-draft-reread',

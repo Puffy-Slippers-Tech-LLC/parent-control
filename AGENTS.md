@@ -51,7 +51,8 @@
   feedback API-related application code.
 - Choose the implementation model by the current slice: Sol for settled work;
   Astra for unresolved security, concurrency, ownership, difficult diagnosis or
-  broad correctness review. Prefer quality, then weekly allowance.
+  broad correctness review. Never use Sol High; use Astra Low whenever Sol High
+  would otherwise be considered. Prefer quality, then weekly allowance.
 
 ## Test and customer acceptance
 

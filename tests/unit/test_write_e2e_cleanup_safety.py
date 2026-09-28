@@ -152,7 +152,7 @@ def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout,
     assert len(recorded) == 3
     assert 'Task 000a:' in recorded[1]['prompt']
     assert 'Task 001:' in recorded[2]['prompt']
-    assert 'model_reasoning_effort="high"' in recorded[2]['args']
+    assert 'model_reasoning_effort="medium"' in recorded[2]['args']
     state = json.loads((final / 'checkpoint.json').read_text())
     assert state['task_id'] == '001' and state['task_sessions'] == 2
     assert workflow.queue_state(root) == ('002', {'000a': True, '001': True, '002': False})
@@ -195,12 +195,15 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert 'Next session prompt:' in (second / 'handoff.txt').read_text()
     invocations = calls(root)
     assert len({call['pid'] for call in invocations}) == 2
-    for call, effort in zip(invocations, ['low', 'high']):
+    for call in invocations:
         assert call['thread'] is None
         assert '--ephemeral' in call['args']
         assert not {'resume', 'fork', '--last'} & set(call['args'])
-        assert call['args'][call['args'].index('--model') + 1] == 'gpt-6-astra'
-        assert f'model_reasoning_effort="{effort}"' in call['args']
+        assert call['args'][call['args'].index('--model') + 1] == 'gpt-6-sol'
+        assert 'model_reasoning_effort="medium"' in call['args']
+        assert 'agents.max_concurrent_threads_per_session=1' in call['args']
+        assert 'agents.max_depth=1' in call['args']
+        assert 'features.multi_agent=true' in call['args']
         assert '--output-schema' in call['args']
     assert 'LATEST LIVE HANDOFF' in invocations[1]['prompt']
     assert workflow.queue_state(root)[0] == '002'
@@ -732,11 +735,11 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     invocations = calls(root)
     invocation = invocations[1]
     assert invocation['pid'] != invocations[0]['pid']
-    assert 'model_reasoning_effort="high"' in invocation['args']
+    assert 'model_reasoning_effort="medium"' in invocation['args']
     progress = json.loads((recovered / 'progress.json').read_text())
     assert progress['task_id'] == '001' and progress['phase'] == 'recover'
     prompt = ' '.join(invocation['prompt'].split())
-    assert 'Continue this task with GPT-6-Astra High' in prompt
+    assert 'Continue this task with GPT-6-Sol Medium' in prompt
     assert "run this task's live VM acceptance" in prompt
     assert str(run) in prompt
     assert workflow.queue_state(root) == ('002' if live == 'passed' else '001',

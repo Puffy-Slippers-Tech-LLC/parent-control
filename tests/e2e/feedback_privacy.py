@@ -5,6 +5,7 @@ from journey_blocks import fresh_desktop
 from private_artifacts import require
 from ui_observations import FeedbackObservation
 from accessible_ui import TEXT_OPERATIONS
+from feedback_composition import privacy_review
 
 SCREENS = {
     **fresh_desktop('parent'),
@@ -14,7 +15,9 @@ SCREENS = {
         'parent-selected', 'feedback-close-refused', 'feedback-open',
         *(stage for stage, (binding, _) in TEXT_OPERATIONS.items()
           if binding in ('body-first', 'reply-first')),
-        'feedback-draft', 'feedback-privacy-open', 'feedback-privacy-returned',
+        'feedback-draft')},
+    **privacy_review(),
+    **{stage: 'ui:' + stage for stage in (
         'feedback-draft-reread', 'feedback-draft-closed',
         'feedback-draft-reopen')},
     'privacy-independent': 'ui:feedback-privacy-open',

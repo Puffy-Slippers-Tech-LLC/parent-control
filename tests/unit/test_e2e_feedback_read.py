@@ -47,6 +47,81 @@ from ui_observations import FeedbackStateObservation
 # Perl/Python children; there are no new shared resources or scheduler changes.
 # Viewer-launch retries use only in-memory observers and mocked commands/clocks;
 # they retain the compatible unit bucket and create no processes or shared state.
+# Shared review fragments retain those same private, waited Perl children and
+# in-memory observers; no scheduler or resource admission change is needed.
+
+
+@pytest.mark.parametrize('fragment', ['window', 'privacy'])
+@pytest.mark.parametrize('prefix', ['', 'independent-'])
+def test_review_fragments_match_declarations_and_stop_before_later_input(fragment, prefix):
+    from tests.support.perl import run_perl
+    from window_switch import window_switch_entry
+    from feedback_composition import privacy_review
+    stages = list(window_switch_entry(prefix) if fragment == 'window'
+                  else privacy_review(prefix=prefix))
+    script = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @events, ['key', @_]; }
+package main;
+require onpc_feedback_read;
+require onpc_feedback_privacy;
+my ($fragment, $prefix, $fault, @stages) = @ARGV;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, ['stage', $_[0]];
+    die 'proof refused' if $_[0] eq $fault;
+    return {observed => $_[0]};
+});
+$journey->declare_invocations(\@stages) if length $prefix;
+my $ok = eval {
+    if ($fragment eq 'window') { onpc_feedback_read::prepare_window_switch($journey, $prefix); }
+    else { onpc_feedback_privacy::review_privacy($journey, $prefix); }
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, error => "$@", events => \@events});
+'''
+    success = json.loads(run_perl(script, fragment, prefix, '', *stages).stdout)
+    assert success['ok'], success['error']
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    assert [event for event in success['events'] if event[0] == 'key'] == [
+        ['key', 'alt-tab' if fragment == 'window' else 'alt-f4']]
+    for stage in stages:
+        result = json.loads(run_perl(script, fragment, prefix, stage, *stages).stdout)
+        assert not result['ok'] and 'proof refused' in result['error']
+        assert result['events'] == success['events'][:success['events'].index(['stage', stage]) + 1]
+    result = json.loads(run_perl(script, fragment, 'bad prefix', '', *stages).stdout)
+    assert not result['ok'] and not result['events']
+
+
+def test_window_history_uses_declared_operations_for_renamed_invocations():
+    from installed_journey import JourneyPlan
+    from window_switch import WindowSwitchJourney, window_switch_entry
+    plan = JourneyPlan(prefix='consumer', worker_mode='consumer', phases={},
+                       screen_tags=window_switch_entry('independent-'))
+    journey = WindowSwitchJourney(SimpleNamespace(), Mock(), plan)
+    parent = {'binding': 'parent', 'pid': 42, 'endpoint': [':1.42', '/window'], 'active': True}
+    journey.check_settings('independent-switch-parent-before', {'ui': {'window': dict(parent)}})
+    journey.check_settings('independent-switch-parent-ready', {'ui': {'window': {**parent, 'active': False}}})
+    journey.check_settings('independent-switch-parent', {'ui': {'window': dict(parent)}})
+    with pytest.raises(EvidenceError, match='window-or-draft-changed'):
+        journey.check_settings('independent-switch-parent', {'ui': {'window': {**parent, 'pid': 43}}})
+
+
+def test_review_fragments_reject_unregistered_profiles_and_invalid_invocations():
+    from feedback_composition import privacy_review
+    from window_switch import window_switch_entry
+    for prefix in ('bad prefix', 'missing-dash', None):
+        with pytest.raises(EvidenceError):
+            privacy_review(prefix=prefix)
+        with pytest.raises(EvidenceError):
+            window_switch_entry(prefix)
+    with pytest.raises(EvidenceError, match='privacy-profile'):
+        privacy_review(profile='unknown')
+    assert list(privacy_review(profile='formatted-file').values()) == [
+        'ui:draft-feedback-privacy-open', 'ui:draft-feedback-privacy-returned']
 
 
 def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch):

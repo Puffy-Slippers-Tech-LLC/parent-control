@@ -10,12 +10,28 @@ use testapi ();
 
 sub activate_existing_window {
     onpc_progress::operation('Activating an existing owned window');
-    my ($journey, $stage) = @_;
-    die 'switch:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && $stage =~ /^switch-(parent|viewer|feedback|viewer-again|feedback-again|viewer-close)$/;
+    my ($journey, $stage, $invocation) = @_;
+    $invocation //= '';
+    die 'switch:binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && $stage =~ /^switch-(parent|viewer|feedback|viewer-again|feedback-again|viewer-close)$/
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    $stage = $invocation . $stage;
     $journey->consume_observation($stage . '-ready', $journey->seen($stage . '-ready'));
     testapi::send_key('alt-tab');
     $journey->consume_observation($stage, $journey->seen($stage));
+}
+
+sub prepare_window_switch {
+    onpc_progress::operation('Preparing an observed secondary window and returning to Parent');
+    my ($journey, $invocation) = @_;
+    $invocation //= '';
+    die 'switch:arguments' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    for my $name ('switch-parent-before', 'switch-viewer-launch') {
+        my $stage = $invocation . $name;
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    activate_existing_window($journey, 'switch-parent', $invocation);
 }
 
 sub run_window_switch {
@@ -26,10 +42,7 @@ sub run_window_switch {
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
-    for my $stage ('switch-parent-before', 'switch-viewer-launch') {
-        $journey->consume_observation($stage, $journey->seen($stage));
-    }
-    activate_existing_window($journey, 'switch-parent');
+    prepare_window_switch($journey);
     $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
     onpc_text::replace_text($journey, 'body-first');
     onpc_text::replace_text($journey, 'reply-first');

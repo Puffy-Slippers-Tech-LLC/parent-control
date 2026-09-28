@@ -37,7 +37,9 @@ APIS = {
     'package_install': {'check_install_result'},
     'package_journey': {'record_package_journey'},
     'ui_observations': {'SettingsObservation'},
-    'feedback_composition': {'FeedbackValidationJourney', 'FeedbackDraftJourney', 'text_fragment'},
+    'feedback_composition': {'FeedbackValidationJourney', 'FeedbackDraftJourney', 'text_fragment',
+                             'privacy_review'},
+    'window_switch': {'window_switch_entry'},
     'feedback_formats': {'all_formats', 'format_stages'},
     'feedback_length': {'length_boundary'},
     'feedback_states': {'edit_states'},
@@ -71,13 +73,14 @@ WORKER_APIS = {
     'onpc_request_flow': {'prepare', 'reject', 'approve'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
-    'onpc_feedback_privacy': {'app_exit', 'preserve_dialog'},
+    'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child'},
     'onpc_text': {'replace_text'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
                              'input_hidden', 'input_complex'},
-    'onpc_feedback_read': {'activate_existing_window', 'supply_files', 'boundary_batch'},
+    'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
+                            'supply_files', 'boundary_batch'},
 }
 
 

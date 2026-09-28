@@ -100,3 +100,27 @@ def test_controller_loss_precedes_any_new_connection_or_forwarding():
     with patch.object(worker.select, 'select', return_value=([control, bridge.listener], [], [])):
         assert not bridge.step(control)
     bridge.listener.accept.assert_not_called()
+
+
+@pytest.mark.parametrize('index', [0, 1])
+@pytest.mark.parametrize('failure', ['eof', 'connection-error'])
+def test_bridge_disconnect_identifies_failed_leg_without_payload(index, failure, capsys):
+    # Process-local doubles only; retain the existing unit/cleanup scheduling.
+    bridge = worker.Bridge.__new__(worker.Bridge)
+    bridge.listener, control = Mock(), Mock()
+    endpoints = [Mock(), Mock()]
+    bridge.ends = endpoints
+    bridge.pending = [bytearray(b'private-input'), bytearray(b'private-display')]
+    if failure == 'eof':
+        endpoints[index].recv.return_value = b''
+    else:
+        endpoints[index].recv.side_effect = ConnectionResetError('private-error')
+    with patch.object(worker.select, 'select', return_value=([endpoints[index]], [], [])):
+        assert bridge.step(control)
+    assert bridge.ends == [] and bridge.pending == [bytearray(), bytearray()]
+    for endpoint in endpoints:
+        endpoint.close.assert_called_once()
+        endpoint.send.assert_not_called()
+    leg = ('backend', 'display')[index]
+    assert capsys.readouterr().err == (
+        f'graphical-worker: [display-disconnected endpoint={leg} reason={failure}]\n')

@@ -460,6 +460,24 @@ class BusNode:
     def get_text_iface(self):
         return self.interface('Text')
 
+    def get_hyperlink(self):
+        return self.interface('Hyperlink')
+
+    def get_n_anchors(self):
+        return self.property('NAnchors', 'Hyperlink')
+
+    def get_start_index(self):
+        return self.property('StartIndex', 'Hyperlink')
+
+    def get_end_index(self):
+        return self.property('EndIndex', 'Hyperlink')
+
+    def get_uri(self, index):
+        return self.call('Hyperlink', 'GetURI', 'i', (index,))
+
+    def is_valid(self):
+        return self.call('Hyperlink', 'IsValid')
+
     def get_editable_text_iface(self):
         return self.interface('EditableText')
 

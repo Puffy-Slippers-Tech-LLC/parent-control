@@ -33,6 +33,12 @@ def log(event):
     print('graphical-worker: [' + event + ']', file=sys.stderr, flush=True)
 
 
+def log_disconnect(index, reason):
+    """Identify the failed transport leg without recording protocol bytes."""
+    endpoint = ('backend', 'display')[index]
+    log('display-disconnected endpoint=' + endpoint + ' reason=' + reason)
+
+
 def namespace_ids():
     # These are our own namespace identities, never a process ownership scan.
     return tuple(os.stat('/proc/self/ns/' + name).st_ino for name in NAMESPACES)
@@ -139,7 +145,7 @@ class Bridge:
                     data = endpoint.recv(min(65536, LIMIT - len(self.pending[1 - index])))
                     if not data:
                         self.disconnect()
-                        log('display-disconnected')
+                        log_disconnect(index, 'eof')
                         break
                     self.pending[1 - index].extend(data)
                 if endpoint in writable:
@@ -147,7 +153,7 @@ class Bridge:
                     del self.pending[index][:sent]
         except (ConnectionError, BrokenPipeError):
             self.disconnect()
-            log('display-disconnected')
+            log_disconnect(index, 'connection-error')
         return True
 
     def close(self):

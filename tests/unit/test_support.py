@@ -17,6 +17,47 @@ from tests.support.terminal import capture
 from tests.support.preview import boot_preview_session
 
 
+@pytest.mark.parametrize('fault', ['', 'recipient', 'partial', 'uncertain'])
+def test_bounded_cursor_movement_preserves_recipient_and_single_use(monkeypatch, fault):
+    # In-memory doubles; no new paths, processes, displays or scheduling resource.
+    from unittest.mock import Mock
+    from tests.support import keyboard
+    key = Mock(side_effect=[None, RuntimeError('partial')] if fault == 'partial' else None)
+    dogtail = ModuleType('dogtail')
+    dogtail.rawinput = SimpleNamespace(keyCombo=key)
+    monkeypatch.setitem(sys.modules, 'dogtail', dogtail)
+    configuration = ModuleType('dogtail.config')
+    configuration.config = SimpleNamespace(action_delay=1)
+    monkeypatch.setitem(sys.modules, 'dogtail.config', configuration)
+    node = Mock()
+    node.get_state_set.return_value.contains.return_value = fault != 'recipient'
+    ui = SimpleNamespace(input_uncertain=fault == 'uncertain', id_target=Mock(return_value=node),
+                         api=SimpleNamespace(StateType=SimpleNamespace(FOCUSED='focused')))
+    if fault:
+        with pytest.raises((AssertionError, RuntimeError)):
+            keyboard.repeat_cursor(ui, 'owned-editor', '<Shift>Right', 3)
+        assert key.call_count == (2 if fault == 'partial' else 0)
+        if fault == 'partial':
+            assert ui.input_uncertain
+            with pytest.raises(AssertionError, match='uncertain'):
+                keyboard.repeat_cursor(ui, 'owned-editor', '<Shift>Right', 3)
+            assert key.call_count == 2
+    else:
+        keyboard.repeat_cursor(ui, 'owned-editor', '<Shift>Right', 3)
+        assert [call.args for call in key.call_args_list] == [('<Shift>Right',)] * 3
+        ui.id_target.assert_called_once_with('owned-editor')
+        assert not ui.input_uncertain
+    assert configuration.config.action_delay == 1
+
+
+@pytest.mark.parametrize('keys,count', [('Return', 2), ('Right', -1), ('Right', 129),
+                                       ('Right', True), ('Right', 1.5)])
+def test_cursor_batches_refuse_unbounded_or_transition_input(keys, count):
+    from tests.support.keyboard import repeat_cursor
+    with pytest.raises(ValueError, match='bounded cursor'):
+        repeat_cursor(None, 'owned-editor', keys, count)
+
+
 @pytest.mark.parametrize('failure', [False, True])
 def test_paced_keyboard_input_is_single_use_and_latches_partial_delivery(monkeypatch, failure):
     # Process-local doubles only; no real input, delay, display or added resource.

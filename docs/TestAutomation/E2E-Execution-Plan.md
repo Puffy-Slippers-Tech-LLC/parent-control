@@ -19,41 +19,27 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **034a — [Qualify remaining feedback formatting operations](E2E-Tasks/034a-feedback-formats.md)**.
+Next task: **034 — [E2E-031: draft-reopen](E2E-Tasks/034-case-152.md)**.
 
-Task 034ab qualified linked bold/italic/underline/strike on `Plain`, its exact
-destination and adjacent normal text through `check_e2e_feedback_link_semantics`
-in `20260928T000001Z-b07e2a8f`, including independent reopen and wrong-entry refusal.
-The shared reader associates unique public link text and uses its observed
-embedded width for root attribute/selection boundaries, never its local start
-index as an editor offset. Host removal, undo/redo and restoration pass.
-Required format/rejection regressions passed in `20260928T000512Z-196ba37b` and
-`20260928T000805Z-44ce5cac`; collection, owned cleanup and baseline restoration
-passed throughout. Reuse `feedback_formats.read` / `root_offset`,
-`onpc_format::apply_inline` and `FeedbackLinkJourney`.
+Task 034a qualified the complete `body-blocks` format/removal composition through
+`check_e2e_feedback_formats` in `20260928T005139Z-951ec3ec`: heading levels 1/2,
+numbered/bulleted lists, quote, code, all four inline styles, exact link
+text/destination, unchanged text after removal, independent reopen and
+wrong-entry refusal. Bold and rejection regressions passed in
+`20260928T005856Z-1f56e149` and `20260928T010152Z-75515a1c`; collection,
+owned cleanup and baseline restoration passed throughout.
+Reuse `onpc_format::apply_all` / `apply_inline`,
+`feedback_formats.read` / `operate` / `root_offset` and the qualified
+`block_semantics` binding. Public semantic structure associated with exact
+text ranges complements the independent inline and link proof; no DOM,
+private-draft, toolbar-only or cosmetic substitution is permitted.
 
-Task 034 remains unchecked: task 034a supplies the remaining link/removal
-observations and complete finite all-format composition before case 152.
-Neither task 034a nor case 152 has had a live attempt.
-
-Task 034aa qualified customer-facing heading levels 1/2, numbered/bulleted list
-items, quote and code semantics with exact `body-blocks` text association through
-`check_e2e_feedback_block_semantics` in `20260927T220402Z-60e41f1b`.
-Independent reopen, wrong-entry refusal, collection, owned cleanup and baseline
-restoration passed. Required `check_e2e_format` and `check_e2e_feedback_rejection`
-regressions passed in `20260927T221053Z-796e5c0f` and
-`20260927T221352Z-4432e213`. Reuse `onpc_format::apply_block`,
-`AccessibleUI.block_operation` / `block_semantics` and the bounded public-tree
-reader in `tests/e2e/block_semantics.py`; the temporary prototype is removed.
-
-Task 030a qualified FEED10 Parent app-exit reset from `synthetic-first` through
-`check_e2e_feedback_reset` in `20260927T205202Z-fc8560e8`. The reopened draft had
-empty body/reply fields and no customer-selected files, with fresh default
-diagnostics. The affected dialog-preservation regression passed in
-`20260927T205545Z-2fd1c308`; collection, owned cleanup and baseline restoration
-passed for both. Reuse the shared reset/dialog callables and qualified attachment
-profiles. Case 152's complete formatted, one-file preservation/reset history
-remains pending. No valid feedback submission is authorized.
+Case 152 remains pending and has had no live attempt. Compose its formatted,
+one-file draft, synthetic reply address, Privacy, close/reopen preservation and
+Parent exit/relaunch reset using shared operations. Task 030a's FEED10
+qualification covers `synthetic-first` without customer-selected files; extend
+the shared observation profiles for this complete history. No Send or link
+navigation is authorized.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

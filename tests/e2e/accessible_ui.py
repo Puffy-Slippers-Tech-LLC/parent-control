@@ -228,6 +228,11 @@ FORMAT_OPERATIONS = frozenset({
 })
 OPERATIONS |= FORMAT_OPERATIONS
 import block_semantics
+import feedback_formats
+TEXT_VALUES['link-target'] = ('feedback-link-target', feedback_formats.LINK)
+TEXT_VALUES['link-initial'] = ('feedback-link-target', block_semantics.BODY[
+    feedback_formats.START:feedback_formats.END])
+OPERATIONS |= feedback_formats.OPERATIONS
 TEXT_VALUES['body-blocks'] = ('feedback-editor-input', block_semantics.BODY)
 OPERATIONS |= block_semantics.OPERATIONS
 WINDOW_SWITCH_OPERATIONS = frozenset({
@@ -6825,6 +6830,10 @@ class AccessibleUI:
             result['window'] = self.window_switch_operation(operation)
             if operation == 'switch-viewer-launch':
                 result['provider'] = self.license_provider_metadata()
+        elif operation in feedback_formats.OPERATIONS:
+            formats = feedback_formats.operate(self, operation, require, UiError)
+            if formats is not None:
+                result['formats'] = formats
         elif operation in block_semantics.OPERATIONS:
             blocks = self.block_operation(operation)
             if blocks is not None:

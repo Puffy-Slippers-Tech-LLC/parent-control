@@ -663,7 +663,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
-         synthetic_files=False, document_open=False, file_chooser=False, attachment_items=False, attachment_preview=False,
+         synthetic_files=False, document_open=False, archive_open=False, file_chooser=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False):
     require(type(feedback_link_semantics) is bool and not (feedback_link_semantics and (
@@ -691,13 +691,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(file_chooser) is bool and not (file_chooser and (
         feedback_read or feedback_privacy or feedback_states or format_qualification
         or window_switch or feedback_rejection or feedback_length or synthetic_files
-        or document_open)),
+        or document_open or archive_open)),
         'smoke:file-chooser-prerequisites')
     require(type(synthetic_files) is bool and (not synthetic_files or fresh_desktop == 'parent'),
             'smoke:synthetic-files-prerequisites')
     require(type(document_open) is bool and (not document_open or
             (fresh_desktop == 'parent' and not synthetic_files)),
             'smoke:document-open-prerequisites')
+    require(type(archive_open) is bool and (not archive_open or
+            (fresh_desktop == 'parent' and not synthetic_files and not document_open)),
+            'smoke:archive-open-prerequisites')
     require(type(feedback_length) is bool and not (feedback_length and (
         feedback_read or feedback_privacy or feedback_states or format_qualification
         or window_switch or feedback_rejection)), 'smoke:feedback-length-prerequisites')
@@ -1171,6 +1174,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'synthetic-files-qualification'
         if document_open:
             result['scope'] = 'document-open-qualification'
+        if archive_open:
+            result['scope'] = 'archive-open-qualification'
         if shell_search_results:
             result['scope'] = 'installed-shell-search-results-qualification'
         if parent_search_launch:
@@ -1353,6 +1358,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     if document_open:
                         from parent_setup_qualification import DocumentOpenQualification
                         qualification_class = DocumentOpenQualification
+                    if archive_open:
+                        from parent_setup_qualification import ArchiveOpenQualification
+                        qualification_class = ArchiveOpenQualification
                 if fresh_desktop == 'standard':
                     from parent_setup_qualification import FreshStandardDesktopQualification
                     qualification_class = FreshStandardDesktopQualification

@@ -28,6 +28,8 @@ builder execution and privilege checks; no builds, shared writes or VM access.
 Attachment boundary tests retain private tmp_path files (<= 5 MiB+1 each),
 bounded in-memory bytes and waited private Perl children; compatible in unit
 and cleanup scheduling, with no build, shared cache, bus, display or VM.
+ZIP reader checks use the same private trees and process-local transport doubles,
+with archives bounded to 64 KiB; no new process, socket or shared resource.
 """
 
 from pathlib import PurePosixPath

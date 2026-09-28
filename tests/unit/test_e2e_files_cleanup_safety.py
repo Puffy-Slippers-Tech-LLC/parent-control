@@ -309,6 +309,110 @@ def test_document_open_qualification_uses_shared_reader_and_cleans_both_entries(
     assert not list(home.iterdir())
 
 
+# ZIP additions retain private tmp_path storage, in-memory bounded archives and
+# process-local doubles: compatible in both unit and cleanup schedulers.
+def test_archive_qualification_shared_reader_and_cleanup(home):
+    operations = []
+
+    def call(argv, **kwargs):
+        assert kwargs['timeout'] == 30
+        operations.append(argv[7])
+        try:
+            value = guest.operate(home, argv[7], json.loads(argv[8]), argv[9])
+        except (ValueError, OSError):
+            value = {'refused': True}
+        return (json.dumps(value, sort_keys=True) + '\n').encode()
+
+    transport = SimpleNamespace(config={'run': 'owned-attempt'}, call=call)
+    result = controller.qualify_zip(SimpleNamespace(transport=transport), lambda: None)
+    assert result['independent_entries'] == 2 and result['exact_entries_and_contents']
+    assert result['fault_matrix_refused'] and result['owned_cleanup']
+    assert operations.count('open-zip') == 8
+    assert operations.count('probe-zip') == operations.count('cleanup') == 2
+    assert not list(home.iterdir())
+
+
+def test_archive_entry_plan_and_prerequisites(tmp_path, monkeypatch):
+    import check_e2e_open_a_customer_document_or_archive as entry
+    import check_graphical_smoke
+    from parent_setup_qualification import ArchiveOpenQualification
+    run = Mock(return_value=0)
+    monkeypatch.setattr(entry, 'smoke', run)
+    assert entry.main() == 0
+    assert run.call_args.kwargs['archive_open'] is True
+    with pytest.raises(CommandError, match='archive-open-prerequisites'):
+        check_graphical_smoke.main(archive_open=True)
+    journey = ArchiveOpenQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan.worker_mode == 'fresh_parent_desktop'
+    assert journey.plan.stage_actions == {'desktop': 'archive-open'}
+    assert journey.actions == {'archive-open': controller.qualify_zip}
+
+
+@pytest.mark.parametrize('fault', ['replaced', 'owner', 'hardlink', 'directory'])
+def test_archive_reader_and_cleanup_preserve_wrong_identity(home, monkeypatch, fault):
+    receipt = guest.operate(home, 'stage', None, 'zip')
+    root = home / (guest.DIRECTORY + '-zip')
+    target = root / guest.ZIP_NAME
+    if fault == 'replaced':
+        target.rename(home / 'preserved')
+        target.write_bytes(guest.ZIP_FILES[guest.ZIP_NAME])
+        target.chmod(0o600)
+    if fault == 'owner':
+        original = guest.os.getuid()
+        monkeypatch.setattr(guest.os, 'getuid', lambda: original + 1)
+    if fault == 'hardlink': os.link(target, home / 'preserved')
+    if fault == 'directory':
+        root.rename(home / 'preserved')
+        root.symlink_to(home / 'preserved', target_is_directory=True)
+    before = target.read_bytes()
+    with pytest.raises((ValueError, OSError)):
+        guest.operate(home, 'open-zip', {'receipt': receipt, 'artifact': guest.ZIP_ARTIFACT}, 'zip')
+    with pytest.raises((ValueError, OSError)):
+        guest.operate(home, 'cleanup', receipt, 'zip')
+    assert target.read_bytes() == before
+
+
+@pytest.mark.parametrize('name', ['../note.txt', '/note.txt', 'a//b', 'a/./b',
+                                 'a\\b', 'C:note.txt', 'a\x01b'])
+def test_zip_unsafe_member_names(name):
+    with pytest.raises(ValueError):
+        guest.inspect_zip(guest.make_zip([(name, b'x')]))
+
+
+def test_zip_independent_compressed_archive_and_deadline(monkeypatch):
+    import io
+    import zipfile
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('metadata.json', '{"kind":"synthetic","version":1}\n')
+        archive.writestr('note.txt', 'Independent synthetic archive note\n')
+        archive.writestr('empty/', '')
+    assert set(guest.inspect_zip(output.getvalue())['members']) == {
+        'metadata.json', 'note.txt', 'empty/'}
+    ticks = iter([0, guest.ZIP_SECONDS + 1])
+    monkeypatch.setattr(guest.time, 'monotonic', lambda: next(ticks))
+    with pytest.raises(ValueError):
+        guest.inspect_zip(output.getvalue())
+
+
+def test_zip_controller_rejects_false_content_evidence(home):
+    receipt = guest.operate(home, 'stage', None, 'zip')
+    transport = SimpleNamespace(config={'run': 'owned-attempt'},
+                                call=Mock(return_value=b'{"matched": true}\n'))
+    with pytest.raises(EvidenceError, match='zip:comparison'):
+        controller.read_declared_zip(transport, receipt, attempt='owned-attempt')
+    assert guest.operate(home, 'cleanup', receipt, 'zip') == {'absent': True}
+
+
+def test_zip_corrupt_crc_refuses():
+    content = guest.ZIP_FILES[guest.ZIP_NAME]
+    damaged = content.replace(b'Independent synthetic archive note',
+                              b'Xndependent synthetic archive note')
+    assert damaged != content
+    with pytest.raises(ValueError):
+        guest.inspect_zip(damaged)
+
+
 def test_chooser_fixture_lifetime_retains_same_controller_and_owned_receipt(monkeypatch):
     # Same reviewed private doubles as FILE05; no additional host resources.
     import file_chooser
@@ -348,14 +452,17 @@ def test_chooser_qualification_uses_registered_actions_and_installed_snapshot(tm
 
 
 @pytest.mark.parametrize('failure', [False, True])
-def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkeypatch, failure):
-    from parent_setup_qualification import SyntheticFilesQualification
+@pytest.mark.parametrize('archive', [False, True])
+def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkeypatch, failure, archive):
+    from parent_setup_qualification import SyntheticFilesQualification, ArchiveOpenQualification
     import installed_journey
     context = SimpleNamespace(directory=tmp_path)
     progress = Mock()
-    journey = SyntheticFilesQualification.journey(context, progress)
+    qualification = ArchiveOpenQualification if archive else SyntheticFilesQualification
+    action_name = 'archive-open' if archive else 'synthetic-files'
+    journey = qualification.journey(context, progress)
     assert journey.plan.worker_mode == 'fresh_parent_desktop'
-    assert journey.plan.stage_actions == {'desktop': 'synthetic-files'}
+    assert journey.plan.stage_actions == {'desktop': action_name}
     journey.steps = [{'stage': name} for name in journey.plan.stages[:-1]]
     journey.ui = SimpleNamespace(boot_guard='', boot_proof='a' * 64,
                                  observe=Mock(return_value={}))
@@ -363,7 +470,7 @@ def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkey
     monkeypatch.setattr(installed_journey.session_control, 'observe', Mock(return_value={}))
     action = Mock(side_effect=ValueError('refused') if failure else None,
                   return_value={'owned_cleanup': True})
-    journey.actions['synthetic-files'] = action
+    journey.actions[action_name] = action
     (tmp_path / 'desktop.request.json').write_text(json.dumps({'stage': 'desktop', 'screenshot': None}))
     if failure:
         with pytest.raises(ValueError, match='refused'):

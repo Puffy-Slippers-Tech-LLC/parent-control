@@ -47,7 +47,7 @@ APIS = {
     'allowance_boundaries': {'BOUNDARY_SCREENS'},
     'allowance_values': {'REPRESENTATIVE_PRESETS'},
     'file_chooser': {'stage_files', 'cleanup_files'},
-    'synthetic_files': {'fixture_actions'},
+    'synthetic_files': {'fixture_actions', 'read_declared_text', 'read_declared_zip'},
     'attachment_composition': {'file_handoff', 'boundary_batch', 'AttachmentJourney'},
     'serial_harness': {'PLAN', 'SERIAL_STAGES', 'matched_screens', 'record_serial_journey',
                        'validate_completion', 'validate_stages'},

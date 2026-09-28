@@ -8,8 +8,10 @@
 - When asked for "handoff time" or a similar phrase, stop at the earliest clean boundary without interrupting important ongoing work and return
   a concise continuation prompt. Include only the remaining work and recommend a
   model and effort; do not save the prompt in the repository.
-- Do not send progress messages while a command is running. Report it after it
-  completes or fails.
+- In all sessions, including runner-launched sessions, wait silently while tools,
+  commands, runners, tests or their cleanup are running. Do not narrate polling,
+  intermediate phases, passed branches or pending results. After completion,
+  report success or failure concisely, with actionable failure details when needed.
 - Keep progress updates and final responses concise and focused on meaningful
   results and the next intended action. Omit routine prerequisites, procedural
   narration and test counts unless they affect a decision or explain a problem.

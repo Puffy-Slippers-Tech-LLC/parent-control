@@ -571,6 +571,30 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
         assert '\033[?1049' not in text
 
 
+def test_repair_status_replaces_failed_category_and_retry(tmp_path):
+    from launcher_progress import publish_repair_status, read_progress
+
+    categories = ['unit', 'e2e']
+    publish_repair_status(tmp_path, 1, 'e2e', categories, 'Running tests')
+    summary = 'Category: e2e (1/1) | Overall - 41% (9/1/24) | Shutdown finished'
+    fix_tests.atomic(tmp_path / 'test-controller.json', [
+        {'key': 'e2e', 'lines': [summary]}])
+    for _ in range(2):
+        publish_repair_status(tmp_path, 1, '', categories, 'fixing errors')
+        steps = read_progress(tmp_path)
+        assert len(steps) == 1
+        assert steps[0]['lines'] == [
+            'Round 1: Category: e2e (2/2) | ' + summary.partition(' | ')[2],
+            'Status: fixing errors']
+    fix_tests.atomic(tmp_path / 'test-controller.json', [])
+    publish_repair_status(tmp_path, 1, 'e2e', categories, 'Running tests')
+    assert len(read_progress(tmp_path)) == 1
+    assert read_progress(tmp_path)[0]['lines'] == [
+        'Round 1: Category: e2e (2/2)', 'Status: Running tests']
+    publish_repair_status(tmp_path, 2, 'all', categories, 'Running tests')
+    assert len(read_progress(tmp_path)) == 2
+
+
 def test_granular_inventory_order_excludes_every_duplicate_helper():
     inventory = test_commands.suite_inventory()
     assert list(inventory)[:2] == ['unit', 'ui']

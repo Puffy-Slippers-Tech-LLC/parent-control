@@ -34,6 +34,19 @@ def publish_progress(run, key, lines, *, replaces=()):
     temporary.replace(run / 'controller.json')
 
 
+def publish_repair_status(run, round_number, category, categories, status):
+    """Update one category entry through testing, repair and retries."""
+    previous = repair_progress(run, read_progress(run))
+    key = f'{round_number}:{category}'
+    index = categories.index(category) + 1 if category in categories else 1
+    total = len(categories) if category in categories else 1
+    summary = f'Round {round_number}: Category: {category} ({index}/{total})'
+    if status == 'fixing errors' and previous:
+        key = previous[-1]['key']
+        summary = previous[-1]['lines'][0]
+    publish_progress(run, key, [summary, 'Status: ' + status])
+
+
 def repair_progress(run, steps):
     """Overlay a child's test summary without changing the repair controller."""
     if not steps or steps[-1]['lines'][-1] != 'Status: Running tests':

@@ -205,10 +205,9 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
 
 
 def worker(root, run, owner, model, effort, app_model, requested='[]'):
-    from launcher_progress import publish_progress, read_progress, repair_progress
+    from launcher_progress import publish_progress, publish_repair_status, read_progress, repair_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     round_number = 1
-    operation = 0
     developer_answers = []
 
     def round_changed(number):
@@ -216,15 +215,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
         round_number = number
 
     def progress(category, status):
-        nonlocal operation
-        operation += 1
-        index = categories.index(category) + 1 if category in categories else 1
-        total = len(categories) if category in categories else 1
-        summary = f'Round {round_number}: Category: {category} ({index}/{total})'
-        previous = repair_progress(run, read_progress(run))
-        if status == 'fixing errors' and previous:
-            summary = previous[-1]['lines'][0]
-        publish_progress(run, str(operation), [summary, 'Status: ' + status])
+        publish_repair_status(run, round_number, category, categories, status)
 
     def cancel(*_):
         (run / 'cancel').touch(mode=0o600)

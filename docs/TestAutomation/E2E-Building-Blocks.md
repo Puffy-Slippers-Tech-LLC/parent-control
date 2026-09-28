@@ -531,7 +531,7 @@ these blocks, not copies of them.
 | FILE03 | C | Supply declared files to the external chooser, save a named file, or cancel. Mode and files are explicit; observe closure and independently read the caller's result. No folder-browsing or per-row selection exercise. | Open: prepared FILE05/FIX04 fixtures → shared `AccessibleUI.chooser_operation` using public EditableText/Selection APIs and minimal Location/Enter shortcuts → Open → independent `feedback_snapshot`. `file_chooser.PLAN` / `onpc_feedback_read::run_file_chooser` implement the [qualified handoff](#attachment-chooser-handoff); `profile` adds the six [boundary batches](#attachment-rejection-boundaries) and [single-file draft](#formatted-one-file-draft-lifecycle). Exact-file/owner guards remain in the adapter. Cancel acts directly without candidate selection; unchanged caller attachments are required. | ready for Parent two-file Nautilus Open/Cancel, single-file Open and six declared boundary Open batches; native GTK, Save and other profiles pending |
 | FILE04 | C | Open the file manager directly at a declared directory only when the case tests that launch route or product file-picker integration. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands. | pending |
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text binding ready; other profiles pending |
-| FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify the synthetic text binding; see [artifact-read boundary](#customer-artifact-read-boundary). ZIP and saved-product bindings remain pending. Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text binding ready; ZIP, product-exported artifact and retained-work bindings pending |
+| FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify the synthetic text/ZIP bindings; see [artifact-read boundary](#customer-artifact-read-boundary). Saved-product bindings remain pending. Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text and ZIP bindings ready; product-exported artifact and retained-work bindings pending |
 | FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | Fixed file commands for source preparation; UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | pending |
 | APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 over SSH as the child desktop user without Terminal UI. Never substitute the tested route after failure. | pending |
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | pending |
@@ -568,7 +568,24 @@ missing, symlink, replacement, empty, different and oversized probes refused.
 The fixed reader pins directory/file descriptors, compares the preparation
 receipt before reading, limits text to 1024 bytes and returns sanitized
 comparison evidence. Owned fixture/probe cleanup, collection and baseline
-restoration passed. ZIP and product-created file bindings remain pending.
+restoration passed.
+
+The synthetic ZIP binding passed
+`tools/run-tests integration check_e2e_open_a_customer_document_or_archive` in
+report `20260928T045842Z-69443040`. Two independently staged archives passed exact
+member-set checks, including `empty/`, and actual text/JSON size/digest comparisons.
+The shared `read_pinned` reader binds directory/file identity, owner and receipt;
+`inspect_zip` uses Python's public `zipfile` API without extraction. Limits are
+64 KiB archive bytes, 16 members, 4 KiB per expanded member, 8 KiB expanded total,
+five seconds for inspection and a 30-second guarded command timeout. Wrong
+attempt/user/artifact, missing/symlink/replaced files, wrong declared owner,
+malformed/duplicate/unsafe/unexpected members, changed content and each byte/count
+limit refused. Owned fixture/probe cleanup, collection, worker shutdown and
+baseline restoration passed. Product-created file and retained-work bindings
+remain pending; this slice supplies no case 155 or real Download/Save acceptance.
+The affected synthetic text qualification also passed in
+`20260928T050106Z-51ffa8ad`, including both entries, refusal checks, collection,
+owned cleanup and baseline restoration through the shared file-identity reader.
 
 #### Attachment chooser handoff
 
@@ -2324,7 +2341,7 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 | GNOME Settings Users / Date & Time | Retired provider work. Use protected spare-account commands and read-only date/timezone commands in shared infrastructure. Observe the app refresh/fallback and time behavior independently. | ACCOUNT01/02, AUTH04 and TIME05 system helpers |
 | DING desktop icons | No provider registry route exists. Qualify the declared desktop icon, focus/selection, activation and independent launched-window result inside a DING-specific adapter. | APP01/02 desktop launch route |
 | Nautilus Files | Qualify only the explicitly tested file-manager enforcement launch. Shared commands prepare, copy, rename and open supporting files; product file choosers retain their separate GUI assertions. | FILE04 and declared APP01/02 file-manager launch routes |
-| File Roller archive viewer | No current GUI consumer. Inspect declared customer-exported ZIPs through FILE08's shared bounded archive API over SSH. | FILE08/FEED08 command-reader qualification remains pending |
+| File Roller archive viewer | No current GUI consumer. Inspect declared customer-exported ZIPs through FILE08's shared bounded archive API over SSH. | FILE08 synthetic ZIP reader ready; FEED08 product-export binding pending |
 | Registered document editor | Use a shared direct handler launch only for an explicitly tested information/preview integration or retained-work activity. Ordinary attachment source mutation and exported text reads use shared FILE05/08/09 commands; GUI edit/save is limited to declared retained-work assertions. | FILE08 work binding and APP03/04 retained work; information/preview bindings under their own blocks; no FEED08 viewer dependency |
 | Lunar Client, AppImageLauncher, Shell tray and Minecraft | No bindings are qualified. Require the prepared real-AppImage profile, allowed autostart control, complete login-interval tray/window observations, specific same-route denial, game launch/local-world action and genuine Quit. [Preparation and observation gate](#lunar-client-preparation-and-observation-gate); refuse incomplete ownership/absence observations. | E2E-052/case 253; APP01/02/03/06, UI18/22 and FIX05 |
 

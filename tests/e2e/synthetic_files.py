@@ -9,7 +9,7 @@ from watch_activity import operation
 
 class SyntheticFiles:
     def __init__(self, transport, profile='standard'):
-        require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow'),
+        require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow', 'zip'),
                 'files:profile')
         self.transport = transport
         self.profile = profile
@@ -101,6 +101,61 @@ def fixture_actions(profiles, *, stage='chooser-fixtures', cleanup='chooser-clea
         return {'owned_cleanup': True}
 
     return {stage: prepare, cleanup: release}
+
+
+def read_declared_zip(transport, receipt, *, attempt, user='onpc-parent-jamie',
+                      artifact='synthetic-archive'):
+    """Read the declared ZIP; return only exact names, sizes and digests."""
+    require(type(attempt) is str and attempt and type(transport.config) is dict
+            and transport.config.get('run') == attempt, 'zip:attempt')
+    require(user == 'onpc-parent-jamie' and artifact == 'synthetic-archive', 'zip:declaration')
+    require(type(receipt) is dict and set(receipt) == {'directory', 'files'}
+            and type(receipt['files']) is dict
+            and set(receipt['files']) == {'Synthetic archive.zip'}, 'zip:receipt')
+    with operation('Reading declared synthetic ZIP entries and contents'):
+        result = SyntheticFiles(transport, 'zip')._command(
+            'open-zip', {'receipt': receipt, 'artifact': artifact})
+    # Independent consumer expectations, not the producer's byte constants.
+    contents = {'empty/': b'', 'note.txt': b'Independent synthetic archive note\n',
+                'metadata.json': b'{"kind":"synthetic","version":1}\n'}
+    expected = {'artifact': artifact, 'matched': True, 'members': {
+        name: {'size': len(value), 'sha256': hashlib.sha256(value).hexdigest()}
+        for name, value in contents.items()}}
+    require(result == expected, 'zip:comparison')
+    return result
+
+
+def qualify_zip(journey, guard):
+    attempt = journey.transport.config['run']
+    for _ in range(2):
+        guard()
+        fixtures = SyntheticFiles(journey.transport, 'zip')
+        receipt = fixtures.call('stage')
+        read_declared_zip(journey.transport, receipt, attempt=attempt)
+        with operation('Checking declared ZIP refusal boundaries'):
+            for options in ({'attempt': attempt + '-wrong'},
+                            {'attempt': attempt, 'user': 'onpc-child-alex'},
+                            {'attempt': attempt, 'artifact': '../synthetic-archive'}):
+                try:
+                    read_declared_zip(journey.transport, receipt, **options)
+                except EvidenceError:
+                    pass
+                else:
+                    require(False, 'zip:controller-wrong-entry')
+            for artifact in ('../synthetic-archive', '/synthetic-archive', 'unrelated'):
+                require(fixtures._command('open-zip', {'receipt': receipt, 'artifact': artifact})
+                        == {'refused': True}, 'zip:wrong-entry')
+            require(fixtures._command('probe-zip', receipt) == {
+                'refused': ['missing', 'symlink', 'replaced', 'owner', 'malformed', 'duplicate',
+                            'unsafe', 'wrong-entry', 'different', 'archive-limit', 'member-limit',
+                            'expanded-limit', 'count-limit'],
+                'owned_cleanup': True}, 'zip:fault-refusal')
+            require(fixtures._command('read', receipt) == receipt, 'zip:fixture-preserved')
+        fixtures.call('cleanup')
+        guard()
+    return {'artifact': 'synthetic-archive', 'exact_entries_and_contents': True,
+            'independent_entries': 2, 'wrong_entry_refused': True,
+            'fault_matrix_refused': True, 'owned_cleanup': True}
 
 
 def _qualify_entry(journey, guard):

@@ -391,6 +391,10 @@ class InstalledJourney:
                     if plan.stage_actions[stage] == 'refuse-command'
                     else 'Qualifying bounded synthetic fixture files'
                     if plan.stage_actions[stage] == 'synthetic-files'
+                    else 'Inspecting the declared text artifact'
+                    if plan.stage_actions[stage] == 'document-open'
+                    else 'Inspecting declared ZIP entries and contents'
+                    if plan.stage_actions[stage] == 'archive-open'
                     else 'Preparing the declared child-account fixture')
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)

@@ -5,6 +5,7 @@ directory/file identity receipt. Unknown or replaced objects refuse all writes,
 including cleanup. Guest storage belongs to the disposable fixture home.
 """
 import hashlib
+import io
 import fcntl
 import json
 import os
@@ -12,6 +13,31 @@ from pathlib import Path
 import stat
 import sys
 import tempfile
+import time
+import zipfile
+import zlib
+
+ZIP_NAME = 'Synthetic archive.zip'
+ZIP_ARTIFACT = 'synthetic-archive'
+ZIP_LIMIT = 65536
+ZIP_MEMBERS = 16
+ZIP_MEMBER_LIMIT = 4096
+ZIP_EXPANDED_LIMIT = 8192
+ZIP_SECONDS = 5
+ZIP_CONTENTS = {'empty/': b'', 'note.txt': b'Independent synthetic archive note\n',
+                'metadata.json': b'{"kind":"synthetic","version":1}\n'}
+
+
+def make_zip(entries=None):
+    """Deterministic fixture bytes, separate from the archive observation."""
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, 'w') as archive:
+        for name, content in (ZIP_CONTENTS.items() if entries is None else entries):
+            archive.writestr(zipfile.ZipInfo(name), content)
+    return output.getvalue()
+
+
+ZIP_FILES = {ZIP_NAME: make_zip()}
 
 DIRECTORY = '.onpc-e2e-synthetic-files'
 FILES = {'Synthetic note.txt': b'ONPC synthetic attachment\n',
@@ -119,29 +145,144 @@ def read_text(home, request):
 
 
 def _read_text_open(root_fd, home, receipt, expected):
-    root = home / DIRECTORY
+    content = read_pinned(root_fd, home / DIRECTORY, receipt, expected, TEXT_NAME, TEXT_LIMIT)
+    require(content == FILES[TEXT_NAME])
+    content.decode('utf-8', errors='strict')
+    return {'artifact': TEXT_ARTIFACT, 'matched': True,
+            'size': len(content), 'sha256': hashlib.sha256(content).hexdigest()}
+
+
+def read_pinned(root_fd, root, receipt, expected, name, limit):
+    """Bounded bytes from the exact owned inode; no caller-controlled paths."""
     root_info = os.fstat(root_fd)
     require(identity(root_info) == receipt['directory'] and stat.S_ISDIR(root_info.st_mode)
             and root_info.st_uid == os.getuid() and stat.S_IMODE(root_info.st_mode) == 0o700)
-    before = os.stat(TEXT_NAME, dir_fd=root_fd, follow_symlinks=False)
+    before = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
     require(identity(before) == expected['identity'] and stat.S_ISREG(before.st_mode)
             and before.st_uid == os.getuid() and before.st_nlink == 1
-            and stat.S_IMODE(before.st_mode) == 0o600 and 0 < before.st_size <= TEXT_LIMIT)
-    fd = os.open(TEXT_NAME, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root_fd)
+            and stat.S_IMODE(before.st_mode) == 0o600 and 0 < before.st_size <= limit)
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root_fd)
     try:
         require(identity(os.fstat(fd)) == identity(before))
-        content = os.read(fd, TEXT_LIMIT + 1)
+        content = os.read(fd, limit + 1)
         require(len(content) == before.st_size and os.read(fd, 1) == b'')
-        require(content == FILES[TEXT_NAME])
-        content.decode('utf-8', errors='strict')
+        require(len(content) == expected['size']
+                and hashlib.sha256(content).hexdigest() == expected['sha256'])
         require(identity(os.fstat(fd)) == identity(before))
-        require(identity(os.stat(TEXT_NAME, dir_fd=root_fd, follow_symlinks=False)) == identity(before))
+        require(identity(os.stat(name, dir_fd=root_fd, follow_symlinks=False)) == identity(before))
         require(identity(os.fstat(root_fd)) == receipt['directory']
                 and identity(root.lstat()) == receipt['directory'])
-        return {'artifact': TEXT_ARTIFACT, 'matched': True,
-                'size': len(content), 'sha256': hashlib.sha256(content).hexdigest()}
+        return content
     finally:
         os.close(fd)
+
+
+def inspect_zip(content):
+    """Observe actual member bytes using zipfile, without extraction."""
+    require(0 < len(content) <= ZIP_LIMIT)
+    deadline = time.monotonic() + ZIP_SECONDS
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            entries = archive.infolist()
+            require(0 < len(entries) <= ZIP_MEMBERS)
+            names = [entry.filename for entry in entries]
+            require(len(set(names)) == len(names))
+            for entry in entries:
+                name = entry.filename
+                parts = name.rstrip('/').split('/')
+                require(entry.orig_filename == name and name and not name.startswith('/')
+                        and '\\' not in name and ':' not in name
+                        and all(part not in ('', '.', '..') for part in parts)
+                        and not any(ord(char) < 32 for char in name)
+                        and not entry.flag_bits & 1
+                        and stat.S_IFMT(entry.external_attr >> 16) in (0, stat.S_IFREG, stat.S_IFDIR)
+                        and entry.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+                        and 0 <= entry.file_size <= ZIP_MEMBER_LIMIT)
+            require(sum(entry.file_size for entry in entries) <= ZIP_EXPANDED_LIMIT)
+            require(set(names) == set(ZIP_CONTENTS))
+            result = {}
+            for entry in entries:
+                require(time.monotonic() < deadline)
+                with archive.open(entry) as member:
+                    actual = member.read(ZIP_MEMBER_LIMIT + 1)
+                    require(len(actual) <= ZIP_MEMBER_LIMIT and member.read(1) == b'')
+                require(len(actual) == entry.file_size and actual == ZIP_CONTENTS[entry.filename])
+                actual.decode('utf-8', errors='strict')
+                if entry.filename.endswith('.json'):
+                    require(json.loads(actual) == {'kind': 'synthetic', 'version': 1})
+                result[entry.filename] = {'size': len(actual),
+                                          'sha256': hashlib.sha256(actual).hexdigest()}
+            require(time.monotonic() < deadline)
+            return {'artifact': ZIP_ARTIFACT, 'members': result, 'matched': True}
+    except (zipfile.BadZipFile, zlib.error, RuntimeError, NotImplementedError, EOFError) as error:
+        raise ValueError('files:zip-refused') from error
+
+
+def read_zip(home, request):
+    require(type(request) is dict and set(request) == {'receipt', 'artifact'}
+            and request['artifact'] == ZIP_ARTIFACT)
+    receipt = request['receipt']
+    require(type(receipt) is dict and set(receipt) == {'directory', 'files'}
+            and type(receipt['files']) is dict and set(receipt['files']) == {ZIP_NAME})
+    expected = receipt['files'][ZIP_NAME]
+    require(type(expected) is dict and set(expected) == {'identity', 'sha256', 'size'})
+    root = home / (DIRECTORY + '-zip')
+    home_fd = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        require(identity(os.fstat(home_fd)) == identity(home.lstat()))
+        root_fd = os.open(root.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=home_fd)
+        try:
+            content = read_pinned(root_fd, root, receipt, expected, ZIP_NAME, ZIP_LIMIT)
+            return inspect_zip(content)
+        finally:
+            os.close(root_fd)
+    finally:
+        os.close(home_fd)
+
+
+def probe_zip_refusals(home):
+    """Fault receipts describe actual bytes so archive guards are exercised."""
+    faults = ('missing', 'symlink', 'replaced', 'owner', 'malformed', 'duplicate',
+              'unsafe', 'wrong-entry', 'different', 'archive-limit', 'member-limit',
+              'expanded-limit', 'count-limit')
+    for fault in faults:
+        with tempfile.TemporaryDirectory(prefix='.onpc-e2e-zip-probe-', dir=home) as temporary:
+            probe_home = Path(temporary)
+            root = probe_home / (DIRECTORY + '-zip')
+            root.mkdir(mode=0o700)
+            content = ZIP_FILES[ZIP_NAME]
+            if fault == 'malformed': content = b'not a ZIP'
+            if fault == 'duplicate':
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', UserWarning)
+                    content = make_zip([*ZIP_CONTENTS.items(), ('note.txt', b'duplicate')])
+            if fault == 'unsafe': content = make_zip([('../note.txt', b'unsafe')])
+            if fault == 'wrong-entry': content = make_zip([('other.txt', b'unrelated')])
+            if fault == 'different': content = make_zip({**ZIP_CONTENTS, 'note.txt': b'changed'}.items())
+            if fault == 'archive-limit': content = b'x' * (ZIP_LIMIT + 1)
+            if fault == 'member-limit': content = make_zip([('note.txt', b'x' * (ZIP_MEMBER_LIMIT + 1))])
+            if fault == 'expanded-limit':
+                content = make_zip([(name, b'x' * ZIP_MEMBER_LIMIT) for name in ZIP_CONTENTS])
+            if fault == 'count-limit': content = make_zip([(str(i), b'') for i in range(ZIP_MEMBERS + 1)])
+            target = root / ZIP_NAME
+            target.write_bytes(content)
+            target.chmod(0o600)
+            receipt = snapshot(root, {ZIP_NAME: content})
+            if fault == 'missing': target.unlink()
+            if fault in ('symlink', 'replaced'):
+                target.rename(root / 'preserved')
+                if fault == 'symlink': target.symlink_to(root / 'preserved')
+                else:
+                    target.write_bytes(content)
+                    target.chmod(0o600)
+            if fault == 'owner': receipt['files'][ZIP_NAME]['identity'][2] += 1
+            try:
+                read_zip(probe_home, {'receipt': receipt, 'artifact': ZIP_ARTIFACT})
+            except (ValueError, OSError):
+                continue
+            raise ValueError('files:zip-probe-accepted-' + fault)
+    return {'refused': list(faults), 'owned_cleanup': True}
 
 
 def probe_text_refusals(home):
@@ -181,8 +322,8 @@ def probe_text_refusals(home):
 
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
-    require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text'))
-    require(profile == 'standard' or profile in BOUNDARY_PROFILES)
+    require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip'))
+    require(profile in ('standard', 'zip') or profile in BOUNDARY_PROFILES)
     require(profile == 'standard' or operation not in ('copy', 'rename'))
     directory(home)
     # All shared invocations lock the existing home inode; no lock-file cleanup
@@ -198,8 +339,14 @@ def operate(home, operation, previous, profile='standard'):
 
 def _operate(home, operation, previous, profile):
     root = home / (DIRECTORY + ('' if profile == 'standard' else '-' + profile))
-    files = FILES if profile == 'standard' else BOUNDARY_PROFILES[profile]
+    files = FILES if profile == 'standard' else ZIP_FILES if profile == 'zip' else BOUNDARY_PROFILES[profile]
     contents = CONTENTS if profile == 'standard' else files
+    if operation == 'open-zip':
+        require(profile == 'zip')
+        return read_zip(home, previous)
+    if operation == 'probe-zip':
+        require(profile == 'zip' and snapshot(root, contents) == previous)
+        return probe_zip_refusals(home)
     if operation == 'open-text':
         require(profile == 'standard')
         return read_text(home, previous)

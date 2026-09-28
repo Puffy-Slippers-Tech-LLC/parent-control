@@ -155,6 +155,25 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         g.rm(UNIT)
 
 
+def configure_cpu(root):
+    """Accept memory-snapshot-compatible CPU settings during baseline setup."""
+    cpu = root.find('cpu')
+    if cpu is not None:
+        if cpu.get('mode') == 'host-passthrough':
+            cpu.set('migratable', 'on')
+        for feature in cpu.findall("feature[@name='invtsc']"):
+            cpu.remove(feature)
+        ET.SubElement(cpu, 'feature', policy='disable', name='invtsc')
+
+
+def configure_snapshot_memory(root):
+    """Let virtio discard unused guest pages instead of saving stale RAM bytes."""
+    balloon = root.find('devices/memballoon')
+    if balloon is not None and balloon.get('model') in (
+            'virtio', 'virtio-transitional', 'virtio-non-transitional'):
+        balloon.set('freePageReporting', 'on')
+
+
 def boot_and_wait(capture):
     capture.revalidate(off=True)
     source = capture.source
@@ -163,6 +182,8 @@ def boot_and_wait(capture):
     # it has no host listener and becomes part of the accepted baseline.
     from e2e_watch import DisplayAdapter, configuration_digest, display_endpoint, start
     root = ET.fromstring(source.domain.XMLDesc(source.api.VIR_DOMAIN_XML_INACTIVE))
+    configure_cpu(root)
+    configure_snapshot_memory(root)
     display_endpoint(root)
     source.connection.defineXML(ET.tostring(root, encoding='unicode'))
     capture.revalidate(off=True)

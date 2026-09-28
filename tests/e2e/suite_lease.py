@@ -31,6 +31,15 @@ class SuiteLease(system.Lease):
         self.installed_inputs = None
         self.restore_installed = False
         self._restored_name = None
+        self.online_pending = False
+        self.online_bootstrap = None
+
+    @property
+    def installed_online(self):
+        if self.installed_xml is None:
+            return False
+        memory = ET.fromstring(self.installed_xml).find('memory')
+        return memory is not None and memory.get('snapshot') == 'internal'
 
     def delete_installed(self):
         """Only the exact version owned by this invocation; never descendants."""
@@ -39,31 +48,36 @@ class SuiteLease(system.Lease):
         self.delete_suite_snapshot()
         self.installed_xml = None
 
-    def create_installed(self):
+    def create_installed(self, *, mode='offline'):
         system.log('stage:suite-installed-snapshot')
-        self.guard(off=True)
+        system.require(mode in ('online', 'offline'), 'suite:invalid-snapshot-mode')
+        online = mode == 'online'
+        self.guard(off=not online)
+        if online:
+            system.require(not self.view.snapshot()[1], 'suite:online-snapshot-requires-running')
         # Save the ordinary inactive configuration, just like onpc-baseline.
         # Restores remove sharing again before any boot.
-        self.source.connection.defineXML(self.original_xml)
-        self.view.run = None
-        self.view.domain_id = None
-        self.state['domain_id'] = None
-        self.guard(off=True)
+        if not online:
+            self.source.connection.defineXML(self.original_xml)
+            self.view.run = None
+            self.view.domain_id = None
+            self.state['domain_id'] = None
+            self.guard(off=True)
         root = ET.Element('domainsnapshot')
         ET.SubElement(root, 'name').text = self.installed_name
-        ET.SubElement(root, 'memory', snapshot='no')
+        ET.SubElement(root, 'memory', snapshot='internal' if online else 'no')
         with self.snapshot_status('Taking', self.installed_name):
             snap = self.source.domain.snapshotCreateXML(ET.tostring(root, encoding='unicode'), 0)
         self.installed_xml = snap.getXMLDesc(0)
         if self.installed_inputs is not None:
             # Publish freshness only after libvirt acknowledges snapshot creation.
             # Interrupted creation leaves an unmarked snapshot that cannot be reused.
-            self.guard(off=True)
+            self.guard(off=not online)
             self.installed_xml = self.record_installed_inputs(
                 self.installed_name, self.installed_xml, self.installed_inputs)
         self.source.connection.defineXML(self.test_xml)
         self.view.run = self.state['run']
-        self.save('isolated')
+        self.save('running' if online else 'isolated')
 
     def record_installed_inputs(self, name, xml, inputs):
         """Publish only metadata, also allowing exact-archive legacy migration."""
@@ -167,8 +181,11 @@ class SuiteLease(system.Lease):
         if not self.view.snapshot()[1]:
             system.require(self.view.domain_id is not None, 'cleanup:unowned-domain')
         self.save('cleanup-requested')
-        name = self.installed_name if self.restore_installed else self.capture.state['proof']['name']
-        expected = self.installed_xml if self.restore_installed else self.snapshot_xml
+        # Running snapshots are resumed by start(), after the next attempt has
+        # staged fresh credentials. Worker off callbacks remain genuinely off.
+        installed = self.restore_installed and not self.installed_online
+        name = self.installed_name if installed else self.capture.state['proof']['name']
+        expected = self.installed_xml if installed else self.snapshot_xml
         system.require(name is not None and expected is not None, 'suite:installed-snapshot-missing')
         # Lookup failure is terminal: no fallback installation or baseline.
         snap = self.source.domain.snapshotLookupByName(name, 0)
@@ -271,6 +288,7 @@ class Suite:
         self.prepared = False
         self.next_case = None
         self._input_bundle = None
+        self.snapshot_mode = 'online'
 
     def input_bundle(self, root):
         if self._input_bundle is None:
@@ -278,13 +296,16 @@ class Suite:
             self._input_bundle = inputs(root)
         return self._input_bundle
 
-    def prepare_installed(self, directory, assets, selection, *, root, overwrite=True):
+    def prepare_installed(self, directory, assets, selection, *, root, overwrite=True,
+                          mode='offline'):
         from app_snapshot import prepare
-        return prepare(self, directory, assets, selection, root=root, overwrite=overwrite)
+        return prepare(self, directory, assets, selection, root=root,
+                       overwrite=overwrite, mode=mode)
 
     def prepare_case(self, case, directory, assets, selection, *, root):
         if not self.prepared:
-            created = self.prepare_installed(directory, assets, selection, root=root, overwrite=False)
+            created = self.prepare_installed(directory, assets, selection, root=root,
+                                            overwrite=False, mode=self.snapshot_mode)
             if not created:
                 from app_snapshot import snapshot_name
                 version = self.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
@@ -298,11 +319,13 @@ class Suite:
                     system.watch_progress.suite_prepared()
             self.lease.restore_installed = needs_installed(case)
             self.lease.stop()
-        expected = (self.lease.installed_name if needs_installed(case)
+        online = needs_installed(case) and self.lease.installed_online
+        expected = (self.lease.installed_name if needs_installed(case) and not online
                     else self.lease.capture.state['proof']['name'])
         system.require(expected is not None and self.lease._restored_name == expected,
                        'suite:case-snapshot-not-restored')
         self.lease.prepare()
+        self.lease.online_pending = online
         self.lease.restore_installed = needs_installed(self.next_case)
 
     def acquire(self, ledger):

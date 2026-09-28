@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import subprocess
+import time
 import xml.etree.ElementTree as ET
 from contextlib import nullcontext
 from unittest.mock import MagicMock, Mock
@@ -256,10 +257,16 @@ def snapshots(suite):
         name = next(name for name, value in names.items() if value is snap)
         events.append(('restore', name))
         restore(snap, flags)
+        root = ET.fromstring(snap.getXMLDesc(0))
+        memory = root.find('memory')
+        if memory is not None and memory.get('snapshot') == 'internal':
+            lease.source.connection.defineXML(ET.tostring(root.find('domain'), encoding='unicode'))
+            lease.source.off, current['id'] = False, 72
     def create(xml, flags):
-        assert lease.source.off and current['xml'] == lease.original_xml
         root = ET.fromstring(xml)
-        assert root.find('memory').get('snapshot') == 'no'
+        online = root.find('memory').get('snapshot') == 'internal'
+        assert lease.source.off is not online
+        assert current['xml'] == (lease.test_xml if online else lease.original_xml)
         name = root.findtext('name')
         if flags == lease.source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE:
             assert name in names
@@ -268,6 +275,11 @@ def snapshots(suite):
         assert flags == 0
         assert name not in names
         events.append(('create', name))
+        if online:
+            ET.SubElement(root, 'state').text = 'running'
+            ET.SubElement(root, 'creationTime').text = str(int(time.time()))
+            root.append(ET.fromstring(lease.test_xml))
+            xml = ET.tostring(root, encoding='unicode')
         return add(name, xml)
     domain.snapshotLookupByName.side_effect = lookup
     domain.snapshotListNames.side_effect = lambda flags: list(names)
@@ -283,6 +295,7 @@ def prepared_suite(snapshots, tmp_path, monkeypatch):
     import vm_transport
     lease, names, events, add, baseline_name = snapshots
     owner = suite_lease.Suite(Mock())
+    owner.snapshot_mode = 'offline'  # Preserve explicit disk-only transition coverage.
     owner.lease = lease
     owner.guestfs = Mock()
     owner.commands = Mock()
@@ -313,6 +326,99 @@ def current_xml(owner, directory):
     ET.SubElement(root, 'description').text = app_snapshot.input_identity(
         Mock(state=state), directory, owner._input_bundle, owner.commands)
     return ET.tostring(root, encoding='unicode')
+
+
+def test_online_creation_reboots_and_captures_memory_before_shutdown(prepared_suite, monkeypatch):
+    import online_snapshot
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    publish = Mock()
+    monkeypatch.setattr(online_snapshot, 'publish', publish)
+    with lease:
+        owner.prepare_installed(directory, directory, {}, root=directory, mode='online')
+        setup.run.assert_called_once_with(lease.guard, verify=True)
+        assert not lease.source.off
+        assert app_snapshot.mode_mismatch(lease.installed_xml, 'online') is None
+        publish.assert_called_once()
+    lease.audit()
+    assert lease.source.off
+    assert 'onpc-v1.1' in names
+
+
+def test_online_case_defers_restore_until_worker_start(prepared_suite, monkeypatch):
+    import online_snapshot
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    owner.snapshot_mode = 'online'
+    monkeypatch.setattr(online_snapshot, 'publish', Mock())
+    started = Mock()
+    monkeypatch.setattr(online_snapshot, 'start', started)
+    with lease:
+        owner.prepare_case({'preconditions': ['installed-digest-verified-product']},
+                           directory, directory, {}, root=directory)
+        assert lease.online_pending and lease.source.off
+        lease.online_bootstrap = (directory, {})
+        lease.start()
+        started.assert_called_once_with(lease)
+        assert not lease.online_pending
+    lease.audit()
+
+
+@pytest.mark.parametrize('fault', [None, 'metadata', 'expired', 'foreign-run', 'sharing'])
+@pytest.mark.parametrize('stale_handle', [False, True])
+def test_online_restore_records_instance_without_booting(prepared_suite, monkeypatch, fault, stale_handle):
+    import online_snapshot
+    owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    monkeypatch.setattr(online_snapshot, 'publish', Mock())
+    lease.source.api.VIR_DOMAIN_METADATA_DESCRIPTION = 0
+    lease.source.api.VIR_DOMAIN_AFFECT_LIVE = 1
+    lease.source.api.VIR_DOMAIN_AFFECT_CONFIG = 2
+    lease.source.connection.lookupByUUIDString.return_value = lease.source.domain
+    lease.source.connection.getURI.return_value = 'qemu:///system'
+    lease.source.domain.UUIDString.return_value = lease.source.uuid
+    lease.source.domain.name.return_value = system.baseline.DOMAIN
+    # The saved run is deliberately the same lease here; the setter is still
+    # required. Cross-invocation credential rotation has separate coverage.
+    with lease:
+        owner.prepare_installed(directory, directory, {}, root=directory, mode='online')
+        record = {'run': lease.state['run']}
+        lease.stop()
+        lease.prepare()
+        preparation_domain = lease.source.domain
+        if stale_handle:
+            getter = preparation_domain.ID.side_effect
+            fresh = Mock(wraps=preparation_domain)
+            fresh.ID.side_effect = getter
+            revert = preparation_domain.revertToSnapshot.side_effect
+            def stale_revert(*args):
+                revert(*args)
+                preparation_domain.ID.side_effect = lambda: -1
+            preparation_domain.revertToSnapshot.side_effect = stale_revert
+            lease.source.connection.lookupByUUIDString.return_value = fresh
+            lease.source.connection.lookupByName.return_value = fresh
+        previous = lease.source.domain.revertToSnapshot.call_count
+        if fault == 'metadata':
+            names[lease.installed_name].getXMLDesc.return_value += ' '
+        elif fault is not None:
+            root = ET.fromstring(lease.installed_xml)
+            if fault == 'expired':
+                root.find('creationTime').text = str(int(time.time()) - 86401)
+            elif fault == 'foreign-run':
+                record['run'] = 'f' * 32
+            else:
+                ET.SubElement(root.find('domain/devices'), 'channel')
+            lease.installed_xml = ET.tostring(root, encoding='unicode')
+            names[lease.installed_name].getXMLDesc.return_value = lease.installed_xml
+        if fault:
+            with pytest.raises(RuntimeError):
+                online_snapshot.restore(lease, record)
+            assert lease.source.domain.revertToSnapshot.call_count == previous
+        else:
+            assert online_snapshot.restore(lease, record) == 'fixture-host'
+            assert not lease.source.off and lease.state['domain_id'] == 72
+            assert lease.state['phase'] == 'running'
+            lease.source.domain.setMetadata.assert_called_once_with(
+                0, system.TAG + lease.state['run'], None, None, 3)
+            assert preparation_domain.create.call_count == 1  # Installation boot only.
+    lease.audit()
 
 
 @pytest.mark.parametrize('stale', [False, True])

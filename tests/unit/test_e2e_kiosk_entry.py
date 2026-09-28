@@ -90,7 +90,8 @@ def test_kiosk_qualification_stays_on_public_gui_not_backend_buses():
     assert 'get_accessible_id' in observer
 
 
-def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path):
+@pytest.mark.parametrize('online', [False, True])
+def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
     from contextlib import nullcontext
     from types import SimpleNamespace
     from unittest.mock import Mock
@@ -110,6 +111,8 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path):
     qualification.commands.run.return_value = b'1.1+ppa1~ubuntu26.04.1\n'
     (tmp_path / 'package.deb').write_bytes(b'fixture')
     snap = Mock()
+    snap.getXMLDesc.return_value = ('<domainsnapshot><memory snapshot="' +
+        ('internal' if online else 'no') + '"/></domainsnapshot>')
     lease = Mock()
     lease.source.domain.snapshotLookupByName.return_value = snap
     lease.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE = 4
@@ -118,6 +121,12 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path):
     lease.snapshot_status.return_value = nullcontext()
     qualification.attach_installed_snapshot(lease)
     lease.source.domain.snapshotLookupByName.assert_called_once_with('onpc-v1.1', 0)
+    if online:
+        assert lease.online_pending is True and lease.installed_name == 'onpc-v1.1'
+        assert lease.installed_xml == snap.getXMLDesc.return_value
+        lease.source.domain.revertToSnapshot.assert_not_called()
+        lease.source.connection.defineXML.assert_not_called()
+        return
     lease.source.domain.revertToSnapshot.assert_called_once_with(snap, 4)
     lease.source.connection.defineXML.assert_called_once_with('<domain/>')
     lease.guard.assert_called_once_with(off=True)
@@ -659,6 +668,8 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     e2e.mkdir(parents=True)
     (e2e / 'accessible_ui.py').write_text(source)
     (e2e / 'public_atspi.py').write_text(reader)
+    (e2e / 'block_semantics.py').write_text('SEMANTICS = True\n')
+    (e2e / 'feedback_formats.py').write_text('FORMATS = True\n')
     data = tmp_path / 'data'
     data.mkdir()
     (data / 'app.json').write_text('{"version": "1.1"}')
@@ -670,7 +681,15 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
         'public_atspi = types.ModuleType("public_atspi")\n'
         'sys.modules["public_atspi"] = public_atspi\n'
         'exec(compile(' + repr(reader) + ', "public_atspi.py", "exec"), '
-        'public_atspi.__dict__)\n' + source
+        'public_atspi.__dict__)\n'
+        'block_semantics = types.ModuleType("block_semantics")\n'
+        'sys.modules["block_semantics"] = block_semantics\n'
+        'exec(compile(' + repr('SEMANTICS = True\n') + ', "block_semantics.py", "exec"), '
+        'block_semantics.__dict__)\n'
+        'feedback_formats = types.ModuleType("feedback_formats")\n'
+        'sys.modules["feedback_formats"] = feedback_formats\n'
+        'exec(compile(' + repr('FORMATS = True\n') + ', "feedback_formats.py", "exec"), '
+        'feedback_formats.__dict__)\n' + source
     ).encode()
 
     def call(argv, **kwargs):

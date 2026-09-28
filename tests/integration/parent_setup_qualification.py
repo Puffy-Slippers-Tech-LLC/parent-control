@@ -173,6 +173,13 @@ class KioskEntryQualification(ParentJourneyQualification):
             ['dpkg-deb', '-f', str(self.assets / 'package.deb'), 'Version']).decode().strip()
         name = snapshot_name(version)
         snap = lease.source.domain.snapshotLookupByName(name, 0)
+        import xml.etree.ElementTree as ET
+        xml = snap.getXMLDesc(0)
+        memory = ET.fromstring(xml).find('memory')
+        if memory is not None and memory.get('snapshot') == 'internal':
+            lease.installed_name, lease.installed_xml = name, xml
+            lease.online_pending = True
+            return
         with lease.snapshot_status('Restoring', name):
             lease.source.domain.revertToSnapshot(
                 snap, lease.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)

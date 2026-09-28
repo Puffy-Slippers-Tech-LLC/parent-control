@@ -467,13 +467,30 @@ tools/run-tests e2e --id '4'
 tools/run-tests e2e --id '5'
 ```
 
-Standalone `tools/prepare-appsnapshot --overwrite false` first checks for the
-current version's snapshot under the guarded VM lock. If it exists, the command
-returns without cleanup, package or fixture builds, or snapshot changes; source
-freshness is deliberately not checked. If it is missing, normal preparation
-builds and creates it. `--overwrite true` (the default) rebuilds and replaces it.
+Standalone `tools/prepare-appsnapshot --mode online|offline` defaults to online.
+Online preparation installs the app, reboots, verifies the new boot and captures
+disk plus memory. A fresh matching online snapshot is restored without building
+or booting, leaving a running isolated guest under the shared VM-maintenance
+ownership record. `tools/test-vm stop` stops that recorded guest. Offline mode
+keeps the installation, verification, shutdown and disk-only snapshot sequence.
+Baseline preparation enables CPU migration and masks `invtsc`, which otherwise
+prevents QEMU from saving memory. App-snapshot preparation does not patch CPU
+configuration. The pre-change persistent XML is tracked in
+[`config/test-vm-original.xml`](../../config/test-vm-original.xml). With maintenance
+stopped and the VM off, `tools/test-vm restore-cpu` restores only its CPU element
+after checking the backup's pinned VM identity. It preserves other configuration
+and snapshots. Baseline preparation reapplies the snapshot-compatible settings;
+restoring a retained snapshot still restores that snapshot's saved CPU settings.
 
-Suite preparation reuses the powered-off `onpc-v[version]` snapshot only when its
+Online mode defaults to `--overwrite false`; offline mode retains the previous
+`--overwrite true` default. Explicit `--overwrite true` always rebuilds. Reuse
+checks the current version under the guarded VM lock; a different snapshot mode,
+or an online snapshot older than 24 hours, forces replacement even with
+`--overwrite false`. Age uses libvirt's host UTC `creationTime`; missing, future
+or invalid online timestamps also require replacement. The standalone reuse
+probe does not compare source freshness. Exactly 24 hours remains reusable.
+
+Suite preparation defaults to online `onpc-v[version]` snapshots and reuses one only when its
 recorded package-content fingerprint, baseline identity and installation recipe
 match. The fingerprint covers both data and control archives: file bytes, paths,
 types, permissions, ownership, links, package metadata and maintainer scripts.
@@ -484,7 +501,8 @@ provenance and transfers; they are separate from installed-content equivalence.
 Legacy snapshot metadata is upgraded without installation when its exact archive,
 baseline and recipe hashes match. Otherwise a missing fingerprint cannot prove
 equivalence and requires one refresh. Missing or changed snapshots are installed,
-verified and captured once; their next boot activates the package.
+verified after reboot and captured once. Explicit offline preparation remains
+available for disk-only consumers; its next boot activates the package.
 `--overwrite true` still forces replacement. Refresh messages identify the changed
 input. Content comparison reads the host package only and needs no guest boot.
 Test code, helper logging and transferred fixtures do not trigger snapshot refresh;
@@ -494,12 +512,27 @@ and frozen for the invocation. Each installed-app case restores that
 snapshot without installing; package-lifecycle cases and product-free harness
 checks use baseline according to the enforced
 [case snapshot contract](../../docs/TestAutomation/E2E-Building-Blocks.md#parent-login-and-time-scenarios).
-A missing version snapshot fails immediately without reinstalling. The previous case's
-direct restore selects the next case's snapshot, preserving one restore per
-transition and the existing boundary-only audits. Final cleanup restores the
+A missing version snapshot at a restore boundary fails without reinstalling.
+For online cases the off callback restores the clean baseline; worker startup
+then resumes the saved memory instead of booting. Each attempt stages a fresh
+SSH key, replaces the saved guest marker and stale test payload over guarded SSH,
+corrects the resumed realtime clock, and verifies fixture credentials before
+graphical input. A small root-private record in shared test state binds the saved
+transport credentials to the exact snapshot XML and survives evidence rotation.
+One record per pinned VM bounds this storage; preparing a different version
+replaces it, so an older version without its matching credentials must refresh.
+Offline cases retain their direct restore. Final cleanup restores the
 clean baseline and preserves the version snapshot, including on case failure.
 The invocation stops after the first failed attempt, including evidence or cleanup
 failure, and retains the expected case list and pending exclusions in its report.
+An interrupted online restore with no recorded instance ID refuses ordinary
+resume and stop. After inspection and explicit authorization of the observed
+instance, `tools/test-vm recover-online ID` validates the maintenance journal,
+baseline, saved snapshot credential binding, live run tag and isolation before
+restoring the baseline. A changed instance or missing proof refuses recovery.
+Validation refusals before restoration leave an idle VM available and preserve
+an existing maintenance owner's journal; recovery is required once restoration
+has been requested.
 After an installed snapshot boots, SSH readiness does not imply greeter readiness:
 GDM waits for enforcement startup. Public greeter discovery waits up to 300 seconds
 for exactly one active local graphical greeter, then retains the owned session-bus

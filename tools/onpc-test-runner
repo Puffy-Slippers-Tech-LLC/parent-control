@@ -87,31 +87,38 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-install-refusal', action='store_true')
     appsnapshot = categories.add_parser('appsnapshot', allow_abbrev=False)
     appsnapshot.add_argument('--probe', action='store_true')
+    appsnapshot.add_argument('--resume', action='store_true')
+    appsnapshot.add_argument('--mode', choices=('online', 'offline'), default='online')
     appsnapshot.add_argument('--artifacts', type=Path)
     appsnapshot.add_argument('--overwrite', choices=('true', 'false'), default='true',
                             nargs='?', const='true')
     vm = categories.add_parser('vm', allow_abbrev=False)
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
-                                      'reset', 'screenshot', 'send-key'))
+                                      'reset', 'screenshot', 'send-key', 'recover-online', 'restore-cpu'))
     vm.add_argument('keys', nargs='*', type=int)
     args = parser.parse_args(argv)
     if args.category == 'appsnapshot':
         if VM_UUID is None:
             raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
         target = confined_file(root, 'tests/e2e/prepare_snapshot.py')
-        command = ['/usr/bin/python3', '-B', str(target), '--expected-uuid', VM_UUID]
-        if args.probe:
+        command = ['/usr/bin/python3', '-B', str(target), '--mode', args.mode,
+                   '--expected-uuid', VM_UUID]
+        if args.probe or args.resume:
             if args.artifacts is not None:
                 raise ValueError('test-runner:probe-does-not-use-artifacts')
-            return [*command, '--probe']
+            if args.probe and args.resume or args.resume and args.mode != 'online':
+                raise ValueError('test-runner:invalid-snapshot-operation')
+            return [*command, '--probe' if args.probe else '--resume']
         runner = runpy.run_path(str(confined_file(root, 'tests/e2e/runner.py')))
         runner['validate_artifact_path'](args.artifacts)
         if not args.artifacts.is_dir():
             raise ValueError('test-runner:missing-artifact-directory')
         return [*command, '--overwrite', args.overwrite, '--artifacts', str(args.artifacts)]
     if args.category == 'vm':
-        if (args.action == 'send-key' and not 1 <= len(args.keys) <= 16) or (
-                args.action != 'send-key' and args.keys) or any(not 1 <= key <= 255 for key in args.keys):
+        if not ((args.action == 'send-key' and 1 <= len(args.keys) <= 16
+                 and all(1 <= key <= 255 for key in args.keys)) or
+                (args.action == 'recover-online' and len(args.keys) == 1 and args.keys[0] > 0) or
+                (args.action not in ('send-key', 'recover-online') and not args.keys)):
             raise ValueError('test-runner:invalid-vm-keycodes')
         if VM_UUID is None:
             raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
@@ -271,6 +278,7 @@ def run(root, argv, caller):
     context = (test_retention.Store(privileged_state(caller.pw_uid)).session(
         guard=lambda: retention_guard(root))
         if argv[0] in ('integration', 'system', 'e2e', 'appsnapshot') and not recovery
+        and not (argv[0] == 'appsnapshot' and '--resume' in argv)
         else nullcontext())
     with context:
         environment.update(test_retention.environment())

@@ -16,6 +16,7 @@ import re
 import sys
 import tempfile
 import threading
+import xml.etree.ElementTree as ET
 
 import system_runner as runner
 from watch_activity import operation
@@ -42,7 +43,7 @@ def save_owner(lease):
     runner.baseline.sync_directory(lease.directory)
 
 
-def resume(lease, *, stopping=False):
+def resume(lease, *, stopping=False, recovery_instance=None):
     """Only adopt this helper's exact recorded instance, never another controller."""
     base = runner.baseline
     lease.capture.directory_identity = lease.capture.private_directory()
@@ -64,9 +65,11 @@ def resume(lease, *, stopping=False):
     runner.require(isinstance(state, dict) and set(state) == {
         'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
         'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
-        state['phase'] in (('running', 'cleanup-requested') if stopping else ('running',)) and isinstance(state['run'], str) and
+        state['phase'] in (('start-requested',) if recovery_instance is not None else
+                          ('running', 'cleanup-requested') if stopping else ('running',)) and isinstance(state['run'], str) and
         re.fullmatch(r'[0-9a-f]{32}', state['run']) and
-        type(state['domain_id']) is int and state['domain_id'] >= 0 and
+        ((state['domain_id'] is None) if recovery_instance is not None else
+         (type(state['domain_id']) is int and state['domain_id'] >= 0)) and
         state['domain_uuid'] == lease.source.uuid and
         state['baseline_sha256'] == hashlib.sha256(base.encode(lease.capture.state)).hexdigest(),
         'vm-control:journal-identity')
@@ -76,7 +79,8 @@ def resume(lease, *, stopping=False):
                    'vm-control:not-owned')
     current_id = lease.source.domain.ID()
     runner.require(not lease.source.domain.autostart() and
-                   (current_id == state['domain_id'] or (stopping and current_id == -1)),
+                   (current_id == recovery_instance if recovery_instance is not None else
+                    current_id == state['domain_id'] or (stopping and current_id == -1)),
                    'vm-control:instance-replaced-or-off')
     lease.original_xml = state['original_xml']
     runner.require(base.domain_layout(lease.original_xml, lease.source.uuid) ==
@@ -87,9 +91,21 @@ def resume(lease, *, stopping=False):
     lease.view.run = state['run']
     lease.view.domain_id = state['domain_id']
     lease.snapshot_xml = lease.source.baseline()
+    if recovery_instance is not None:
+        # This exceptional operation requires an explicitly selected instance.
+        # Never infer ownership from UUID alone or enable normal start/resume.
+        from online_snapshot import recover_identity
+        run = recover_identity(lease)
+        lease.view.run = run
+        lease.view.domain_id = recovery_instance
     lease.guard()
     runner.require(lease.capture.verify_snapshot() == lease.capture.state['proof'], 'baseline:changed')
     lease.mutated = True
+    if recovery_instance is not None:
+        lease.state['run'] = lease.view.run
+        lease.state['domain_id'] = recovery_instance
+        save_owner(lease)
+        lease.save('running')
 
 
 def operate(lease, action, keys):
@@ -99,6 +115,27 @@ def operate(lease, action, keys):
 
 
 def _operate(lease, action, keys):
+    if action == 'restore-cpu':
+        lease.__enter__()
+        # Configuration-only, atomic and retryable: no disk or guest lifetime
+        # changes create a cleanup obligation, including refusal/read failure.
+        lease.save('complete')
+        runner.require(lease.source.domain.ID() == -1, 'vm-control:source-running')
+        original = ET.fromstring(lease.original_xml)
+        backup = ET.fromstring((runner.ROOT / 'config/test-vm-original.xml').read_text())
+        runner.require(backup.findtext('uuid') == lease.source.uuid and
+                       backup.findtext('name') == runner.baseline.DOMAIN and
+                       len(backup.findall('cpu')) == 1 and len(original.findall('cpu')) == 1,
+                       'vm-control:cpu-backup-identity')
+        position = list(original).index(original.find('cpu'))
+        original.remove(original.find('cpu'))
+        original.insert(position, backup.find('cpu'))
+        lease.source.connection.defineXML(ET.tostring(original, encoding='unicode'))
+        lease.capture.revalidate(off=True)
+        result = ET.fromstring(lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE))
+        runner.require(ET.tostring(result.find('cpu')) == ET.tostring(backup.find('cpu')),
+                       'vm-control:cpu-restore-mismatch')
+        return
     if action in ('start', 'reset'):
         lease.__enter__()
         # Don't shut down an existing manually started VM to claim ownership.
@@ -113,9 +150,13 @@ def _operate(lease, action, keys):
         else:
             lease.finish()
         return
-    resume(lease, stopping=action == 'stop')
+    resume(lease, stopping=action == 'stop',
+           recovery_instance=keys[0] if action == 'recover-online' else None)
     lease.guard()
-    if action == 'stop':
+    if action == 'recover-online':
+        lease.stop_by_restore()
+        lease.finish()
+    elif action == 'stop':
         lease.finish()
     elif action == 'reboot':
         lease.source.domain.reboot(lease.source.api.VIR_DOMAIN_REBOOT_ACPI_POWER_BTN)
@@ -149,7 +190,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reset',
-                                          'reboot', 'send-key', 'screenshot'))
+                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'restore-cpu'))
     parser.add_argument('keys', nargs='*', type=int)
     args = parser.parse_args(argv)
     source = lease = connection = None
@@ -160,7 +201,8 @@ def main(argv=None):
         runner.require(re.fullmatch(r'[0-9a-f-]{36}', args.expected_uuid) and
                        ((args.action == 'send-key' and 1 <= len(args.keys) <= 16 and
                          all(1 <= key <= 255 for key in args.keys)) or
-                        (args.action != 'send-key' and not args.keys)), 'vm-control:arguments')
+                        (args.action == 'recover-online' and len(args.keys) == 1 and args.keys[0] > 0) or
+                        (args.action not in ('send-key', 'recover-online') and not args.keys)), 'vm-control:arguments')
         os.umask(0o077)
         from watch_activity import event
         event('Maintenance: ' + args.action)

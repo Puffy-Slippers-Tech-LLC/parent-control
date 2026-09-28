@@ -28,7 +28,7 @@ test defects may be fixed automatically while preserving the intended checks.
 | Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
 | Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-baseline` and `tools/test-vm` within their existing grants and authorized scope |
-| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
+| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
 Invoke approved commands directly. Correct quoting and command shape before
@@ -119,6 +119,13 @@ The standalone app-snapshot route requires the current installed test dispatcher
 refresh it with `./setup.sh --test-tools-only` when adding these tools. It shares
 the existing test-runner Polkit action, cleanup gate and fixed VM UUID, without
 adding general snapshot or libvirt permissions.
+Online mode is the default and reuses fresh matching snapshots without building;
+it leaves the restored running guest in the existing VM-maintenance ownership
+journal. Its restore-only dispatch uses maintenance scratch rather than an
+evidence-retention session, whose entry gate requires an idle VM. The shared
+cleanup qualification and live VM ownership checks still apply. Offline mode
+retains the previous shutdown/snapshot behavior. Mode mismatches and online
+snapshots older than 24 hours force replacement. Explicit overwrite still rebuilds.
 There is no product package, service restart, reboot, or saved-data migration.
 Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 `--test-tools-only`. Host package dependencies belong to full setup or
@@ -428,6 +435,8 @@ replacement by name alone.
 | `tools/test-vm screenshot` | Capture the owned running guest to a new private `/tmp/onpc-vm-screen-*` artifact |
 | `tools/test-vm stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off |
 | `tools/test-vm reset` | Restore the accepted outer baseline while idle, leaving the VM off |
+| `tools/test-vm restore-cpu` | While idle and off, restore only CPU settings from the identity-matching tracked original XML |
+| `tools/test-vm recover-online ID` | After explicit authorization of the inspected instance, recover an interrupted online start with matching maintenance, snapshot and isolation proofs; restore the baseline and leave it off |
 
 Every mutation shares the runner's nonblocking exclusive lock. Reopened
 maintenance operations require a matching root-private ownership record,

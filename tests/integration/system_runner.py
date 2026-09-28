@@ -547,6 +547,11 @@ class Lease:
 
     @observed('Starting the VM')
     def start(self):
+        if getattr(self, 'online_pending', False) is True:
+            from online_snapshot import start
+            require(self.online_bootstrap is not None, 'online-snapshot:bootstrap-required')
+            self.online_pending = False
+            return start(self)
         self.guard(off=True)
         # Retire the current ownership interval before the disk transition.
         # Metadata checks resume after the domain instance has been recorded.
@@ -1004,6 +1009,10 @@ def retire_snapshot_payload(g, run):
 @observed('Preparing the VM SSH transport and guest inputs')
 def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
     """Prepare SSH only on the reset, powered-off active disk via libguestfs."""
+    if getattr(lease, 'online_pending', False) is True:
+        require(not observation_only, 'online-snapshot:installed-inputs-required')
+        from online_snapshot import stage
+        return stage(commands, lease, directory)
     lease.guard(off=True)
     key = directory / 'ssh-key'
     commands.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'onpc-system-test', '-f', str(key)])

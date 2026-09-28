@@ -114,7 +114,7 @@ def environment():
     return result
 
 
-def agent_command(root, model, effort, run=None, *, schema=None):
+def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=None):
     codex = shutil.which('codex')
     if codex is None:
         raise ValueError('Codex CLI is missing; install and authenticate it before running this launcher')
@@ -122,8 +122,19 @@ def agent_command(root, model, effort, run=None, *, schema=None):
             '--sandbox', 'workspace-write', '--model', model,
             '-c', f'model_reasoning_effort="{effort}"',
             '-c', 'history.persistence="none"', '-c', 'features.memories=false',
-            '-c', 'features.multi_agent=false', '-c', 'features.multi_agent_v2=false',
+            '-c', f'features.multi_agent={str(adviser_config is not None).lower()}',
+            '-c', 'features.multi_agent_v2=false',
+            '-c', f'agents.enabled={str(adviser_config is not None).lower()}',
             '--json', '--color', 'never', '--cd', str(root)]
+    if adviser_config is not None:
+        # V1 supports a depth bound. One child slot plus the coordinator's
+        # wait/close protocol keeps consultations sequential.
+        command += ['-c', 'agents.max_concurrent_threads_per_session=1',
+                    '-c', 'agents.max_depth=1',
+                    '-c', 'agents.default_subagent_model="gpt-6-astra"',
+                    '-c', 'agents.default_subagent_reasoning_effort="high"',
+                    '-c', 'agents.e2e_adviser.description="Bounded read-only diagnosis or review; no implementation or tests"',
+                    '-c', 'agents.e2e_adviser.config_file=' + json.dumps(str(adviser_config))]
     if run is not None:
         command += ['--output-schema', str(schema or Path(__file__).with_name('fix_tests_response.schema.json')),
                     '--output-last-message', str(run / 'agent-result.json')]

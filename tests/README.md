@@ -318,12 +318,33 @@ commands and their results remain visually separate, including without color.
 task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
 
-The first session for each task uses GPT-6-Astra Low to implement, host-validate
-and run the first live VM test. Success completes acceptance and close-out in
-that session; failure preserves evidence and hands off after cleanup, leaving
-review and repairs to the next session. The installed `codex exec` transport has
-no in-session model-switch control, so subsequent live/repair sessions use
-GPT-6-Astra High. Every subsequent session, including recovery after an interruption
+Every session uses GPT-6-Sol Medium as coordinator and implementer. Settled
+implementation, mechanical repairs, test execution and close-out stay with that
+coordinator. Unresolved root causes, security, concurrency, ownership and risky
+correctness questions can use one bounded GPT-6-Astra High consultation through
+the [read-only adviser](../tools/write_e2e_adviser.toml). Never use Sol High;
+select Astra Low explicitly whenever Sol High would otherwise be considered.
+This policy overrides model recommendations in older saved handoffs.
+
+Consultations are sequential: the coordinator gives one exact question, relevant
+source/evidence paths, applicable contracts and user decisions in a fresh context,
+waits for the answer, then closes the adviser before resuming work or consulting
+again. Codex V1 is configured with one concurrent child slot and one level of
+delegation. The adviser cannot delegate further and is configured read-only; its
+instructions prohibit edits, tests/builds, VM control and task completion. It
+returns concise findings, evidence, a proposed correction, uncertainty and required
+regressions. The coordinator checks the advice and owns all implementation,
+validation, cleanup and queue updates. Advice provides no acceptance credit.
+Consultations are part of the coordinator session, not extra `--sessions` units;
+they still consume model usage. Do not introduce parallel agents or overlapping
+coordinator work. `fix-tests` keeps delegation disabled.
+Start a new launcher run to adopt this policy; attaching to an existing run
+does not reconfigure its already-running coordinator.
+
+The first session implements, host-validates and runs the first live VM test.
+Success completes acceptance and close-out in that session; failure preserves
+evidence and hands off after cleanup, leaving review and repairs to the next
+session. Every subsequent session, including recovery after an interruption
 or answered blocker, investigates the previous VM failure when present, reviews
 unstaged code and retained evidence, and repairs authorized defects before host
 validation and live VM acceptance in that same session. Recovery first rechecks
@@ -389,8 +410,8 @@ terminal writes; keyboard input and terminal resizing remain responsive.
 Closing the terminal leaves it paused; rerun
 `tools/write-e2e` in an interactive terminal to answer. Piped output remains an
 observer and never invents an answer. With multiple attached terminals, the first
-submitted answer wins. Your answer continues the same task through a fresh Astra
-High recovery session with the saved handoff and your instructions. It does not
+submitted answer wins. Your answer continues the same task through a fresh Sol
+Medium recovery session with the saved handoff and your instructions. It does not
 count as passing the blocked prerequisite. If a session limit was exhausted at
 the blocker, answering grants one recovery session beyond that limit; automatic
 work remains subject to the limits afterward. `--stop` saves the pending question
@@ -467,7 +488,7 @@ The launcher saves the full summary and next-session prompt in `handoff.txt`
 without printing them. At an incomplete session boundary or safe stop, it still prints and saves
 the handoff. A new invocation after that boundary continues the latest
 handoff with fresh session and task budgets. An interrupted checkpoint
-starts an Astra High recovery session that rechecks evidence and cleanup,
+starts a Sol Medium recovery session that rechecks evidence and cleanup,
 resolves authorized remaining work, then runs host and live VM validation in
 that session. A pass closes the task; a failure preserves evidence and hands off
 for investigation and repairs in the next session.

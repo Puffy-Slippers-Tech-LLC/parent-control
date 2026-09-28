@@ -2,9 +2,18 @@
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop
 from private_artifacts import require
+import re
+
+
+def window_switch_entry(prefix=''):
+    """Launch the supporting viewer once and return to the observed Parent."""
+    require(isinstance(prefix, str) and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
+            'switch:invocation')
+    return {prefix + stage: 'ui:' + stage for stage in (
+        'switch-parent-before', 'switch-viewer-launch', 'switch-parent-ready', 'switch-parent')}
 
 STAGES = (
-    'switch-parent-before', 'switch-viewer-launch', 'switch-parent-ready', 'switch-parent', 'feedback-open',
+    *window_switch_entry(), 'feedback-open',
     'text-body-first-focus', 'text-body-first-selected', 'text-body-first-read',
     'text-reply-first-anchor', 'text-reply-first-focus',
     'text-reply-first-selected', 'text-reply-first-read',
@@ -37,6 +46,7 @@ class WindowSwitchJourney(InstalledJourney):
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
+        stage = self.plan.screen_tags.get(stage, '').removeprefix('ui:').removeprefix('draft-')
         if not stage.startswith('switch-'):
             return
         value = observed['ui']['window']

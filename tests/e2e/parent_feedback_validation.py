@@ -1,19 +1,20 @@
 """Case 153: the complete local validation matrix, Privacy and dialog retention."""
 
-from feedback_composition import FeedbackValidationJourney, text_fragment
+from feedback_composition import FeedbackValidationJourney, privacy_review, text_fragment
 from feedback_length import length_boundary
 from feedback_states import edit_states
 from feedback_rejection import STAGES as REJECTION_STAGES
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop
+from window_switch import window_switch_entry
 
 
 ENTRY = {
     **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
     **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
-        'switch-parent-before', 'switch-viewer-launch', 'switch-parent-ready', 'switch-parent',
-        'feedback-open', 'feedback-state-empty')},
+        'parent-window', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected')},
+    **window_switch_entry(),
+    'feedback-open': 'ui:feedback-open', 'feedback-state-empty': 'ui:feedback-state-empty',
 }
 MATRIX = {
     **edit_states(),
@@ -43,11 +44,12 @@ MATRIX = {
     **text_fragment('reply-first', 'review-reply-first'),
     'review-valid': 'ui:feedback-state-valid',
 }
-REVIEW = {stage: 'ui:' + stage for stage in (
+REVIEW = {**{stage: 'ui:' + stage for stage in (
     'switch-draft-before', 'switch-viewer-ready', 'switch-viewer',
-    'switch-feedback-ready', 'switch-feedback',
-    'feedback-draft', 'feedback-privacy-open', 'feedback-privacy-returned',
-    'feedback-draft-reread', 'feedback-draft-closed', 'feedback-draft-reopen')}
+    'switch-feedback-ready', 'switch-feedback', 'feedback-draft')},
+    **privacy_review(),
+    **{stage: 'ui:' + stage for stage in (
+        'feedback-draft-reread', 'feedback-draft-closed', 'feedback-draft-reopen')}}
 SCREENS = {**ENTRY, **MATRIX, **REVIEW}
 PLAN = JourneyPlan(
     prefix='feedback-validation', worker_mode='feedback_validation', screen_tags=SCREENS,

@@ -13,7 +13,7 @@ def prepare(root):
 
 def reply(status='ready_for_vm', live='failed', **values):
     return {'status': status, 'task_id': '001', 'summary': 'Host checks passed.',
-            'handoff': 'Continue task 001; run its exact live selector with Astra High.',
+            'handoff': 'Continue task 001 with Sol Medium; use bounded Astra advice when needed.',
             'blocker': {'explanation': 'The VM check is waiting because the duration checks disagree.',
                         'question': 'Which duration format should the launcher use?',
                         'options': ['Use the compact duration format and update its checks.',

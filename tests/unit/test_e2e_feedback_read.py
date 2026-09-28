@@ -1090,6 +1090,39 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
         assert [event for event in result['events'] if event in ('ctrl-l', 'ctrl-a', 'ret', 'type')] == ['ctrl-l', 'ret'] * (7 if items == 3 else 1)
 
 
+@pytest.mark.parametrize('prefix', ['chooser', 'boundary-sixth', 'unregistered'])
+@pytest.mark.parametrize('fault', ['', 'open', 'location', 'files', 'accept'])
+def test_shared_file_handoff_accepts_independent_entry_and_stops_before_later_input(prefix, fault):
+    from attachment_composition import file_handoff
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our @events; my ($prefix, $fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, 'key:' . $_[0]; }
+package main;
+use onpc_journey;
+use onpc_feedback_read;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, $_[0];
+    die 'failed proof' if $_[0] eq "$prefix-$fault";
+    return {observed => $_[0]};
+});
+my $ok = eval { onpc_feedback_read::supply_files($journey, $prefix); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', prefix, fault).stdout)
+    if prefix == 'unregistered':
+        assert result == {'ok': 0, 'events': []}
+        return
+    stages = list(file_handoff(prefix))
+    expected = [stages[0], 'key:ctrl-l', stages[1], 'key:ret', *stages[2:]]
+    if fault:
+        expected = expected[:expected.index(prefix + '-' + fault) + 1]
+    assert result == {'ok': int(not fault), 'events': expected}
+
+
 @pytest.mark.parametrize('fault', sorted(accessible_ui.BOUNDARY_OPERATIONS))
 def test_boundary_worker_stops_at_each_failed_proof(fault):
     test_chooser_worker_matches_plan_and_stops_at_failed_proof(fault, 3)
@@ -1276,6 +1309,82 @@ def test_preview_comparison_uses_captured_immutable_list():
     value['ui']['attachment']['items'].reverse()
     with pytest.raises(EvidenceError, match='preview-list-changed'):
         controller.check_settings('attachment-preview-return', value)
+
+
+def test_attachment_comparison_uses_operations_with_distinct_invocation_names():
+    from attachment_composition import AttachmentJourney
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='consumer', worker_mode='consumer', phases={}, screen_tags={
+        'draft-files': 'ui:attachment-details', 'draft-preview': 'ui:attachment-preview',
+        'rejected-before': 'ui:boundary-sixth-before', 'rejected-after': 'ui:boundary-sixth-preserved'})
+    controller = AttachmentJourney(SimpleNamespace(), Mock(), plan)
+    value = {'ui': {'attachment': {'items': [['Example.txt', '26 bytes']]}}}
+    with pytest.raises(EvidenceError, match='preview-list-changed'):
+        controller.check_settings('draft-preview', value)
+    controller.check_settings('draft-files', value)
+    controller.check_settings('draft-preview', value)
+    with pytest.raises(EvidenceError, match='preview-replay'):
+        controller.check_settings('draft-files', value)
+    value = {'ui': {'boundary': {'items': [['Example.txt', '26 bytes']], 'include_logs': False}}}
+    with pytest.raises(EvidenceError, match='rejection-list-changed'):
+        controller.check_settings('rejected-after', value)
+    controller.check_settings('rejected-before', value)
+    controller.check_settings('rejected-after', value)
+    value['ui']['boundary']['include_logs'] = True
+    with pytest.raises(EvidenceError, match='rejection-list-changed'):
+        controller.check_settings('rejected-after', value)
+
+
+@pytest.mark.parametrize('fault', ['', 'guard-stage', 'stage', 'guard-cleanup', 'cleanup'])
+def test_shared_attachment_fixtures_keep_identity_and_stop_on_failure(monkeypatch, fault):
+    import synthetic_files
+    events, controllers = [], []
+    def create(transport, profile):
+        controller = SimpleNamespace(profile=profile)
+        def call(operation):
+            events.append((profile, operation))
+            if profile == 'sixth' and operation == fault:
+                raise EvidenceError('synthetic-stop')
+            return {'absent': True} if operation == 'cleanup' else {'profile': profile}
+        controller.call = call
+        controllers.append(controller)
+        return controller
+    monkeypatch.setattr(synthetic_files, 'SyntheticFiles', create)
+    actions = synthetic_files.fixture_actions(('standard', 'sixth', 'total'))
+    journey = SimpleNamespace(transport=object())
+    phase, guarded = 'stage', []
+    def guard():
+        guarded.append(phase)
+        if fault == 'guard-' + phase and guarded.count(phase) == 2:
+            raise EvidenceError('synthetic-stop')
+    if fault in ('guard-stage', 'stage'):
+        with pytest.raises(EvidenceError, match='synthetic-stop'):
+            actions['chooser-fixtures'](journey, guard)
+        assert events == [('standard', 'stage')] + ([('sixth', 'stage')] if fault == 'stage' else [])
+        assert journey.attachment_files == controllers
+        with pytest.raises(EvidenceError, match='fixture-replay'):
+            actions['chooser-fixtures'](journey, guard)
+        return
+    receipts = actions['chooser-fixtures'](journey, guard)
+    assert list(receipts) == ['standard', 'sixth', 'total']
+    assert journey.attachment_files == controllers
+    phase = 'cleanup'
+    if fault:
+        with pytest.raises(EvidenceError, match='synthetic-stop'):
+            actions['chooser-cleanup'](journey, guard)
+        assert events[3:] == [('standard', 'cleanup')] + ([('sixth', 'cleanup')] if fault == 'cleanup' else [])
+    else:
+        assert actions['chooser-cleanup'](journey, guard) == {'owned_cleanup': True}
+        assert events[3:] == [(profile, 'cleanup') for profile in receipts]
+
+
+def test_shared_attachment_fixtures_refuse_invalid_sets_and_unprepared_cleanup():
+    from synthetic_files import fixture_actions
+    for profiles in ((), ('standard', 'standard'), ('unknown',), ['standard']):
+        with pytest.raises(EvidenceError, match='files:profiles'):
+            fixture_actions(profiles)
+    with pytest.raises(EvidenceError, match='files:fixture-entry'):
+        fixture_actions(('standard',))['chooser-cleanup'](SimpleNamespace(), Mock())
 
 
 @pytest.mark.parametrize('boundaries', [False, True])

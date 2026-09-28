@@ -34,6 +34,13 @@ Reuse `onpc_format::apply_all` / `apply_inline`,
 text ranges complements the independent inline and link proof; no DOM,
 private-draft, toolbar-only or cosmetic substitution is permitted.
 
+Reuse the shared attachment handoff `onpc_feedback_read::supply_files`,
+`synthetic_files.fixture_actions` and `attachment_composition` comparisons.
+The composition refactor passed host checks and all four affected live
+qualifications, including collection, owned cleanup and baseline restoration;
+see [attachment composition validation](E2E-Building-Blocks.md#attachment-item-metadata-and-removal).
+This review supplies no complete-case credit or queue advancement.
+
 Case 152 remains pending and has had no live attempt. Compose its formatted,
 one-file draft, synthetic reply address, Privacy, close/reopen preservation and
 Parent exit/relaunch reset using shared operations. Task 030a's FEED10

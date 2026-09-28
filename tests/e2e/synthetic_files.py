@@ -49,6 +49,41 @@ class SyntheticFiles:
         return value
 
 
+def fixture_actions(profiles, *, stage='chooser-fixtures', cleanup='chooser-cleanup'):
+    """Bind declared file sets to one journey, retaining controllers on failure.
+
+    Allocate no paths here: SyntheticFiles owns the finite guest commands and
+    identity receipts. Each action guards every set and never retries uncertain
+    input; the attempt envelope owns recovery after a failed action.
+    """
+    require(type(profiles) is tuple and profiles and len(set(profiles)) == len(profiles)
+            and all(profile in ('standard', 'count', 'sixth', 'maximum', 'oversized',
+                                'total', 'overflow') for profile in profiles), 'files:profiles')
+    require(stage != cleanup, 'files:action-names')
+
+    def prepare(journey, guard):
+        require(not hasattr(journey, 'attachment_files'), 'files:fixture-replay')
+        journey.attachment_files = []
+        receipts = {}
+        for profile in profiles:
+            guard()
+            files = SyntheticFiles(journey.transport, profile)
+            journey.attachment_files.append(files)
+            receipts[profile] = files.call('stage')
+        return receipts
+
+    def release(journey, guard):
+        require(hasattr(journey, 'attachment_files')
+                and tuple(files.profile for files in journey.attachment_files) == profiles,
+                'files:fixture-entry')
+        for files in journey.attachment_files:
+            guard()
+            require(files.call('cleanup') == {'absent': True}, 'files:cleanup-result')
+        return {'owned_cleanup': True}
+
+    return {stage: prepare, cleanup: release}
+
+
 def _qualify_entry(journey, guard):
     guard()
     files = SyntheticFiles(journey.transport)

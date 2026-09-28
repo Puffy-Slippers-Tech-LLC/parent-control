@@ -230,13 +230,15 @@ def test_chooser_fixture_lifetime_retains_same_controller_and_owned_receipt(monk
     # Same reviewed private doubles as FILE05; no additional host resources.
     import file_chooser
     fixture = Mock()
+    fixture.profile = 'standard'
+    fixture.call.side_effect = [{'files': 'owned-receipt'}, {'absent': True}]
     factory = Mock(return_value=fixture)
-    monkeypatch.setattr(file_chooser, 'SyntheticFiles', factory)
+    monkeypatch.setattr(controller, 'SyntheticFiles', factory)
     journey = SimpleNamespace(transport=Mock())
     guard = Mock()
     file_chooser.stage_files(journey, guard)
     file_chooser.cleanup_files(journey, guard)
-    factory.assert_called_once_with(journey.transport)
+    factory.assert_called_once_with(journey.transport, 'standard')
     assert [call.args for call in fixture.call.call_args_list] == [('stage',), ('cleanup',)]
     assert guard.call_count == 2
 

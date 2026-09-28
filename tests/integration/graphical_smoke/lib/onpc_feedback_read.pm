@@ -61,31 +61,18 @@ sub run {
     $journey->finish();
 }
 
-sub chooser_handoff {
-    onpc_progress::operation('Supplying the exact prepared files and observing feedback');
-    my ($journey, $items) = @_;
+# FILE03: the same guarded handoff for ordinary files and finite boundary sets.
+# Callers own entry/refusal checks, independent result expectations and Cancel.
+sub supply_files {
+    onpc_progress::operation('Supplying a declared file set through the owned chooser');
+    my ($journey, $prefix) = @_;
     die 'chooser:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && ($items == 0 || $items == 1 || $items == 2 || $items == 3);
-    for my $stage ('feedback-open', 'chooser-wrong-entry', 'chooser-open',
-                   'chooser-location', 'chooser-files',
-                   'chooser-accept', 'chooser-attachments', 'chooser-reopen',
-                   'chooser-cancel', 'chooser-preserved') {
+        && $prefix =~ /^(chooser|boundary-(count|sixth|maximum|oversized|total|overflow))$/;
+    for my $step ('open', 'location', 'files', 'accept') {
+        my $stage = "$prefix-$step";
         $journey->consume_observation($stage, $journey->seen($stage));
-        if ($items && $stage eq 'feedback-open') {
-            $journey->consume_observation('attachment-wrong-entry', $journey->seen('attachment-wrong-entry'));
-        }
-        if ($stage eq 'chooser-open') {
-            testapi::send_key('ctrl-l');
-        } elsif ($stage eq 'chooser-location') {
-            testapi::send_key('ret');
-        }
-    }
-    if ($items) {
-        for my $stage ('attachment-details', ($items >= 2
-                ? ('attachment-preview', 'attachment-preview-return')
-                : ('attachment-remove', 'attachment-remaining'))) {
-            $journey->consume_observation($stage, $journey->seen($stage));
-        }
+        testapi::send_key('ctrl-l') if $step eq 'open';
+        testapi::send_key('ret') if $step eq 'location';
     }
 }
 
@@ -94,11 +81,12 @@ sub boundary_batch {
     my ($journey, $batch) = @_;
     die 'attachment:batch' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && $batch =~ /^(count|sixth|maximum|oversized|total|overflow)$/;
-    for my $step ('before', 'open', 'location', 'files', 'accept', 'result', 'preserved') {
-        my $stage = "boundary-$batch-$step";
+    my $prefix = "boundary-$batch";
+    $journey->consume_observation("$prefix-before", $journey->seen("$prefix-before"));
+    supply_files($journey, $prefix);
+    for my $step ('result', 'preserved') {
+        my $stage = "$prefix-$step";
         $journey->consume_observation($stage, $journey->seen($stage));
-        testapi::send_key('ctrl-l') if $step eq 'open';
-        testapi::send_key('ret') if $step eq 'location';
     }
 }
 
@@ -113,7 +101,21 @@ sub run_file_chooser {
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
-    chooser_handoff($journey, $items);
+    for my $stage ('feedback-open', ($items ? ('attachment-wrong-entry') : ()),
+                   'chooser-wrong-entry') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    supply_files($journey, 'chooser');
+    for my $stage ('chooser-attachments', 'chooser-reopen', 'chooser-cancel', 'chooser-preserved') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    if ($items) {
+        for my $stage ('attachment-details', ($items >= 2
+                ? ('attachment-preview', 'attachment-preview-return')
+                : ('attachment-remove', 'attachment-remaining'))) {
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+    }
     if ($items == 3) {
         for my $stage ('attachment-remove', 'attachment-remaining', 'boundary-clear-small') {
             $journey->consume_observation($stage, $journey->seen($stage));

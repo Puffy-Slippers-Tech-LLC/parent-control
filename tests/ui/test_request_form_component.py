@@ -205,6 +205,40 @@ def test_shared_custom_duration_preserves_fractional_minute_precision(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+@pytest.mark.parametrize("seconds", (1800, 2700), ids=("30-minute-preset", "45-minute-custom"))
+def test_custom_45_minutes_and_30_minute_preset_submit_distinct_durations(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay, seconds):
+    from tests.support.keyboard import key_combo, type_text
+
+    ui = request_ui
+    path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="remembered")
+    ready(ui, wait_for_accessible_state)
+    ui.focus("kiosk-custom-duration")
+    key_combo(ui, "kiosk-custom-duration", "<Control>a", state=ui.api.StateType.FOCUSED)
+    type_text(ui, "kiosk-custom-duration", "45")
+    wait_for_accessible_state(
+        lambda: any(call["values"][1:3] == ["custom", 45.0]
+                    for call in calls(path, "UpdateRequestPreferences")),
+        "custom 45-minute choice saved",
+    )
+    if seconds == 1800:
+        assert ui.target("kiosk-duration-1800").get_name() == "Request 30 minutes"
+        ui.activate("kiosk-duration-1800")
+        wait_for_accessible_state(
+            lambda: any(call["values"][1] == "1800"
+                        for call in calls(path, "UpdateRequestPreferences")),
+            "30-minute preset replaces custom choice",
+        )
+    ui.activate("kiosk-request-submit")
+    method = "RequestOwnAccess" if overlay else "RequestAccess"
+    wait_for_accessible_state(lambda: bool(calls(path, method)), "duration submitted")
+    assert calls(path, method)[0]["values"] == (
+        [1010, seconds, True] if overlay else [1001, 1010, seconds, True]
+    )
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 @pytest.mark.parametrize("scenario", ("custom-too-small", "custom-too-large"))
 def test_shared_custom_duration_rejects_values_outside_range(
         launch_ui, request_ui, wait_for_accessible_state,

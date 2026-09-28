@@ -1,10 +1,15 @@
 import json
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
 from oh_no_parent_control_kiosk.selection_store import SelectionStore
 from oh_no_parent_control_kiosk.request_content import RequestContent
+from oh_no_parent_control_kiosk.main import RequestWindow
+from oh_no_parent_control_kiosk.model import RequestState
+from common.oh_no_parent_control_ui.diagnostic_events import decode
+from oh_no_parent_control.logs import DailyLogWriter
 from tests.support.objects import bind_methods
 
 
@@ -112,3 +117,85 @@ def test_unwritable_state_is_nonfatal_and_logs_no_identity(tmp_path, caplog):
     assert "could not be saved" in caplog.text
     assert "1234567" not in caplog.text
     assert str(path) not in caplog.text
+
+
+def diagnostic_window(overlay):
+    return bind_methods(SimpleNamespace(
+        _preview=False, _child_overlay=overlay, _applying_preferences=False,
+        _request_content=Mock(), _state=RequestState(), _bus_call=Mock(),
+        _queue_time_estimate=Mock(), _apply_mute=Mock(), _mute_surface=lambda: "kiosk",
+        _show_error=Mock(), _set_request_controls=Mock(), _request_failed=Mock(),
+        _preferences_save_done=Mock(), _preferences_saved=Mock(), _errors=Mock(),
+    ), RequestWindow, (
+        "_log_duration_selection", "_preferences_done", "_persist_form_values",
+        "_request_access",
+    ))
+
+
+@pytest.mark.parametrize("overlay", (False, True))
+def test_request_diagnostics_trace_restoration_edits_and_submission_without_identity(
+        caplog, overlay):
+    caplog.set_level("INFO")
+    window = diagnostic_window(overlay)
+    form = window._request_content
+    secret = "private name /home/private private@example.test"
+    form.selected.return_value = (1234567, secret, 7654321, 1800, False)
+    form.selected_preferences.return_value = ("1800", 45.0, False)
+    connection = SimpleNamespace(call_finish=lambda _: SimpleNamespace(unpack=lambda: ("{}",)))
+    window._preferences_done(1234567, connection, object())
+    form.selected.return_value = (1234567, secret, 7654321, 2700, False)
+    form.selected_preferences.return_value = ("custom", 45.0, False)
+    window._persist_form_values()
+    window._request_access()
+    payloads = [decode(record.onpc_payload) for record in caplog.records]
+    selections = [item for item in payloads if item["event"] == "kiosk.duration-selection"]
+    assert [item["fields"] for item in selections] == [
+        {"stage": "restored", "kind": "preset", "duration_seconds": 1800, "overlay": overlay},
+        {"stage": "edited", "kind": "custom", "duration_seconds": 2700, "overlay": overlay},
+        {"stage": "submitted", "kind": "custom", "duration_seconds": 2700, "overlay": overlay},
+    ]
+    # The recorded submission must match the duration frozen for authentication.
+    assert window._pending_request == (1234567, 7654321, 2700, False)
+    for private in (secret, "1234567", "7654321"):
+        assert private not in caplog.text
+        assert private not in repr(payloads)
+    window._show_error.assert_not_called()
+    window._request_failed.assert_not_called()
+
+
+def test_rapid_duration_reversions_survive_log_suppression(tmp_path, caplog):
+    caplog.set_level("INFO")
+    window = diagnostic_window(False)
+    for seconds in (1800, 2700, 1800):
+        window._request_content.selected.return_value = (1001, "Child", 1000, seconds, False)
+        window._request_content.selected_preferences.return_value = ("custom", seconds / 60, False)
+        window._log_duration_selection("edited")
+    writer = DailyLogWriter(tmp_path, monotonic=lambda: 0)
+    for record in caplog.records:
+        writer.write("kiosk", "INFO", record.onpc_payload)
+    saved = [json.loads(line) for path in (tmp_path / "kiosk").glob("*.events")
+             for line in path.read_text().splitlines()]
+    assert [item["fields"]["duration_seconds"] for item in saved] == [1800, 2700, 1800]
+    assert writer.summary()["suppressed"] == 0
+
+
+def test_duration_diagnostics_do_not_log_invalid_text_or_obsolete_preferences(caplog):
+    caplog.set_level("INFO")
+    window = diagnostic_window(False)
+    window._request_content.selected.side_effect = ValueError("private custom text")
+    window._log_duration_selection("edited")
+    assert not caplog.records
+    window._request_content.is_selected_account.return_value = False
+    connection = SimpleNamespace(call_finish=lambda _: SimpleNamespace(unpack=lambda: ("{}",)))
+    window._preferences_done(1001, connection, object())
+    window._request_content.set_preferences.assert_not_called()
+    assert not caplog.records
+
+
+def test_rest_of_day_selection_is_not_reported_as_zero_length_fixed_grant(caplog):
+    caplog.set_level("INFO")
+    window = diagnostic_window(False)
+    window._request_content.selected.return_value = (1001, "Child", 1000, 0, False)
+    window._request_content.selected_preferences.return_value = ("0", 45.0, False)
+    window._log_duration_selection("submitted")
+    assert decode(caplog.records[-1].onpc_payload)["fields"]["kind"] == "rest-of-day"

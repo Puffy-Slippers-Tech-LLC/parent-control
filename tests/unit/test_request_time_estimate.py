@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from common.oh_no_parent_control_ui.duration import format_duration
+from common.oh_no_parent_control_ui.diagnostic_events import decode
 from oh_no_parent_control_kiosk.main import RequestWindow, _time_estimate_label
 from oh_no_parent_control_kiosk.request_content import RequestContent
 from tests.support.objects import bind_methods
@@ -21,7 +22,7 @@ def estimate_window():
         _estimate_in_flight=False, _estimate_debounce_id=0,
         _state=SimpleNamespace(in_flight=False),
         _stack=SimpleNamespace(get_visible_child_name=lambda: "request"),
-        _preview=False, _bus_call=Mock(),
+        _preview=False, _child_overlay=False, _bus_call=Mock(),
         _errors=Mock(),
     ), RequestWindow, (
         "_refresh_time_estimate", "_time_estimate_done", "_finish_time_estimate",
@@ -87,6 +88,25 @@ def test_destroyed_window_ignores_pending_reply():
     window._request_content.set_time_estimate.assert_not_called()
     assert window._refresh_time_estimate() is False
     assert window._bus_call.call_count == 1
+
+
+def test_estimate_diagnostics_retain_operands_but_exclude_stale_replies_and_identity(caplog):
+    caplog.set_level("INFO")
+    window = estimate_window()
+    window._request_content.time_estimate_selection.return_value = (1234567, 300)
+    window._refresh_time_estimate()
+    window._estimate_revision += 1
+    reply(window, seconds=9999)
+    assert not caplog.records
+    reply(window, seconds=1200)
+    payload = decode(caplog.records[-1].onpc_payload)
+    assert payload["event"] == "kiosk.estimate-calculated"
+    assert payload["fields"] == {
+        "daily": 900, "grant": 0, "additional": 300, "calculated": 1200,
+        "overlay": False,
+    }
+    assert "1234567" not in caplog.text
+    assert "9999" not in caplog.text
 
 
 @pytest.mark.parametrize("state, expected", (

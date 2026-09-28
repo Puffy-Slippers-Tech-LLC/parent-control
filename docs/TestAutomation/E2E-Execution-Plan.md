@@ -186,7 +186,7 @@ Before implementation, read the
 [capability](E2E-Execution-Contracts.md#capability-acceptance),
 [scenario](E2E-Execution-Contracts.md#scenario-acceptance) or
 [system](E2E-Execution-Contracts.md#system-acceptance) acceptance branch.
-They retain snapshot preparation, watchvm, isolated safety gates, affected
+They retain snapshot preparation, watch, isolated safety gates, affected
 regressions, public-result observation, collection and cleanup requirements.
 Host checks cannot complete live work. Task 192 remains the sole host-only
 exception; no new exception is introduced by scoped reading.

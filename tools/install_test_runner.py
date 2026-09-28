@@ -143,8 +143,8 @@ def repair_checkout_bytecode(root):
 
 
 def install_watch_desktop(root, *, data_root=Path('/usr/local/share'),
-                          application_id='org.onpc.E2EWatch', launcher='watchvm',
-                          title='VM — View only'):
+                          application_id='org.onpc.E2EWatch', launcher='watch',
+                          title='Test watch'):
     """Give the development viewer its own GNOME dock/window identity."""
     from gi.repository import GLib
 
@@ -184,8 +184,6 @@ def main():
         compile(data, name, 'exec')
     install_missing_dependencies()
     install_watch_desktop(root)
-    install_watch_desktop(root, application_id='org.onpc.UIWatch', launcher='watch-ui',
-                          title='UI tests — View only')
     for name, data in rendered.items():
         install_file(Path('/usr/local/libexec') / name, data, 0o755)
     policy = 'com.puffyslippers.onpc.development.policy'

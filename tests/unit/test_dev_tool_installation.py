@@ -88,8 +88,7 @@ def test_atomic_helper_install_and_symlink_refusal(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('existing_cache', [False, True])
-@pytest.mark.parametrize('ui_watch', [False, True])
-def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypatch, existing_cache, ui_watch):
+def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypatch, existing_cache):
     import gi
     gi.require_version('Gtk', '4.0')
     from gi.repository import Gio, GLib, Gtk
@@ -106,15 +105,13 @@ def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypat
                        check=True)
     monkeypatch.setattr(os, 'fchown', Mock())
     for _ in range(2):
-        options = dict(application_id='org.onpc.UIWatch', launcher='watch-ui',
-                       title='UI tests — View only') if ui_watch else {}
-        installer['install_watch_desktop'](ROOT, data_root=data_root, **options)
-        app_id = 'org.onpc.UIWatch' if ui_watch else 'org.onpc.E2EWatch'
+        installer['install_watch_desktop'](ROOT, data_root=data_root)
+        app_id = 'org.onpc.E2EWatch'
         entry = Gio.DesktopAppInfo.new_from_filename(
             str(data_root / 'applications' / (app_id + '.desktop')))
         assert entry is not None
         parsed, command = GLib.shell_parse_argv(entry.get_commandline())
-        assert parsed and command == [str(ROOT / 'tools' / ('watch-ui' if ui_watch else 'watchvm'))]
+        assert parsed and command == [str(ROOT / 'tools' / 'watch')]
         icon_name = entry.get_icon().to_string()
         lookup = Gtk.IconTheme.new()
         lookup.set_search_path([str(data_root / 'icons'), '/usr/share/icons'])

@@ -36,7 +36,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Prepare a real active grant with zero daily allowance, suspend normally, wake before its deadline, independently observe the return surface and unlock successfully. Qualify independent valid entry, wrong-owner refusal and continuity of the existing activity.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

@@ -76,6 +76,10 @@ dependencies and host policies. Explicit baseline preparation is
 The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
 plugin and GTK 4 VTE viewer packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.
+For an additional worktree on a configured host, `./setup.sh --ui-tests-only`
+creates its checkout-local UI environment from the pinned requirements. This
+unprivileged mode changes neither host package versions nor Git configuration;
+missing system prerequisites still require the normal dependency setup route.
 
 The [rules renderer](../tools/install_codex_rules.py) validates its required
 launcher inventory, then discovers every regular executable under `tools/`
@@ -414,13 +418,15 @@ Collection/listing does not run cleanup or claim passing test coverage.
 ## The one test VM
 
 All VM consumers inherit the [VM observation mandate](Mandates/VM-Mandate.MD#vm-observation-mandate).
-`tools/watchvm` observes the shared lease and guarded command transport during
+`tools/watch` observes the shared lease and guarded command transport during
 E2E, installed tests, qualifications, snapshot preparation and maintenance.
 Publish nonsecret intent through `watch_activity.operation` or `observed` before
 work starts; keep it visible through blocking work and restore enclosing intent
 after nested work. Reuse this infrastructure for new routes. Independent capture,
 SSH transcript or footer implementations are outside the contract. Viewing is
-read-only and may attach or detach at any time without controlling VM activity.
+read-only for VM activity and may attach or detach at any time without controlling
+the VM. In the left runner terminal, selection and Copy are available; Ctrl+C
+requests the displayed runner's cooperative cancellation and cleanup.
 
 `tools/test-vm` has no domain, URI, disk, XML, snapshot-name or arbitrary-command
 argument. It uses `qemu:///system`, the name in

@@ -2900,7 +2900,7 @@ checkpoints, stable-absence intervals and result assertions remain required.
 
 ## Add a consumer
 
-Open `tools/watchvm` as the desktop user before starting a VM task. Its
+Open `tools/watch` as the desktop user before starting a VM task. Its
 resizable command pane follows the shared guarded command runner independently
 of graphical frames: installed-system tests (including the pre-E2E test run),
 app-snapshot preparation, SSH work, VM lifecycle stages and cleanup are visible.
@@ -2931,7 +2931,7 @@ VTE dependency (`gir1.2-vte-3.91`) on existing hosts. Reopen an already running 
 after code changes. Refresh installed dispatcher changes through the same setup mode.
 
 The recorder automatically publishes each selected case's numeric ID, title,
-invocation position/total and current phase description to `tools/watchvm`.
+invocation position/total and current phase description to `tools/watch`.
 The title appends `- (case time/total time)` in whole minutes, or hours and
 minutes from one hour onward. Case time includes preparation; total time runs
 from invocation startup. An independent progress heartbeat keeps the next case

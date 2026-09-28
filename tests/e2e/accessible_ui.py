@@ -735,8 +735,9 @@ def owned_surface_id(identity):
         ('startup-error-', 'startup-error-window'),
         ('preview-screen-', 'preview-screen-dialog'),
         ('preview-viewer-', 'preview-viewer-window'),
-        ('e2e-watch-', 'e2e-watch-window'),
-        ('ui-watch-', 'ui-watch-window'),
+        ('e2e-watch-', 'watch-window'),
+        ('ui-watch-', 'watch-window'),
+        ('watch-', 'watch-window'),
         ('about-', 'about-dialog'),
         ('feedback-', 'feedback-dialog'),
         ('parent-', 'parent-window'),
@@ -759,7 +760,6 @@ PARENT_APPLICATION = 'com.puffyslippers.OhNoParentControl.Parent'
 KIOSK_APPLICATION = 'com.puffyslippers.OhNoParentControl'
 CHILD_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildRequest'
 WATCH_APPLICATION = 'org.onpc.E2EWatch'
-UI_WATCH_APPLICATION = 'org.onpc.UIWatch'
 PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION)
 
 
@@ -767,10 +767,8 @@ def owned_applications(identity):
     fixture = re.match(r'^onpc-fixture-(native|flatpak|snap|game)-(primary|secondary)(?:-|$)', identity)
     if fixture:
         return (f'com.puffyslippers.ONPCFixture.{fixture[1]}.{fixture[2]}',)
-    if identity.startswith('e2e-watch-'):
+    if identity.startswith(('e2e-watch-', 'ui-watch-', 'watch-')):
         return (WATCH_APPLICATION,)
-    if identity.startswith('ui-watch-'):
-        return (UI_WATCH_APPLICATION,)
     if identity.startswith('parent-'):
         return (PARENT_APPLICATION,)
     if identity.startswith(('kiosk-', 'preview-screen-')):
@@ -1485,8 +1483,7 @@ class AccessibleUI:
         app_id = identify(application)
         primary = ((f'onpc-fixture-{"-".join(app_id.split(".")[-2:])}',)
                    if app_id.startswith('com.puffyslippers.ONPCFixture.') else
-                   ('e2e-watch-window',) if app_id == WATCH_APPLICATION else
-                   ('ui-watch-window',) if app_id == UI_WATCH_APPLICATION else
+                   ('watch-window',) if app_id == WATCH_APPLICATION else
                    ('parent-window', 'parent-access-denied-window', 'startup-error-window')
                    if app_id == PARENT_APPLICATION else
                    ('kiosk-request-window', 'startup-error-window')
@@ -6637,7 +6634,7 @@ class AccessibleUI:
             application_kind = self._prompt_application_kind(facts[application]['name'])
             owned = bool(identities[application] in (
                 PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION,
-                WATCH_APPLICATION, UI_WATCH_APPLICATION))
+                WATCH_APPLICATION))
             for surface in application_nodes:
                 if surface is application or not facts[surface]['showing']:
                     continue

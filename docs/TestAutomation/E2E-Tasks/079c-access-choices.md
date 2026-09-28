@@ -33,7 +33,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Save Allowed, Hard Blocked and Soft Blocked in order and independently read each saved choice. Repeat from an independently supplied App Limits entry; wrong row or disabled control refuses.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

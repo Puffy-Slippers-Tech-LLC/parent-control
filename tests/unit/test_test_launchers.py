@@ -471,14 +471,20 @@ def test_missing_roadmap_target_refuses_but_fixed_target_can_be_added(checkout):
     assert safety is False
 
 
-def test_e2e_listing_is_host_safe_and_pending_execution_refused():
+def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     plan, safety = commands.plan(ROOT, 'e2e', ['--list'])
     assert 'pkexec' not in plan[0][0]
     assert plan[0][2].endswith('/tests/e2e/runner.py')
     assert '--list' in plan[0]
     assert safety is False
+    # Listing loads the shared password module without reading credentials.
+    # Supply the unrelated execution prerequisite without using the host .envrc.
+    import test_account_password
+    password = Mock(return_value='fixture-password')
+    monkeypatch.setattr(test_account_password, 'read_password', password)
     with pytest.raises(ValueError, match='selection:pending'):
         commands.plan(ROOT, 'e2e', ['--scenario=E2E-031', '--artifacts=/tmp/onpc-future'])
+    password.assert_called_once_with(ROOT)
 
 
 def test_privileged_parent_symlink_is_rejected(checkout):

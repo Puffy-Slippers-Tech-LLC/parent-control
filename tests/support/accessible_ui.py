@@ -93,7 +93,7 @@ def product_tree(root):
     if any(identity in (PARENT_APPLICATION, KIOSK_APPLICATION, WATCH_APPLICATION)
            for identity in identities):
         return root
-    app_id = (WATCH_APPLICATION if any(identity.startswith('e2e-watch-') for identity in identities)
+    app_id = (WATCH_APPLICATION if any(identity.startswith(('e2e-watch-', 'ui-watch-', 'watch-')) for identity in identities)
               else KIOSK_APPLICATION if any(identity.startswith('kiosk-') for identity in identities)
               else PARENT_APPLICATION)
     application = Node(identity=app_id, children=[root])

@@ -1007,6 +1007,8 @@ def test_command_adapter_only_inspects_explicit_qcow2():
 
 
 def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, capsys):
+    monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
+    monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     monkeypatch.setattr(host.shutil, "which", lambda _name: None)
     connect = Mock()
     monkeypatch.setattr(host, "LibvirtSource", connect)

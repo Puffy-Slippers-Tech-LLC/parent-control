@@ -181,11 +181,16 @@ remain host-safe; a listing is never an execution pass.
 
 ### Optional live viewing
 
-Run `tools/watchvm` from your desktop terminal whenever you want to watch the
+Run `tools/watch` or `make watch` from your desktop terminal whenever you want to watch the
 guarded test VM, during E2E or any other VM work. Tests remain headless by default: the runner never launches a
 window. You can open, close or reopen the viewer during an attempt. Another
-`tools/watchvm` launch reuses and presents the existing window;
+`tools/watch` launch reuses and presents the existing window;
 the pinned VM has one viewer per desktop session, including concurrent launches.
+Launch commands return after service startup without holding the terminal.
+Select **VM** to keep the VM viewer visible, or **Active** to share the right
+panel with concurrent host UI tests. Hidden viewers stop rendering and reading
+pixel payloads. The left terminal follows the invoking checkout's active
+`fix-tests` or `run-tests` output. The VM command transcript stays in the VM view.
 Leave it open across reboot, shutdown, failure cleanup and subsequent attempts; it shows
 Waiting between available displays and resumes automatically. Only closing the
 window yourself ends it. Automation neither owns nor signals your viewer process.

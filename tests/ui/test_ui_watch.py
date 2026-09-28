@@ -2,7 +2,6 @@
 
 import json
 import os
-import tempfile
 import time
 from pathlib import Path
 
@@ -12,14 +11,15 @@ from tests.support.automation_ids import audit_owned_controls
 from tests.support.request_form import launch_request, calls, events as request_events
 from ui_watch_transport import Feeds
 from ui_watch_viewer import WAITING
+from test_storage import runtime_directory
 
 pytestmark = pytest.mark.ui
 
 
 @pytest.fixture
 def watch_registry():
-    with tempfile.TemporaryDirectory(prefix='onpc-ui-watch-test-', dir='/tmp') as directory:
-        yield Path(directory)
+    with runtime_directory(prefix='onpc-ui-watch-test-') as directory:
+        yield directory
 
 
 def test_four_branch_tabs_grid_resize_stop_and_reconnect(
@@ -30,7 +30,7 @@ def test_four_branch_tabs_grid_resize_stop_and_reconnect(
         'ONPC_UI_WATCH_REGISTRY': str(directory), 'ONPC_UI_WATCH_CONTROL': str(control),
         'ONPC_UI_WATCH_EVIDENCE': str(evidence)})
     ui, wait = automation, wait_for_accessible_state
-    wait(lambda: ui.showing('ui-watch-window'), 'viewer publishes its window')
+    wait(lambda: ui.showing('watch-window'), 'viewer publishes its window')
     assert ui.text('ui-watch-status') == WAITING
     control.write_text('start')
     wait(lambda: ui.text('ui-watch-status') == '4 active UI worker(s) · View only',
@@ -41,11 +41,12 @@ def test_four_branch_tabs_grid_resize_stop_and_reconnect(
         assert ui.showing(f'ui-watch-grid-{run}-display')
         ui.activate('ui-watch-tab-' + run)
         wait(lambda: ui.showing(f'ui-watch-branch-{run}-test'), 'selected branch is visible')
-        assert ui.text(f'ui-watch-branch-{run}-test') == f'case-{index + 1}'
+        wait(lambda: ui.text(f'ui-watch-branch-{run}-test') == f'case-{index + 1}',
+             'selected branch renders its current frame')
         ui.activate('ui-watch-all-tab')
         wait(lambda: all(ui.showing(f'ui-watch-grid-{worker}-test') for worker in runs),
              'All branches restores every worker view')
-    audit_owned_controls(ui, 'ui-watch-window')
+    audit_owned_controls(ui, 'watch-window')
     control.write_text('resize')
     wait(lambda: all(ui.text(f'ui-watch-grid-{run}-status').startswith('teardown') for run in runs),
          'all workers keep publishing after viewer resize')
@@ -56,7 +57,7 @@ def test_four_branch_tabs_grid_resize_stop_and_reconnect(
          'same viewer discovers a subsequent worker')
     run = json.loads(evidence.read_text())['runs'][0]
     assert ui.text(f'ui-watch-grid-{run}-test') == 'subsequent-case'
-    ui.activate('ui-watch-close')
+    ui.activate('watch-close')
     wait(lambda: process.poll() is not None, 'viewer exits independently')
     assert process.returncode == 0, log.read_text()
 

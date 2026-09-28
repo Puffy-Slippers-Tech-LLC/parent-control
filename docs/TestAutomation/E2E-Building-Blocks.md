@@ -703,6 +703,23 @@ retain this exact one-file expectation and the diagnostic attachment.
 [attachment_items.py](../../tests/e2e/attachment_items.py) composes
 `file_chooser.journey` and the shared `onpc_feedback_read::run_file_chooser`
 items branch, retaining the prepared-file controller through owned cleanup.
+Reusable chooser input lives in `onpc_feedback_read::supply_files`; its matching
+declaration is `attachment_composition.file_handoff`. Boundary batches call
+that same input sequence. Qualifications retain their own independent entry,
+wrong-entry refusal and Cancel assertions rather than adding those checks to
+every customer handoff. `synthetic_files.fixture_actions` binds an explicit tuple
+of file profiles to guarded staging and cleanup, retains each controller before
+transport, and refuses repeated preparation or cleanup without its owned set.
+Use this library directly in future cases; the qualification modules own recipes.
+
+The composition refactor passed host worker/fixture/comparison regressions and
+live `check_e2e_file_chooser` in `20260928T012531Z-b814a47d`,
+`check_e2e_attachment_items` in `20260928T012819Z-76605176`,
+`check_e2e_attachment_preview` in `20260928T013127Z-fdb49954` and
+`check_e2e_attachments` in `20260928T013920Z-68c267ef`. Collection, owned fixture
+cleanup, worker shutdown and baseline restoration passed. These runs preserve
+the qualified scopes below; they supply no complete-case or offered-preview credit.
+
 `tools/run-tests integration check_e2e_attachment_items` qualified the slice in
 `20260927T175107Z-aac1d11d`; the shared chooser regression passed in
 `20260927T175421Z-d6087694`. Real Add files/Open, independent reopen/Cancel,
@@ -737,10 +754,16 @@ inspection supplies preview acceptance.
 
 [attachment_preview.py](../../tests/e2e/attachment_preview.py) composes the
 shared `onpc_feedback_read::run_file_chooser` preview branch and retains the
-prepared-file controller through cleanup. `AttachmentPreviewJourney` captures
+prepared-file controller through cleanup. The shared
+`attachment_composition.AttachmentJourney` captures
 an immutable `attachment-details` list, then compares independent
 `attachment-preview` and `attachment-preview-return` observations against it.
 `UiObservations` validates the exact public result, including `not-offered`.
+The same journey compares rejected boundary batches, including diagnostic
+inclusion, against their independent pre-input lists. It resolves operation
+names through the plan so a consumer can use distinct invocation names without
+silently losing comparisons. The qualification's `AttachmentPreviewJourney`
+and `AttachmentBoundariesJourney` imports alias this shared implementation.
 
 `tools/run-tests integration check_e2e_attachment_preview` qualified this scope
 in `20260927T193459Z-36234a89`: independent entry/wrong-entry refusal, real
@@ -2903,6 +2926,11 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | Later cases escape an earlier composition audit | Discover cases and workers from ready inventory bindings. Review helper methods and subclasses as well as callbacks; moving I/O into a case-local helper is still case-owned mechanics. The [composition guard](../../tests/unit/test_e2e_case_composition.py) enforces this boundary. |
 | Qualified sequences are copied into a complete case | The prepared-request and approval tasks demonstrate reusable composites feeding several complete cases. Apply that pattern to feedback's edit-state and UTF-16 matrices too: expose one declaration/execution pair and call it from qualification and cases. Keep different terminal results and independent-entry checks in the callers. |
 | A long accessibility-driven Parent journey reaches the desktop idle timeout | The allowance case's resolution belongs in the shared desktop-entry envelope: prepare the verified Parent for continuous activity after every qualified entry, including reopening/reboot paths. Never add per-case keepalive input or alter the child's tested expiry behavior. See [shared entry helpers](../../tests/e2e/README.md#shared-system-and-account-entry-helpers). |
+| Attachment metadata is visible but GTK's Description property is empty (038a) | Qualify the real public relation before designing the projection: read the owned row's `DESCRIBED_BY` target, retain exact order/name/size, and regress absent, foreign and ambiguous targets. Put toolkit representation in the adapter, not each case. |
+| A Remove action returns before GTK updates the list (038a/038) | Submit once; while waiting permit only the exact valid pre-action state, then require the exact expected result. Regress delayed success and wrong-item removal without replay. Reuse guarded fixture actions and immutable list comparisons across attachment profiles. |
+| A generic row activation looks like a preview (038b) | Prove the app's offered capability through its public availability and action contract first. Record an explicit inapplicable result and an independently unchanged list when no preview is offered; do not invent an external-editor route or claim offered-preview coverage. |
+| Rich text is exposed through different public structures (034aa/034ab/034a) | Probe real block semantics, inline Text attributes and Hyperlink text/URI independently before composing all formats. Associate each with exact unique synthetic ranges; Hyperlink indices are local embedded-object positions, not editor-global offsets. Regress linked and unlinked ranges, removal preserving text and independent reopen. |
+| A reset check could accidentally restore the draft it is meant to inspect (030a) | Capture a nonempty draft, compose the shared app lifecycle, then independently read the empty result before any restorative input. Keep dialog preservation and app-exit reset as separate assertions; extend profiles explicitly for formatted/file-bearing consumers. |
 
 ### Composition preflight
 
@@ -2927,7 +2955,11 @@ Before the first live attempt, check the changed boundary end to end on the host
    `actions`. Direct class tests and a mocked recorder do not cover this boundary.
    For a new observation shape, carry realistic-sized output through the real
    controller decoder; an adapter-only mock cannot qualify that boundary. The
-   [lessons above](#lessons-to-preserve) identify the recurring representation
+   actual worker bundle must also pass `e2e_worker.distribution_inputs()` through
+   `test_e2e_worker_cleanup_safety.py` when adding or moving worker files. Direct
+   Perl tests do not exercise its file-count, size and provenance guards; prefer
+   extending an existing owning library when appropriate, preserving those bounds.
+   The [lessons above](#lessons-to-preserve) identify the recurring representation
    and transport traps.
 3. On failure, use the earliest failed boundary and retained evidence to state
    one cause or a diagnostic that distinguishes remaining explanations before
@@ -2943,6 +2975,11 @@ Before the first live attempt, check the changed boundary end to end on the host
    the recipes. A generic callback wrapper or a helper named after one case does
    not by itself make mechanics reusable. Do not combine independent attempts
    or add mode flags that silently skip a caller's required checks.
+   Include capability qualifications in this review: future cases must import
+   shared operations and comparisons, not inherit a qualification's private
+   fixture lifecycle. Keep the finite recipe in its owner and test the shared
+   fragment from an independent caller with renamed invocation IDs. The
+   attachment composition guard covers this boundary before case 152 exists.
 
 At close-out, fold a newly demonstrated recurring trap into its existing helper,
 regression and owning contract. Correct obsolete capability limits and the next

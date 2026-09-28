@@ -44,6 +44,8 @@ APIS = {
     'allowance_boundaries': {'BOUNDARY_SCREENS'},
     'allowance_values': {'REPRESENTATIVE_PRESETS'},
     'file_chooser': {'stage_files', 'cleanup_files'},
+    'synthetic_files': {'fixture_actions'},
+    'attachment_composition': {'file_handoff', 'boundary_batch', 'AttachmentJourney'},
     'serial_harness': {'PLAN', 'SERIAL_STAGES', 'matched_screens', 'record_serial_journey',
                        'validate_completion', 'validate_stages'},
 }
@@ -74,11 +76,11 @@ WORKER_APIS = {
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
                              'input_hidden', 'input_complex'},
-    'onpc_feedback_read': {'activate_existing_window'},
+    'onpc_feedback_read': {'activate_existing_window', 'supply_files', 'boundary_batch'},
 }
 
 
-def composition_errors(source, case_modules):
+def composition_errors(source, case_modules, apis=APIS):
     """Review all definitions, including renamed callbacks and hidden helpers."""
     tree = ast.parse(source)
     allowed = {'dict', 'tuple', 'super'}
@@ -95,7 +97,7 @@ def composition_errors(source, case_modules):
                 errors.append('case dependency')
             if isinstance(node, ast.ImportFrom):
                 for item in node.names:
-                    if not node.level and item.name in APIS.get(node.module, set()):
+                    if not node.level and item.name in apis.get(node.module, set()):
                         allowed.add(item.asname or item.name)
                     else:
                         errors.append('unreviewed import: ' + item.name)
@@ -126,6 +128,16 @@ def composition_errors(source, case_modules):
 @pytest.mark.parametrize('path', sorted({v['executable']['path'] for _, v in READY}))
 def test_ready_modules_only_declare_and_compose_shared_apis(path):
     assert not composition_errors((ROOT / path).read_text(), CASE_MODULES)
+
+
+@pytest.mark.parametrize('module', ['file_chooser', 'attachment_items', 'attachment_preview',
+                                   'attachment_boundaries'])
+def test_attachment_qualifications_keep_mechanics_in_shared_libraries(module):
+    # Qualifications may extend another qualification's finite recipe. Ready
+    # customer cases still cannot import these recipe-only APIs.
+    apis = {**APIS, 'file_chooser': {*APIS['file_chooser'], 'SCREENS', 'journey'},
+            'attachment_items': {'SCREENS'}, 'attachment_preview': {'PLAN'}}
+    assert not composition_errors((ROOT / 'tests/e2e' / (module + '.py')).read_text(), CASE_MODULES, apis)
 
 
 @pytest.mark.parametrize('source', [

@@ -71,7 +71,7 @@ WORKER_APIS = {
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child'},
     'onpc_text': {'replace_text'},
-    'onpc_format': {'apply_block', 'apply_bold'},
+    'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
                              'input_hidden', 'input_complex'},
     'onpc_feedback_read': {'activate_existing_window'},

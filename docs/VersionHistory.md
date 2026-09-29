@@ -1,3 +1,7 @@
+## v1.3 -
+### Fedora Workstation 44 Prep
+
+
 ## v1.2 - 2026-09-29
 ### Bug Fixes
 - Software Updater: Fixed the description to match app name

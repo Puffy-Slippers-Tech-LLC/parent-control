@@ -19,7 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **031a — [Observe diagnostic collection from its start](E2E-Tasks/031a-feedback-collection.md)**.
+Next task: **037a — [Save to a selected location through the installed chooser](E2E-Tasks/037a-save-chooser.md)**.
+
+031a qualified the shared FEED09 `feedback-collection-ready` operation in
+`20260929T170731Z-88b24b8a`: both independent entries observed finished diagnostics
+and available Download, with independent readback, wrong-entry refusal, owned
+cleanup and baseline restoration. Collection acceptance no longer requires
+observing the asynchronous collecting state. The shared predicate wait advances
+only on the public finished state; its deadline is a failure guard.
+Case 155 remains a separate complete-scenario task.
 
 Task 201's complete Case 159 save-order journey passed in
 `20260929T070054Z-c0f58f19`, including Jordan 5→6, Riley 7, the

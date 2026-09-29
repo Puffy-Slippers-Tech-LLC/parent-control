@@ -67,6 +67,29 @@ def test_multi_state_subscription_pins_every_endpoint_and_cleans_up():
     assert api._connection.signal_unsubscribe.call_count == 2
 
 
+def test_application_state_subscription_pins_owner_and_cleans_up():
+    from gi.repository import GLib
+    api, _, rpc, _, _ = fixture_bus()
+    rpc.side_effect = None
+    api._connection = Mock()
+    api._connection.signal_subscribe.side_effect = (7, 8)
+    events = []
+    with api.application_state_events(':1.10', lambda *args: events.append(args)):
+        callback = api._connection.signal_subscribe.call_args.args[-1]
+        signal = GLib.Variant('(siiva{sv})', ('visible', 1, 0,
+                                             GLib.Variant('s', ''), {}))
+        callback(api._connection, ':1.10', '/dynamic',
+                 PREFIX + 'Event.Object', 'StateChanged', signal)
+        callback(api._connection, ':1.11', '/dynamic',
+                 PREFIX + 'Event.Object', 'StateChanged', signal)
+    assert events[0] == ('/dynamic', 'visible', True, None)
+    assert events[1][:3] == (None, None, None)
+    assert isinstance(events[1][3], ValueError)
+    assert [call.args[3] for call in rpc.call_args_list].count('RegisterEvent') == 2
+    assert [call.args[3] for call in rpc.call_args_list].count('DeregisterEvent') == 2
+    assert api._connection.signal_unsubscribe.call_count == 2
+
+
 def fixture_bus():
     native = SimpleNamespace(Role=SimpleNamespace(EXTENDED=99),
                              role_get_name=lambda role: {1: 'application', 2: 'push button'}[role])

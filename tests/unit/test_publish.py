@@ -497,7 +497,7 @@ def test_main_colors_errors_and_success_and_restores_environment(monkeypatch, ca
 
 @pytest.mark.parametrize('args,exit_code', [
     (['--help'], 0), (['--force'], 2), (['upload'], 2), (['plan'], 2),
-    (['--stat'], 2), (['--status', 'extra'], 2),
+    (['--stat'], 2), (['--status', 'extra'], 2), (['--reconcile'], 2),
     (['prepare', '/tmp/onpc-release-test'], 2),
     (['check-build', '/tmp/onpc-release-test/source'], 2),
 ])
@@ -803,45 +803,6 @@ def test_invalid_history_stops_before_preparation(repository, monkeypatch):
         publish.publish(repository)
 
 
-@pytest.mark.parametrize('failure', [None, 'publication', 'ancestry', 'phase'])
-def test_reconcile_retains_journal_and_newer_work(repository, monkeypatch, failure):
-    revision = git(repository, 'rev-parse', 'HEAD')
-    git(repository, 'commit', '--allow-empty', '-m', 'newer development')
-    head = git(repository, 'rev-parse', 'HEAD')
-    state = dict(checkout=str(repository), phase='upload-started',
-                 revision=revision, version='1.2+ppa1~ubuntu26.04.1',
-                 directory=str(repository / 'missing-artifacts'))
-    if failure == 'ancestry':
-        state['revision'] = '0' * 40
-    if failure == 'phase':
-        state['phase'] = 'push-started'
-    with publish.locked(repository) as path:
-        publish.save(path, state)
-    original = path.read_bytes()
-    notes = (repository / publish.HISTORY).read_bytes()
-    calls = []
-
-    def verify(candidate):
-        calls.append(candidate)
-        if failure == 'publication':
-            raise ValueError('publication failed')
-
-    monkeypatch.setattr(publish, 'wait_for_publication', verify)
-    if failure:
-        with pytest.raises(ValueError):
-            publish.reconcile(repository)
-        assert path.read_bytes() == original
-    else:
-        publish.reconcile(repository)
-        assert json.loads(path.read_text()) == dict(state, phase='complete')
-        assert (path.parent / ('reconciled-' + revision + '.json')).read_bytes() == original
-        publish.reconcile(repository)
-        assert (path.parent / ('reconciled-' + revision + '.json')).read_bytes() == original
-    assert bool(calls) is (failure in (None, 'publication'))
-    assert git(repository, 'rev-parse', 'HEAD') == head
-    assert (repository / publish.HISTORY).read_bytes() == notes
-
-
 @pytest.mark.parametrize('phase,replaced', [('signed', True), ('built', True),
                                          ('push-started', False), ('upload-started', False)])
 @pytest.mark.usefixtures('release_repository')
@@ -942,12 +903,15 @@ def test_release_isolation_and_interrupted_upload_resume(repository, tmp_path, m
                  history_sha256=hashlib.sha256(NOTES.encode()).hexdigest())
     with publish.locked(root) as path:
         publish.save(path, state)
-    legacy_directory = publish.journal_directory(repository, legacy=True)
-    legacy_directory.mkdir(exist_ok=True)
-    legacy_path = legacy_directory / 'state.json'
-    legacy_path.write_text('{"phase": "upload-started", "legacy": true}\n')
-    legacy_before = legacy_path.read_bytes()
-    assert publish.journal_directory(root).resolve() != legacy_directory.resolve()
+    common = Path(git(repository, 'rev-parse', '--git-common-dir'))
+    if not common.is_absolute():
+        common = repository / common
+    shared_journal = common / 'onpc-publish'
+    shared_journal.mkdir(exist_ok=True)
+    shared_state = shared_journal / 'state.json'
+    shared_state.write_text('{"phase": "upload-started", "shared": true}\n')
+    shared_before = shared_state.read_bytes()
+    assert publish.journal_directory(root).resolve() != shared_journal.resolve()
     monkeypatch.setattr(publish, 'PUBLIC_GIT', str(remote))
     monkeypatch.setattr(publish.release, 'ORIGIN', str(remote))
     monkeypatch.setattr('builtins.input', lambda prompt: 'yes')
@@ -1024,7 +988,7 @@ def test_release_isolation_and_interrupted_upload_resume(repository, tmp_path, m
     assert git(repository, 'rev-parse', 'HEAD') == main_after_update[0]
     assert git(repository, 'status', '--porcelain') == 'M docs/README.md'
     assert (repository / 'docs/README.md').read_text() == 'Uncommitted main development.\n'
-    assert legacy_path.read_bytes() == legacy_before
+    assert shared_state.read_bytes() == shared_before
 
 
 @pytest.mark.usefixtures('release_repository')
@@ -1046,15 +1010,6 @@ def test_resume_refuses_changed_owner_before_execution(repository, monkeypatch, 
     with pytest.raises(ValueError, match='branch|checkout|legacy'):
         publish.publish(repository)
     assert path.read_bytes() == before
-
-
-@pytest.mark.usefixtures('release_repository')
-def test_release_branch_journal_cannot_use_legacy_reconcile(repository, monkeypatch):
-    with publish.locked(repository) as path:
-        publish.save(path, {'branch': 'releases/v1.1'})
-    monkeypatch.setattr(publish, 'wait_for_publication', lambda *args: pytest.fail('network read'))
-    with pytest.raises(ValueError, match='finish with make publish'):
-        publish.reconcile(repository)
 
 
 @pytest.fixture

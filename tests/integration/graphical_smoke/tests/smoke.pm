@@ -552,6 +552,12 @@ sub run {
         onpc_feedback_states::run_custom_save_trace(\&exchange);
         return;
     }
+    if ($ready->{feedback_collection}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_states::run_collection(\&exchange);
+        return;
+    }
     if ($ready->{parent_save_trace}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

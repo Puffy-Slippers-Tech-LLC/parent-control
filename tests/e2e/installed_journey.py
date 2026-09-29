@@ -87,11 +87,13 @@ class JourneyPlan:
                 self.prefix + ':custom-child-plan')
         require(set(self.accessibility_inputs) == {stage for stage, tag in self.screen_tags.items()
                     if tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace',
-                               'ui:parent-custom-save-trace')} and
+                               'ui:parent-custom-save-trace', 'ui:feedback-collection-trace')} and
                 all(binding == ('parent-toggle-enabled', True) if
                     self.screen_tags[stage] == 'ui:accessibility-input-trace' else
                     binding == (('parent-custom-trace-focus', 6, 'custom-save') if
                         self.screen_tags[stage] == 'ui:parent-custom-save-trace' else
+                        ('feedback-collection-open', True, 'collection') if
+                        self.screen_tags[stage] == 'ui:feedback-collection-trace' else
                         ('parent-toggle-enabled', True, 'save'))
                     for stage, binding in self.accessibility_inputs.items()) and
                 not set(self.accessibility_inputs) & set(self.stage_actions),
@@ -452,7 +454,8 @@ class InstalledJourney:
                         *plan.accessibility_inputs[stage], worker_input=worker_input,
                         child=plan.child_bindings.get(stage))
                     self.verify_trace_input(stage, observed['ui']['token'])
-                elif tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace'):
+                elif tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace',
+                             'ui:feedback-collection-trace'):
                     observed['ui'] = self.ui.observe_accessibility_input(
                         *plan.accessibility_inputs[stage])
                 elif tag == 'ui:feedback-trace-start':

@@ -104,8 +104,8 @@ administrator approvals. `make publish` asks for explicit confirmation of the
 main development pause before release work starts. Declining or EOF stops the
 run before signing, pushing or uploading. A retry asks again until the main
 update has been durably completed; monitoring an already completed main update
-does not ask you to pause again. Status and legacy reconciliation have no such
-prompt. The publisher runs as the publishing user and invokes neither Polkit nor
+does not ask you to pause again. Status checks have no such prompt. The
+publisher runs as the publishing user and invokes neither Polkit nor
 `sudo`. Git/SSH and GnuPG run without
 interactive prompts. Missing credentials or prerequisites produce a red error;
 the publisher never launches setup or falls back to a password dialog.
@@ -232,7 +232,7 @@ publisher never starts a cherry-pick operation in the active development tree.
 The **MAIN UPDATED** message appears only after local main is clean and agrees
 with the fetched remote main. Nothing further is required on main. Its metadata
 records the submitted release baseline, not proof of successful publication.
-The release checkout monitors and finalizes delivery without `--reconcile`.
+The release checkout monitors and finalizes delivery.
 The pause includes source preparation, signing and upload, so it can take
 minutes; it does not include waiting for Launchpad to build or publish binaries.
 
@@ -317,25 +317,6 @@ with the same signed refs; no tags are recreated. If the release checkout change
 during publication, preserve that work and restore the recorded release inputs
 and branch before resuming local completion. Development on main is independent.
 The command does not discard work or roll back public releases.
-
-### One-time v1.2 compatibility
-
-The pending legacy v1.2 publication remains in the original checkout's Git
-common directory at `onpc-publish/state.json`. Its version is
-`1.2+ppa1~ubuntu26.04.1`, and its release commit is
-`9ed654baf593d1a6ef89bb7e324317319251136d`. After successful publication, run
-`tools/publish.py --reconcile` from the original, now-advanced main checkout.
-The recorded release commit must be an ancestor of HEAD. This verifies the
-exact remote publication, preserves the original journal in
-`onpc-publish/reconciled-REVISION.json`, and marks it complete without changing
-checkout files, the index or HEAD, and without uploading. It works with newer
-commits, uncommitted work and missing old temporary artifacts. Failed
-verification leaves the active journal unchanged; do not clear an uncertain
-upload journal. `make publish-status` in that original checkout can monitor it.
-
-This compatibility path accepts only legacy journals without a publishing
-branch. Future release journals finish through `make publish` in the release
-checkout; there is no reconciliation step on main.
 
 Before every upload, verify a clean binary build with its declared tests,
 inspect the final installed licenses/notices and both front-end About displays,

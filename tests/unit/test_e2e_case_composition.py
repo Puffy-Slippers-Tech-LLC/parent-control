@@ -143,6 +143,8 @@ def test_accessibility_trace_qualification_declares_shared_input_binding():
         (ROOT / 'tests/e2e/accessibility_input_trace.py').read_text(), CASE_MODULES)
     assert not composition_errors(
         (ROOT / 'tests/e2e/parent_save_trace.py').read_text(), CASE_MODULES)
+    assert not composition_errors(
+        (ROOT / 'tests/e2e/feedback_collection.py').read_text(), CASE_MODULES)
 
 
 @pytest.mark.parametrize('module', ['file_chooser', 'attachment_items', 'attachment_preview',

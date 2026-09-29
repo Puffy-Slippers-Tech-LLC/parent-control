@@ -178,19 +178,18 @@ def save(path, value):
         Path(temporary).unlink(missing_ok=True)
 
 
-def journal_directory(root, *, legacy=False):
+def journal_directory(root):
     # Linked worktrees have private Git directories; ordinary clones already
-    # do. Only legacy reconciliation uses the former shared journal location.
-    directory = Path(command('git', 'rev-parse',
-                             '--git-common-dir' if legacy else '--absolute-git-dir', cwd=root))
+    # do. The journal stays there so one checkout cannot overwrite another's.
+    directory = Path(command('git', 'rev-parse', '--absolute-git-dir', cwd=root))
     if not directory.is_absolute():
         directory = root / directory
     return directory / 'onpc-publish'
 
 
 @contextmanager
-def locked(root, *, legacy=False):
-    directory = journal_directory(root, legacy=legacy)
+def locked(root):
+    directory = journal_directory(root)
     directory.mkdir(mode=0o700, exist_ok=True)
     if directory.is_symlink() or directory.stat().st_uid != os.getuid():
         raise ValueError('unsafe publishing journal directory')
@@ -771,7 +770,7 @@ def publish(root=ROOT):
         state = json.loads(state_path.read_text()) if state_path.exists() else None
         if state is not None and state['phase'] != 'complete':
             if 'branch' not in state:
-                raise ValueError('legacy publication must be closed with --reconcile from its original checkout')
+                raise ValueError('legacy publication journal has no publishing branch; preserve it and do not resume or replace it')
             if state['checkout'] != str(root) or state['phase'] not in PHASES:
                 raise ValueError('unfinished release belongs to a different checkout or has an invalid journal')
             if state['branch'] != branch:
@@ -805,31 +804,6 @@ def publish(root=ROOT):
         execute(root, state, state_path)
 
 
-def reconcile(root=ROOT):
-    """One-time compatibility for journals created by the main-branch publisher."""
-    with locked(root, legacy=True) as state_path:
-        state = json.loads(state_path.read_text())
-        if 'branch' in state:
-            raise ValueError('release-branch publications finish with make publish in their original checkout')
-        if state.get('checkout') != str(root) or state.get('phase') not in (
-                'upload-started', 'published', 'complete'):
-            raise ValueError('reconciliation requires an uploaded release from this checkout')
-        revision = state['revision']
-        if not re.fullmatch(r'[0-9a-f]{40}', revision):
-            raise ValueError('invalid recorded release revision')
-        try:
-            command('git', 'merge-base', '--is-ancestor', revision, 'HEAD', cwd=root)
-        except ValueError:
-            raise ValueError('recorded release is not incorporated into checkout HEAD') from None
-        # Verify remotely even if artifacts were removed. Never repeat an upload
-        # or rewrite newer checkout work to make it match the old inputs.
-        wait_for_publication({'version': state['version']})
-        if state['phase'] != 'complete':
-            save(state_path.parent / ('reconciled-' + revision + '.json'), state)
-            save(state_path, dict(state, phase='complete'))
-        say(f'reconciled published {state["version"]}; checkout preserved', success=True)
-
-
 class PublisherParser(argparse.ArgumentParser):
     def error(self, message):
         say('use make publish or make publish-status; use --help for usage', error=True)
@@ -838,11 +812,8 @@ class PublisherParser(argparse.ArgumentParser):
 
 def main(argv=None):
     parser = PublisherParser(description=__doc__, allow_abbrev=False)
-    modes = parser.add_mutually_exclusive_group()
-    modes.add_argument('--status', action='store_true',
+    parser.add_argument('--status', action='store_true',
                         help='monitor the latest recorded release without publishing or changing local files')
-    modes.add_argument('--reconcile', action='store_true',
-                       help='close a legacy main-branch publication already incorporated into HEAD')
     args = parser.parse_args(argv)
     original_env = dict(os.environ)
     safe_env = environment()
@@ -851,8 +822,6 @@ def main(argv=None):
         os.environ.update(safe_env)
         if args.status:
             publication_status()
-        elif args.reconcile:
-            reconcile()
         else:
             publish()
     except ValueError as error:

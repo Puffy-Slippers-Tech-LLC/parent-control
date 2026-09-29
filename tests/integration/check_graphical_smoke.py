@@ -665,7 +665,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          trace_stable_state=False, trace_transition=False, compose_observation=False,
          accessibility_input_trace=False, parent_save_trace=False, custom_save_trace=False,
-         named_child_custom_saves=False,
+         named_child_custom_saves=False, feedback_collection=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
          synthetic_files=False, document_open=False, archive_open=False, source_change=False,
          file_chooser=False, attachment_items=False, attachment_preview=False,
@@ -673,21 +673,21 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_formats=False, feedback_link_semantics=False):
     require(type(named_child_custom_saves) is bool and
             (not named_child_custom_saves or custom_save_trace), 'smoke:trace-prerequisites')
-    require(type(custom_save_trace) is bool and type(parent_save_trace) is bool and type(accessibility_input_trace) is bool and
-            sum((parent_save_trace, accessibility_input_trace, custom_save_trace)) <= 1 and
-            not ((accessibility_input_trace or parent_save_trace or custom_save_trace) and
+    require(type(feedback_collection) is bool and type(custom_save_trace) is bool and type(parent_save_trace) is bool and type(accessibility_input_trace) is bool and
+            sum((parent_save_trace, accessibility_input_trace, custom_save_trace, feedback_collection)) <= 1 and
+            not ((accessibility_input_trace or parent_save_trace or custom_save_trace or feedback_collection) and
             (compose_observation or trace_transition or trace_stable_state)), 'smoke:trace-prerequisites')
     require(type(compose_observation) is bool and not (compose_observation and
             (trace_transition or trace_stable_state)), 'smoke:trace-prerequisites')
     require(type(trace_transition) is bool and not (trace_transition and trace_stable_state),
             'smoke:trace-prerequisites')
-    require(type(trace_stable_state) is bool and not ((trace_stable_state or trace_transition or compose_observation or accessibility_input_trace or parent_save_trace or custom_save_trace) and (
+    require(type(trace_stable_state) is bool and not ((trace_stable_state or trace_transition or compose_observation or accessibility_input_trace or parent_save_trace or custom_save_trace or feedback_collection) and (
         feedback_states or feedback_read or feedback_privacy or format_qualification
         or feedback_reset or window_switch or feedback_rejection or feedback_length
         or file_chooser or attachment_items or attachment_preview or attachment_boundaries
         or feedback_formats or feedback_block_semantics or feedback_link_semantics)),
         'smoke:trace-prerequisites')
-    feedback_states = feedback_states or trace_stable_state or trace_transition or compose_observation or accessibility_input_trace or parent_save_trace or custom_save_trace
+    feedback_states = feedback_states or trace_stable_state or trace_transition or compose_observation or accessibility_input_trace or parent_save_trace or custom_save_trace or feedback_collection
     require(type(feedback_link_semantics) is bool and not (feedback_link_semantics and (
         feedback_formats or feedback_block_semantics or format_qualification)),
         'smoke:linked-prerequisites')
@@ -1255,6 +1255,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-accessibility-input-trace-qualification'
         if parent_save_trace:
             result['scope'] = 'installed-parent-save-trace-qualification'
+        if feedback_collection:
+            result['scope'] = 'installed-feedback-collection-qualification'
         if custom_save_trace:
             result['scope'] = 'installed-custom-save-trace-qualification'
         if named_child_custom_saves:
@@ -1510,6 +1512,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if parent_save_trace:
                     from parent_setup_qualification import ParentSaveTraceQualification
                     qualification_class = ParentSaveTraceQualification
+                if feedback_collection:
+                    from parent_setup_qualification import FeedbackCollectionQualification
+                    qualification_class = FeedbackCollectionQualification
                 if custom_save_trace:
                     from parent_setup_qualification import CustomSaveTraceQualification
                     qualification_class = CustomSaveTraceQualification

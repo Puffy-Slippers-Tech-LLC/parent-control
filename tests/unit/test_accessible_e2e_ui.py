@@ -2638,8 +2638,9 @@ def test_license_link_clickability_has_no_external_handler_dependency(fault):
 @pytest.mark.parametrize('fault', ['', 'missing', 'disabled', 'hidden', 'role',
                                  'no-action', 'ambiguous-action', 'focus-only',
                                  'wrong-owner', 'duplicate', 'clipped'])
-def test_clickable_link_requires_owned_usable_control_without_following_it(fault):
-    link = Node(identity='about-license-value', role='link')
+@pytest.mark.parametrize('identity', ['about-license-value', 'about-website-value'])
+def test_clickable_link_requires_owned_usable_control_without_following_it(fault, identity):
+    link = Node(identity=identity, role='link')
     about = Node(identity='about-dialog', children=[link])
     ui = ui_for(Node(identity='parent-window', children=[about]))
     if fault == 'missing': link.identity = ''
@@ -2653,13 +2654,19 @@ def test_clickable_link_requires_owned_usable_control_without_following_it(fault
         link.action.get_action_name = lambda _: 'click' if fault == 'ambiguous-action' else 'focus.child'
     if fault == 'wrong-owner': ui.api.get_desktop(0).identity = 'unrelated-application'
     if fault == 'duplicate':
-        about.children.append(Node(identity='about-license-value', role='link'))
+        about.children.append(Node(identity=identity, role='link'))
         about.children[-1].parent = about
     if fault in ('', 'clipped'):
-        assert ui.clickable_link('about-license-value', root=about)
+        assert ui.clickable_link(identity, root=about)
+        if identity == 'about-website-value':
+            assert ui.run('website-clickable', '1.1') == {
+                'operation': 'website-clickable', 'outcome': 'passed', 'interface': 'AT-SPI'}
     else:
         with pytest.raises(UiError):
-            ui.clickable_link('about-license-value', root=about)
+            ui.clickable_link(identity, root=about)
+        if identity == 'about-website-value':
+            with pytest.raises(UiError):
+                ui.run('website-clickable', '1.1')
     link.action.do_action.assert_not_called()
 
 

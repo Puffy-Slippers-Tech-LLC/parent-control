@@ -510,6 +510,16 @@ class LicenseViewerProviderQualification(KioskEntryQualification):
         return LicenseViewerProviderJourney(context, progress)
 
 
+class ParentWebsiteQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from license_viewer_provider import ParentWebsiteJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ParentWebsiteJourney(context, progress)
+
+
 class ChallengesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

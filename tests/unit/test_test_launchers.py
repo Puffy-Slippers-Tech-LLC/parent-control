@@ -134,6 +134,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_parent_search_launch', 'check_e2e_parent_search_launch.py',
     'check_e2e_terminal_provider', 'check_e2e_terminal_provider.py',
     'check_e2e_license_viewer', 'check_e2e_license_viewer.py',
+    'check_e2e_parent_website', 'check_e2e_parent_website.py',
     'check_e2e_feedback_read', 'check_e2e_feedback_read.py',
     'check_e2e_feedback_privacy', 'check_e2e_feedback_privacy.py',
     'check_e2e_feedback_states', 'check_e2e_feedback_states.py',
@@ -501,7 +502,7 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     password = Mock(return_value='fixture-password')
     monkeypatch.setattr(test_account_password, 'read_password', password)
     with pytest.raises(ValueError, match='selection:pending'):
-        commands.plan(ROOT, 'e2e', ['--scenario=E2E-031', '--artifacts=/tmp/onpc-future'])
+        commands.plan(ROOT, 'e2e', ['--scenario=E2E-042/parent-links', '--artifacts=/tmp/onpc-future'])
     password.assert_called_once_with(ROOT)
 
 

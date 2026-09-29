@@ -8,21 +8,24 @@ use onpc_gdm ();
 use onpc_about ();
 
 sub run {
-    onpc_progress::operation('Qualifying license link clickability');
-    my ($exchange) = @_;
-    die 'license-provider:binding' unless @_ == 1 && ref($exchange) eq 'CODE';
+    onpc_progress::operation('Qualifying Parent information link clickability');
+    my ($exchange, $link) = @_;
+    $link //= 'license';
+    die 'license-provider:binding' unless (@_ == 1 || @_ == 2)
+        && ref($exchange) eq 'CODE' && ($link eq 'license' || $link eq 'website');
+    my $prefix = $link eq 'website' ? 'parent-website' : 'license-provider';
     my $journey = onpc_journey->new(
-        exchange => $exchange, prefix => 'license-provider', review => 0);
+        exchange => $exchange, prefix => $prefix, review => 0);
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     my $wrong = onpc_journey->new(
-        exchange => $exchange, prefix => 'license-provider-wrong', review => 0);
+        exchange => $exchange, prefix => $prefix . '-wrong', review => 0);
     $wrong->{last_observation} = {stage => 'parent-selected', reply => $selected};
-    my $accepted = eval { onpc_about::open_license($wrong, $selected); 1 };
+    my $accepted = eval { onpc_about::check_link($wrong, $selected, $link); 1 };
     die 'license-provider:wrong-entry-accepted' if $accepted;
     die 'license-provider:wrong-entry-refusal' unless $@ =~ /journey:stale-observation/;
     my $about = onpc_about::open_about($journey, $selected);
-    onpc_about::open_license($journey, $about);
+    onpc_about::check_link($journey, $about, $link);
     my $qualified = $journey->seen('license-provider-refusals');
     onpc_about::return_to_parent(
         $journey, $qualified, 'semantic-reveal', 'license-provider-refusals');

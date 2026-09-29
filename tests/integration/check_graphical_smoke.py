@@ -652,7 +652,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_entry=False, request_exit=False, parent_toggle=False,
          fresh_desktop=None, shell_search_results=False, parent_search_launch=False,
          shell_search=False, parent_terminal_provider=False,
-         license_viewer_provider=False, kiosk_eligible_choices=False, request_choices=False,
+         license_viewer_provider=False, information_link='license',
+         kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, product_free_entry=False, package_authority=False,
          package_install=False, customer_reboot=False, app_row_observations=False,
@@ -1011,6 +1012,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          shell_search_results, parent_search_launch, shell_search,
                          parent_terminal_provider, license_viewer_provider)))),
             'smoke:kiosk-eligible-choices-prerequisites')
+    require(information_link in ('license', 'website')
+            and (information_link == 'license' or license_viewer_provider),
+            'smoke:information-link-binding')
     require(type(license_viewer_provider) is bool and (not license_viewer_provider or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1228,7 +1232,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if parent_terminal_provider:
             result['scope'] = 'installed-parent-terminal-provider-qualification'
         if license_viewer_provider:
-            result['scope'] = 'installed-license-viewer-provider-qualification'
+            result['scope'] = ('installed-parent-website-qualification' if information_link == 'website'
+                               else 'installed-license-viewer-provider-qualification')
         if kiosk_entry:
             result['scope'] = 'installed-kiosk-entry-qualification'
         if kiosk_eligible_choices:
@@ -1448,8 +1453,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import ParentTerminalProviderQualification
                     qualification_class = ParentTerminalProviderQualification
                 if license_viewer_provider:
-                    from parent_setup_qualification import LicenseViewerProviderQualification
-                    qualification_class = LicenseViewerProviderQualification
+                    from parent_setup_qualification import (
+                        LicenseViewerProviderQualification, ParentWebsiteQualification)
+                    qualification_class = (ParentWebsiteQualification if information_link == 'website'
+                                           else LicenseViewerProviderQualification)
                 if repeated_operations:
                     from parent_setup_qualification import RepeatedOperationsQualification
                     qualification_class = RepeatedOperationsQualification

@@ -1227,7 +1227,7 @@ binding does not extend an existing callable's qualified scope.
 | PANEL01 | C | Open the child's countdown context menu and read the named animation choice. | DESK12(countdown) → UI01 → UI28 → UI01(menu) → UI02(choice). E2E-037. | pending |
 | PANEL02 | C | Set the animation choice in an already open menu, then close the menu and verify return to the desktop. | UI17(choice) → UI05(Escape) → UI11(menu) → DESK01. E2E-037. | pending |
 | PANEL03 | C | Reveal and read the countdown's hover explanation. | DESK12(countdown) → UI01 → UI27 → UI03(tooltip). E2E-011/037. | pending |
-| INFO01 | C | Check one declared Help/About external link is clickable, then stop. Never invoke it or inspect its URI/destination. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. No browser/mail/document adapter, destination content, handler availability or external close/return gate. Kiosk UI11 on recognized About. E2E-042. | shared reader implemented; per-surface live qualification pending |
+| INFO01 | C | Check one declared Help/About external link is clickable, then stop. Never invoke it or inspect its URI/destination. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. Parent website: `WEBSITE_PLAN` / `ParentWebsiteJourney` in `license_viewer_provider.py`, `onpc_about::check_link` and shared `onpc_license_viewer_provider::run(exchange, 'website')`; `check_e2e_parent_website`. No browser/mail/document adapter, destination content, handler availability or external close/return gate. Kiosk UI11 on recognized About. E2E-042. | Parent website qualified in `20260929T221436Z-ffd7ea02`; other links/surfaces pending |
 | INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account; check the public desktop afterward. | `onpc_documentation::read(journey, binding)` composes `command_documentation.observe` and the registered public desktop-clear observation. The stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. All four bindings and independent desktop returns passed complete case 193 in run `20260923T194553Z-e2f16f7e`, with collection and owned cleanup. | ready |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: UI01 → FEED03; decline UI11(report) → UI01(destination). E2E-045. | pending |
 | FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Without-logs submission reuses FEED11; it is not hidden inside retry. E2E-046. | pending |
@@ -2270,6 +2270,18 @@ and case workers share `onpc_about::return_to_parent`; its finite source-stage
 binding accepts the ordinary link read or the qualification's repeated read.
 This qualifies Parent ABOUT02/03, not INFO01's other links or a new complete
 case 151 pass.
+
+Parent INFO01 website clickability passed `check_e2e_parent_website` in
+`20260929T221436Z-ffd7ea02`. `WEBSITE_PLAN` maps the shared qualification's
+compatibility stages `license` and `license-provider-refusals` to independent
+`website-clickable` observations of `about-website-value`. The worker shares
+`onpc_about::check_link` and `return_to_parent`, retaining wrong-entry proof
+refusal, owned About/footer close and immutable child/settings comparison.
+Host success/refusal checks cover missing, disabled, hidden, nonactionable,
+ambiguous and wrong-owner links without activation or URI inspection. Collection,
+owned cleanup and baseline restoration passed; the affected license-link
+regression passed in `20260929T221658Z-c73ff45c`. This qualifies only the Parent
+website binding, with no complete-case or destination acceptance credit.
 
 ABOUT03 consumes the link observation, confirms About remains open, reads
 ABOUT04's owned footer and closes only About through UI18. The legacy

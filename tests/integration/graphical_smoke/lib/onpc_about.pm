@@ -18,6 +18,16 @@ sub open_license {
     $stage //= 'about';
     die 'about:license-stage' unless (@_ == 2 && $stage eq 'about')
         || (@_ == 3 && $stage eq 'about-rechecked');
+    return check_link($journey, $about, 'license', $stage);
+}
+
+sub check_link {
+    onpc_progress::operation('Checking declared information link clickability');
+    my ($journey, $about, $link, $stage) = @_;
+    $stage //= 'about';
+    die 'about:link-binding' unless (@_ == 3 || @_ == 4)
+        && ($link eq 'website' || $link eq 'license')
+        && ($stage eq 'about' || $stage eq 'about-rechecked');
     $journey->consume_observation($stage, $about);
     return $journey->seen('license');
 }

@@ -171,6 +171,12 @@ sub run {
         onpc_license_viewer_provider::run(\&exchange);
         return;
     }
+    if ($ready->{parent_website}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_license_viewer_provider::run(\&exchange, 'website');
+        return;
+    }
     if ($ready->{command_help}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

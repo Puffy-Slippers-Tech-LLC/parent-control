@@ -73,7 +73,7 @@ WORKER_APIS = {
                     'open_search', 'focus_search', 'enter_search_query', 'set_allowance'},
     'onpc_request_exit': {'enter_station', 'escape'},
     'onpc_window': {'close'},
-    'onpc_about': {'open_about', 'open_license', 'return_to_parent'},
+    'onpc_about': {'open_about', 'open_license', 'check_link', 'return_to_parent'},
     'onpc_documentation': {'read'},
     'onpc_request_flow': {'prepare', 'reject', 'approve'},
     'onpc_station': {'restrictions'},

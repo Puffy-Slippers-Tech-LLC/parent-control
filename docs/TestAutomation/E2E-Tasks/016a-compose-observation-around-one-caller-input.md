@@ -21,6 +21,19 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
+Start at `UiObservations.start_trace`, `poll_trace` and `finish_trace` in
+`tests/e2e/ui_observations.py`, `JourneyPlan.trace_bindings` and the idle-worker
+pump in `tests/e2e/installed_journey.py`, and `trace_transition.PLAN` /
+`onpc_feedback_states::transition_trace`. The qualified binding is only empty
+Parent feedback to `body-first`, with prefix samples during caller input and
+terminal validation/control checks; the valid-to-invalid binding below is not
+yet implemented. Preserve the stable-state route and immutable sample evidence.
+Focused host checks are `tests/unit/test_e2e_feedback_read.py`,
+`tests/unit/test_installed_journey_cleanup_safety.py` and
+`tests/unit/test_e2e_progress.py`. Retained live selectors are
+`check_e2e_trace`, `check_e2e_trace_stable_state` and `check_e2e_feedback_states`.
+The task-local selector below remains unimplemented until this task registers it.
+
 ## Implementation
 
 Compose UI25 → the caller's explicitly declared input → UI26. Pass the token and expected terminal predicate explicitly. Preserve input-once behavior and reuse the existing worker/controller channel.

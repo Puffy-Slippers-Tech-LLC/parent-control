@@ -17,6 +17,32 @@ sub stable_trace {
     rejection_observe($journey, "trace-$entry-finish");
 }
 
+sub transition_trace {
+    onpc_progress::operation('Tracing one caller-owned synthetic text change');
+    my ($journey, $entry) = @_;
+    die 'trace:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($entry eq 'first' || $entry eq 'second');
+    rejection_observe($journey, "trace-$entry-start");
+    onpc_text::replace_text($journey, 'body-first', $entry);
+    rejection_observe($journey, "trace-$entry-finish");
+}
+
+sub run_transition {
+    onpc_progress::operation('Qualifying public feedback observation during caller input');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'trace-transition', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, 'feedback-open');
+    transition_trace($journey, 'first');
+    onpc_text::replace_text($journey, 'body-clear', 'clear');
+    rejection_observe($journey, $_) for ('trace-close', 'trace-wrong-entry', 'trace-open-again');
+    transition_trace($journey, 'second');
+    $journey->finish();
+}
+
 sub run_trace {
     onpc_progress::operation('Qualifying unchanged feedback traces and independent entry');
     my ($exchange) = @_;

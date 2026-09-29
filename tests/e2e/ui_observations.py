@@ -24,6 +24,7 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'feedback-trace-sample': 'Observing the caller-owned synthetic feedback transition',
     **{operation: 'Comparing the file-bearing feedback draft across public review and return'
        for operation in accessible_ui.FILE_REVIEW_OPERATIONS},
     **{operation: 'Checking public attachment metadata and the declared attachment operation'
@@ -424,21 +425,18 @@ class UiObservations:
         self.trace = None
         self.trace_failed = False
         self._trace_clock = time.monotonic
+        self.trace_sink = lambda token, index, sample: None
 
     def _trace_sample(self):
         with watch_activity.operation('Reading one unchanged public feedback trace sample'):
             return self._observe('feedback-state-empty')
 
-    def start_trace(self):
-        """UI25, stable Parent feedback only: acknowledge a fresh public sample.
-
-        This slice forbids intervening operations. It makes no claim about
-        transient states between samples; concurrent input belongs to UI22.
-        The terminal predicate is three unchanged empty-draft control samples.
-        """
+    def start_trace(self, binding=None):
+        """UI25: bind empty feedback and a finite terminal before caller input."""
         require(not self.trace_failed, 'ui:trace-previous-failure')
         try:
             require(self.trace is None, 'ui:trace-duplicate')
+            require(binding in (None, 'body-first'), 'ui:trace-binding')
             started = self._trace_clock()
             value = self._trace_sample()
             state = FeedbackStateObservation.from_value(value['feedback_state'])
@@ -448,11 +446,43 @@ class UiObservations:
             require(now < started + 60, 'ui:trace-deadline')
             token = secrets.token_hex(16)
             self.trace = {'token': token, 'started': started, 'deadline': started + 60,
+                          'binding': binding, 'input_index': 0,
                           'boot': self.boot_proof, 'state': state,
                           'samples': [{'elapsed_ms': int((now - started) * 1000),
                                        'state': value['feedback_state']}]}
+            self.trace_sink(token, 0, self.trace['samples'][0])
             return {'operation': 'feedback-trace-start', 'outcome': 'passed',
                     'interface': 'AT-SPI', 'token': token, 'ready': True}
+        except BaseException:
+            self.trace_failed = True
+            self.trace = None
+            raise
+
+    def poll_trace(self):
+        """Read-only pump in the worker rendezvous, including while it types.
+
+        Sampling never authorizes or performs input. Only observed states are
+        retained; no transient is inferred between these bounded reads.
+        """
+        require(not self.trace_failed, 'ui:trace-previous-failure')
+        trace = self.trace
+        if trace is None or trace['binding'] is None:
+            return
+        try:
+            require(self._trace_clock() < trace['deadline'], 'ui:trace-deadline')
+            value = self._observe('feedback-trace-sample')
+            now = self._trace_clock()
+            require(now < trace['deadline'], 'ui:trace-deadline')
+            require(self.boot_proof == trace['boot'], 'ui:trace-boot')
+            state = FeedbackStateObservation.from_value(value['feedback_state'])
+            require(state.validation == 'none' and state.send_enabled,
+                    'ui:trace-controls')
+            elapsed = int((now - trace['started']) * 1000)
+            require(elapsed >= trace['samples'][-1]['elapsed_ms'], 'ui:trace-order')
+            require(len(trace['samples']) < 256, 'ui:trace-sample-limit')
+            trace['samples'].append({'elapsed_ms': elapsed, 'state': value['feedback_state'],
+                                    'input_index': trace['input_index']})
+            self.trace_sink(trace['token'], len(trace['samples']) - 1, trace['samples'][-1])
         except BaseException:
             self.trace_failed = True
             self.trace = None
@@ -465,6 +495,18 @@ class UiObservations:
             trace = self.trace
             require(trace is not None and type(token) is str and token == trace['token'],
                     'ui:trace-token')
+            if trace['binding'] is not None:
+                self.poll_trace()
+                require(trace['input_index'] == 3 and any(
+                    sample.get('input_index') == 2 for sample in trace['samples']),
+                    'ui:trace-input-unobserved')
+                state = FeedbackStateObservation.from_value(trace['samples'][-1]['state'])
+                require(state == FeedbackStateObservation('states-no-reply', 'none', True),
+                        'ui:trace-terminal')
+                self.trace = None
+                return {'operation': 'feedback-trace-finish', 'outcome': 'passed',
+                        'interface': 'AT-SPI', 'token': token,
+                        'terminal': 'body-first-ready', 'samples': trace['samples']}
             self.trace = None  # Consume before any fallible read; never replay.
             for _ in range(2):
                 require(self._trace_clock() < trace['deadline'], 'ui:trace-deadline')
@@ -563,7 +605,22 @@ class UiObservations:
 
     def observe(self, operation):
         import time
-        if self.trace is not None or self.trace_failed:
+        trace = self.trace
+        if trace is not None and trace['binding'] == 'body-first' and not self.trace_failed:
+            order = ('text-body-first-focus', 'text-body-first-selected', 'text-body-first-read')
+            index = trace['input_index']
+            if index < len(order) and operation == order[index]:
+                try:
+                    value = self._observe(operation)
+                    require(self.boot_proof == trace['boot'], 'ui:trace-boot')
+                    require(self._trace_clock() < trace['deadline'], 'ui:trace-deadline')
+                    trace['input_index'] += 1
+                    return value
+                except BaseException:
+                    self.trace_failed = True
+                    self.trace = None
+                    raise
+        if trace is not None or self.trace_failed:
             self.trace_failed = True
             self.trace = None
             require(False, 'ui:trace-intervening-operation')
@@ -915,7 +972,9 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'feedback_state'},
                     'ui:feedback-state-response')
             state = FeedbackStateObservation.from_value(result['feedback_state'])
-            require(state.draft == accessible_ui.FEEDBACK_STATE_PROJECTIONS[operation],
+            require((state.draft in ('initial-empty', 'trace-prefix', 'states-no-reply'))
+                    if operation == 'feedback-trace-sample' else
+                    state.draft == accessible_ui.FEEDBACK_STATE_PROJECTIONS[operation],
                     'ui:feedback-state-response')
             expected['feedback_state'] = result['feedback_state']
         if operation in accessible_ui.LENGTH_OBSERVATIONS:

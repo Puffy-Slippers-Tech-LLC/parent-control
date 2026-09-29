@@ -73,7 +73,8 @@ sub run {
     onpc_progress::operation('Reviewing local feedback through the declared composition');
     my ($exchange, $flow) = @_;
     die 'feedback:arguments' unless ref($exchange) eq 'CODE'
-        && (@_ == 1 || @_ == 2 && defined($flow) && ($flow eq 'validation' || $flow eq 'draft' || $flow eq 'attachments'));
+        && (@_ == 1 || @_ == 2 && defined($flow) && ($flow eq 'validation' || $flow eq 'draft' || $flow eq 'attachments' || $flow eq 'export'));
+    return _diagnostic_export($exchange) if defined($flow) && $flow eq 'export';
     return _attachments($exchange) if defined($flow) && $flow eq 'attachments';
     return _validation($exchange) if defined($flow) && $flow eq 'validation';
     return _draft($exchange) if defined($flow) && $flow eq 'draft';
@@ -130,6 +131,32 @@ sub _attachments {
     onpc_feedback_read::chooser_preservation($journey);
     $journey->consume_observation('attachment-details', $journey->seen('attachment-details'));
     onpc_feedback_read::attachment_removal($journey);
+    $journey->finish();
+}
+
+sub _diagnostic_export {
+    onpc_progress::operation('Checking diagnostic Save cancellation, failure, recovery and Privacy');
+    my ($exchange) = @_;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'parent-diagnostic-export', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->consume_observation('collection', $journey->seen('collection'));
+    onpc_text::replace_text($journey, $_) for ('body-first', 'reply-first');
+    $journey->consume_observation('cancel-capture', $journey->seen('cancel-capture'));
+    onpc_feedback_read::save_cancellation($journey, 'cancel');
+    $journey->consume_observation('cancel-return', $journey->seen('cancel-return'));
+    $journey->consume_observation('denied-capture', $journey->seen('denied-capture'));
+    onpc_feedback_read::save_handoff($journey, 'denied');
+    $journey->consume_observation('denied-return', $journey->seen('denied-return'));
+    $journey->consume_observation('export-capture', $journey->seen('export-capture'));
+    onpc_feedback_read::diagnostic_export($journey, 'export');
+    $journey->consume_observation('privacy-capture', $journey->seen('privacy-capture'));
+    review_privacy($journey);
+    $journey->consume_observation('privacy-return', $journey->seen('privacy-return'));
+    my $proof = $journey->seen('feedback-draft-reread');
+    my $closed = onpc_window::close($journey, 'feedback', $proof);
+    $journey->consume_observation('feedback-draft-closed', $closed);
     $journey->finish();
 }
 

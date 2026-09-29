@@ -256,6 +256,11 @@ def compare_diagnostic_contents(archive, contents):
     if '/usr/lib/oh-no-parent-control/common' not in sys.path:
         sys.path.append('/usr/lib/oh-no-parent-control/common')
     from oh_no_parent_control_ui.diagnostic_report import read_report
+    # Review the actual exported bytes for this attempt's declared synthetic
+    # personal values as well as validating the closed diagnostic grammar.
+    require(all(marker not in content for content in contents.values() for marker in (
+        b'onpc-parent-', b'onpc-child-', b'first@example.invalid',
+        b'Synthetic feedback first', b'ONPC synthetic attachment')))
     info = json.loads(contents['system-info.json'])
     require(type(info) is dict and set(info) == {'schema', 'system', 'health', 'counts', 'logs'}
             and type(info['schema']) is int and info['schema'] == 3

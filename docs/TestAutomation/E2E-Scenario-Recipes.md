@@ -652,7 +652,8 @@ compositions passed independently: 152 in `20260928T164519Z-04c77547`, 153 in
 `20260928T165013Z-99382b18`, and 154 in `20260928T165312Z-34f506c3`, including
 collection and cleanup. Coverage was refreshed after each pass. Task 039's
 shared attachment, Privacy and window-switch qualifications also passed with
-owned cleanup. Case 155 remains unfinished.
+owned cleanup. Case 155 passed its complete export journey in
+`20260929T203255Z-29d6637e`, including collection, owned cleanup and refreshed coverage.
 
 **Feedback drafts, validation and attachment review.** Cases 152, 153, 154, 155.
 
@@ -688,9 +689,20 @@ inspection and independent same-dialog/draft return. `DiagnosticExportJourney`
 compares copied public endpoint/PID and `synthetic-first` body/reply/attachments
 and controls. `diagnostic_export_actions` retains the Save owner through bounded
 ZIP inspection and cleanup; qualification code is not a consumer API.
-The success slice passed in `20260929T194911Z-9bb9b122`. Complete Cancel,
-unwritable-destination error/recovery, Privacy and scenario acceptance remain
-task 046's scope; no valid Send or original-log inspection is permitted.
+`parent_diagnostic_export.PLAN` / `onpc_feedback_privacy::_diagnostic_export`
+compose the complete case: observe collection before feedback entry, edit the
+synthetic body/reply, Cancel a fresh chooser, then
+`save_handoff(destination='unwritable', draft='synthetic-first')` to the fixed
+`~/Downloads/Unwritable`. Require the app's exact save error before the successful
+export fragment. `diagnostic_export_actions(preservation=True)` independently
+checks empty output after both Cancel and failed Save; each has a single-use
+read checkpoint under the same fixture owner. Compare captured same-dialog
+drafts after Cancel, failure, successful export and Privacy. ZIP inspection
+also rejects the declared synthetic account, email, body and file-content values.
+The complete case passed in `20260929T203255Z-29d6637e`; affected Save/Cancel
+and export qualifications passed in `20260929T203754Z-7b47ee7e` and
+`20260929T204158Z-388a25b4`, including collection, owned cleanup and baseline
+restoration. No valid Send or original-log inspection is permitted.
 
 ### E2E-032
 

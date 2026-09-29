@@ -21,11 +21,12 @@ class SyntheticFiles:
     def call(self, name):
         require(not self.failed and name not in self.attempted, 'files:replay')
         require(name in ('stage', 'read', 'copy', 'rename', 'cleanup', 'change-source')
-                or (name == 'saved' and self.profile == 'save'), 'files:operation')
+                or (name in ('saved', 'read-cancel', 'read-denied') and self.profile == 'save'), 'files:operation')
         self.attempted.add(name)
         self.failed = True  # Includes interrupted or uncertain transport results.
         with operation('Synthetic fixtures: ' + name):
-            value = self._command(name, self.previous)
+            value = self._command('read' if name in ('read-cancel', 'read-denied') else name,
+                                  self.previous)
             require(value != {'refused': True}, 'files:guest-refusal')
             if name == 'cleanup':
                 require(value == {'absent': True}, 'files:cleanup-result')
@@ -257,7 +258,7 @@ def read_declared_zip(transport, receipt, *, attempt, user='onpc-parent-jamie',
     return result
 
 
-def diagnostic_export_actions():
+def diagnostic_export_actions(*, preservation=False):
     """Bind FILE08 to the original Save owner, with read-only refusal checks."""
     def inspect(journey, guard):
         guard()
@@ -281,6 +282,20 @@ def diagnostic_export_actions():
                                  artifact='diagnostic-export', owner=owner)
     actions = save_destination_actions()
     del actions['save-preserved']
+    require(type(preservation) is bool, 'files:preservation-binding')
+    if preservation:
+        def checkpoint(name):
+            def preserved(journey, guard):
+                guard()
+                owner = getattr(journey, 'save_files', None)
+                require(isinstance(owner, SyntheticFiles) and owner.previous['files'] == {},
+                        'files:preservation-entry')
+                previous = owner.previous
+                require(owner.call(name) == previous, 'files:cancel-changed')
+                return {'output_absent': True, 'destination_unchanged': True}
+            return preserved
+        actions.update({'save-cancel-preserved': checkpoint('read-cancel'),
+                        'save-denied-preserved': checkpoint('read-denied')})
     actions['diagnostic-inspect'] = inspect
     return actions
 

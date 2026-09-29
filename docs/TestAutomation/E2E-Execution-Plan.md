@@ -19,16 +19,16 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **046 — [E2E-031: diagnostic-export](E2E-Tasks/046-case-155.md)**.
+Next task: **052c — [Wait a bounded real interval under the attempt guard](E2E-Tasks/052c-wait-a-bounded-real-interval-under-the-attempt-guard.md)**.
 
-045 qualified the shared FEED08 named Save, receipt-bound FILE08 diagnostic ZIP
-inspection and unchanged same-dialog synthetic draft in `20260929T194911Z-9bb9b122`.
-Both independent entries and wrong-entry refusals passed. Affected Save/Cancel,
-synthetic ZIP and text regressions passed in `20260929T195352Z-64a83e8b`,
-`20260929T195728Z-9b0b20c4` and `20260929T195845Z-ed63fec7`; collection, owned
-cleanup and baseline restoration passed throughout. Case 155 remains pending:
-compose the complete Cancel, unwritable-destination error/recovery, successful
-export, Privacy and preserved-draft journey through the shared APIs.
+046 completed case 155 in `20260929T203255Z-29d6637e`: collection observed before
+entry, Cancel, the app's unwritable-destination save error, successful recovery,
+receipt-bound ZIP contents/privacy checks, Privacy and unchanged same-dialog
+draft. Save/Cancel and diagnostic-export regressions passed in
+`20260929T203754Z-7b47ee7e` and `20260929T204158Z-388a25b4`; collection, owned
+cleanup and baseline restoration passed throughout. Coverage refreshed.
+052c delivers TIME03's bounded guarded wait and its five-second About-window
+qualification; its complete consumer case remains separate.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

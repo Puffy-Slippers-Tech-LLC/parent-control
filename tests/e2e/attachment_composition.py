@@ -25,12 +25,14 @@ def compare_formatted_draft(value, *, reset=False):
     return deepcopy(value)
 
 
-def save_handoff(prefix, *, draft='initial-empty'):
+def save_handoff(prefix, *, draft='initial-empty', destination='downloads'):
     """FILE03 Save only; callers own preparation, readback and later Cancel."""
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'save:invocation')
     require(draft in ('initial-empty', 'synthetic-first'), 'save:draft')
-    operation = 'ui:' + ('export-' if draft == 'synthetic-first' else '') + 'save-chooser-'
+    require(destination in ('downloads', 'unwritable'), 'save:destination')
+    require(destination == 'downloads' or draft == 'synthetic-first', 'save:destination-draft')
+    operation = 'ui:' + ('denied-' if destination == 'unwritable' else '') + ('export-' if draft == 'synthetic-first' else '') + 'save-chooser-'
     return {prefix + '-' + step: operation + step for step in (
         'open', 'name', 'location', 'navigated', 'destination', 'restored', 'accept', 'result')}
 
@@ -50,11 +52,13 @@ class DiagnosticExportJourney(WindowSwitchJourney):
             del self.windows['feedback']
 
 
-def save_cancellation(prefix):
+def save_cancellation(prefix, *, draft='initial-empty'):
     """Fresh chooser Cancel with independently unchanged saved output."""
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'save:invocation')
-    return {prefix + '-' + step: 'ui:save-chooser-' + step for step in (
+    require(draft in ('initial-empty', 'synthetic-first'), 'save:draft')
+    operation = 'ui:' + ('export-' if draft == 'synthetic-first' else '') + 'save-chooser-'
+    return {prefix + '-' + step: operation + step for step in (
         'reopen', 'cancel-name', 'cancel', 'preserved')}
 
 

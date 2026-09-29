@@ -1069,7 +1069,7 @@ class UiObservations:
             expected['attachment'] = result['attachment']
         if operation in accessible_ui.SAVE_OPERATIONS:
             projection = {'checked': operation}
-            if operation.removeprefix('export-') in ('save-chooser-open', 'save-chooser-reopen'):
+            if operation.removeprefix('denied-').removeprefix('export-') in ('save-chooser-open', 'save-chooser-reopen'):
                 provider = result.get('chooser', {}).get('provider')
                 require(type(provider) is dict and set(provider) == {
                     'route', 'version', 'locale', 'keyboard', 'mode', 'caller'}

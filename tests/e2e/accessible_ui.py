@@ -869,6 +869,8 @@ SAVE_OPERATIONS = frozenset('save-chooser-' + suffix for suffix in (
     'wrong-entry', 'open', 'name', 'location', 'navigated', 'destination', 'restored', 'accept',
     'result', 'reopen', 'cancel-name', 'cancel', 'preserved'))
 SAVE_OPERATIONS |= frozenset('export-' + operation for operation in SAVE_OPERATIONS)
+SAVE_OPERATIONS |= frozenset('denied-export-save-chooser-' + suffix for suffix in (
+    'open', 'name', 'location', 'navigated', 'destination', 'restored', 'accept', 'result'))
 OPERATIONS |= SAVE_OPERATIONS
 DRAFT_OPERATIONS = frozenset('draft-' + name for name in (
     'chooser-open', 'chooser-location', 'chooser-files', 'chooser-accept',
@@ -2175,8 +2177,11 @@ class AccessibleUI:
     def save_chooser_operation(self, operation):
         """Nautilus Save binding; destination readback precedes the real Save."""
         require(operation in SAVE_OPERATIONS, 'ui:save-operation')
-        projection = 'synthetic-first' if operation.startswith('export-') else 'initial-empty'
-        step = operation.removeprefix('export-').removeprefix('save-chooser-')
+        denied = operation.startswith('denied-')
+        normalized = operation.removeprefix('denied-')
+        projection = 'synthetic-first' if normalized.startswith('export-') else 'initial-empty'
+        step = normalized.removeprefix('export-').removeprefix('save-chooser-')
+        directory = SAVE_DIRECTORY + ('/Unwritable' if denied else '')
         result = {'checked': operation}
         if step == 'wrong-entry':
             self.feedback_snapshot(projection)
@@ -2209,7 +2214,7 @@ class AccessibleUI:
         elif step in ('name', 'cancel-name'):
             self.save_chooser_text('name', SAVE_NAMES[step == 'cancel-name'], replace=True)
         elif step == 'location':
-            self.save_chooser_text('location', SAVE_DIRECTORY + '/', replace=True)
+            self.save_chooser_text('location', directory + '/', replace=True)
         elif step == 'navigated':
             def navigated():
                 _, scoped, ids, facts, _, _, _ = self.chooser_snapshot(mode='save')
@@ -2231,7 +2236,7 @@ class AccessibleUI:
                         return None
                     raise
             self.wait(ready, operation, prompt_in_predicate=True)
-            self.save_chooser_text('location', SAVE_DIRECTORY)
+            self.save_chooser_text('location', directory)
         elif step in ('restored', 'accept'):
             if step == 'restored':
                 self.save_chooser_restore_name()
@@ -2257,17 +2262,30 @@ class AccessibleUI:
                 raise
         else:
             self.wait_feedback_collection()
-            self.feedback_snapshot(projection)
             if step == 'result':
-                row = self.id_target('feedback-logs-row')
-                descriptions = [relation.get_target(index)
-                    for relation in row.get_relation_set()
-                    if relation.get_relation_type() == self.api.RelationType.DESCRIBED_BY
-                    for index in range(relation.get_n_targets())]
-                require(len(descriptions) == 1 and descriptions[0] in self.read_snapshot(row)[0]
-                        and descriptions[0].get_name() == 'Downloaded · Ready to examine',
-                        'ui:save-app-result')
+                self.save_app_result('Could not save logs. Try another location.' if denied
+                                     else 'Downloaded · Ready to examine')
+            self.feedback_snapshot(projection)
         return result
+
+    def save_app_result(self, expected):
+        """Wait for the app's exact public outcome after the chooser has closed."""
+        require(expected in ('Could not save logs. Try another location.',
+                             'Downloaded · Ready to examine'), 'ui:save-app-expectation')
+        def ready():
+            require(self.chooser_snapshot(mode='save', absent=True), 'ui:save-chooser-remains')
+            row = self.id_target('feedback-logs-row')
+            require(row.get_process_id() == self.id_target('feedback-dialog').get_process_id(),
+                    'ui:save-app-owner')
+            descriptions = [relation.get_target(index)
+                for relation in row.get_relation_set()
+                if relation.get_relation_type() == self.api.RelationType.DESCRIBED_BY
+                for index in range(relation.get_n_targets())]
+            require(len(descriptions) == 1 and descriptions[0] in self.read_snapshot(row)[0],
+                    'ui:save-app-result')
+            require(descriptions[0].get_process_id() == row.get_process_id(), 'ui:save-app-owner')
+            return descriptions[0].get_name() == expected
+        self.wait(ready, 'save-app-result')
 
     def chooser_set_location(self, *, profile='standard'):
         require(profile == 'standard' or profile in BOUNDARY_FILES, 'ui:chooser-profile')

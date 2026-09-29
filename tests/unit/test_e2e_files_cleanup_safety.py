@@ -346,6 +346,49 @@ def test_save_qualification_owns_actions_and_failed_transport_latches(tmp_path):
     transport.call.assert_called_once()
 
 
+@pytest.mark.parametrize('fault', ['', 'unexpected', 'transport'])
+def test_save_preservation_checkpoints_are_finite_independent_and_latch_failure(home, fault):
+    # Existing tmp_path files and mocked transport retain both this module's
+    # compatible unit and cleanup scheduling; no shared paths or new processes.
+    calls = []
+    def call(argv, **kwargs):
+        calls.append(argv[7])
+        if fault == 'transport' and len(calls) > 2: raise TimeoutError
+        result = guest.operate(home, argv[7], json.loads(argv[8]), argv[9])
+        return (json.dumps(result, sort_keys=True) + '\n').encode()
+    journey = SimpleNamespace(transport=SimpleNamespace(config={'run': 'owned'}, call=call))
+    actions = controller.diagnostic_export_actions(preservation=True)
+    guard = Mock()
+    actions['save-prepare'](journey, guard)
+    if fault == 'unexpected': (home / 'Downloads' / 'unexpected').write_bytes(b'preserve')
+    if fault:
+        with pytest.raises((ValueError, TimeoutError)):
+            actions['save-cancel-preserved'](journey, guard)
+        with pytest.raises(EvidenceError, match='replay'):
+            actions['save-denied-preserved'](journey, guard)
+        assert (home / 'Downloads' / 'Unwritable').exists()
+        if fault == 'unexpected': assert (home / 'Downloads' / 'unexpected').read_bytes() == b'preserve'
+    else:
+        for name in ('save-cancel-preserved', 'save-denied-preserved'):
+            assert actions[name](journey, guard) == {
+                'output_absent': True, 'destination_unchanged': True}
+            with pytest.raises(EvidenceError, match='replay'): actions[name](journey, guard)
+        assert calls == ['stage', 'read', 'read', 'read', 'read', 'read']
+        assert actions['save-cleanup'](journey, guard) == {'absent': True}
+
+
+@pytest.mark.parametrize('marker', [b'onpc-parent-jamie', b'onpc-child-jordan',
+    b'first@example.invalid', b'Synthetic feedback first', b'ONPC synthetic attachment'])
+def test_exported_contents_refuse_declared_personal_values(home, marker):
+    from io import BytesIO
+    from zipfile import ZipFile
+    content = diagnostic_bytes()
+    with ZipFile(BytesIO(content)) as archive:
+        contents = {name: archive.read(name) for name in archive.namelist()}
+        contents['broker/2026-09-12.log'] += marker
+        with pytest.raises(ValueError): guest.compare_diagnostic_contents(archive, contents)
+
+
 def test_declared_text_read_and_disposable_refusal_probes(home):
     receipt = guest.operate(home, 'stage', None)
     expected = guest.operate(home, 'open-text',

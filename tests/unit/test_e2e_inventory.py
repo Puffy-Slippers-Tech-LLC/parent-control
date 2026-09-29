@@ -119,7 +119,7 @@ def test_invalid_selection_fails_without_broadening(document, selector, category
 
 
 @pytest.mark.parametrize('selector', [None, 'E2E-005', 'E2E-023/fullscreen',
-    'E2E-031/diagnostic-export', 'E2E-051/riley',
+    'E2E-051/riley',
     'E2E-052/appimagelauncher-login-autostart'])
 def test_pending_selection_cannot_run(document, selector):
     with pytest.raises(inventory.InventoryError, match='selection:pending'):
@@ -437,11 +437,11 @@ def test_unmapped_surfaces_and_external_delivery_are_explicit_pending_work(docum
             'supported-real-feedback-service-profile'} <= set(family(document, 'E2E-032')['preconditions'])
 
 
-def test_local_feedback_registers_draft_validation_and_attachment_cases(document):
+def test_local_feedback_registers_complete_local_cases(document):
     chosen = family(document, 'E2E-031')
     assert chosen['requirement_gap'] is None
-    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {152, 153, 154}
-    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'pending'} == {155}
+    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {152, 153, 154, 155}
+    assert not any(v['status'] == 'pending' for v in chosen['variants'])
     draft = next(v for v in chosen['variants'] if v['coverage_id'] == 152)
     assert draft['executable'] == {
         'path': 'tests/e2e/parent_feedback_draft.py', 'test_id': 'draft-reopen'}
@@ -451,6 +451,9 @@ def test_local_feedback_registers_draft_validation_and_attachment_cases(document
     attachments = next(v for v in chosen['variants'] if v['coverage_id'] == 154)
     assert attachments['executable'] == {
         'path': 'tests/e2e/parent_feedback_attachments.py', 'test_id': 'attachments'}
+    export = next(v for v in chosen['variants'] if v['coverage_id'] == 155)
+    assert export['executable'] == {
+        'path': 'tests/e2e/parent_diagnostic_export.py', 'test_id': 'diagnostic-export'}
     assert not chosen['assertions']['backend'] and not chosen['assertions']['other_user']
     assert 'delivery' not in chosen['expected_evidence']
 

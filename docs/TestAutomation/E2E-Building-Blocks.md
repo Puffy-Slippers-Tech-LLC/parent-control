@@ -3082,6 +3082,14 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 
 ### Composition preflight
 
+Collection readiness (031a) demonstrates a result wait, not a transition test:
+use the shared predicate wait for the complete public result (finished diagnostics
+and available Download), accepting immediate completion. Require intermediate
+events only when the recipe explicitly tests a transition, as save-order does.
+Regress immediate success, delayed success, timeout and ownership refusal before
+live qualification; do not introduce an observer/input rendezvous merely to wait
+for readiness.
+
 Before the first live attempt, check the changed boundary end to end on the host:
 
 1. Bind recipe stages to the actual shared callable, operation registration,
@@ -3096,6 +3104,11 @@ Before the first live attempt, check the changed boundary end to end on the host
    qualified Perl calls, not just direct Python calls. The guard is a source
    regression check, not proof that an allowlisted library is reusable or safe;
    inspect the changed helper and its consumers too.
+   In particular, a case dispatcher in a shared library is still a composition
+   root: inspect its body for copied qualification mechanics. Case 159 and the
+   named-child qualification share `journey_blocks.ordinary_custom_save` /
+   `onpc_feedback_states::ordinary_custom_save` for selection and ordinary custom
+   input; callers retain the independent per-child and restart readbacks.
    For a newly parameterized identity, trace the binding through every layer,
    including defaults in nested helpers and asynchronous input receipts. Test
    the nondefault identity and a mismatched receipt before live qualification;

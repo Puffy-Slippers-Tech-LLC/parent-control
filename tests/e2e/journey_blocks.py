@@ -34,6 +34,20 @@ def custom_save_entry(prefix, child):
     }
 
 
+def ordinary_custom_save(prefix, child, value):
+    """Select a child and commit the qualified ordinary custom value."""
+    require(value == 7, 'journey:ordinary-custom-value')
+    return {
+        **custom_child_selection(prefix, child),
+        f'{prefix}-setup': 'ui:named-custom-setup',
+        f'{prefix}-editor': f'ui:custom-{value}-open',
+        f'{prefix}-wrong-child': 'ui:named-custom-wrong-child-refused',
+        **{f'{prefix}-text-{suffix}': f'ui:text-daily-{value}-{suffix}'
+           for suffix in ('focus', 'selected', 'read')},
+        f'{prefix}-saved': f'ui:custom-{value}-saved',
+    }
+
+
 def observed_text(entry, binding):
     """UI22 declaration: UI25, one explicitly bound UI16 input, UI26."""
     import re

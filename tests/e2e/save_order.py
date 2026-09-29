@@ -2,7 +2,7 @@
 
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (fresh_desktop, parent_management,
-                            custom_child_selection, custom_save_entry)
+                            custom_child_selection, custom_save_entry, ordinary_custom_save)
 from ui_observations import SettingsObservation
 
 
@@ -18,13 +18,7 @@ ENTRY.update({
 })
 EDITS = {
     **custom_save_entry('jordan', 'existing'),
-    **custom_child_selection('riley', 'child'),
-    'riley-setup': 'ui:named-custom-setup',
-    'riley-editor': 'ui:custom-7-open',
-    'riley-wrong-child': 'ui:named-custom-wrong-child-refused',
-    **{f'riley-text-{suffix}': f'ui:text-daily-7-{suffix}'
-       for suffix in ('focus', 'selected', 'read')},
-    'riley-saved': 'ui:custom-7-saved',
+    **ordinary_custom_save('riley', 'child', 7),
     **custom_child_selection('final-away', 'existing'),
     'jordan-final-read': 'ui:custom-6-reopen',
     **custom_child_selection('final-back', 'child'),

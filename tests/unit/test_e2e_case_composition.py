@@ -79,7 +79,7 @@ WORKER_APIS = {
     'onpc_text': {'replace_text', 'append_scalar'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
-                             'input_hidden', 'input_complex'},
+                             'input_hidden', 'input_complex', 'stable_trace'},
     'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
                             'supply_files', 'boundary_batch', 'attachment_limits'},
 }

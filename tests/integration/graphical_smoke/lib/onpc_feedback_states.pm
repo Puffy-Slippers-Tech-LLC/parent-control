@@ -8,6 +8,30 @@ use onpc_journey ();
 use onpc_parent ();
 use onpc_text ();
 
+sub stable_trace {
+    onpc_progress::operation('Starting and collecting unchanged public feedback samples');
+    my ($journey, $entry) = @_;
+    die 'trace:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($entry eq 'first' || $entry eq 'second');
+    rejection_observe($journey, "trace-$entry-start");
+    rejection_observe($journey, "trace-$entry-finish");
+}
+
+sub run_trace {
+    onpc_progress::operation('Qualifying unchanged feedback traces and independent entry');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'trace-stable', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, 'feedback-open');
+    stable_trace($journey, 'first');
+    rejection_observe($journey, $_) for ('feedback-close', 'feedback-state-wrong-entry', 'feedback-open-again');
+    stable_trace($journey, 'second');
+    $journey->finish();
+}
+
 sub run {
     onpc_progress::operation('Reading feedback validation and Send availability without sending');
     my ($exchange) = @_;

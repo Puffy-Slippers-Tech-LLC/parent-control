@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **016b — [Start and collect a trace of an unchanged public state](E2E-Tasks/016b-trace-stable-state.md)**.
+Next task: **016 — [Trace one public state transition](E2E-Tasks/016-trace.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

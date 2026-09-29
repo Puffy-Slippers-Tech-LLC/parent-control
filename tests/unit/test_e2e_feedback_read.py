@@ -51,6 +51,146 @@ from ui_observations import FeedbackStateObservation
 # in-memory observers; no scheduler or resource admission change is needed.
 # Case 154 retains bounded in-memory profiles, pytest-owned paths and waited
 # private Perl children. No VM, bus, display, cache or shared-path resources.
+# Stable traces add only mocked clocks/transports and waited private Perl;
+# existing compatible scheduling and resource ownership remain unchanged.
+
+
+def trace_reader(monkeypatch):
+    import ui_observations
+    ui, _, _, _ = feedback_ui()
+    value = ui.feedback_snapshot(states=True)
+    reply = {'operation': 'feedback-state-empty', 'outcome': 'passed', 'interface': 'AT-SPI',
+             'feedback_state': value, 'boot_sha256': 'b' * 64}
+    reader = ui_observations.UiObservations(Mock())
+    reader.boot_guard = 'b' * 64
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    clock = Mock(side_effect=range(100))
+    monkeypatch.setattr(reader, '_trace_clock', clock)
+    return reader, reply, clock
+
+
+def test_stable_trace_decodes_samples_and_consumes_explicit_token(monkeypatch):
+    reader, reply, _ = trace_reader(monkeypatch)
+    ready = reader.start_trace()
+    assert ready['ready'] is True and len(ready['token']) == 32
+    assert reader.call.call_count == 1
+    result = reader.finish_trace(ready['token'])
+    assert result['terminal'] == 'three-unchanged-samples'
+    assert [sample['state'] for sample in result['samples']] == [reply['feedback_state']] * 3
+    assert [sample['elapsed_ms'] for sample in result['samples']] == [1000, 3000, 5000]
+    assert reader.trace is None and reader.call.call_count == 3
+    with pytest.raises(EvidenceError, match='trace-token'):
+        reader.finish_trace(ready['token'])
+    assert reader.call.call_count == 3
+
+
+@pytest.mark.parametrize('fault', ['duplicate', 'missing', 'foreign', 'stale', 'input',
+                                  'changed', 'boot', 'malformed', 'wrong-entry'])
+def test_stable_trace_refuses_and_latches_without_replay(monkeypatch, fault):
+    reader, reply, clock = trace_reader(monkeypatch)
+    if fault == 'wrong-entry':
+        reader.call.side_effect = accessible_ui.UiError('ui:feedback-entry')
+        with pytest.raises(accessible_ui.UiError, match='feedback-entry'):
+            reader.start_trace()
+    elif fault == 'missing':
+        with pytest.raises(EvidenceError, match='trace-token'):
+            reader.finish_trace(None)
+    else:
+        ready = reader.start_trace()
+        if fault == 'stale':
+            clock.side_effect = None
+            clock.return_value = 61
+        if fault == 'changed':
+            reply['feedback_state']['send_enabled'] = False
+        if fault == 'boot':
+            reply['boot_sha256'] = 'c' * 64
+        if fault == 'malformed':
+            reply['feedback_state']['private'] = 'must refuse'
+        reader.call.return_value = (json.dumps(reply).encode(), [])
+        with pytest.raises(EvidenceError):
+            if fault == 'duplicate':
+                reader.start_trace()
+            elif fault == 'input':
+                reader.observe('feedback-close')
+            else:
+                reader.finish_trace('foreign' if fault == 'foreign' else ready['token'])
+    calls = reader.call.call_count
+    assert reader.trace_failed and reader.trace is None
+    with pytest.raises(EvidenceError, match='trace-previous-failure'):
+        reader.start_trace()
+    assert reader.call.call_count == calls
+
+
+def test_trace_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_trace_stable_state as check_trace
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_trace, 'smoke', run)
+    assert check_trace.main() == 0
+    assert run.call_args.kwargs['trace_stable_state'] is True
+    assert run.call_args.kwargs['provision_credentials'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(trace_stable_state=True, feedback_states=True)
+
+
+def test_stable_trace_new_entry_cannot_consume_prior_token(monkeypatch):
+    reader, _, _ = trace_reader(monkeypatch)
+    old = reader.start_trace()['token']
+    reader.finish_trace(old)
+    new = reader.start_trace()['token']
+    assert new != old
+    with pytest.raises(EvidenceError, match='trace-token'):
+        reader.finish_trace(old)
+    assert reader.call.call_count == 4
+
+
+@pytest.mark.parametrize('tags,actions', [
+    ({'start': 'ui:feedback-trace-start'}, {}),
+    ({'end': 'ui:feedback-trace-finish'}, {}),
+    ({'start': 'ui:feedback-trace-start', 'input': 'ui:feedback-close',
+      'end': 'ui:feedback-trace-finish'}, {}),
+    ({'start': 'ui:feedback-trace-start', 'end': 'ui:feedback-trace-finish'}, {'start': 'input'}),
+])
+def test_stable_trace_plan_refuses_missing_pairs_and_intervening_input(tags, actions):
+    from installed_journey import JourneyPlan
+    with pytest.raises(EvidenceError, match='trace-plan'):
+        JourneyPlan(prefix='test', worker_mode='trace', screen_tags=tags,
+                    phases={}, stage_actions=actions)
+
+
+@pytest.mark.parametrize('fault', ['', 'trace-first-start', 'trace-first-finish',
+                                  'feedback-state-wrong-entry', 'trace-second-start'])
+def test_trace_worker_uses_shared_sequence_and_stops_on_refusal(fault):
+    from tests.support.perl import run_perl
+    from trace_stable_state import PLAN as trace_plan
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages);
+our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { die 'unexpected input'; }
+sub type_string { die 'unexpected input'; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_states::run_trace(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = list(trace_plan.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
 
 
 @pytest.mark.parametrize('fault', ['', 'text-body-first-selected', 'format-home',

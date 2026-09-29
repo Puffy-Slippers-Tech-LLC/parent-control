@@ -64,6 +64,17 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
+        for index, stage in enumerate(stages):
+            tag = self.screen_tags[stage]
+            if tag == 'ui:feedback-trace-start':
+                require(index + 1 < len(stages)
+                        and self.screen_tags[stages[index + 1]] == 'ui:feedback-trace-finish'
+                        and stage not in self.stage_actions
+                        and stages[index + 1] not in self.stage_actions,
+                        self.prefix + ':trace-plan')
+            elif tag == 'ui:feedback-trace-finish':
+                require(index > 0 and self.screen_tags[stages[index - 1]] == 'ui:feedback-trace-start',
+                        self.prefix + ':trace-plan')
         require(type(self.reboot_transition) is tuple and
                 (not self.reboot_transition or
                  len(self.reboot_transition) == 2 and
@@ -183,6 +194,7 @@ class InstalledJourney:
         self.vm = None
         self.transport = None
         self.ui = None
+        self.trace_token = None
         self.boot = None
         self.reboot_submitted = False
         self.reboot_observed = False
@@ -342,8 +354,16 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
-                observed['ui'] = (self.ui.observe_challenge(tag[3:], challenge)
-                                  if challenge else self.ui.observe(tag[3:]))
+                if tag == 'ui:feedback-trace-start':
+                    require(self.trace_token is None, 'ui:trace-duplicate')
+                    observed['ui'] = self.ui.start_trace()
+                    self.trace_token = observed['ui']['token']
+                elif tag == 'ui:feedback-trace-finish':
+                    observed['ui'] = self.ui.finish_trace(self.trace_token)
+                    self.trace_token = None
+                else:
+                    observed['ui'] = (self.ui.observe_challenge(tag[3:], challenge)
+                                      if challenge else self.ui.observe(tag[3:]))
                 current = self.ui.boot_proof
                 if challenge:
                     observed['challenge'] = challenge
@@ -411,6 +431,7 @@ class InstalledJourney:
 
     def validate(self):
         require(not self.failed, self.plan.prefix + ':previous-failure')
+        require(self.trace_token is None, 'ui:trace-uncollected')
         require([s['stage'] for s in self.steps] == list(self.plan.stages),
                 self.plan.prefix + ':missing-stages')
         return matched_screens(self.context.directory, self.plan, self.steps)

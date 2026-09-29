@@ -36,6 +36,18 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
+Start source inspection at `UiObservations.start_trace` / `finish_trace` in
+`tests/e2e/ui_observations.py`, the trace pairing/readiness branches in
+`tests/e2e/installed_journey.py`, `tests/e2e/trace_stable_state.py` and
+`onpc_feedback_states::stable_trace`. Their qualified binding takes three serial
+empty-feedback samples without intervening input. It does not observe between
+those reads: task 016 must add observation during the caller's input, not merely
+remove the no-input guards. Preserve the existing stable-state qualification
+as an affected regression. Focused host checks live in
+`tests/unit/test_e2e_feedback_read.py` and
+`tests/unit/test_installed_journey_cleanup_safety.py`; the retained live selector
+is `tools/run-tests integration check_e2e_trace_stable_state`.
+
 ## Implementation
 
 Implement UI25 readiness and UI26 collection as separate leaves in the existing rendezvous. The caller owns the intervening UI16 input. Bind explicit trace tokens, public projections, terminal predicates and deadlines; retain durable ordering and terminal failure. No trace API performs an input or pauses the product.

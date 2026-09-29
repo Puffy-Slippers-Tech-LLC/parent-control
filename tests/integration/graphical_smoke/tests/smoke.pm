@@ -514,6 +514,12 @@ sub run {
         onpc_format::run(\&exchange);
         return;
     }
+    if ($ready->{trace_stable_state}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_states::run_trace(\&exchange);
+        return;
+    }
     if ($ready->{feedback_states}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

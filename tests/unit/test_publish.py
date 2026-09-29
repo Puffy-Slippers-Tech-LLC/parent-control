@@ -5,6 +5,7 @@ fixtures. Nothing in this suite can publish a real release.
 """
 import gzip
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -99,16 +100,39 @@ def repository(tmp_path):
     return root
 
 
-def test_source_gate_accepts_only_history_and_rejects_other_inputs(repository):
+@pytest.fixture
+def release_repository(repository):
+    git(repository, 'add', publish.HISTORY)
+    git(repository, 'commit', '-m', 'release inputs')
+    git(repository, 'switch', '-c', 'releases/v1.1')
+    return repository
+
+
+@pytest.mark.usefixtures('release_repository')
+def test_source_gate_requires_committed_inputs(repository):
     _, notes, current = publish.source_state(repository)
     assert notes == NOTES and current == '1.0'
     (repository / 'private-unrelated-file').write_text('local content')
-    with pytest.raises(ValueError, match='commit application changes'):
+    with pytest.raises(ValueError, match='commit all release inputs'):
         publish.source_state(repository)
 
 
+@pytest.mark.parametrize('branch', ['main', 'feature', 'releases/v01.1', None, 'releases/v1.2'])
+def test_wrong_branch_stops_before_preparation(repository, monkeypatch, branch):
+    git(repository, 'add', publish.HISTORY)
+    git(repository, 'commit', '-m', 'notes')
+    if branch is None:
+        git(repository, 'checkout', '--detach')
+    elif branch != 'main':
+        git(repository, 'switch', '-c', branch)
+    monkeypatch.setattr(publish, 'prepare', lambda *args: pytest.fail('preparation started'))
+    with pytest.raises(ValueError, match='branch|detached'):
+        publish.publish(repository)
+
+
 @pytest.mark.parametrize('tracked,staged', [(False, False), (True, False), (True, True)])
-def test_finish_fast_forwards_real_git_with_manually_edited_history(repository, tmp_path, tracked, staged):
+def test_uncommitted_history_is_rejected_without_losing_it(repository, tracked, staged):
+    git(repository, 'switch', '-c', 'releases/v1.1')
     if tracked:
         (repository / publish.HISTORY).write_text(NOTES.replace('Fixed small screens.', 'Earlier notes.'))
         git(repository, 'add', publish.HISTORY)
@@ -116,6 +140,16 @@ def test_finish_fast_forwards_real_git_with_manually_edited_history(repository, 
         (repository / publish.HISTORY).write_text(NOTES)
     if staged:
         git(repository, 'add', publish.HISTORY)
+    before = (repository / publish.HISTORY).read_bytes()
+    status = git(repository, 'status', '--porcelain')
+    with pytest.raises(ValueError, match='commit all release inputs'):
+        publish.source_state(repository)
+    assert (repository / publish.HISTORY).read_bytes() == before
+    assert git(repository, 'status', '--porcelain') == status
+
+
+@pytest.mark.usefixtures('release_repository')
+def test_finish_fast_forwards_real_git_with_committed_history(repository, tmp_path):
     base = git(repository, 'rev-parse', 'HEAD')
     directory = tmp_path / 'release'
     directory.mkdir()
@@ -129,20 +163,38 @@ def test_finish_fast_forwards_real_git_with_manually_edited_history(repository, 
     revision = git(checkout, 'rev-parse', 'HEAD')
     git(repository, 'remote', 'add', 'origin', str(checkout))
     state = dict(base=base, revision=revision, history_sha256=hashlib.sha256(NOTES.encode()).hexdigest(),
-                 directory=str(directory))
+                 directory=str(directory), branch='releases/v1.1', product='1.1')
     publish.finish_checkout(repository, state, directory / 'release.log')
     assert git(repository, 'rev-parse', 'HEAD') == revision
     assert not git(repository, 'status', '--porcelain')
     assert json.loads((repository / 'data/app.json').read_text())['version'] == '1.1'
 
 
-def test_finish_refuses_concurrent_edit_without_losing_it(repository, tmp_path):
+@pytest.mark.usefixtures('release_repository')
+@pytest.mark.parametrize('change', ['history', 'staged-app', 'commit', 'branch'])
+def test_finish_refuses_concurrent_edit_without_losing_it(repository, tmp_path, change):
     base = git(repository, 'rev-parse', 'HEAD')
-    state = dict(base=base, revision='new', history_sha256='frozen-digest')
+    state = dict(base=base, revision='new', history_sha256=hashlib.sha256(NOTES.encode()).hexdigest(),
+                 branch='releases/v1.1', product='1.1')
+    if change == 'history':
+        (repository / publish.HISTORY).write_text('New work in progress.\n')
+    elif change == 'staged-app':
+        (repository / 'data/app.json').write_text('{"version": "1.2"}\n')
+        git(repository, 'add', 'data/app.json')
+    elif change == 'commit':
+        git(repository, 'commit', '--allow-empty', '-m', 'concurrent release edit')
+    else:
+        git(repository, 'switch', 'main')
     before = (repository / publish.HISTORY).read_bytes()
-    with pytest.raises(ValueError, match='checkout changed'):
+    head = git(repository, 'rev-parse', 'HEAD')
+    status = git(repository, 'status', '--porcelain')
+    index = git(repository, 'diff', '--cached')
+    with pytest.raises(ValueError, match='commit all release inputs|checkout changed|branch'):
         publish.finish_checkout(repository, state, tmp_path / 'log')
     assert (repository / publish.HISTORY).read_bytes() == before
+    assert git(repository, 'rev-parse', 'HEAD') == head
+    assert git(repository, 'status', '--porcelain') == status
+    assert git(repository, 'diff', '--cached') == index
 
 
 def test_lock_excludes_second_publisher_and_releases_on_error(repository):
@@ -162,13 +214,15 @@ def execution(tmp_path, monkeypatch):
     (directory / 'source').mkdir()
     state = dict(phase='prepared', version='1.1+ppa1~ubuntu26.04.1', product='1.1',
                  revision='frozen', base='base', source_tag='v1.1+ppa1_ubuntu26.04.1',
-                 product_tag='v1.1', directory=str(directory))
+                 product_tag='v1.1', branch='releases/v1.1', directory=str(directory))
     state_path = tmp_path / 'state.json'
     publish.save(state_path, state)
     calls = []
 
     def command(*args, **kwargs):
         calls.append(args)
+        if args[:2] == ('git', 'symbolic-ref'):
+            return state['branch']
         if args[:2] == ('git', 'ls-remote'):
             return '\n'.join(f'frozen\trefs/tags/{state[key]}^{{}}' for key in ('source_tag', 'product_tag'))
         if args[0] == 'dput' and '--check-only' not in args:
@@ -192,6 +246,7 @@ def execution(tmp_path, monkeypatch):
     monkeypatch.setattr(publish, 'archive_preflight', lambda: None)
     monkeypatch.setattr(publish, 'sources', lambda version=None: [])
     monkeypatch.setattr(publish, 'wait_for_publication', wait)
+    monkeypatch.setattr(publish, 'update_main_checkout', lambda *args: calls.append(('main-update',)))
     monkeypatch.setattr(publish, 'finish_checkout', lambda *args: calls.append(('finish',)))
     return state, state_path, calls
 
@@ -207,7 +262,10 @@ def test_full_workflow_publishes_without_local_tests(execution):
     push = next(i for i, call in enumerate(calls) if call[:2] == ('git', 'push'))
     upload = next(i for i, call in enumerate(calls) if call[0] == 'dput' and '--check-only' not in call)
     assert commands.index('debsign') < push < upload < commands.index('wait') < commands.index('finish')
+    assert upload < commands.index('main-update') < commands.index('wait')
     assert '--atomic' in calls[push]
+    assert 'HEAD:refs/heads/releases/v1.1' in calls[push]
+    assert not any('HEAD:refs/heads/main' in call for call in calls)
 
 
 @pytest.mark.parametrize('phase', ['upload-started', 'published'])
@@ -485,7 +543,7 @@ def test_status_monitors_recorded_release_with_changed_checkout_without_writes(
     version, _, _, _ = launchpad
     original_head = git(repository, 'rev-parse', 'HEAD')
     state = dict(phase=phase, version=version, base=original_head, revision='release-commit',
-                 checkout=str(repository), directory='/missing-release-artifacts')
+                 checkout=str(repository), branch='releases/v1.1', directory='/missing-release-artifacts')
     # A reader also works while the publisher owns its lock.
     with publish.locked(repository) as path:
         publish.save(path, state)
@@ -506,7 +564,7 @@ def test_status_monitors_recorded_release_with_changed_checkout_without_writes(
         original_command = publish.command
 
         def read_only_command(*args, **kwargs):
-            assert args == ('git', 'rev-parse', '--git-common-dir')
+            assert args == ('git', 'rev-parse', '--absolute-git-dir')
             return original_command(*args, **kwargs)
 
         monkeypatch.setattr(publish, 'command', read_only_command)
@@ -669,7 +727,9 @@ def test_dput_uses_only_generated_configuration_without_user_hooks(tmp_path):
     assert config['onpc']['allow_unsigned_uploads'] == '0'
 
 
-def test_prepare_uses_real_isolated_git_and_only_the_new_history_entry(repository, tmp_path, monkeypatch):
+@pytest.mark.usefixtures('release_repository')
+@pytest.mark.parametrize('remote_branch', ['absent', 'ancestor', 'diverged'])
+def test_prepare_uses_real_isolated_git_and_only_the_new_history_entry(repository, tmp_path, monkeypatch, remote_branch):
     (repository / 'debian').mkdir()
     previous = publish.changelog_entry('1.0+ppa6~ubuntu26.04.1', '- Earlier package correction.')
     (repository / 'debian/changelog').write_text(previous)
@@ -679,6 +739,17 @@ def test_prepare_uses_real_isolated_git_and_only_the_new_history_entry(repositor
     git(repository, 'commit', '-m', 'packaging')
     remote = tmp_path / 'remote.git'
     git(repository, 'clone', '--bare', str(repository), str(remote))
+    if remote_branch == 'absent':
+        git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+        git(remote, 'update-ref', '-d', 'refs/heads/releases/v1.1')
+    # Main is independently ahead, including remotely. It is not a release gate.
+    git(repository, 'switch', 'main')
+    git(repository, 'commit', '--allow-empty', '-m', 'main moved independently')
+    git(repository, 'push', str(remote), 'main')
+    main = git(repository, 'rev-parse', 'main')
+    git(repository, 'switch', 'releases/v1.1')
+    if remote_branch == 'diverged':
+        git(remote, 'update-ref', 'refs/heads/releases/v1.1', main)
     monkeypatch.setattr(publish.release, 'ORIGIN', str(remote))
     monkeypatch.setattr(publish, 'preflight', lambda *args: None)
     monkeypatch.setattr(publish, 'sources', lambda: [dict(source_package_version='1.0+ppa6~ubuntu26.04.1')])
@@ -700,9 +771,17 @@ def test_prepare_uses_real_isolated_git_and_only_the_new_history_entry(repositor
     product, body = publish.history_entry(history, current)
     directory = tmp_path / 'release'
     directory.mkdir()
+    if remote_branch == 'diverged':
+        with pytest.raises(ValueError, match='git failed'):
+            publish.prepare(repository, base, history, current, product, body, directory)
+        assert git(repository, 'rev-parse', 'HEAD') == base
+        assert git(remote, 'rev-parse', 'releases/v1.1') == main
+        assert git(remote, 'tag', '--list') == ''
+        return
     state = publish.prepare(repository, base, history, current, product, body, directory)
     checkout = directory / 'source'
     assert state['version'] == '1.1+ppa1~ubuntu26.04.1'
+    assert state['branch'] == 'releases/v1.1'
     assert json.loads((checkout / 'data/app.json').read_text())['version'] == '1.1'
     changelog = (checkout / 'debian/changelog').read_text()
     assert changelog.endswith(previous) and changelog.count('Fixed small screens.') == 1
@@ -711,10 +790,14 @@ def test_prepare_uses_real_isolated_git_and_only_the_new_history_entry(repositor
     assert not git(checkout, 'status', '--porcelain')
     assert git(repository, 'rev-parse', 'HEAD') == base
     assert (repository / 'debian/changelog').read_text() == previous
+    assert git(remote, 'rev-parse', 'main') == main
 
 
+@pytest.mark.usefixtures('release_repository')
 def test_invalid_history_stops_before_preparation(repository, monkeypatch):
     (repository / publish.HISTORY).write_text(NOTES.replace('v1.1', 'v1.0'))
+    git(repository, 'add', publish.HISTORY)
+    git(repository, 'commit', '-m', 'invalid notes')
     monkeypatch.setattr(publish, 'prepare', lambda *args: pytest.fail('release preparation started'))
     with pytest.raises(ValueError, match='unique'):
         publish.publish(repository)
@@ -726,7 +809,7 @@ def test_reconcile_retains_journal_and_newer_work(repository, monkeypatch, failu
     git(repository, 'commit', '--allow-empty', '-m', 'newer development')
     head = git(repository, 'rev-parse', 'HEAD')
     state = dict(checkout=str(repository), phase='upload-started',
-                 revision=revision, version='1.1+ppa1~ubuntu26.04.1',
+                 revision=revision, version='1.2+ppa1~ubuntu26.04.1',
                  directory=str(repository / 'missing-artifacts'))
     if failure == 'ancestry':
         state['revision'] = '0' * 40
@@ -761,6 +844,7 @@ def test_reconcile_retains_journal_and_newer_work(repository, monkeypatch, failu
 
 @pytest.mark.parametrize('phase,replaced', [('signed', True), ('built', True),
                                          ('push-started', False), ('upload-started', False)])
+@pytest.mark.usefixtures('release_repository')
 def test_corrected_source_can_replace_only_attempts_without_public_writes(repository, tmp_path, monkeypatch, phase, replaced):
     mkdtemp = publish.tempfile.mkdtemp
     def temporary_release(**options):
@@ -769,7 +853,8 @@ def test_corrected_source_can_replace_only_attempts_without_public_writes(reposi
     directory = tmp_path / 'old-release'
     directory.mkdir()
     state = dict(phase=phase, checkout=str(repository), directory=str(directory),
-                 base='old-base', revision='old-release-commit', history_sha256='old-history')
+                 base='old-base', revision='old-release-commit', history_sha256='old-history',
+                 branch='releases/v1.1')
     with publish.locked(repository) as path:
         publish.save(path, state)
     prepared = []
@@ -779,6 +864,7 @@ def test_corrected_source_can_replace_only_attempts_without_public_writes(reposi
         raise ValueError('reached fresh preparation')
 
     monkeypatch.setattr(publish, 'prepare', prepare)
+    monkeypatch.setattr(publish, 'confirm_main_update', lambda *args: {'phase': 'pending'})
     with pytest.raises(ValueError, match='fresh preparation' if replaced else 'inputs differ'):
         publish.publish(repository)
     assert bool(prepared) is replaced
@@ -802,3 +888,418 @@ def test_push_failure_retains_the_public_write_boundary(execution, monkeypatch):
         publish.execute(ROOT, state, path)
     assert json.loads(path.read_text())['phase'] == 'push-started'
     assert not any(call[0] == 'dput' and '--check-only' not in call for call in calls)
+
+
+def test_preflight_checks_only_the_release_ref(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(publish.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(publish.os, 'access', lambda *args: True)
+    monkeypatch.setattr(publish.shutil, 'which', lambda *args, **kwargs: '/fixture/tool')
+    monkeypatch.setattr(publish, 'archive_preflight', lambda: None)
+
+    def command(*args, **kwargs):
+        calls.append(args)
+        return 'amd64' if args[0] == 'dpkg' else ''
+
+    monkeypatch.setattr(publish, 'command', command)
+    publish.preflight(tmp_path, tmp_path / 'release.log', 'releases/v1.3')
+    assert calls[-1] == ('git', 'push', '--dry-run', publish.release.ORIGIN,
+                         'HEAD:refs/heads/releases/v1.3')
+
+
+@pytest.mark.parametrize('enlistment', ['clone', 'worktree'])
+@pytest.mark.parametrize('interrupt_push', [False, True])
+def test_release_isolation_and_interrupted_upload_resume(repository, tmp_path, monkeypatch, enlistment, interrupt_push):
+    """Real local Git push/merge/locks, with no network, signing or package build."""
+    git(repository, 'add', publish.HISTORY)
+    git(repository, 'commit', '-m', 'release inputs on main')
+    base = git(repository, 'rev-parse', 'HEAD')
+    remote = tmp_path / 'public.git'
+    git(repository, 'clone', '--bare', str(repository), str(remote))
+    git(repository, 'remote', 'add', 'origin', str(remote))
+    root = tmp_path / 'release checkout'
+    if enlistment == 'clone':
+        git(repository, 'clone', str(remote), str(root))
+        git(root, 'switch', '-c', 'releases/v1.1')
+    else:
+        git(repository, 'worktree', 'add', '-b', 'releases/v1.1', str(root))
+    directory = tmp_path / 'frozen'
+    directory.mkdir()
+    checkout = directory / 'source'
+    git(root, 'clone', str(root), str(checkout))
+    git(checkout, 'remote', 'set-url', 'origin', str(remote))
+    (checkout / 'data/app.json').write_text('{"version": "1.1"}\n')
+    (checkout / 'debian').mkdir()
+    (checkout / 'debian/changelog').write_text(publish.changelog_entry('1.1+ppa1~ubuntu26.04.1', '- Fixed.'))
+    git(checkout, 'add', 'data/app.json', 'debian/changelog')
+    git(checkout, 'commit', '-m', 'generated release metadata')
+    revision = git(checkout, 'rev-parse', 'HEAD')
+    for tag in ('v1.1', 'v1.1+ppa1_ubuntu26.04.1'):
+        git(checkout, 'tag', '-a', tag, '-m', 'fixture tag')
+    state = dict(phase='signed', checkout=str(root), branch='releases/v1.1',
+                 base=base, revision=revision, product='1.1', version='1.1+ppa1~ubuntu26.04.1',
+                 source_tag='v1.1+ppa1_ubuntu26.04.1', product_tag='v1.1', directory=str(directory),
+                 history_sha256=hashlib.sha256(NOTES.encode()).hexdigest())
+    with publish.locked(root) as path:
+        publish.save(path, state)
+    legacy_directory = publish.journal_directory(repository, legacy=True)
+    legacy_directory.mkdir(exist_ok=True)
+    legacy_path = legacy_directory / 'state.json'
+    legacy_path.write_text('{"phase": "upload-started", "legacy": true}\n')
+    legacy_before = legacy_path.read_bytes()
+    assert publish.journal_directory(root).resolve() != legacy_directory.resolve()
+    monkeypatch.setattr(publish, 'PUBLIC_GIT', str(remote))
+    monkeypatch.setattr(publish.release, 'ORIGIN', str(remote))
+    monkeypatch.setattr('builtins.input', lambda prompt: 'yes')
+    if enlistment == 'clone':
+        git(root, 'config', '--local', 'onpc.publishMainCheckout', str(repository))
+    def unsigned(candidate, root):
+        git(candidate, 'config', 'user.name', 'Test')
+        git(candidate, 'config', 'user.email', 'test@example.invalid')
+    monkeypatch.setattr(publish, 'configure_signing', unsigned)
+    monkeypatch.setattr(publish, 'inspect_source', lambda *args: None)
+    monkeypatch.setattr(publish, 'archive_preflight', lambda: None)
+    monkeypatch.setattr(publish, 'sources', lambda version=None: [])
+    original = publish.command
+    uploads = []
+    pushes = []
+
+    def command(*args, **kwargs):
+        if args[:2] == ('git', 'push'):
+            result = original(*args, **kwargs)
+            pushes.append(args)
+            if interrupt_push and len(pushes) == 1:
+                raise KeyboardInterrupt  # Server accepted refs; local phase is uncertain.
+            return result
+        if args[0] == 'dput':
+            uploads.append(args)
+            assert json.loads(path.read_text())['phase'] == 'upload-started'
+            # Main can commit while the release publisher actually owns its lock.
+            # Its separate publishing lock is also available, but this release's
+            # lock still prevents a second publisher from repeating the upload.
+            with publish.locked(repository):
+                git(repository, 'commit', '--allow-empty', '-m', 'independent main work')
+            with pytest.raises(ValueError, match='already running'):
+                with publish.locked(root):
+                    pytest.fail('release lock not held')
+            raise KeyboardInterrupt
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(publish, 'command', command)
+    if interrupt_push:
+        with pytest.raises(KeyboardInterrupt):
+            publish.publish(root)
+        assert json.loads(path.read_text())['phase'] == 'push-started'
+        assert uploads == []
+    with pytest.raises(KeyboardInterrupt):
+        publish.publish(root)
+    assert len(uploads) == 1
+    assert len(pushes) == (2 if interrupt_push else 1)
+    assert json.loads(path.read_text())['phase'] == 'upload-started'
+    assert git(remote, 'rev-parse', 'main') == base
+    assert git(remote, 'rev-parse', 'releases/v1.1') == revision
+    assert git(root, 'rev-parse', 'HEAD') == base
+    main_after_update = []
+
+    def wait(state, state_path):
+        head = git(repository, 'rev-parse', 'HEAD')
+        assert state['main_update']['phase'] == 'complete'
+        assert git(repository, 'status', '--porcelain') == ''
+        assert git(remote, 'rev-parse', 'main') == head
+        assert git(repository, 'rev-parse', 'origin/main') == head
+        assert json.loads((repository / 'data/app.json').read_text())['version'] == '1.1'
+        # Main work resumes during monitoring without touching the release.
+        git(repository, 'commit', '--allow-empty', '-m', 'main development resumed')
+        (repository / 'docs/README.md').write_text('Uncommitted main development.\n')
+        main_after_update.append(git(repository, 'rev-parse', 'HEAD'))
+        state['phase'] = 'published'
+        publish.save(state_path, state)
+
+    monkeypatch.setattr(publish, 'wait_for_publication', wait)
+    publish.publish(root)
+    assert len(uploads) == 1
+    assert json.loads(path.read_text())['phase'] == 'complete'
+    assert git(root, 'rev-parse', 'HEAD') == revision
+    assert git(root, 'status', '--porcelain') == ''
+    assert git(repository, 'rev-parse', 'HEAD') == main_after_update[0]
+    assert git(repository, 'status', '--porcelain') == 'M docs/README.md'
+    assert (repository / 'docs/README.md').read_text() == 'Uncommitted main development.\n'
+    assert legacy_path.read_bytes() == legacy_before
+
+
+@pytest.mark.usefixtures('release_repository')
+@pytest.mark.parametrize('change', ['branch', 'checkout', 'legacy'])
+def test_resume_refuses_changed_owner_before_execution(repository, monkeypatch, change):
+    base = git(repository, 'rev-parse', 'HEAD')
+    state = dict(phase='upload-started', checkout=str(repository), branch='releases/v1.1',
+                 base=base, revision='frozen', history_sha256=hashlib.sha256(NOTES.encode()).hexdigest())
+    if change == 'branch':
+        git(repository, 'switch', '-c', 'releases/v1.2')
+    elif change == 'checkout':
+        state['checkout'] += '-another-clone'
+    else:
+        del state['branch']
+    with publish.locked(repository) as path:
+        publish.save(path, state)
+    before = path.read_bytes()
+    monkeypatch.setattr(publish, 'execute', lambda *args: pytest.fail('execution started'))
+    with pytest.raises(ValueError, match='branch|checkout|legacy'):
+        publish.publish(repository)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.usefixtures('release_repository')
+def test_release_branch_journal_cannot_use_legacy_reconcile(repository, monkeypatch):
+    with publish.locked(repository) as path:
+        publish.save(path, {'branch': 'releases/v1.1'})
+    monkeypatch.setattr(publish, 'wait_for_publication', lambda *args: pytest.fail('network read'))
+    with pytest.raises(ValueError, match='finish with make publish'):
+        publish.reconcile(repository)
+
+
+@pytest.fixture
+def main_update_candidate(repository, tmp_path, monkeypatch):
+    git(repository, 'add', publish.HISTORY)
+    git(repository, 'commit', '-m', 'prepared inputs')
+    base = git(repository, 'rev-parse', 'HEAD')
+    remote = tmp_path / 'origin.git'
+    git(repository, 'clone', '--bare', str(repository), str(remote))
+    git(repository, 'remote', 'add', 'origin', str(remote))
+    root = tmp_path / 'release-root'
+    git(repository, 'clone', str(remote), str(root))
+    git(root, 'switch', '-c', 'releases/v1.1')
+    git(root, 'config', 'onpc.publishMainCheckout', str(repository))
+    directory = tmp_path / 'evidence'
+    directory.mkdir()
+    source = directory / 'source'
+    git(root, 'clone', str(root), str(source))
+    (source / 'data/app.json').write_text('{"version": "1.1"}\n')
+    git(source, 'add', 'data/app.json')
+    git(source, 'commit', '-m', 'release metadata')
+    revision = git(source, 'rev-parse', 'HEAD')
+    state = dict(phase='upload-started', base=base, revision=revision, directory=str(directory),
+                 main_update={'checkout': str(repository), 'phase': 'pending'})
+    path = tmp_path / 'state.json'
+    publish.save(path, state)
+    monkeypatch.setattr(publish.release, 'ORIGIN', str(remote))
+    monkeypatch.setattr(publish, 'PUBLIC_GIT', str(remote))
+
+    def unsigned(candidate, root):
+        git(candidate, 'config', 'user.name', 'Test')
+        git(candidate, 'config', 'user.email', 'test@example.invalid')
+
+    monkeypatch.setattr(publish, 'configure_signing', unsigned)
+    return repository, root, remote, state, path
+
+
+@pytest.mark.parametrize('answer', ['no', '', None])
+def test_main_pause_confirmation_refuses_without_writes(main_update_candidate, monkeypatch, capsys, answer):
+    target, root, remote, state, path = main_update_candidate
+    before = path.read_bytes()
+
+    def respond(prompt):
+        assert 'development is paused' in prompt
+        if answer is None:
+            raise EOFError
+        return answer
+
+    monkeypatch.setattr('builtins.input', respond)
+    with pytest.raises(ValueError, match='cancelled'):
+        publish.confirm_main_update(root, state['base'])
+    assert '\033[1;33m' in capsys.readouterr().out
+    assert git(target, 'rev-parse', 'HEAD') == state['base']
+    assert git(remote, 'rev-parse', 'main') == state['base']
+    assert path.read_bytes() == before
+
+
+def test_declining_publish_stops_before_preparation(main_update_candidate, monkeypatch):
+    _, root, _, _, _ = main_update_candidate
+    monkeypatch.setattr('builtins.input', lambda prompt: 'no')
+    monkeypatch.setattr(publish, 'prepare', lambda *args: pytest.fail('preparation before confirmation'))
+    monkeypatch.setattr(publish, 'sources', lambda *args: pytest.fail('network before confirmation'))
+    with pytest.raises(ValueError, match='cancelled'):
+        publish.publish(root)
+    assert not (publish.journal_directory(root) / 'state.json').exists()
+
+
+def test_main_update_failure_cannot_claim_handoff_or_start_monitoring(execution, monkeypatch, capsys):
+    state, path, calls = execution
+
+    def fail(*args):
+        raise ValueError('main update failed')
+
+    monkeypatch.setattr(publish, 'update_main_checkout', fail)
+    with pytest.raises(ValueError, match='main update failed'):
+        publish.execute(ROOT, state, path)
+    assert json.loads(path.read_text())['phase'] == 'upload-started'
+    assert ('wait',) not in calls
+    assert 'MAIN UPDATED' not in capsys.readouterr().out
+
+
+def test_concurrent_remote_main_push_is_never_overwritten(main_update_candidate, tmp_path, monkeypatch):
+    target, root, remote, state, path = main_update_candidate
+    peer = tmp_path / 'concurrent-peer'
+    git(target, 'clone', str(remote), str(peer))
+    git(peer, 'commit', '--allow-empty', '-m', 'concurrent remote change')
+    peer_head = git(peer, 'rev-parse', 'HEAD')
+    original = publish.command
+
+    def command(*args, **kwargs):
+        if args[:2] == ('git', 'push'):
+            git(peer, 'push', 'origin', 'main')
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(publish, 'command', command)
+    with pytest.raises(ValueError, match='git failed'):
+        publish.update_main_checkout(root, state, path)
+    assert git(remote, 'rev-parse', 'main') == peer_head
+    assert git(target, 'rev-parse', 'HEAD') == state['base']
+    assert git(target, 'status', '--porcelain') == ''
+    assert json.loads(path.read_text())['main_update']['phase'] == 'ready'
+
+
+def test_independent_clone_asks_for_main_path(main_update_candidate, monkeypatch):
+    target, root, _, state, _ = main_update_candidate
+    git(root, 'config', '--unset', 'onpc.publishMainCheckout')
+    replies = iter([str(target), 'yes'])
+    monkeypatch.setattr('builtins.input', lambda prompt: next(replies))
+    assert publish.confirm_main_update(root, state['base']) == state['main_update']
+
+
+@pytest.mark.parametrize('change', ['dirty', 'branch', 'operation', 'origin'])
+def test_unsafe_main_is_refused_before_confirmation(main_update_candidate, monkeypatch, change):
+    target, root, _, state, _ = main_update_candidate
+    if change == 'dirty':
+        (target / 'docs/README.md').write_text('Keep this work.\n')
+    elif change == 'branch':
+        git(target, 'switch', '-c', 'development')
+    elif change == 'origin':
+        git(target, 'remote', 'set-url', 'origin', '/unrelated/repo')
+    else:
+        (target / '.git/CHERRY_PICK_HEAD').write_text(state['base'] + '\n')
+    monkeypatch.setattr('builtins.input', lambda prompt: pytest.fail('unexpected confirmation'))
+    with pytest.raises(ValueError):
+        publish.confirm_main_update(root, state['base'])
+
+
+def test_main_cherry_pick_conflict_never_changes_development_checkout(main_update_candidate):
+    target, root, remote, state, path = main_update_candidate
+    (target / 'data/app.json').write_text('{"version": "2.0"}\n')
+    git(target, 'add', 'data/app.json')
+    git(target, 'commit', '-m', 'conflicting main metadata')
+    head = git(target, 'rev-parse', 'HEAD')
+    with pytest.raises(ValueError, match='cherry-pick failed'):
+        publish.update_main_checkout(root, state, path)
+    assert git(target, 'rev-parse', 'HEAD') == head
+    assert git(target, 'status', '--porcelain') == ''
+    assert not (target / '.git/CHERRY_PICK_HEAD').exists()
+    assert git(remote, 'rev-parse', 'main') == state['base']
+    assert state['main_update']['phase'] == 'pending'
+
+
+@pytest.mark.parametrize('boundary', ['push-error', 'push-interrupt', 'merge-interrupt'])
+def test_main_update_recovery_is_idempotent(main_update_candidate, monkeypatch, boundary):
+    target, root, remote, state, path = main_update_candidate
+    original = publish.command
+    cherry_picks = []
+    failed = False
+
+    def command(*args, **kwargs):
+        nonlocal failed
+        if args[:2] == ('git', 'cherry-pick'):
+            cherry_picks.append(args)
+        at_boundary = (args[:2] == ('git', 'push') if boundary.startswith('push')
+                       else args[:2] == ('git', 'merge') and kwargs.get('cwd') == target)
+        if at_boundary and not failed:
+            failed = True
+            if boundary == 'push-error':
+                raise ValueError('remote temporarily unavailable')
+            original(*args, **kwargs)
+            raise KeyboardInterrupt
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(publish, 'command', command)
+    with pytest.raises(ValueError if boundary == 'push-error' else KeyboardInterrupt):
+        publish.update_main_checkout(root, state, path)
+    recorded = json.loads(path.read_text())
+    assert recorded['main_update']['phase'] == ('pushed' if boundary == 'merge-interrupt' else 'ready')
+    revision = recorded['main_update']['revision']
+    publish.update_main_checkout(root, recorded, path)
+    assert len(cherry_picks) == 1
+    assert recorded['main_update']['phase'] == 'complete'
+    assert git(target, 'rev-parse', 'HEAD') == revision
+    assert git(target, 'rev-parse', 'origin/main') == revision
+    assert git(remote, 'rev-parse', 'main') == revision
+    assert git(target, 'status', '--porcelain') == ''
+    # Once the handoff is complete, retries preserve new dirty main work.
+    (target / 'docs/README.md').write_text('New development.\n')
+    monkeypatch.setattr('builtins.input', lambda prompt: pytest.fail('unexpected reconfirmation'))
+    assert publish.confirm_main_update(root, state['base'], recorded['main_update'])['phase'] == 'complete'
+    publish.update_main_checkout(root, recorded, path)
+    assert (target / 'docs/README.md').read_text() == 'New development.\n'
+
+
+@pytest.mark.parametrize('diverged', [False, True])
+def test_main_sync_handles_remote_advance_without_force(main_update_candidate, tmp_path, diverged):
+    target, root, remote, state, path = main_update_candidate
+    peer = tmp_path / 'peer'
+    git(target, 'clone', str(remote), str(peer))
+    (peer / 'remote-work').write_text('Already pushed work.\n')
+    git(peer, 'add', 'remote-work')
+    git(peer, 'commit', '-m', 'remote main advanced')
+    git(peer, 'push', 'origin', 'main')
+    remote_head = git(peer, 'rev-parse', 'HEAD')
+    if diverged:
+        git(target, 'commit', '--allow-empty', '-m', 'local main diverged')
+        head = git(target, 'rev-parse', 'HEAD')
+        with pytest.raises(ValueError):
+            publish.update_main_checkout(root, state, path)
+        assert git(target, 'rev-parse', 'HEAD') == head
+        assert git(remote, 'rev-parse', 'main') == remote_head
+    else:
+        publish.update_main_checkout(root, state, path)
+        head = git(target, 'rev-parse', 'HEAD')
+        assert git(remote, 'rev-parse', 'main') == head
+        assert git(target, 'rev-parse', 'origin/main') == head
+        assert (target / 'remote-work').read_text() == 'Already pushed work.\n'
+    assert git(target, 'status', '--porcelain') == ''
+
+
+@pytest.mark.parametrize('ending', ['success', 'failure', 'interrupt'])
+def test_terminal_monitor_replaces_one_line_and_preserves_banner(monkeypatch, ending):
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    output = Terminal()
+    monkeypatch.setattr(publish.sys, 'stdout', output)
+    monkeypatch.setattr(publish.shutil, 'get_terminal_size', lambda **kwargs: os.terminal_size((60, 24)))
+    monkeypatch.setattr(publish.time, 'sleep', lambda seconds: None)
+    outcomes = iter([None, URLError('offline'), ending])
+
+    def poll(version, *, progress):
+        progress['detail'] = 'waiting for an exact published package ' + 'x' * 120
+        result = next(outcomes)
+        if isinstance(result, Exception):
+            raise result
+        if result == 'failure':
+            raise ValueError('terminal build failure')
+        if result == 'interrupt':
+            raise KeyboardInterrupt
+        return {'version': version} if result == 'success' else None
+
+    monkeypatch.setattr(publish, 'published_binary', poll)
+    publish.highlight('MAIN UPDATED: development can resume.', success=True)
+    if ending == 'success':
+        publish.wait_for_publication({'version': '1.1'})
+    else:
+        with pytest.raises(ValueError if ending == 'failure' else KeyboardInterrupt):
+            publish.wait_for_publication({'version': '1.1'})
+    text = output.getvalue()
+    assert text.count('MAIN UPDATED') == 1 and '\033[1;32m' in text
+    assert text.count('\n') == (3 if ending == 'success' else 2)
+    updates = text.split('\r\033[2K')[1:3]
+    for line in updates:
+        plain = line.replace('\033[31m', '').replace('\033[0m', '')
+        assert len(plain) <= 59
+    assert text.count('\r\033[2K') == 3  # Two updates, then cleanup on every exit.

@@ -6,19 +6,48 @@ Run all local tests from the development checkout before publishing:
 make test-all-verify
 ```
 
-When the release is ready, publish directly:
+Prepare and commit the release inputs on `main`, including the dated release
+history entry. Create `releases/vX.Y` from that commit and check it out in a
+separate enlistment. For example, for version 1.3 with a linked worktree:
+
+```sh
+git branch 'releases/v1.3' 'main'
+git worktree add '../parent-control-release-1.3' 'releases/v1.3'
+```
+
+An independent clone is also supported: push the prepared release branch, then
+clone/check out that branch in the release enlistment. Configure its local
+signing credentials as described below. Linked worktrees locate the checkout
+holding `main` automatically. For an independent clone, configure the main
+development checkout once (otherwise the publisher asks for its path):
+
+```sh
+git config --local 'onpc.publishMainCheckout' '/absolute/path/to/main-checkout'
+```
+
+From the release checkout, run:
 
 ```sh
 make publish
 ```
 
 It takes no parameters and publishes the newest entry in
-[`VersionHistory.md`](VersionHistory.md) end to end. Running it is the release
+[`VersionHistory.md`](VersionHistory.md) end to end. It requires a clean
+`releases/vX.Y` branch matching that entry. Running it is the release
 decision: it creates signed source and tags in the public Git repository and
 uploads the signed source package to the configured Launchpad PPA. Editing or
 testing the publishing tool does not authorize a live release.
 
-To check or resume monitoring an uploaded release without publishing anything:
+The publisher highlights the main checkout and asks you to confirm that it is
+clean and development is paused. Keep main paused until the highlighted
+**MAIN UPDATED** message appears. That message means the metadata cherry-pick
+and push have completed, and local main is clean and synchronized with
+`origin/main`. Resume development immediately; Launchpad monitoring and release
+checkout finalization continue independently. No manual fetch, pull,
+cherry-pick or push is needed on main after this handoff.
+
+To check or resume monitoring an uploaded release without publishing anything,
+run this from its release checkout:
 
 ```sh
 make publish-status
@@ -39,10 +68,9 @@ restart/reboot requirements for installed files; it is not a publishing command.
 
 ## Release history and source inputs
 
-Commit application changes on `main`, then manually add the new history entry
-at the top. The history file itself may be untracked or uncommitted; it is the
-only working-tree change the publisher automatically includes. Other local
-changes cause an error before signing, building, or publishing. Ignored files,
+Commit application changes and the new history entry on `main` before creating
+the release branch. All release inputs must be committed; staged, unstaged and
+untracked changes cause an error before signing, building, or publishing. Ignored files,
 including `.envrc` and local build output, are not copied into the release clone.
 
 Use this format, with at least two entries:
@@ -71,8 +99,13 @@ It never replaces tags, force-pushes, or reuses an accepted upload version.
 
 ## Unattended operation and approvals
 
-On an already configured development machine, manual execution needs **zero
-approvals**. It runs as the publishing user and invokes neither Polkit nor
+On an already configured development machine, manual execution needs no
+administrator approvals. `make publish` asks for explicit confirmation of the
+main development pause before release work starts. Declining or EOF stops the
+run before signing, pushing or uploading. A retry asks again until the main
+update has been durably completed; monitoring an already completed main update
+does not ask you to pause again. Status and legacy reconciliation have no such
+prompt. The publisher runs as the publishing user and invokes neither Polkit nor
 `sudo`. Git/SSH and GnuPG run without
 interactive prompts. Missing credentials or prerequisites produce a red error;
 the publisher never launches setup or falls back to a password dialog.
@@ -85,7 +118,7 @@ rule or other platform policy. Local test permissions do not grant publication.
 One-time prerequisites belong to `./setup.sh --dependencies-only`; the focused
 `./setup.sh --ppa-build-tools` mode installs the clean builder. Use the recorded
 publisher key, configure GitHub SSH authentication and its known host key, and
-set the signing passphrase as a literal assignment in the original checkout's
+set the signing passphrase as a literal assignment in the release checkout's
 gitignored `.envrc`, as described under [Noninteractive signing](#noninteractive-signing).
 Single-quote values containing dollar signs or backticks. The signer parses the
 assignment without executing `.envrc`, sends the value to GnuPG through a private
@@ -141,8 +174,8 @@ version uniqueness and publication-state checks remain part of delivery.
 
 ## Publication and completion
 
-The publisher validates prerequisites and credentials at the beginning, creates
-an isolated `/tmp/onpc-release-*` checkout, updates the product version and Debian
+The publisher validates prerequisites and credentials in the release enlistment,
+creates an isolated `/tmp/onpc-release-*` staging checkout, updates the product version and Debian
 changelog, and signs the release commit and both version tags. It then:
 
 1. Builds and signs the source upload, verifies the publisher signatures and
@@ -150,14 +183,20 @@ changelog, and signs the release commit and both version tags. It then:
    against the signed Git tree. Source uploads use the same product/build
    allowlist as local packaging tests. Integrity verification rejects omitted
    package inputs and any archived files outside that allowlist.
-2. Atomically pushes the release commit and signed tags,
+2. Atomically pushes the release commit to its recorded `releases/vX.Y` branch
+   and the signed tags,
    verifies public access to the tagged source, and uploads only source artifacts.
-3. Waits for the exact source, successful amd64 build, binary publication, and
+3. Automatically cherry-picks the release metadata onto main, pushes main, and
+   updates the local main checkout and its remote tracking ref. The highlighted
+   **MAIN UPDATED** message releases the development pause.
+4. Waits for the exact source, successful amd64 build, binary publication, and
    PPA `Packages.gz` index. It downloads the indexed binary and verifies its size
    and SHA-256 before reporting success in green.
-4. Fast-forwards the unchanged development checkout to the release commit,
+5. Fast-forwards the unchanged release checkout to the release commit,
    including the new app version, changelog and history. Concurrent local edits
-   are preserved and reported instead of overwritten.
+   are preserved and reported instead of overwritten. A newer remote main does not prevent release preparation or
+   delivery; an existing remote release branch must be an ancestor of the
+   prepared inputs, and pushes remain ordinary non-forced fast-forwards.
 
 The PPA must enable only amd64, matching the test module's clean builder. Source
 integrity evidence, artifact hashes and `release.json` remain in the reported
@@ -177,19 +216,71 @@ fixture payload is a separate test artifact with its own verified digest, never
 part of the product package. E2E package preflight compares the package inputs
 while retaining a separate full test-input identity for acceptance evidence.
 
+## Bring release metadata back to main
+
+The generated release commit changes `data/app.json` and `debian/changelog`.
+Release notes were already committed on main before branching. After the source
+push and upload attempt, the publisher prepares a signed cherry-pick in a
+temporary clone of the confirmed main checkout. It incorporates remote main
+through a fast-forward, pushes the updated main without force, then fast-forwards
+the clean local main checkout and refreshes `origin/main`. Existing committed
+local main work is included in that push. Uncommitted work, an active Git
+operation, a wrong checkout/remote, diverged histories or a cherry-pick conflict
+stop the update. Conflicts remain in the retained temporary checkout; the
+publisher never starts a cherry-pick operation in the active development tree.
+
+The **MAIN UPDATED** message appears only after local main is clean and agrees
+with the fetched remote main. Nothing further is required on main. Its metadata
+records the submitted release baseline, not proof of successful publication.
+The release checkout monitors and finalizes delivery without `--reconcile`.
+The pause includes source preparation, signing and upload, so it can take
+minutes; it does not include waiting for Launchpad to build or publish binaries.
+
+The journal records the main checkout, candidate commit and update phase before
+pushing or fast-forwarding. Interrupted updates reuse that exact candidate and
+recognize an already accepted main push or completed local fast-forward. Once
+the main update is recorded complete, publication retries preserve any new main
+development and do not apply the cherry-pick again. If main changes while the
+candidate is being applied, the publisher stops rather than overwriting it; preserve the journal
+and resolve the reported condition before retrying.
+
+Before preparing the next release, main must contain the preceding release's
+metadata. Add the next newer history entry above it, commit the new release
+inputs, and create the next release branch. If Launchpad rejects a source or a
+build fails, resolve that failure with a newer product release as described
+below; preserve the submitted version and tags.
+
 ## Retry and recovery
 
-A lock in the checkout's Git common directory prevents concurrent publishers.
-`onpc-publish/state.json` there records the exact source, version, artifacts and
-phase. Use `make publish-status` after an interruption to resume monitoring,
+A publishing-only lock in the invoking checkout's private Git directory
+(`git rev-parse --absolute-git-dir`) prevents concurrent publishers in that
+checkout. `onpc-publish/state.json` there records the checkout identity,
+publishing branch, exact source, version, artifacts and phase. Linked worktrees
+use their own Git directories, so their journals and publishing locks are
+independent of main's. Independent clones also own separate journals and locks.
+No development, build, test or repository activity lock is acquired. The main
+pause is your confirmed coordination with the publisher, not an enforced lock.
+Ordinary
+Git operations still take their short-lived Git locks when updating release
+refs or checkout indexes; there is no long-lived lock held on main while
+building, uploading or monitoring. Main is updated only during the confirmed
+handoff and is available for development during monitoring.
+
+Choose one release enlistment for each publication and retain it until
+completion. A different clone has no knowledge of an uncertain upload: do not
+restart the same release there or copy/delete the journal to bypass recovery.
+The atomic non-forced branch/tag push prevents competing prepared attempts
+from replacing published refs, but local locks do not coordinate independent
+clones. Use `make publish-status` after an interruption to resume monitoring,
 including after updating the publishing tool or changing local files, HEAD,
-branch, or release notes. It only reads the journal and public endpoints; it does
+branch, or release notes in that checkout. It only reads the journal and public endpoints; it does
 not build, sign, push, upload, update the journal, or fast-forward the checkout.
 It can also run alongside a publisher, monitoring the release selected at startup.
 Missing temporary build artifacts do not prevent status checks.
 
-For the full publishing workflow, run `make publish` again with its original
-inputs after an interruption or a repaired local prerequisite. This resumes the
+For the full publishing workflow, run `make publish` again in the same release
+checkout on its recorded branch with its original committed inputs after an
+interruption or a repaired local prerequisite. This resumes the
 recorded workflow, including checkout finalization. Preserve the printed `/tmp` evidence
 directories until completion. Missing or altered frozen artifacts stop the run.
 If application fixes are committed or history changes before any public push
@@ -202,8 +293,12 @@ an interrupted or failed upload is treated as uncertain: reruns only monitor it
 and never upload it again automatically. Status reads tolerate transient service
 errors and poll every 30 seconds for up to 24 hours per invocation. A confirmed
 build failure is a red error, not a success or an automatic source rewrite.
-Each pending check reports its UTC timestamp, elapsed monitoring time, exact
-remaining condition and retry delay. Source acceptance/publication, build
+Each pending check reports its UTC timestamp, elapsed monitoring time,
+remaining condition and retry delay. In a terminal, polling replaces one status
+line, including transient errors, so the highlighted main-update message stays
+visible. The line is shortened to the terminal width to avoid wrapping; redirected
+output retains ordinary full log lines. The status line is cleared on success,
+failure or interruption. Source acceptance/publication, build
 creation/queue/building, binary publication, and package-index propagation have
 distinct messages; a completed build is not reported as still pending. Network
 errors identify the check that could not be read, without printing response
@@ -212,23 +307,35 @@ Success requires the exact source version, successful amd64 build, matching
 binary publication, package-index entry, and downloaded package checksum to
 agree. A timeout includes the last observed condition. After editing monitoring
 code, stop the old command and run `make publish-status` to load the changes.
-Unlike `make publish`, status checks accept a changed development checkout.
+Unlike `make publish`, status checks accept a changed release checkout.
 
 If no source appears, inspect Launchpad and the publisher's rejection email.
 Resolve confirmed rejection or failed builds before starting a corrected release;
 preserve the journal and published source tags as evidence. Do not clear the
 journal merely to retry an uncertain upload. A failed source push can be retried
-with the same signed refs; no tags are recreated. If development advanced during
-publication, reconcile it with the recorded release commit before resuming local
-completion. The command does not discard work or roll back public releases.
+with the same signed refs; no tags are recreated. If the release checkout changed
+during publication, preserve that work and restore the recorded release inputs
+and branch before resuming local completion. Development on main is independent.
+The command does not discard work or roll back public releases.
 
-If the recorded release commit is already an ancestor of checkout HEAD, run
-`tools/publish.py --reconcile`. This verifies the exact remote publication,
-preserves the original journal in `onpc-publish/reconciled-REVISION.json`, and
-marks the active journal complete without changing checkout files or uploading.
-It works even when the old temporary artifacts are gone. Failed verification
-leaves the active journal unchanged. Commit current release inputs before
-running `make publish` for the next release.
+### One-time v1.2 compatibility
+
+The pending legacy v1.2 publication remains in the original checkout's Git
+common directory at `onpc-publish/state.json`. Its version is
+`1.2+ppa1~ubuntu26.04.1`, and its release commit is
+`9ed654baf593d1a6ef89bb7e324317319251136d`. After successful publication, run
+`tools/publish.py --reconcile` from the original, now-advanced main checkout.
+The recorded release commit must be an ancestor of HEAD. This verifies the
+exact remote publication, preserves the original journal in
+`onpc-publish/reconciled-REVISION.json`, and marks it complete without changing
+checkout files, the index or HEAD, and without uploading. It works with newer
+commits, uncommitted work and missing old temporary artifacts. Failed
+verification leaves the active journal unchanged; do not clear an uncertain
+upload journal. `make publish-status` in that original checkout can monitor it.
+
+This compatibility path accepts only legacy journals without a publishing
+branch. Future release journals finish through `make publish` in the release
+checkout; there is no reconciliation step on main.
 
 Before every upload, verify a clean binary build with its declared tests,
 inspect the final installed licenses/notices and both front-end About displays,
@@ -339,14 +446,16 @@ choosing a version.
 
 **Never prompt for the signing passphrase, open a passphrase dialog, or ask for
 clipboard readiness or another “go ahead,” including on retries.** Read
-`APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` from the development checkout's gitignored
+`APT_PACKAGE_PRIVATE_KEY_PASSPHRASE` from the release checkout's gitignored
 `./.envrc` inside the signing process. Manual configuration is described in the
 [README](../README.md#set-up-a-development-machine); `setup.sh` does not populate
 this value.
 
-For isolated release clones, use the original development checkout's `.envrc`
-by its absolute path; do not copy it into the clone, package source, or release
-evidence. Gitignore alone does not exclude a file from `dpkg-source` archives.
+Configure `.envrc` locally in the release enlistment before invoking the
+publisher, just as on the development checkout. The publisher's isolated
+staging clone invokes that enlistment's signer by absolute path; it does not
+copy `.envrc` into staging, package source, or release evidence. Gitignore alone
+does not exclude a file from `dpkg-source` archives.
 Keep the private key in GnuPG's key store and only the passphrase in `.envrc`.
 
 The publisher configures its GnuPG adapter for batch/loopback operation and

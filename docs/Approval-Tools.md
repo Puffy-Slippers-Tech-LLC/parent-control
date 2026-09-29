@@ -149,9 +149,15 @@ or repository; select a repository with the command tool's working directory.
 
 ## Publishing
 
-Run `make publish` to invoke the single [publisher](../tools/publish.py).
+Run `make publish` from the dedicated `releases/vX.Y` checkout to invoke the
+single [publisher](../tools/publish.py).
 It validates `docs/VersionHistory.md`, signs, pushes
-the source and tags, uploads to Launchpad, and verifies binary publication.
+the source to that release branch and tags, uploads to Launchpad, and verifies
+binary publication. It asks for confirmation of a development pause before
+automatically cherry-picking and pushing release metadata to main. Its
+checkout-local publishing lock does not participate in development/build/test
+activity locking. After the highlighted main-update handoff, development
+continues independently of publication monitoring.
 Its supporting modules are under `tools/publishing/`; they are not separate
 release commands.
 
@@ -160,7 +166,8 @@ and the same module in `make test-all`. They create a private unsigned source
 snapshot, run source integrity and Lintian checks, and build/test it in clean
 sbuild. They require no publisher credentials and never push or upload.
 
-Manual execution on a configured host needs no approval or Polkit dialog.
+Manual execution on a configured host needs no administrator approval or
+Polkit dialog; the publisher's explicit main-pause confirmation is required.
 When an assistant performs an authorized publication, direct `tools/publish.py`
 uses the project-tool command grant. `make publish` still needs command approval
 if platform policy requires it. Tool execution approval alone does not request

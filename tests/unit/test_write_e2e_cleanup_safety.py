@@ -78,7 +78,8 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
     root, _ = checkout
     script(root, {'result': reply('task_complete', 'passed',
                                  stage_paths=[workflow.PLAN, workflow.QUEUE, 'removed-brief.md']),
-                  'close': True})
+                  'close': True, 'usage': {'input_tokens': 100, 'cached_input_tokens': 80,
+                                          'output_tokens': 20, 'reasoning_output_tokens': 12}})
     run, _ = workflow.select(root, [])
     output = io.StringIO()
     assert launcher.follow(run, output) == 0
@@ -89,10 +90,17 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
                      Text.from_ansi(output.getvalue()).plain)
     assert len(calls(root)) == 1
     invocation = calls(root)[0]
-    assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6-astra'
-    assert 'model_reasoning_effort="low"' in invocation['args']
-    assert 'features.multi_agent=false' in invocation['args']
-    assert 'agents.enabled=false' in invocation['args']
+    assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6.1-sol'
+    assert 'model_reasoning_effort="medium"' in invocation['args']
+    assert 'features.multi_agent=true' in invocation['args']
+    assert 'agents.enabled=true' in invocation['args']
+    assert 'service_tier="default"' in invocation['args']
+    usage = json.loads((run / 'agent-usage.jsonl').read_text())
+    assert usage == {'session': 1, 'task_id': '001', 'phase': 'implement',
+                     'model': 'gpt-6.1-sol', 'reasoning_effort': 'medium',
+                     'service_tier': 'default', 'reported_scope': 'cli_turn',
+                     'usage': {'input_tokens': 100, 'cached_input_tokens': 80,
+                               'output_tokens': 20, 'reasoning_output_tokens': 12}}
     assert workflow.queue_state(root)[0] == '002'
     state = json.loads((run / 'checkpoint.json').read_text())
     assert state['phase'] == 'complete' and state['live_attempts'] == 1
@@ -204,15 +212,11 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
         assert call['thread'] is None
         assert '--ephemeral' in call['args']
         assert not {'resume', 'fork', '--last'} & set(call['args'])
-        model, effort = ('gpt-6-astra', 'low') if index == 0 else ('gpt-6-sol', 'medium')
-        assert call['args'][call['args'].index('--model') + 1] == model
-        assert f'model_reasoning_effort="{effort}"' in call['args']
-        if index == 0:
-            assert 'features.multi_agent=false' in call['args']
-        else:
-            assert 'agents.max_concurrent_threads_per_session=1' in call['args']
-            assert 'agents.max_depth=1' in call['args']
-            assert 'features.multi_agent=true' in call['args']
+        assert call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol'
+        assert 'model_reasoning_effort="medium"' in call['args']
+        assert 'agents.max_concurrent_threads_per_session=1' in call['args']
+        assert 'agents.max_depth=1' in call['args']
+        assert 'features.multi_agent=true' in call['args']
         assert '--output-schema' in call['args']
     assert 'LATEST LIVE HANDOFF' in invocations[1]['prompt']
     assert workflow.queue_state(root)[0] == '002'
@@ -221,6 +225,30 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     from launcher_progress import read_progress
     assert 'Session [2]' in Text.from_ansi(read_progress(second)[-1]['lines'][-1]).plain
     assert json.loads((second / 'result.json').read_text())['sessions'] == 1
+
+
+def test_repeated_live_attempts_escalate_across_restart_and_reset_for_next_task(checkout):
+    root, _ = checkout
+    script(root, {'result': reply()}, {'result': reply()},
+           {'result': reply('task_complete', 'passed'), 'close': True},
+           {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
+    first, _ = workflow.select(root, ['--sessions', '2'])
+    assert launcher.follow(first, io.StringIO()) == 0
+    assert workflow.queue_state(root)[0] == '001'
+    retained = (first / 'checkpoint.json').read_bytes()
+    second, _ = workflow.select(root, ['--sessions', '2', '--tasks', '2'])
+    assert launcher.follow(second, io.StringIO()) == 0
+    assert (first / 'checkpoint.json').read_bytes() == retained
+    invocations = calls(root)
+    assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
+        'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6.1-sol']
+    assert 'model_reasoning_effort="low"' in invocations[2]['args']
+    assert 'You are the GPT-6-Astra Low coordinator' in invocations[2]['prompt']
+    assert 'You are the GPT-6.1-Sol Medium coordinator' in invocations[3]['prompt']
+    records = [json.loads(line) for line in (second / 'agent-usage.jsonl').read_text().splitlines()]
+    assert [(row['session'], row['task_id'], row['model']) for row in records] == [
+        (3, '001', 'gpt-6-astra'), (4, '002', 'gpt-6.1-sol')]
+    assert all(row['usage'] is None for row in records)  # Missing usage is never zero.
 
 
 def test_prerequisite_completion_does_not_renew_suspended_consumer_cap(checkout):
@@ -395,10 +423,8 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
     assert launcher.follow(run, io.StringIO()) == 0
     assert len(calls(root)) == sessions
     for index, call in enumerate(calls(root)):
-        # A newly selected task starts on Astra again, even within the same run.
-        model, effort = ('gpt-6-astra', 'low') if index % 2 == 0 else ('gpt-6-sol', 'medium')
-        assert call['args'][call['args'].index('--model') + 1] == model
-        assert f'model_reasoning_effort="{effort}"' in call['args']
+        assert call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol'
+        assert 'model_reasoning_effort="medium"' in call['args']
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
     assert reason in (run / 'handoff.txt').read_text()
@@ -744,7 +770,7 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     (run / 'cancel').touch()
     assert launcher.follow(run, io.StringIO()) == 130
     handoff = (run / 'handoff.txt').read_text()
-    assert 'Continue with GPT-6-Sol Medium and bounded sequential Astra advice' in handoff
+    assert 'Continue with the launcher-selected coordinator and bounded sequential Astra advice' in handoff
     assert 'Continue with GPT-6-Astra High' not in handoff
     recovered, started = workflow.select(root, ['--sessions', '1'])
     assert started and recovered != run
@@ -756,7 +782,7 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     progress = json.loads((recovered / 'progress.json').read_text())
     assert progress['task_id'] == '001' and progress['phase'] == 'recover'
     prompt = ' '.join(invocation['prompt'].split())
-    assert 'Continue this task with GPT-6-Sol Medium' in prompt
+    assert 'Continue this task with the selected coordinator' in prompt
     assert "run this task's live VM acceptance" in prompt
     assert str(run) in prompt
     assert workflow.queue_state(root) == ('002' if live == 'passed' else '001',

@@ -317,15 +317,23 @@ commands and their results remain visually separate, including without color.
 task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
 
-Each task's initial implementation session uses GPT-6-Astra Low with delegation
-disabled. Subsequent sessions, including retries and recovery, use GPT-6-Sol
-Medium as coordinator and implementer. Settled implementation, mechanical
+Initial implementation and follow-up sessions use GPT-6.1-Sol Medium as
+coordinator and implementer. After two recorded live attempts on an unfinished
+task, subsequent sessions use Astra Low, including after a launcher restart.
+A new task starts with 6.1 Sol Medium again; a suspended consumer retains its
+own attempt count. Preparation failures and session count alone do not trigger
+escalation. Settled implementation, mechanical
 repairs, test execution and close-out stay with that coordinator. Unresolved
 root causes, security, concurrency, ownership and risky
-correctness questions can use one bounded GPT-6-Astra High consultation through
+correctness questions require one bounded GPT-6-Astra High consultation through
 the [read-only adviser](../tools/write_e2e_adviser.toml). Never use Sol High;
 select Astra Low explicitly whenever Sol High would otherwise be considered.
 This policy overrides model recommendations in older saved handoffs.
+Consult before implementing an unresolved risky design, including in the initial
+session. All coordinators and advisers pin Standard speed, so personal Fast
+settings cannot silently increase subscription usage. Keep source reads and
+diagnostic output scoped, reuse unchanged context and carry concise handoffs;
+never reduce required understanding, assertions, acceptance or cleanup.
 
 Consultations are sequential: the coordinator gives one exact question, relevant
 source/evidence paths, applicable contracts and user decisions in a fresh context,
@@ -341,6 +349,25 @@ they still consume model usage. Do not introduce parallel agents or overlapping
 coordinator work. `fix-tests` keeps delegation disabled.
 Start a new launcher run to adopt this policy; attaching to an existing run
 does not reconfigure its already-running coordinator.
+
+Each run retains `agent-usage.jsonl` beside its existing output, with one record
+per reported CLI turn: cumulative launcher session number, task, phase, selected
+model/effort/speed and available input, cached-input, output and reasoning-output
+counts. Missing counters remain unknown, not zero. These are CLI-reported turn
+counters; adviser inclusion is not established, so do not treat them as complete
+account usage or add reasoning counters to output without checking their semantics.
+Recording failure warns without interrupting validation or cleanup. Compare
+usage per accepted task (including retries and consultations) and the account's
+weekly dashboard, together with first-pass acceptance and review findings.
+Host regressions validate routing and preservation of acceptance gates; they do
+not establish equal model success rates or a measured allowance improvement.
+OpenAI's [model guidance](https://learn.chatgpt.com/docs/models#gpt-61-sol)
+recommends 6.1 Sol for complex coding at near-Astra capability. Its
+[pricing documentation](https://learn.chatgpt.com/docs/pricing#token-rates)
+separates credit rates from included subscription usage, and
+[Standard speed](https://learn.chatgpt.com/docs/agent-configuration/speed)
+avoids Fast mode's 2.5x included-usage multiplier. No fixed weekly savings are
+inferred from API prices or the counters.
 
 The first session implements, host-validates and runs the first live VM test.
 Success completes acceptance and close-out in that session; failure preserves
@@ -495,7 +522,7 @@ The launcher saves the full summary and next-session prompt in `handoff.txt`
 without printing them. At an incomplete session boundary or safe stop, it still prints and saves
 the handoff. A new invocation after that boundary continues the latest
 handoff with fresh session and task budgets. An interrupted checkpoint
-starts a Sol Medium recovery session that rechecks evidence and cleanup,
+starts a recovery session under the model policy above that rechecks evidence and cleanup,
 resolves authorized remaining work, then runs host and live VM validation in
 that session. A pass closes the task; a failure preserves evidence and hands off
 for investigation and repairs in the next session.

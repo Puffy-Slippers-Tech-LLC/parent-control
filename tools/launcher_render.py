@@ -581,7 +581,8 @@ class TranscriptWriter:
 
 
 class AgentRenderer:
-    def __init__(self, stream, *, width=100, command_log=None, hide_task_completion=False):
+    def __init__(self, stream, *, width=100, command_log=None, hide_task_completion=False,
+                 on_usage=None):
         self.width = width
         # Retained presentation must keep its palette even when the supervisor
         # inherits NO_COLOR from a noninteractive caller.
@@ -600,6 +601,7 @@ class AgentRenderer:
         self.exploring = False
         self.hide_task_completion = hide_task_completion
         self.task_completion_message = False
+        self.on_usage = on_usage
 
     def message(self, text, title='Agent', style='default'):
         self.block(title, SessionMarkdown(clean(text)), style)
@@ -796,6 +798,8 @@ class AgentRenderer:
         if kind in ('thread.started', 'turn.started'):
             return
         if kind == 'turn.completed':
+            if self.on_usage is not None:
+                self.on_usage(event.get('usage'))
             if self.task_completion_message:
                 self.task_completion_message = False
                 return

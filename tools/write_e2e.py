@@ -20,9 +20,10 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
-SESSION_MODELS = {'implement': ('gpt-6-astra', 'low'),
-                  'live': ('gpt-6-sol', 'medium'),
-                  'recover': ('gpt-6-sol', 'medium')}
+SESSION_MODELS = {'implement': ('gpt-6.1-sol', 'medium'),
+                  'live': ('gpt-6.1-sol', 'medium'),
+                  'recover': ('gpt-6.1-sol', 'medium')}
+ASTRA_AFTER_LIVE_ATTEMPTS = 2
 ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
 INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
@@ -178,29 +179,55 @@ def task_progress(run, steps):
             else step for step in steps]
 
 
-def session_command(root, phase, run=None):
-    model, effort = SESSION_MODELS[phase]
-    return launcher.agent_command(
+def session_model(phase, live_attempts=0):
+    model = SESSION_MODELS[phase]
+    # Retain the stronger coordinator for a stalled task, including after a
+    # restart. Preparation failures and session count alone do not escalate.
+    if phase != 'implement' and live_attempts >= ASTRA_AFTER_LIVE_ATTEMPTS:
+        return 'gpt-6-astra', 'low'
+    return model
+
+
+def session_command(root, phase, run=None, *, live_attempts=0):
+    model, effort = session_model(phase, live_attempts)
+    command = launcher.agent_command(
         root, model, effort, run,
         schema=Path(__file__).with_name('write_e2e_response.schema.json'),
-        adviser_config=None if phase == 'implement' else ADVISER_CONFIG)
+        adviser_config=ADVISER_CONFIG)
+    # Personal Fast settings must not silently spend more of the weekly budget.
+    command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
+    return command
+
+
+def record_usage(run, metadata, usage):
+    """Retain CLI-reported counters, never infer billing or missing child usage."""
+    fields = ('input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_output_tokens')
+    counters = {key: usage[key] for key in fields
+                if isinstance(usage, dict) and type(usage.get(key)) is int and usage[key] >= 0}
+    record = dict(metadata, reported_scope='cli_turn', usage=counters or None)
+    try:
+        with launcher.lock(run / 'agent-usage.jsonl') as descriptor:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            os.lseek(descriptor, 0, os.SEEK_END)
+            with os.fdopen(os.dup(descriptor), 'w', encoding='utf-8') as stream:
+                stream.write(json.dumps(record) + '\n')
+    except (OSError, ValueError) as error:
+        # Measurement failure must not interrupt acceptance or owned cleanup.
+        print(f'write-e2e: could not retain token usage: {error}', file=sys.stderr, flush=True)
 
 
 def session_prompt(state):
     task = state['task_id']
-    if state['phase'] == 'implement':
-        model_policy = """You are the GPT-6-Astra Low initial implementer.
-Write the initial code, run validation and complete close-out yourself.
-Do not spawn subagents in this initial session; delegation is disabled.
-"""
-    else:
-        model_policy = """You are the GPT-6-Sol Medium coordinator and implementer for this follow-up session.
-Use Sol Medium for settled implementation, mechanical repairs, test execution
-and close-out.
+    phase = 'recover' if state['phase'] == 'blocked' else state['phase']
+    model, _ = session_model(phase, state.get('live_attempts', 0))
+    label = 'GPT-6.1-Sol Medium' if model == 'gpt-6.1-sol' else 'GPT-6-Astra Low'
+    model_policy = f"""You are the {label} coordinator and implementer for this session.
+Own implementation, mechanical repairs, test execution and close-out.
 For unresolved root cause, security, concurrency, ownership or risky correctness
 questions, delegate one bounded diagnosis or review to the e2e_adviser agent
 using GPT-6-Astra High. Use that same adviser with explicit low reasoning for
-the Astra Low substitution. Do not delegate routine work or the whole task.
+the Astra Low substitution. Consult before implementing an unresolved risky
+design, including in the first session. Do not delegate routine work or the whole task.
 Give it the exact question, relevant file/evidence paths, applicable contracts,
 user decisions and expected deliverable; use a fresh context rather than a full
 conversation fork. Request concise findings, evidence, a proposed correction,
@@ -213,6 +240,9 @@ update the queue and return the structured result. Check advice against source
 and contracts; advice is not acceptance evidence. Escalate again only for a new
 unresolved question or review of a risky correction, not repeated routine work.
 """
+    if model == 'gpt-6-astra':
+        model_policy += ('This unfinished task has already used at least two live attempts. '
+                         'Astra Low now owns recovery; resolve the cause before another attempt.\n')
     common = f"""
 Task {task}: follow AGENTS.md and {PLAN}, using its scoped reading routes.
 This tools/write-e2e session stops at the phase boundary below.
@@ -228,8 +258,13 @@ and wait for tests and owned cleanup before returning.
 {model_policy}
 Never use Sol High; use GPT-6-Astra Low whenever you would otherwise consider
 Sol High. Ignore model recommendations in older handoffs that conflict with
-this policy. Each new task starts with Astra Low; follow-up sessions use Sol
-Medium with bounded sequential Astra advice when needed.
+this policy. The launcher selects GPT-6.1-Sol Medium normally and Astra Low
+after two live attempts on an unfinished task. Both have bounded Astra advice.
+Keep context focused: locate headings and symbols, then read complete relevant
+sections/functions and dependencies. Reuse unchanged context; avoid whole-file
+dumps and repeated broad scans. Use bounded diagnostic output and evidence paths.
+Keep handoffs concise, carrying decisions and remaining work rather than transcripts.
+Do not reduce required reading, assertions, validation or cleanup to save tokens.
 
 Return the required structured result; only blockers requiring developer action
 return blocked so the launcher pauses for the user's answer. Keep summary under
@@ -264,7 +299,7 @@ that prerequisite in a fresh session without counting this task complete.
         preparation = INITIAL_PROMPT + common + "\nImplement this task and complete host validation.\n"
     else:
         preparation = common + """
-Continue this task with GPT-6-Sol Medium from the handoff and current source/evidence.
+Continue this task with the selected coordinator from the handoff and current source/evidence.
 Start by investigating the previous VM validation error, when present. Review
 unstaged code (including new files) and retained failure evidence, apply the
 repository failure contract and repair authorized defects. For interrupted or
@@ -280,8 +315,8 @@ Use this same validation and handoff boundary in every session, including recove
 After host checks pass, run this task's live VM acceptance, including required
 regressions, under the plan. Wait for validation and owned cleanup to finish.
 If live acceptance fails, preserve failure evidence and return ready_for_vm with
-host_validated true, live_result failed and a fresh handoff for GPT-6-Sol Medium
-with bounded Astra advice when needed under the policy above.
+host_validated true, live_result failed and a fresh handoff for the next coordinator
+selected by the launcher, with bounded Astra advice when needed.
 Leave investigation and repairs of this new failure to the next session; do not
 repair it, retry live acceptance or advance the pointer in this session.
 Do not end a normal session with only host validation: finish live VM validation
@@ -467,7 +502,7 @@ def save_handoff(run, state, reason, *, display=True):
             f"Recover interrupted task {state['task_id']}. Inspect {run / 'output'} and "
             f"{run / 'prompt.txt'}; verify retained test results and owned cleanup "
             "before retrying. Do not assume live acceptance passed or advance the "
-            "task. Continue with GPT-6-Sol Medium and bounded sequential Astra advice "
+            "task. Continue with the launcher-selected coordinator and bounded sequential Astra advice "
             "when needed. Last safe handoff:\n" + prompt)
     text = f"Task {state['task_id'] or 'none'}: {reason}. {state['summary']}\n\nNext session prompt:\n{prompt}\n"
     (run / 'handoff.txt').write_text(text, encoding='utf-8')
@@ -519,14 +554,14 @@ def show_session_limit(state):
     sys.stdout.flush()
 
 
-def execute(root, run, owner, phase):
+def execute(root, run, owner, phase, live_attempts=0):
     (run / 'agent-result.json').write_text('')
     with launcher.lock(run / 'nested-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         (run / 'nested-closed').unlink(missing_ok=True)
         launcher.atomic(run / 'nested.json', [])
     command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-               '--supervise', str(root), str(run), str(owner), phase]
+               '--supervise', str(root), str(run), str(owner), phase, str(live_attempts)]
     with subprocess.Popen(command, cwd=root, env=launcher.environment(),
                           stdin=subprocess.PIPE, start_new_session=True,
                           pass_fds=(owner, *launcher.scratch_descriptors())) as child:
@@ -628,11 +663,11 @@ def worker(root, run, owner, sessions, tasks, state_json):
                                                    'task_id': task, 'phase': state['phase']})
             progress_lines = session_progress(root, state, total)
             publish_progress(run, str(count), progress_lines)
-            model, effort = SESSION_MODELS[state['phase']]
+            model, effort = session_model(state['phase'], state['live_attempts'])
             print(f"\nwrite-e2e: session {count}{'/' + str(sessions) if sessions else ''}; "
                   f"task {task}; {model} {effort}", flush=True)
             try:
-                result = execute(root, run, owner, state['phase'])
+                result = execute(root, run, owner, state['phase'], state['live_attempts'])
             finally:
                 candidates = set(state['stage_candidates'])
                 candidates.update(session_changes(root, state['worktree_before']))
@@ -781,7 +816,8 @@ def select(root, argv):
         state = initial_state(root, run.parent)
         # Preflight transport/rendering only; do not spend a model session here.
         from launcher_render import AgentRenderer
-        session_command(root, 'implement' if state['phase'] == 'implement' else 'recover')
+        session_command(root, 'implement' if state['phase'] == 'implement' else 'recover',
+                        live_attempts=state['live_attempts'])
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.sessions),
                 json.dumps(args.tasks), json.dumps(state)]
@@ -830,9 +866,18 @@ if __name__ == '__main__':
                         json.loads(options[1]), options[2]))
     if mode == '--supervise':
         root, run = Path(root), Path(run)
-        # Workers already running under the previous all-Sol policy pass no phase.
-        command = session_command(root, options[0] if options else 'recover', run)
+        # Older workers omit the phase or attempt count. Their checkpoint still
+        # carries the task's attempts and session identity.
+        state = json.loads((run / 'checkpoint.json').read_text())
+        phase = options[0] if options else 'recover'
+        attempts = int(options[1]) if len(options) > 1 else state.get('live_attempts', 0)
+        command = session_command(root, phase, run, live_attempts=attempts)
+        model, effort = session_model(phase, attempts)
+        metadata = {'session': state.get('total_sessions', state['task_sessions']),
+                    'task_id': state['task_id'], 'phase': phase, 'model': model,
+                    'reasoning_effort': effort, 'service_tier': 'default'}
         command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_WORKFLOW_DIRECTORY=' + json.dumps(str(run))]
         sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True,
-                                    hide_task_completion=True))
+                                    hide_task_completion=True,
+                                    on_usage=lambda usage: record_usage(run, metadata, usage)))
     raise SystemExit('private write-e2e worker entry point')

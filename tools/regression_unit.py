@@ -23,6 +23,9 @@ with captured pipes and synthetic UI values. Fresh-thirty recorder cases use
 only the existing private tmp_path collector; no additional shared resource.
 Prerequisite-repair launcher tests reuse private checkout/session trees and the
 existing recorded owner/agent doubles; they start no real Codex or VM process.
+Model-routing and usage-recording checks use those same private trees and tiny
+JSON records, in-memory renderer callbacks and recorded child doubles. No new
+shared cache, network, bus, display or heavy fixture; compatible overlap remains.
 Named qualification preparation coverage reads wrapper ASTs and mocks allocation,
 builder execution and privilege checks; no builds, shared writes or VM access.
 Attachment boundary tests retain private tmp_path files (<= 5 MiB+1 each),

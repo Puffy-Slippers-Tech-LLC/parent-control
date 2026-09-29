@@ -48,10 +48,11 @@ APIS = {
     'allowance_values': {'REPRESENTATIVE_PRESETS'},
     'file_chooser': {'stage_files', 'cleanup_files'},
     'synthetic_files': {'fixture_actions', 'read_declared_text', 'read_declared_zip',
-                        'change_attachment_source', 'save_destination_actions'},
+                        'change_attachment_source', 'save_destination_actions', 'diagnostic_export_actions'},
     'attachment_composition': {'file_handoff', 'boundary_batch', 'AttachmentJourney',
                                'chooser_preservation', 'attachment_removal',
-                               'save_handoff', 'save_cancellation'},
+                               'save_handoff', 'save_cancellation', 'diagnostic_export',
+                               'DiagnosticExportJourney'},
     'serial_harness': {'PLAN', 'SERIAL_STAGES', 'matched_screens', 'record_serial_journey',
                        'validate_completion', 'validate_stages'},
 }
@@ -86,7 +87,7 @@ WORKER_APIS = {
     'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
                             'supply_files', 'boundary_batch', 'attachment_limits',
                             'chooser_preservation', 'attachment_removal',
-                            'save_handoff', 'save_cancellation'},
+                            'save_handoff', 'save_cancellation', 'diagnostic_export'},
 }
 
 

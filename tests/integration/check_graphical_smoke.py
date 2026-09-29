@@ -668,10 +668,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          named_child_custom_saves=False, feedback_collection=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
          synthetic_files=False, document_open=False, archive_open=False, source_change=False,
-         file_chooser=False, save_chooser=False, attachment_items=False, attachment_preview=False,
+         file_chooser=False, save_chooser=False, diagnostic_export=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False):
-    require(type(save_chooser) is bool and not (save_chooser and (
+    require(type(diagnostic_export) is bool and not (diagnostic_export and save_chooser),
+            'smoke:diagnostic-export-prerequisites')
+    require(type(save_chooser) is bool and not ((save_chooser or diagnostic_export) and (
         file_chooser or attachment_items or attachment_preview or attachment_boundaries
         or feedback_read or feedback_states or feedback_collection or feedback_privacy
         or format_qualification or window_switch or feedback_rejection or feedback_length
@@ -752,7 +754,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:feedback-states-prerequisites')
     require(type(feedback_privacy) is bool and not (feedback_privacy and feedback_read),
             'smoke:feedback-privacy-prerequisites')
-    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch or feedback_rejection or feedback_length or file_chooser or save_chooser
+    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch or feedback_rejection or feedback_length or file_chooser or save_chooser or diagnostic_export
     require(type(fresh_thirty_allowance) is bool and type(set_allowance) is bool
             and not (fresh_thirty_allowance and set_allowance),
             'smoke:fresh-thirty-allowance-prerequisites')
@@ -1244,6 +1246,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-file-chooser-qualification'
         if save_chooser:
             result['scope'] = 'installed-save-chooser-qualification'
+        if diagnostic_export:
+            result['scope'] = 'installed-diagnostic-export-qualification'
         if attachment_items:
             result['scope'] = 'installed-attachment-items-qualification'
         if attachment_preview:
@@ -1493,6 +1497,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if save_chooser:
                     from parent_setup_qualification import SaveChooserQualification
                     qualification_class = SaveChooserQualification
+                if diagnostic_export:
+                    from parent_setup_qualification import DiagnosticExportQualification
+                    qualification_class = DiagnosticExportQualification
                 if attachment_items:
                     from parent_setup_qualification import AttachmentItemsQualification
                     qualification_class = AttachmentItemsQualification

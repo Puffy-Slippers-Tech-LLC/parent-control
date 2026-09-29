@@ -552,6 +552,12 @@ sub run {
         onpc_feedback_states::run_custom_save_trace(\&exchange);
         return;
     }
+    if ($ready->{diagnostic_export}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_read::run_diagnostic_export(\&exchange);
+        return;
+    }
     if ($ready->{save_chooser}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

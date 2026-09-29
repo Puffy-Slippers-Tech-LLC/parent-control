@@ -21,6 +21,183 @@ def home(tmp_path):
     return path
 
 
+@pytest.fixture(autouse=True)
+def exported_format_validation_on_development_host(monkeypatch):
+    # The host has no installed product. Load the same maintained format parser
+    # from source; the isolated VM command uses its fixed installed common path.
+    from tests.support.paths import ROOT
+    monkeypatch.syspath_prepend(str(ROOT / 'common'))
+
+
+def diagnostic_bytes(*, maximum=False):
+    from common.oh_no_parent_control_ui.diagnostic_report import build_report
+    from common.oh_no_parent_control_ui.diagnostic_events import event
+    from tests.support.system_info import sample_info
+    record = {**event('diagnostic.rejected'), 'component': 'broker', 'level': 'INFO',
+              'sequence': 1, 'segment': 1, 'elapsed_ms': 100}
+    logs = ({f'{component}/2026-09-{day:02}.log': []
+             for component in ('broker', 'child', 'kiosk', 'parent') for day in (10, 11, 12)}
+            if maximum else {'broker/2026-09-12.log': [record]})
+    return build_report(logs, system_info=sample_info())
+
+
+def saved_diagnostics(home, content, *, mode=0o700):
+    root = home / 'Downloads'
+    root.mkdir(mode=mode)
+    (root / 'unrelated.txt').write_bytes(b'preserve existing download')
+    staged = guest.operate(home, 'stage', None, 'save')
+    target = root / guest.SAVE_NAME
+    target.write_bytes(content)
+    target.chmod(0o600)
+    return guest.operate(home, 'saved', staged, 'save')
+
+
+@pytest.mark.parametrize('mode', [0o700, 0o755])
+def test_diagnostic_export_exact_maximum_inventory_decoder_and_original_owner(home, mode):
+    receipt = saved_diagnostics(home, diagnostic_bytes(maximum=True), mode=mode)
+    calls = []
+    def call(argv, **kwargs):
+        calls.append(argv[7])
+        result = guest.operate(home, argv[7], json.loads(argv[8]), argv[9])
+        return (json.dumps(result, sort_keys=True) + '\n').encode()
+    transport = SimpleNamespace(config={'run': 'owned'}, call=call)
+    owner = controller.SyntheticFiles(transport, 'save')
+    owner.attempt, owner.previous = 'owned', receipt
+    owner.attempted.add('saved')
+    actual = controller.read_declared_zip(transport, receipt, attempt='owned',
+                                         artifact='diagnostic-export', owner=owner)
+    assert len(actual['members']) == 17 and actual['checks'] == {
+        'inventory': True, 'headers': True, 'system': True, 'contents': True, 'records': 0}
+    assert len((json.dumps(actual, sort_keys=True) + '\n').encode()) <= 4096
+    assert owner.previous == receipt and calls == ['open-zip']
+    with pytest.raises(EvidenceError, match='save-owner'):
+        controller.read_declared_zip(transport, receipt, attempt='owned',
+                                     artifact='diagnostic-export', owner=owner)
+    assert owner.call('cleanup') == {'absent': True}
+    root = home / 'Downloads'
+    assert sorted(p.name for p in root.iterdir()) == ['unrelated.txt']
+    assert root.stat().st_mode & 0o777 == mode
+    assert (root / 'unrelated.txt').read_bytes() == b'preserve existing download'
+
+
+@pytest.mark.parametrize('fault', ['attempt', 'user', 'artifact', 'owner', 'receipt', 'failed', 'transport'])
+def test_diagnostic_controller_refuses_wrong_entry_without_transport(home, fault):
+    from copy import deepcopy
+    receipt = saved_diagnostics(home, diagnostic_bytes())
+    transport = SimpleNamespace(config={'run': 'owned'}, call=Mock())
+    owner = controller.SyntheticFiles(transport, 'save')
+    owner.attempt, owner.previous = 'owned', deepcopy(receipt)
+    owner.attempted.add('saved')
+    options = dict(attempt='owned', artifact='diagnostic-export', owner=owner)
+    if fault == 'attempt': options['attempt'] = 'other'
+    if fault == 'user': options['user'] = 'onpc-child-alex'
+    if fault == 'artifact': options['artifact'] = '../diagnostic-export'
+    if fault == 'owner': options['owner'] = None
+    if fault == 'receipt': receipt['files'][guest.SAVE_NAME]['identity'][1] += 1
+    if fault == 'failed': owner.failed = True
+    if fault == 'transport': owner.transport = Mock()
+    with pytest.raises(EvidenceError):
+        controller.read_declared_zip(transport, receipt, **options)
+    transport.call.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['missing', 'symlink', 'replaced', 'hardlink', 'changed',
+                                  'directory', 'unknown', 'owner'])
+def test_diagnostic_reader_identity_refuses_and_preserves_output(home, monkeypatch, fault):
+    receipt = saved_diagnostics(home, diagnostic_bytes())
+    root, target = home / 'Downloads', home / 'Downloads' / guest.SAVE_NAME
+    if fault == 'missing': target.unlink()
+    if fault == 'symlink':
+        target.rename(home / 'preserved')
+        target.symlink_to(home / 'preserved')
+    if fault == 'replaced':
+        target.rename(home / 'preserved')
+        target.write_bytes(diagnostic_bytes())
+        target.chmod(0o600)
+    if fault == 'hardlink': os.link(target, home / 'preserved')
+    if fault == 'changed': target.write_bytes(b'changed')
+    if fault == 'directory':
+        root.rename(home / 'preserved')
+        root.symlink_to(home / 'preserved', target_is_directory=True)
+    if fault == 'unknown': (root / 'unknown').write_bytes(b'keep')
+    if fault == 'owner':
+        uid = os.getuid()
+        monkeypatch.setattr(guest.os, 'getuid', lambda: uid + 1)
+    before = target.read_bytes() if target.exists() else None
+    with pytest.raises((ValueError, OSError)):
+        guest.operate(home, 'open-zip', {'receipt': receipt, 'artifact': 'diagnostic-export'}, 'save')
+    with pytest.raises((ValueError, OSError)):
+        guest.operate(home, 'cleanup', receipt, 'save')
+    assert (target.read_bytes() if target.exists() else None) == before
+
+
+@pytest.mark.parametrize('fault', ['system-null', 'summary', 'inventory', 'header', 'count',
+    'content', 'folder', 'date', 'duplicate', 'unsafe', 'archive-limit', 'member-limit',
+    'expanded-limit', 'count-limit', 'deadline', 'crc'])
+def test_diagnostic_archive_refuses_bad_contents_and_bounds(monkeypatch, fault):
+    import io
+    import zipfile
+    source = diagnostic_bytes()
+    with zipfile.ZipFile(io.BytesIO(source)) as archive:
+        entries = {name: archive.read(name) for name in archive.namelist()}
+    info = json.loads(entries['system-info.json'])
+    log = 'broker/2026-09-12.log'
+    if fault == 'system-null': info['system'] = None
+    if fault == 'summary': info['private'] = 'private@example.test'
+    if fault == 'inventory': info['logs'] = {}
+    if fault == 'header': entries[log] = b'Wrong heading\n'
+    if fault == 'count': info['logs'][log] = 2
+    if fault == 'content':
+        entries[log] += b'[INFO] segment=1 +0ms #1 op=0 event=private fields={} | private\n'
+        info['logs'][log] = 2
+    if fault == 'folder': entries['child/'] = b'not empty'
+    if fault == 'date':
+        entries['parent/2026-02-30.log'] = entries.pop(log)
+        info['logs'] = {'parent/2026-02-30.log': 0}
+    if fault == 'unsafe': entries['../private'] = b'x'
+    if fault == 'member-limit': entries[log] = b'x' * (16 * 1024 * 1024 + 1)
+    if fault == 'expanded-limit':
+        entries[log] = b'x' * (8 * 1024 * 1024)
+        entries['child/2026-09-12.log'] = b'x' * (8 * 1024 * 1024)
+    if fault == 'count-limit': entries.update({f'child/{n}.log': b'' for n in range(18)})
+    entries['system-info.json'] = (json.dumps(info, indent=2, sort_keys=True) + '\n').encode()
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, value in entries.items(): archive.writestr(name, value)
+        if fault == 'duplicate':
+            with pytest.warns(UserWarning): archive.writestr(log, entries[log])
+    content = output.getvalue()
+    if fault == 'archive-limit': content += b'x' * (2 * 1024 * 1024)
+    if fault == 'deadline':
+        ticks = iter([0, guest.ZIP_SECONDS + 1])
+        monkeypatch.setattr(guest.time, 'monotonic', lambda: next(ticks))
+    if fault == 'crc':
+        # Rewrite uncompressed bytes so the central directory's CRC disagrees.
+        content = guest.make_zip(list(entries.items())).replace(b'ONPC component log', b'XNPC component log')
+    with pytest.raises(ValueError): guest.inspect_zip(content, diagnostic=True)
+
+
+def test_diagnostic_content_and_uncertain_decoder_latch(home):
+    receipt = saved_diagnostics(home, diagnostic_bytes())
+    actual = guest.operate(home, 'open-zip', {
+        'receipt': receipt, 'artifact': 'diagnostic-export'}, 'save')
+    assert actual['checks']['records'] == 1
+    assert actual['members']['broker/2026-09-12.log']['size'] > 300
+    for raw in (b'{"matched": true}\n', b'x' * 4097):
+        transport = SimpleNamespace(config={'run': 'owned'}, call=Mock(return_value=raw))
+        owner = controller.SyntheticFiles(transport, 'save')
+        owner.attempt, owner.previous = 'owned', receipt
+        owner.attempted.add('saved')
+        with pytest.raises(EvidenceError):
+            controller.read_declared_zip(transport, receipt, attempt='owned',
+                                         artifact='diagnostic-export', owner=owner)
+        assert owner.failed
+        with pytest.raises(EvidenceError, match='save-owner'):
+            controller.read_declared_zip(transport, receipt, attempt='owned',
+                                         artifact='diagnostic-export', owner=owner)
+        transport.call.assert_called_once()
+
+
 def test_exact_copy_rename_and_independent_cleanup(home):
     before = guest.operate(home, 'stage', None)
     root = home / guest.DIRECTORY
@@ -588,7 +765,7 @@ def test_chooser_qualification_uses_registered_actions_and_installed_snapshot(tm
 
 
 @pytest.mark.parametrize('failure', [False, True])
-@pytest.mark.parametrize('archive', [False, True, 'source', 'save'])
+@pytest.mark.parametrize('archive', [False, True, 'source', 'save', 'export'])
 def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkeypatch, failure, archive):
     from parent_setup_qualification import (SyntheticFilesQualification, ArchiveOpenQualification,
                                             SourceChangeQualification)
@@ -602,8 +779,12 @@ def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkey
     if archive == 'save':
         from parent_setup_qualification import SaveChooserQualification
         qualification, action_name = SaveChooserQualification, 'save-prepare'
+    if archive == 'export':
+        from parent_setup_qualification import DiagnosticExportQualification
+        qualification, action_name = DiagnosticExportQualification, 'diagnostic-inspect'
     journey = qualification.journey(context, progress)
-    stage = 'first-refused' if archive == 'save' else 'desktop'
+    stage = ('first-refused' if archive == 'save' else
+             'first-inspect' if archive == 'export' else 'desktop')
     assert journey.plan.stage_actions[stage] == action_name
     stages = list(journey.plan.stages)
     journey.steps = [{'stage': name} for name in stages[:stages.index(stage)]]

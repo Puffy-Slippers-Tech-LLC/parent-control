@@ -19,25 +19,16 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **045 — [Save diagnostics and inspect the exported artifact through SSH](E2E-Tasks/045-diagnostic-export.md)**.
+Next task: **046 — [E2E-031: diagnostic-export](E2E-Tasks/046-case-155.md)**.
 
-037a qualified named diagnostic Save/Cancel to `~/Downloads` in
-`20260929T191454Z-a2f14da3`; affected Open/Cancel passed in
-`20260929T191829Z-3d1fd72a`. Both completed collection, owned cleanup and baseline
-restoration. Exported ZIP inspection and the complete case 155 remain pending.
-
-031a qualified the shared FEED09 `feedback-collection-ready` operation in
-`20260929T170731Z-88b24b8a`: both independent entries observed finished diagnostics
-and available Download, with independent readback, wrong-entry refusal, owned
-cleanup and baseline restoration. Collection acceptance no longer requires
-observing the asynchronous collecting state. The shared predicate wait advances
-only on the public finished state; its deadline is a failure guard.
-Case 155 remains a separate complete-scenario task.
-
-Task 201's complete Case 159 save-order journey passed in
-`20260929T070054Z-c0f58f19`, including Jordan 5→6, Riley 7, the
-single Parent management window after a second launch, restart persistence,
-collection, owned cleanup and baseline restoration. Coverage was refreshed.
+045 qualified the shared FEED08 named Save, receipt-bound FILE08 diagnostic ZIP
+inspection and unchanged same-dialog synthetic draft in `20260929T194911Z-9bb9b122`.
+Both independent entries and wrong-entry refusals passed. Affected Save/Cancel,
+synthetic ZIP and text regressions passed in `20260929T195352Z-64a83e8b`,
+`20260929T195728Z-9b0b20c4` and `20260929T195845Z-ed63fec7`; collection, owned
+cleanup and baseline restoration passed throughout. Case 155 remains pending:
+compose the complete Cancel, unwritable-destination error/recovery, successful
+export, Privacy and preserved-draft journey through the shared APIs.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

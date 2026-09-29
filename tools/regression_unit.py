@@ -46,6 +46,10 @@ uses the same private journals; no real credentials, terminal or shared ref is
 modified, and no heavy fixture construction is added.
 """
 
+# Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
+# bounded in-memory archives and mocked SSH. Feedback composition retains private
+# waited Perl children and memory doubles. Both existing compatible buckets apply.
+
 from pathlib import PurePosixPath
 
 from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units

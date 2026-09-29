@@ -1,0 +1,13 @@
+#!/usr/bin/python3
+"""Qualify real Download/Save, exported ZIP contents and preserved draft."""
+import sys
+from check_graphical_smoke import main as smoke
+from tools.test_storage import named_input
+
+
+def main():
+    return smoke(assets=named_input(), provision_credentials=True, diagnostic_export=True)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

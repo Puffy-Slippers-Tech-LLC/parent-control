@@ -872,6 +872,16 @@ class NamedChildCustomSavesQualification(KioskEntryQualification):
         return journey(context, progress)
 
 
+class FeedbackCollectionQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from feedback_collection import journey
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress)
+
+
 class ParentSaveTraceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

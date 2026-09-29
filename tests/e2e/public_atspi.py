@@ -173,6 +173,66 @@ class PublicAtspi:
                     self._connection.signal_unsubscribe(subscription)
                 context.pop_thread_default()
 
+    @contextmanager
+    def application_state_events(self, bus, receive):
+        """Observe bounded state transitions from one pinned application owner.
+
+        Dynamic dialog children do not exist before input, so their paths cannot
+        be subscribed individually. The caller resolves public IDs and ancestry
+        before accepting any signal as evidence.
+        """
+        from gi.repository import Gio, GLib
+        if not isinstance(bus, str) or not bus.startswith(':'):
+            raise ValueError('public-atspi:event-owner')
+        states = ('visible', 'sensitive')
+        context = GLib.MainContext.new()
+        context.push_thread_default()
+        subscriptions = []
+        registered = []
+        try:
+            def signal(_connection, sender, path, interface, member, parameters, *_unused):
+                try:
+                    if (interface != PREFIX + 'Event.Object' or member != 'StateChanged' or
+                            parameters.get_type_string() != '(siiva{sv})' or
+                            parameters.get_size() > 4096):
+                        raise ValueError('public-atspi:event-envelope')
+                    value = parameters.unpack()
+                    if (sender != bus or not isinstance(path, str) or not path.startswith('/') or
+                            value[0] not in states or type(value[1]) is not int or
+                            value[1] not in (0, 1) or value[2] != 0):
+                        raise ValueError('public-atspi:event-state')
+                    receive(path, value[0], bool(value[1]), None)
+                except Exception as error:
+                    receive(None, None, None, error)
+
+            for state in states:
+                subscriptions.append(self._connection.signal_subscribe(
+                    bus, PREFIX + 'Event.Object', 'StateChanged', None, state,
+                    Gio.DBusSignalFlags.NONE, signal))
+                self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
+                          PREFIX + 'Registry', 'RegisterEvent', 'sass',
+                          ('object:state-changed:' + state, [], bus))
+                registered.append(state)
+            self.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                      'org.freedesktop.DBus', 'GetId')
+            yield context
+        finally:
+            try:
+                cleanup_error = None
+                for state in reversed(registered):
+                    try:
+                        self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
+                                  PREFIX + 'Registry', 'DeregisterEvent', 'ss',
+                                  ('object:state-changed:' + state, bus))
+                    except Exception as error:
+                        cleanup_error = error
+                if cleanup_error is not None:
+                    raise cleanup_error
+            finally:
+                for subscription in reversed(subscriptions):
+                    self._connection.signal_unsubscribe(subscription)
+                context.pop_thread_default()
+
     def invalidate_snapshot(self):
         self._generation += 1
         self._records = None

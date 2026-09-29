@@ -18,9 +18,13 @@ Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-fil
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **037** — FILE03 installed feedback open/cancel; actual provider binding.
-- **031a** — FEED09 collection trace.
+- **031a** — FEED09 collection readiness.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
+
+Reuse `UiObservations.observe('feedback-collection-ready')` for FEED09 readiness
+after FEED01; it delegates to `AccessibleUI.wait_feedback_collection` and the
+shared predicate wait. Do not add a case-local delay or collection polling loop.
 
 ## Implementation
 

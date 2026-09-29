@@ -53,6 +53,30 @@ sub run_accessibility_trace {
     return run_control_trace($exchange, 'accessibility-trace');
 }
 
+sub observed_collection {
+    onpc_progress::operation('Waiting for finished diagnostics and available Download');
+    my ($journey, $stage) = @_;
+    die 'collection:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($stage) && $stage =~ /\A[a-z][a-z0-9-]*\z/;
+    rejection_observe($journey, $stage);
+}
+
+sub run_collection {
+    onpc_progress::operation('Qualifying collection and usable Download across independent entries');
+    my ($exchange) = @_;
+    die 'collection:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'feedback-collection', review => 0);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected',
+        onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child'));
+    for my $entry ('first', 'second') {
+        rejection_observe($journey, "$entry-open");
+        observed_collection($journey, "$entry-collection");
+        rejection_observe($journey, "$entry-$_") for ('independent', 'refused', 'close');
+    }
+    $journey->finish();
+}
+
 sub run_parent_save_trace {
     onpc_progress::operation('Qualifying Parent saving and control inhibition during accessibility input');
     my ($exchange) = @_;

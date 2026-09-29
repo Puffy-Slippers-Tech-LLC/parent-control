@@ -62,6 +62,295 @@ from ui_observations import FeedbackStateObservation
 # children; no new live bus, display, cache or scheduler resource is introduced.
 # Named-child qualification retains those private paths, mocks and waited Perl
 # children; unit scheduling and cleanup ownership are unchanged.
+# Collection uses the same private mocks and waited Perl children; no additional
+# mutable paths, buses, displays, caches or scheduling resources.
+
+
+@pytest.mark.parametrize('fault', ['', 'storage', 'input', 'terminal-only', 'terminal', 'order', 'boot'])
+def test_collection_real_decoder_waits_for_finished_state(fault):
+    from ui_observations import UiObservations
+    reader = UiObservations(SimpleNamespace(commands=SimpleNamespace(progress=None)))
+    reader.boot_guard = 'b' * 64
+    operations, retained = [], []
+
+    def retain(*args):
+        if fault == 'storage':
+            raise OSError('storage')
+        retained.append(args)
+    reader.trace_sink = retain
+
+    def call(argv, *, input, timeout, on_output):
+        operation = argv[3]
+        operations.append(operation)
+        if operation == 'feedback-collection-open':
+            assert retained and argv[-1] == 'c' * 64
+            if fault == 'input':
+                raise OSError('uncertain input')
+            value = {'opened': True}
+        else:
+            assert operation == 'feedback-collection-events'
+            token = argv[-1]
+            on_output(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                'source': 'c' * 64, 'boot_sha256': ('d' if fault == 'boot' else 'b') * 64,
+                'checked': False}).encode() + b'\n')
+            samples = [{'elapsed_ms': 10, 'collecting': True, 'download': False},
+                       {'elapsed_ms': 20, 'collecting': False, 'download': True}]
+            if fault == 'terminal-only': samples.pop(0)
+            if fault == 'terminal': samples.pop()
+            if fault == 'order': samples[-1]['elapsed_ms'] = 0
+            value = {'token': token, 'source': 'c' * 64, 'terminal': True, 'samples': samples}
+        on_output(json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                              'boot_sha256': 'b' * 64, 'trace': value}).encode() + b'\n')
+        return b''
+
+    reader.transport.call = call
+    if fault not in ('', 'terminal-only'):
+        with pytest.raises((EvidenceError, OSError)):
+            reader.observe_accessibility_input('feedback-collection-open', True, 'collection')
+        assert reader.trace_failed and reader.accessibility_trace is None
+        with pytest.raises(EvidenceError):
+            reader.observe_accessibility_input('feedback-collection-open', True, 'collection')
+    else:
+        result = reader.observe_accessibility_input('feedback-collection-open', True, 'collection')
+        assert result['operation'] == 'feedback-collection-trace'
+        assert len(retained) == (2 if fault == 'terminal-only' else 3)
+    assert operations.count('feedback-collection-open') == (0 if fault in ('storage', 'boot') else 1)
+
+
+@pytest.mark.parametrize('fault', ['', 'first-collection', 'first-independent', 'first-refused',
+                                  'first-close', 'second-collection', 'second-close'])
+def test_collection_worker_composition_and_refusal(fault):
+    from tests.support.perl import run_perl
+    from feedback_collection import PLAN
+    PLAN.__post_init__()
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@stages); our ($fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi; sub record_info { }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @stages, 'finish'; };
+my $ok = eval { onpc_feedback_states::run_collection(sub {
+    push @stages, $_[0]; die 'failed proof' if $_[0] eq $fault;
+    return {observed => $_[0]};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages});
+''', fault).stdout)
+    stages = list(PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):] + ['finish']
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+
+
+def test_collection_selector_and_exclusive_mode(monkeypatch):
+    import check_e2e_feedback_collection as selector
+    run = Mock(return_value=0)
+    monkeypatch.setattr(selector, 'smoke', run)
+    assert selector.main() == 0
+    assert run.call_args.kwargs['feedback_collection'] is True
+    with pytest.raises(CommandError, match='smoke:trace-prerequisites'):
+        smoke.main(feedback_collection=True, parent_save_trace=True)
+
+
+@pytest.mark.parametrize('initial', [None, {'collecting': True, 'download': False},
+                                    {'collecting': False, 'download': True}])
+def test_collection_guest_waits_for_finished_state(monkeypatch, initial):
+    from itertools import count
+    clock = count()
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: next(clock) / 100)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: None)
+    terminal = {'collecting': False, 'download': True}
+    ui, parent, _dialog, _controls = feedback_ui()
+    ui.timeout = 1
+    ui.root().bus = parent.bus = ':1.2'
+    parent.path = '/parent'
+    ui.feedback_collection_sample = Mock(side_effect=[initial, terminal])
+    assert ui.wait_feedback_collection() == terminal
+    assert ui.feedback_collection_sample.call_count == (1 if initial == terminal else 2)
+
+
+@pytest.mark.parametrize('state', [None, {'collecting': True, 'download': False},
+                                  {'collecting': False, 'download': False}])
+def test_collection_guest_refuses_unfinished_or_unavailable_download(monkeypatch, state):
+    from itertools import count
+    clock = count()
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: next(clock) * 10)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: None)
+    ui, parent, _dialog, _controls = feedback_ui()
+    ui.root().bus = parent.bus = ':1.2'
+    parent.path = '/parent'
+    ui.feedback_collection_sample = Mock(return_value=state)
+    with pytest.raises(accessible_ui.UiError, match='ui:timeout:feedback-collection-ready'):
+        ui.wait_feedback_collection()
+
+
+@pytest.mark.parametrize('value', [
+    {'collecting': False, 'download': True},
+    {'collecting': True, 'download': False},
+    {'collecting': False, 'download': False},
+    {'collecting': 0, 'download': 1}, None])
+def test_collection_readiness_public_decoder(value):
+    from ui_observations import UiObservations
+    operation = 'feedback-collection-ready'
+    reader = UiObservations(SimpleNamespace(commands=SimpleNamespace(progress=None)))
+    reader.call = Mock(return_value=(json.dumps({
+        'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+        'collection': value}).encode(), []))
+    if value is not None and value['collecting'] is False and value['download'] is True:
+        assert reader.observe(operation)['collection'] == value
+    else:
+        with pytest.raises(EvidenceError, match='ui:collection-not-ready'):
+            reader.observe(operation)
+
+
+def test_collection_sample_does_not_wait_for_unrelated_desktop_traversal():
+    ui, parent, dialog, controls = feedback_ui()
+    application = ui.root()
+    parent.bus, parent.path = ':1.2', '/parent'
+    dialog.bus, dialog.path = ':1.2', '/dialog'
+    ui.collection_owner = (parent.bus, parent.path)
+    ui.collection_application = application
+    ui.collection_dialog = dialog
+    row = Node('Collecting diagnostic information...', identity='feedback-collection-status')
+    row.parent = dialog
+    dialog.children.append(row)
+    dialog.children.remove(controls['feedback-download-logs'])
+    unrelated = Node(identity='unrelated-application')
+    desktop = Node(children=[unrelated, application])
+    ui.root = lambda: desktop
+    visited = []
+
+    def slow_unrelated_read():
+        # GTK exposes initial states without collection/Download transitions.
+        # Model completion during unrelated RPC traversal, without sleeping or
+        # inventing signals that the real GTK regression shows do not arrive.
+        visited.append('unrelated')
+        dialog.children.remove(row)
+        dialog.children.append(controls['feedback-download-logs'])
+        return 0
+
+    unrelated.get_child_count = slow_unrelated_read
+    assert ui.feedback_collection_sample() == {'collecting': True, 'download': False}
+    assert not visited
+    dialog.children.remove(row)
+    dialog.children.append(controls['feedback-download-logs'])
+    assert ui.feedback_collection_sample() == {'collecting': False, 'download': True}
+
+
+def test_collection_input_rejects_changed_source_before_opening():
+    ui = SimpleNamespace(trace_request='a' * 64,
+        feedback_collection_source=Mock(return_value='b' * 64), open_feedback=Mock())
+    with pytest.raises(accessible_ui.UiError, match='ui:trace-source-changed'):
+        accessible_ui.AccessibleUI.feedback_collection_events(ui, 'feedback-collection-open')
+    ui.open_feedback.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'foreign', 'missing-dialog', 'defunct'])
+def test_collection_event_requires_public_id_and_owned_dialog(monkeypatch, fault):
+    dialog = SimpleNamespace(bus=':1.2', path='/dialog', get_parent=lambda: None)
+    parent = SimpleNamespace(bus=':1.3' if fault == 'foreign' else ':1.2',
+                             path='/parent', get_parent=lambda: dialog)
+    row = SimpleNamespace(bus=':1.2', path='/row', get_parent=lambda: parent,
+                          get_name=lambda: 'Collecting diagnostic information...')
+    identities = {id(row): 'feedback-collection-status',
+                  id(parent): 'container',
+                  id(dialog): 'other' if fault == 'missing-dialog' else 'feedback-dialog'}
+    monkeypatch.setattr(accessible_ui, 'public_automation_id',
+                        lambda node: identities[id(node)])
+    ui = SimpleNamespace(api=SimpleNamespace(node=lambda _: row,
+                                             StateType=SimpleNamespace(DEFUNCT='defunct')),
+                         collection_owner=(':1.2', '/parent'),
+                         has_state=lambda _node, _state: fault == 'defunct')
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            accessible_ui.AccessibleUI.feedback_collection_event_target(ui, '/row')
+    else:
+        assert accessible_ui.AccessibleUI.feedback_collection_event_target(ui, '/row') == ('row', '/dialog')
+
+
+def test_collection_ignores_hidden_row_sensitivity_before_reading_label(monkeypatch):
+    row = SimpleNamespace(get_name=Mock(side_effect=AssertionError('hidden label read')))
+    monkeypatch.setattr(accessible_ui, 'public_automation_id',
+                        lambda _node: 'feedback-collection-status')
+    ui = SimpleNamespace(api=SimpleNamespace(node=lambda _: row),
+                         collection_owner=(':1.2', '/parent'))
+    assert accessible_ui.AccessibleUI.feedback_collection_event_target(
+        ui, '/row', 'sensitive') is None
+    row.get_name.assert_not_called()
+
+
+@pytest.mark.parametrize('download_exposed', [True, False])
+@pytest.mark.parametrize('fault', ['', 'owner', 'duplicate', 'stale', 'stale-control', 'incomplete'])
+def test_collection_sample_public_ids_and_owner(fault, download_exposed):
+    ui, parent, dialog, controls = feedback_ui()
+    ui.collection_application = ui.root()
+    parent.bus, parent.path = ':1.2', '/parent'
+    dialog.bus, dialog.path = ':1.2', '/feedback'
+    ui.collection_owner = (parent.bus, parent.path)
+    row = Node('Collecting diagnostic information...', identity='feedback-collection-status')
+    row.parent = dialog
+    dialog.children.append(row)
+    controls['feedback-download-logs'].states.remove('sensitive')
+    if not download_exposed:
+        # Collection hides the attachment row containing Download. GTK omits
+        # that subtree from the public tree until collection completes.
+        dialog.children.remove(controls['feedback-download-logs'])
+    if fault == 'owner': dialog.bus = ':1.3'
+    if fault == 'duplicate':
+        dialog.children.append(Node(identity='feedback-download-logs' if download_exposed
+                                    else 'feedback-collection-status'))
+    if fault == 'stale': dialog.states.add('defunct')
+    if fault == 'stale-control':
+        (controls['feedback-download-logs'] if download_exposed else row).states.add('defunct')
+    if fault == 'incomplete': dialog.get_child_count = Mock(side_effect=LookupError())
+    if fault:
+        with pytest.raises((accessible_ui.UiError, LookupError)):
+            ui.feedback_collection_sample()
+    else:
+        assert ui.feedback_collection_sample() == {'collecting': True, 'download': False}
+        dialog.children.remove(row)
+        if not download_exposed:
+            assert ui.feedback_collection_sample() is None
+            dialog.children.append(controls['feedback-download-logs'])
+        controls['feedback-download-logs'].states.add('sensitive')
+        assert ui.feedback_collection_sample() == {'collecting': False, 'download': True}
+    for control in controls.values():
+        control.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'duplicate', 'foreign'])
+def test_collection_pins_unique_dialog_and_controls(fault):
+    ui, parent, dialog, controls = feedback_ui()
+    ui.collection_application = ui.root()
+    parent.bus, parent.path = ':1.2', '/parent'
+    dialog.bus, dialog.path = (':1.3' if fault == 'foreign' else ':1.2'), '/dialog'
+    ui.collection_owner = (parent.bus, parent.path)
+    row = Node('Collecting diagnostic information...', identity='feedback-collection-status')
+    row.parent = dialog
+    row.path = '/row'
+    dialog.children.append(row)
+    controls['feedback-download-logs'].path = '/download'
+    if fault == 'duplicate':
+        duplicate = Node(identity='feedback-collection-status')
+        duplicate.parent = dialog
+        dialog.children.append(duplicate)
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.feedback_collection_pins()
+    else:
+        assert ui.feedback_collection_pins() == {
+            'dialog': '/dialog', 'row': '/row', 'download': '/download'}
+        dialog.children.remove(row)
+        assert ui.feedback_collection_pins() == {
+            'dialog': '/dialog', 'row': None, 'download': '/download'}
+        dialog.children.append(row)
+        dialog.children.remove(controls['feedback-download-logs'])
+        assert ui.feedback_collection_pins() == {
+            'dialog': '/dialog', 'row': '/row', 'download': None}
 
 
 @pytest.mark.parametrize('fault', ['', 'disabled-entry', 'editor-disabled', 'picker-disabled',

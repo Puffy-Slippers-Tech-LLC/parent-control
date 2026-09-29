@@ -304,6 +304,26 @@ def test_feedback_draft_and_optional_attachment(
     assert "Theme parser error" not in log
 
 
+
+
+def test_collection_observer_waits_for_finished_state(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    release = tmp_path / 'collection-release'
+    launch_ui('parent_component_preview', environment_overrides={
+        'ONPC_PARENT_COMPONENT_SCENARIO': 'feedback-collecting',
+        'ONPC_FEEDBACK_COLLECTION_RELEASE': str(release),
+    }, wait_for_application=False)
+    wait_for_accessible_state(lambda: automation.find('parent-feedback-button') is not None,
+                              'Parent feedback entry')
+    automation.activate('parent-feedback-button')
+    release.touch()
+    try:
+        result = automation.reader.wait_feedback_collection()
+    finally:
+        release.touch()
+    assert result == {'collecting': False, 'download': True}
+
+
 def test_collection_progress_disables_send_but_allows_editing(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     ui = automation

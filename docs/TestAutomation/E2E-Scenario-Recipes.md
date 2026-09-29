@@ -658,7 +658,7 @@ owned cleanup. Case 155 remains unfinished.
 
 Bindings: flow = draft-reopen / validation / attachments / diagnostic-export.
 
-1. P0; draft: FEED01 → UI16(body,email) → FEED04(bold) → UI16(emoji) → FEED06(single file) → FEED03; validation: FEED01 → FEED09(empty rejection) → UI16(body,email); attachments: FEED01 → FEED06(two files, then Cancel) → FEED07; export: watch(FEED09){FEED01} → FEED08 with chooser cancel/failure/success branches.
+1. P0; draft: FEED01 → UI16(body,email) → FEED04(bold) → UI16(emoji) → FEED06(single file) → FEED03; validation: FEED01 → FEED09(empty rejection) → UI16(body,email); attachments: FEED01 → FEED06(two files, then Cancel) → FEED07; export: FEED01 → FEED09(finished diagnostics and Download available) → FEED08 with chooser cancel/failure/success branches.
 2. Draft: DESK10(feedback) → FEED05 → FEED10(dialog,compare) → FEED10(app-exit,reset). Validation: FEED10(dialog) → FEED09(recovered valid state). Attachments: FEED13(remove one) → FEED07(remaining file). Never FEED11.
 
 Case 152 binds `parent_feedback_draft.PLAN`: type `body-first`, apply bold to
@@ -886,7 +886,7 @@ Implementation status: All cases pending.
 
 Bindings: surface = parent / child-overlay / kiosk; choice = retry / without-logs.
 
-1. Open the declared genuine failing collection with FEED01 or FEED15 while watch(FEED09) is active.
+1. Open the declared genuine failing collection with FEED01 or FEED15 and wait for FEED09(failed collection).
 2. UI02(edit/Close usable) → UI16(valid synthetic body). Retry: FEED16 after genuine recovery. Without logs: FEED03 → FEED05 → FEED11(action=Send without logs).
 3. Retry FEED09(ready) → FEED03 → UI18; without-logs FEED09(acceptance) → FEED14 → UI01(original destination).
 

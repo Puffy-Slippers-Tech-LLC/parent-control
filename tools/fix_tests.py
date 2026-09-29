@@ -6,6 +6,7 @@ even SIGKILL of the worker cancels the current operation before releasing it.
 """
 
 import argparse
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -26,13 +27,24 @@ import detached_launcher
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
 
 
-DEFAULT_MODEL = 'gpt-6-astra'
-DEFAULT_EFFORT = 'low'
+DEFAULT_MODEL = 'gpt-6.1-sol'
+DEFAULT_EFFORT = 'medium'
+APP_MODEL = 'gpt-6-astra'
 APP_EFFORT = 'low'
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
-def available_models():
+def initial_model(model=None, effort=DEFAULT_EFFORT):
+    model = model or DEFAULT_MODEL
+    if model.endswith('-sol') and model != DEFAULT_MODEL:
+        raise ValueError('Sol must be gpt-6.1-sol')
+    if model == DEFAULT_MODEL and effort in ('high', 'xhigh'):
+        return APP_MODEL, APP_EFFORT
+    return model, effort
+
+
+def available_models(model=None, effort=DEFAULT_EFFORT):
+    model, effort = initial_model(model, effort)
     codex = shutil.which('codex')
     if codex is None:
         raise ValueError('Codex CLI is missing; install and authenticate it before running fix-tests')
@@ -45,12 +57,38 @@ def available_models():
     listed = [entry for entry in models if isinstance(entry, dict)
               and entry.get('visibility') == 'list'
               and isinstance(entry.get('slug'), str)
-              and isinstance(entry.get('supported_reasoning_levels'), list)
-              and any(isinstance(level, dict) and level.get('effort') == DEFAULT_EFFORT
-                      for level in entry['supported_reasoning_levels'])]
-    if not any(entry['slug'] == DEFAULT_MODEL for entry in listed):
-        raise ValueError(f'Codex model catalog has no listed {DEFAULT_MODEL} with low reasoning')
-    return DEFAULT_MODEL, DEFAULT_MODEL
+              and isinstance(entry.get('supported_reasoning_levels'), list)]
+    for required_model, required_effort in ((model, effort), (APP_MODEL, APP_EFFORT)):
+        if not any(entry['slug'] == required_model and any(
+                isinstance(level, dict) and level.get('effort') == required_effort
+                for level in entry['supported_reasoning_levels']) for entry in listed):
+            raise ValueError(f'Codex model catalog has no listed {required_model} '
+                             f'with {required_effort} reasoning')
+    return model, APP_MODEL
+
+
+def repair_command(root, model, effort, run=None):
+    command = agent_command(root, model, effort, run)
+    command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
+    return command
+
+
+def record_usage(run, metadata, usage=None, *, event='turn'):
+    """CLI counters and verification outcomes, not estimates of plan consumption."""
+    fields = ('input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_output_tokens')
+    counters = {key: usage[key] for key in fields
+                if isinstance(usage, dict) and type(usage.get(key)) is int and usage[key] >= 0}
+    record = dict(metadata, event=event)
+    if event in ('turn', 'missing_usage'):
+        record.update(reported_scope='cli_turn', usage=counters or None)
+    try:
+        with lock(run / 'agent-usage.jsonl') as descriptor:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            os.lseek(descriptor, 0, os.SEEK_END)
+            with os.fdopen(os.dup(descriptor), 'w', encoding='utf-8') as stream:
+                stream.write(json.dumps(record) + '\n')
+    except (OSError, ValueError) as error:
+        print(f'fix-tests: could not retain usage: {error}', file=sys.stderr, flush=True)
 
 
 def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summary=None):
@@ -60,13 +98,15 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
         'and return status "test_fixed". If it is an app issue, make no edits and return '
         'status "app_issue" with a concise reason. If classification remains '
         'uncertain, make no edits and return status "uncertain" with the competing '
-        'explanations. The launcher will start a fresh repair agent for either of the '
+        'explanations. Unresolved security, concurrency, ownership or difficult diagnosis '
+        'also requires "uncertain" before editing; do not guess a mechanical fix. '
+        'The launcher will start a fresh Astra Low repair agent for either of the '
         'last two statuses. '
         if app_issue is None else
-        'The first session classified this as an app issue or uncertain and ended. '
+        'An earlier session reported an app issue, uncertainty, or a repair whose verification failed. '
         'Recheck the classification using the original failure evidence, then fix '
         'the root cause in this checkout. Return status "fixed" after a repair. '
-        f'Its classification was: {app_issue}\n\n')
+        f'Its handoff was: {app_issue}\n\n')
     decisions = ('\nDeveloper instructions for this run (apply only to their stated scope):\n'
                  + json.dumps(developer_answers, ensure_ascii=False) + '\n'
                  if developer_answers else '')
@@ -87,7 +127,12 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'Report missing authority or prerequisites requiring developer action using status "blocked" in the final '
             'result; the launcher pauses for developer instructions instead of failing. '
             + BLOCKER_INSTRUCTIONS +
-            'Use summary as a standalone repair handoff with evidence paths and remaining work. '
+            'Use summary as a concise standalone repair handoff: cause, changed paths, '
+            'evidence, unresolved hypotheses and required verification. Read applicable '
+            'contract sections and complete relevant functions with their callers/shared state; '
+            'expand when evidence requires it. Reuse unchanged context within this session. '
+            'Keep searches and diagnostic output scoped, without reducing required checks '
+            'or understanding. Never use Sol High; Astra Low is its substitute. '
             'The script owns test execution: finish after classification or repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions. '
             'Do not read or resume previous Codex sessions, histories, memories or repair '
@@ -151,14 +196,18 @@ def category_status(category, categories):
             f'({index + 1}/{len(categories)})\033[0m')
 
 
-def run_loop(categories, test, repair, check_stop, *, selected=False, round_changed=lambda _: None):
-    """No session objects or past prompts survive a repair/category iteration."""
+def run_loop(categories, test, repair, check_stop, *, selected=False, round_changed=lambda _: None,
+             verified=lambda _repair, _passed: None):
+    """Only the latest repair handoff survives until its category passes."""
     def finish_category(category, failure):
+        previous = None
         while failure is not None:
             check_stop()
-            repair(failure['prompt'])
+            previous = (repair(failure['prompt'], previous=previous) if previous is not None
+                        else repair(failure['prompt']))
             check_stop()
             failure = test(category)
+            verified(previous, failure is None)
 
     round_changed(1)
     for category in categories:
@@ -200,7 +249,22 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     elif kind == 'recovery':
         command = [str(root / 'tools/cleanup-e2e')]
     else:
-        command = agent_command(root, model, effort, run)
+        command = repair_command(root, model, effort, run)
+        metadata = dict(json.loads(test_args), phase=category, model=model,
+                        effort=effort, speed='standard')
+        metadata.setdefault('session_id', uuid.uuid4().hex)
+        reported = False
+
+        def on_usage(usage):
+            nonlocal reported
+            reported = True
+            record_usage(run, metadata, usage)
+
+        status = detached_launcher.supervise(root, run, owner, kind, command, on_usage=on_usage)
+        if not reported:
+            record_usage(run, metadata, event='missing_usage')
+        record_usage(run, dict(metadata, exit_status=status), event='session_end')
+        return status
     return detached_launcher.supervise(root, run, owner, kind, command)
 
 
@@ -289,25 +353,31 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
                 print(status_line, flush=True)
             return handoff(run)
 
-    def repair(prompt):
-        classification = None
+    def repair(prompt, *, previous=None):
+        classification = ('verification_failed: ' + previous['summary']) if previous else None
+        repair_id = previous['repair_id'] if previous else uuid.uuid4().hex
+        attempt = previous['attempt'] + 1 if previous else 1
         blocker_summary = None
         while True:
             progress('', 'fixing errors')
             agent_model, agent_effort = (app_model, APP_EFFORT) if classification else (model, effort)
-            phase = 'app review' if classification else 'classify and repair'
+            phase = 'repair review' if classification else 'classify and repair'
             print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort})', flush=True)
             (run / 'prompt.txt').write_text(
                 repair_prompt(prompt, app_issue=classification, developer_answers=developer_answers,
                               blocker_summary=blocker_summary), encoding='utf-8')
             # An agent crash cannot reuse an earlier reply.
             (run / 'agent-result.json').write_text('')
-            status = execute('agent', agent_model=agent_model, agent_effort=agent_effort)
+            metadata = dict(repair_id=repair_id, attempt=attempt, round=round_number,
+                            session_id=uuid.uuid4().hex)
+            status = execute('agent', phase, metadata,
+                             agent_model=agent_model, agent_effort=agent_effort)
             if status:
                 raise ValueError(f'repair agent exited with status {status}; '
                                  'inspect the output before restarting')
             result = json.loads((run / 'agent-result.json').read_text())
             validate_result(result)
+            record_usage(run, dict(metadata, phase=phase, result=result['status']), event='result')
             if result['status'] == 'blocked':
                 previous = repair_progress(run, read_progress(run))[-1]
                 answer = wait_for_answer(
@@ -325,7 +395,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
                 continue
             if result['status'] != ('fixed' if classification else 'test_fixed'):
                 raise ValueError('unexpected repair result: ' + result['summary'])
-            return
+            return dict(repair_id=repair_id, attempt=attempt, summary=result['summary'])
 
     status = 1
     try:
@@ -333,7 +403,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
             from launcher_render import AgentRenderer  # Check before expensive tests.
         except ImportError as error:
             raise ValueError('agent rendering requires the setup-provided python3-rich package') from error
-        agent_command(root, model, effort)  # Fail before running expensive tests.
+        repair_command(root, model, effort)  # Fail before running expensive tests.
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
         requested = json.loads(requested)
@@ -344,7 +414,10 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
               ' until success', flush=True)
         print('fix-tests: categories: ' + ', '.join(categories), flush=True)
         run_loop(categories, test, repair, check_stop, selected=bool(requested),
-                 round_changed=round_changed)
+                 round_changed=round_changed,
+                 verified=lambda repair, passed: record_usage(
+                     run, dict(repair_id=repair['repair_id'], attempt=repair['attempt'],
+                               passed=passed), event='verification'))
         print('\nfix-tests: ' + ('all selected categories passed.' if requested else
               'all categories and the complete regression passed.'), flush=True)
         status = 0
@@ -376,10 +449,11 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
                     (run / 'cancel').touch(mode=0o600)
                 return run, False
     def command(run, owner):
-        default_model, app_model = available_models()
+        selected_model, selected_effort = initial_model(model, effort)
+        default_model, app_model = available_models(selected_model, selected_effort)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                '--worker', str(root), str(run), str(owner), model or default_model,
-                effort, app_model, json.dumps(categories)]
+                '--worker', str(root), str(run), str(owner), default_model,
+                selected_effort, app_model, json.dumps(categories)]
 
     return detached_launcher.select(root, 'fix-tests', command, stop=stop)
 
@@ -391,9 +465,9 @@ def follow(run, stream=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
-    parser.add_argument('--model', help='initial repair model (default: gpt-6-astra)')
+    parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
-                        default=DEFAULT_EFFORT, help='reasoning effort (default: low)')
+                        default=DEFAULT_EFFORT, help='reasoning effort (default: medium; Sol high/xhigh uses Astra low)')
     parser.add_argument('categories', nargs='*', metavar='CATEGORY',
                         help='leaf categories, host (or host-builds), or all; accepts "unit ui"; '
                              'omitting categories preserves the full regression loop')

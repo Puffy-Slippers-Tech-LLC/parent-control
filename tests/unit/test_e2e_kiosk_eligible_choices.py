@@ -167,7 +167,10 @@ def test_qualification_uses_shared_snapshot_and_guarded_envelope(tmp_path):
     context = SimpleNamespace(directory=tmp_path)
     journey = KioskEligibleChoicesQualification.journey(context, Mock())
     assert journey.plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    import json
+    from tests.support.paths import ROOT
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == 'onpc-v' + version
     assert KioskEligibleChoicesQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
     assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
 

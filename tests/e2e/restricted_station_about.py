@@ -1,10 +1,8 @@
 """ABOUT01 kiosk qualification; the complete information case remains separate."""
 from installed_journey import JourneyPlan
 from journey_blocks import fresh_desktop, parent_management, station_entry
-from kiosk_valid_duration import KioskValidDurationJourney
-from private_artifacts import require
+from request_composition import KioskRequestJourney
 from request_flow import prepared_request
-from time_explanation import check_balances
 
 
 SCREENS = {
@@ -36,24 +34,10 @@ PLAN = JourneyPlan(
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in list(SCREENS)[list(SCREENS).index('switch-user'):]}},
     advance_after={'time-explanation-read': 'step-2'},
+    request_checks={'form-returned': ('open-estimate', 'kiosk-about:changed-form', 'unchanged_form')},
 )
 
 
-class RestrictedStationAboutJourney(KioskValidDurationJourney):
+class RestrictedStationAboutJourney(KioskRequestJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan=plan, actions=actions)
-        self.before_about = None
-
-    def check_settings(self, stage, observed):
-        if stage == 'allowance-configured':
-            check_balances(self, observed, 1800)
-            self.balance = observed['ui']['time_explanation']
-        super().check_settings(stage, observed)
-        if stage == 'open-estimate':
-            require(self.before_about is None, 'kiosk-about:capture-replay')
-            self.before_about = dict(observed['ui']['valid_choice']['request'])
-        elif stage == 'form-returned':
-            require(self.before_about is not None and self.before_about ==
-                    observed.get('ui', {}).get('valid_choice', {}).get('request'),
-                    'kiosk-about:changed-form')
-            observed['comparison']['unchanged_form'] = True

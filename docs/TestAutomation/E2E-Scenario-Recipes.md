@@ -808,7 +808,7 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 ### E2E-042
 
 Implementation context: Case 192 uses `kiosk_about.PLAN`,
-`RestrictedStationAboutJourney` and `onpc_kiosk_about::run`; case 193 uses
+`request_composition.KioskRequestJourney` and `onpc_kiosk_about::run`; case 193 uses
 `command_help.PLAN`. Current executable status belongs in the inventory.
 
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.

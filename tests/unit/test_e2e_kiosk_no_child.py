@@ -118,7 +118,9 @@ def test_qualification_reuses_snapshot_and_fixed_fixture(tmp_path):
     context = SimpleNamespace(directory=tmp_path, lease=SimpleNamespace(state={'run': 'a' * 32}))
     journey = KioskNoChildQualification.journey(context, Mock())
     assert journey.plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    from tests.support.paths import ROOT
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == 'onpc-v' + version
     assert KioskNoChildQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
     assert PLAN.stage_actions == {'setup-detached': 'prepare-empty'}
     journey.transport = Mock()

@@ -2,7 +2,6 @@
 from dataclasses import replace
 from mate_prompt import PLAN as MATE_PLAN
 from request_flow import RequestFlowJourney
-from private_artifacts import require
 
 SCREENS = {}
 for stage, operation in MATE_PLAN.screen_tags.items():
@@ -18,6 +17,8 @@ for stage, operation in MATE_PLAN.screen_tags.items():
         SCREENS[stage] = ('ui:kiosk-mate-refusals-cancel' if stage == 'open-mate' else operation)
 
 PLAN = replace(MATE_PLAN, prefix='kiosk-rejection', worker_mode='kiosk_rejection',
+               request_checks={**MATE_PLAN.request_checks,
+                   'rejection-form': ('open-estimate', 'kiosk-rejection:changed-form', 'preserved_choices')},
                screen_tags=SCREENS, phases={
                    **{stage: phase for stage, phase in MATE_PLAN.phases.items() if stage in SCREENS
                       or stage in ('ready', 'setup-detached')},
@@ -27,10 +28,3 @@ PLAN = replace(MATE_PLAN, prefix='kiosk-rejection', worker_mode='kiosk_rejection
 class KioskRejectionJourney(RequestFlowJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, plan=PLAN)
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        if stage == 'rejection-form':
-            require(self.prepared is not None and self.prepared ==
-                    observed['ui']['valid_choice']['request'], 'kiosk-rejection:changed-form')
-            observed['comparison']['preserved_choices'] = True

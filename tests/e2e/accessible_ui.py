@@ -183,7 +183,7 @@ TEXT_VALUES = {
     'reply-clear': ('feedback-reply-email', ''),
     'reply-malformed': ('feedback-reply-email', 'invalid-reply'),
     **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
-       for value in (0, 1, 2, 3, 6, 15, 1439)},
+       for value in (0, 1, 2, 3, 6, 7, 15, 1439)},
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
@@ -313,7 +313,7 @@ def duration_projection(text):
 
 CUSTOM_ALLOWANCE_OPERATIONS = {
     'custom-' + str(value) + '-' + action: (value, action)
-    for value in (0, 1, 2, 3, 6, 15, 1439)
+    for value in (0, 1, 2, 3, 6, 7, 15, 1439)
     for action in ('open', 'saved', 'reopen')
 }
 CUSTOM_ALLOWANCE_OPERATIONS.update({
@@ -371,6 +371,17 @@ ACCESSIBILITY_TRACE_OPERATIONS = frozenset((
     'parent-custom-trace-disabled-refused',
 ))
 OPERATIONS |= ACCESSIBILITY_TRACE_OPERATIONS
+NAMED_CUSTOM_OPERATIONS = frozenset(
+    operation for operation, (_, action) in CUSTOM_ALLOWANCE_OPERATIONS.items()
+    if action in ('open', 'saved', 'reopen')) | frozenset(
+    operation for operation, (binding, _) in TEXT_OPERATIONS.items()
+    if binding in ('daily-6', 'daily-7')) | {
+        'parent-custom-events', 'parent-custom-trace-focus',
+        'parent-custom-trace-disabled-refused', 'named-custom-setup',
+        'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
+    }
+NAMED_CUSTOM_CHILDREN = {'child': CHILD, 'existing': EXISTING_CHILD}
+OPERATIONS |= NAMED_CUSTOM_OPERATIONS
 PARENT_SAVE_OPERATIONS = {
     'multiple-other-saved': {
         'child': 'existing-fixture-child', 'result': 'saved', 'limit_enabled': True,
@@ -2787,7 +2798,7 @@ class AccessibleUI:
             return result
         return None
 
-    def text_recipient(self, identity, *, focused=False):
+    def text_recipient(self, identity, *, focused=False, child=CHILD):
         """Fresh UI16 recipient proof; refuse before focus, keys or Text access."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         node = self.snapshot_owned_target(identity, showing=False, check_prompt=True)
@@ -2808,21 +2819,21 @@ class AccessibleUI:
         require(self.snapshot_owned_target(identity, root=root, showing=False) is not None,
                 'ui:text-entry')
         if identity == 'parent-custom-daily-limit':
-            self.allowance_entry(CHILD)
+            self.allowance_entry(child)
         if identity == 'kiosk-custom-duration':
             self.kiosk_valid_target(identity)
         require(not focused or self.has_state(node, self.api.StateType.FOCUSED),
                 'ui:text-focus')
         return node
 
-    def focus_text(self, identity):
-        node = self.text_recipient(identity)
+    def focus_text(self, identity, *, child=CHILD):
+        node = self.text_recipient(identity, child=child)
         if identity in ('parent-custom-daily-limit', 'kiosk-custom-duration'):
             surface = 'parent-window' if identity == 'parent-custom-daily-limit' else 'kiosk-request-window'
             self.activate_id(surface, action_name='focus.' + identity)
-            self.wait(lambda: self.has_state(self.text_recipient(identity),
+            self.wait(lambda: self.has_state(self.text_recipient(identity, child=child),
                                             self.api.StateType.FOCUSED), 'text-focus')
-            self.text_recipient(identity, focused=True)
+            self.text_recipient(identity, focused=True, child=child)
             return
         # Native GTK entries do not implement Component.GrabFocus. Their
         # composite uses Ctrl-Tab from this ID-resolved WebKit editor instead.
@@ -2838,11 +2849,11 @@ class AccessibleUI:
         self.input_uncertain = False
         self.text_recipient(identity, focused=True)
 
-    def read_synthetic_text(self, binding):
+    def read_synthetic_text(self, binding, *, child=CHILD):
         """Bounded exact public comparison; mismatching/private text never leaves."""
         require(binding in TEXT_VALUES, 'ui:text-binding')
         identity, expected = TEXT_VALUES[binding]
-        node = self.text_recipient(identity)
+        node = self.text_recipient(identity, child=child)
         text = node.get_text_iface()
         require(text is not None, 'ui:text-editor')
         count = self.api.Text.get_character_count(text)
@@ -2854,7 +2865,7 @@ class AccessibleUI:
         require(actual in allowed, 'ui:text-value')
         return {'binding': binding, 'exact': True, 'length': len(expected)}
 
-    def text_operation(self, operation):
+    def text_operation(self, operation, *, child=CHILD):
         if operation in ('text-wrong-entry', 'text-disabled'):
             identity = ('feedback-editor-input' if operation == 'text-wrong-entry'
                         else 'parent-daily-limit-selector')
@@ -2878,17 +2889,17 @@ class AccessibleUI:
                 return self.has_state(node, self.api.StateType.FOCUSED)
             self.wait(focused, 'text-focus')
         elif action == 'focus':
-            self.focus_text(identity)
+            self.focus_text(identity, child=child)
         elif action == 'selected':
-            self.text_recipient(identity, focused=True)
+            self.text_recipient(identity, focused=True, child=child)
         else:
             if identity == 'parent-custom-daily-limit':
                 # Debounce/Return/Tab may already have started an asynchronous
                 # save. Read only after its public controls are usable again.
-                self.parent_save_snapshot(CHILD, True)
+                self.parent_save_snapshot(child, True)
             def ready():
                 try:
-                    return self.read_synthetic_text(binding)
+                    return self.read_synthetic_text(binding, child=child)
                 except UiError as error:
                     if str(error) == 'ui:text-value':
                         return None
@@ -3674,10 +3685,10 @@ class AccessibleUI:
         digest = hashlib.sha256(json.dumps(references).encode()).hexdigest()
         return digest, target
 
-    def parent_save_trace_source(self, custom=False):
+    def parent_save_trace_source(self, custom=False, child=CHILD):
         """Pin the window and all four public transition endpoints."""
         import hashlib
-        self.settings(CHILD)
+        self.settings(child)
         root = self.parent()
         controls = {
             name: self.id_target(identity, root=root)
@@ -3691,7 +3702,7 @@ class AccessibleUI:
         references = [(node.bus, node.path) for node in (root, *controls.values())]
         require(len(set(references)) == len(controls) + 1 and len({bus for bus, _ in references}) == 1
                 and references[0][0].startswith(':'), 'ui:trace-owner')
-        return hashlib.sha256(json.dumps([CHILD_IDENTITIES[CHILD], references]).encode()).hexdigest(), controls
+        return hashlib.sha256(json.dumps([CHILD_IDENTITIES[child], references]).encode()).hexdigest(), controls
 
     def parent_checked_events(self, operation):
         """Input-free UI25/26 leaf; the controller owns the separate UI17 call."""
@@ -3753,15 +3764,15 @@ class AccessibleUI:
             require(self.parent_trace_source()[0] == source, 'ui:trace-source-changed')
         return {'token': token, 'source': source, 'terminal': True, 'samples': samples}
 
-    def parent_save_events(self, custom=False):
+    def parent_save_events(self, custom=False, child=CHILD):
         """Observe the public inhibited interval and recovery during one UI17 input."""
         token = self.trace_request
         require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token), 'ui:trace-token')
-        self.parent_save_snapshot(CHILD, custom)
-        source, controls = self.parent_save_trace_source(custom)
+        self.parent_save_snapshot(child, custom)
+        source, controls = self.parent_save_trace_source(custom, child)
         state = {'checked': custom, 'child': True, 'toggle': True, 'allowance': custom}
         if custom:
-            self.text_recipient('parent-custom-daily-limit', focused=True)
+            self.text_recipient('parent-custom-daily-limit', focused=True, child=child)
             state['editor'] = True
         events, failures = [], []
         started = time.monotonic()
@@ -3779,7 +3790,7 @@ class AccessibleUI:
 
         with self.api.state_events(endpoints, receive) as context:
             self.invalidate_observation()
-            require(self.parent_save_trace_source(custom)[0] == source, 'ui:trace-source-changed')
+            require(self.parent_save_trace_source(custom, child)[0] == source, 'ui:trace-source-changed')
             require(self.has_state(controls['toggle'], self.api.StateType.CHECKED) == custom and
                     self.has_state(controls['child'], self.api.StateType.SENSITIVE) and
                     self.has_state(controls['toggle'], self.api.StateType.SENSITIVE) and
@@ -3825,7 +3836,7 @@ class AccessibleUI:
                     # Only the declared final public draft can end observation.
                     self.invalidate_observation()
                     try:
-                        self.read_custom_trace_draft()
+                        self.read_custom_trace_draft(child)
                     except UiError as error:
                         require(str(error) == 'ui:text-value', 'ui:custom-trace-result')
                         recovered = False
@@ -3834,16 +3845,16 @@ class AccessibleUI:
                     'ui:save-trace-missing')
             require(time.monotonic() - started < 60, 'ui:trace-deadline')
             self.invalidate_observation()
-            self.parent_save_snapshot(CHILD, True)
-            require(self.parent_save_trace_source(custom)[0] == source, 'ui:trace-source-changed')
+            self.parent_save_snapshot(child, True)
+            require(self.parent_save_trace_source(custom, child)[0] == source, 'ui:trace-source-changed')
         return {'token': token, 'source': source, 'terminal': True, 'samples': events}
 
-    def read_custom_trace_draft(self):
+    def read_custom_trace_draft(self, child=CHILD):
         """Read the pinned custom editor while a queued save inhibits navigation."""
         root = self.parent()
         require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:trace-surface')
         picker = self.id_target('parent-child-selector', root=root)
-        require(self.child_id_control(CHILD, 'parent-child-selected-', root=picker,
+        require(self.child_id_control(child, 'parent-child-selected-', root=picker,
                                       showing=True) is not None, 'ui:wrong-child')
         allowance = self.id_target('parent-daily-limit-selector', root=root)
         editor = self.id_target('parent-custom-daily-limit', root=root, showing=False)
@@ -3859,11 +3870,11 @@ class AccessibleUI:
         require(count == 1 and self.api.Text.get_text(value, 0, count) == '6',
                 'ui:text-value')
 
-    def custom_trace_focus(self):
-        self.parent_save_snapshot(CHILD, True)
-        source, _controls = self.parent_save_trace_source(True)
+    def custom_trace_focus(self, child=CHILD):
+        self.parent_save_snapshot(child, True)
+        source, _controls = self.parent_save_trace_source(True, child)
         require(source == self.trace_request, 'ui:trace-source-changed')
-        self.text_recipient('parent-custom-daily-limit', focused=True)
+        self.text_recipient('parent-custom-daily-limit', focused=True, child=child)
         return {'focused': True}
 
     def parent_save_snapshot(self, child, expected_enabled):
@@ -4104,7 +4115,7 @@ class AccessibleUI:
         presets. ``reopen-current`` keeps the existing custom selection, as
         autosave intentionally preserves the ongoing editor and its focus.
         """
-        require(type(minutes) is int and minutes in (0, 1, 2, 3, 6, 15, 1439)
+        require(type(minutes) is int and minutes in (0, 1, 2, 3, 6, 7, 15, 1439)
                 and action in ('open', 'saved', 'reopen', 'reopen-current'),
                 'ui:allowance-binding')
         self.allowance_entry(child)
@@ -4113,7 +4124,7 @@ class AccessibleUI:
             if editor is not None and self.has_state(editor, self.api.StateType.VISIBLE):
                 # The previous reopen may already have returned this editor.
                 # Reuse that visible editor without an unnecessary picker action.
-                self.text_recipient('parent-custom-daily-limit')
+                self.text_recipient('parent-custom-daily-limit', child=child)
                 return {'minutes': minutes, 'action': action}
         if action in ('open', 'reopen', 'reopen-current'):
             self.parent_save_snapshot(child, True)
@@ -4127,7 +4138,7 @@ class AccessibleUI:
             self.activate_id('parent-daily-limit-custom')
             self.wait(lambda: self.absent_id('parent-daily-limit-choices',
                                             within='parent-window'), 'allowance-picker-close')
-            self.text_recipient('parent-custom-daily-limit')
+            self.text_recipient('parent-custom-daily-limit', child=child)
         if action in ('saved', 'reopen', 'reopen-current'):
             if action == 'saved' and minutes == 1:
                 # No navigation/input before this pause. Observe the save
@@ -4135,13 +4146,13 @@ class AccessibleUI:
                 started = time.monotonic()
                 self.wait(lambda: time.monotonic() - started >= 0.5, 'custom-pause')
             if action == 'saved' and minutes == 3:
-                require(not self.has_state(self.text_recipient('parent-custom-daily-limit'),
+                require(not self.has_state(self.text_recipient('parent-custom-daily-limit', child=child),
                                            self.api.StateType.FOCUSED), 'ui:custom-focus-leave')
             self.parent_save_snapshot(child, True)
-            self.read_synthetic_text('daily-' + str(minutes))
+            self.read_synthetic_text('daily-' + str(minutes), child=child)
         return {'minutes': minutes, 'action': action}
 
-    def custom_allowance_operation(self, operation):
+    def custom_allowance_operation(self, operation, *, child=CHILD):
         require(operation in CUSTOM_ALLOWANCE_OPERATIONS, 'ui:allowance-operation')
         minutes, action = CUSTOM_ALLOWANCE_OPERATIONS[operation]
         if action in ('wrong-child', 'disabled'):
@@ -4153,7 +4164,7 @@ class AccessibleUI:
                 require(str(error) == expected, 'ui:allowance-refusal')
                 return {'refusal': action}
             raise UiError('ui:allowance-refusal-missing')
-        return self.custom_allowance(CHILD, minutes, action=action)
+        return self.custom_allowance(child, minutes, action=action)
 
     def invalid_allowance(self, binding):
         """PARENT08 validation: exact rejected draft and public error description."""
@@ -6927,15 +6938,17 @@ class AccessibleUI:
         finally:
             self.handling_prompt = False
 
-    def run(self, operation, version):
+    def run(self, operation, version, *, child=None):
         """One registered operation, with generic read reuse between inputs."""
+        require(child is None or (child in NAMED_CUSTOM_CHILDREN
+                and operation in NAMED_CUSTOM_OPERATIONS), 'ui:custom-child-binding')
         if self.timing is not None:
             require(operation in OPERATIONS, 'ui:operation')
             self._timing = {'started': time.monotonic(), 'tree_reads': 0,
                             'nodes_read': 0, 'reader_ms': 0.0, 'input_ms': []}
         try:
             with self.observation():
-                return self._run(operation, version)
+                return self._run(operation, version, child=NAMED_CUSTOM_CHILDREN[child] if child else CHILD)
         finally:
             if self._timing is not None:
                 timing, self._timing = self._timing, None
@@ -6946,7 +6959,7 @@ class AccessibleUI:
                              'started_monotonic_ms': round(started * 1000, 3),
                              'elapsed_ms': round(elapsed, 3), **timing})
 
-    def _run(self, operation, version):
+    def _run(self, operation, version, *, child=CHILD):
         require(operation in OPERATIONS, 'ui:operation')
         self.prompt_enabled = operation not in GREETER_OPERATIONS and operation not in STATION_BRANCH_OPERATIONS
         self.prompt_session = ('station' if operation in KIOSK_SESSION_OPERATIONS
@@ -7122,20 +7135,34 @@ class AccessibleUI:
                 raise UiError('ui:window-refusal-missing')
         elif operation == 'parent-empty':
             self.parent_empty()
+        elif operation == 'named-custom-setup':
+            self.configure_time_controls(child, initial_enabled=False, minutes=0, final_enabled=True)
+        elif operation == 'named-custom-wrong-child-refused':
+            self.allowance_entry(child)
+            other = EXISTING_CHILD if child == CHILD else CHILD
+            for check, category in (
+                    (lambda: self.focus_text('parent-custom-daily-limit', child=other), 'ui:wrong-child'),
+                    (lambda: self.parent_save_trace_source(True, other), 'ui:selected-child')):
+                try:
+                    check()
+                except UiError as error:
+                    require(str(error) == category, 'ui:trace-refusal')
+                else:
+                    raise UiError('ui:trace-wrong-entry-accepted')
         elif operation in ACCESSIBILITY_TRACE_OPERATIONS:
             if operation == 'parent-custom-trace-focus':
-                result['trace'] = self.custom_trace_focus()
+                result['trace'] = self.custom_trace_focus(child)
             elif operation == 'parent-custom-trace-disabled-refused':
-                self.parent_save_snapshot(CHILD, False)
+                self.parent_save_snapshot(child, False)
                 try:
-                    self.custom_allowance(CHILD, 6, action='open')
+                    self.custom_allowance(child, 6, action='open')
                 except UiError as error:
                     require(str(error) == 'ui:unusable-target', 'ui:trace-refusal')
                     result['trace'] = {'refusal': 'disabled'}
                 else:
                     raise UiError('ui:trace-wrong-entry-accepted')
             else:
-                result['trace'] = (self.parent_save_events(operation == 'parent-custom-events')
+                result['trace'] = (self.parent_save_events(operation == 'parent-custom-events', child)
                     if operation in ('parent-save-events', 'parent-custom-events')
                     else self.parent_checked_events(operation))
         elif operation in TOGGLE_OPERATIONS:
@@ -7199,9 +7226,9 @@ class AccessibleUI:
             result['allowance_validation'] = self.invalid_allowance(
                 INVALID_ALLOWANCE_OPERATIONS[operation])
         elif operation in CUSTOM_ALLOWANCE_OPERATIONS:
-            result['custom_allowance'] = self.custom_allowance_operation(operation)
+            result['custom_allowance'] = self.custom_allowance_operation(operation, child=child)
         elif operation in TEXT_OPERATIONS or operation in ('text-wrong-entry', 'text-disabled'):
-            text = self.text_operation(operation)
+            text = self.text_operation(operation, child=child)
             if text is not None:
                 result['text'] = text
         elif operation in DUPLICATE_OPERATIONS:
@@ -7555,18 +7582,32 @@ def require_active_launch_session():
 def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):
     """Wait for the selected account's owned public session-bus socket."""
     runtime = runtime_root / str(account.pw_uid)
-    deadline = time.monotonic() + timeout
+    started = time.monotonic()
+    deadline = started + timeout
+
+    def checked(info, *, kind, label):
+        valid_type = (stat.S_ISDIR(info.st_mode) if kind == 'directory'
+                      else stat.S_ISSOCK(info.st_mode))
+        valid_owner = info.st_uid == account.pw_uid
+        if not (valid_type and valid_owner):
+            print(json.dumps({'event': 'ui-runtime-binding-refused',
+                              'object': label, 'type': stat.S_IFMT(info.st_mode),
+                              'owner': ('expected' if valid_owner else
+                                        'root' if info.st_uid == 0 else 'other'),
+                              'elapsed_ms': max(0, int((time.monotonic() - started) * 1000))},
+                             sort_keys=True), file=sys.stderr, flush=True)
+        require(valid_type and valid_owner,
+                'ui:runtime-owner' if kind == 'directory' else 'ui:session-bus')
+
     while True:
         pending = 'runtime'
         try:
             info = runtime.lstat()
-            require(stat.S_ISDIR(info.st_mode) and info.st_uid == account.pw_uid,
-                    'ui:runtime-owner')
+            checked(info, kind='directory', label='runtime')
             path = runtime / 'bus'
             pending = 'session-bus'
             info = path.lstat()
-            require(stat.S_ISSOCK(info.st_mode) and info.st_uid == account.pw_uid,
-                    'ui:session-bus')
+            checked(info, kind='socket', label='session-bus')
             return {'XDG_RUNTIME_DIR': str(runtime),
                     'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(path)}
         except FileNotFoundError:
@@ -7598,7 +7639,10 @@ def allowance_failure_diagnostic():
 
 
 def main():
-    require(len(sys.argv) in (3, 4, 5) and sys.argv[1] in OPERATIONS, 'ui:arguments')
+    require(len(sys.argv) in (3, 4, 5, 6) and sys.argv[1] in OPERATIONS, 'ui:arguments')
+    child = sys.argv[5] if len(sys.argv) == 6 else None
+    require(child is None or (child in NAMED_CUSTOM_CHILDREN and
+            sys.argv[1] in NAMED_CUSTOM_OPERATIONS), 'ui:custom-child-binding')
     boot = None
     if len(sys.argv) >= 4:
         # This is transport continuity, not a product/UI assertion. Check it
@@ -7658,7 +7702,7 @@ def main():
     ui.branch_owner = branch_owner
     trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or
                       sys.argv[1] == 'parent-toggle-enabled')
-    ui.trace_request = sys.argv[4] if len(sys.argv) == 5 and trace_argument else None
+    ui.trace_request = sys.argv[4] if len(sys.argv) >= 5 and trace_argument else None
     ui.trace_boot = boot
     ui.expected_trace_source = (ui.trace_request if sys.argv[1] == 'parent-toggle-enabled' else None)
     ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 and not trace_argument else None
@@ -7666,7 +7710,7 @@ def main():
         sys.argv[1] in MATE_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
     try:
-        result = ui.run(sys.argv[1], sys.argv[2])
+        result = ui.run(sys.argv[1], sys.argv[2], child=child)
     except UiError:
         if sys.argv[1] in ALLOWANCE_OPERATIONS:
             print(json.dumps(allowance_failure_diagnostic(), sort_keys=True),

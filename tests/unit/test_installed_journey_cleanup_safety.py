@@ -88,6 +88,7 @@ import feedback_rejection
 import feedback_length
 import window_switch
 import text_qualification
+import named_child_custom_saves
 import allowance_presets
 import allowance
 import time_explanation
@@ -192,7 +193,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
                                  trace_stable_state.PLAN, trace_transition.PLAN, compose_observation.PLAN,
-                                 accessibility_input_trace.PLAN,
+                                 accessibility_input_trace.PLAN, named_child_custom_saves.PLAN,
                                  format_qualification.PLAN, feedback_block_semantics.PLAN,
                                  feedback_formats_qualification.PLAN,
                                  feedback_formats_qualification.LINK_PLAN,
@@ -215,7 +216,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'terminal-provider', 'license-viewer-provider', 'repeated-operations',
                               'challenges', 'app-rows', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
-                              'accessibility-trace',
+                              'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
                               'feedback-rejection', 'feedback-length', 'window-switch',
                               'text', 'allowance-presets',
@@ -303,8 +304,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     operation_counts = {}
     boot_bindings = []
 
-    def observe_ui(operation):
+    def observe_ui(operation, *, child=None):
         import accessible_ui
+        if child is not None:
+            assert plan.child_bindings[state['stage']] == child
         assert ui_observer.boot_guard == ('b' * 64 if boot_bindings or boot.read.call_count else '')
         boot_bindings.append(ui_observer.boot_guard)
         operation_counts[operation] = operation_counts.get(operation, 0) + 1
@@ -323,6 +326,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['settings']['allowance'] = ['1 hour']
             if plan is fresh_thirty_allowance.PLAN and operation_counts[operation] == 2:
                 result['settings'].update(limit_enabled=True, allowance=['30 minutes'])
+            if plan is named_child_custom_saves.PLAN and state['stage'] in plan.settings_checks:
+                expected = plan.settings_checks[state['stage']]
+                result['settings'].update(child=expected.child, limit_enabled=expected.limit_enabled,
+                                          allowance=list(expected.allowance))
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS):
@@ -361,11 +368,22 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             else:
                 result['samples'] = [{'elapsed_ms': 1, 'state': state_value}]
         return result
+    def accessibility_input(operation, terminal, mode='checked', *, worker_input=None, child=None):
+        if worker_input is None:
+            return observe_ui('accessibility-input-trace')
+        token = 'a' * 32
+        worker_input(token, 'c' * 64)
+        proof = json.loads((directory / (state['stage'] + '.input.json')).read_bytes())
+        assert proof['child'] == child == plan.child_bindings[state['stage']]
+        (directory / (state['stage'] + '.input-done.json')).write_text(json.dumps(
+            {'stage': state['stage'], 'token': token}))
+        return {**observe_ui('parent-custom-save-trace'), 'token': token}
+
     ui_observer = SimpleNamespace(
         boot_proof='b' * 64, observe=observe_ui,
         start_trace=lambda binding=None: {**observe_ui('feedback-trace-start'), 'token': 'a' * 32, 'ready': True},
         poll_trace=Mock(),
-        observe_accessibility_input=lambda operation, terminal: observe_ui('accessibility-input-trace'),
+        observe_accessibility_input=accessibility_input,
         finish_trace=lambda token, terminal=None: {**observe_ui('feedback-trace-finish'), 'token': token},
         observe_challenge=lambda operation, binding: observe_ui(operation))
     monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=ui_observer))

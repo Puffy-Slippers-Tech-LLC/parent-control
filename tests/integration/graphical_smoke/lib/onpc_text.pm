@@ -27,7 +27,7 @@ my %values = (
     'reply-first' => 'first@example.invalid',
     'reply-second' => 'second@example.invalid', 'reply-clear' => '',
     'reply-malformed' => 'invalid-reply',
-    'daily-1' => '1', 'daily-2' => '2', 'daily-3' => '3',
+    'daily-1' => '1', 'daily-2' => '2', 'daily-3' => '3', 'daily-7' => '7',
     'daily-0' => '0', 'daily-15' => '15', 'daily-1439' => '1439',
     'daily-invalid-empty' => '', 'daily-invalid-letters' => 'abc',
     'daily-invalid-negative' => '-1', 'daily-invalid-fraction' => '0.5',
@@ -87,13 +87,16 @@ sub replace_text {
 # fall back to full typing after an uncertain or mismatching clipboard result.
 sub observed_custom_edits {
     onpc_progress::operation('Typing two declared custom allowances while observing saves');
-    my ($journey, $stage, $first, $last) = @_;
-    die 'text:rapid-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
-        && $stage =~ /\A[a-z][a-z0-9-]*\z/ && $first eq '5' && $last eq '6';
+    my ($journey, $stage, $first, $last, $child) = @_;
+    $child //= 'child';
+    die 'text:rapid-binding' unless (@_ == 4 || @_ == 5) && ref($journey) eq 'onpc_journey'
+        && $stage =~ /\A[a-z][a-z0-9-]*\z/ && $first eq '5' && $last eq '6'
+        && ($child eq 'child' || $child eq 'existing');
     my $used = 0;
     my $result = $journey->seen($stage, sub {
         my ($proof) = @_;
         die 'text:rapid-proof' unless !$used && $proof->{binding} eq 'custom-rapid'
+            && defined($proof->{child}) && $proof->{child} eq $child
             && ref($proof->{values}) eq 'ARRAY' && @{$proof->{values}} == 2
             && $proof->{values}[0] == $first && $proof->{values}[1] == $last;
         $used = 1;

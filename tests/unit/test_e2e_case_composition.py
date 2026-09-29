@@ -27,13 +27,13 @@ APIS = {
     'account_fixture': {'DynamicAccountFixture', 'EmptyAccountFixture', 'station_fixture_actions'},
     'installed_journey': {'JourneyPlan', 'InstalledJourney', 'matched_screens', 'record_installed_journey'},
     'journey_blocks': {'fresh_desktop', 'parent_management', 'parent_search', 'observed_text',
-                       'product_free_desktop', 'reboot_desktop', 'station_entry'},
+                       'product_free_desktop', 'reboot_desktop', 'station_entry',
+                       'custom_child_selection', 'custom_save_entry'},
     'journey_checks': {'allowed_app_rows', 'installed_accounts'},
     'request_flow': {'prepared_request'},
     'kiosk_approved_flow': {'approved_request', 'obtain_time'},
-    'approval_flow': {'rejected_request', 'ApprovalFlowJourney'},
-    'kiosk_valid_duration': {'KioskValidDurationJourney'},
-    'restricted_station_about': {'RestrictedStationAboutJourney'},
+    'approval_flow': {'rejected_request'},
+    'request_composition': {'KioskRequestJourney'},
     'package_install': {'check_install_result'},
     'package_journey': {'record_package_journey'},
     'ui_observations': {'SettingsObservation'},
@@ -76,12 +76,12 @@ WORKER_APIS = {
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy'},
-    'onpc_allowance_boundaries': {'exercise', 'reload_child'},
-    'onpc_text': {'replace_text', 'append_scalar'},
+    'onpc_allowance_boundaries': {'exercise', 'reload_child', 'select_child'},
+    'onpc_text': {'replace_text', 'append_scalar', 'observed_custom_edits'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
                              'input_hidden', 'input_complex', 'stable_trace', 'transition_trace',
-                             'observed_toggle'},
+                             'observed_toggle', 'custom_save_entry'},
     'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
                             'supply_files', 'boundary_batch', 'attachment_limits',
                             'chooser_preservation', 'attachment_removal'},
@@ -169,6 +169,9 @@ def test_attachment_qualifications_keep_mechanics_in_shared_libraries(module):
     'from helper import Journey\nrecord_installed_journey(r, c, PLAN, journey_type=Journey)\n',
     'from helper import action\nACTIONS = {"fixture": action}\n',
     'from .installed_journey import record_installed_journey\n',
+    'from kiosk_valid_duration import KioskValidDurationJourney\n',
+    'from restricted_station_about import RestrictedStationAboutJourney\n',
+    'from approval_flow import ApprovalFlowJourney\n',
 ])
 def test_composition_guard_catches_new_cases_aliases_and_hidden_mechanics(source):
     assert composition_errors(source, {'future_case'})
@@ -222,6 +225,22 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
     # Logging is harmless; raw input, process/file I/O and provider selection
     # belong to shared leaves, including the runner-smoke composition.
     assert not worker_errors(source)
+
+
+@pytest.mark.parametrize('scenario,variant', [
+    (s, v) for s, v in READY if v['coverage_id'] in (47, 48, 50, 51, 52, 192)
+], ids=['47', '48', '50', '51', '52', '192'])
+def test_ready_requests_use_shared_comparisons_with_declared_endpoints(monkeypatch, scenario, variant):
+    from request_composition import KioskRequestJourney
+    _, plan, options = capture_composition(monkeypatch, variant)
+    assert options['journey_type'] is KioskRequestJourney
+    expected = ({'flow-preserved': ('flow-before', 'approval-flow:changed-form', 'preserved_choices')}
+                if variant['coverage_id'] in (51, 52) else
+                {'form-returned': ('open-estimate', 'kiosk-about:changed-form', 'unchanged_form')}
+                if variant['coverage_id'] == 192 else {})
+    assert plan.request_checks == expected
+    assert plan.balance_checks == ({'allowance-configured': 1800}
+                                   if variant['coverage_id'] == 192 else {})
 
 
 def worker_errors(source):

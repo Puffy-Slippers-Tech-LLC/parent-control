@@ -102,7 +102,8 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
     assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     context = SimpleNamespace(directory=tmp_path)
     KioskEntryQualification.journey(context, lambda *_: None)
-    assert context.installed_snapshot == 'onpc-v1.1'
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == 'onpc-v' + version
     assert not hasattr(context, 'install_current_package')
 
     qualification = KioskEntryQualification.__new__(KioskEntryQualification)
@@ -340,7 +341,8 @@ def test_station_diagnostic_survives_owned_transport_timeout(monkeypatch, tmp_pa
     assert capsys.readouterr().err.encode() == raw
     assert (tmp_path / 'command-0001.txt').read_bytes() == raw
     assert commands.progress is previous
-    previous.assert_not_called()
+    # Command-local parsing leaves the ordinary progress subscriber intact.
+    previous.assert_called_once_with(raw)
     signal.assert_called_once()
     child.wait.assert_called_once()
 

@@ -48,6 +48,9 @@ class JourneyPlan:
     trace_terminals: dict = field(default_factory=dict)
     accessibility_inputs: dict = field(default_factory=dict)
     keyboard_inputs: dict = field(default_factory=dict)
+    child_bindings: dict = field(default_factory=dict)
+    request_checks: dict = field(default_factory=dict)
+    balance_checks: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -68,6 +71,20 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
+        require(all(stage in stages and type(seconds) is int and seconds >= 0
+                    for stage, seconds in self.balance_checks.items()),
+                self.prefix + ':balance-plan')
+        require(all(stage in stages and type(binding) is tuple and len(binding) == 3
+                    and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
+                    and all(type(value) is str and value for value in binding)
+                    for stage, binding in self.request_checks.items()),
+                self.prefix + ':request-plan')
+        from accessible_ui import NAMED_CUSTOM_CHILDREN, NAMED_CUSTOM_OPERATIONS
+        require(all(stage in self.screen_tags and child in NAMED_CUSTOM_CHILDREN and
+                    (self.screen_tags[stage][3:] in NAMED_CUSTOM_OPERATIONS or
+                     self.screen_tags[stage] == 'ui:parent-custom-save-trace')
+                    for stage, child in self.child_bindings.items()),
+                self.prefix + ':custom-child-plan')
         require(set(self.accessibility_inputs) == {stage for stage, tag in self.screen_tags.items()
                     if tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace',
                                'ui:parent-custom-save-trace')} and
@@ -302,6 +319,7 @@ class InstalledJourney:
         require(not os.path.lexists(destination), 'ui:trace-input-replay')
         with pending.open('x') as stream:
             json.dump({'stage': stage, 'token': token, 'source': source,
+                       'child': self.plan.child_bindings.get(stage, 'child'),
                        'binding': 'custom-rapid', 'values': list(self.plan.keyboard_inputs[stage])}, stream)
             stream.flush()
             os.fsync(stream.fileno())
@@ -431,7 +449,8 @@ class InstalledJourney:
                         guard()
                         self.publish_trace_input(stage, token, source)
                     observed['ui'] = self.ui.observe_accessibility_input(
-                        *plan.accessibility_inputs[stage], worker_input=worker_input)
+                        *plan.accessibility_inputs[stage], worker_input=worker_input,
+                        child=plan.child_bindings.get(stage))
                     self.verify_trace_input(stage, observed['ui']['token'])
                 elif tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace'):
                     observed['ui'] = self.ui.observe_accessibility_input(
@@ -448,7 +467,9 @@ class InstalledJourney:
                     self.trace_token = None
                 else:
                     observed['ui'] = (self.ui.observe_challenge(tag[3:], challenge)
-                                      if challenge else self.ui.observe(tag[3:]))
+                                      if challenge else self.ui.observe(tag[3:], **(
+                                          {'child': plan.child_bindings[stage]}
+                                          if stage in plan.child_bindings else {})))
                 current = self.ui.boot_proof
                 if challenge:
                     observed['challenge'] = challenge

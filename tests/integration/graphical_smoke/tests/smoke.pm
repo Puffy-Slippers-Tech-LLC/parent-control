@@ -83,7 +83,8 @@ sub exchange {
             open(my $proof, '<', "$stage.input.json") or die 'smoke:input-file';
             my $value = do { local $/; decode_json(<$proof>) };
             close($proof) or die 'smoke:input-close';
-            die 'smoke:input-proof' unless ref($value) eq 'HASH' && keys(%$value) == 5
+            die 'smoke:input-proof' unless ref($value) eq 'HASH' && keys(%$value) == 6
+                && ($value->{child} eq 'child' || $value->{child} eq 'existing')
                 && $value->{stage} eq $stage && $value->{token} =~ /\A[0-9a-f]{32}\z/
                 && $value->{source} =~ /\A[0-9a-f]{64}\z/;
             $consumed = 1; # An uncertain callback can never be replayed.
@@ -531,6 +532,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_format::run(\&exchange);
+        return;
+    }
+    if ($ready->{named_child_custom_saves}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_states::run_named_child_custom_saves(\&exchange);
         return;
     }
     if ($ready->{custom_save_trace}) {

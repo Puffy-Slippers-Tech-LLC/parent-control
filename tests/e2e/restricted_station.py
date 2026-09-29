@@ -1,9 +1,9 @@
 """Restricted station: approval, denial or cancellation and normal exit."""
-from approval_flow import ApprovalFlowJourney, rejected_request
+from approval_flow import rejected_request
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, station_entry
 from kiosk_approved_flow import approved_request
-from kiosk_valid_duration import KioskValidDurationJourney
+from request_composition import KioskRequestJourney
 from request_flow import prepared_request
 
 ENTRY = {
@@ -37,7 +37,7 @@ PLAN = JourneyPlan(
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
-                             journey_type=KioskValidDurationJourney)
+                             journey_type=KioskRequestJourney)
 
 
 DENIED_REQUEST = {
@@ -61,12 +61,13 @@ DENIED_PLAN = JourneyPlan(
     advance_after={'installed-greeter': 'step-1',
                    'restriction-terminal-read': 'step-2',
                    'after-restriction-terminal-read': 'step-3'},
+    request_checks={'flow-preserved': ('flow-before', 'approval-flow:changed-form', 'preserved_choices')},
 )
 
 
 def execute_denied(recorder, context):
     record_installed_journey(recorder, context, DENIED_PLAN, timeout=1800,
-                             journey_type=ApprovalFlowJourney)
+                             journey_type=KioskRequestJourney)
 
 
 CANCELLED_REQUEST = {
@@ -88,12 +89,13 @@ CANCELLED_PLAN = JourneyPlan(
     advance_after={'installed-greeter': 'step-1',
                    'restriction-terminal-read': 'step-2',
                    'after-restriction-terminal-read': 'step-3'},
+    request_checks={'flow-preserved': ('flow-before', 'approval-flow:changed-form', 'preserved_choices')},
 )
 
 
 def execute_cancelled(recorder, context):
     record_installed_journey(recorder, context, CANCELLED_PLAN, timeout=1800,
-                             journey_type=ApprovalFlowJourney)
+                             journey_type=KioskRequestJourney)
 
 
 E2E_CASES = {'approved': execute, 'denied': execute_denied, 'cancelled': execute_cancelled}

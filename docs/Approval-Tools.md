@@ -66,6 +66,16 @@ Installed helpers resolve the invoking repository root at execution time, rather
 than retaining the installation checkout. Launchers select their repository root
 and preserve it through `pkexec --keep-cwd`. Direct artifact and screenshot helper
 invocations must likewise use `--keep-cwd` from the intended repository root.
+The maintained Codex prefixes include that option before the exact helper path;
+the allow selects host execution without granting general `pkexec` access.
+If a reader reports `pkexec must be setuid root`, first compare its complete
+argument prefix with the loaded rule. A command missing its allow can run inside
+the sandbox even when other approved commands run on the host; inspecting
+`/proc/self/status` with a separately allowed read does not inspect the failed
+command's context. Do not infer a broken host installation from that error alone.
+After a maintained rule correction, run `./setup.sh --codex-rules-only` and start
+a fresh Codex process. Each launcher agent is a fresh process, so its next session
+loads refreshed rules; an already-running agent keeps its original policy.
 The embedded resolver checks repository markers, ownership, permissions and
 symlinks before loading checkout code. It does not replace Polkit authorization.
 First install uses `./setup.sh --bootstrap-tools` and can require administrator

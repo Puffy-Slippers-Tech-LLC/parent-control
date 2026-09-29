@@ -7,6 +7,33 @@ phase transitions. Each call returns a fresh mapping owned by its caller.
 from private_artifacts import require
 
 
+def custom_child_selection(prefix, child):
+    """Three public selector checkpoints, reusable with distinct stage IDs."""
+    require(child in ('child', 'existing'), 'journey:custom-child')
+    operations = (('child-picker-opened', 'child-choice-highlighted', 'parent-selected')
+                  if child == 'child' else ('existing-child-picker-opened',
+                      'existing-child-choice-highlighted', 'existing-returned'))
+    return {f'{prefix}-{suffix}': 'ui:' + operation
+            for suffix, operation in zip(('open', 'focus', 'selected'), operations)}
+
+
+def custom_save_entry(prefix, child):
+    """Enabled rapid-save entry, then independent reselection and editor read."""
+    require(child in ('child', 'existing'), 'journey:custom-child')
+    other = 'existing' if child == 'child' else 'child'
+    return {
+        f'{prefix}-open': 'ui:custom-6-open',
+        f'{prefix}-focus': 'ui:text-daily-6-focus',
+        f'{prefix}-wrong-child': 'ui:named-custom-wrong-child-refused',
+        f'{prefix}-wrong-surface': 'ui:parent-trace-wrong-surface-refused',
+        f'{prefix}-rapid': 'ui:parent-custom-save-trace',
+        f'{prefix}-saved': 'ui:custom-6-saved',
+        **custom_child_selection(prefix + '-away', other),
+        **custom_child_selection(prefix + '-back', child),
+        f'{prefix}-reopened': 'ui:custom-6-reopen',
+    }
+
+
 def observed_text(entry, binding):
     """UI22 declaration: UI25, one explicitly bound UI16 input, UI26."""
     import re

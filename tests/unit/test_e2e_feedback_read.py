@@ -60,11 +60,14 @@ from ui_observations import FeedbackStateObservation
 # Saving projections add only bounded in-memory public event sequences.
 # Custom saving retains private pytest paths, mocked transports and waited Perl
 # children; no new live bus, display, cache or scheduler resource is introduced.
+# Named-child qualification retains those private paths, mocks and waited Perl
+# children; unit scheduling and cleanup ownership are unchanged.
 
 
 @pytest.mark.parametrize('fault', ['', 'disabled-entry', 'editor-disabled', 'picker-disabled',
                                   'no-inhibition', 'no-recovery', 'input', 'source'])
-def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault):
+@pytest.mark.parametrize('child', [None, 'existing'])
+def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault, child):
     from ui_observations import UiObservations
     reader = UiObservations(SimpleNamespace(commands=SimpleNamespace(progress=None)))
     reader.boot_guard = 'b' * 64
@@ -81,11 +84,14 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
 
     def call(argv, *, input, timeout, on_output):
         operation = argv[3]
+        if child:
+            assert argv[-1] == child
+        argument = argv[-2] if child else argv[-1]
         operations.append(operation)
         reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
                  'boot_sha256': 'b' * 64}
         if operation == 'parent-custom-events':
-            token = argv[-1]
+            token = argument
             on_output((json.dumps({'event': 'accessibility-trace-ready', 'token': token,
                 'source': 'c' * 64, 'boot_sha256': 'b' * 64,
                 'checked': fault != 'disabled-entry'}) + '\n').encode())
@@ -93,7 +99,7 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
                               'terminal': True, 'samples': samples}
         else:
             assert operation == 'parent-custom-trace-focus'
-            assert retained[0][0] == 0 and argv[-1] == 'c' * 64
+            assert retained[0][0] == 0 and argument == 'c' * 64
             reply['trace'] = {'focused': True}
         on_output((json.dumps(reply) + '\n').encode())
         return b''
@@ -105,12 +111,12 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
     reader.transport.call = call
     if fault:
         with pytest.raises((EvidenceError, OSError)):
-            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release, child=child)
         assert reader.trace_failed
         with pytest.raises(EvidenceError, match='previous-failure'):
-            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release, child=child)
     else:
-        result = reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+        result = reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release, child=child)
         assert result['samples'] == samples and len(retained) == len(samples) + 1
     assert len(inputs) == (0 if fault == 'disabled-entry' else 1)
 
@@ -138,7 +144,7 @@ no warnings 'redefine';
 my $ok = eval { onpc_feedback_states::run_custom_save_trace(sub {
     my ($stage, $shot, $input) = @_;
     push @stages, $stage; die 'refused' if $stage eq $fault;
-    $input->({binding => 'custom-rapid', values => [5, 6]}) if defined($input);
+    $input->({binding => 'custom-rapid', child => 'child', values => [5, 6]}) if defined($input);
     return {observed => $stage};
 }); 1; };
 print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
@@ -173,14 +179,102 @@ def test_custom_trace_renamed_stage_and_immutable_input_gate(tmp_path):
         journey.verify_trace_input('renamed-input', 'c' * 32)
 
 
-def test_custom_trace_selector_and_mode_refusal(monkeypatch):
+@pytest.mark.parametrize('named', [False, True])
+def test_custom_trace_selector_and_mode_refusal(monkeypatch, named):
     import check_e2e_custom_save_trace as selector
+    if named:
+        import check_e2e_named_child_custom_saves as selector
     run = Mock(return_value=0)
     monkeypatch.setattr(selector, 'smoke', run)
     assert selector.main() == 0
     assert run.call_args.kwargs['custom_save_trace'] is True
+    assert run.call_args.kwargs.get('named_child_custom_saves', False) is named
     with pytest.raises(CommandError, match='trace-prerequisites'):
         smoke.main(custom_save_trace=True, parent_save_trace=True)
+
+
+def test_named_custom_worker_sequence_and_every_refusal():
+    from named_child_custom_saves import PLAN
+    from tests.support.perl import run_perl
+    expected = list(PLAN.screen_tags)
+    expected = expected[expected.index('parent-selected'):] + ['finish']
+    for fault in ['', 'wrong-child-proof', *expected[:-1]]:
+        result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@stages, @keys); our ($fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::keys, $_[0]; }
+sub type_string { push @main::keys, $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub {
+    die 'wrong child' unless $_[4] eq 'existing';
+    return $_[0]->seen('parent-selected');
+};
+*onpc_journey::finish = sub { push @stages, 'finish'; };
+my $ok = eval { onpc_feedback_states::run_named_child_custom_saves(sub {
+    my ($stage, $shot, $input) = @_;
+    push @stages, $stage; die 'refused' if $stage eq $fault;
+    $input->({binding => 'custom-rapid', values => [5, 6],
+              child => $fault eq 'wrong-child-proof' ? 'child' : 'existing'}) if defined($input);
+    return {observed => $stage};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
+''', fault).stdout)
+        boundary = 'first-rapid' if fault == 'wrong-child-proof' else fault
+        assert result['stages'] == (expected[:expected.index(boundary) + 1] if fault else expected)
+        assert bool(result['ok']) is (not fault)
+        if fault == 'wrong-child-proof':
+            assert not result['keys']
+        if not fault:
+            assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2 + [
+                'ret', 'ctrl-a', '7', 'ret', 'ret']
+    assert PLAN.child_bindings['first-rapid'] == 'existing'
+    assert PLAN.child_bindings['riley-text-read'] == 'child'
+    assert PLAN.settings_checks['final-away-selected'].child == 'existing-fixture-child'
+
+
+def test_named_custom_fragment_with_independent_stage_names():
+    from journey_blocks import custom_save_entry
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi; sub record_info { } sub send_key { } sub type_string { }
+package main;
+require onpc_feedback_states;
+my @stages;
+my $journey = onpc_journey->new(prefix => 'consumer', review => 0, exchange => sub {
+    my ($stage, $shot, $input) = @_; push @stages, $stage;
+    $input->({binding => 'custom-rapid', child => 'existing', values => [5, 6]}) if $input;
+    return {observed => $stage};
+});
+onpc_feedback_states::custom_save_entry($journey, 'renamed', 'existing', 5, 6);
+print encode_json(\@stages);
+''').stdout)
+    assert result == list(custom_save_entry('renamed', 'existing'))
+
+
+def test_named_custom_source_digest_includes_child_and_rejects_unbound_plan():
+    from dataclasses import replace
+    from named_child_custom_saves import PLAN
+    nodes = {identity: SimpleNamespace(bus=':1.7', path='/' + str(index))
+             for index, identity in enumerate(('root', 'parent-screen-limit-toggle',
+                 'parent-child-selector', 'parent-daily-limit-selector', 'parent-custom-daily-limit'))}
+    ui = SimpleNamespace(settings=Mock(), parent=lambda: nodes['root'],
+                         id_target=lambda identity, **kwargs: nodes[identity])
+    riley = accessible_ui.AccessibleUI.parent_save_trace_source(ui, True, accessible_ui.CHILD)[0]
+    jordan = accessible_ui.AccessibleUI.parent_save_trace_source(ui, True, accessible_ui.EXISTING_CHILD)[0]
+    assert riley != jordan
+    ui.settings.assert_called_with(accessible_ui.EXISTING_CHILD)
+    with pytest.raises(EvidenceError, match='custom-child-plan'):
+        replace(PLAN, child_bindings={'first-rapid': 'unregistered'})
+    with pytest.raises(EvidenceError, match='custom-child-plan'):
+        replace(PLAN, child_bindings={'installed-greeter': 'existing'})
 
 
 @pytest.mark.parametrize('fault', ['', 'editor', 'allowance'])
@@ -212,7 +306,7 @@ def test_custom_event_collector_preserves_live_editor_and_source(monkeypatch, ca
         result = accessible_ui.AccessibleUI.parent_save_events(ui, True)
         assert len(result['samples']) == 4 and result['terminal'] is True
         ui.parent_save_snapshot.assert_called_with(accessible_ui.CHILD, True)
-        ui.parent_save_trace_source.assert_called_with(True)
+        ui.parent_save_trace_source.assert_called_with(True, accessible_ui.CHILD)
 
 
 @pytest.mark.parametrize('disabled', [None, 'allowance', 'editor'])
@@ -252,7 +346,7 @@ def test_actual_exchange_releases_only_one_validated_keyboard_batch(tmp_path, fa
     exchange = source[source.index('sub exchange {'):source.index('\nsub capture {')]
     proof = {'stage': 'other' if fault == 'wrong-stage' else 'renamed',
              'token': 'invalid' if fault == 'wrong-token' else 'a' * 32,
-             'source': 'b' * 64, 'binding': 'custom-rapid', 'values': [5, 6]}
+             'source': 'b' * 64, 'binding': 'custom-rapid', 'values': [5, 6], 'child': 'child'}
     (tmp_path / 'renamed.input.json').write_text(json.dumps(proof))
     result = json.loads(run_perl('use strict; use warnings; use JSON::PP; use Time::HiRes qw(time sleep);\n' + exchange + r'''
 my ($directory, $fault) = @ARGV; chdir($directory) or die 'chdir';

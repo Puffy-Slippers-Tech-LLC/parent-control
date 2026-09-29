@@ -128,7 +128,9 @@ def test_qualification_reuses_snapshot_observed_fixture_and_outer_cleanup(tmp_pa
     context = SimpleNamespace(directory=tmp_path, lease=SimpleNamespace(state={'run': 'a' * 32}))
     journey = KioskNoApproverQualification.journey(context, Mock())
     assert journey.plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    from tests.support.paths import ROOT
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == 'onpc-v' + version
     assert KioskNoApproverQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
     assert KioskNoApproverQualification.finalize is KioskEntryQualification.finalize
     assert PLAN.stage_actions == {'baseline-approvers': 'prepare-no-approver'}

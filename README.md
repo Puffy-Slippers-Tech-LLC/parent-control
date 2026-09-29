@@ -1,3 +1,5 @@
+**This README is only for developers. Product information is on the app homepage:**
+
 [![Oh No! Parent Control logo](data/app_logo.png)](https://tech.puffyslippers.com/oh-no-parent-control/)
 
 [Oh No! Parent Control — app homepage](https://tech.puffyslippers.com/oh-no-parent-control/)

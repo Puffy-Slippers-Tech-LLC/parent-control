@@ -453,7 +453,7 @@ read-only for VM activity and may attach or detach at any time without controlli
 the VM. In the left runner terminal, selection and Copy are available; Ctrl+C
 requests the displayed runner's cooperative cancellation and cleanup.
 
-`tools/test-vm` has no domain, URI, disk, XML, snapshot-name or arbitrary-command
+`tools/test-vm` has no domain selector, URI, disk, XML, snapshot-name or arbitrary-command
 argument. It uses `qemu:///system`, the name in
 [config/test-vm.json](../config/test-vm.json), and the UUID pinned
 from that name's root-private finalized baseline provenance during setup. A missing baseline
@@ -463,6 +463,7 @@ replacement by name alone.
 | Command | Effect |
 | --- | --- |
 | `tools/test-vm status` / `xml` | Inspect only the pinned guest using a read-only connection |
+| `tools/test-vm rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
 | `tools/test-vm start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, remove host shares, record and boot an isolated maintenance attempt |
 | `tools/test-vm reboot` | Request an ACPI reboot of that same recorded running instance; preserve guest state |
 | `tools/test-vm send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |
@@ -477,6 +478,15 @@ run/domain instance, original configuration, baseline digest and snapshot digest
 Other active controllers and replaced identities are refused. No new domain,
 snapshot, clone, overlay, arbitrary XML, host-device attachment or general
 guest/host shell is exposed. No reset occurs between reboot/input steps.
+Rename accepts only a destination label, preserving the UUID and disks. It
+records original metadata before mutation and rolls back checked failures;
+interrupted records remain a refusal gate. After renaming, update `name` in the
+shared config, refresh test tools, and prepare a matching baseline through the
+existing auto-mode route before tests. Domain display names preserve case;
+guest hostname consumers derive the lowercase form from that same config.
+Historical snapshot domain names remain intact. Only exact saved metadata
+attested in the private rename record can use a historical name; libvirt keeps
+the current domain name when restoring those snapshots.
 An already-running manually started VM is not adopted. Stop the maintenance
 attempt before starting installed/E2E tests. A helper failure preserves its
 record and evidence for diagnosis; unsupported interrupted phases require a

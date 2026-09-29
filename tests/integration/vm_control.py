@@ -2,7 +2,7 @@
 """Maintenance of the pinned test VM, serialized with installed/graphical tests.
 
 Start creates a recorded isolated attempt. Stop restores its outer baseline.
-Reboot/input never restore state within that attempt. No domain/XML/path input.
+Reboot/input never restore state within that attempt. No domain selector/XML/disk input.
 """
 
 import argparse
@@ -16,9 +16,142 @@ import re
 import sys
 import tempfile
 import threading
+import uuid
+import xml.etree.ElementTree as ET
 
 import system_runner as runner
 from watch_activity import operation
+
+
+def renamed_xml(xml, old_name, new_name, expected_uuid, *, snapshot=False):
+    """Change only names on the attested domain, including saved definitions."""
+    runner.require('<!' not in xml, 'vm-control:rename-xml')
+    root = ET.fromstring(xml)
+    domains = [root] if not snapshot else root.findall('domain') + root.findall('inactiveDomain')
+    runner.require(bool(domains), 'vm-control:rename-domain-missing')
+    for domain in domains:
+        runner.require(len(domain.findall('name')) == len(domain.findall('uuid')) == 1 and
+                       domain.findtext('name') == old_name and
+                       domain.findtext('uuid') == expected_uuid, 'vm-control:rename-identity')
+        domain.find('name').text = new_name
+    return ET.tostring(root, encoding='unicode')
+
+
+def same_xml(left, right):
+    return ET.canonicalize(left, strip_text=True) == ET.canonicalize(right, strip_text=True)
+
+
+def rename(lease, new_name):
+    """Rename an idle pinned guest and move its provenance under the same lease.
+
+    The destination is a label, never a VM selector. Disk bytes and snapshot
+    contents are untouched. Keep a durable rollback record before the first write.
+    Guest preparation remains invalidated by subsequent configuration edits.
+    """
+    base = runner.baseline
+    new_name = base.guest_contract.vm_config.validate_name(new_name)
+    old_name = base.DOMAIN
+    runner.require(new_name != old_name, 'vm-control:rename-same-name')
+    old_directory = lease.directory
+    destination = old_directory.parent / new_name
+    with operation('VM maintenance: rename'):
+        lease.capture.directory_identity = lease.capture.private_directory()
+        base.canonical(old_directory.parent)
+        runner.require(not os.path.lexists(destination), 'vm-control:rename-state-exists')
+        lock = lease.capture.lock_path
+        base.identity(lock, private=True, mode=0o600)
+        lease.fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
+        try:
+            fcntl.flock(lease.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise runner.Error('state:busy-controller') from error
+        lease.commands.lock_fd = lease.fd
+        lease.capture.state = lease.capture.read_state()
+        runner.require(lease.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
+        lease.capture.require_idle_attempt()
+        lease.capture.revalidate(off=True)
+        runner.require(lease.source.domain.ID() == -1 and not lease.source.domain.autostart(),
+                       'vm-control:rename-requires-idle-off')
+        lease.ownership_run = uuid.uuid4().hex
+        lease.capture.begin_vm_ownership(lease)
+        lease.capture.verify_snapshot(boundary='acquisition')
+        original_xml = lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE)
+        expected_xml = renamed_xml(original_xml, old_name, new_name, lease.source.uuid)
+        snapshots = sorted((item.getName(), item.getXMLDesc(0))
+                           for item in lease.source.domain.listAllSnapshots(0))
+        for _, xml in snapshots:
+            renamed_xml(xml, old_name, new_name, lease.source.uuid, snapshot=True)
+        record = {'old_name': old_name, 'new_name': new_name, 'domain_uuid': lease.source.uuid,
+                  'original_xml': original_xml, 'snapshots': snapshots, 'phase': 'requested'}
+        journal_name = 'rename-' + lease.ownership_run + '.json'
+
+        def save_record():
+            runner.require(lease.capture.private_directory() == lease.capture.directory_identity,
+                           'guard:directory-changed')
+            fd, temporary = tempfile.mkstemp(prefix='.rename-', dir=lease.directory)
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(base.encode(record))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, lease.directory / journal_name)
+            base.sync_directory(lease.directory)
+
+        save_record()
+        moved = False
+        try:
+            lease.capture.revalidate(off=True)
+            runner.require(lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE) == original_xml and
+                           sorted((item.getName(), item.getXMLDesc(0))
+                                  for item in lease.source.domain.listAllSnapshots(0)) == snapshots,
+                           'vm-control:rename-source-changed')
+            lease.source.domain.rename(new_name, 0)
+            base.DOMAIN = new_name
+            # Refresh the handle by pinned UUID, never by the new display name.
+            lease.source.domain = lease.source.connection.lookupByUUIDString(lease.source.uuid)
+            runner.require(lease.source.domain.name() == new_name and lease.source.domain.ID() == -1 and
+                           lease.source.domain.UUIDString() == lease.source.uuid and
+                           same_xml(lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE), expected_xml),
+                           'vm-control:rename-result')
+            # libvirt retains historical names inside snapshots and preserves
+            # the current domain name on revert. Attest the unchanged metadata;
+            # never delete/recreate snapshots to change those historical names.
+            runner.require(sorted((item.getName(), item.getXMLDesc(0))
+                                  for item in lease.source.domain.listAllSnapshots(0)) == snapshots,
+                           'vm-control:rename-snapshot-changed')
+            record['phase'] = 'renamed'
+            save_record()
+            lease.capture.verify_snapshot()
+            runner.require(not os.path.lexists(destination), 'vm-control:rename-state-exists')
+            os.rename(old_directory, destination)
+            moved = True
+            lease.directory = lease.capture.directory = destination
+            lease.journal = destination / 'system-run.json'
+            base.sync_directory(destination.parent)
+            lease.capture.revalidate(off=True)
+            record['phase'] = 'complete'
+            save_record()
+        except BaseException:
+            # Roll back only this same, still-off UUID. Retain the requested
+            # journal if any rollback check fails; never adopt a replacement.
+            domain = lease.source.connection.lookupByUUIDString(lease.source.uuid)
+            runner.require(domain.UUIDString() == lease.source.uuid and domain.ID() == -1 and
+                           domain.name() in (old_name, new_name), 'vm-control:rename-rollback-identity')
+            if domain.name() == new_name:
+                domain.rename(old_name, 0)
+            base.DOMAIN = old_name
+            lease.source.domain = lease.source.connection.lookupByUUIDString(lease.source.uuid)
+            if moved:
+                runner.require(not os.path.lexists(old_directory), 'vm-control:rename-rollback-state-exists')
+                os.rename(destination, old_directory)
+                lease.directory = lease.capture.directory = old_directory
+                lease.journal = old_directory / 'system-run.json'
+                base.sync_directory(old_directory.parent)
+            runner.require(same_xml(lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE), original_xml),
+                           'vm-control:rename-rollback-result')
+            lease.capture.verify_snapshot()
+            record['phase'] = 'rolled-back'
+            save_record()
+            raise
 
 
 def check_identity(source, expected):
@@ -168,8 +301,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reset',
-                                          'reboot', 'send-key', 'screenshot', 'recover-online'))
+                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename'))
     parser.add_argument('keys', nargs='*', type=int)
+    parser.add_argument('--new-name')
     args = parser.parse_args(argv)
     source = lease = connection = None
     try:
@@ -181,6 +315,9 @@ def main(argv=None):
                          all(1 <= key <= 255 for key in args.keys)) or
                         (args.action == 'recover-online' and len(args.keys) == 1 and args.keys[0] > 0) or
                         (args.action not in ('send-key', 'recover-online') and not args.keys)), 'vm-control:arguments')
+        runner.require((args.action == 'rename') == (args.new_name is not None), 'vm-control:arguments')
+        if args.new_name is not None:
+            runner.baseline.guest_contract.vm_config.validate_name(args.new_name)
         os.umask(0o077)
         from watch_activity import event
         event('Maintenance: ' + args.action)
@@ -211,7 +348,10 @@ def main(argv=None):
                              lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
                              graphics_type='vnc')
         print('vm-control: validated operation starting', file=sys.stderr, flush=True)
-        operate(lease, args.action, args.keys)
+        if args.action == 'rename':
+            rename(lease, args.new_name)
+        else:
+            operate(lease, args.action, args.keys)
         event('Maintenance: ' + args.action + ' complete')
         print('vm-control: operation complete', file=sys.stderr, flush=True)
         return 0

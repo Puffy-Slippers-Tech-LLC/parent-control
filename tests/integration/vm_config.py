@@ -17,6 +17,10 @@ class VMConfig:
     disk_anchor: Path
 
     @property
+    def hostname(self):
+        return self.name.lower()
+
+    @property
     def baseline_directory(self):
         # Each configured name has its own provenance. Never adopt the old
         # unscoped phase.json or another VM's accepted snapshot automatically.
@@ -32,6 +36,15 @@ def unique_keys(pairs):
     return result
 
 
+def validate_name(name):
+    # Preserve the libvirt display name's case; hostname consumers normalize it.
+    if (not isinstance(name, str) or not name or len(name) > 63 or
+            not all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?', label)
+                    for label in name.split('.'))):
+        raise ValueError('vm-config:name; use hostname labels without traversal')
+    return name
+
+
 def load(path=CONFIG):
     try:
         document = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique_keys)
@@ -39,12 +52,7 @@ def load(path=CONFIG):
         raise ValueError('vm-config:unreadable; check config/test-vm.json') from error
     if not isinstance(document, dict) or set(document) != {'name', 'disk_anchor'}:
         raise ValueError('vm-config:fields')
-    name = document['name']
-    # The configured domain name is also the prepared guest's static hostname.
-    if (not isinstance(name, str) or len(name) > 63 or
-            not all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?', label)
-                    for label in name.split('.'))):
-        raise ValueError('vm-config:name; use a valid lowercase hostname')
+    name = validate_name(document['name'])
     value = document['disk_anchor']
     if (not isinstance(value, str) or not value.startswith('/') or
             any(ord(char) < 32 for char in value) or

@@ -94,8 +94,9 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                             nargs='?', const='true')
     vm = categories.add_parser('vm', allow_abbrev=False)
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
-                                      'reset', 'screenshot', 'send-key', 'recover-online'))
+                                      'reset', 'screenshot', 'send-key', 'recover-online', 'rename'))
     vm.add_argument('keys', nargs='*', type=int)
+    vm.add_argument('--new-name')
     args = parser.parse_args(argv)
     if args.category == 'appsnapshot':
         if VM_UUID is None:
@@ -115,6 +116,13 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:missing-artifact-directory')
         return [*command, '--overwrite', args.overwrite, '--artifacts', str(args.artifacts)]
     if args.category == 'vm':
+        if (args.action == 'rename') != (args.new_name is not None):
+            raise ValueError('test-runner:rename-requires-new-name')
+        if args.new_name is not None:
+            if (not args.new_name or len(args.new_name) > 63 or
+                    not all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?', label)
+                            for label in args.new_name.split('.'))):
+                raise ValueError('test-runner:invalid-new-name')
         if not ((args.action == 'send-key' and 1 <= len(args.keys) <= 16
                  and all(1 <= key <= 255 for key in args.keys)) or
                 (args.action == 'recover-online' and len(args.keys) == 1 and args.keys[0] > 0) or
@@ -124,7 +132,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
         target = confined_file(root, 'tests/integration/vm_control.py')
         return ['/usr/bin/python3', '-B', str(target), '--expected-uuid', VM_UUID,
-                args.action, *map(str, args.keys)]
+                args.action, *map(str, args.keys),
+                *(['--new-name', args.new_name] if args.new_name is not None else [])]
     if args.category == 'integration':
         name = args.test.removesuffix('.py')
         if not re.fullmatch(r'check_[a-z][a-z0-9_]*', name):

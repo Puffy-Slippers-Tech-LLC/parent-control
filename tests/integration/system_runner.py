@@ -457,6 +457,7 @@ class Lease:
             self.commands.lock_fd = self.fd
             self.capture.state = self.capture.read_state()
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
+            self.capture.require_idle_attempt()
             # A new preparation contract needs a deliberately accepted baseline.
             # Refuse before hashing, journal writes or snapshot mutation; cleanup
             # must not discover the incompatible marker only after restoration.

@@ -6,6 +6,9 @@ and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
 
+# VM rename refusal/rollback coverage uses private pytest records and mocked
+# libvirt calls; the existing compatible vm_control classification still applies.
+
 from pathlib import PurePosixPath
 
 # TIME03 deadline/recorder additions retain private tmp_path collectors and

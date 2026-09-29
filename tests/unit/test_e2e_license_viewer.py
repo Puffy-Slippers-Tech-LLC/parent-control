@@ -7,10 +7,13 @@ from unittest.mock import Mock
 import pytest
 
 import check_e2e_license_viewer as check
+import check_e2e_parent_website as website_check
 import check_graphical_smoke as smoke
-from license_viewer_provider import PLAN, LicenseViewerProviderJourney
+from license_viewer_provider import (
+    PLAN, WEBSITE_PLAN, LicenseViewerProviderJourney, ParentWebsiteJourney)
 from owned_commands import CommandError
-from parent_setup_qualification import KioskEntryQualification, LicenseViewerProviderQualification
+from parent_setup_qualification import (
+    KioskEntryQualification, LicenseViewerProviderQualification, ParentWebsiteQualification)
 from tests.support.perl import run_perl
 
 
@@ -37,15 +40,38 @@ def test_selector_uses_owned_snapshot_and_refuses_conflicting_routes(monkeypatch
                    license_viewer_provider=True, parent_terminal_provider=True)
 
 
+def test_website_binding_reaches_shared_plan_and_owned_snapshot(monkeypatch):
+    context = SimpleNamespace()
+    journey = ParentWebsiteQualification.journey(context, Mock())
+    assert isinstance(journey, ParentWebsiteJourney)
+    assert journey.plan is WEBSITE_PLAN
+    assert context.installed_snapshot.startswith('onpc-v')
+    assert WEBSITE_PLAN.worker_mode == 'parent_website'
+    assert WEBSITE_PLAN.screen_tags['license'] == 'ui:website-clickable'
+    assert WEBSITE_PLAN.screen_tags['license-provider-refusals'] == 'ui:website-clickable'
+    assert WEBSITE_PLAN.settings_checks == PLAN.settings_checks
+    calls = []
+    monkeypatch.setattr(website_check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
+    assert website_check.main() == 0
+    assert calls == [{'assets': website_check.ASSETS, 'provision_credentials': True,
+                      'license_viewer_provider': True, 'information_link': 'website'}]
+    with pytest.raises(CommandError, match='smoke:information-link-binding'):
+        smoke.main(information_link='website')
+    with pytest.raises(CommandError, match='smoke:information-link-binding'):
+        smoke.main(information_link='support')
+
+
 @pytest.mark.parametrize('fault', ['', 'license', 'refusals',
                                    'close-input', 'return'])
-def test_worker_checks_link_and_closes_only_owned_about(fault):
+@pytest.mark.parametrize('link', ['license', 'website'])
+def test_worker_checks_link_and_closes_only_owned_about(fault, link):
     result = json.loads(run_perl(r'''
 use strict;
 use warnings;
 use JSON::PP;
 our @events;
 our $fault = shift @ARGV;
+our $link = shift @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
@@ -67,11 +93,11 @@ my $ok = eval {
         die 'missing refusals' if $fault eq 'refusals' && $stage eq 'license-provider-refusals';
         die 'missing return' if $fault eq 'return' && $stage eq 'license-closed';
         return {};
-    });
+    }, $link);
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
-''', fault).stdout)
+''', fault, link).stdout)
     events = result['events']
     assert bool(result['ok']) == (not fault), result['error']
     assert events.count(['seen', 'license']) == 1

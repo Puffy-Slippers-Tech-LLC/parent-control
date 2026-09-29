@@ -139,6 +139,7 @@ OPERATION_LABELS = {
     'about-rechecked': 'Rechecking owned About information',
     'license': 'Checking the license link is clickable without following it',
     'license-provider-refusals': 'Rechecking the clickable license link',
+    'website-clickable': 'Checking the website link is clickable without following it',
     'license-closed': 'Checking About remains open after link inspection',
     'about-returned': 'Reading the About footer',
     'parent-returned': 'Checking the returned child and unchanged settings',

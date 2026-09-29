@@ -1,5 +1,6 @@
 """ABOUT02/03 link-only qualification; retained selector name for compatibility."""
 
+from dataclasses import replace
 from installed_journey import InstalledJourney, JourneyPlan
 from parent_about import PLAN as ABOUT_PLAN
 
@@ -22,3 +23,15 @@ PLAN = JourneyPlan(
 class LicenseViewerProviderJourney(InstalledJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, PLAN)
+
+
+WEBSITE_PLAN = replace(
+    PLAN, prefix='parent-website', worker_mode='parent_website',
+    screen_tags={**PLAN.screen_tags, 'license': 'ui:website-clickable',
+                 'license-provider-refusals': 'ui:website-clickable'},
+)
+
+
+class ParentWebsiteJourney(InstalledJourney):
+    def __init__(self, context, progress):
+        super().__init__(context, progress, WEBSITE_PLAN)

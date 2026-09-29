@@ -438,6 +438,12 @@ sub run {
         onpc_app_restart::run(\&exchange);
         return;
     }
+    if ($ready->{real_interval}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_about::run_interval(\&exchange);
+        return;
+    }
     if ($ready->{time_explanation}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

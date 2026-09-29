@@ -40,7 +40,7 @@ OPERATIONS = frozenset({
     'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'parent-window', 'parent-window-count', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
-    'about', 'about-rechecked', 'license-unrelated-launched', 'license-unrelated-ready',
+    'about', 'about-interval-read', 'about-interval-refused', 'about-rechecked', 'license-unrelated-launched', 'license-unrelated-ready',
     'license-unrelated-closed', 'license-empty-launched', 'license-empty-ready',
     'license-empty-closed', 'license', 'license-ambiguous-launched',
     'license-ambiguous-ready', 'license-ambiguous-closed',
@@ -3473,6 +3473,17 @@ class AccessibleUI:
         self.read_label(root, 'about-product', maximum=80)
         self.read_label(root, 'about-version', maximum=80, expected=version)
         self.reveal_id('about-license-value', root=root)
+
+    def read_about_interval(self, version):
+        """Read an already open ID-owned About window without opening/repairing it."""
+        root = self.snapshot_owned_target('about-dialog', check_prompt=True)
+        require(root is not None, 'ui:about-interval-entry')
+        self.read_label(root, 'about-product', maximum=80)
+        self.read_label(root, 'about-version', maximum=80, expected=version)
+        pid, bus, path = root.get_process_id(), root.bus, root.path
+        require(type(pid) is int and pid > 0 and type(bus) is str and bus.startswith(':')
+                and type(path) is str and path.startswith('/'), 'ui:about-interval-endpoint')
+        return {'pid': pid, 'endpoint': [bus, path], 'product': PRODUCT, 'version': version}
 
     def kiosk_about_entry(self):
         """ABOUT01 kiosk entry: a caller-owned station, never Parent/overlay."""
@@ -7636,6 +7647,18 @@ class AccessibleUI:
             self.window_closed('about', 'kiosk')
         elif operation == 'about':
             self.open_about(version)
+        elif operation == 'about-interval-read':
+            result['about_interval'] = self.read_about_interval(version)
+        elif operation == 'about-interval-refused':
+            self.parent()
+            self.wait(lambda: self.absent_id('about-dialog', within='parent-window'),
+                      'about-interval-wrong-entry')
+            try:
+                self.read_about_interval(version)
+            except UiError as error:
+                require(str(error) == 'ui:about-interval-entry', 'ui:about-interval-refusal')
+            else:
+                raise UiError('ui:about-interval-wrong-entry-accepted')
         elif operation in ALLOWANCE_OPERATIONS:
             result['allowance'] = self.allowance_operation(operation)
         elif operation in TIME_EXPLANATION_OPERATIONS:

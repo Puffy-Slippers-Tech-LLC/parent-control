@@ -670,7 +670,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          synthetic_files=False, document_open=False, archive_open=False, source_change=False,
          file_chooser=False, save_chooser=False, diagnostic_export=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
-         feedback_formats=False, feedback_link_semantics=False):
+         feedback_formats=False, feedback_link_semantics=False, real_interval=False):
+    require(type(real_interval) is bool and (not real_interval or (
+        assets is not None and provision_credentials and fresh_desktop is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+                    if name not in ('assets', 'provision_credentials', 'real_interval')
+                    and isinstance(value, bool)))), 'smoke:real-interval-prerequisites')
     require(type(diagnostic_export) is bool and not (diagnostic_export and save_chooser),
             'smoke:diagnostic-export-prerequisites')
     require(type(save_chooser) is bool and not ((save_chooser or diagnostic_export) and (
@@ -1330,6 +1335,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-fresh-thirty-allowance-qualification'
         if app_restart:
             result['scope'] = 'installed-app-restart-qualification'
+        if real_interval:
+            result['scope'] = 'installed-real-interval-qualification'
         if repeated_operations:
             result['scope'] = 'installed-repeated-operations-qualification'
         if challenges:
@@ -1364,7 +1371,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or fresh_desktop is not None or shell_search_results or parent_search_launch
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or set_allowance or kiosk_eligible_choices or request_choices
-                        or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration):
+                        or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                     staged = directory / 'input'
                 else:
@@ -1624,6 +1631,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if app_restart:
                     from parent_setup_qualification import AppRestartQualification
                     qualification_class = AppRestartQualification
+                if real_interval:
+                    from parent_setup_qualification import RealIntervalQualification
+                    qualification_class = RealIntervalQualification
                 qualification = qualification_class(directory, commands, ledger, collector, result, host_before,
                                               staged, credentials, serial, install, install_refusal, vt6_prompt,
                                               vt6_auth)

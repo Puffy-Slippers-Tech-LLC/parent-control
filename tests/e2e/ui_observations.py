@@ -28,6 +28,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'about-interval-read': 'Reading the already open About window and its public identity',
+    'about-interval-refused': 'Refusing About read entry while only management is open',
     **{operation: 'Saving diagnostic output through the owned chooser: ' + operation
        for operation in accessible_ui.SAVE_OPERATIONS},
     'named-custom-setup': 'Setting the named child allowance to enabled zero',
@@ -888,6 +890,17 @@ class UiObservations:
                     and type(result['count']) is int and result['count'] == 1,
                     'ui:parent-window-count')
             expected['count'] = 1
+        if operation == 'about-interval-read':
+            value = result.get('about_interval')
+            require(type(result) is dict and set(result) == {*expected, 'about_interval'}
+                    and type(value) is dict and set(value) == {'pid', 'endpoint', 'product', 'version'}
+                    and type(value['pid']) is int and value['pid'] > 0
+                    and type(value['endpoint']) is list and len(value['endpoint']) == 2
+                    and all(type(part) is str and 0 < len(part) <= 256 for part in value['endpoint'])
+                    and value['endpoint'][0].startswith(':') and value['endpoint'][1].startswith('/')
+                    and value['product'] == accessible_ui.PRODUCT and value['version'] == version,
+                    'ui:about-interval-response')
+            expected['about_interval'] = value
         if operation in accessible_ui.ACCESSIBILITY_TRACE_OPERATIONS:
             value = result.get('trace')
             if operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',

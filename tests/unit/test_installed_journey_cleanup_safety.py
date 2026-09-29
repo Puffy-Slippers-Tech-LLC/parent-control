@@ -13,6 +13,8 @@ import evidence
 import installed_journey as journeys
 import installed_setup
 import parent_about
+import real_interval
+import real_interval_qualification
 import parent_access
 import parent_terminal
 import command_help
@@ -117,6 +119,10 @@ SYNTHETIC = journeys.JourneyPlan(
     advance_after={'details': 'step-2'},
 )
 
+INTERVAL_RECORDER_PLAN = replace(real_interval_qualification.PLAN,
+    advance_after={'before': 'step-2'},
+    phases={**real_interval_qualification.PLAN.phases, 'after': 'step-2'})
+
 
 @pytest.fixture
 def journey_inventory():
@@ -207,7 +213,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN,
                                  kiosk_multiple.PLAN, kiosk_multiple.CASE_PLAN,
                                  kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN,
-                                 restricted_station_about.PLAN, fresh_thirty_allowance.PLAN, kiosk_about.PLAN],
+                                 restricted_station_about.PLAN, fresh_thirty_allowance.PLAN, kiosk_about.PLAN,
+                                 INTERVAL_RECORDER_PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -225,7 +232,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
                               'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance',
-                              'station-about-case'])
+                              'station-about-case', 'real-interval'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, journey_inventory, plan, failure):
@@ -312,6 +319,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         boot_bindings.append(ui_observer.boot_guard)
         operation_counts[operation] = operation_counts.get(operation, 0) + 1
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'about-interval-read':
+            result['about_interval'] = {'pid': 123, 'endpoint': [':1.2', '/about'],
+                                        'product': accessible_ui.PRODUCT, 'version': '1.1'}
         if operation == 'station-entry-branch':
             result['branch'] = {'destination': 'default-request-form', 'controls': []}
         if operation == 'station-default-entry':
@@ -436,6 +446,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                     assert not (directory / (stage + '.reply.json')).exists()
                     if failure == 'worker-loss' and stage == boundary and state['stored']:
                         raise RuntimeError('fixed worker loss')
+                    return 1800.0
 
                 try:
                     options['guarded_observe'](guard)
@@ -476,8 +487,17 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         context.run_worker = worker
         actions = {name: Mock(return_value={'eligible_account_created': True})
                    for name in plan.stage_actions.values()}
+        if plan is INTERVAL_RECORDER_PLAN:
+            clock = [0.0]
+            def sleep(seconds):
+                clock[0] += seconds
+            monkeypatch.setattr(real_interval, 'time', SimpleNamespace(
+                monotonic=lambda: clock[0], sleep=sleep))
+            actions = {'real-interval': real_interval.interval_action(5)}
         journey_type = (compose_observation.ComposeObservationJourney
-                        if plan is compose_observation.PLAN else journeys.InstalledJourney)
+                        if plan is compose_observation.PLAN else
+                        real_interval_qualification.RealIntervalJourney
+                        if plan is INTERVAL_RECORDER_PLAN else journeys.InstalledJourney)
         if failure:
             with pytest.raises((OSError, RuntimeError)):
                 journeys.record_installed_journey(recorder, context, plan, actions=actions,

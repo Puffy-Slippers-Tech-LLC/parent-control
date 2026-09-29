@@ -526,6 +526,8 @@ class InstalledJourney:
                     if plan.stage_actions[stage] == 'archive-open'
                     else 'Changing the declared synthetic attachment source'
                     if plan.stage_actions[stage] == 'source-change'
+                    else 'Waiting the declared real interval under the attempt guard'
+                    if plan.stage_actions[stage] == 'real-interval'
                     else 'Preparing the declared child-account fixture')
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)

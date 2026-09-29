@@ -334,6 +334,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_accessibility_input_trace'], ['check_e2e_accessibility_input_trace.py'],
             ['check_e2e_parent_save_trace'], ['check_e2e_parent_save_trace.py'],
             ['check_e2e_feedback_collection'], ['check_e2e_feedback_collection.py'],
+            ['check_e2e_diagnostic_export'], ['check_e2e_diagnostic_export.py'],
             ['check_e2e_custom_save_trace'], ['check_e2e_custom_save_trace.py'],
             ['check_e2e_named_child_custom_saves'], ['check_e2e_named_child_custom_saves.py'],
             ['check_e2e_feedback_rejection'], ['check_e2e_feedback_rejection.py'],
@@ -377,7 +378,9 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_set_an_allowance_for_a_named_child.py'],
             ['check_e2e_set_fresh_thirty_minute_allowance'],
             ['check_e2e_set_fresh_thirty_minute_allowance.py'],
-            ['check_e2e_app_restart'], ['check_e2e_app_restart.py']):
+            ['check_e2e_app_restart'], ['check_e2e_app_restart.py'],
+            ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard'],
+            ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py']):
         return None
     from test_storage import named_input
     output = str(named_input(package_source=True) if args in (

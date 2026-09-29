@@ -23,11 +23,11 @@ def cleanup(root):
     if not test_activity.descriptors():
         raise ValueError('retention: checkout activity ownership required')
     store = test_retention.Store(test_activity.retention_path(root))
-    # This runs only recovery plus its mandatory cleanup-safety prerequisite;
-    # it does not rerun a product category or create another detached session.
+    # Run only recorded recovery, serially before test scheduling. Do not
+    # generate regression fixtures or reports while trying to remove leftovers.
     from regression_process import category_run
     def guard():
-        print('Automatic recovery: checking cleanup safety, the recorded VM and retained evidence.',
+        print('Automatic recovery: checking the recorded VM and retained evidence.',
               flush=True)
         status = category_run(root, 'integration', ['check_test_recovery'], pipe=False)
         if status:

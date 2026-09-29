@@ -52,7 +52,7 @@ def ui_run(tmp_path, monkeypatch):
             if kind == 'ui':
                 nodes = self.nodes if collect else [node for node in self.nodes if node in command]
                 if not collect:
-                    assert self.gate, 'UI started before all cleanup buckets joined'
+                    assert not self.gate, 'UI must not launch prerequisite regression tests'
                     if self.barrier:
                         self.barrier.wait(timeout=5)
                     if self.fail == 'inventory':
@@ -117,6 +117,8 @@ def test_ui_only_uses_four_existing_branches_and_respects_admission(ui_run, slot
     assert f'maximum-active={slots}' in text
     assert 'Scope: selected categories only' in text
     assert control.cleaned.count('ui') == 4
+    assert control.cleaned.count('unit') == 0
+    assert not any(item.phase == 'cleanup' for item in run.categories)
 
 
 def test_cleanup_only_selection_reuses_ui_gate_in_four_branches(ui_run):
@@ -163,17 +165,14 @@ def test_ui_selection_preserves_filters_exact_parameters_timeout_and_category_or
         assert 'tests/ui' not in command and 'tests/ui/test_request*.py' not in command
 
 
-@pytest.mark.parametrize('failure', ['cleanup', 'inventory', 'setup', 'teardown'])
-def test_ui_refuses_failed_gate_or_uncertain_execution_and_joins_workers(ui_run, failure):
+@pytest.mark.parametrize('failure', ['inventory', 'setup', 'teardown'])
+def test_ui_refuses_uncertain_execution_and_joins_workers(ui_run, failure):
     run, control = ui_run
     control.fail = failure
     with pytest.raises(ValueError):
         run.run()
-    if failure == 'cleanup':
-        assert not control.gate and 'ui' not in control.cleaned
-    else:
-        assert control.stopped.is_set()
-        assert not any(item.state == 'Passed' for item in run.categories if item.name.startswith('UI —'))
+    assert control.stopped.is_set()
+    assert not any(item.state == 'Passed' for item in run.categories if item.name.startswith('UI —'))
 
 
 def test_ui_assertions_fail_selection_and_prevent_later_categories(ui_run):

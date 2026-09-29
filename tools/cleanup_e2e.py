@@ -21,8 +21,8 @@ def main(argv=None):
             return status
         with test_activity.activity(root, host_only=True):
             if test_activity.retention_path(root).exists():
-                # VM recovery and its cleanup gate passed above. Repeating that
-                # gate under host ownership would contend with this very lock.
+                # VM recovery finished above. Reconcile the host journal
+                # serially under its own ownership lock as well.
                 test_retention.Store(test_activity.retention_path(root)).reconcile(lambda: None)
         return 0
     except (ValueError, OSError) as error:

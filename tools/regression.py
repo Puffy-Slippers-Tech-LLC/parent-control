@@ -806,8 +806,7 @@ class Run:
                                                'Package reproducibility')]
         system = Category(CATEGORY_NAMES['system']) if 'system' in self.phases else None
         graphical = Category(CATEGORY_NAMES['e2e']) if 'e2e' in self.phases else None
-        safety = Category('Cleanup safety prerequisites', phase='cleanup')
-        self.categories.extend([safety, *suite_items, *fixed_items[:-1]])
+        self.categories.extend([*suite_items, *fixed_items[:-1]])
         self.categories.extend([fixed_items[-1], *builds])
         self.categories.extend(item for item in (system, graphical) if item is not None)
         discovery.state = 'Running'
@@ -816,9 +815,7 @@ class Run:
 
         # Collection uses the same launchers/selections as execution. No
         # manually maintained case counts or roadmap completion documents.
-        selections = [('unit', ['tests/unit/test_*cleanup_safety.py',
-                                'tests/unit/test_graphical_lease.py'], safety)]
-        selections.extend((kind, args, item) for (_, kind, args), item in zip(suites, suite_items))
+        selections = [(kind, args, item) for (_, kind, args), item in zip(suites, suite_items)]
         for kind, args, item in selections:
             if self.control.stopped.is_set():
                 return
@@ -838,9 +835,6 @@ class Run:
         discovery.done, discovery.state = 1, 'Passed'
         discovery.stop_timer()
 
-        self.cleanup_jobs(safety)
-        if self.control.stopped.is_set():
-            return
         estimates = {'component': 20, 'fixture-runtime': 12}
         jobs = [Job(kind, item, self.command(kind, *args, '-q'), events=True,
                     estimate=estimates[kind]) for (_, kind, args), item in zip(suites, suite_items)

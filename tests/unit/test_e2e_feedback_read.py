@@ -532,7 +532,7 @@ def test_save_order_worker_reuses_named_input_and_stops_at_failed_window_count()
     from tests.support.perl import run_perl
     expected = list(PLAN.screen_tags)
     expected = expected[expected.index('parent-selected'):] + ['finish']
-    for fault in ('', 'jordan-rapid', 'repeat-window-count'):
+    for fault in ('', *expected[:-1]):
         result = json.loads(run_perl(r'''
 use strict; use warnings; use JSON::PP;
 our (@stages, @keys); our ($fault) = @ARGV;
@@ -601,6 +601,39 @@ onpc_feedback_states::custom_save_entry($journey, 'renamed', 'existing', 5, 6);
 print encode_json(\@stages);
 ''').stdout)
     assert result == list(custom_save_entry('renamed', 'existing'))
+
+
+def test_ordinary_custom_fragment_renamed_sequence_and_every_refusal():
+    from journey_blocks import ordinary_custom_save
+    from tests.support.perl import run_perl
+    expected = list(ordinary_custom_save('independent', 'child', 7))
+    for fault in ('', *expected):
+        result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@stages, @keys); our ($fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::keys, $_[0]; }
+sub type_string { push @main::keys, $_[0]; }
+package main;
+require onpc_feedback_states;
+my $journey = onpc_journey->new(prefix => 'consumer', review => 0, exchange => sub {
+    my ($stage) = @_; push @stages, $stage;
+    die 'refused' if $stage eq $fault;
+    return {observed => $stage};
+});
+my $ok = eval { onpc_feedback_states::ordinary_custom_save($journey, 'independent', 7); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
+''', fault).stdout)
+        assert result['stages'] == (expected[:expected.index(fault) + 1] if fault else expected)
+        assert bool(result['ok']) is (not fault)
+        if fault in expected[:2]:
+            assert not result['keys']
+        if not fault:
+            assert result['keys'] == ['ret', 'ctrl-a', '7']
+    with pytest.raises(EvidenceError, match='ordinary-custom-value'):
+        ordinary_custom_save('independent', 'child', 8)
 
 
 def test_named_custom_source_digest_includes_child_and_rejects_unbound_plan():

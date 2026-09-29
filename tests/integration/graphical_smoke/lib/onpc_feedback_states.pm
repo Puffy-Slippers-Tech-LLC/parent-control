@@ -97,6 +97,18 @@ sub custom_save_entry {
     rejection_observe($journey, "$entry-reopened");
 }
 
+sub ordinary_custom_save {
+    onpc_progress::operation('Selecting a child and saving the declared custom allowance');
+    my ($journey, $entry, $value) = @_;
+    die 'save:ordinary-custom' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($entry) && $entry =~ /\A[a-z][a-z0-9-]*\z/
+        && defined($value) && $value eq '7';
+    onpc_allowance_boundaries::select_child($journey, $entry);
+    rejection_observe($journey, "$entry-$_") for ('setup', 'editor', 'wrong-child');
+    onpc_text::replace_text($journey, "daily-$value", "$entry-text");
+    rejection_observe($journey, "$entry-saved");
+}
+
 sub run_named_child_custom_saves {
     onpc_progress::operation('Qualifying independent named-child custom saves');
     my ($exchange) = @_;
@@ -107,10 +119,7 @@ sub run_named_child_custom_saves {
     $journey->consume_observation('parent-selected', $selected);
     rejection_observe($journey, $_) for ('disabled-refused', 'setup');
     custom_save_entry($journey, $_, 'existing', 5, 6) for ('first', 'second');
-    onpc_allowance_boundaries::select_child($journey, 'riley');
-    rejection_observe($journey, $_) for ('riley-setup', 'riley-editor', 'riley-wrong-child');
-    onpc_text::replace_text($journey, 'daily-7', 'riley-text');
-    rejection_observe($journey, 'riley-saved');
+    ordinary_custom_save($journey, 'riley', 7);
     onpc_allowance_boundaries::select_child($journey, 'final-away');
     rejection_observe($journey, 'jordan-final');
     onpc_allowance_boundaries::select_child($journey, 'final-back');
@@ -128,10 +137,7 @@ sub run_save_order {
         onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing'));
     rejection_observe($journey, $_) for ('disabled-refused', 'setup');
     custom_save_entry($journey, 'jordan', 'existing', 5, 6);
-    onpc_allowance_boundaries::select_child($journey, 'riley');
-    rejection_observe($journey, $_) for ('riley-setup', 'riley-editor', 'riley-wrong-child');
-    onpc_text::replace_text($journey, 'daily-7', 'riley-text');
-    rejection_observe($journey, 'riley-saved');
+    ordinary_custom_save($journey, 'riley', 7);
     onpc_allowance_boundaries::select_child($journey, 'final-away');
     rejection_observe($journey, 'jordan-final-read');
     onpc_allowance_boundaries::select_child($journey, 'final-back');

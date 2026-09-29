@@ -238,6 +238,61 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
     assert PLAN.settings_checks['final-away-selected'].child == 'existing-fixture-child'
 
 
+def test_save_order_worker_reuses_named_input_and_stops_at_failed_window_count():
+    from save_order import PLAN
+    from tests.support.perl import run_perl
+    expected = list(PLAN.screen_tags)
+    expected = expected[expected.index('parent-selected'):] + ['finish']
+    for fault in ('', 'jordan-rapid', 'repeat-window-count'):
+        result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@stages, @keys); our ($fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::keys, $_[0]; }
+sub type_string { push @main::keys, $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub {
+    die 'wrong child' unless $_[4] eq 'existing';
+    return $_[0]->seen('parent-selected');
+};
+*onpc_journey::finish = sub { push @stages, 'finish'; };
+my $ok = eval { onpc_feedback_states::run_save_order(sub {
+    my ($stage, $shot, $input) = @_;
+    push @stages, $stage; die 'refused' if $stage eq $fault;
+    $input->({binding => 'custom-rapid', values => [5, 6], child => 'existing'})
+        if defined($input);
+    return {observed => $stage};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
+''', fault).stdout)
+        assert result['stages'] == (expected[:expected.index(fault) + 1] if fault else expected)
+        assert bool(result['ok']) is (not fault)
+        if fault == 'jordan-rapid':
+            assert not result['keys']
+    assert PLAN.settings_checks['repeat-selected'] == 'final-back-selected'
+    assert PLAN.child_bindings['jordan-rapid'] == 'existing'
+
+
+@pytest.mark.parametrize('count,valid', [(1, True), (0, False), (2, False),
+                                         (True, False), ('1', False)])
+def test_parent_window_count_controller_requires_exact_numeric_one(count, valid):
+    from ui_observations import UiObservations
+    reader = UiObservations(Mock())
+    payload = {'operation': 'parent-window-count', 'outcome': 'passed',
+               'interface': 'AT-SPI', 'count': count}
+    reader.call = lambda *args, **kwargs: (json.dumps(payload).encode(), [])
+    if valid:
+        assert reader._observe('parent-window-count')['count'] == 1
+    else:
+        with pytest.raises(EvidenceError, match='parent-window-count'):
+            reader._observe('parent-window-count')
+
+
 def test_named_custom_fragment_with_independent_stage_names():
     from journey_blocks import custom_save_entry
     from tests.support.perl import run_perl

@@ -112,6 +112,7 @@ OPERATION_LABELS = {
     'shell-search-cleared': 'Checking the search query cleared before closing Overview',
     'app-grid': 'Finding the launchable Parent result in public app search',
     'parent-window': 'Waiting for the Parent window',
+    'parent-window-count': 'Counting the owned Parent management windows',
     'parent-new-window-absent': 'Checking a new Parent window can be opened',
     'parent-new-window-refused': 'Refusing new-window entry while Parent remains open',
     'parent-restart-ready': 'Checking the active Parent window for normal closure',
@@ -864,6 +865,11 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'parent-window-count':
+            require(type(result) is dict and set(result) == {*expected, 'count'}
+                    and type(result['count']) is int and result['count'] == 1,
+                    'ui:parent-window-count')
+            expected['count'] = 1
         if operation in accessible_ui.ACCESSIBILITY_TRACE_OPERATIONS:
             value = result.get('trace')
             if operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events'):

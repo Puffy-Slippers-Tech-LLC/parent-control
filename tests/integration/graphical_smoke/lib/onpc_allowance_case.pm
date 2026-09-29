@@ -7,11 +7,15 @@ use onpc_journey ();
 use onpc_parent ();
 use onpc_lifecycle ();
 use onpc_allowance_boundaries ();
+use onpc_feedback_states ();
 
 sub run {
     onpc_progress::operation('Checking representative daily allowances and reopened saved values');
-    my ($exchange) = @_;
-    die 'allowance-case:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my ($exchange, $flow) = @_;
+    $flow //= 'boundaries';
+    die 'allowance-case:arguments' unless (@_ == 1 || @_ == 2)
+        && ref($exchange) eq 'CODE' && ($flow eq 'boundaries' || $flow eq 'save-order');
+    return onpc_feedback_states::run_save_order($exchange) if $flow eq 'save-order';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'allowance-case', review => 0);
     onpc_gdm::reattach_functional();
     $journey->consume_observation('parent-selected',

@@ -38,7 +38,7 @@ OPERATIONS = frozenset({
     'gdm-product-free-list', 'gdm-product-free-focused',
     'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-dismissed', 'gdm-returned',
-    'desktop', 'app-grid', 'parent-window', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
+    'desktop', 'app-grid', 'parent-window', 'parent-window-count', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'about-rechecked', 'license-unrelated-launched', 'license-unrelated-ready',
     'license-unrelated-closed', 'license-empty-launched', 'license-empty-ready',
     'license-empty-closed', 'license', 'license-ambiguous-launched',
@@ -1860,6 +1860,15 @@ class AccessibleUI:
 
     def parent(self):
         return self.id_target('parent-window')
+
+    def parent_window_count(self):
+        """UI13: count the sole owned management window in a complete snapshot."""
+        observation = self.read_snapshot()
+        window = self.snapshot_owned_target(
+            'parent-window', check_prompt=True, observation=observation)
+        count = 0 if window is None else 1
+        require(count == 1, 'ui:parent-window-count')
+        return count
 
     def about(self):
         return self.id_target('about-dialog')
@@ -7101,6 +7110,8 @@ class AccessibleUI:
             self.wait(self.parent_search_closed, 'parent-search-closed')
         elif operation == 'parent-window':
             self.parent()
+        elif operation == 'parent-window-count':
+            result['count'] = self.parent_window_count()
         elif operation == 'parent-restart-ready':
             self.parent_restart_entry('parent', 'management')
         elif operation == 'parent-restart-closed-refused':

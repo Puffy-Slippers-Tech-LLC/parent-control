@@ -17,6 +17,7 @@ import system_runner as system
 RESPONSE_BYTE_LIMITS = {
     'parent-checked-events': 8192,
     'parent-save-events': 8192,
+    'parent-custom-events': 8192,
     'kiosk-approver-baseline': 65536,
     'parent-app-rows': 32768,
     'parent-app-rows-reopened': 32768,
@@ -177,22 +178,25 @@ OPERATION_LABELS = {
 }
 
 
-def save_trace_complete(samples):
+def save_trace_complete(samples, custom=False):
     """Require an event-derived inhibited interval followed by full recovery."""
-    state = {'checked': False, 'child': True, 'toggle': True, 'allowance': False}
+    state = {'checked': custom, 'child': True, 'toggle': True, 'allowance': custom}
+    if custom:
+        state['editor'] = True
     child_off = toggle_off = inhibited = False
     for sample in samples:
         key = 'checked' if sample['state'] == 'checked' else sample['target']
         state[key] = sample['value']
+        if custom and not (state['checked'] and state['allowance'] and state['editor']):
+            return False
         if key == 'child' and not sample['value']:
             child_off = True
         if key == 'toggle' and sample['state'] == 'sensitive' and not sample['value']:
             toggle_off = True
-        if child_off and toggle_off and not any(state[name]
-                                               for name in ('child', 'toggle', 'allowance')):
+        if child_off and toggle_off and not any(state[name] for name in
+                (('child', 'toggle') if custom else ('child', 'toggle', 'allowance'))):
             inhibited = True
-    return inhibited and state == {'checked': True, 'child': True,
-                                   'toggle': True, 'allowance': True}
+    return inhibited and all(state.values())
 OPERATION_LABELS.update({
     'help-desktop-clear': 'Checking the desktop after command documentation',
 })
@@ -450,34 +454,38 @@ class UiObservations:
         self.trace_sink = lambda token, index, sample: None
         self.accessibility_trace = None
 
-    def observe_accessibility_input(self, operation, terminal, mode='checked'):
+    def observe_accessibility_input(self, operation, terminal, mode='checked', *, worker_input=None):
         """Declared UI22 composition: arm read-only events, invoke UI17 once,
         collect UI26. The outer owned SSH command stays alive during the nested
         synchronous input call; no thread or alternate runner owns its lifetime.
         """
-        require(operation == 'parent-toggle-enabled' and terminal is True and
-                mode in ('checked', 'save'),
+        custom = mode == 'custom-save'
+        require((custom and operation == 'parent-custom-trace-focus' and terminal == 6
+                 and callable(worker_input)) or
+                (operation == 'parent-toggle-enabled' and terminal is True and
+                 mode in ('checked', 'save') and worker_input is None),
                 'ui:trace-input-binding')
         require(not self.trace_failed and self.trace is None and
                 self.accessibility_trace is None, 'ui:trace-previous-failure')
         token = secrets.token_hex(16)
         trace = {'token': token, 'ready': False, 'input': False,
-                 'started': self._trace_clock(), 'operation': operation, 'mode': mode}
+                 'started': self._trace_clock(), 'operation': operation, 'mode': mode,
+                 'worker_input': worker_input}
         self.accessibility_trace = trace
         try:
             with watch_activity.operation('Observing one declared Parent accessibility toggle'):
-                result = self._observe('parent-save-events' if mode == 'save'
+                result = self._observe('parent-custom-events' if custom else 'parent-save-events' if mode == 'save'
                                        else 'parent-checked-events')
             require(trace['ready'] and trace['input'] and
                     self._trace_clock() - trace['started'] < 60, 'ui:trace-incomplete')
             value = result['trace']
             require(value['token'] == token and value['source'] == trace['source'],
                     'ui:trace-token')
-            if mode == 'save':
-                require(save_trace_complete(value['samples']), 'ui:save-trace-missing')
+            if mode in ('save', 'custom-save'):
+                require(save_trace_complete(value['samples'], custom), 'ui:save-trace-missing')
             for index, sample in enumerate(value['samples'], 1):
                 self.trace_sink(token, index, sample)
-            return {'operation': ('parent-save-trace' if mode == 'save'
+            return {'operation': ('parent-custom-save-trace' if custom else 'parent-save-trace' if mode == 'save'
                                   else 'accessibility-input-trace'), 'outcome': 'passed',
                     'interface': 'AT-SPI', 'token': token, 'terminal': terminal,
                     'samples': value['samples']}
@@ -494,7 +502,8 @@ class UiObservations:
                 type(value) is dict and set(value) == {
                     'event', 'token', 'source', 'boot_sha256', 'checked'} and
                 value['event'] == 'accessibility-trace-ready' and
-                value['token'] == trace['token'] and value['checked'] is False and
+                value['token'] == trace['token'] and
+                value['checked'] is (trace['mode'] == 'custom-save') and
                 type(value['source']) is str and re.fullmatch(r'[0-9a-f]{64}', value['source']) and
                 value['boot_sha256'] == self.boot_guard and bool(self.boot_guard) and
                 self._trace_clock() - trace['started'] < 60, 'ui:trace-readiness')
@@ -505,6 +514,9 @@ class UiObservations:
         require(self._trace_clock() - trace['started'] < 60, 'ui:trace-deadline')
         trace['input'] = True  # Consume before the fallible action; never replay.
         self._observe(trace['operation'])
+        if trace['mode'] == 'custom-save':
+            require(self._trace_clock() - trace['started'] < 60, 'ui:trace-deadline')
+            trace['worker_input'](trace['token'], trace['source'])
 
     def _trace_sample(self):
         with watch_activity.operation('Reading one unchanged public feedback trace sample'):
@@ -649,7 +661,7 @@ class UiObservations:
                           or operation in accessible_ui.STATION_BRANCH_OPERATIONS) else (
             120 if operation in accessible_ui.KIOSK_SESSION_OPERATIONS else 90)
         kiosk = operation in accessible_ui.KIOSK_SESSION_OPERATIONS
-        event_trace = operation in ('parent-checked-events', 'parent-save-events')
+        event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events')
         if (self.system_prompt is None and not kiosk and not event_trace
                 and self.accessibility_trace is None):
             return self.transport.call(argv, input=input, timeout=timeout), []
@@ -815,11 +827,12 @@ class UiObservations:
             binding = [self.boot_guard or '', self.mate_approval_identity]
         if self.accessibility_trace is not None:
             trace = self.accessibility_trace
-            require(operation in ('parent-checked-events', 'parent-save-events',
+            require(operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
                                   trace['operation']),
                     'ui:trace-intervening-operation')
             binding = [self.boot_guard or '', trace['token'] if operation ==
-                       ('parent-save-events' if trace['mode'] == 'save'
+                       ('parent-custom-events' if trace['mode'] == 'custom-save' else
+                        'parent-save-events' if trace['mode'] == 'save'
                         else 'parent-checked-events') else
                        ('save:' if trace['mode'] == 'save' else '') + trace['source']]
         # The standalone observer can exceed Linux's per-argument limit after
@@ -841,7 +854,7 @@ class UiObservations:
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation in accessible_ui.ACCESSIBILITY_TRACE_OPERATIONS:
             value = result.get('trace')
-            if operation in ('parent-checked-events', 'parent-save-events'):
+            if operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events'):
                 require(type(value) is dict and set(value) == {
                     'token', 'source', 'terminal', 'samples'} and
                     type(value['token']) is str and re.fullmatch(r'[0-9a-f]{32}', value['token']) and
@@ -858,7 +871,8 @@ class UiObservations:
                                 'ui:trace-sample')
                     else:
                         require(set(sample) == {'elapsed_ms', 'target', 'state', 'value'} and
-                                sample['target'] in ('toggle', 'child', 'allowance') and
+                                sample['target'] in (('toggle', 'child', 'allowance', 'editor')
+                                    if operation == 'parent-custom-events' else ('toggle', 'child', 'allowance')) and
                                 sample['state'] in ('checked', 'sensitive') and
                                 (sample['state'] != 'checked' or sample['target'] == 'toggle') and
                                 type(sample['value']) is bool, 'ui:trace-sample')
@@ -866,7 +880,12 @@ class UiObservations:
                 if operation == 'parent-checked-events':
                     require(value['samples'][-1]['checked'] is True, 'ui:trace-terminal')
                 else:
-                    require(save_trace_complete(value['samples']), 'ui:save-trace-missing')
+                    require(save_trace_complete(value['samples'], operation == 'parent-custom-events'),
+                            'ui:save-trace-missing')
+            elif operation == 'parent-custom-trace-focus':
+                require(value == {'focused': True}, 'ui:trace-focus')
+            elif operation == 'parent-custom-trace-disabled-refused':
+                require(value == {'refusal': 'disabled'}, 'ui:trace-refusal')
             else:
                 require(value == {'refusal': 'wrong-child' if operation ==
                     'parent-trace-wrong-child-refused' else 'wrong-surface'}, 'ui:trace-refusal')

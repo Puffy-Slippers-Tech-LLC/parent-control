@@ -58,6 +58,29 @@ sub run_parent_save_trace {
     return run_control_trace($exchange, 'parent-save-trace');
 }
 
+sub run_custom_save_trace {
+    onpc_progress::operation('Qualifying rapid custom saving and independent reloaded results');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'custom-save-trace', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, $_) for ('disabled-refused', 'enable', 'enabled');
+    for my $entry ('first', 'second') {
+        rejection_observe($journey, "$entry-$_") for ('preset', 'open', 'focus', 'wrong-child', 'wrong-surface');
+        onpc_text::observed_custom_edits($journey, "$entry-rapid", 5, 6);
+        rejection_observe($journey, "$entry-saved");
+        for my $direction ('away', 'back') {
+            rejection_observe($journey, "$entry-$direction-$_") for ('open', 'focus');
+            testapi::send_key('ret');
+            rejection_observe($journey, "$entry-$direction-selected");
+        }
+        rejection_observe($journey, "$entry-reopened");
+    }
+    $journey->finish();
+}
+
 sub run_control_trace {
     onpc_progress::operation('Running the declared Parent control trace sequence');
     my ($exchange, $prefix) = @_;

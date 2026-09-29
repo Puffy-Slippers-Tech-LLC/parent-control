@@ -21,10 +21,12 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **201 — [E2E-035: save-order](E2E-Tasks/201-case-159.md)**.
 
-Task 017b qualified the reusable rapid custom-edit route in
-`20260929T030021Z-d7980dce`. The affected toggle-saving regression passed in
-`20260929T030347Z-821a11a0`. Case 159 remains pending for Task 201's complete
-journey and acceptance.
+Task 017c qualified explicit Jordan rapid 5→6 and Riley custom 7-minute saves
+through `check_e2e_named_child_custom_saves` in `20260929T054754Z-ff2b12fc`.
+The rapid-custom and toggle-saving regressions passed in
+`20260929T055132Z-6a55d0bf` and `20260929T055433Z-eeb48b7a`.
+Case 159 remains pending for Task 201's complete journey and acceptance. No
+Case 159 live attempt or acceptance is recorded.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

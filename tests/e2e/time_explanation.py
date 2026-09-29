@@ -2,6 +2,7 @@
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop
+from journey_checks import check_balances
 from private_artifacts import require
 
 STAGES = (
@@ -25,21 +26,6 @@ SCREENS = {
         'parent-selected', *STAGES)},
 }
 SCREENS['time-explanation-collapse-again'] = 'ui:time-explanation-collapse'
-
-
-def check_balances(journey, observed, expected_seconds=900):
-    value = observed['ui']['time_explanation']
-    # The fresh child has never signed in: no daily usage or one-time grant.
-    # One-second display precision bounds apply independently to each operand.
-    require(all(abs(value[key]['seconds'] - expected) < value[key]['precision_seconds']
-                for key, expected in zip(('daily', 'one_time', 'total'),
-                                         (expected_seconds, 0, expected_seconds))),
-            'time-explanation:ordinary-balances')
-    earlier = getattr(journey, 'earlier_time_observation', None)
-    if earlier is not None:
-        require(value['observed_monotonic_ns'] > earlier, 'time-explanation:observation-order')
-    journey.earlier_time_observation = value['observed_monotonic_ns']
-    observed['comparison'] = {'ordinary_balances': True, 'independent_read': earlier is not None}
 
 
 PLAN = JourneyPlan(

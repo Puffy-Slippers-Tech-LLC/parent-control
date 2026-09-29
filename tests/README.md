@@ -396,9 +396,15 @@ authentication, sandbox and command grants apply; missing grants or unresolved
 behavior decisions pause with a blocker. No live Codex or VM work is performed
 by the launcher's regression tests.
 
-When a task is blocked, the launcher shows one concise, scenario-oriented
-explanation: what is finished, what prevents progress and how to unblock it.
-It asks one concrete question with two or three suggestions, the recommended
+When a task is blocked, both launchers ask in everyday language: what prevents
+progress, how it affects the work, why the agent cannot resolve it, and what
+specific decision or action the user needs to take. Questions and choices must
+also make sense without Linux or test-system knowledge. Technical commands,
+paths and error codes belong in the saved handoff. Each choice says who does
+what and what happens next; two versions of the same repair are not distinct
+choices. Access failures require checking the exact command against its grant
+before blaming host permissions or asking for administrator help.
+The launcher asks one concrete question with two or three suggestions, the recommended
 action first, and a gray **Other** placeholder for your instructions. Choose a
 number or use Up/Down, then press Enter to submit. Selecting Other lets you type
 your own instructions; Backspace edits and Ctrl+U clears them. Page Up/Page Down
@@ -985,7 +991,7 @@ the new checkout wrappers check permission without requesting authentication.
 Temporary screenshot cleanup still uses `tools/cleanup-screenshots` with
 explicit caller-owned `/tmp/onpc-*.png` filenames. Privileged graphical smoke
 exports still use
-`pkexec /usr/local/libexec/onpc-export-screenshot SOURCE /tmp/onpc-new.png`;
+`pkexec --keep-cwd /usr/local/libexec/onpc-export-screenshot SOURCE /tmp/onpc-new.png`;
 the source must be a regular PNG directly inside an
 `output/test-runs/{host,privileged}/allocations/onpc-graphical-smoke-*/testresults/`
 directory (legacy `/tmp` sources are still readable). See the helper's validation
@@ -1001,14 +1007,15 @@ requires restart. No product package or saved-data change is involved.
 
 Use the installed `onpc-test-artifacts` helper for privileged inspection across
 all test runs, names, extensions, and nested directories. Its Codex allow rule
-and dedicated Polkit rule cover the whole helper, not individual files:
+and dedicated Polkit rule cover the whole helper, not individual files. Run from
+the checkout root and keep `--keep-cwd` before the helper path:
 
 ```sh
-pkexec /usr/local/libexec/onpc-test-artifacts read /tmp/onpc-system-EXAMPLE/input/selected-inputs.json --bytes 8000
-pkexec /usr/local/libexec/onpc-test-artifacts list /tmp/onpc-system-EXAMPLE
-pkexec /usr/local/libexec/onpc-test-artifacts tail /tmp/onpc-system-EXAMPLE/private/command-1.log --bytes 16000
-pkexec /usr/local/libexec/onpc-test-artifacts stat /tmp/onpc-system-EXAMPLE/evidence/result.json
-pkexec /usr/local/libexec/onpc-test-artifacts export /tmp/onpc-future-run/results/recording.webm
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts read '/tmp/onpc-system-EXAMPLE/input/selected-inputs.json' --bytes 8000
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts list '/tmp/onpc-system-EXAMPLE'
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts tail '/tmp/onpc-system-EXAMPLE/private/command-1.log' --bytes 16000
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts stat '/tmp/onpc-system-EXAMPLE/evidence/result.json'
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts export '/tmp/onpc-future-run/results/recording.webm'
 ```
 
 `read` also accepts `--offset` for paging through large files. `list` returns

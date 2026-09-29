@@ -1,43 +1,46 @@
 # The installed root-owned helper validates paths and creates only new PNG exports.
 prefix_rule(
-    pattern = ["pkexec", "/usr/local/libexec/onpc-export-screenshot"],
+    pattern = ["pkexec", "--keep-cwd", "/usr/local/libexec/onpc-export-screenshot"],
     decision = "allow",
     justification = "Export a validated graphical test PNG to a new caller-owned /tmp/onpc-*.png file.",
-    match = ["pkexec /usr/local/libexec/onpc-export-screenshot /tmp/onpc-graphical-smoke-example/testresults/smoke-2.png /tmp/onpc-example.png"],
+    match = ["pkexec --keep-cwd /usr/local/libexec/onpc-export-screenshot /tmp/onpc-graphical-smoke-example/testresults/smoke-2.png /tmp/onpc-example.png"],
     not_match = ["pkexec /usr/bin/install -o edgar -g edgar -m 600 /tmp/source.png /tmp/onpc-example.png"],
 )
 
 # All test artifact formats and future run names share one installed validator.
 prefix_rule(
-    pattern = ["pkexec", "/usr/local/libexec/onpc-test-artifacts"],
+    pattern = ["pkexec", "--keep-cwd", "/usr/local/libexec/onpc-test-artifacts"],
     decision = "allow",
     justification = "Inspect project test files, results, logs and images, or create new caller-owned exports, through a path-confined helper.",
     match = [
-        "pkexec /usr/local/libexec/onpc-test-artifacts read /tmp/onpc-system-example/input/selected-inputs.json --bytes 8000",
-        "pkexec /usr/local/libexec/onpc-test-artifacts list /tmp/onpc-future-run",
-        "pkexec /usr/local/libexec/onpc-test-artifacts tail /var/log/oh-no-parent-control/daemon/2026-09-06.log",
-        "pkexec /usr/local/libexec/onpc-test-artifacts export /tmp/onpc-future-run/results/image.webp",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts read /tmp/onpc-system-example/input/selected-inputs.json --bytes 8000",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts list /tmp/onpc-future-run",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts tail /var/log/oh-no-parent-control/daemon/2026-09-06.log",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts export /tmp/onpc-future-run/results/image.webp",
     ],
     not_match = ["pkexec /usr/bin/cp /etc/shadow /tmp/onpc-copy", "pkexec /tmp/onpc-test-artifacts read /etc/shadow"],
 )
 
-# This root-owned dispatcher is bound to this checkout by setup.sh.
+# These checkout-resolving helpers require --keep-cwd before the executable.
+# Keep the complete prefix: allowing pkexec or pkexec --keep-cwd alone would
+# authorize arbitrary privileged programs. Codex allow rules select host execution.
+# This root-owned dispatcher resolves the invoking checkout and pins the test VM.
 # Trust includes future check_*.py tests and edits to their imported code.
 prefix_rule(
-    pattern = ["pkexec", "/usr/local/libexec/onpc-test-runner", ["integration", "system", "e2e", "vm"]],
+    pattern = ["pkexec", "--keep-cwd", "/usr/local/libexec/onpc-test-runner", ["integration", "system", "e2e", "vm"]],
     decision = "allow",
     justification = "Run project test categories through the installed dispatcher, with validated selection and automatic unprivileged cleanup prerequisites.",
     match = [
-        "pkexec /usr/local/libexec/onpc-test-runner integration check_graphical_worker",
-        "pkexec /usr/local/libexec/onpc-test-runner integration check_future_feature",
-        "pkexec /usr/local/libexec/onpc-test-runner system --area authorization --list",
-        "pkexec /usr/local/libexec/onpc-test-runner e2e --list",
-        "pkexec /usr/local/libexec/onpc-test-runner vm reboot",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner integration check_graphical_worker",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner integration check_future_feature",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner system --area authorization --list",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner e2e --list",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner vm reboot",
     ],
     not_match = [
         "pkexec /usr/bin/python3 -B /tmp/random.py",
-        "pkexec /usr/local/libexec/onpc-test-runner arbitrary-category",
-        "pkexec /usr/local/libexec/onpc-test-runner --command id",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner arbitrary-category",
+        "pkexec --keep-cwd /usr/local/libexec/onpc-test-runner --command id",
     ],
 )
 

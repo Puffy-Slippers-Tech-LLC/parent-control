@@ -131,13 +131,43 @@ def test_renderer_requires_inspection_launcher_and_uses_relative_paths(tmp_path,
     "tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py'",
     'tools/diagnose journal --lines 900', 'tools/test-vm reboot',
     'tools/prepare-baseline',
-    'pkexec /usr/local/libexec/onpc-test-runner vm stop',
-    'pkexec /usr/local/libexec/onpc-test-runner e2e --list',
+    'pkexec --keep-cwd /usr/local/libexec/onpc-test-runner vm stop',
+    'pkexec --keep-cwd /usr/local/libexec/onpc-test-runner e2e --list',
     'pkexec /usr/local/libexec/onpc-diagnostics systemctl show sshd.service',
 ])
 def test_validated_routes_only_match_allow_rules(command):
     decisions = [rule['decision'] for rule in entries() if matches(rule['pattern'], shlex.split(command))]
     assert decisions and set(decisions) == {'allow'}
+
+
+@pytest.mark.parametrize('operation', ['list', 'read', 'tail', 'stat', 'export'])
+def test_private_artifact_reader_uses_host_grant_with_required_checkout_option(operation):
+    argv = ['pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-artifacts',
+            operation, str(ROOT / 'output/test-runs/privileged/allocations/onpc-future/private/worker.log')]
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    assert [rule['decision'] for rule in rules if matches(rule['pattern'], argv)] == ['allow']
+
+
+def test_checkout_screenshot_export_uses_host_grant():
+    argv = ['pkexec', '--keep-cwd', '/usr/local/libexec/onpc-export-screenshot',
+            '/tmp/onpc-graphical-smoke-example/testresults/smoke-2.png', '/tmp/onpc-example.png']
+    assert [rule['decision'] for rule in entries() if matches(rule['pattern'], argv)] == ['allow']
+
+
+@pytest.mark.parametrize('command', [
+    'pkexec --keep-cwd /usr/bin/python3 arbitrary.py',
+    'pkexec --keep-cwd /bin/sh', 'pkexec --keep-cwd /usr/bin/cat /etc/shadow',
+    'pkexec --keep-cwd /tmp/onpc-test-artifacts read /etc/shadow',
+    'pkexec --keep-cwd /usr/local/libexec/onpc-test-runner arbitrary-category',
+    'pkexec --keep-cwd /usr/local/libexec/onpc-test-runner --command id',
+    'pkexec --keep-cwd --user another /usr/local/libexec/onpc-test-artifacts list /tmp/onpc-example',
+    'pkexec /usr/local/libexec/onpc-test-artifacts list /tmp/onpc-example',
+    'pkexec /usr/local/libexec/onpc-export-screenshot /tmp/onpc-source.png /tmp/onpc-out.png',
+    'pkexec /usr/local/libexec/onpc-test-runner e2e --list',
+])
+def test_checkout_helper_grants_do_not_allow_other_programs_or_obsolete_commands(command):
+    assert not any(rule['decision'] == 'allow' and matches(rule['pattern'], shlex.split(command))
+                   for rule in entries())
 
 
 @pytest.mark.parametrize('command', [

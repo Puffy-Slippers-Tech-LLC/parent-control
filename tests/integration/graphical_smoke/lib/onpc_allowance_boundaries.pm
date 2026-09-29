@@ -17,10 +17,18 @@ sub reload_child {
     onpc_progress::operation('Reloading the selected child through the public selector');
     my ($journey, $prefix) = @_;
     for my $direction ('away', 'back') {
-        seen($journey, "$prefix-$direction-$_") for ('open', 'focus');
-        testapi::send_key('ret');
-        seen($journey, "$prefix-$direction-selected");
+        select_child($journey, "$prefix-$direction");
     }
+}
+
+sub select_child {
+    onpc_progress::operation('Selecting and independently reading the declared child');
+    my ($journey, $prefix) = @_;
+    die 'allowance:selection-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    seen($journey, "$prefix-$_") for ('open', 'focus');
+    testapi::send_key('ret');
+    seen($journey, "$prefix-selected");
 }
 
 sub exercise {

@@ -4,6 +4,7 @@ No shared files, buses, displays, sockets or fixture builds; unit-compatible.
 """
 import json
 import sys
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -30,6 +31,118 @@ from restricted_station import PLAN as STATION_PLAN, DENIED_PLAN, CANCELLED_PLAN
 import approval_flow
 from restricted_station_about import PLAN as ABOUT_PLAN, RestrictedStationAboutJourney
 from kiosk_about import PLAN as ABOUT_CASE_PLAN
+from request_composition import KioskRequestJourney
+
+
+@pytest.mark.parametrize('fault', [None, 'changed-choice', 'invalid-request'])
+def test_shared_comparison_through_real_recorder_step_preserves_both_hooks(tmp_path, fault):
+    from copy import deepcopy
+    from installed_journey import JourneyPlan
+    operation = 'kiosk-valid-fraction-soft-read'
+    plan = JourneyPlan(prefix='independent-request', worker_mode='fixture', phases={},
+        screen_tags={'captured': 'ui:' + operation, 'returned': 'ui:' + operation},
+        request_checks={'returned': ('captured', 'fixture:changed-form', 'preserved_choices')})
+    progress = Mock()
+    journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), progress, plan)
+    journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
+    journey.boot = 'a' * 64
+    journey.balance = {'daily': {'seconds': 900, 'precision_seconds': 1},
+                       'one_time': {'seconds': 0, 'precision_seconds': 1},
+                       'observed_monotonic_ns': 1_000_000_000}
+    request = dict(surface='kiosk', form_count=1, **CHOICES, custom_text='1.25',
+                   child_selector_enabled=True, approver_selector_enabled=True,
+                   duration_enabled=True, soft_choice_enabled=True, request_enabled=True,
+                   cancel_enabled=True, message='', mute=None)
+    result = {'operation': operation, 'request': request,
+              'valid_choice': {'request': dict(request),
+                               'estimate': {'kind': 'fixed', 'seconds': 975},
+                               'observed_monotonic_ns': 2_000_000_000}}
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value=result))
+    for stage in ('captured', 'returned'):
+        reply = tmp_path / (stage + '.reply.json')
+        (tmp_path / (stage + '.request.json')).write_text(json.dumps(
+            {'stage': stage, 'screenshot': None}))
+        current = deepcopy(result)
+        if stage == 'returned' and fault == 'changed-choice':
+            current['valid_choice']['request']['allow_soft'] = False
+        if stage == 'returned' and fault == 'invalid-request':
+            current['request']['child'] = 'wrong-child'
+        journey.ui.observe.return_value = current
+        progress.side_effect = lambda *args: None if not reply.exists() else pytest.fail('early reply')
+        if stage == 'returned' and fault:
+            with pytest.raises(EvidenceError, match='changed-form|ui:request'):
+                journey.step(Mock())
+            assert not reply.exists()
+            assert progress.call_count == 1
+            with pytest.raises(EvidenceError, match='previous-failure'):
+                journey.step(Mock())
+        else:
+            journey.step(Mock())
+            assert reply.exists()
+            assert stage in journey.requests and stage in journey.request_observations
+    if not fault:
+        assert progress.call_args.args[1]['comparison']['preserved_choices']
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-before', 'child', 'approver',
+                                  'duration_seconds', 'allow_soft', 'capture-replay',
+                                  'result-replay', 'aliased-input'])
+def test_shared_request_comparison_is_independent_of_stage_names(tmp_path, monkeypatch, fault):
+    from installed_journey import JourneyPlan
+    monkeypatch.setattr(KioskRequestJourney, 'check_estimate', lambda *args: None)
+    plan = JourneyPlan(prefix='independent-request', worker_mode='fixture', phases={},
+        screen_tags={'captured': 'ui:kiosk-valid-fraction-soft-read',
+                     'returned': 'ui:kiosk-valid-fraction-soft-read'},
+        request_checks={'returned': ('captured', 'fixture:changed-form', 'preserved_choices')})
+    journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), plan, actions={})
+    value = dict(CHOICES)
+    observed = {'ui': {'valid_choice': {'request': value}}}
+    if fault != 'missing-before':
+        journey.check_settings('captured', observed)
+    if fault == 'capture-replay':
+        with pytest.raises(EvidenceError, match='comparison-replay'):
+            journey.check_settings('captured', observed)
+        return
+    if fault == 'aliased-input':
+        value['allow_soft'] = False
+    returned = dict(value)
+    if fault in returned:
+        returned[fault] = 'changed'
+    result = {'ui': {'valid_choice': {'request': returned}}}
+    if fault not in (None, 'result-replay'):
+        with pytest.raises(EvidenceError, match='changed-form'):
+            journey.check_settings('returned', result)
+        assert 'comparison' not in result
+    else:
+        journey.check_settings('returned', result)
+        assert result['comparison']['preserved_choices']
+        if fault == 'result-replay':
+            with pytest.raises(EvidenceError, match='comparison-replay'):
+                journey.check_settings('returned', result)
+
+
+@pytest.mark.parametrize('checks', [
+    {'missing': ('open-estimate', 'error', 'result')},
+    {'form-returned': ('missing', 'error', 'result')},
+    {'open-estimate': ('form-returned', 'error', 'result')},
+    {'form-returned': ('form-returned', 'error', 'result')},
+    {'form-returned': ('open-estimate', '', 'result')},
+])
+def test_request_comparison_plan_rejects_missing_or_reversed_endpoints(checks):
+    with pytest.raises(EvidenceError, match='request-plan'):
+        replace(ABOUT_CASE_PLAN, request_checks=checks)
+
+
+def test_shared_balance_capture_uses_operation_and_copies_evidence(tmp_path):
+    plan = replace(CANCEL_PLAN,
+                   screen_tags={'renamed-balance': 'ui:time-explanation-read'})
+    journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+    value = {'daily': {'seconds': 900, 'precision_seconds': 1},
+             'one_time': {'seconds': 0, 'precision_seconds': 1},
+             'observed_monotonic_ns': 1_000_000_000}
+    journey.check_settings('renamed-balance', {'ui': {'time_explanation': value}})
+    value['daily']['seconds'] = 0
+    assert journey.balance['daily']['seconds'] == 900
 
 
 def station_about_ui():
@@ -127,8 +240,8 @@ def test_station_about_worker_preserves_order_and_stops_on_refusal(monkeypatch, 
 
 @pytest.mark.parametrize('fault', [None, 'daily', 'one_time', 'total'])
 def test_station_about_thirty_minute_setup_requires_all_balances(monkeypatch, fault):
-    monkeypatch.setattr(KioskValidDurationJourney, 'check_settings', lambda *args: None)
-    journey = object.__new__(RestrictedStationAboutJourney)
+    journey = object.__new__(KioskRequestJourney)
+    journey.plan = ABOUT_CASE_PLAN
     journey.balance = None
     value = {key: {'seconds': seconds, 'precision_seconds': 1}
              for key, seconds in (('daily', 1800), ('one_time', 0), ('total', 1800))}
@@ -145,9 +258,10 @@ def test_station_about_thirty_minute_setup_requires_all_balances(monkeypatch, fa
 
 @pytest.mark.parametrize('fault', [None, 'missing-before', 'child', 'duration_seconds', 'allow_soft'])
 def test_station_about_return_compares_captured_form_before_acknowledgement(monkeypatch, fault):
-    monkeypatch.setattr(KioskValidDurationJourney, 'check_settings', lambda *args: None)
-    journey = object.__new__(RestrictedStationAboutJourney)
-    journey.before_about = None
+    monkeypatch.setattr(KioskRequestJourney, 'check_estimate', lambda *args: None)
+    journey = object.__new__(KioskRequestJourney)
+    journey.plan = ABOUT_CASE_PLAN
+    journey.requests = {}
     value = {'child': 'fixture-child', 'duration_seconds': 75, 'allow_soft': True}
     if fault != 'missing-before':
         journey.check_settings('open-estimate', {'ui': {'valid_choice': {'request': value}}})
@@ -367,7 +481,7 @@ def test_unapproved_station_uses_shared_preserved_form_comparison(tmp_path, monk
     journey = approval_flow.ApprovalFlowJourney(
         SimpleNamespace(directory=tmp_path), Mock(), plan, actions={})
     assert journey.plan is plan
-    monkeypatch.setattr(RequestFlowJourney, 'check_settings', lambda *args: None)
+    monkeypatch.setattr(KioskRequestJourney, 'check_estimate', lambda *args: None)
     observed = {'ui': {'valid_choice': {'request': dict(CHOICES)}}, 'comparison': {}}
     journey.check_settings('flow-before', observed)
     journey.check_settings('flow-preserved', observed)
@@ -814,7 +928,7 @@ def test_flow_reentry_compares_independent_choices():
     journey.balance = {'daily': {'seconds': 900, 'precision_seconds': 1},
                        'one_time': {'seconds': 0, 'precision_seconds': 1},
                        'observed_monotonic_ns': 1_000_000_000}
-    journey.prepared = None
+    journey.requests = {}
     value = {'request': {'duration_seconds': 75, 'allow_soft': True},
              'estimate': {'kind': 'fixed', 'seconds': 975}, 'observed_monotonic_ns': 2_000_000_000}
     journey.check_settings('open-estimate', {'ui': {'valid_choice': value}})
@@ -994,10 +1108,12 @@ def test_multiple_case_stops_at_selector_and_preservation_boundaries(monkeypatch
 def test_multiple_journey_reuses_owned_snapshot_and_no_account_mutation(tmp_path):
     from kiosk_multiple import PLAN
     from parent_setup_qualification import KioskMultipleQualification, KioskEntryQualification
+    from tests.support.paths import ROOT
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
     context = SimpleNamespace(directory=tmp_path)
     journey = KioskMultipleQualification.journey(context, Mock())
     assert journey.plan is PLAN and not journey.actions
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v' + version
     assert KioskMultipleQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
 
 
@@ -1192,7 +1308,7 @@ def test_flow07_compares_preserved_choices_and_uses_owned_snapshot(tmp_path, mon
     journey = cls.journey(SimpleNamespace(directory=tmp_path), Mock())
     assert journey.plan == approval_flow.plan(outcome)
     assert cls.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
-    monkeypatch.setattr(RequestFlowJourney, 'check_settings', lambda *args: None)
+    monkeypatch.setattr(KioskRequestJourney, 'check_estimate', lambda *args: None)
     observed = {'ui': {'valid_choice': {'request': dict(CHOICES)}}, 'comparison': {}}
     with pytest.raises(EvidenceError, match='changed-form'):
         journey.check_settings('flow-preserved', observed)
@@ -1462,13 +1578,14 @@ def test_rejection_waits_for_retry_field_without_accepting_unready_state(monkeyp
 
 
 def test_rejection_plan_independent_form_comparison(tmp_path, monkeypatch):
-    monkeypatch.setattr(RequestFlowJourney, 'check_settings', lambda *_: None)
+    monkeypatch.setattr(KioskRequestJourney, 'check_estimate', lambda *_: None)
     journey = KioskRejectionJourney(SimpleNamespace(directory=tmp_path), Mock())
-    journey.prepared = {'choice': 'before'}
+    before = {'choice': 'before'}
+    journey.check_settings('open-estimate', {'ui': {'valid_choice': {'request': before}}})
     observed = {'ui': {'valid_choice': {'request': {'choice': 'after'}}}, 'comparison': {}}
     with pytest.raises(EvidenceError, match='changed-form'):
         journey.check_settings('rejection-form', observed)
-    observed['ui']['valid_choice']['request'] = journey.prepared.copy()
+    observed['ui']['valid_choice']['request'] = before.copy()
     journey.check_settings('rejection-form', observed)
     assert observed['comparison'] == {'preserved_choices': True}
 

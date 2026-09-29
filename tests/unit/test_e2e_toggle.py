@@ -11,7 +11,16 @@ from parent_setup_qualification import ParentToggleQualification
 from tests.support.perl import ALLOWANCE_WORKER, run_perl
 
 
-def test_toggle_qualification_uses_the_fixed_installed_snapshot_and_selector(tmp_path):
+@pytest.fixture
+def snapshot_version(tmp_path, monkeypatch):
+    """Pin qualification metadata independently of release version bumps."""
+    root = tmp_path / 'snapshot-source'
+    (root / 'data').mkdir(parents=True)
+    (root / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    monkeypatch.setattr(parent_setup_qualification.smoke, 'ROOT', root)
+
+
+def test_toggle_qualification_uses_the_fixed_installed_snapshot_and_selector(tmp_path, snapshot_version):
     import check_e2e_toggle as check
     import check_e2e_parent_save as save_check
 
@@ -234,7 +243,7 @@ def test_time_explanation_checks_all_balances_and_monotonic_order():
     journey.check_settings('time-explanation-zero-reread', observation)
 
 
-def test_set_allowance_selector_and_guarded_preparation(monkeypatch, tmp_path):
+def test_set_allowance_selector_and_guarded_preparation(monkeypatch, tmp_path, snapshot_version):
     import check_e2e_set_an_allowance_for_a_named_child as check
     import check_graphical_smoke as smoke
     from owned_commands import CommandError
@@ -256,7 +265,7 @@ def test_set_allowance_selector_and_guarded_preparation(monkeypatch, tmp_path):
     assert SetAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
 
 
-def test_fresh_thirty_selector_and_guarded_preparation(monkeypatch, tmp_path):
+def test_fresh_thirty_selector_and_guarded_preparation(monkeypatch, tmp_path, snapshot_version):
     import check_e2e_set_fresh_thirty_minute_allowance as check
     import check_graphical_smoke as smoke
     from owned_commands import CommandError
@@ -306,7 +315,7 @@ def test_fresh_thirty_requires_balances_fresh_read_and_saved_settings(fault):
             journey.check_settings('final-settings', {'ui': {'settings': settings}})
 
 
-def test_app_restart_selector_uses_owned_snapshot_and_cleanup(monkeypatch, tmp_path):
+def test_app_restart_selector_uses_owned_snapshot_and_cleanup(monkeypatch, tmp_path, snapshot_version):
     import check_e2e_app_restart as check
     import check_graphical_smoke as smoke
     from owned_commands import CommandError
@@ -583,7 +592,7 @@ def test_custom_reopen_checks_the_declared_reload_or_retained_selection(
     else:
         assert AccessibleUI.custom_allowance(ui, CHILD, minutes, action=action) == {
             'minutes': minutes, 'action': action}
-        ui.read_synthetic_text.assert_called_once_with('daily-' + str(minutes))
+        ui.read_synthetic_text.assert_called_once_with('daily-' + str(minutes), child=CHILD)
         if action == 'reopen':
             ui.allowance_preset.assert_called_once_with(CHILD, minutes, action='read')
         else:

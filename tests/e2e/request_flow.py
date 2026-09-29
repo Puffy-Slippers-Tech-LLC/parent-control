@@ -5,7 +5,7 @@ This flow neither changes policy nor submits a request.
 """
 from installed_journey import JourneyPlan
 from journey_blocks import fresh_desktop, parent_management, station_entry
-from kiosk_valid_duration import KioskValidDurationJourney
+from request_composition import KioskRequestJourney
 from private_artifacts import require
 
 
@@ -59,19 +59,11 @@ PLAN = JourneyPlan(
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in list(SCREENS)[list(SCREENS).index('switch-user'):]}},
     advance_after={'time-explanation-read': 'step-2'},
+    request_checks={'new-estimate': ('open-estimate', 'request-flow:reproduced-choices',
+                                     'reproduced_choices')},
 )
 
 
-class RequestFlowJourney(KioskValidDurationJourney):
+class RequestFlowJourney(KioskRequestJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan=plan, actions=actions)
-        self.prepared = None
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        if stage == 'open-estimate':
-            self.prepared = observed['ui']['valid_choice']['request']
-        elif stage == 'new-estimate':
-            require(self.prepared is not None and self.prepared ==
-                    observed['ui']['valid_choice']['request'], 'request-flow:reproduced-choices')
-            observed['comparison']['reproduced_choices'] = True

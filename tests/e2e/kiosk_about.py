@@ -3,7 +3,7 @@
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, station_entry
 from request_flow import prepared_request
-from restricted_station_about import RestrictedStationAboutJourney
+from request_composition import KioskRequestJourney
 
 
 SCREENS = {
@@ -31,12 +31,14 @@ PLAN = JourneyPlan(
             **{stage: 'step-3' for stage in ('about-close-ready', 'about-closed',
                                             'form-returned', 'cancel', 'returned')}},
     advance_after={'open-estimate': 'step-2', 'about-read': 'step-3'},
+    balance_checks={'allowance-configured': 1800},
+    request_checks={'form-returned': ('open-estimate', 'kiosk-about:changed-form', 'unchanged_form')},
 )
 
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
-                             journey_type=RestrictedStationAboutJourney)
+                             journey_type=KioskRequestJourney)
 
 
 E2E_CASES = {'kiosk': execute}

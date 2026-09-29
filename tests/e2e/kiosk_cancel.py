@@ -2,7 +2,7 @@
 
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, station_entry
-from kiosk_valid_duration import KioskValidDurationJourney
+from request_composition import KioskRequestJourney
 from request_flow import prepared_request
 
 
@@ -33,7 +33,7 @@ PLAN = JourneyPlan(
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
-                             journey_type=KioskValidDurationJourney)
+                             journey_type=KioskRequestJourney)
 
 
 E2E_CASES = {'kiosk-cancel': execute}

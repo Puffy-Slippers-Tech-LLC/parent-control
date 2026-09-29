@@ -28,6 +28,8 @@ def plan(outcome):
     stages.update(rejected_request(outcome=outcome, **CHOICES))
     stages.update(approved_request(**CHOICES, exit='automatic'))
     return replace(BASE_PLAN, prefix='kiosk-approval-flow', worker_mode='approval_flow_' + outcome, screen_tags=stages,
+                   request_checks={**BASE_PLAN.request_checks,
+                       'flow-preserved': ('flow-before', 'approval-flow:changed-form', 'preserved_choices')},
                    phases={**BASE_PLAN.phases, **{stage: 'step-2' for stage in stages
                                                  if stage not in BASE_PLAN.phases}})
 
@@ -39,13 +41,3 @@ CANCEL_PLAN = plan('cancel')
 class ApprovalFlowJourney(RequestFlowJourney):
     def __init__(self, context, progress, plan=REJECTION_PLAN, *, actions=None):
         super().__init__(context, progress, plan=plan, actions=actions)
-        self.before_rejection = None
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        if stage == 'flow-before':
-            self.before_rejection = dict(observed['ui']['valid_choice']['request'])
-        if stage == 'flow-preserved':
-            require(self.before_rejection is not None and self.before_rejection ==
-                    observed['ui']['valid_choice']['request'], 'approval-flow:changed-form')
-            observed['comparison']['preserved_choices'] = True

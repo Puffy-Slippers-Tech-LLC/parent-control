@@ -59,6 +59,40 @@ sub run_parent_save_trace {
     return run_control_trace($exchange, 'parent-save-trace');
 }
 
+sub custom_save_entry {
+    onpc_progress::operation('Saving and independently reloading the named custom allowance');
+    my ($journey, $entry, $child, $first, $last) = @_;
+    die 'trace:custom-entry' unless @_ == 5 && ref($journey) eq 'onpc_journey'
+        && $entry =~ /\A[a-z][a-z0-9-]*\z/ && ($child eq 'child' || $child eq 'existing')
+        && $first eq '5' && $last eq '6';
+    rejection_observe($journey, "$entry-$_") for ('open', 'focus', 'wrong-child', 'wrong-surface');
+    onpc_text::observed_custom_edits($journey, "$entry-rapid", $first, $last, $child);
+    rejection_observe($journey, "$entry-saved");
+    onpc_allowance_boundaries::reload_child($journey, $entry);
+    rejection_observe($journey, "$entry-reopened");
+}
+
+sub run_named_child_custom_saves {
+    onpc_progress::operation('Qualifying independent named-child custom saves');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'named-child-custom-saves', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, $_) for ('disabled-refused', 'setup');
+    custom_save_entry($journey, $_, 'existing', 5, 6) for ('first', 'second');
+    onpc_allowance_boundaries::select_child($journey, 'riley');
+    rejection_observe($journey, $_) for ('riley-setup', 'riley-editor', 'riley-wrong-child');
+    onpc_text::replace_text($journey, 'daily-7', 'riley-text');
+    rejection_observe($journey, 'riley-saved');
+    onpc_allowance_boundaries::select_child($journey, 'final-away');
+    rejection_observe($journey, 'jordan-final');
+    onpc_allowance_boundaries::select_child($journey, 'final-back');
+    rejection_observe($journey, 'riley-final');
+    $journey->finish();
+}
+
 sub run_custom_save_trace {
     onpc_progress::operation('Qualifying rapid custom saving and independent reloaded results');
     my ($exchange) = @_;
@@ -69,11 +103,8 @@ sub run_custom_save_trace {
     $journey->consume_observation('parent-selected', $selected);
     rejection_observe($journey, $_) for ('disabled-refused', 'enable', 'enabled');
     for my $entry ('first', 'second') {
-        rejection_observe($journey, "$entry-$_") for ('preset', 'open', 'focus', 'wrong-child', 'wrong-surface');
-        onpc_text::observed_custom_edits($journey, "$entry-rapid", 5, 6);
-        rejection_observe($journey, "$entry-saved");
-        onpc_allowance_boundaries::reload_child($journey, $entry);
-        rejection_observe($journey, "$entry-reopened");
+        rejection_observe($journey, "$entry-preset");
+        custom_save_entry($journey, $entry, 'child', 5, 6);
     }
     $journey->finish();
 }

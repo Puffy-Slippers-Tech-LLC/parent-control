@@ -27,6 +27,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'named-custom-setup': 'Setting the named child allowance to enabled zero',
+    'named-custom-wrong-child-refused': 'Refusing custom input and trace for the wrong child',
     **{operation: 'Observing the owned Parent checked-state event without input'
        for operation in accessible_ui.ACCESSIBILITY_TRACE_OPERATIONS},
     'feedback-trace-sample': 'Observing the caller-owned synthetic feedback transition',
@@ -454,12 +456,14 @@ class UiObservations:
         self.trace_sink = lambda token, index, sample: None
         self.accessibility_trace = None
 
-    def observe_accessibility_input(self, operation, terminal, mode='checked', *, worker_input=None):
+    def observe_accessibility_input(self, operation, terminal, mode='checked', *, worker_input=None, child=None):
         """Declared UI22 composition: arm read-only events, invoke UI17 once,
         collect UI26. The outer owned SSH command stays alive during the nested
         synchronous input call; no thread or alternate runner owns its lifetime.
         """
         custom = mode == 'custom-save'
+        require(child is None or (custom and child in accessible_ui.NAMED_CUSTOM_CHILDREN),
+                'ui:custom-child-binding')
         require((custom and operation == 'parent-custom-trace-focus' and terminal == 6
                  and callable(worker_input)) or
                 (operation == 'parent-toggle-enabled' and terminal is True and
@@ -470,12 +474,12 @@ class UiObservations:
         token = secrets.token_hex(16)
         trace = {'token': token, 'ready': False, 'input': False,
                  'started': self._trace_clock(), 'operation': operation, 'mode': mode,
-                 'worker_input': worker_input}
+                 'worker_input': worker_input, 'child': child}
         self.accessibility_trace = trace
         try:
             with watch_activity.operation('Observing one declared Parent accessibility toggle'):
                 result = self._observe('parent-custom-events' if custom else 'parent-save-events' if mode == 'save'
-                                       else 'parent-checked-events')
+                                       else 'parent-checked-events', **({'child': child} if child else {}))
             require(trace['ready'] and trace['input'] and
                     self._trace_clock() - trace['started'] < 60, 'ui:trace-incomplete')
             value = result['trace']
@@ -513,7 +517,7 @@ class UiObservations:
         self.trace_sink(trace['token'], 0, dict(value))
         require(self._trace_clock() - trace['started'] < 60, 'ui:trace-deadline')
         trace['input'] = True  # Consume before the fallible action; never replay.
-        self._observe(trace['operation'])
+        self._observe(trace['operation'], **({'child': trace['child']} if trace.get('child') else {}))
         if trace['mode'] == 'custom-save':
             require(self._trace_clock() - trace['started'] < 60, 'ui:trace-deadline')
             trace['worker_input'](trace['token'], trace['source'])
@@ -706,7 +710,7 @@ class UiObservations:
         finally:
             commands.progress = previous
 
-    def observe(self, operation):
+    def observe(self, operation, *, child=None):
         import time
         trace = self.trace
         if trace is not None and trace['binding'] is not None and not self.trace_failed:
@@ -763,7 +767,7 @@ class UiObservations:
                     self.mate_approval_checked = time.monotonic()
                 if operation in accessible_ui.MATE_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
-                result = self._observe(operation)
+                result = self._observe(operation, **({'child': child} if child else {}))
                 self.last_mate_operation = operation
                 return result
             except BaseException:
@@ -798,7 +802,9 @@ class UiObservations:
             self.pending_challenge = None
             raise
 
-    def _observe(self, operation):
+    def _observe(self, operation, *, child=None):
+        require(child is None or (child in accessible_ui.NAMED_CUSTOM_CHILDREN and
+                operation in accessible_ui.NAMED_CUSTOM_OPERATIONS), 'ui:custom-child-binding')
         import re
         # Qualifications lack a scenario recorder, but use the same existing
         # spectator command pane as customer cases. Keep private program/stdin
@@ -835,6 +841,12 @@ class UiObservations:
                         'parent-save-events' if trace['mode'] == 'save'
                         else 'parent-checked-events') else
                        ('save:' if trace['mode'] == 'save' else '') + trace['source']]
+        if child is not None:
+            if not binding:
+                binding = [self.boot_guard or '']
+            if len(binding) == 1:
+                binding.append('')
+            binding.append(child)
         # The standalone observer can exceed Linux's per-argument limit after
         # SSH shell quoting. Carry its bytes on the existing guarded stdin pipe.
         try:

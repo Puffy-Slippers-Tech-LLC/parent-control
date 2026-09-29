@@ -665,11 +665,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          trace_stable_state=False, trace_transition=False, compose_observation=False,
          accessibility_input_trace=False, parent_save_trace=False, custom_save_trace=False,
+         named_child_custom_saves=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
          synthetic_files=False, document_open=False, archive_open=False, source_change=False,
          file_chooser=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False):
+    require(type(named_child_custom_saves) is bool and
+            (not named_child_custom_saves or custom_save_trace), 'smoke:trace-prerequisites')
     require(type(custom_save_trace) is bool and type(parent_save_trace) is bool and type(accessibility_input_trace) is bool and
             sum((parent_save_trace, accessibility_input_trace, custom_save_trace)) <= 1 and
             not ((accessibility_input_trace or parent_save_trace or custom_save_trace) and
@@ -1254,6 +1257,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-parent-save-trace-qualification'
         if custom_save_trace:
             result['scope'] = 'installed-custom-save-trace-qualification'
+        if named_child_custom_saves:
+            result['scope'] = 'installed-named-child-custom-saves-qualification'
         if format_qualification:
             result['scope'] = 'installed-format-qualification'
         if feedback_block_semantics:
@@ -1508,6 +1513,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if custom_save_trace:
                     from parent_setup_qualification import CustomSaveTraceQualification
                     qualification_class = CustomSaveTraceQualification
+                if named_child_custom_saves:
+                    from parent_setup_qualification import NamedChildCustomSavesQualification
+                    qualification_class = NamedChildCustomSavesQualification
                 if format_qualification:
                     from parent_setup_qualification import FormatQualification
                     qualification_class = FormatQualification

@@ -198,6 +198,22 @@ def test_every_repair_phase_preserves_the_behavior_confirmation_mandate(classifi
     assert 'an answer alone is not evidence it passed' in prompt
 
 
+def test_both_workflows_explain_decisions_without_requiring_technical_translation():
+    import write_e2e
+    from launcher_question import BLOCKER_INSTRUCTIONS
+    prompts = [fix_tests.repair_prompt('failure'),
+               write_e2e.session_prompt(write_e2e.fresh_state('017c'))]
+    for prompt in prompts:
+        assert BLOCKER_INSTRUCTIONS in prompt
+        assert 'Use everyday language and short sentences in ALL three fields' in prompt
+        assert 'why you cannot finish' in prompt
+        assert 'Each choice must say who does what and what happens' in prompt
+        assert 'Do not offer two phrasings of the same repair' in prompt
+        assert 'compare the exact command with the maintained grant' in prompt
+        assert 'do not suggest administrator repair without evidence' in prompt
+        assert 'expected result and observed result' in prompt
+
+
 @pytest.mark.parametrize('result', [
     [], {'status': 'unknown', 'summary': 'x'},
     {'status': 'blocked', 'summary': 'x', 'blocker': None},

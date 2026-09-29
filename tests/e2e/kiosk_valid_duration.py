@@ -1,8 +1,8 @@
 """REQUEST04/05/06/08 valid kiosk choices; no approval or complete case credit."""
 
-from installed_journey import InstalledJourney, JourneyPlan
+from installed_journey import JourneyPlan
 from kiosk_eligible_choices import SCREENS as ACCOUNT_SCREENS
-from private_artifacts import require
+from request_composition import KioskRequestJourney
 
 SCREENS = {}
 for stage, operation in ACCOUNT_SCREENS.items():
@@ -29,30 +29,6 @@ PLAN = JourneyPlan(
 )
 
 
-class KioskValidDurationJourney(InstalledJourney):
+class KioskValidDurationJourney(KioskRequestJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)
-        self.balance = None
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        if stage == 'time-explanation-read':
-            self.balance = observed['ui']['time_explanation']
-        choice = observed.get('ui', {}).get('valid_choice')
-        if choice is None:
-            return
-        require(self.balance is not None, 'kiosk-valid:missing-balance')
-        elapsed = (choice['observed_monotonic_ns'] - self.balance['observed_monotonic_ns']) / 1e9
-        require(0 <= elapsed <= 600, 'kiosk-valid:elapsed-bound')
-        if choice['estimate']['kind'] == 'fixed':
-            daily, grant = (self.balance[key]['seconds'] for key in ('daily', 'one_time'))
-            requested = choice['request']['duration_seconds']
-            actual = choice['estimate']['seconds']
-            precision = max(self.balance[key]['precision_seconds'] for key in ('daily', 'one_time'))
-            require(max(0, max(daily, grant) - elapsed) + requested - precision <= actual
-                    <= max(daily, grant) + requested + precision, 'kiosk-valid:estimate-bounds')
-            # The fresh selected child has never signed in: a broad elapsed
-            # interval must not conceal a wrong request or double-added balance.
-            require(abs(actual - (max(daily, grant) + requested)) <= precision,
-                    'kiosk-valid:unused-child-estimate')
-        observed['comparison'] = {'estimate_bounds': True, 'no_authentication': True}

@@ -906,9 +906,11 @@ def test_settings_reads_custom_editor_value_through_controller(value):
         ui.settings()
 
 
-@pytest.mark.parametrize('value', [0, 1, 2, 3, 15, 1439])
-def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch):
-    ui, root, *_ = parent_save_ui()
+@pytest.mark.parametrize('value', [0, 1, 2, 3, 6, 7, 15, 1439])
+@pytest.mark.parametrize('child', [accessible_ui.CHILD, accessible_ui.EXISTING_CHILD])
+def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch, child):
+    ui, root, picker, *_ = parent_save_ui(child_uid=1001 if child == accessible_ui.CHILD else 1002)
+    picker.children[0].children[0].name = child
     root.states.add('active')
     entry = Node(identity='parent-custom-daily-limit', role='text',
                  states=('showing', 'visible', 'sensitive', 'editable', 'focused'))
@@ -917,7 +919,7 @@ def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch
     ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(str(value)),
                                  get_text=Mock(return_value=str(value)))
     ui.activate_id = Mock()
-    assert ui.custom_allowance(accessible_ui.CHILD, value, action='open') == {
+    assert ui.custom_allowance(child, value, action='open') == {
         'minutes': value, 'action': 'open'}
     ui.activate_id.assert_not_called()
     # The pause sends no input; the Tab route must leave the editor.
@@ -927,11 +929,27 @@ def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch
         monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: next(clock))
     if value == 3:
         entry.states.remove('focused')
-    assert ui.custom_allowance(accessible_ui.CHILD, value, action='saved') == {
+    assert ui.custom_allowance(child, value, action='saved') == {
         'minutes': value, 'action': 'saved'}
     ui.api.Text.get_text.return_value = '9'
     with pytest.raises(UiError, match='ui:text-value'):
-        ui.custom_allowance(accessible_ui.CHILD, value, action='saved')
+        ui.custom_allowance(child, value, action='saved')
+
+
+@pytest.mark.parametrize('child', [accessible_ui.CHILD, accessible_ui.EXISTING_CHILD])
+def test_named_custom_refuses_wrong_child_before_focus_or_trace(child):
+    ui, root, picker, *_ = parent_save_ui(child_uid=1001 if child == accessible_ui.CHILD else 1002)
+    picker.children[0].children[0].name = child
+    root.states.add('active')
+    root.children.append(Node(identity='parent-custom-daily-limit', role='text',
+        states=('showing', 'visible', 'sensitive', 'editable', 'focused')))
+    ui.activate_id = Mock()
+    other = accessible_ui.EXISTING_CHILD if child == accessible_ui.CHILD else accessible_ui.CHILD
+    with pytest.raises(UiError, match='ui:wrong-child'):
+        ui.focus_text('parent-custom-daily-limit', child=other)
+    with pytest.raises(UiError, match='ui:selected-child'):
+        ui.parent_save_trace_source(True, other)
+    ui.activate_id.assert_not_called()
 
 
 @pytest.mark.parametrize('disabled', [False, True])
@@ -1772,8 +1790,9 @@ def test_greeter_collection_order_path_is_retired_before_tree_access():
     ui.api.get_desktop.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', [None, 'missing', 'symlink', 'regular', 'wrong-owner'])
-def test_public_bus_discovery_is_owned_and_bounded(short_runtime, fault, monkeypatch):
+@pytest.mark.parametrize('fault', [None, 'missing', 'symlink', 'regular',
+                                   'wrong-owner', 'runtime-symlink', 'runtime-wrong-owner'])
+def test_public_bus_discovery_is_owned_and_bounded(short_runtime, fault, monkeypatch, capsys):
     import os
     import socket
     from pathlib import Path
@@ -1793,15 +1812,29 @@ def test_public_bus_discovery_is_owned_and_bounded(short_runtime, fault, monkeyp
         if fault == 'symlink':
             bus.rename(directory / 'original')
             bus.symlink_to(directory / 'original')
-        if fault == 'wrong-owner':
+        if fault == 'runtime-symlink':
+            directory.rename(tmp_path / 'original')
+            directory.symlink_to(tmp_path / 'original')
+        if fault in ('wrong-owner', 'runtime-wrong-owner'):
             original = Path.lstat
             def wrong_owner(path):
                 info = original(path)
-                return SimpleNamespace(st_mode=info.st_mode, st_uid=account.pw_uid + 1)
+                if path == (runtime if fault == 'runtime-wrong-owner' else bus):
+                    return SimpleNamespace(st_mode=info.st_mode, st_uid=account.pw_uid + 1)
+                return info
             monkeypatch.setattr(Path, 'lstat', wrong_owner)
         if fault:
             with pytest.raises(UiError):
                 session_environment(account, runtime_root=tmp_path, timeout=0)
+            if fault != 'missing':
+                import json
+                diagnostic = json.loads(capsys.readouterr().err)
+                assert diagnostic['event'] == 'ui-runtime-binding-refused'
+                assert diagnostic['object'] == ('runtime' if fault.startswith('runtime-')
+                                                else 'session-bus')
+                assert diagnostic['owner'] == ('other' if fault.endswith('wrong-owner')
+                                               else 'expected')
+                assert diagnostic['elapsed_ms'] >= 0
         else:
             result = session_environment(account, runtime_root=tmp_path, timeout=0)
             key = 'DBUS_SESSION_BUS_ADDRESS'

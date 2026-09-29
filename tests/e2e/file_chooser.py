@@ -2,11 +2,9 @@
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop
 from synthetic_files import fixture_actions
-from attachment_composition import file_handoff
+from attachment_composition import file_handoff, chooser_preservation
 
-STAGES = ('feedback-open', 'chooser-wrong-entry', *file_handoff(),
-          'chooser-attachments', 'chooser-reopen',
-          'chooser-cancel', 'chooser-preserved')
+STAGES = ('feedback-open', 'chooser-wrong-entry', *file_handoff(), *chooser_preservation())
 SCREENS = {**fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
            **{stage: 'ui:' + stage for stage in (
                'parent-window', 'child-picker-opened', 'child-choice-highlighted',

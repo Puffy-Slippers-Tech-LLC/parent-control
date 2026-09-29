@@ -49,7 +49,8 @@ APIS = {
     'file_chooser': {'stage_files', 'cleanup_files'},
     'synthetic_files': {'fixture_actions', 'read_declared_text', 'read_declared_zip',
                         'change_attachment_source'},
-    'attachment_composition': {'file_handoff', 'boundary_batch', 'AttachmentJourney'},
+    'attachment_composition': {'file_handoff', 'boundary_batch', 'AttachmentJourney',
+                               'chooser_preservation', 'attachment_removal'},
     'serial_harness': {'PLAN', 'SERIAL_STAGES', 'matched_screens', 'record_serial_journey',
                        'validate_completion', 'validate_stages'},
 }
@@ -82,7 +83,8 @@ WORKER_APIS = {
                              'input_hidden', 'input_complex', 'stable_trace', 'transition_trace',
                              'observed_toggle'},
     'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
-                            'supply_files', 'boundary_batch', 'attachment_limits'},
+                            'supply_files', 'boundary_batch', 'attachment_limits',
+                            'chooser_preservation', 'attachment_removal'},
 }
 
 

@@ -2,11 +2,12 @@
 from attachment_preview import PLAN as PREVIEW_PLAN
 from installed_journey import JourneyPlan
 from synthetic_files import fixture_actions
-from attachment_composition import boundary_batch, AttachmentJourney as AttachmentBoundariesJourney
+from attachment_composition import (boundary_batch, attachment_removal,
+                                    AttachmentJourney as AttachmentBoundariesJourney)
 
 
 SCREENS = {**PREVIEW_PLAN.screen_tags,
-    'attachment-remove': 'ui:attachment-remove', 'attachment-remaining': 'ui:attachment-remaining',
+    **attachment_removal(),
     'boundary-clear-small': 'ui:boundary-clear-small',
     **boundary_batch('count'), **boundary_batch('sixth'),
     'boundary-clear-count': 'ui:boundary-clear-count',

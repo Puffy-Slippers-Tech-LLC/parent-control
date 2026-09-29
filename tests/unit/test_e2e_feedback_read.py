@@ -115,7 +115,9 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
     assert len(inputs) == (0 if fault == 'disabled-entry' else 1)
 
 
-@pytest.mark.parametrize('fault', ['', 'first-rapid', 'input', 'second-reopened'])
+@pytest.mark.parametrize('fault', ['', 'first-rapid', 'input', 'second-reopened',
+    *[f'{entry}-{direction}-{step}' for entry in ('first', 'second')
+      for direction in ('away', 'back') for step in ('open', 'focus', 'selected')]])
 def test_custom_worker_actual_sequence_and_failed_input_stop(fault):
     from custom_save_trace import PLAN
     from tests.support.perl import run_perl
@@ -2260,6 +2262,54 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     if fault:
         expected = expected[:expected.index(prefix + '-' + fault) + 1]
     assert result == {'ok': int(not fault), 'events': expected}
+
+
+@pytest.mark.parametrize('fragment', ['chooser_preservation', 'attachment_removal'])
+@pytest.mark.parametrize('prefix', ['', 'independent-'])
+def test_attachment_fragments_share_protocol_and_stop_at_every_refusal(fragment, prefix):
+    import attachment_composition
+    from tests.support.perl import run_perl
+    declaration = getattr(attachment_composition, fragment)
+    stages = declaration(prefix)
+    assert list(stages.values()) == list(declaration().values())
+    changed = declaration(prefix)
+    changed.clear()
+    assert declaration(prefix) == stages
+    for invalid in ('bad prefix', 'missing-dash', None):
+        with pytest.raises(EvidenceError):
+            declaration(invalid)
+    script = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { die 'unexpected input'; }
+package main;
+require onpc_feedback_read;
+my ($fragment, $prefix, $fault, @stages) = @ARGV;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, $_[0];
+    die 'proof refused' if $_[0] eq $fault;
+    return {observed => $_[0]};
+});
+$journey->declare_invocations(\@stages) if length $prefix;
+my $ok = eval {
+    if ($fragment eq 'chooser_preservation') {
+        onpc_feedback_read::chooser_preservation($journey, $prefix);
+    } else { onpc_feedback_read::attachment_removal($journey, $prefix); }
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+    for fault in ('', *stages):
+        result = json.loads(run_perl(script, fragment, prefix, fault, *stages).stdout)
+        expected = list(stages)
+        if fault:
+            expected = expected[:expected.index(fault) + 1]
+        assert result == {'ok': int(not fault), 'events': expected}
+    result = json.loads(run_perl(script, fragment, 'bad prefix', '', *stages).stdout)
+    assert result == {'ok': 0, 'events': []}
 
 
 @pytest.mark.parametrize('fault', sorted(

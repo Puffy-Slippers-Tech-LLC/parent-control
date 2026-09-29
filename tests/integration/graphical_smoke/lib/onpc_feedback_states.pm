@@ -7,6 +7,7 @@ use onpc_gdm ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_text ();
+use onpc_allowance_boundaries ();
 
 sub stable_trace {
     onpc_progress::operation('Starting and collecting unchanged public feedback samples');
@@ -71,11 +72,7 @@ sub run_custom_save_trace {
         rejection_observe($journey, "$entry-$_") for ('preset', 'open', 'focus', 'wrong-child', 'wrong-surface');
         onpc_text::observed_custom_edits($journey, "$entry-rapid", 5, 6);
         rejection_observe($journey, "$entry-saved");
-        for my $direction ('away', 'back') {
-            rejection_observe($journey, "$entry-$direction-$_") for ('open', 'focus');
-            testapi::send_key('ret');
-            rejection_observe($journey, "$entry-$direction-selected");
-        }
+        onpc_allowance_boundaries::reload_child($journey, $entry);
         rejection_observe($journey, "$entry-reopened");
     }
     $journey->finish();

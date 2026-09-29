@@ -163,7 +163,10 @@ under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenario
 Use `--overwrite true` when application code changed; documentation-only and
 test-only changes continue to use `false`.
 Wait for completion without monitoring or reporting incremental output; proceed
-only on success. The normal dispatcher owns preparation/restoration. Package
+only on success. Online preparation leaves a maintenance-owned running VM;
+release it with `tools/test-vm stop` before launching qualification or E2E so
+the guarded attempt can acquire its own lease. The normal dispatcher owns
+preparation/restoration. Package
 lifecycle cases use their declared product-free start and real customer install.
 Never use manual snapshots, resets or prior task state as a journey step.
 

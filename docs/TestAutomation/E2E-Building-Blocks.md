@@ -632,6 +632,14 @@ on the bounded two-file fixture set. It invokes Open once, observes closure and
 independently checks the app's exact attachment IDs/names and ready status.
 Reopen/Cancel directly verifies that the app retains those attachments.
 
+The declaration/execution pairs `attachment_composition.chooser_preservation`
+/ `onpc_feedback_read::chooser_preservation` and
+`attachment_composition.attachment_removal` /
+`onpc_feedback_read::attachment_removal` are shared by case 154 and the chooser,
+item and boundary qualifications. Optional invocation prefixes rename stages,
+not registered operations or expected results. The callers still own entry,
+fixture lifetime, qualification refusals and phase boundaries.
+
 Folder browsing, individual row selection and a changed candidate before Cancel
 are outside customer acceptance. The shared adapter still refuses wrong owners,
 ambiguous dialogs, unexpected files, partial selection and uncertain input;
@@ -3043,7 +3051,7 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | A stale observation appears to prove returning to the same child | Reconcile one fresh semantic result per ordered stage. Compare the returned child, switch state and allowance with the initial displayed settings. Missing, reused or reordered evidence refuses. Worker exit zero alone cannot pass. |
 | Choosing package inputs | Build artifacts when the installed product needs to include current changes. Runs use the supplied artifacts and allow concurrent checkout edits; private staged artifacts remain integrity-checked. |
 | VM is off but baseline acquisition reports `guard:source-changed` | Inspect the saved run phase and inactive configuration through the approved readers. An interrupted `isolated` setup can retain the test configuration. Use recorded graphical cleanup; do not edit the journal, recreate the baseline or treat powered-off status alone as restored state. |
-| A small fake collection passes but the installed app's reply exceeds the transport limit | Test the complete observation through serialization and both buffered/streamed transport at realistic and maximum declared sizes. Keep byte, item-count and schema bounds consistent. [App-row regressions](../../tests/unit/test_e2e_app_rows.py) exercise the installed-sized collection and reject oversized/partial results. |
+| A small fake collection passes but the installed app's reply exceeds the transport limit | Test the complete observation through serialization and both buffered/streamed transport at realistic and maximum declared sizes, including repeated save events (017b). Keep byte, item-count and schema bounds consistent. [App-row regressions](../../tests/unit/test_e2e_app_rows.py) and [trace regressions](../../tests/unit/test_e2e_feedback_read.py) exercise realistic collections and reject oversized/partial results. |
 | Widget doubles omit behavior seen through the real toolkit | Exercise the new projection with the real public adapter before VM qualification. Capture supported representation in the shared leaf and its regression, such as collapsed selectors or rich-editor paragraph endings; link the existing binding contract rather than teaching every consumer to normalize it. |
 | Adding a qualification breaks an older conflict test even though both routes refuse safely | Assert refusal before credentials, storage and VM work. Do not couple a multi-invalid-input test to whichever validator happens to run first. Keep exact diagnostic checks for a single invalid condition. |
 | Later cases escape an earlier composition audit | Discover cases and workers from ready inventory bindings. Review helper methods and subclasses as well as callbacks; moving I/O into a case-local helper is still case-owned mechanics. The [composition guard](../../tests/unit/test_e2e_case_composition.py) enforces this boundary. |
@@ -3056,6 +3064,11 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | A reset check could accidentally restore the draft it is meant to inspect (030a) | Capture a nonempty draft, compose the shared app lifecycle, then independently read the empty result before any restorative input. Keep dialog preservation and app-exit reset as separate assertions; extend profiles explicitly for formatted/file-bearing consumers. |
 | A supporting viewer command succeeds before its public window is ready (034) | Keep launch and observation as separate states in the shared adapter. Submit once, retry only read-only observations within the existing deadline, require a complete snapshot for acceptance, and refuse wrong ownership or ambiguity immediately. Regress delayed appearance, terminal refusal and command timeout with an exact one-launch assertion; never retry the whole operation to fix a slow result. |
 | Individually qualified draft operations must preserve a combined formatted/file-bearing draft (034) | Before the live case, carry the complete profile through the real decoder and recorder: text/reply, formatting/link meaning, exact attachment list and window identity. Exercise dialog return and app-exit reset independently; helper success alone does not prove the combined history. Reuse the same Privacy/window preparation fragments in qualifications and cases. |
+| File-reading and source-change capabilities could be mistaken for product snapshot or export acceptance (195a/195/196) | Reuse the guarded reader with a declared artifact and its owned identity receipt; compare independently specified content, exact ZIP members and bounded sizes/digests. Retain malformed/replaced/unsafe-file refusals and cleanup. A changed source qualifies FILE09 only; frozen attachment bytes, re-add and product exports stay with their [coverage owner](UI-and-E2E-Coverage.md) and named binding. |
+| The attachment matrix made the installed case repeat toolkit coverage (039) | Check the [UI/E2E ownership table](UI-and-E2E-Coverage.md) before designing the live journey. Keep the full boundary matrix with its GUI owner and the installed integration assertions in the case. Case 154 and qualifications share `file_handoff` / `supply_files`, `chooser_preservation` and `attachment_removal`; qualification-only refusal checks remain in their callers. An audit does not authorize dropping assertions outside that agreed ownership. |
+| A trace wrapper cannot observe a transient during a synchronous input (016b–017a) | Qualify stable sampling, sampling during input, and public event delivery as distinct capabilities. Use the existing token/boot/deadline rendezvous; retain readiness before input and latch storage, source, order or token failure. Keep an event subscription active during synchronous input, then compare a fresh terminal snapshot. A checked-state event alone does not prove Saving or control inhibition; see [observation checkpoints](#canonical-reuse-and-implementation-checkpoints). |
+| Observer readiness triggers nested commands that also produce output (016c) | Keep stdout parsing local to each command. Exercise split/buffered replies and nested ownership/input commands through the real transport; unrelated command output must never enter the observer's JSON stream. Keep readiness, one input and terminal evidence ordered under the same attempt guard. |
+| Rapid-save qualification has a different inhibition contract from toggle-saving (017b) | Declare the finite edit batch once, bind it to the observer's source and token, and release it only after durable readiness. Observe which controls must remain editable and which must recover, then independently reload the saved value through the shared child-reload helper. Preserve every keyboard/input boundary on failure; do not copy selector choreography into the next case. |
 
 ### Composition preflight
 
@@ -3086,6 +3099,10 @@ Before the first live attempt, check the changed boundary end to end on the host
    extending an existing owning library when appropriate, preserving those bounds.
    The [lessons above](#lessons-to-preserve) identify the recurring representation
    and transport traps.
+   For observation around input, include a host test where the input runs while
+   the observer is active, nested commands emit output, and readiness storage
+   fails. Assert that failed readiness releases no input and uncertain input is
+   never repeated; a pre/post snapshot test cannot cover this boundary.
 3. On failure, use the earliest failed boundary and retained evidence to state
    one cause or a diagnostic that distinguishes remaining explanations before
    another live attempt. Reproduce a mechanical defect in the smallest

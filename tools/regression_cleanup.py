@@ -55,6 +55,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # it introduces no real account, VM, socket, process or shared cache in host tests.
 # Fresh-thirty allowance adds recorder cases within that same private collector
 # and mocked guest lifetime, retaining compatible installed-journey scheduling.
+# Parent privacy adds a plan to those function-private recorder/VM doubles;
+# unit and cleanup scheduling retain the same compatible isolation.
 # Prerequisite-repair launcher cases retain the existing private checkout and
 # identity-recorded owner/agent fixture, with no new cleanup or shared resource.
 # Routing/restart and usage-recording cases use the same private owner/agent

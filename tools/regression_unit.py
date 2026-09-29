@@ -163,6 +163,9 @@ write_e2e write_e2e_cleanup_safety
 # captured pipes in tmp_path; invalid arguments stop before UI/account access.
 # It needs no display, bus, shared cache, process cleanup or build admission.
 # Their existing compatible unit classifications remain applicable.
+# Parent privacy link coverage extends the existing in-memory accessibility
+# matrix and bounded, waited Perl doubles. Launcher and recorder checks retain
+# private tmp_path files and mocked VM/transport; no shared resource is added.
 # Parent custom-save ordering tests hold callbacks in memory and use mocked
 # widgets only; they add no timers, threads, filesystem or display resources.
 # Public AT-SPI transport tests use in-memory RPC/connection doubles only;

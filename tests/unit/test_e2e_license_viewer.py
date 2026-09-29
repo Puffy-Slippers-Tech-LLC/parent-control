@@ -8,12 +8,15 @@ import pytest
 
 import check_e2e_license_viewer as check
 import check_e2e_parent_website as website_check
+import check_e2e_parent_privacy as privacy_check
 import check_graphical_smoke as smoke
 from license_viewer_provider import (
-    PLAN, WEBSITE_PLAN, LicenseViewerProviderJourney, ParentWebsiteJourney)
+    PLAN, WEBSITE_PLAN, PRIVACY_PLAN, LicenseViewerProviderJourney,
+    ParentWebsiteJourney, ParentPrivacyJourney)
 from owned_commands import CommandError
 from parent_setup_qualification import (
-    KioskEntryQualification, LicenseViewerProviderQualification, ParentWebsiteQualification)
+    KioskEntryQualification, LicenseViewerProviderQualification, ParentWebsiteQualification,
+    ParentPrivacyQualification)
 from tests.support.perl import run_perl
 
 
@@ -40,41 +43,47 @@ def test_selector_uses_owned_snapshot_and_refuses_conflicting_routes(monkeypatch
                    license_viewer_provider=True, parent_terminal_provider=True)
 
 
-def test_website_binding_reaches_shared_plan_and_owned_snapshot(monkeypatch):
+@pytest.mark.parametrize('link,qualification,journey_class,plan,check_module', [
+    ('website', ParentWebsiteQualification, ParentWebsiteJourney, WEBSITE_PLAN, website_check),
+    ('privacy', ParentPrivacyQualification, ParentPrivacyJourney, PRIVACY_PLAN, privacy_check),
+])
+def test_link_binding_reaches_shared_plan_and_owned_snapshot(
+        monkeypatch, link, qualification, journey_class, plan, check_module):
     context = SimpleNamespace()
-    journey = ParentWebsiteQualification.journey(context, Mock())
-    assert isinstance(journey, ParentWebsiteJourney)
-    assert journey.plan is WEBSITE_PLAN
+    journey = qualification.journey(context, Mock())
+    assert isinstance(journey, journey_class)
+    assert journey.plan is plan
     assert context.installed_snapshot.startswith('onpc-v')
-    assert WEBSITE_PLAN.worker_mode == 'parent_website'
-    assert WEBSITE_PLAN.screen_tags['license'] == 'ui:website-clickable'
-    assert WEBSITE_PLAN.screen_tags['license-provider-refusals'] == 'ui:website-clickable'
-    assert WEBSITE_PLAN.settings_checks == PLAN.settings_checks
+    assert plan.worker_mode == 'parent_' + link
+    assert plan.screen_tags['license'] == f'ui:{link}-clickable'
+    assert plan.screen_tags['license-provider-refusals'] == f'ui:{link}-clickable'
+    assert plan.settings_checks == PLAN.settings_checks
     calls = []
-    monkeypatch.setattr(website_check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
-    assert website_check.main() == 0
-    assert calls == [{'assets': website_check.ASSETS, 'provision_credentials': True,
-                      'license_viewer_provider': True, 'information_link': 'website'}]
+    monkeypatch.setattr(check_module, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
+    assert check_module.main() == 0
+    assert calls == [{'assets': check_module.ASSETS, 'provision_credentials': True,
+                      'license_viewer_provider': True, 'information_link': link}]
     with pytest.raises(CommandError, match='smoke:information-link-binding'):
-        smoke.main(information_link='website')
+        smoke.main(information_link=link)
     with pytest.raises(CommandError, match='smoke:information-link-binding'):
         smoke.main(information_link='support')
 
 
 @pytest.mark.parametrize('fault', ['', 'license', 'refusals',
                                    'close-input', 'return'])
-@pytest.mark.parametrize('link', ['license', 'website'])
+@pytest.mark.parametrize('link', ['license', 'website', 'privacy'])
 def test_worker_checks_link_and_closes_only_owned_about(fault, link):
     result = json.loads(run_perl(r'''
 use strict;
 use warnings;
 use JSON::PP;
 our @events;
+our @labels;
 our $fault = shift @ARGV;
 our $link = shift @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
-sub record_info { }
+sub record_info { push @main::labels, $_[0] }
 sub send_key {
     push @main::events, ['key', $_[0]];
     die 'uncertain close' if $main::fault eq 'close-input';
@@ -96,9 +105,13 @@ my $ok = eval {
     }, $link);
     1;
 };
-print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
+print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events,
+                   labels => \@labels});
 ''', fault, link).stdout)
     events = result['events']
+    prefix = 'license-provider' if link == 'license' else 'parent-' + link
+    assert result['labels'] and all(label.startswith(prefix + '-')
+                                   for label in result['labels'])
     assert bool(result['ok']) == (not fault), result['error']
     assert events.count(['seen', 'license']) == 1
     assert events.count(['seen', 'license-provider-refusals']) == (

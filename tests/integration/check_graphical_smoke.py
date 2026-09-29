@@ -1012,7 +1012,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          shell_search_results, parent_search_launch, shell_search,
                          parent_terminal_provider, license_viewer_provider)))),
             'smoke:kiosk-eligible-choices-prerequisites')
-    require(information_link in ('license', 'website')
+    require(information_link in ('license', 'website', 'privacy')
             and (information_link == 'license' or license_viewer_provider),
             'smoke:information-link-binding')
     require(type(license_viewer_provider) is bool and (not license_viewer_provider or (
@@ -1232,7 +1232,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if parent_terminal_provider:
             result['scope'] = 'installed-parent-terminal-provider-qualification'
         if license_viewer_provider:
-            result['scope'] = ('installed-parent-website-qualification' if information_link == 'website'
+            result['scope'] = (f'installed-parent-{information_link}-qualification' if information_link != 'license'
                                else 'installed-license-viewer-provider-qualification')
         if kiosk_entry:
             result['scope'] = 'installed-kiosk-entry-qualification'
@@ -1454,9 +1454,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     qualification_class = ParentTerminalProviderQualification
                 if license_viewer_provider:
                     from parent_setup_qualification import (
-                        LicenseViewerProviderQualification, ParentWebsiteQualification)
-                    qualification_class = (ParentWebsiteQualification if information_link == 'website'
-                                           else LicenseViewerProviderQualification)
+                        LicenseViewerProviderQualification, ParentWebsiteQualification,
+                        ParentPrivacyQualification)
+                    qualification_class = {
+                        'license': LicenseViewerProviderQualification,
+                        'website': ParentWebsiteQualification,
+                        'privacy': ParentPrivacyQualification,
+                    }[information_link]
                 if repeated_operations:
                     from parent_setup_qualification import RepeatedOperationsQualification
                     qualification_class = RepeatedOperationsQualification

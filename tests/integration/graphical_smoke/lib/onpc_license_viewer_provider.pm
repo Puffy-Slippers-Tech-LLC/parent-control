@@ -12,8 +12,9 @@ sub run {
     my ($exchange, $link) = @_;
     $link //= 'license';
     die 'license-provider:binding' unless (@_ == 1 || @_ == 2)
-        && ref($exchange) eq 'CODE' && ($link eq 'license' || $link eq 'website');
-    my $prefix = $link eq 'website' ? 'parent-website' : 'license-provider';
+        && ref($exchange) eq 'CODE'
+        && ($link eq 'license' || $link eq 'website' || $link eq 'privacy');
+    my $prefix = $link eq 'license' ? 'license-provider' : 'parent-' . $link;
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => $prefix, review => 0);
     onpc_gdm::reattach_functional();

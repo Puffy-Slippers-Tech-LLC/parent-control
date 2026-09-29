@@ -711,7 +711,10 @@ Bindings: delivery = retry.
 
 Implementation status comes from the inventory. Case 158's reduced installed
 composition passed in `20260928T165553Z-a580e06a`, including collection and
-cleanup; coverage was refreshed. Case 159 remains pending.
+cleanup; coverage was refreshed. Case 159 passed its complete save-order
+journey through `save_order.PLAN` / `onpc_feedback_states::run_save_order` in
+`20260929T070054Z-c0f58f19`, including the single Parent window projection,
+both named-child saved values and restart readback; coverage was refreshed.
 
 Parent desktop preparation belongs to the shared installed envelope, with no
 case-specific idle step; see the [shared entry contract](../../tests/e2e/README.md#shared-system-and-account-entry-helpers).

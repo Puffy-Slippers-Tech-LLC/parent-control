@@ -450,6 +450,12 @@ sub run {
         onpc_allowance_case::run(\&exchange);
         return;
     }
+    if ($ready->{save_order}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_allowance_case::run(\&exchange, 'save-order');
+        return;
+    }
     if ($ready->{allowance_boundaries}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

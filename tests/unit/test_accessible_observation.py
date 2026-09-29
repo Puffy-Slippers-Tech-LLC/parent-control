@@ -25,6 +25,23 @@ def arbitrary_ui(count=3):
     return ui, desktop, surface, controls
 
 
+@pytest.mark.parametrize('windows,expected_error', [
+    (1, None), (0, 'parent-window-count'),
+    (2, 'ambiguous-automation-id'),
+])
+def test_parent_management_window_count_uses_complete_owned_ids(windows, expected_error):
+    children = [Node(identity='parent-window', name='Oh No! Parent Control')
+                for _ in range(windows)]
+    app = Node(role='application', identity=accessible_ui.PARENT_APPLICATION,
+               children=children)
+    ui = ui_for(Node(role='desktop frame', children=[app]))
+    if expected_error:
+        with pytest.raises(UiError, match=expected_error):
+            ui.parent_window_count()
+    else:
+        assert ui.parent_window_count() == 1
+
+
 def lookup(ui, index):
     return ui.find_provider_control('future-provider', 'future-surface', str(index))
 
@@ -39,7 +56,7 @@ def test_future_controls_share_one_tree_across_nested_helpers_and_waits(count):
         control.get_attributes = Mock(wraps=control.get_attributes)
         control.get_accessible_id = Mock(wraps=control.get_accessible_id)
 
-    def operation(_name, _version):
+    def operation(_name, _version, *, child):
         for index in (0, count // 2, count - 1):
             assert ui.wait(lambda: lookup(ui, index), 'future-ready') is controls[index]
         # The generic ID reader can project the same complete snapshot too.
@@ -226,7 +243,7 @@ def test_invalid_child_count_cannot_authorize_input_or_seed_a_complete_snapshot(
 
 def test_new_operation_and_explicit_client_reset_reacquire_complete_tree():
     ui, _desktop, surface, controls = arbitrary_ui()
-    ui._run = lambda *_: lookup(ui, 0)
+    ui._run = lambda *_, child: lookup(ui, 0)
     assert ui.run('future-operation', '') is controls[0]
     replacement = Node(identity=controls[0].identity)
     replacement.parent = surface
@@ -378,7 +395,7 @@ def test_timing_reports_reader_and_action_intervals_without_observed_text(monkey
     controls[0].action.do_action.side_effect = lambda _index: clock.__setitem__(0, clock[0] + .25) or True
     records = []
     ui.timing = records.append
-    ui._run = lambda *_: ui.activate_provider('future-provider', 'future-surface', '0')
+    ui._run = lambda *_, child: ui.activate_provider('future-provider', 'future-surface', '0')
     ui.run('child-picker-opened', '')
     assert records == [{'event': 'ui-operation-timing', 'operation': 'child-picker-opened',
                         'started_monotonic_ms': 10000.0, 'elapsed_ms': 375.0,
@@ -391,7 +408,7 @@ def test_timing_failure_does_not_replay_uncertain_input():
     ui, _desktop, _surface, controls = arbitrary_ui()
     ui.timing = Mock()
     controls[0].action.do_action.return_value = False
-    ui._run = lambda *_: ui.activate_provider('future-provider', 'future-surface', '0')
+    ui._run = lambda *_, child: ui.activate_provider('future-provider', 'future-surface', '0')
     with pytest.raises(UiError, match='action-refused'):
         ui.run('child-picker-opened', '')
     assert ui.input_uncertain

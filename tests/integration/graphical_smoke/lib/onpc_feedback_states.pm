@@ -8,6 +8,7 @@ use onpc_journey ();
 use onpc_parent ();
 use onpc_text ();
 use onpc_allowance_boundaries ();
+use onpc_lifecycle ();
 
 sub stable_trace {
     onpc_progress::operation('Starting and collecting unchanged public feedback samples');
@@ -90,6 +91,36 @@ sub run_named_child_custom_saves {
     rejection_observe($journey, 'jordan-final');
     onpc_allowance_boundaries::select_child($journey, 'final-back');
     rejection_observe($journey, 'riley-final');
+    $journey->finish();
+}
+
+sub run_save_order {
+    onpc_progress::operation('Checking save order and both named child allowances');
+    my ($exchange) = @_;
+    die 'save-order:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'save-order', review => 0);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected',
+        onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing'));
+    rejection_observe($journey, $_) for ('disabled-refused', 'setup');
+    custom_save_entry($journey, 'jordan', 'existing', 5, 6);
+    onpc_allowance_boundaries::select_child($journey, 'riley');
+    rejection_observe($journey, $_) for ('riley-setup', 'riley-editor', 'riley-wrong-child');
+    onpc_text::replace_text($journey, 'daily-7', 'riley-text');
+    rejection_observe($journey, 'riley-saved');
+    onpc_allowance_boundaries::select_child($journey, 'final-away');
+    rejection_observe($journey, 'jordan-final-read');
+    onpc_allowance_boundaries::select_child($journey, 'final-back');
+    rejection_observe($journey, 'riley-final');
+    onpc_parent::launch($journey, $journey->seen('repeat-desktop'),
+        'management', 'repeat-desktop');
+    rejection_observe($journey, 'repeat-window-count');
+    rejection_observe($journey, 'repeat-selected');
+    onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
+    onpc_allowance_boundaries::select_child($journey, 'reopen-jordan');
+    rejection_observe($journey, 'jordan-after-restart');
+    onpc_allowance_boundaries::select_child($journey, 'reopen-riley');
+    rejection_observe($journey, 'riley-reopened');
     $journey->finish();
 }
 

@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">16044</span>/<span style="color: gray">0</span>/16044 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">16178</span>/<span style="color: gray">0</span>/16178 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">94</span>/<span style="color: gray">0</span>/94 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">24</span>/<span style="color: gray">218</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">16734</span>/<span style="color: gray">218</span>/16952** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">95</span>/<span style="color: gray">0</span>/95 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">25</span>/<span style="color: gray">217</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">16870</span>/<span style="color: gray">217</span>/17087** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">23</span>/<span style="color: gray">218</span>/241 |
+| customer-journey | <span style="color: green">24</span>/<span style="color: gray">217</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -55,6 +55,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [153](#scenario-153) | Feedback drafts, validation and attachment review (flow: validation) | `E2E-031/validation` | ready |
 | [154](#scenario-154) | Feedback drafts, validation and attachment review (flow: attachments) | `E2E-031/attachments` | ready |
 | [158](#scenario-158) | Choose allowances and save edits (flow: boundaries) | `E2E-035/boundaries` | ready |
+| [159](#scenario-159) | Choose allowances and save edits (flow: save order) | `E2E-035/save-order` | ready |
 | [161](#scenario-161) | Revoke when there is no active grant (balance: zero total) | `E2E-036/zero-total` | ready |
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
@@ -184,7 +185,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[155](#scenario-155)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: diagnostic export)</span> | <span style="color: gray">`E2E-031/diagnostic-export`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[159](#scenario-159)</span> | <span style="color: gray">Choose allowances and save edits (flow: save order)</span> | <span style="color: gray">`E2E-035/save-order`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[160](#scenario-160)</span> | <span style="color: gray">Revoke when there is no active grant (balance: daily positive)</span> | <span style="color: gray">`E2E-036/daily-positive`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[162](#scenario-162)</span> | <span style="color: gray">Use and remember the child panel option (boundary: sign out in)</span> | <span style="color: gray">`E2E-037/sign-out-in`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[163](#scenario-163)</span> | <span style="color: gray">Use and remember the child panel option (boundary: reboot)</span> | <span style="color: gray">`E2E-037/reboot`</span> | <span style="color: gray">pending</span> |
@@ -556,6 +556,20 @@ Variant: flow: attachments
 Case: `E2E-035/boundaries` · Category: customer-journey · Status: **ready**
 
 Variant: flow: boundaries
+
+**Steps:**
+
+- Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent.
+- For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests own the full preset/custom and commit-path matrices. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values.
+- Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value.
+
+### Scenario 159
+
+**Choose allowances and save edits (flow: save order)**
+
+Case: `E2E-035/save-order` · Category: customer-journey · Status: **ready**
+
+Variant: flow: save order
 
 **Steps:**
 
@@ -3139,26 +3153,6 @@ Variant: delivery: retry
 - Return to feedback, select Send once and read retry progress and unavailable editing/duplicate Send.
 - Reconnect through the same shared system-network helper within the retry period.
 - Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 159
-
-**Choose allowances and save edits (flow: save order)**
-
-Case: `E2E-035/save-order` · Category: customer-journey · Status: **pending**
-
-Variant: flow: save order
-
-**Steps:**
-
-- Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent.
-- For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests own the full preset/custom and commit-path matrices. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values.
-- Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

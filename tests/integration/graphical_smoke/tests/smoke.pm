@@ -66,7 +66,9 @@ use onpc_clean_install ();
 # Only fixed stage metadata crosses this local file rendezvous. No guest
 # credentials or command output enters the distribution or public test log.
 sub exchange {
-    my ($stage, $shot) = @_;
+    my ($stage, $shot, $input) = @_;
+    die 'smoke:input-callback' if defined($input) && ref($input) ne 'CODE';
+    my $consumed = 0;
     open(my $request, '>', "$stage.request.tmp") or die 'smoke:request';
     print {$request} encode_json({stage => $stage, screenshot => $shot});
     close($request) or die 'smoke:request-close';
@@ -76,8 +78,25 @@ sub exchange {
         : $stage eq 'reboot-installed-greeter' ? 780 : 420);
     while (!-f "$stage.reply.json") {
         die 'smoke:controller-timeout' if time >= $deadline;
+        if (defined($input) && !$consumed && -f "$stage.input.json") {
+            die 'smoke:input-file' if -l "$stage.input.json" || -s "$stage.input.json" > 1024;
+            open(my $proof, '<', "$stage.input.json") or die 'smoke:input-file';
+            my $value = do { local $/; decode_json(<$proof>) };
+            close($proof) or die 'smoke:input-close';
+            die 'smoke:input-proof' unless ref($value) eq 'HASH' && keys(%$value) == 5
+                && $value->{stage} eq $stage && $value->{token} =~ /\A[0-9a-f]{32}\z/
+                && $value->{source} =~ /\A[0-9a-f]{64}\z/;
+            $consumed = 1; # An uncertain callback can never be replayed.
+            $input->($value);
+            die 'smoke:input-replay' if -e "$stage.input-done.tmp" || -e "$stage.input-done.json";
+            open(my $done, '>', "$stage.input-done.tmp") or die 'smoke:input-done';
+            print {$done} encode_json({stage => $stage, token => $value->{token}});
+            close($done) or die 'smoke:input-done-close';
+            rename("$stage.input-done.tmp", "$stage.input-done.json") or die 'smoke:input-done-publish';
+        }
         sleep 0.1;
     }
+    die 'smoke:input-missing' if defined($input) && !$consumed;
     open(my $reply, '<', "$stage.reply.json") or die 'smoke:reply';
     local $/;
     return decode_json(<$reply>);
@@ -512,6 +531,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_format::run(\&exchange);
+        return;
+    }
+    if ($ready->{custom_save_trace}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_states::run_custom_save_trace(\&exchange);
         return;
     }
     if ($ready->{parent_save_trace}) {

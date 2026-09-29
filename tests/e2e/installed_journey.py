@@ -47,6 +47,7 @@ class JourneyPlan:
     trace_bindings: dict = field(default_factory=dict)
     trace_terminals: dict = field(default_factory=dict)
     accessibility_inputs: dict = field(default_factory=dict)
+    keyboard_inputs: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -68,13 +69,20 @@ class JourneyPlan:
         used = set()
         stages = list(self.screen_tags)
         require(set(self.accessibility_inputs) == {stage for stage, tag in self.screen_tags.items()
-                    if tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace')} and
+                    if tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace',
+                               'ui:parent-custom-save-trace')} and
                 all(binding == ('parent-toggle-enabled', True) if
                     self.screen_tags[stage] == 'ui:accessibility-input-trace' else
-                    binding == ('parent-toggle-enabled', True, 'save')
+                    binding == (('parent-custom-trace-focus', 6, 'custom-save') if
+                        self.screen_tags[stage] == 'ui:parent-custom-save-trace' else
+                        ('parent-toggle-enabled', True, 'save'))
                     for stage, binding in self.accessibility_inputs.items()) and
                 not set(self.accessibility_inputs) & set(self.stage_actions),
                 self.prefix + ':accessibility-input-plan')
+        require(set(self.keyboard_inputs) == {stage for stage, tag in self.screen_tags.items()
+                    if tag == 'ui:parent-custom-save-trace'} and
+                all(values == (5, 6) for values in self.keyboard_inputs.values()),
+                self.prefix + ':keyboard-input-plan')
         require(all(stage in stages and self.screen_tags[stage] == 'ui:feedback-trace-start'
                     and binding in ('body-first', 'body-clear')
                     for stage, binding in self.trace_bindings.items()),
@@ -284,6 +292,28 @@ class InstalledJourney:
             stream.flush()
             os.fsync(stream.fileno())
 
+    def publish_trace_input(self, stage, token, source):
+        """Release one focused keyboard batch while the owned observer runs."""
+        require(self.plan.screen_tags.get(stage) == 'ui:parent-custom-save-trace'
+                and re.fullmatch(r'[0-9a-f]{32}', token)
+                and re.fullmatch(r'[0-9a-f]{64}', source), 'ui:trace-input-plan')
+        pending = self.context.directory / (stage + '.input.tmp')
+        destination = self.context.directory / (stage + '.input.json')
+        require(not os.path.lexists(destination), 'ui:trace-input-replay')
+        with pending.open('x') as stream:
+            json.dump({'stage': stage, 'token': token, 'source': source,
+                       'binding': 'custom-rapid', 'values': list(self.plan.keyboard_inputs[stage])}, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        pending.rename(destination)
+
+    def verify_trace_input(self, stage, token):
+        path = self.context.directory / (stage + '.input-done.json')
+        require(not path.is_symlink() and path.is_file() and path.stat().st_size <= 1024,
+                'ui:trace-input-incomplete')
+        require(json.loads(path.read_bytes()) == {'stage': stage, 'token': token},
+                'ui:trace-input-incomplete')
+
     def submit_reboot(self, guard):
         """Only the declared input stage may consume this attempt's reboot."""
         require(not self.failed and self.plan.reboot_transition and
@@ -396,7 +426,14 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
-                if tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace'):
+                if tag == 'ui:parent-custom-save-trace':
+                    def worker_input(token, source):
+                        guard()
+                        self.publish_trace_input(stage, token, source)
+                    observed['ui'] = self.ui.observe_accessibility_input(
+                        *plan.accessibility_inputs[stage], worker_input=worker_input)
+                    self.verify_trace_input(stage, observed['ui']['token'])
+                elif tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace'):
                     observed['ui'] = self.ui.observe_accessibility_input(
                         *plan.accessibility_inputs[stage])
                 elif tag == 'ui:feedback-trace-start':

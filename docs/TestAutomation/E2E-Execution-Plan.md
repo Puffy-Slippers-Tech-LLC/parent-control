@@ -21,9 +21,10 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **201 — [E2E-035: save-order](E2E-Tasks/201-case-159.md)**.
 
-Task 017a qualified PARENT08 transition observation during synchronous UI17
-input, including saving/control inhibition and independent saved readback.
-Task 201 remains unchecked and needs complete case 159 acceptance.
+Task 017b qualified the reusable rapid custom-edit route in
+`20260929T030021Z-d7980dce`. The affected toggle-saving regression passed in
+`20260929T030347Z-821a11a0`. Case 159 remains pending for Task 201's complete
+journey and acceptance.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

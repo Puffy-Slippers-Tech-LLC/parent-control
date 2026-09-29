@@ -114,7 +114,7 @@ class PublicAtspi:
     def state_events(self, endpoints, receive):
         """Subscribe to a fixed set of owned public state transitions."""
         from gi.repository import Gio, GLib
-        if (not endpoints or len(endpoints) > 4 or
+        if (not endpoints or len(endpoints) > 5 or
                 any(not bus.startswith(':') or not path.startswith('/') or
                     state not in ('checked', 'sensitive')
                     for bus, path, state in endpoints) or

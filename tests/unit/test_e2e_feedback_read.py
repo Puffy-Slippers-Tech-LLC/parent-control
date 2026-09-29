@@ -58,6 +58,212 @@ from ui_observations import FeedbackStateObservation
 # Accessibility-event checks retain mocked transports, private values and waited
 # Perl children; no live bus, thread, display or new shared resource is allocated.
 # Saving projections add only bounded in-memory public event sequences.
+# Custom saving retains private pytest paths, mocked transports and waited Perl
+# children; no new live bus, display, cache or scheduler resource is introduced.
+
+
+@pytest.mark.parametrize('fault', ['', 'disabled-entry', 'editor-disabled', 'picker-disabled',
+                                  'no-inhibition', 'no-recovery', 'input', 'source'])
+def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault):
+    from ui_observations import UiObservations
+    reader = UiObservations(SimpleNamespace(commands=SimpleNamespace(progress=None)))
+    reader.boot_guard = 'b' * 64
+    retained, operations, inputs = [], [], []
+    reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
+    sequence = [('child', False), ('toggle', False), ('child', True), ('toggle', True)]
+    if fault == 'editor-disabled': sequence.insert(2, ('editor', False))
+    if fault == 'picker-disabled': sequence.insert(2, ('allowance', False))
+    if fault == 'no-inhibition': sequence = sequence[2:]
+    if fault == 'no-recovery': sequence.pop()
+    # Realistic multi-save output, large enough to exercise response limits.
+    samples = [{'elapsed_ms': index * 10, 'target': target, 'state': 'sensitive', 'value': value}
+               for index, (target, value) in enumerate(sequence * 4)]
+
+    def call(argv, *, input, timeout, on_output):
+        operation = argv[3]
+        operations.append(operation)
+        reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                 'boot_sha256': 'b' * 64}
+        if operation == 'parent-custom-events':
+            token = argv[-1]
+            on_output((json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                'source': 'c' * 64, 'boot_sha256': 'b' * 64,
+                'checked': fault != 'disabled-entry'}) + '\n').encode())
+            reply['trace'] = {'token': token, 'source': ('d' if fault == 'source' else 'c') * 64,
+                              'terminal': True, 'samples': samples}
+        else:
+            assert operation == 'parent-custom-trace-focus'
+            assert retained[0][0] == 0 and argv[-1] == 'c' * 64
+            reply['trace'] = {'focused': True}
+        on_output((json.dumps(reply) + '\n').encode())
+        return b''
+
+    def release(token, source):
+        inputs.append((token, source))
+        if fault == 'input': raise OSError('uncertain keyboard batch')
+
+    reader.transport.call = call
+    if fault:
+        with pytest.raises((EvidenceError, OSError)):
+            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+        assert reader.trace_failed
+        with pytest.raises(EvidenceError, match='previous-failure'):
+            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+    else:
+        result = reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+        assert result['samples'] == samples and len(retained) == len(samples) + 1
+    assert len(inputs) == (0 if fault == 'disabled-entry' else 1)
+
+
+@pytest.mark.parametrize('fault', ['', 'first-rapid', 'input', 'second-reopened'])
+def test_custom_worker_actual_sequence_and_failed_input_stop(fault):
+    from custom_save_trace import PLAN
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@stages, @keys); our ($fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::keys, $_[0]; die 'uncertain' if $main::fault eq 'input'; }
+sub type_string { push @main::keys, $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @stages, 'finish'; };
+my $ok = eval { onpc_feedback_states::run_custom_save_trace(sub {
+    my ($stage, $shot, $input) = @_;
+    push @stages, $stage; die 'refused' if $stage eq $fault;
+    $input->({binding => 'custom-rapid', values => [5, 6]}) if defined($input);
+    return {observed => $stage};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
+''', fault).stdout)
+    stages = list(PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):] + ['finish']
+    boundary = 'first-rapid' if fault == 'input' else fault
+    assert result['stages'] == (stages[:stages.index(boundary) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    if not fault:
+        assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2
+
+
+def test_custom_trace_renamed_stage_and_immutable_input_gate(tmp_path):
+    from dataclasses import replace
+    from installed_journey import InstalledJourney
+    from custom_save_trace import PLAN
+    plan = replace(PLAN, screen_tags={'renamed-input': 'ui:parent-custom-save-trace'},
+                   accessibility_inputs={'renamed-input': ('parent-custom-trace-focus', 6, 'custom-save')},
+                   keyboard_inputs={'renamed-input': (5, 6)}, settings_checks={}, advance_after={},
+                   phases={'ready': 'setup', 'setup-detached': 'setup', 'renamed-input': 'step-1'})
+    journey = InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+    journey.publish_trace_input('renamed-input', 'a' * 32, 'b' * 64)
+    with pytest.raises(EvidenceError, match='replay'):
+        journey.publish_trace_input('renamed-input', 'a' * 32, 'b' * 64)
+    with pytest.raises(EvidenceError, match='incomplete'):
+        journey.verify_trace_input('renamed-input', 'a' * 32)
+    (tmp_path / 'renamed-input.input-done.json').write_text(json.dumps(
+        {'stage': 'renamed-input', 'token': 'a' * 32}))
+    journey.verify_trace_input('renamed-input', 'a' * 32)
+    with pytest.raises(EvidenceError, match='incomplete'):
+        journey.verify_trace_input('renamed-input', 'c' * 32)
+
+
+def test_custom_trace_selector_and_mode_refusal(monkeypatch):
+    import check_e2e_custom_save_trace as selector
+    run = Mock(return_value=0)
+    monkeypatch.setattr(selector, 'smoke', run)
+    assert selector.main() == 0
+    assert run.call_args.kwargs['custom_save_trace'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(custom_save_trace=True, parent_save_trace=True)
+
+
+@pytest.mark.parametrize('fault', ['', 'editor', 'allowance'])
+def test_custom_event_collector_preserves_live_editor_and_source(monkeypatch, capsys, fault):
+    from contextlib import contextmanager
+    controls = {name: SimpleNamespace(bus=':1.20', path='/' + name)
+                for name in ('toggle', 'child', 'allowance', 'editor')}
+    sequence = [('child', False), ('toggle', False), ('child', True), ('toggle', True)]
+    if fault: sequence.insert(2, (fault, False))
+    @contextmanager
+    def events(endpoints, receive):
+        assert len(endpoints) == 5
+        assert endpoints[(':1.20', '/editor', 'sensitive')] == 'editor'
+        def iteration(_blocking):
+            assert 'accessibility-trace-ready' in capsys.readouterr().out
+            for name, value in sequence:
+                receive(name, 'sensitive', value, None)
+        yield SimpleNamespace(pending=lambda: False, iteration=iteration)
+    ui = SimpleNamespace(
+        trace_request='a' * 32, trace_boot='b' * 64,
+        api=SimpleNamespace(StateType=SimpleNamespace(CHECKED=1, SENSITIVE=2), state_events=events),
+        parent_save_snapshot=Mock(), parent_save_trace_source=Mock(return_value=('c' * 64, controls)),
+        text_recipient=Mock(), has_state=lambda node, state: True,
+        invalidate_observation=Mock(), read_custom_trace_draft=Mock())
+    if fault:
+        with pytest.raises(accessible_ui.UiError, match='custom-trace-controls'):
+            accessible_ui.AccessibleUI.parent_save_events(ui, True)
+    else:
+        result = accessible_ui.AccessibleUI.parent_save_events(ui, True)
+        assert len(result['samples']) == 4 and result['terminal'] is True
+        ui.parent_save_snapshot.assert_called_with(accessible_ui.CHILD, True)
+        ui.parent_save_trace_source.assert_called_with(True)
+
+
+@pytest.mark.parametrize('disabled', [None, 'allowance', 'editor'])
+def test_custom_trace_draft_allows_inhibited_child_selector(disabled):
+    states = SimpleNamespace(ACTIVE='active', VISIBLE='visible', SENSITIVE='sensitive',
+                             DEFUNCT='defunct', EDITABLE='editable')
+    nodes = {name: SimpleNamespace(get_role_name=lambda: 'entry',
+                                   get_text_iface=lambda: 'text')
+             for name in ('root', 'child', 'allowance', 'editor')}
+    identities = {'parent-child-selector': 'child',
+                  'parent-daily-limit-selector': 'allowance',
+                  'parent-custom-daily-limit': 'editor'}
+    def state(node, field):
+        name = next(name for name, candidate in nodes.items() if candidate is node)
+        return field in {'active' if name == 'root' else 'visible', 'editable'} or (
+            field == 'sensitive' and name not in ('child', disabled))
+    ui = SimpleNamespace(
+        api=SimpleNamespace(StateType=states, Text=SimpleNamespace(
+            get_character_count=lambda value: 1,
+            get_text=lambda value, start, end: '6')),
+        parent=lambda: nodes['root'],
+        id_target=lambda identity, **kwargs: nodes[identities[identity]],
+        child_id_control=lambda *args, **kwargs: nodes['child'],
+        has_state=state)
+    if disabled:
+        with pytest.raises(accessible_ui.UiError, match='ui:custom-trace-controls'):
+            accessible_ui.AccessibleUI.read_custom_trace_draft(ui)
+    else:
+        accessible_ui.AccessibleUI.read_custom_trace_draft(ui)
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-stage', 'wrong-token', 'uncertain'])
+def test_actual_exchange_releases_only_one_validated_keyboard_batch(tmp_path, fault):
+    from tests.support.perl import run_perl
+    from tests.support.paths import ROOT
+    source = (ROOT / 'tests/integration/graphical_smoke/tests/smoke.pm').read_text()
+    exchange = source[source.index('sub exchange {'):source.index('\nsub capture {')]
+    proof = {'stage': 'other' if fault == 'wrong-stage' else 'renamed',
+             'token': 'invalid' if fault == 'wrong-token' else 'a' * 32,
+             'source': 'b' * 64, 'binding': 'custom-rapid', 'values': [5, 6]}
+    (tmp_path / 'renamed.input.json').write_text(json.dumps(proof))
+    result = json.loads(run_perl('use strict; use warnings; use JSON::PP; use Time::HiRes qw(time sleep);\n' + exchange + r'''
+my ($directory, $fault) = @ARGV; chdir($directory) or die 'chdir';
+my $count = 0;
+my $ok = eval { exchange('renamed', undef, sub {
+    $count++; die 'uncertain' if $fault eq 'uncertain';
+    open(my $reply, '>', 'renamed.reply.json') or die 'reply';
+    print {$reply} encode_json({observed => 'renamed'}); close($reply);
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, count => $count});
+''', str(tmp_path), fault).stdout)
+    assert result == {'ok': int(not fault), 'count': int(fault not in ('wrong-stage', 'wrong-token'))}
+    assert (tmp_path / 'renamed.input-done.json').exists() is (not fault)
 
 
 @pytest.mark.parametrize('fault', ['', 'final-only', 'nonoverlap', 'no-recovery',

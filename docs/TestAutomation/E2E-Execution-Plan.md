@@ -19,7 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **037a — [Save to a selected location through the installed chooser](E2E-Tasks/037a-save-chooser.md)**.
+Next task: **045 — [Save diagnostics and inspect the exported artifact through SSH](E2E-Tasks/045-diagnostic-export.md)**.
+
+037a qualified named diagnostic Save/Cancel to `~/Downloads` in
+`20260929T191454Z-a2f14da3`; affected Open/Cancel passed in
+`20260929T191829Z-3d1fd72a`. Both completed collection, owned cleanup and baseline
+restoration. Exported ZIP inspection and the complete case 155 remain pending.
 
 031a qualified the shared FEED09 `feedback-collection-ready` operation in
 `20260929T170731Z-88b24b8a`: both independent entries observed finished diagnostics

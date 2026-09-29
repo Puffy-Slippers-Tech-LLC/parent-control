@@ -48,9 +48,10 @@ APIS = {
     'allowance_values': {'REPRESENTATIVE_PRESETS'},
     'file_chooser': {'stage_files', 'cleanup_files'},
     'synthetic_files': {'fixture_actions', 'read_declared_text', 'read_declared_zip',
-                        'change_attachment_source'},
+                        'change_attachment_source', 'save_destination_actions'},
     'attachment_composition': {'file_handoff', 'boundary_batch', 'AttachmentJourney',
-                               'chooser_preservation', 'attachment_removal'},
+                               'chooser_preservation', 'attachment_removal',
+                               'save_handoff', 'save_cancellation'},
     'serial_harness': {'PLAN', 'SERIAL_STAGES', 'matched_screens', 'record_serial_journey',
                        'validate_completion', 'validate_stages'},
 }
@@ -84,7 +85,8 @@ WORKER_APIS = {
                              'observed_toggle', 'custom_save_entry', 'run_save_order'},
     'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
                             'supply_files', 'boundary_batch', 'attachment_limits',
-                            'chooser_preservation', 'attachment_removal'},
+                            'chooser_preservation', 'attachment_removal',
+                            'save_handoff', 'save_cancellation'},
 }
 
 
@@ -145,6 +147,8 @@ def test_accessibility_trace_qualification_declares_shared_input_binding():
         (ROOT / 'tests/e2e/parent_save_trace.py').read_text(), CASE_MODULES)
     assert not composition_errors(
         (ROOT / 'tests/e2e/feedback_collection.py').read_text(), CASE_MODULES)
+    assert not composition_errors(
+        (ROOT / 'tests/e2e/save_chooser.py').read_text(), CASE_MODULES)
 
 
 @pytest.mark.parametrize('module', ['file_chooser', 'attachment_items', 'attachment_preview',
@@ -174,6 +178,7 @@ def test_attachment_qualifications_keep_mechanics_in_shared_libraries(module):
     'from kiosk_valid_duration import KioskValidDurationJourney\n',
     'from restricted_station_about import RestrictedStationAboutJourney\n',
     'from approval_flow import ApprovalFlowJourney\n',
+    'from save_chooser import save_handoff\n',
 ])
 def test_composition_guard_catches_new_cases_aliases_and_hidden_mechanics(source):
     assert composition_errors(source, {'future_case'})

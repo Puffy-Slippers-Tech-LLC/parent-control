@@ -16,6 +16,7 @@ import tempfile
 import time
 import zipfile
 import zlib
+from download_destination import DIRECTORY as SAVE_DIRECTORY, download_directory
 
 ZIP_NAME = 'Synthetic archive.zip'
 ZIP_ARTIFACT = 'synthetic-archive'
@@ -384,10 +385,102 @@ def probe_source_refusals(home):
     return {'refused': list(faults), 'owned_cleanup': True}
 
 
+SAVE_NAME = 'Selected diagnostics.zip'
+SAVE_CANCEL_NAME = 'Cancelled diagnostics.zip'
+SAVE_LIMIT = 16 * 1024 * 1024
+
+
+def save_snapshot(root, previous, *, saved=False):
+    """FILE05 exact newly exported file; archive contents belong to FILE08."""
+    info = directory(root)
+    require(type(previous) is dict)
+    require(identity(info)[:5] == previous['directory'][:5])
+    require(set(os.listdir(root)) == set(previous['baseline'])
+            | ({'Unwritable', SAVE_NAME} if saved else {'Unwritable'}))
+    require({name: identity((root / name).lstat()) for name in previous['baseline']}
+            == previous['baseline'])
+    denied = root / 'Unwritable'
+    require(identity(directory(denied)) == previous['unwritable']
+            and stat.S_IMODE(denied.stat().st_mode) == 0o500
+            and not os.access(denied, os.W_OK) and not os.listdir(denied))
+    result = {'directory': identity(info), 'unwritable': previous['unwritable'],
+              'baseline': previous['baseline'], 'created': previous['created'], 'files': {}}
+    if saved:
+        path = root / SAVE_NAME
+        before = path.lstat()
+        require(stat.S_ISREG(before.st_mode) and before.st_uid == os.getuid()
+                and before.st_nlink == 1 and stat.S_IMODE(before.st_mode) == 0o600
+                and 0 < before.st_size <= SAVE_LIMIT)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            require(identity(os.fstat(fd)) == identity(before))
+            digest = hashlib.sha256()
+            count = 0
+            while count < before.st_size:
+                chunk = os.read(fd, min(65536, before.st_size - count))
+                require(chunk)
+                count += len(chunk)
+                digest.update(chunk)
+            require(os.read(fd, 1) == b'' and identity(os.fstat(fd)) == identity(before))
+        finally:
+            os.close(fd)
+        require(identity(path.lstat()) == identity(before))
+        result['files'][SAVE_NAME] = {'identity': identity(before), 'size': count,
+                                     'sha256': digest.hexdigest()}
+    require(identity(root.lstat()) == identity(info))
+    return result
+
+
+def save_operate(home, operation, previous):
+    root = download_directory(home)
+    require(operation in ('stage', 'read', 'saved', 'cleanup', 'absent'))
+    if operation == 'absent':
+        require(previous == {'absent': True})
+        if os.path.lexists(root):
+            directory(root)
+            require(not any(os.path.lexists(root / name) for name in
+                            ('Unwritable', SAVE_NAME, SAVE_CANCEL_NAME)))
+        return previous
+    if operation == 'stage':
+        require(previous is None)
+        created = not os.path.lexists(root)
+        if created:
+            root.mkdir(mode=0o700)
+        directory(root)
+        require(not any(os.path.lexists(root / name) for name in
+                        ('Unwritable', SAVE_NAME, SAVE_CANCEL_NAME)))
+        baseline = {path.name: identity(path.lstat()) for path in root.iterdir()}
+        (root / 'Unwritable').mkdir(mode=0o500)
+        receipt = {'directory': identity(root.lstat()),
+                   'unwritable': identity((root / 'Unwritable').lstat()),
+                   'baseline': baseline, 'created': created, 'files': {}}
+        return save_snapshot(root, receipt)
+    require(type(previous) is dict and set(previous) == {
+                'directory', 'unwritable', 'baseline', 'created', 'files'}
+            and type(previous['files']) is dict and type(previous['baseline']) is dict
+            and type(previous['created']) is bool)
+    if operation == 'saved':
+        require(previous['files'] == {})
+        return save_snapshot(root, previous, saved=True)
+    current = save_snapshot(root, previous, saved=bool(previous['files']))
+    require(current == previous)
+    if operation == 'cleanup':
+        # Validation of the complete set precedes every removal. Unknown,
+        # replaced, changed and cancelled-name files are never reclaimed.
+        if current['files']:
+            (root / SAVE_NAME).unlink()
+        (root / 'Unwritable').rmdir()
+        if previous['created']:
+            root.rmdir()
+        return save_operate(home, 'absent', {'absent': True})
+    return current
+
+
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
-    require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source'))
-    require(profile in ('standard', 'zip') or profile in BOUNDARY_PROFILES)
+    require(operation in ('stage', 'read', 'copy', 'rename', 'cleanup', 'absent', 'open-text', 'probe-text', 'open-zip', 'probe-zip', 'change-source', 'probe-source', 'saved'))
+    require(profile in ('standard', 'zip', 'save') or profile in BOUNDARY_PROFILES)
+    require(operation != 'saved' or profile == 'save')
     require(profile == 'standard' or operation not in ('copy', 'rename'))
     directory(home)
     # All shared invocations lock the existing home inode; no lock-file cleanup
@@ -396,7 +489,8 @@ def operate(home, operation, previous, profile='standard'):
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         require(identity(os.fstat(fd)) == identity(home.lstat()))
-        return _operate(home, operation, previous, profile)
+        return (save_operate(home, operation, previous) if profile == 'save'
+                else _operate(home, operation, previous, profile))
     finally:
         os.close(fd)
 

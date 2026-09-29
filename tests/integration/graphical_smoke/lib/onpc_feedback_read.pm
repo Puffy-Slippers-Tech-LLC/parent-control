@@ -146,6 +146,53 @@ sub attachment_limits {
     boundary_batch($journey, 'overflow');
 }
 
+sub save_handoff {
+    onpc_progress::operation('Saving to the declared destination and checking the public result');
+    my ($journey, $entry) = @_;
+    die 'save:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($entry) && $entry =~ /\A[a-z][a-z0-9-]*\z/;
+    for my $step ('open', 'name', 'location', 'navigated', 'destination', 'restored', 'accept', 'result') {
+        my $stage = "$entry-$step";
+        $journey->consume_observation($stage, $journey->seen($stage));
+        testapi::send_key('ctrl-l') if $step eq 'name';
+        testapi::send_key('ret') if $step eq 'location';
+        testapi::send_key('ctrl-l') if $step eq 'navigated';
+        testapi::send_key('esc') if $step eq 'destination';
+    }
+}
+
+sub save_cancellation {
+    onpc_progress::operation('Cancelling a fresh chooser and checking unchanged saved output');
+    my ($journey, $entry) = @_;
+    die 'save:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($entry) && $entry =~ /\A[a-z][a-z0-9-]*\z/;
+    for my $step ('reopen', 'cancel-name', 'cancel', 'preserved') {
+        my $stage = "$entry-$step";
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+}
+
+sub run_save_chooser {
+    onpc_progress::operation('Qualifying two independent diagnostic Save entries');
+    my ($exchange) = @_;
+    die 'save:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'save-chooser', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    for my $entry ('first', 'second') {
+        for my $step ('feedback', 'collection', 'refused') {
+            my $stage = "$entry-$step";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        save_handoff($journey, $entry);
+        save_cancellation($journey, $entry);
+        my $stage = "$entry-close";
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    $journey->finish();
+}
+
 sub run_file_chooser {
     onpc_progress::operation('Selecting synthetic feedback files and checking public attachment results');
     my ($exchange, $items) = @_;

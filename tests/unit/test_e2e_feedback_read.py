@@ -2270,6 +2270,434 @@ def chooser_ui(*, portal=False, profile='standard'):
     return ui, window, view, items, selected, accept, caller
 
 
+# Save adds bounded in-memory provider doubles and waited private Perl children;
+# the existing compatible unit classification and isolation remain applicable.
+def save_ui():
+    ui, window, _, _, _, accept, caller = chooser_ui(portal=True)
+    accept.name = 'Save'
+    field = Node(role='text', identity='filename_entry', states=(
+        'visible', 'showing', 'sensitive', 'editable', 'focused'))
+    field.get_process_id = lambda: 200
+    field.value = 'diagnostic-logs.zip'
+    field.get_text_iface = lambda: field
+    field.get_editable_text_iface = lambda: field
+    ui.api.Text = SimpleNamespace(get_character_count=lambda f: len(f.value),
+                                 get_text=lambda f, a, b: f.value[a:b])
+    ui.api.EditableText = SimpleNamespace(set_text_contents=Mock(
+        side_effect=lambda f, value: setattr(f, 'value', value) or True))
+    window.children.append(field)
+    return ui, window, field, accept, caller
+
+
+def collapse_save_name(ui, window, field):
+    # Nautilus removes the transient editor from AT-SPI on focus loss.
+    window.children.remove(field)
+    label = Node(field.value, role='label', identity='filename_label')
+    edit = Node(field.value, role='button', children=[label])
+    reset = Node('Reset File Name', role='button', identity='filename_undo_button')
+    for node in (label, edit, reset):
+        node.get_process_id = lambda: 200
+    ui.api.RelationType.LABELLED_BY = 'labelled-by'
+    edit.relations = [SimpleNamespace(get_relation_type=lambda: 'labelled-by',
+        get_n_targets=lambda: 1, get_target=lambda _: label)]
+    window.children.extend([edit, reset])
+
+    def reveal(_):
+        window.children.remove(edit)
+        window.children.append(field)
+        field.states.add('focused')
+        return True
+    edit.action.do_action.side_effect = reveal
+    return edit, label, reset
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-mode', 'wrong-owner', 'ambiguous',
+    'hidden', 'disabled', 'no-focus', 'timeout', 'refused', 'readback', 'unknown-modal'])
+def test_save_filename_guard_and_uncertain_input(fault):
+    ui, window, field, accept, caller = save_ui()
+    setter = ui.api.EditableText.set_text_contents
+    if fault == 'wrong-mode':
+        accept.name = 'Open'
+    elif fault == 'wrong-owner':
+        field.get_process_id = lambda: 999
+    elif fault == 'ambiguous':
+        window.children.append(Node(role='text', identity='filename_entry'))
+    elif fault in ('hidden', 'disabled', 'no-focus'):
+        field.states.remove({'hidden': 'visible', 'disabled': 'sensitive', 'no-focus': 'focused'}[fault])
+    elif fault == 'timeout':
+        setter.side_effect = TimeoutError
+    elif fault in ('refused', 'readback'):
+        setter.side_effect = None
+        setter.return_value = fault != 'refused'
+    elif fault == 'unknown-modal':
+        window.children.append(Node(role='dialog', states=('visible', 'showing', 'modal', 'active')))
+    if fault:
+        with pytest.raises((accessible_ui.UiError, TimeoutError)):
+            ui.save_chooser_operation('save-chooser-name')
+        if fault in ('timeout', 'refused', 'readback'):
+            with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+                ui.save_chooser_operation('save-chooser-name')
+            setter.assert_called_once()
+        else:
+            setter.assert_not_called()
+    else:
+        ui.save_chooser_operation('save-chooser-name')
+        assert field.value == accessible_ui.SAVE_NAMES[0]
+        setter.assert_called_once()
+        with pytest.raises(accessible_ui.UiError, match='chooser-mode'):
+            ui.chooser_snapshot(mode='open')
+    accept.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'directory', 'input-echo', 'name', 'uncertain'])
+def test_save_checks_destination_then_restored_name_before_single_accept(fault):
+    assert accessible_ui.SAVE_DIRECTORY == '/home/onpc-parent-jamie/Downloads'
+    ui, window, field, accept, _ = save_ui()
+    field.value = accessible_ui.SAVE_NAMES[0]
+    edit, _, reset = collapse_save_name(ui, window, field)
+    location = Node(role='text', identity='location_entry', states=(
+        'visible', 'showing', 'sensitive', 'editable', 'focused'))
+    location.get_process_id = lambda: 200
+    location.get_text_iface = lambda: location
+    location.value = accessible_ui.SAVE_DIRECTORY
+    window.children.append(location)
+    accept.action.do_action.side_effect = lambda _: window.states.clear() or True
+    if fault == 'directory':
+        location.value += '-wrong'
+    elif fault == 'input-echo':
+        location.value += '/'
+    if fault in ('directory', 'input-echo'):
+        with pytest.raises((accessible_ui.UiError, TimeoutError)):
+            ui.save_chooser_operation('save-chooser-destination')
+        accept.action.do_action.assert_not_called()
+        return
+    ui.save_chooser_operation('save-chooser-destination')
+    location.states.remove('showing')
+    if fault == 'name':
+        field.value = 'Wrong.zip'
+    elif fault == 'uncertain':
+        accept.action.do_action.side_effect = TimeoutError
+    if fault == 'name':
+        with pytest.raises(accessible_ui.UiError):
+            ui.save_chooser_operation('save-chooser-restored')
+        accept.action.do_action.assert_not_called()
+    else:
+        ui.save_chooser_operation('save-chooser-restored')
+        if fault == 'uncertain':
+            with pytest.raises(TimeoutError):
+                ui.save_chooser_operation('save-chooser-accept')
+            with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+                ui.save_chooser_operation('save-chooser-accept')
+        else:
+            ui.save_chooser_operation('save-chooser-accept')
+        accept.action.do_action.assert_called_once()
+        if not fault:
+            assert ui.chooser_snapshot(mode='save', absent=True)
+        edit.action.do_action.assert_called_once()
+    reset.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'delayed', 'missing-editor', 'wrong-name',
+    'duplicate-label', 'duplicate-button', 'hidden-duplicate', 'wrong-owner',
+    'wrong-mode', 'hidden', 'disabled', 'unknown-modal', 'location-open',
+    'duplicate-location', 'refused', 'timeout', 'editor-unfocused'])
+def test_save_restores_collapsed_filename_once_with_guards(monkeypatch, fault):
+    ui, window, field, accept, _ = save_ui()
+    field.value = accessible_ui.SAVE_NAMES[0]
+    edit, label, reset = collapse_save_name(ui, window, field)
+    reveal = edit.action.do_action.side_effect
+    if fault == 'duplicate-label':
+        window.children.append(Node(label.name, role='label', identity='filename_label'))
+    elif fault in ('duplicate-button', 'hidden-duplicate'):
+        duplicate = Node(edit.name, role='button', states=() if fault == 'hidden-duplicate'
+                         else ('visible', 'showing', 'sensitive'))
+        duplicate.relations = edit.relations
+        window.children.append(duplicate)
+    elif fault == 'wrong-owner':
+        edit.get_process_id = lambda: 999
+    elif fault == 'wrong-mode':
+        accept.name = 'Open'
+    elif fault in ('hidden', 'disabled'):
+        edit.states.remove('visible' if fault == 'hidden' else 'sensitive')
+    elif fault == 'unknown-modal':
+        window.children.append(Node(role='dialog', states=('visible', 'showing', 'modal', 'active')))
+    elif fault in ('location-open', 'duplicate-location'):
+        window.children.append(Node(role='text', identity='location_entry'))
+        if fault == 'duplicate-location':
+            window.children[-1].states.clear()
+            window.children.append(Node(role='text', identity='location_entry', states=()))
+    elif fault == 'refused':
+        edit.action.do_action.side_effect = lambda _: False
+    elif fault == 'timeout':
+        edit.action.do_action.side_effect = TimeoutError
+    elif fault in ('missing-editor', 'delayed'):
+        edit.action.do_action.side_effect = lambda _: True
+    elif fault == 'wrong-name':
+        field.value = 'Changed.zip'
+    elif fault == 'editor-unfocused':
+        def unfocused(index):
+            reveal(index)
+            field.states.remove('focused')
+            return True
+        edit.action.do_action.side_effect = unfocused
+    sleep = Mock(side_effect=lambda _: reveal(0))
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    ui.timeout = 1 if fault == 'delayed' else 0
+    after_input = {'missing-editor', 'wrong-name', 'refused', 'timeout', 'editor-unfocused'}
+    if fault in ('', 'delayed'):
+        ui.save_chooser_operation('save-chooser-restored')
+        edit.action.do_action.assert_called_once()
+        assert (sleep.call_count == 1) == (fault == 'delayed')
+    else:
+        with pytest.raises((accessible_ui.UiError, TimeoutError)):
+            ui.save_chooser_operation('save-chooser-restored')
+        if fault in after_input:
+            assert ui.input_uncertain
+            with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+                ui.save_chooser_operation('save-chooser-restored')
+            edit.action.do_action.assert_called_once()
+        else:
+            edit.action.do_action.assert_not_called()
+        sleep.assert_not_called()
+    accept.action.do_action.assert_not_called()
+    reset.action.do_action.assert_not_called()
+    ui.api.EditableText.set_text_contents.assert_not_called()
+
+
+@pytest.mark.parametrize('appears', [True, False])
+def test_save_destination_waits_for_projection_without_replaying_input(monkeypatch, appears):
+    # The editor can disappear before slot navigation and its next projection.
+    # Private in-memory trees and a mocked clock retain this module's bucket.
+    ui, window, field, accept, _ = save_ui()
+    location = Node(role='text', identity='location_entry', states=(
+        'visible', 'showing', 'sensitive', 'editable', 'focused'))
+    location.get_process_id = lambda: 200
+    location.get_text_iface = lambda: location
+    location.value = accessible_ui.SAVE_DIRECTORY
+    ui.timeout = 1 if appears else 0
+    sleep = Mock(side_effect=lambda _: window.children.append(location))
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    if appears:
+        assert ui.save_chooser_operation('save-chooser-destination') == {
+            'checked': 'save-chooser-destination'}
+        sleep.assert_called_once()
+    else:
+        with pytest.raises(accessible_ui.UiError, match='ui:timeout:save-chooser-destination'):
+            ui.save_chooser_operation('save-chooser-destination')
+        sleep.assert_not_called()
+    ui.api.EditableText.set_text_contents.assert_not_called()
+    accept.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['duplicate', 'hidden-duplicate', 'wrong-role',
+    'wrong-owner', 'wrong-mode', 'hidden', 'disabled', 'unfocused', 'stale', 'unknown-modal'])
+def test_save_destination_readiness_refuses_unsafe_projection(monkeypatch, fault):
+    ui, window, field, accept, _ = save_ui()
+    location = Node(role='text', identity='location_entry', states=(
+        'visible', 'showing', 'sensitive', 'editable', 'focused'))
+    location.get_process_id = lambda: 200
+    location.get_text_iface = lambda: location
+    location.value = accessible_ui.SAVE_DIRECTORY
+    window.children.append(location)
+    if fault in ('duplicate', 'hidden-duplicate'):
+        window.children.append(Node(role='text', identity='location_entry',
+            states=('visible', 'showing') if fault == 'duplicate' else ()))
+    elif fault == 'wrong-role':
+        location.role = 'label'
+    elif fault == 'wrong-owner':
+        location.get_process_id = lambda: 999
+    elif fault == 'wrong-mode':
+        accept.name = 'Open'
+    elif fault in ('hidden', 'disabled', 'unfocused'):
+        location.states.remove({'hidden': 'showing', 'disabled': 'sensitive',
+                                'unfocused': 'focused'}[fault])
+    elif fault == 'stale':
+        location.states.add('defunct')
+    elif fault == 'unknown-modal':
+        window.children.append(Node(role='dialog', states=('visible', 'showing', 'modal', 'active')))
+    sleep = Mock()
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    with pytest.raises(accessible_ui.UiError):
+        ui.save_chooser_operation('save-chooser-destination')
+    sleep.assert_not_called()
+    ui.api.EditableText.set_text_contents.assert_not_called()
+    accept.action.do_action.assert_not_called()
+
+
+def test_save_refuses_accept_while_location_editor_is_showing():
+    ui, window, field, accept, _ = save_ui()
+    field.value = accessible_ui.SAVE_NAMES[0]
+    field.states.remove('focused')
+    location = Node(role='text', identity='location_entry', states=(
+        'visible', 'showing', 'sensitive', 'editable', 'focused'))
+    location.get_process_id = lambda: 200
+    window.children.append(location)
+    with pytest.raises(accessible_ui.UiError, match='save-location-still-open'):
+        ui.save_chooser_operation('save-chooser-accept')
+    accept.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', sorted(accessible_ui.SAVE_OPERATIONS))
+def test_save_controller_requires_exact_mode_caller_and_result(operation):
+    from ui_observations import UiObservations
+    value = {'checked': operation}
+    if operation in ('save-chooser-open', 'save-chooser-reopen'):
+        value['provider'] = {'route': 'nautilus-portal', 'version': '50.2.2-1',
+            'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']],
+            'mode': 'save', 'caller': 'parent-feedback'}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'chooser': value}
+    controller = UiObservations(Mock())
+    controller.call = Mock(return_value=(json.dumps(result).encode(), []))
+    assert controller.observe(operation)['chooser'] == value
+    if 'provider' in value:
+        value['provider']['mode'] = 'open'
+    else:
+        value['unexpected'] = True
+    controller.call.return_value = (json.dumps(result).encode(), [])
+    with pytest.raises(EvidenceError):
+        controller.observe(operation)
+
+
+def test_save_worker_matches_plan_and_refuses_before_later_input():
+    from save_chooser import PLAN
+    from tests.support.perl import run_perl
+    stages = list(PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    script = r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages); my $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, $_[0]; }
+package main;
+require onpc_feedback_read;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval { onpc_feedback_read::run_save_chooser(sub {
+    push @events, $_[0]; push @stages, $_[0];
+    die 'failed proof' if $_[0] eq $fault;
+    return {observed => $_[0]};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+'''
+    for fault in ('', *stages):
+        result = json.loads(run_perl(script, fault).stdout)
+        assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+        assert result['ok'] == (not fault)
+        assert result['events'][-1] == (fault or 'finish')
+        if not fault:
+            assert [event for event in result['events'] if event in ('ctrl-l', 'ret', 'esc')] == [
+                'ctrl-l', 'ret', 'ctrl-l', 'esc'] * 2
+
+
+def test_save_selector_and_prepare_registration(monkeypatch):
+    import check_e2e_save_chooser as selector
+    run = Mock(return_value=0)
+    monkeypatch.setattr(selector, 'smoke', run)
+    assert selector.main() == 0
+    assert run.call_args.kwargs['save_chooser'] is True
+    with pytest.raises(CommandError, match='save-chooser-prerequisites'):
+        smoke.main(save_chooser=True, file_chooser=True)
+
+
+@pytest.mark.parametrize('fragment', ['save_handoff', 'save_cancellation'])
+def test_save_fragment_reuses_independent_invocation_and_refuses_before_input(fragment):
+    from attachment_composition import save_handoff, save_cancellation
+    from tests.support.perl import run_perl
+    # An arbitrary consumer binding must work without a qualification import or
+    # adding its name to the implementation. Save does not force a Cancel.
+    factory = {'save_handoff': save_handoff, 'save_cancellation': save_cancellation}[fragment]
+    stages = list(factory('consumer-export'))
+    script = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, $_[0]; }
+package main;
+require onpc_feedback_read;
+my ($fragment, $entry, $fault) = @ARGV;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, $_[0]; die 'refused' if $_[0] eq $fault;
+    return {observed => $_[0]};
+});
+my $ok = eval {
+    if ($fragment eq 'save_handoff') { onpc_feedback_read::save_handoff($journey, $entry); }
+    else { onpc_feedback_read::save_cancellation($journey, $entry); }
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+    expected = []
+    for stage in stages:
+        expected.append(stage)
+        if stage.endswith(('-name', '-navigated')) and not stage.endswith('cancel-name'):
+            expected.append('ctrl-l')
+        if stage.endswith('-location'):
+            expected.append('ret')
+        if stage.endswith('-destination'):
+            expected.append('esc')
+    for fault in ('', *stages):
+        result = json.loads(run_perl(script, fragment, 'consumer-export', fault).stdout)
+        assert result == {'ok': int(not fault), 'events': (
+            expected[:expected.index(fault) + 1] if fault else expected)}
+    for invalid in ('bad prefix', '../escape', '', None):
+        with pytest.raises(EvidenceError, match='save:invocation'):
+            factory(invalid)
+        if invalid is not None:
+            assert json.loads(run_perl(script, fragment, invalid, '').stdout) == {'ok': 0, 'events': []}
+
+
+def test_shared_draft_comparisons_do_not_alias_nested_observations():
+    from attachment_composition import (compare_file_draft, compare_formatted_draft,
+                                        formatted_draft_expected)
+    formatted = formatted_draft_expected()
+    captured = compare_formatted_draft(formatted)
+    formatted['formats']['inline'].clear()
+    formatted['items'][0][0] = 'Changed.txt'
+    assert captured == formatted_draft_expected()
+    file_draft = {'draft': 'attachment-file', 'attachments': ['Synthetic note.txt'],
+        'collection': 'ready', 'validation': 'none', 'controls': 'ready',
+        'items': [['Synthetic note.txt', '34 bytes']], 'include_logs': False}
+    captured = compare_file_draft(file_draft)
+    file_draft['attachments'].clear()
+    file_draft['items'][0][0] = 'Changed.txt'
+    assert captured['attachments'] == ['Synthetic note.txt']
+    assert captured['items'] == [['Synthetic note.txt', '34 bytes']]
+
+
+def test_window_history_copies_capture_before_independent_comparison():
+    from copy import deepcopy
+    from installed_journey import JourneyPlan
+    from window_switch import WindowSwitchJourney
+    plan = JourneyPlan(prefix='consumer', worker_mode='consumer', phases={}, screen_tags={
+        'capture': 'ui:switch-draft-before', 'return': 'ui:switch-feedback'})
+    journey = WindowSwitchJourney(SimpleNamespace(), Mock(), plan)
+    window = {'binding': 'feedback', 'pid': 42, 'endpoint': [':1.42', '/window'],
+              'active': True, 'feedback': {'items': [['Synthetic note.txt', '26 bytes']]}}
+    original = deepcopy(window)
+    journey.check_settings('capture', {'ui': {'window': window}})
+    window['endpoint'][1] = '/changed'
+    window['feedback']['items'][0][0] = 'Changed.txt'
+    journey.check_settings('return', {'ui': {'window': original}})
+    with pytest.raises(EvidenceError, match='window-or-draft-changed'):
+        journey.check_settings('return', {'ui': {'window': window}})
+
+
+def test_save_cancel_checks_fresh_filename_and_closure_without_save():
+    ui, window, field, accept, _ = save_ui()
+    field.value = accessible_ui.SAVE_NAMES[1]
+    cancel = next(node for node in window.children if node.name == 'Close')
+    cancel.action.do_action.side_effect = lambda _: window.states.clear() or True
+    ui.save_chooser_operation('save-chooser-cancel')
+    cancel.action.do_action.assert_called_once()
+    accept.action.do_action.assert_not_called()
+
+
 def portal_query():
     """Public introspection for one live delegated request, no host bus."""
     def query(bus, path, interface, method, signature, args):

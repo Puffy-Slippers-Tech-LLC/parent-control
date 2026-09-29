@@ -10,6 +10,18 @@ Read only the named block rows/callables, this recipe's selected cases and
 applicable finite-data rows. Prerequisite IDs are completion checks; do not open
 their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
 
+Reuse `attachment_composition.save_handoff` and its matching
+`onpc_feedback_read::save_handoff` worker composite, with
+`AccessibleUI.save_chooser_operation` and FILE05 `save_destination_actions` in
+`tests/e2e/synthetic_files.py`. The qualified destination is the bound parent's
+`~/Downloads`, resolved by `download_destination.download_directory`; preserve
+the independent file receipt and owned cleanup. `save_cancellation` is separate.
+`tests/e2e/save_chooser.py` is qualification-only composition, not a shared API.
+The installed Save binding is Nautilus `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`,
+`xkb/us`, caller `parent-feedback`; native GTK remains unsupported.
+Keep FILE08 exported-ZIP inspection and full FEED08 acceptance in this task.
+The selector below is planned and must be implemented before invocation.
+
 ## Scope and prerequisites
 
 Deliver **FEED08**. First scheduled consumer: [E2E-031, case 155](../E2E-Scenario-Recipes.md#e2e-031).

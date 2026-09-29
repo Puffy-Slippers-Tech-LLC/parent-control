@@ -116,6 +116,8 @@ write_e2e write_e2e_cleanup_safety
 # mutation. Version checks spawn only bounded read-only dpkg comparisons with
 # no shared mutable files, sockets, displays, package locks or heavy fixtures.
 # These modules remain compatible in both unit and cleanup scheduling.
+# Synthetic-file guest import checks add only a bounded isolated Python child
+# with captured pipes; private tmp_path files and mocked SSH retain compatibility.
 # Online restore, explicit recovery and CPU rollback additions use the same
 # private VM doubles and tiny tmp_path XML/credential files; no real VM, socket,
 # display, account or process is touched. Both scheduler classifications hold.

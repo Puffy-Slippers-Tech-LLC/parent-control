@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">16178</span>/<span style="color: gray">0</span>/16178 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">16346</span>/<span style="color: gray">0</span>/16346 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">173</span>/<span style="color: gray">0</span>/173 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">95</span>/<span style="color: gray">0</span>/95 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| Integration qualification | <span style="color: green">97</span>/<span style="color: gray">0</span>/97 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">25</span>/<span style="color: gray">217</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">16870</span>/<span style="color: gray">217</span>/17087** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">17041</span>/<span style="color: gray">217</span>/17258** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -3113,7 +3113,7 @@ Variant: flow: diagnostic export
 - Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests own exhaustive local formatting, validation and attachment boundaries.
 - Draft-reopen returns to the existing window, inspects Privacy, closes/reopens feedback to compare the draft, then exits/relaunches Parent to verify reset. Validation reopens and reads recovered valid state. Attachments removes one file and reads the remaining file. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback.
 
-Pending: Real Download/Save and bounded SSH artifact readers require qualification; resume when FILE03 Save, FILE08 exported-ZIP inspection and FEED08 composition are qualified for full installed acceptance.
+Pending: FILE03 named Save/Cancel is qualified; resume when FILE08 exported-ZIP inspection and FEED08 composition are qualified for full installed acceptance, including save-error recovery.
 
 </div>
 

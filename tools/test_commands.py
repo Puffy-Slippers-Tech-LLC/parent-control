@@ -300,6 +300,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_request_exit'], ['check_e2e_request_exit.py'],
             ['check_e2e_read_restricted_station_about'], ['check_e2e_read_restricted_station_about.py'],
             ['check_e2e_file_chooser'], ['check_e2e_file_chooser.py'],
+            ['check_e2e_save_chooser'], ['check_e2e_save_chooser.py'],
             ['check_e2e_attachment_items'], ['check_e2e_attachment_items.py'],
             ['check_e2e_attachment_preview'], ['check_e2e_attachment_preview.py'],
             ['check_e2e_attachments'], ['check_e2e_attachments.py'],

@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 import warnings
+from download_destination import download_directory
 
 # Isolated guest Python receives this file on guarded stdin after the controller
 # installs public_atspi.py as the public_atspi module. Keep finite public-input
@@ -862,6 +863,12 @@ CHOOSER_OPERATIONS = frozenset('chooser-' + suffix for suffix in (
     'wrong-entry', 'open', 'location', 'files', 'accept', 'attachments',
     'reopen', 'cancel', 'preserved'))
 OPERATIONS |= CHOOSER_OPERATIONS
+SAVE_DIRECTORY = str(download_directory('/home/onpc-parent-jamie'))
+SAVE_NAMES = ('Selected diagnostics.zip', 'Cancelled diagnostics.zip')
+SAVE_OPERATIONS = frozenset('save-chooser-' + suffix for suffix in (
+    'wrong-entry', 'open', 'name', 'location', 'navigated', 'destination', 'restored', 'accept',
+    'result', 'reopen', 'cancel-name', 'cancel', 'preserved'))
+OPERATIONS |= SAVE_OPERATIONS
 DRAFT_OPERATIONS = frozenset('draft-' + name for name in (
     'chooser-open', 'chooser-location', 'chooser-files', 'chooser-accept',
     'feedback-draft', 'feedback-draft-reread', 'feedback-draft-reopen',
@@ -1883,7 +1890,7 @@ class AccessibleUI:
         No title, geometry, global label or positional target fallback.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(mode == 'open', 'ui:chooser-mode')
+        require(mode in ('open', 'save'), 'ui:chooser-mode')
         nodes, edges, ids, facts = self.read_snapshot()
         observation = (nodes, edges, ids, facts)
         caller = self.snapshot_owned_target('feedback-dialog', observation=observation,
@@ -1900,7 +1907,7 @@ class AccessibleUI:
             # Native GTK does not expose an accept Builder ID.
             if not accepts and node.get_process_id() == caller_pid:
                 accepts = [item for item in scoped if facts[item]['role'] in ('button', 'push button')
-                           and facts[item]['name'] == 'Open']
+                           and facts[item]['name'] in ('Open', 'Save')]
             if accepts:
                 candidates.append((node, scoped, accepts))
         require(len(candidates) <= 1, 'ui:chooser-ambiguous')
@@ -1935,7 +1942,9 @@ class AccessibleUI:
                     and relations[0].get_target(0) == caller, 'ui:chooser-transient-caller')
         require(self.has_state(window, self.api.StateType.ACTIVE)
                 and self.has_state(window, self.api.StateType.MODAL), 'ui:chooser-active')
-        require(len(accepts) == 1 and facts[accepts[0]]['name'] == 'Open', 'ui:chooser-mode')
+        require(len(accepts) == 1 and facts[accepts[0]]['name'] ==
+                ('Open' if mode == 'open' else 'Save'), 'ui:chooser-mode')
+        require(mode != 'save' or route == 'nautilus-portal', 'ui:chooser-save-provider')
         # Nautilus sends RESPONSE_USER_CANCELLED from its window close
         # request. Its GTK window control exposes "Close", with no Builder
         # ID or separate Cancel button. Keep this binding provider-local;
@@ -1983,9 +1992,9 @@ class AccessibleUI:
         finally:
             connection.close_sync(None)
 
-    def chooser_metadata(self):
+    def chooser_metadata(self, *, mode='open'):
         from gi.repository import Gio
-        window, _, _, _, _, _, route = self.chooser_snapshot()
+        window, _, _, _, _, _, route = self.chooser_snapshot(mode=mode)
         pid = window.get_process_id()
         environment = dict(item.split(b'=', 1) for item in
                            Path('/proc/' + str(pid) + '/environ').read_bytes().split(b'\0') if b'=' in item)
@@ -2057,8 +2066,8 @@ class AccessibleUI:
             self.input_uncertain = True
             raise
 
-    def chooser_location_field(self):
-        window, scoped, ids, facts, _, _, _ = self.chooser_snapshot()
+    def chooser_location_field(self, *, mode='open'):
+        window, scoped, ids, facts, _, _, _ = self.chooser_snapshot(mode=mode)
         fields = [node for node in scoped if facts[node]['role'] in ('text', 'entry')
                   and all(self.has_state(node, state) for state in (
                       self.api.StateType.EDITABLE, self.api.StateType.FOCUSED,
@@ -2069,6 +2078,194 @@ class AccessibleUI:
         require(ids[field] in ('filename_entry', 'location_entry', 'entry')
                 and field.get_process_id() == window.get_process_id(), 'ui:chooser-location-id')
         return field
+
+    def save_chooser_field(self, kind, *, focused=True):
+        window, scoped, ids, facts, _, _, _ = self.chooser_snapshot(mode='save')
+        require(kind in ('name', 'location'), 'ui:save-field-kind')
+        fields = [node for node in scoped if ids[node] ==
+                  ('filename_entry' if kind == 'name' else 'location_entry')]
+        if len(fields) != 1:
+            target = 'filename_entry' if kind == 'name' else 'location_entry'
+            print(json.dumps({'event': 'save-field-resolution', 'kind': kind,
+                'id_matches': sum(ids[node] == target for node in scoped),
+                'role_matches': sum(facts[node]['role'] in ('text', 'entry') for node in fields),
+                'showing_matches': sum(facts[node]['showing'] for node in fields)},
+                sort_keys=True), file=sys.stderr, flush=True)
+        require(bool(fields), 'ui:save-field-missing')
+        require(len(fields) == 1, 'ui:save-field-ambiguous')
+        field = fields[0]
+        require(facts[field]['role'] in ('text', 'entry'), 'ui:save-field-role')
+        require(field.get_process_id() == window.get_process_id(), 'ui:save-field-owner')
+        if focused:
+            require(all(self.has_state(field, state) for state in (
+                self.api.StateType.EDITABLE, self.api.StateType.FOCUSED,
+                self.api.StateType.SENSITIVE, self.api.StateType.VISIBLE,
+                self.api.StateType.SHOWING)), 'ui:save-field-focus')
+        return field
+
+    def save_chooser_text(self, kind, expected, *, replace=False, focused=True):
+        field = self.save_chooser_field(kind, focused=focused)
+        if replace:
+            editable = field.get_editable_text_iface()
+            require(editable is not None, 'ui:save-field-editable')
+            self.input_uncertain = True
+            require(self.api.EditableText.set_text_contents(editable, expected),
+                    'ui:save-field-refused')
+            self.input_uncertain = False
+        try:
+            field = self.save_chooser_field(kind, focused=focused)
+            text = field.get_text_iface()
+            require(text is not None and self.api.Text.get_character_count(text) == len(expected)
+                    and self.api.Text.get_text(text, 0, len(expected)) == expected,
+                    'ui:save-field-readback')
+        except BaseException:
+            if replace:
+                self.input_uncertain = True
+            raise
+
+    def save_chooser_location_closed(self, snapshot):
+        _, scoped, ids, facts, _, _, _ = snapshot
+        fields = [node for node in scoped if ids[node] == 'location_entry']
+        require(len(fields) <= 1, 'ui:save-field-ambiguous')
+        require(not fields or not facts[fields[0]]['showing'], 'ui:save-location-still-open')
+
+    def save_chooser_restore_name(self):
+        # Nautilus collapses its transient filename entry on focus loss. Escape
+        # dismisses Location, not that collapsed state. Its no-ID edit button
+        # is publicly LABELLED_BY the provider's filename_label; Reset is a
+        # separate control and must never be used to recover the chosen name.
+        snapshot = self.chooser_snapshot(mode='save')
+        self.save_chooser_location_closed(snapshot)
+        window, scoped, ids, facts, _, _, _ = snapshot
+        labels = [node for node in scoped if ids[node] == 'filename_label']
+        require(len(labels) == 1, 'ui:save-name-label')
+        label = labels[0]
+        require(facts[label]['role'] == 'label' and facts[label]['name'] == SAVE_NAMES[0]
+                and label.get_process_id() == window.get_process_id(), 'ui:save-name-label')
+        buttons = []
+        for node in scoped:
+            if facts[node]['role'] not in ('button', 'push button'):
+                continue
+            targets = [relation.get_target(index) for relation in node.get_relation_set()
+                       if relation.get_relation_type() == self.api.RelationType.LABELLED_BY
+                       for index in range(relation.get_n_targets())]
+            if label in targets:
+                require(targets == [label], 'ui:save-name-edit-label')
+                buttons.append(node)
+        require(len(buttons) == 1, 'ui:save-name-edit-ambiguous')
+        button = buttons[0]
+        require(button.get_process_id() == window.get_process_id()
+                and facts[button]['name'] == SAVE_NAMES[0], 'ui:save-name-edit-owner')
+        self._invoke_target(button)
+        try:
+            def ready():
+                try:
+                    return self.save_chooser_field('name')
+                except UiError as error:
+                    if str(error) == 'ui:save-field-missing':
+                        return None
+                    raise
+            self.wait(ready, 'save-chooser-name-revealed', prompt_in_predicate=True)
+            self.save_chooser_text('name', SAVE_NAMES[0])
+        except BaseException:
+            self.input_uncertain = True
+            raise
+
+    def save_chooser_operation(self, operation):
+        """Nautilus Save binding; destination readback precedes the real Save."""
+        require(operation in SAVE_OPERATIONS, 'ui:save-operation')
+        step = operation.removeprefix('save-chooser-')
+        result = {'checked': operation}
+        if step == 'wrong-entry':
+            self.feedback_snapshot()
+            try:
+                self.chooser_snapshot(mode='save')
+            except UiError as error:
+                require(str(error) == 'ui:chooser-entry', 'ui:save-refusal')
+            else:
+                raise UiError('ui:save-refusal-missing')
+        elif step in ('open', 'reopen'):
+            self.wait_feedback_collection()
+            require(self.chooser_snapshot(mode='save', absent=True), 'ui:chooser-already-open')
+            self.activate_id('feedback-download-logs')
+            def ready():
+                try:
+                    return self.chooser_snapshot(mode='save')
+                except UiError as error:
+                    if str(error) in ('ui:chooser-entry', 'ui:chooser-active'):
+                        return None
+                    raise
+            self.wait(ready, operation, prompt_in_predicate=True)
+            try:
+                self.chooser_snapshot(mode='open')
+            except UiError as error:
+                require(str(error) == 'ui:chooser-mode', 'ui:save-refusal')
+            else:
+                raise UiError('ui:save-refusal-missing')
+            result['provider'] = {**self.chooser_metadata(mode='save'),
+                                  'mode': 'save', 'caller': 'parent-feedback'}
+        elif step in ('name', 'cancel-name'):
+            self.save_chooser_text('name', SAVE_NAMES[step == 'cancel-name'], replace=True)
+        elif step == 'location':
+            self.save_chooser_text('location', SAVE_DIRECTORY + '/', replace=True)
+        elif step == 'navigated':
+            def navigated():
+                _, scoped, ids, facts, _, _, _ = self.chooser_snapshot(mode='save')
+                fields = [node for node in scoped if ids[node] == 'location_entry']
+                require(len(fields) <= 1, 'ui:save-field-ambiguous')
+                return not fields or not facts[fields[0]]['showing']
+            self.wait(navigated, operation, prompt_in_predicate=True)
+        elif step == 'destination':
+            # Ctrl+L after navigation exposes the provider's current directory,
+            # independently of the earlier text supplied before Enter.
+            # Editor disappearance is not navigation completion. After the
+            # single worker shortcut, wait only for its accessibility projection;
+            # ambiguity and unsafe fields still refuse without replaying input.
+            def ready():
+                try:
+                    return self.save_chooser_field('location')
+                except UiError as error:
+                    if str(error) == 'ui:save-field-missing':
+                        return None
+                    raise
+            self.wait(ready, operation, prompt_in_predicate=True)
+            self.save_chooser_text('location', SAVE_DIRECTORY)
+        elif step in ('restored', 'accept'):
+            if step == 'restored':
+                self.save_chooser_restore_name()
+            else:
+                self.save_chooser_location_closed(self.chooser_snapshot(mode='save'))
+                self.save_chooser_text('name', SAVE_NAMES[0])
+            if step == 'accept':
+                self._invoke_target(self.chooser_snapshot(mode='save')[4])
+                try:
+                    self.wait(lambda: self.chooser_snapshot(mode='save', absent=True),
+                              'save-chooser-closed', prompt_in_predicate=True)
+                except BaseException:
+                    self.input_uncertain = True
+                    raise
+        elif step == 'cancel':
+            self.save_chooser_text('name', SAVE_NAMES[1])
+            self._invoke_target(self.chooser_snapshot(mode='save')[5])
+            try:
+                self.wait(lambda: self.chooser_snapshot(mode='save', absent=True),
+                          'save-chooser-closed', prompt_in_predicate=True)
+            except BaseException:
+                self.input_uncertain = True
+                raise
+        else:
+            self.wait_feedback_collection()
+            self.feedback_snapshot()
+            if step == 'result':
+                row = self.id_target('feedback-logs-row')
+                descriptions = [relation.get_target(index)
+                    for relation in row.get_relation_set()
+                    if relation.get_relation_type() == self.api.RelationType.DESCRIBED_BY
+                    for index in range(relation.get_n_targets())]
+                require(len(descriptions) == 1 and descriptions[0] in self.read_snapshot(row)[0]
+                        and descriptions[0].get_name() == 'Downloaded · Ready to examine',
+                        'ui:save-app-result')
+        return result
 
     def chooser_set_location(self, *, profile='standard'):
         require(profile == 'standard' or profile in BOUNDARY_FILES, 'ui:chooser-profile')
@@ -7487,6 +7684,8 @@ class AccessibleUI:
                 result['feedback'] = feedback
         elif operation in CHOOSER_OPERATIONS:
             result['chooser'] = self.chooser_operation(operation)
+        elif operation in SAVE_OPERATIONS:
+            result['chooser'] = self.save_chooser_operation(operation)
         elif operation in ATTACHMENT_OPERATIONS:
             result['attachment'] = self.attachment_operation(operation)
         elif operation in BOUNDARY_OPERATIONS:

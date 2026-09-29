@@ -668,9 +668,18 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          named_child_custom_saves=False, feedback_collection=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
          synthetic_files=False, document_open=False, archive_open=False, source_change=False,
-         file_chooser=False, attachment_items=False, attachment_preview=False,
+         file_chooser=False, save_chooser=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False):
+    require(type(save_chooser) is bool and not (save_chooser and (
+        file_chooser or attachment_items or attachment_preview or attachment_boundaries
+        or feedback_read or feedback_states or feedback_collection or feedback_privacy
+        or format_qualification or window_switch or feedback_rejection or feedback_length
+        or trace_stable_state or trace_transition or compose_observation
+        or accessibility_input_trace or parent_save_trace or custom_save_trace
+        or feedback_reset or feedback_block_semantics or feedback_formats or feedback_link_semantics
+        or synthetic_files or document_open or archive_open or source_change)),
+        'smoke:save-chooser-prerequisites')
     require(type(named_child_custom_saves) is bool and
             (not named_child_custom_saves or custom_save_trace), 'smoke:trace-prerequisites')
     require(type(feedback_collection) is bool and type(custom_save_trace) is bool and type(parent_save_trace) is bool and type(accessibility_input_trace) is bool and
@@ -743,7 +752,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:feedback-states-prerequisites')
     require(type(feedback_privacy) is bool and not (feedback_privacy and feedback_read),
             'smoke:feedback-privacy-prerequisites')
-    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch or feedback_rejection or feedback_length or file_chooser
+    feedback_read = feedback_read or feedback_privacy or feedback_states or format_qualification or window_switch or feedback_rejection or feedback_length or file_chooser or save_chooser
     require(type(fresh_thirty_allowance) is bool and type(set_allowance) is bool
             and not (fresh_thirty_allowance and set_allowance),
             'smoke:fresh-thirty-allowance-prerequisites')
@@ -1233,6 +1242,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-feedback-read-qualification'
         if file_chooser:
             result['scope'] = 'installed-file-chooser-qualification'
+        if save_chooser:
+            result['scope'] = 'installed-save-chooser-qualification'
         if attachment_items:
             result['scope'] = 'installed-attachment-items-qualification'
         if attachment_preview:
@@ -1479,6 +1490,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if file_chooser:
                     from parent_setup_qualification import FileChooserQualification
                     qualification_class = FileChooserQualification
+                if save_chooser:
+                    from parent_setup_qualification import SaveChooserQualification
+                    qualification_class = SaveChooserQualification
                 if attachment_items:
                     from parent_setup_qualification import AttachmentItemsQualification
                     qualification_class = AttachmentItemsQualification

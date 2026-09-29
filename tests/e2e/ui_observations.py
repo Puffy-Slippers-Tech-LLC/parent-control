@@ -28,6 +28,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Saving diagnostic output through the owned chooser: ' + operation
+       for operation in accessible_ui.SAVE_OPERATIONS},
     'named-custom-setup': 'Setting the named child allowance to enabled zero',
     'named-custom-wrong-child-refused': 'Refusing custom input and trace for the wrong child',
     **{operation: 'Observing the owned Parent checked-state event without input'
@@ -823,7 +825,7 @@ class UiObservations:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
         modules = 'import sys, types\n'
-        for name in ('public_atspi', 'block_semantics', 'feedback_formats'):
+        for name in ('public_atspi', 'block_semantics', 'feedback_formats', 'download_destination'):
             source = (system.ROOT / f'tests/e2e/{name}.py').read_text()
             modules += (f'{name} = types.ModuleType("{name}")\n'
                         f'sys.modules["{name}"] = {name}\n'
@@ -1065,6 +1067,20 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'attachment'}
                     and result['attachment'] == projection, 'ui:attachment-response')
             expected['attachment'] = result['attachment']
+        if operation in accessible_ui.SAVE_OPERATIONS:
+            projection = {'checked': operation}
+            if operation in ('save-chooser-open', 'save-chooser-reopen'):
+                provider = result.get('chooser', {}).get('provider')
+                require(type(provider) is dict and set(provider) == {
+                    'route', 'version', 'locale', 'keyboard', 'mode', 'caller'}
+                    and provider['route'] == 'nautilus-portal' and provider['mode'] == 'save'
+                    and provider['caller'] == 'parent-feedback', 'ui:save-provider')
+                accessible_ui.validate_shell_metadata({key: provider[key]
+                    for key in ('version', 'locale', 'keyboard')})
+                projection['provider'] = provider
+            require(type(result) is dict and set(result) == {*expected, 'chooser'}
+                    and result['chooser'] == projection, 'ui:save-response')
+            expected['chooser'] = result['chooser']
         if operation in accessible_ui.CHOOSER_OPERATIONS:
             projection = {'checked': operation}
             if operation in ('chooser-open', 'chooser-reopen'):

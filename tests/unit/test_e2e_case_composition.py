@@ -79,7 +79,8 @@ WORKER_APIS = {
     'onpc_text': {'replace_text', 'append_scalar'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
-                             'input_hidden', 'input_complex', 'stable_trace', 'transition_trace'},
+                             'input_hidden', 'input_complex', 'stable_trace', 'transition_trace',
+                             'observed_toggle'},
     'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
                             'supply_files', 'boundary_batch', 'attachment_limits'},
 }
@@ -133,6 +134,11 @@ def composition_errors(source, case_modules, apis=APIS):
 @pytest.mark.parametrize('path', sorted({v['executable']['path'] for _, v in READY}))
 def test_ready_modules_only_declare_and_compose_shared_apis(path):
     assert not composition_errors((ROOT / path).read_text(), CASE_MODULES)
+
+
+def test_accessibility_trace_qualification_declares_shared_input_binding():
+    assert not composition_errors(
+        (ROOT / 'tests/e2e/accessibility_input_trace.py').read_text(), CASE_MODULES)
 
 
 @pytest.mark.parametrize('module', ['file_chooser', 'attachment_items', 'attachment_preview',

@@ -123,15 +123,14 @@ class Transport:
         self.guard(self.config)
         previous_watch = getattr(self.commands, 'watch_command', None)
         self.commands.watch_command = selection
-        previous = getattr(self.commands, 'progress', None)
-        if on_output is not None:
-            self.commands.progress = on_output
         try:
+            def command_output(data, stream):
+                if stream == 'stdout':
+                    on_output(data)
             return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
-                                     input=input, timeout=timeout, check=check, merge_stderr=False)
+                                     input=input, timeout=timeout, check=check, merge_stderr=False,
+                                     on_output=command_output if on_output is not None else None)
         finally:
-            if on_output is not None:
-                self.commands.progress = previous
             self.commands.watch_command = previous_watch
 
     def ready(self):

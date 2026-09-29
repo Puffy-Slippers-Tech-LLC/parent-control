@@ -46,6 +46,7 @@ class JourneyPlan:
     reboot_transition: tuple = ()
     trace_bindings: dict = field(default_factory=dict)
     trace_terminals: dict = field(default_factory=dict)
+    accessibility_inputs: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -66,6 +67,12 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
+        require(set(self.accessibility_inputs) == {stage for stage, tag in self.screen_tags.items()
+                    if tag == 'ui:accessibility-input-trace'} and
+                all(binding == ('parent-toggle-enabled', True)
+                    for binding in self.accessibility_inputs.values()) and
+                not set(self.accessibility_inputs) & set(self.stage_actions),
+                self.prefix + ':accessibility-input-plan')
         require(all(stage in stages and self.screen_tags[stage] == 'ui:feedback-trace-start'
                     and binding in ('body-first', 'body-clear')
                     for stage, binding in self.trace_bindings.items()),
@@ -387,7 +394,10 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
-                if tag == 'ui:feedback-trace-start':
+                if tag == 'ui:accessibility-input-trace':
+                    observed['ui'] = self.ui.observe_accessibility_input(
+                        *plan.accessibility_inputs[stage])
+                elif tag == 'ui:feedback-trace-start':
                     require(self.trace_token is None, 'ui:trace-duplicate')
                     observed['ui'] = (self.ui.start_trace(plan.trace_bindings[stage])
                                       if stage in plan.trace_bindings else self.ui.start_trace())

@@ -55,6 +55,120 @@ from ui_observations import FeedbackStateObservation
 # existing compatible scheduling and resource ownership remain unchanged.
 # Transition pumping uses the same mocks and pytest-owned immutable sample
 # files. No threads, sockets, shared caches or scheduler changes are introduced.
+# Accessibility-event checks retain mocked transports, private values and waited
+# Perl children; no live bus, thread, display or new shared resource is allocated.
+
+
+@pytest.mark.parametrize('fault', ['', 'no-ready', 'duplicate', 'foreign', 'boot',
+                                  'storage', 'input', 'observer', 'cancel', 'oversize', 'order'])
+def test_accessibility_trace_stream_brackets_one_input_and_latches(monkeypatch, fault):
+    from ui_observations import UiObservations
+    operations, retained = [], []
+    transport = SimpleNamespace(commands=SimpleNamespace(progress=None))
+    reader = UiObservations(transport)
+    reader.boot_guard = 'b' * 64
+
+    def call(argv, *, input, timeout, on_output=None):
+        operation = argv[3]
+        operations.append(operation)
+        if operation == 'parent-toggle-enabled':
+            assert retained and argv[-1] == 'c' * 64
+            if fault == 'input':
+                raise OSError('uncertain action')
+            reply = json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                               'boot_sha256': 'b' * 64,
+                               'toggle': {'state': True, 'activated': True}}).encode()
+            assert on_output is not None  # The nested call must own its parser.
+            on_output(reply + b'\n')
+            return reply
+        assert operation == 'parent-checked-events'
+        token = argv[-1]
+        ready = {'event': 'accessibility-trace-ready', 'token': token, 'source': 'c' * 64,
+                 'boot_sha256': 'b' * 64, 'checked': False}
+        if fault == 'foreign': ready['token'] = 'd' * 32
+        if fault == 'boot': ready['boot_sha256'] = 'd' * 64
+        if fault != 'no-ready':
+            encoded = json.dumps(ready).encode() + b'\n'
+            on_output(encoded[:17])
+            on_output(encoded[17:])
+        if fault == 'duplicate': on_output(encoded)
+        if fault == 'observer': raise OSError('observer lost')
+        if fault == 'cancel': raise KeyboardInterrupt()
+        samples = [{'elapsed_ms': i, 'checked': True, 'source': 'event'} for i in range(32)]
+        if fault == 'order': samples[-1]['elapsed_ms'] = 0
+        if fault == 'oversize': samples.append(samples[-1])
+        reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                 'boot_sha256': 'b' * 64, 'trace': {'token': token, 'source': 'c' * 64,
+                     'terminal': True, 'samples': samples}}
+        on_output(json.dumps(reply).encode() + b'\n')
+        return b''
+
+    transport.call = call
+    def retain(token, index, sample):
+        if fault == 'storage': raise OSError('durable readiness failed')
+        retained.append((token, index, sample))
+    reader.trace_sink = retain
+    if fault:
+        with pytest.raises((EvidenceError, OSError, KeyboardInterrupt)):
+            reader.observe_accessibility_input('parent-toggle-enabled', True)
+        assert reader.trace_failed and reader.accessibility_trace is None
+        with pytest.raises(EvidenceError):
+            reader.observe_accessibility_input('parent-toggle-enabled', True)
+        with pytest.raises(EvidenceError):
+            reader.observe('parent-toggle-enabled')
+        assert operations.count('parent-toggle-enabled') == (
+            0 if fault in ('no-ready', 'foreign', 'boot', 'storage') else 1)
+    else:
+        result = reader.observe_accessibility_input('parent-toggle-enabled', True)
+        assert len(result['samples']) == 32 and len(retained) == 33
+        assert operations == ['parent-checked-events', 'parent-toggle-enabled']
+    assert transport.commands.progress is None
+
+
+@pytest.mark.parametrize('fault', ['', 'first-disabled', 'first-wrong-child', 'first-wrong-surface',
+                                  'first-observed-enable', 'first-independent-saved',
+                                  'restore-disabled', 'second-observed-enable'])
+def test_accessibility_trace_worker_stops_at_failed_boundary(fault):
+    from tests.support.perl import run_perl
+    from accessibility_input_trace import PLAN as plan
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@stages); our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi; sub record_info { }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @stages, 'finish'; };
+my $ok = eval { onpc_feedback_states::run_accessibility_trace(sub {
+    push @stages, $_[0]; die 'failed proof' if $_[0] eq $fault;
+    return {observed => $_[0]};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages});
+''', fault).stdout)
+    stages = list(plan.screen_tags)
+    stages = stages[stages.index('parent-selected'):] + ['finish']
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+
+
+def test_accessibility_trace_selector_and_explicit_plan(monkeypatch):
+    from dataclasses import replace
+    from accessibility_input_trace import PLAN as plan
+    import check_e2e_accessibility_input_trace as check_trace
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_trace, 'smoke', run)
+    assert check_trace.main() == 0
+    assert run.call_args.kwargs['accessibility_input_trace'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(accessibility_input_trace=True, trace_transition=True)
+    with pytest.raises(EvidenceError, match='accessibility-input-plan'):
+        replace(plan, accessibility_inputs={})
+    with pytest.raises(EvidenceError, match='accessibility-input-plan'):
+        replace(plan, accessibility_inputs={s: ('parent-toggle-disabled', False)
+                                            for s in plan.accessibility_inputs})
 
 
 @pytest.mark.parametrize('body,draft', [('', 'initial-empty'), ('S', 'trace-prefix'),

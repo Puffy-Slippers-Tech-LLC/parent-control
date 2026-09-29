@@ -1,4 +1,4 @@
-## v1.2 - 2026-09-28
+## v1.2 - 2026-09-29
 ### Bug Fixes
 - Software Updater: Fixed the description to match app name
 - Packaging: Removed some non-product files (internal tools, docs) from package.

@@ -68,9 +68,11 @@ class JourneyPlan:
         used = set()
         stages = list(self.screen_tags)
         require(set(self.accessibility_inputs) == {stage for stage, tag in self.screen_tags.items()
-                    if tag == 'ui:accessibility-input-trace'} and
-                all(binding == ('parent-toggle-enabled', True)
-                    for binding in self.accessibility_inputs.values()) and
+                    if tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace')} and
+                all(binding == ('parent-toggle-enabled', True) if
+                    self.screen_tags[stage] == 'ui:accessibility-input-trace' else
+                    binding == ('parent-toggle-enabled', True, 'save')
+                    for stage, binding in self.accessibility_inputs.items()) and
                 not set(self.accessibility_inputs) & set(self.stage_actions),
                 self.prefix + ':accessibility-input-plan')
         require(all(stage in stages and self.screen_tags[stage] == 'ui:feedback-trace-start'
@@ -394,7 +396,7 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
-                if tag == 'ui:accessibility-input-trace':
+                if tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace'):
                     observed['ui'] = self.ui.observe_accessibility_input(
                         *plan.accessibility_inputs[stage])
                 elif tag == 'ui:feedback-trace-start':

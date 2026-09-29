@@ -48,7 +48,20 @@ sub run_accessibility_trace {
     onpc_progress::operation('Qualifying checked-state events during synchronous accessibility input');
     my ($exchange) = @_;
     die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'accessibility-trace', review => 0);
+    return run_control_trace($exchange, 'accessibility-trace');
+}
+
+sub run_parent_save_trace {
+    onpc_progress::operation('Qualifying Parent saving and control inhibition during accessibility input');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    return run_control_trace($exchange, 'parent-save-trace');
+}
+
+sub run_control_trace {
+    onpc_progress::operation('Running the declared Parent control trace sequence');
+    my ($exchange, $prefix) = @_;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);

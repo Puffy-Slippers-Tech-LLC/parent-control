@@ -331,6 +331,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_compose_observation_around_one_caller_input'],
             ['check_e2e_compose_observation_around_one_caller_input.py'],
             ['check_e2e_accessibility_input_trace'], ['check_e2e_accessibility_input_trace.py'],
+            ['check_e2e_parent_save_trace'], ['check_e2e_parent_save_trace.py'],
             ['check_e2e_feedback_rejection'], ['check_e2e_feedback_rejection.py'],
             ['check_e2e_feedback_length'], ['check_e2e_feedback_length.py'],
             ['check_e2e_format'], ['check_e2e_format.py'],

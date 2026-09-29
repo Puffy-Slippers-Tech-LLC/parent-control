@@ -57,6 +57,70 @@ from ui_observations import FeedbackStateObservation
 # files. No threads, sockets, shared caches or scheduler changes are introduced.
 # Accessibility-event checks retain mocked transports, private values and waited
 # Perl children; no live bus, thread, display or new shared resource is allocated.
+# Saving projections add only bounded in-memory public event sequences.
+
+
+@pytest.mark.parametrize('fault', ['', 'final-only', 'nonoverlap', 'no-recovery',
+                                  'wrong-control', 'no-checked'])
+def test_parent_save_trace_requires_event_derived_inhibition_and_recovery(fault):
+    from ui_observations import save_trace_complete
+    sequence = [('toggle', 'checked', True), ('allowance', 'sensitive', True),
+                ('child', 'sensitive', False), ('toggle', 'sensitive', False),
+                ('allowance', 'sensitive', False), ('child', 'sensitive', True),
+                ('toggle', 'sensitive', True), ('allowance', 'sensitive', True)]
+    if fault == 'final-only': sequence = sequence[:2] + sequence[-3:]
+    if fault == 'nonoverlap': sequence.insert(3, ('child', 'sensitive', True))
+    if fault == 'no-recovery': sequence.pop(-2)
+    if fault == 'wrong-control': sequence[3] = ('allowance', 'sensitive', False)
+    if fault == 'no-checked': sequence.pop(0)
+    samples = [{'elapsed_ms': index, 'target': target, 'state': state, 'value': value}
+               for index, (target, state, value) in enumerate(sequence)]
+    assert save_trace_complete(samples) is (not fault)
+
+
+def test_parent_save_trace_plan_and_controller_keep_readiness_before_one_input():
+    from parent_save_trace import PLAN as SAVE_PLAN
+    from ui_observations import UiObservations
+    assert SAVE_PLAN.accessibility_inputs['first-observed-enable'] == (
+        'parent-toggle-enabled', True, 'save')
+    operations, retained = [], []
+    transport = SimpleNamespace(commands=SimpleNamespace(progress=None))
+    reader = UiObservations(transport)
+    reader.boot_guard = 'b' * 64
+    reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
+    samples = [{'elapsed_ms': index, 'target': target, 'state': state, 'value': value}
+               for index, (target, state, value) in enumerate((
+                   ('toggle', 'checked', True), ('allowance', 'sensitive', True),
+                   ('child', 'sensitive', False), ('toggle', 'sensitive', False),
+                   ('allowance', 'sensitive', False), ('child', 'sensitive', True),
+                   ('toggle', 'sensitive', True), ('allowance', 'sensitive', True)))]
+
+    def call(argv, *, input, timeout, on_output=None):
+        operation = argv[3]
+        operations.append(operation)
+        if operation == 'parent-save-events':
+            token = argv[-1]
+            on_output((json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                                   'source': 'c' * 64, 'boot_sha256': 'b' * 64,
+                                   'checked': False}) + '\n').encode())
+            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                     'boot_sha256': 'b' * 64, 'trace': {'token': token, 'source': 'c' * 64,
+                                                     'terminal': True, 'samples': samples}}
+        else:
+            assert operation == 'parent-toggle-enabled'
+            assert retained[0][0] == 0 and argv[-1] == 'save:' + 'c' * 64
+            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                     'boot_sha256': 'b' * 64,
+                     'toggle': {'state': True, 'activated': True}}
+        on_output((json.dumps(reply) + '\n').encode())
+        return b''
+
+    transport.call = call
+    result = reader.observe_accessibility_input('parent-toggle-enabled', True, 'save')
+    assert result['operation'] == 'parent-save-trace'
+    assert result['samples'] == samples
+    assert operations == ['parent-save-events', 'parent-toggle-enabled']
+    assert len(retained) == len(samples) + 1
 
 
 @pytest.mark.parametrize('fault', ['', 'no-ready', 'duplicate', 'foreign', 'boot',
@@ -120,20 +184,24 @@ def test_accessibility_trace_stream_brackets_one_input_and_latches(monkeypatch, 
             0 if fault in ('no-ready', 'foreign', 'boot', 'storage') else 1)
     else:
         result = reader.observe_accessibility_input('parent-toggle-enabled', True)
+        assert result['operation'] == 'accessibility-input-trace'
         assert len(result['samples']) == 32 and len(retained) == 33
         assert operations == ['parent-checked-events', 'parent-toggle-enabled']
     assert transport.commands.progress is None
 
 
+@pytest.mark.parametrize('worker', ['accessibility', 'save'])
 @pytest.mark.parametrize('fault', ['', 'first-disabled', 'first-wrong-child', 'first-wrong-surface',
                                   'first-observed-enable', 'first-independent-saved',
                                   'restore-disabled', 'second-observed-enable'])
-def test_accessibility_trace_worker_stops_at_failed_boundary(fault):
+def test_accessibility_trace_worker_stops_at_failed_boundary(worker, fault):
     from tests.support.perl import run_perl
-    from accessibility_input_trace import PLAN as plan
+    from accessibility_input_trace import PLAN as checked_plan
+    from parent_save_trace import PLAN as save_plan
+    plan = save_plan if worker == 'save' else checked_plan
     result = json.loads(run_perl(r'''
 use strict; use warnings; use JSON::PP;
-our (@stages); our $fault = shift @ARGV;
+our (@stages); our ($worker, $fault) = @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi; sub record_info { }
 package main;
@@ -142,12 +210,14 @@ no warnings 'redefine';
 *onpc_gdm::reattach_functional = sub { };
 *onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
 *onpc_journey::finish = sub { push @stages, 'finish'; };
-my $ok = eval { onpc_feedback_states::run_accessibility_trace(sub {
+my $operation = $worker eq 'save' ? \&onpc_feedback_states::run_parent_save_trace
+                               : \&onpc_feedback_states::run_accessibility_trace;
+my $ok = eval { $operation->(sub {
     push @stages, $_[0]; die 'failed proof' if $_[0] eq $fault;
     return {observed => $_[0]};
 }); 1; };
 print encode_json({ok => $ok ? 1 : 0, stages => \@stages});
-''', fault).stdout)
+''', worker, fault).stdout)
     stages = list(plan.screen_tags)
     stages = stages[stages.index('parent-selected'):] + ['finish']
     assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
@@ -169,6 +239,20 @@ def test_accessibility_trace_selector_and_explicit_plan(monkeypatch):
     with pytest.raises(EvidenceError, match='accessibility-input-plan'):
         replace(plan, accessibility_inputs={s: ('parent-toggle-disabled', False)
                                             for s in plan.accessibility_inputs})
+
+
+def test_parent_save_trace_selector_and_explicit_plan(monkeypatch):
+    from dataclasses import replace
+    from parent_save_trace import PLAN
+    import check_e2e_parent_save_trace as check_trace
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_trace, 'smoke', run)
+    assert check_trace.main() == 0
+    assert run.call_args.kwargs['parent_save_trace'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(parent_save_trace=True, accessibility_input_trace=True)
+    with pytest.raises(EvidenceError, match='accessibility-input-plan'):
+        replace(PLAN, accessibility_inputs={})
 
 
 @pytest.mark.parametrize('body,draft', [('', 'initial-empty'), ('S', 'trace-prefix'),

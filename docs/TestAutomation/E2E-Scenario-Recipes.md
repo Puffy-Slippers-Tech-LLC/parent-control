@@ -645,6 +645,11 @@ Bindings: surface = parent.
 1. FLOW01(child) → ABOUT01 → ABOUT02.
 2. ABOUT03(previous child/settings observation). Established phase timing is unchanged.
 
+ABOUT02 checks only the license link's clickability; it neither invokes the link
+nor reads its URI/destination. ABOUT03 reads the owned footer and closes only
+About. Legacy `license`/`license-closed` stage names remain for recorder
+compatibility and no longer describe an external launch/close.
+
 ### E2E-031
 
 Implementation status comes from the inventory. The UI/E2E allocation
@@ -841,8 +846,8 @@ Implementation context: Case 192 uses `kiosk_about.PLAN`,
 Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 
 1. Parent P0 → PARENT03(capture); overlay/station FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help V(parent) → qualified desktop.
-2. Parent/overlay INFO01(Help) → ABOUT01; overlay additionally ABOUT02 → UI18(license viewer). Then INFO01(website,privacy,support,legal as offered). Kiosk ABOUT01 → UI03 → UI11(external actions). Command INFO02(each fixed command/manual). Parent's complete license-reading path remains owned by case 151.
-3. UI18(About, only where opened) → PARENT03 or REQUEST03 → UI12. INFO01 has already closed each external destination; do not close it twice. INFO02 leaves the parent desktop clear.
+2. Parent/overlay INFO01(Help clickability) → ABOUT01 → INFO01(website,privacy,support,license,legal clickability as offered). Never invoke external links or inspect their URIs/destinations. Kiosk ABOUT01 → UI03 → UI11(external actions). Command INFO02(each fixed command/manual).
+3. UI18(About, only where opened) → PARENT03 or REQUEST03 → UI12. No external handler is launched or closed. INFO02 leaves the parent desktop clear.
 
 Kiosk binds FLOW16 to fresh Parent entry with limits initially off, a saved
 30-minute allowance and limits on. After GDM/station entry, FLOW04 selects

@@ -1,4 +1,4 @@
-"""Fixed installed license-viewer qualification safety."""
+"""Link-only qualification safety; no external document is opened."""
 
 import json
 from types import SimpleNamespace
@@ -21,10 +21,10 @@ def test_selector_uses_owned_snapshot_and_refuses_conflicting_routes(monkeypatch
                       LicenseViewerProviderJourney)
     assert context.installed_snapshot.startswith('onpc-v')
     assert set(PLAN.phases) == set(PLAN.stages)
-    assert list(PLAN.screen_tags).index('license-unrelated-launched') < list(
-        PLAN.screen_tags).index('license-empty-launched') < list(
-        PLAN.screen_tags).index('license') < list(
-        PLAN.screen_tags).index('license-ambiguous-launched')
+    assert list(PLAN.screen_tags).index('license') < list(
+        PLAN.screen_tags).index('license-provider-refusals') < list(
+        PLAN.screen_tags).index('license-closed')
+    assert not any('launched' in stage for stage in PLAN.screen_tags)
     calls = []
     monkeypatch.setattr(check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
     assert check.main() == 0
@@ -37,9 +37,9 @@ def test_selector_uses_owned_snapshot_and_refuses_conflicting_routes(monkeypatch
                    license_viewer_provider=True, parent_terminal_provider=True)
 
 
-@pytest.mark.parametrize('fault', ['', 'unrelated', 'empty', 'license', 'refusals',
+@pytest.mark.parametrize('fault', ['', 'license', 'refusals',
                                    'close-input', 'return'])
-def test_worker_never_closes_before_qualification_and_observed_return(fault):
+def test_worker_checks_link_and_closes_only_owned_about(fault):
     result = json.loads(run_perl(r'''
 use strict;
 use warnings;
@@ -63,8 +63,6 @@ my $ok = eval {
     onpc_license_viewer_provider::run(sub {
         my ($stage) = @_;
         push @events, ['seen', $stage];
-        die 'missing unrelated' if $fault eq 'unrelated' && $stage eq 'license-unrelated-ready';
-        die 'missing empty' if $fault eq 'empty' && $stage eq 'license-empty-ready';
         die 'missing license' if $fault eq 'license' && $stage eq 'license';
         die 'missing refusals' if $fault eq 'refusals' && $stage eq 'license-provider-refusals';
         die 'missing return' if $fault eq 'return' && $stage eq 'license-closed';
@@ -76,13 +74,11 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 ''', fault).stdout)
     events = result['events']
     assert bool(result['ok']) == (not fault), result['error']
-    assert events.count(['seen', 'license']) == (0 if fault in ('unrelated', 'empty',
-                                                               'close-input') else 1)
+    assert events.count(['seen', 'license']) == 1
     assert events.count(['seen', 'license-provider-refusals']) == (
-        0 if fault in ('unrelated', 'empty', 'license', 'close-input') else 1)
+        0 if fault == 'license' else 1)
     assert events.count(['key', 'alt-f4']) == {
-        '': 5, 'unrelated': 0, 'empty': 1, 'license': 2,
-        'refusals': 3, 'close-input': 1, 'return': 4,
+        '': 1, 'license': 0, 'refusals': 0, 'close-input': 1, 'return': 0,
     }[fault]
     if fault:
         assert ['finish'] not in events

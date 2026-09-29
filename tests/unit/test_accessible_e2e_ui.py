@@ -2142,7 +2142,7 @@ def test_unqualified_desktop_provider_blocks_before_tree_discovery_or_input():
     ui.provider_contracts['document-viewer']['application_id'] = 'partial-viewer'
     ui.api.get_desktop = Mock(side_effect=AssertionError('tree read'))
     with pytest.raises(UiError, match='^ui:unqualified-provider-surface$'):
-        ui.open_license()
+        ui.window_ready_to_close('license')
     ui.api.get_desktop.assert_not_called()
 
 
@@ -2455,7 +2455,7 @@ def test_empty_parent_waits_for_fresh_state_without_replaying_input():
     assert calls.count(('parent-window',)) == 2
 
 
-@pytest.mark.parametrize('operation', ['license-closed', 'parent-returned'])
+@pytest.mark.parametrize('operation', ['parent-returned'])
 def test_return_waits_for_the_window_to_finish_closing(operation):
     from accessible_ui import PRODUCT
     closing, destination = (('LICENSE', 'About') if operation == 'license-closed' else ('About', PRODUCT))
@@ -2489,7 +2489,7 @@ def test_return_waits_for_the_window_to_finish_closing(operation):
 
 
 @pytest.mark.parametrize('fault', [None, 'wrong-document', 'hidden', 'password'])
-def test_license_reads_the_text_interface_and_requires_actual_visible_content(fault):
+def test_license_link_check_ignores_external_documents_and_never_activates(fault):
     link = Node('GNU General Public License v3.0', 'link', identity='about-license-value')
     document = Node('', 'password text' if fault == 'password' else 'text')
     if fault == 'hidden': document.states.remove('showing')
@@ -2502,16 +2502,11 @@ def test_license_reads_the_text_interface_and_requires_actual_visible_content(fa
                'GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n' + 'x' * 2000)
     ui.api.Text = SimpleNamespace(get_character_count=lambda node: len(content),
                                  get_text=Mock(side_effect=lambda node, start, end: content[start:end]))
-    if fault:
-        with pytest.raises(UiError, match='license-content'):
-            ui.run('license', '1.1')
-    else:
-        result = ui.run('license', '1.1')
-        assert result == {'operation': 'license', 'outcome': 'passed', 'interface': 'AT-SPI'}
-        ui.api.Text.get_text.assert_called_once_with(document, 0, 1024)
+    result = ui.run('license', '1.1')
+    assert result == {'operation': 'license', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    link.action.do_action.assert_not_called()
     document.get_text.assert_not_called()
-    if fault in ('hidden', 'password'):
-        ui.api.Text.get_text.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'inactive', 'hidden', 'missing', 'duplicate'])
@@ -2627,7 +2622,7 @@ def test_semantic_license_requires_unique_owned_public_document_and_bounded_cont
 
 
 @pytest.mark.parametrize('fault', [None, 'already-open', 'uncertain', 'missing-result'])
-def test_semantic_license_link_launches_once_and_observes_result(fault):
+def test_license_link_clickability_has_no_external_handler_dependency(fault):
     ui, desktop, owner, window, content, about, link = semantic_license_ui()
     if fault != 'already-open': desktop.children.remove(owner)
     def launch(_index):
@@ -2635,12 +2630,37 @@ def test_semantic_license_link_launches_once_and_observes_result(fault):
         if fault != 'missing-result': desktop.children.append(owner)
         return True
     link.action.do_action.side_effect = launch
-    if fault:
-        with pytest.raises((UiError, RuntimeError)): ui.open_license()
+    ui.open_license()
+    ui.api.Text.get_text.assert_not_called()
+    link.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'missing', 'disabled', 'hidden', 'role',
+                                 'no-action', 'ambiguous-action', 'focus-only',
+                                 'wrong-owner', 'duplicate', 'clipped'])
+def test_clickable_link_requires_owned_usable_control_without_following_it(fault):
+    link = Node(identity='about-license-value', role='link')
+    about = Node(identity='about-dialog', children=[link])
+    ui = ui_for(Node(identity='parent-window', children=[about]))
+    if fault == 'missing': link.identity = ''
+    if fault == 'disabled': link.states.remove('sensitive')
+    if fault == 'hidden': link.states.remove('visible')
+    if fault == 'clipped': link.states.remove('showing')
+    if fault == 'role': link.role = 'label'
+    if fault == 'no-action': link.get_action_iface = lambda: None
+    if fault in ('ambiguous-action', 'focus-only'):
+        link.action.get_n_actions = lambda: 2 if fault == 'ambiguous-action' else 1
+        link.action.get_action_name = lambda _: 'click' if fault == 'ambiguous-action' else 'focus.child'
+    if fault == 'wrong-owner': ui.api.get_desktop(0).identity = 'unrelated-application'
+    if fault == 'duplicate':
+        about.children.append(Node(identity='about-license-value', role='link'))
+        about.children[-1].parent = about
+    if fault in ('', 'clipped'):
+        assert ui.clickable_link('about-license-value', root=about)
     else:
-        ui.open_license()
-        assert ui.api.Text.get_text.called
-    assert link.action.do_action.call_count == (0 if fault == 'already-open' else 1)
+        with pytest.raises(UiError):
+            ui.clickable_link('about-license-value', root=about)
+    link.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'still-open', 'missing-about', 'inactive-about', 'incomplete'])
@@ -2657,23 +2677,13 @@ def test_semantic_license_close_requires_fresh_absence_and_active_owned_about(fa
 
 
 @pytest.mark.parametrize('kind', ['unrelated', 'empty', 'ambiguous'])
-@pytest.mark.parametrize('fault', [None, 'wrong-content', 'wrong-window-count'])
-def test_license_fixture_requires_exact_public_text_and_window_count(kind, fault):
-    ui, desktop, owner, window, content, about, link = semantic_license_ui()
-    if kind == 'ambiguous':
-        owner.children.append(Node(states=('showing', 'visible', 'sensitive')))
-    value = '' if kind == 'empty' else 'ONPC E2E synthetic ' + kind + ' document'
-    if fault == 'wrong-content':
-        value += 'unexpected'
-    if fault == 'wrong-window-count':
-        owner.children.append(Node())
-    ui.api.Text.get_character_count = lambda _: len(value)
-    ui.api.Text.get_text = Mock(return_value=value)
-    if fault:
-        with pytest.raises(UiError, match='ui:license-fixture-'):
-            ui.license_fixture_windows(kind)
-    else:
-        assert ui.license_fixture_windows(kind) == (window, content)
+@pytest.mark.parametrize('phase', ['launched', 'ready', 'closed'])
+def test_retired_external_link_qualification_refuses_before_discovery(kind, phase):
+    ui = ui_for(Node())
+    ui.api.get_desktop = Mock(side_effect=AssertionError('external discovery'))
+    with pytest.raises(UiError, match='ui:operation'):
+        ui.run('license-' + kind + '-' + phase, '1.1')
+    ui.api.get_desktop.assert_not_called()
 
 
 @pytest.mark.parametrize('projection,label', [

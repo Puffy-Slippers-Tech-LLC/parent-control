@@ -47,6 +47,18 @@
   are not customer acceptance requirements. Keep correct-dialog ownership,
   bounded input, exact-file guards and independent app readback. Do not inject
   attachments into private app state or replace the live handoff with a stub.
+- **External links:** Acceptance stops at the product's link being clickable:
+  resolve its public ID and check a visible, enabled link with a usable public
+  activation action. Viewport clipping does not require following the link.
+  Do not activate the link, inspect its URI/destination, launch a handler or
+  validate what opens. This applies to Help, website, portal, privacy, mail,
+  license and legal-file links across all tests. No browser/mail/document
+  provider qualification, page/content/DOM checks or external close/return
+  workflow belongs to link acceptance. Never pin, install or configure Firefox,
+  Chrome or another handler for a test. Ordinary product clicks continue to use
+  the current user's system default handler. In-app About and Privacy disclosure
+  checks, kiosk external-action restrictions and explicitly authorized feedback
+  submission remain separate product features.
 - **Parent app launch:** Every case that needs Parent functionality without
   testing app-grid discovery must reuse PARENT01
   ([`onpc_parent::launch`](../../tests/integration/graphical_smoke/lib/onpc_parent.pm)),

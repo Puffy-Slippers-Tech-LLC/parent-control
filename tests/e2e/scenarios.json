@@ -1563,8 +1563,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, invoke PARENT01 to run the installed oh-no-parent-control-parent command directly and observe its management window, select an existing child, open About, read its product/version information and open the installed license text."},
-          {"id": "step-2", "operation": "ui", "description": "Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy."}
+          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, invoke PARENT01 to run the installed oh-no-parent-control-parent command directly and observe its management window, select an existing child, open About, read its product/version information and check the license link is clickable without invoking it or inspecting its URI or destination."},
+          {"id": "step-2", "operation": "ui", "description": "Read the About copyright/footer, close only About and return to the same selected child without changing policy. No external handler is launched or validated."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1576,7 +1576,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-2", "description": "Installed About and license information are readable and the parent can return to normal use."}
+          {"id": "visible-result", "step_id": "step-2", "description": "Installed About information is readable, the license link is clickable and the parent can return to normal use without an external launch."}
         ],
         "backend": [],
         "other_user": []
@@ -2152,7 +2152,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop."},
-          {"id": "step-2", "operation": "ui", "description": "For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account."},
+          {"id": "step-2", "operation": "ui", "description": "For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account."},
           {"id": "step-3", "operation": "ui", "description": "Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window."}
         ],
         "end": [

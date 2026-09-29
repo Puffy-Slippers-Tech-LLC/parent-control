@@ -274,7 +274,7 @@ def test_feedback_draft_and_optional_attachment(
             if relation.get_relation_type() == ui.api.RelationType.CONTROLLED_BY
             for index in range(relation.get_n_targets())] == [ui.target("feedback-dialog")]
     assert "Diagnostic logs do not collect account names" in ui.text("feedback-privacy-text")
-    assert ui.showing("feedback-full-privacy-link")
+    assert ui.reader.clickable_link("feedback-full-privacy-link")
     dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog",
                             within="feedback-dialog")
     wait_for_accessible_state(

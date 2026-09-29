@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify Parent About's installed GNOME Text Editor license binding."""
+"""Qualify Parent's clickable license link; retain the legacy selector name."""
 
 from pathlib import Path
 import sys

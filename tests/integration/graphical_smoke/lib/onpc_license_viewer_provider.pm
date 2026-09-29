@@ -6,10 +6,9 @@ use onpc_journey ();
 use onpc_parent ();
 use onpc_gdm ();
 use onpc_about ();
-use onpc_window ();
 
 sub run {
-    onpc_progress::operation('Qualifying the installed license viewer');
+    onpc_progress::operation('Qualifying license link clickability');
     my ($exchange) = @_;
     die 'license-provider:binding' unless @_ == 1 && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(
@@ -23,20 +22,10 @@ sub run {
     die 'license-provider:wrong-entry-accepted' if $accepted;
     die 'license-provider:wrong-entry-refusal' unless $@ =~ /journey:stale-observation/;
     my $about = onpc_about::open_about($journey, $selected);
-    for my $kind ('unrelated', 'empty') {
-        $journey->seen('license-' . $kind . '-launched');
-        my $ready = $journey->seen('license-' . $kind . '-ready');
-        onpc_window::close($journey, 'license-' . $kind . '-fixture', $ready);
-    }
-    my $rechecked = $journey->seen('about-rechecked');
-    onpc_about::open_license($journey, $rechecked, 'about-rechecked');
-    $journey->seen('license-ambiguous-launched');
-    my $ambiguous = $journey->seen('license-ambiguous-ready');
-    onpc_window::close($journey, 'license-ambiguous-fixture', $ambiguous);
+    onpc_about::open_license($journey, $about);
     my $qualified = $journey->seen('license-provider-refusals');
-    my $returned = onpc_window::close($journey, 'license-qualified', $qualified);
-    my $footer = onpc_about::read_footer($journey, $returned, 'semantic-reveal');
-    onpc_window::close($journey, 'about', $footer);
+    onpc_about::return_to_parent(
+        $journey, $qualified, 'semantic-reveal', 'license-provider-refusals');
     $journey->finish();
 }
 

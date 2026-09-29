@@ -1,11 +1,11 @@
-# 185s — Qualify the Parent support mail destination
+# 185s — Check the Parent support link
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **INFO01 Parent support mail recipient/subject and close without sending**.
+Deliver **INFO01 Parent support link clickability**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
@@ -14,18 +14,23 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Read only this context
 
-Read INFO01 and the actual support action in [about.py](../../../common/oh_no_parent_control_ui/about.py). Identify the installed mail handler before qualification.
+Read INFO01 and the support control in [about.py](../../../common/oh_no_parent_control_ui/about.py). Reuse the shared clickable-link reader.
 Read the affected safety tests and named source callables, not predecessor
 briefs or unrelated providers. Current route qualification comes from the
 catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Bind the actual mail-composer owner and displayed intended recipient/subject. Use scoped public semantics for external controls and ordinary Cancel/close with independent return. This task does not send mail or a feedback report.
+Check the ID-resolved support link is visible, enabled and offers a usable
+public activation action, then stop. Do not activate it, inspect its URI,
+require a mail handler, inspect recipient/subject fields or send mail.
 
 ## Live VM acceptance
 
-Activate Support from installed Parent, read the expected recipient/subject, close without sending and compare unchanged Parent settings. Reject wrong recipient/handler, ambiguous composer and uncertain close. Qualify independent valid entry, collect sanitized evidence and clean up. Missing usable mail handling is a blocker on this task.
+Open installed About, check support link clickability without invoking it,
+close About and compare unchanged Parent settings. Qualify independent entry
+and missing/disabled/nonactionable/wrong-owner refusal, collect sanitized
+evidence and clean up. Mail-handler availability is outside acceptance.
 
 Implement and register this planned fixed qualification before invoking it:
 

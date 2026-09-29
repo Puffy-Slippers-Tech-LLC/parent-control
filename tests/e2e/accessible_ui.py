@@ -40,10 +40,7 @@ OPERATIONS = frozenset({
     'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'parent-window', 'parent-window-count', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
-    'about', 'about-interval-read', 'about-interval-refused', 'about-rechecked', 'license-unrelated-launched', 'license-unrelated-ready',
-    'license-unrelated-closed', 'license-empty-launched', 'license-empty-ready',
-    'license-empty-closed', 'license', 'license-ambiguous-launched',
-    'license-ambiguous-ready', 'license-ambiguous-closed',
+    'about', 'about-interval-read', 'about-interval-refused', 'about-rechecked', 'license',
     'license-provider-refusals', 'license-closed', 'about-returned', 'parent-returned',
     'discovery-ready', 'new-child-picker-opened', 'new-child-choice-highlighted',
     'new-child-selected', 'existing-child-picker-opened', 'existing-child-choice-highlighted',
@@ -1830,6 +1827,26 @@ class AccessibleUI:
         )
         return self._invoke_target(node, action_name)
 
+    def clickable_link(self, identity, *, root=None):
+        """Read a product link's actionable state without following its URI."""
+        require(identity in (
+            'about-website-value', 'about-privacy-value', 'about-support-value',
+            'about-license-value', 'about-legal-notices-value',
+            'feedback-full-privacy-link', 'parent-menu-help', 'kiosk-menu-item-help'),
+            'ui:link-binding')
+        node = self.id_target(identity, root=root, sensitive=True, showing=False)
+        roles = (('menu item', 'button', 'push button')
+                 if identity in ('parent-menu-help', 'kiosk-menu-item-help') else ('link',))
+        require(node.get_role_name() in roles, 'ui:link-role')
+        require(self.has_state(node, self.api.StateType.VISIBLE)
+                and not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:unusable-link')
+        action = node.get_action_iface()
+        require(action is not None, 'ui:missing-link-action')
+        actions = [index for index in range(self.api.Action.get_n_actions(action))
+                   if not public_action_name(self.api, action, index).startswith('focus.')]
+        require(len(actions) == 1, 'ui:missing-or-ambiguous-link-action')
+        return True
+
     def activate(self, node):
         return self._invoke_target(self.fresh_owned_target(node))
 
@@ -3595,116 +3612,6 @@ class AccessibleUI:
         return ('GNU GENERAL PUBLIC LICENSE' in value
                 and 'Version 3, 29 June 2007' in value)
 
-    @staticmethod
-    def license_fixture_path(kind):
-        require(kind in ('unrelated', 'empty', 'ambiguous'), 'ui:license-fixture-kind')
-        return Path('/tmp/onpc-e2e-license-' + kind + '.txt')
-
-    def license_fixture_launch(self, kind):
-        """Open an owned synthetic document in the installed handler."""
-        require(not self.input_uncertain, 'ui:uncertain-input')
-        if kind == 'ambiguous':
-            self.window_ready_to_close('license')
-        else:
-            window, _content, _observation = self.license_viewer_snapshot()
-            require(window is None and self.about() is not None,
-                    'ui:license-fixture-entry')
-        path = self.license_fixture_path(kind)
-        with path.open('x') as stream:
-            if kind != 'empty':
-                # GtkSourceFileLoader omits an implicit trailing newline from
-                # the public buffer. Use identical file and displayed text.
-                stream.write('ONPC E2E synthetic ' + kind + ' document')
-        self.input_uncertain = True
-        subprocess.run([
-            '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
-            '--service-type=exec', '/usr/bin/gnome-text-editor',
-            '--new-window', str(path),
-        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
-
-    def license_fixture_windows(self, kind):
-        """Resolve only actual Text Editor windows and fixture document text."""
-        desktop = self.api.get_desktop(0)
-        require(desktop is not None, 'ui:incomplete-tree')
-        snapshot, facts = {}, {}
-        nodes = list(self.nodes(desktop, strict=True, snapshot=snapshot, facts=facts))
-        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
-                                  for node in nodes), 'ui:incomplete-tree')
-        self.handle_system_prompt(observation=(nodes, snapshot, facts))
-        owners = [node for node in snapshot[desktop]
-                  if facts[node]['role'] == 'application'
-                  and (facts[node]['identity'] == 'org.gnome.TextEditor'
-                       or (not facts[node]['identity'] and facts[node]['name'].casefold()
-                           in ('gnome-text-editor', 'org.gnome.texteditor', 'text editor')))]
-        require(len(owners) <= 1, 'ui:license-provider-ambiguous')
-        if not owners:
-            return None
-        owner = owners[0]
-        windows = [node for node in self.snapshot_scope(nodes, snapshot, owner)
-                   if facts[node]['role'] in ('frame', 'window') and facts[node]['showing']]
-        expected = 2 if kind == 'ambiguous' else 1
-        require(len(windows) <= expected, 'ui:license-fixture-window-count')
-        if len(windows) < expected:
-            return None
-        active = [node for node in windows if self.has_state(node, self.api.StateType.ACTIVE)]
-        require(len(active) <= 1, 'ui:license-fixture-active-window')
-        if not active:
-            return None
-        window = active[0]
-        documents = [node for node in self.snapshot_scope(nodes, snapshot, window)
-                     if facts[node]['identity'] == 'view']
-        require(len(documents) <= 1, 'ui:license-fixture-document')
-        if not documents:
-            return None
-        require(facts[documents[0]]['showing']
-                and facts[documents[0]]['role'] in ('text', 'document text')
-                and owner.get_process_id() > 0
-                and window.get_process_id() == owner.get_process_id()
-                and documents[0].get_process_id() == owner.get_process_id(),
-                'ui:license-fixture-document')
-        content = documents[0]
-        text = content.get_text_iface()
-        require(text is not None, 'ui:license-fixture-text')
-        count = self.api.Text.get_character_count(text)
-        require(type(count) is int and 0 <= count <= 128, 'ui:license-fixture-text')
-        value = self.api.Text.get_text(text, 0, count)
-        expected_text = '' if kind == 'empty' else 'ONPC E2E synthetic ' + kind + ' document'
-        require(value == expected_text, 'ui:license-fixture-content')
-        return window, content
-
-    def license_fixture_ready(self, kind):
-        window, content = self.wait(lambda: self.license_fixture_windows(kind),
-                                    'license-fixture-' + kind)
-        if kind == 'ambiguous':
-            for action in (self.license_viewer_snapshot,
-                           lambda: self.window_ready_to_close('license')):
-                try:
-                    action()
-                except UiError as error:
-                    require(str(error) == 'ui:license-window-ambiguous',
-                            'ui:license-ambiguity-refusal')
-                else:
-                    raise UiError('ui:license-ambiguity-accepted')
-        else:
-            require(not self.read_document(content, 'gpl-heading', maximum=1024),
-                    'ui:license-unrelated-content-accepted')
-            try:
-                self.open_license()
-            except UiError as error:
-                require(str(error) == 'ui:license-already-open',
-                        'ui:license-wrong-entry-refusal')
-            else:
-                raise UiError('ui:license-wrong-entry-accepted')
-        require(self.has_state(window, self.api.StateType.ACTIVE),
-                'ui:license-fixture-close-recipient')
-
-    def license_fixture_closed(self, kind):
-        if kind == 'ambiguous':
-            self.window_ready_to_close('license')
-        else:
-            self.window_closed('license', 'about')
-        self.license_fixture_path(kind).unlink()
-
     def license_provider_metadata(self):
         """Record the actual viewer locale, installed package and input sources."""
         from gi.repository import Gio
@@ -3886,17 +3793,8 @@ class AccessibleUI:
         return self.wait(document, 'license-content')
 
     def open_license(self):
-        """ABOUT02: one link action followed by actual viewer content."""
-        if self.provider_contracts['document-viewer']['application_id']:
-            self.require_provider_contract(
-                'document-viewer', 'license-document', ('content', 'close'))
-        else:
-            # A pre-existing editor must not supply unrelated content or receive
-            # the subsequent Alt-F4. The link is the sole launch input.
-            window, _content, _observation = self.license_viewer_snapshot()
-            require(window is None, 'ui:license-already-open')
-        self.activate_id('about-license-value')
-        self.license_content()
+        """ABOUT02: compatibility name for checking the license link only."""
+        return self.clickable_link('about-license-value', root=self.about())
 
     def window_ready_to_close(self, window):
         """UI01/02: fresh active named window before a worker's Alt-F4."""
@@ -7742,22 +7640,13 @@ class AccessibleUI:
             self.read_label(root, 'about-product', maximum=80)
             self.read_label(root, 'about-version', maximum=80, expected=version)
             self.id_target('about-license-value', root=root)
-        elif operation.startswith('license-') and operation.endswith('-launched'):
-            self.license_fixture_launch(operation.removeprefix('license-').removesuffix('-launched'))
-        elif operation.startswith('license-') and operation.endswith('-ready'):
-            self.license_fixture_ready(operation.removeprefix('license-').removesuffix('-ready'))
-        elif operation.startswith('license-') and operation.endswith('-closed') and operation != 'license-closed':
-            self.license_fixture_closed(operation.removeprefix('license-').removesuffix('-closed'))
         elif operation == 'license':
             self.open_license()
-            self.window_ready_to_close('license')
         elif operation == 'license-provider-refusals':
-            self.window_ready_to_close('license')
-            result['provider'] = self.license_provider_metadata()
+            self.open_license()
         elif operation == 'license-closed':
-            self.window_closed('license', 'about')
+            self.about()
         elif operation == 'about-returned':
-            self.window_closed('license', 'about')
             self.about_footer()
             self.window_ready_to_close('about')
         elif operation == 'parent-returned':

@@ -127,10 +127,9 @@ sub _attachments {
     $journey->consume_observation('parent-selected', $selected);
     $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
     onpc_feedback_read::supply_files($journey, 'chooser');
-    for my $stage ('chooser-attachments', 'chooser-reopen', 'chooser-cancel', 'chooser-preserved',
-                   'attachment-details', 'attachment-remove', 'attachment-remaining') {
-        $journey->consume_observation($stage, $journey->seen($stage));
-    }
+    onpc_feedback_read::chooser_preservation($journey);
+    $journey->consume_observation('attachment-details', $journey->seen('attachment-details'));
+    onpc_feedback_read::attachment_removal($journey);
     $journey->finish();
 }
 

@@ -1,10 +1,10 @@
 """FEED07/13 fixed attachment metadata and removal qualification."""
 from installed_journey import JourneyPlan
 from file_chooser import SCREENS, journey as chooser_journey
+from attachment_composition import attachment_removal
 
 SCREENS = {**SCREENS, 'attachment-details': 'ui:attachment-details',
-           'attachment-remove': 'ui:attachment-remove',
-           'attachment-remaining': 'ui:attachment-remaining'}
+           **attachment_removal()}
 # Wrong-entry is checked before any files are supplied.
 SCREENS = {key: value for stage, tag in SCREENS.items()
            for key, value in ([(stage, tag), ('attachment-wrong-entry', 'ui:attachment-wrong-entry')]

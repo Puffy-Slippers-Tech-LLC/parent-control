@@ -142,6 +142,10 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
     assert agents[0]['prompt'].startswith('LATEST FAILURE ONLY\n')
     assert 'PREVIOUS AGENT TRANSCRIPT' not in agents[0]['prompt']
     assert '--ephemeral' in agents[0]['args']
+    usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    if mode == 'agent-invalid':
+        assert usage[0]['event'] == 'missing_usage' and usage[0]['usage'] is None
+        assert not any(row['event'] == 'verification' for row in usage)
     executed = [call['category'] for call in calls if call['kind'] == 'test']
     assert executed == (['unit', 'unit', 'ui', 'system', 'e2e', 'all'] if expected == 0 else ['unit'])
     assert 'Traceback' not in output.getvalue()
@@ -198,8 +202,12 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
     assert answer in agents[-1]['prompt']
     assert 'fixture result' in agents[-1]['prompt']
     assert all(agent['prompt'].startswith('LATEST FAILURE ONLY\n') for agent in agents)
-    assert all(agent['args'][agent['args'].index('--model') + 1] == 'gpt-6-astra' for agent in agents)
-    assert all('model_reasoning_effort="low"' in agent['args'] for agent in agents)
+    expected_models = (['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-astra']
+                       if mode == 'agent-app-blocked' else ['gpt-6.1-sol'] * len(agents))
+    assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == expected_models
+    for agent, model in zip(agents, expected_models):
+        effort = 'medium' if model == 'gpt-6.1-sol' else 'low'
+        assert f'model_reasoning_effort="{effort}"' in agent['args']
     assert len(json.loads((run / 'developer-answers.json').read_text())) == len(answered)
     rendered = Text.from_ansi(output.getvalue()).plain
     assert 'No timeout. Reattach with tools/fix-tests' in rendered
@@ -349,7 +357,18 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
     assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        'gpt-6-astra', 'gpt-6-astra']
+        'gpt-6.1-sol', 'gpt-6-astra']
+    assert 'verification_failed: fixture result' in agents[1]['prompt']
+    records = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    turns = [row for row in records if row['event'] == 'turn']
+    assert len(turns) == 2
+    assert turns[0]['repair_id'] == turns[1]['repair_id']
+    assert turns[0]['session_id'] != turns[1]['session_id']
+    assert [row['attempt'] for row in turns] == [1, 2]
+    assert all(row['usage'] == {'input_tokens': 100, 'cached_input_tokens': 40,
+                                'output_tokens': 20} for row in turns)
+    assert [row['passed'] for row in records if row['event'] == 'verification'] == [False, True]
+    assert [row['result'] for row in records if row['event'] == 'result'] == ['test_fixed', 'fixed']
     for index, agent in enumerate(agents, 1):
         assert agent['prompt'].startswith(f'LATEST FAILURE ONLY {index}\n')
         assert agent['prompt'].count('LATEST FAILURE ONLY') == 1
@@ -357,6 +376,19 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
         assert agent['thread'] is None
         assert '--ephemeral' in agent['args']
         assert not {'resume', 'fork', '--last'} & set(agent['args'])
+
+
+@pytest.mark.parametrize('options', [{'effort': 'high'}, {'model': 'gpt-6-astra', 'effort': 'low'}])
+def test_initial_override_is_validated_and_runs_astra_low_standard(checkout, options):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-pass')
+    run, _ = fix_tests.select(root, categories=('unit',), **options)
+    assert fix_tests.follow(run, io.StringIO()) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agent, = [call for call in calls if call['kind'] == 'agent']
+    assert agent['args'][agent['args'].index('--model') + 1] == 'gpt-6-astra'
+    assert 'model_reasoning_effort="low"' in agent['args']
+    assert 'service_tier="default"' in agent['args'] and 'features.fast_mode=false' in agent['args']
 
 
 @pytest.mark.parametrize('mode, classification', [
@@ -371,8 +403,11 @@ def test_app_or_uncertain_classification_starts_fresh_astra_low_agent(checkout, 
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
     assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        'gpt-6-astra', 'gpt-6-astra']
-    assert all('model_reasoning_effort="low"' in agent['args'] for agent in agents)
+        'gpt-6.1-sol', 'gpt-6-astra']
+    assert 'model_reasoning_effort="medium"' in agents[0]['args']
+    assert 'model_reasoning_effort="low"' in agents[1]['args']
+    assert all('service_tier="default"' in agent['args'] and 'features.fast_mode=false' in agent['args']
+               for agent in agents)
     assert agents[1]['prompt'].startswith('LATEST FAILURE ONLY\n')
     assert f'{classification}: fixture result' in agents[1]['prompt']
     assert 'PREVIOUS AGENT TRANSCRIPT' not in agents[1]['prompt']

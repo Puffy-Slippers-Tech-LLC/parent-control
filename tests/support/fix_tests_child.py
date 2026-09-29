@@ -16,8 +16,8 @@ def main():
         print(json.dumps({'models': [
             {'slug': 'gpt-6-astra', 'visibility': 'list', 'priority': 1,
              'supported_reasoning_levels': [{'effort': 'low'}, {'effort': 'high'}]},
-            {'slug': 'gpt-6-sol', 'visibility': 'list', 'priority': 2,
-             'supported_reasoning_levels': [{'effort': 'high'}]},
+            {'slug': 'gpt-6.1-sol', 'visibility': 'list', 'priority': 2,
+             'supported_reasoning_levels': [{'effort': 'medium'}]},
         ]}))
         return 0
     if kind == 'test' and args == ['--list']:
@@ -108,7 +108,7 @@ def main():
     status = ('blocked' if blocked else
               'app_issue' if mode in ('agent-app', 'agent-app-blocked') and count == 0 else
               'uncertain' if mode == 'agent-uncertain' and count == 0 else
-              'fixed' if app_mode and count >= 1 else
+              'fixed' if (app_mode or mode == 'agent-repeat') and count >= 1 else
               'test_fixed')
     reply = Path(args[args.index('--output-last-message') + 1])
     reply.write_text(json.dumps([] if mode == 'agent-invalid' else
@@ -130,6 +130,9 @@ def main():
         'id': 'message', 'type': 'agent_message',
         'text': '**Formatted repair**\n\n```python\ndef repaired():\n    return True\n```'}}), flush=True)
     print('agent stderr diagnostic', file=sys.stderr, flush=True)
+    if mode != 'agent-invalid':
+        print(json.dumps({'type': 'turn.completed', 'usage': {
+            'input_tokens': 100, 'cached_input_tokens': 40, 'output_tokens': 20}}), flush=True)
     print('PREVIOUS AGENT TRANSCRIPT MUST NOT BECOME INPUT', flush=True)
     return 0
 

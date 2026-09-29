@@ -191,18 +191,40 @@ a complete selected pass needs no repairs; it never invokes the `all` aggregate.
 Without categories the existing two-round full-regression behavior is unchanged.
 Categories and model options apply to new runs; attaching keeps the active run's scope.
 
-The launcher itself is Python scripting. At the start of each new run, it checks
-that the Codex CLI model catalog lists `gpt-6-astra` with low reasoning support.
-Both classification and app repair use GPT-6-astra low by default. It classifies
-the failure first and repairs a proven mechanical test defect in the same session.
-For an app issue or uncertain classification, it exits without editing and the
-launcher starts a fresh GPT-6-astra low session to recheck and repair.
-`--model` and `--effort` override the initial agent for a new run; app review
-uses GPT-6-astra low.
+The launcher itself is Python scripting. New runs validate the selected model
+and effort against the Codex CLI catalog before testing. Classification and
+proven mechanical test repairs use **GPT-6.1 Sol Medium** in one session.
+App issues, uncertainty and unresolved security, concurrency, ownership or
+difficult diagnosis end that session without edits and transfer to a fresh
+**Astra Low** session to recheck and repair. This preserves the stronger model
+at the judgment boundary without paying for an additional adviser and a second
+implementation context. Delegation stays disabled; classification is not an
+extra read-only agent before every mechanical repair.
+
+If verification after a claimed repair still fails, the next repair goes
+directly to Astra Low with the latest failure evidence and previous repair
+summary. It stays there until that category passes, even if the next failure
+is different. This conservative rule avoids another Sol classification pass;
+it does not wait for E2E's two-live-attempt threshold. A passing category clears
+that handoff. A new failure chain starts with classification. Detaching preserves
+the live loop; after a stopped/dead owner, a new run starts fresh, as before,
+without loading old repair conversations or assuming old verification applies.
+An answered blocker keeps its current model/phase and is not a failed repair.
+Ownership recovery remains the existing scripted `cleanup-e2e` operation; a
+normal cleanup failure handoff enters the same repair policy, while refusal
+without a handoff still stops. No model performs routine ownership recovery.
+
+`--model` and `--effort` override the initial agent for a new run; review uses
+Astra Low. Sol must be `gpt-6.1-sol`; other Sol versions are refused, with no
+silent fallback. Sol High/Extra High requests map to Astra Low. Both required
+model/effort pairs must be listed. All agent sessions pin **Standard speed**,
+including answered blockers and repair retries, overriding personal Fast defaults.
+Prompts require scoped reading and concise evidence handoffs without reducing
+understanding, tests, cleanup or behavior-confirmation requirements.
 Each agent uses
 `codex exec --ephemeral`, disabled conversation history and memories, and receives
 the latest failure handoff. The script never resumes or forks a session; the app
-review receives the original handoff, classification summary and applicable
+review receives the latest failure handoff, classification or repair summary and applicable
 developer answers. An answered blocker also supplies its latest repair handoff.
 The [official noninteractive documentation](https://learn.chatgpt.com/docs/non-interactive-mode)
 defines the ephemeral invocation. Existing CLI authentication, configuration,
@@ -253,6 +275,29 @@ not agent conversation history. Existing test evidence remains under the runner'
 retention policy. Machine-readable `failure.json` accompanies the printed prompt
 and supplies stable retry category IDs. A missing or malformed handoff, agent
 crash or unmapped infrastructure failure stops with evidence.
+
+`agent-usage.jsonl` records CLI turn counters with session/repair IDs, attempt,
+round, phase, selected model/effort and Standard speed. Session exit, structured
+result and category verification events link classification, blockers and retries
+to the repair chain. Missing counters are unknown, including a session with no
+reported usage; they are never zero-filled. An interrupted verification has no
+success event. A category pass is local verification, not proof that later
+aggregate verification will pass. Records are observational, never resume state;
+recording failure warns without interrupting repair or cleanup.
+
+OpenAI's [model guidance](https://learn.chatgpt.com/docs/models#gpt-61-sol)
+recommends GPT-6.1 Sol for complex coding at lower cost than Astra. Luna is
+suited to focused repeatable tasks, but this classifier can edit tests and must
+distinguish mechanical defects from product regressions; lowering it further
+needs quality evidence. [Standard speed](https://learn.chatgpt.com/docs/agent-configuration/speed)
+avoids Fast's 2.5x included-usage multiplier when Fast would otherwise apply.
+[Included usage](https://learn.chatgpt.com/docs/pricing) depends on the workload;
+API prices and purchased-credit rates do not establish Pro weekly savings.
+Compare total counters per verified repair chain (including failures and blocked
+sessions), first-pass success and review findings with the account's weekly
+dashboard. Host regressions establish routing and safety contracts, not equal
+model success rates or a measured allowance improvement. No paid-model benchmark
+is part of launcher validation.
 
 An agent-reported blocker pauses the loop for developer instructions using the
 same [question implementation](../tools/launcher_question.py) as `write-e2e`.

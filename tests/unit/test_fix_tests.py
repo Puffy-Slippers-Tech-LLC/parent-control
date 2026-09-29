@@ -129,15 +129,16 @@ def test_unmapped_aggregate_failure_is_not_a_fabricated_category_pass():
     repair.assert_not_called()
 
 
-def test_agent_is_ephemeral_low_astra_with_policy_and_without_parent_context(monkeypatch):
+def test_agent_is_ephemeral_sol_medium_standard_without_parent_context(monkeypatch):
     monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
     for key in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
                 'ONPC_TEST_ACTIVITY_FD', fix_tests.FRAME_DIRECTORY):
         monkeypatch.setenv(key, 'previous-context')
-    command = fix_tests.agent_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
+    command = fix_tests.repair_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
     assert command[:5] == ['/opt/codex', '--ask-for-approval', 'never', 'exec', '--ephemeral']
-    assert command[command.index('--model') + 1] == 'gpt-6-astra'
-    assert 'model_reasoning_effort="low"' in command
+    assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
+    assert 'model_reasoning_effort="medium"' in command
+    assert 'service_tier="default"' in command and 'features.fast_mode=false' in command
     assert 'features.memories=false' in command and 'history.persistence="none"' in command
     assert 'agents.enabled=false' in command and 'features.multi_agent=false' in command
     assert 'features.multi_agent_v2=false' in command
@@ -152,29 +153,77 @@ def test_agent_is_ephemeral_low_astra_with_policy_and_without_parent_context(mon
     assert 'status "uncertain"' in fix_tests.repair_prompt('LATEST FAILURE')
 
 
-def test_model_catalog_requires_gpt6_astra_low_even_when_newer_models_exist(monkeypatch):
+def test_model_catalog_requires_exact_sol_and_astra_efforts(monkeypatch):
     monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
 
-    def entry(slug, priority, *, visibility='list', low=True):
+    def entry(slug, priority, *, visibility='list', effort='low'):
         return {'slug': slug, 'priority': priority, 'visibility': visibility,
-                'supported_reasoning_levels': [{'effort': 'low' if low else 'high'}]}
+                'supported_reasoning_levels': [{'effort': effort}]}
 
     catalog = {'models': [
         entry('gpt-6-astra', 2), entry('gpt-6-sol', 3),
-        entry('gpt-6.1-sol', 4), entry('gpt-7-sol', 1, visibility='hide'),
+        entry('gpt-6.1-sol', 4, effort='medium'), entry('gpt-7-sol', 1, visibility='hide'),
         entry('gpt-7-astra', 1),
     ]}
     run = Mock(return_value=Mock(stdout=json.dumps(catalog)))
     monkeypatch.setattr(fix_tests.subprocess, 'run', run)
-    assert fix_tests.available_models() == ('gpt-6-astra', 'gpt-6-astra')
+    assert fix_tests.available_models() == ('gpt-6.1-sol', 'gpt-6-astra')
     assert run.call_args.args[0] == ['/opt/codex', 'debug', 'models']
-    for replacement in (entry('gpt-6-astra', 2, low=False),
+    for replacement in (entry('gpt-6-astra', 2, effort='high'),
                         entry('gpt-6-astra', 2, visibility='hide'),
                         entry('gpt-6-sol', 2)):
         catalog['models'][0] = replacement
         run.return_value.stdout = json.dumps(catalog)
         with pytest.raises(ValueError, match='gpt-6-astra with low reasoning'):
             fix_tests.available_models()
+    catalog['models'][0] = entry('gpt-6-astra', 2)
+    catalog['models'][2] = entry('gpt-6.1-sol', 4, effort='low')
+    run.return_value.stdout = json.dumps(catalog)
+    with pytest.raises(ValueError, match='gpt-6.1-sol with medium reasoning'):
+        fix_tests.available_models()
+    # Explicit Astra initial routing does not require Sol availability.
+    assert fix_tests.available_models('gpt-6-astra', 'low') == ('gpt-6-astra', 'gpt-6-astra')
+
+
+@pytest.mark.parametrize('effort', ['high', 'xhigh'])
+def test_sol_high_routes_to_astra_low(effort):
+    assert fix_tests.initial_model('gpt-6.1-sol', effort) == ('gpt-6-astra', 'low')
+    assert fix_tests.initial_model(None, effort) == ('gpt-6-astra', 'low')
+
+
+@pytest.mark.parametrize('model', ['gpt-6-sol', 'gpt-5.6-sol', 'gpt-7-sol'])
+def test_other_sol_versions_are_refused(model):
+    with pytest.raises(ValueError, match='Sol must be gpt-6.1-sol'):
+        fix_tests.initial_model(model)
+
+
+def test_failed_verification_carries_only_latest_repair_until_category_passes():
+    outcomes = iter([failure('one', 'unit'), failure('two', 'unit'),
+                     failure('three', 'unit'), None, failure('new', 'ui'), None, None])
+    calls, verified = [], []
+
+    def repair(prompt, *, previous=None):
+        calls.append((prompt, previous))
+        return prompt + ' repair summary'
+
+    fix_tests.run_loop(['unit', 'ui'], lambda _: next(outcomes), repair, lambda: None,
+                       verified=lambda summary, passed: verified.append((summary, passed)))
+    assert calls == [('one', None), ('two', 'one repair summary'),
+                     ('three', 'two repair summary'), ('new', None)]
+    assert verified == [('one repair summary', False), ('two repair summary', False),
+                        ('three repair summary', True), ('new repair summary', True)]
+
+
+def test_usage_preserves_unknown_counters_and_never_interrupts_cleanup(tmp_path, capsys):
+    fix_tests.record_usage(tmp_path, {'session_id': 'first'}, {
+        'input_tokens': 0, 'output_tokens': -1, 'cached_input_tokens': True,
+        'reasoning_output_tokens': 'unknown'})
+    fix_tests.record_usage(tmp_path, {'session_id': 'second'}, event='missing_usage')
+    rows = [json.loads(line) for line in (tmp_path / 'agent-usage.jsonl').read_text().splitlines()]
+    assert rows[0]['usage'] == {'input_tokens': 0}
+    assert rows[1]['usage'] is None and rows[1]['event'] == 'missing_usage'
+    fix_tests.record_usage(tmp_path / 'absent', {}, {})
+    assert 'could not retain usage' in capsys.readouterr().err
 
 
 @pytest.mark.parametrize('classification', [None, 'app_issue: behavior changed'])

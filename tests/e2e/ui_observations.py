@@ -2,6 +2,8 @@
 
 import json
 import sys
+import time
+import secrets
 from dataclasses import dataclass
 
 import accessible_ui
@@ -419,6 +421,69 @@ class UiObservations:
         self.system_prompt = system_prompt
         self.boot_guard = None
         self.boot_proof = None
+        self.trace = None
+        self.trace_failed = False
+        self._trace_clock = time.monotonic
+
+    def _trace_sample(self):
+        with watch_activity.operation('Reading one unchanged public feedback trace sample'):
+            return self._observe('feedback-state-empty')
+
+    def start_trace(self):
+        """UI25, stable Parent feedback only: acknowledge a fresh public sample.
+
+        This slice forbids intervening operations. It makes no claim about
+        transient states between samples; concurrent input belongs to UI22.
+        The terminal predicate is three unchanged empty-draft control samples.
+        """
+        require(not self.trace_failed, 'ui:trace-previous-failure')
+        try:
+            require(self.trace is None, 'ui:trace-duplicate')
+            started = self._trace_clock()
+            value = self._trace_sample()
+            state = FeedbackStateObservation.from_value(value['feedback_state'])
+            require(state == FeedbackStateObservation('initial-empty', 'none', True),
+                    'ui:trace-entry')
+            now = self._trace_clock()
+            require(now < started + 60, 'ui:trace-deadline')
+            token = secrets.token_hex(16)
+            self.trace = {'token': token, 'started': started, 'deadline': started + 60,
+                          'boot': self.boot_proof, 'state': state,
+                          'samples': [{'elapsed_ms': int((now - started) * 1000),
+                                       'state': value['feedback_state']}]}
+            return {'operation': 'feedback-trace-start', 'outcome': 'passed',
+                    'interface': 'AT-SPI', 'token': token, 'ready': True}
+        except BaseException:
+            self.trace_failed = True
+            self.trace = None
+            raise
+
+    def finish_trace(self, token):
+        """UI26: consume exactly the caller's live token, never infer one."""
+        require(not self.trace_failed, 'ui:trace-previous-failure')
+        try:
+            trace = self.trace
+            require(trace is not None and type(token) is str and token == trace['token'],
+                    'ui:trace-token')
+            self.trace = None  # Consume before any fallible read; never replay.
+            for _ in range(2):
+                require(self._trace_clock() < trace['deadline'], 'ui:trace-deadline')
+                value = self._trace_sample()
+                now = self._trace_clock()
+                require(now < trace['deadline'], 'ui:trace-deadline')
+                require(self.boot_proof == trace['boot'], 'ui:trace-boot')
+                require(FeedbackStateObservation.from_value(value['feedback_state']) == trace['state'],
+                        'ui:trace-changed')
+                elapsed = int((now - trace['started']) * 1000)
+                require(elapsed >= trace['samples'][-1]['elapsed_ms'], 'ui:trace-order')
+                trace['samples'].append({'elapsed_ms': elapsed, 'state': value['feedback_state']})
+            return {'operation': 'feedback-trace-finish', 'outcome': 'passed',
+                    'interface': 'AT-SPI', 'token': token,
+                    'terminal': 'three-unchanged-samples', 'samples': trace['samples']}
+        except BaseException:
+            self.trace_failed = True
+            self.trace = None
+            raise
 
     @staticmethod
     def point(value):
@@ -498,6 +563,10 @@ class UiObservations:
 
     def observe(self, operation):
         import time
+        if self.trace is not None or self.trace_failed:
+            self.trace_failed = True
+            self.trace = None
+            require(False, 'ui:trace-intervening-operation')
         previous_operation = getattr(self, 'last_mate_operation', None)
         self.last_mate_operation = None
         self.pending_challenge = None

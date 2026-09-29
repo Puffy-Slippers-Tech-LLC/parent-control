@@ -1,5 +1,6 @@
 # Loaded only by write-e2e's explicitly requested sequential adviser role.
 model = "gpt-6-astra"
+service_tier = "default"
 # Effort resolves from the spawn request: High by default, Low when requested
 # as the replacement for Sol High. Do not override that selection here.
 sandbox_mode = "read-only"
@@ -24,6 +25,7 @@ implementation, validation, cleanup and completion. Do not expand your scope.
 enabled = false
 
 [features]
+fast_mode = false
 multi_agent = false
 multi_agent_v2 = false
 memories = false

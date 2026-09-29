@@ -141,7 +141,8 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
     return [*command, '-']
 
 
-def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False):
+def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
+              on_usage=None):
     """Own one child until it is reaped; EOF means the loop worker died.
 
     Tests get the runner's Ctrl+C path with unlimited time for guarded cleanup.
@@ -169,7 +170,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
     if kind == 'agent':
         from launcher_render import AgentRenderer
         renderer = AgentRenderer(sys.stdout, command_log=run / 'agent-commands.log',
-                                 hide_task_completion=hide_task_completion)
+                                 hide_task_completion=hide_task_completion, on_usage=on_usage)
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
     child_env = environment()

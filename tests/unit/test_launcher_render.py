@@ -768,11 +768,14 @@ def test_blocker_menu_handles_resize_and_arrow_selection(terminal, width, height
 def test_blocked_structured_result_is_displayed_only_by_workflow():
     from tests.support.write_e2e_fixtures import reply
     stream = io.StringIO()
-    renderer = AgentRenderer(stream, hide_task_completion=True)
+    reported = []
+    renderer = AgentRenderer(stream, hide_task_completion=True, on_usage=reported.append)
     renderer.event({'type': 'item.completed', 'item': {'type': 'agent_message',
                                                      'text': json.dumps(reply('blocked'))}})
-    renderer.event({'type': 'turn.completed'})
+    usage = {'input_tokens': 100, 'cached_input_tokens': 80, 'output_tokens': 20}
+    renderer.event({'type': 'turn.completed', 'usage': usage})
     assert stream.getvalue() == ''
+    assert reported == [usage]
 
 
 @pytest.mark.parametrize('label', ['write-e2e', 'fix-tests'])

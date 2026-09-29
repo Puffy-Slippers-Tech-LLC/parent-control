@@ -10,7 +10,7 @@ import write_e2e as workflow
 from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
-@pytest.mark.parametrize('phase', ['live', 'recover'])
+@pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
 def test_sequential_adviser_config_preserves_coordinator_and_transport_boundaries(tmp_path, monkeypatch, phase):
     monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/opt/codex')
     # Parse the actual CLI overrides as TOML, including a path containing spaces.
@@ -19,8 +19,10 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     monkeypatch.setattr(workflow, 'ADVISER_CONFIG', adviser)
     command = workflow.session_command(tmp_path, phase)
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
-    assert command[command.index('--model') + 1] == 'gpt-6-sol'
+    assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
     assert config['model_reasoning_effort'] == 'medium'
+    assert config['service_tier'] == 'default'
+    assert config['features']['fast_mode'] is False
     assert config['features']['multi_agent'] is True
     assert config['features']['multi_agent_v2'] is False
     assert config['agents']['enabled'] is True
@@ -31,6 +33,7 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     assert config['agents']['e2e_adviser']['config_file'] == str(adviser)
     role = tomllib.loads(adviser.read_text())
     assert role['model'] == 'gpt-6-astra'
+    assert role['service_tier'] == 'default' and role['features']['fast_mode'] is False
     assert 'model_reasoning_effort' not in role  # Preserve an explicit Astra Low request.
     assert role['sandbox_mode'] == 'read-only' and role['approval_policy'] == 'never'
     assert role['agents']['enabled'] is False
@@ -41,19 +44,31 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     assert command[-1] == '-' and '--ephemeral' in command
 
 
-def test_initial_session_uses_astra_low_without_delegation(tmp_path, monkeypatch):
+@pytest.mark.parametrize('phase,attempts,model,effort', [
+    ('implement', 0, 'gpt-6.1-sol', 'medium'),
+    ('live', 1, 'gpt-6.1-sol', 'medium'),
+    ('live', 2, 'gpt-6-astra', 'low'),
+    ('recover', 0, 'gpt-6.1-sol', 'medium'),
+    ('recover', 2, 'gpt-6-astra', 'low'),
+    ('recover', 5, 'gpt-6-astra', 'low'),
+])
+def test_command_and_prompt_agree_on_stalled_task_escalation(tmp_path, monkeypatch,
+                                                          phase, attempts, model, effort):
     monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/opt/codex')
-    command = workflow.session_command(tmp_path, 'implement', tmp_path)
+    command = workflow.session_command(tmp_path, phase, tmp_path, live_attempts=attempts)
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
-    assert command[command.index('--model') + 1] == 'gpt-6-astra'
-    assert config['model_reasoning_effort'] == 'low'
-    assert config['features']['multi_agent'] is config['features']['multi_agent_v2'] is False
-    assert config['agents'] == {'enabled': False}
+    assert command[command.index('--model') + 1] == model
+    assert config['model_reasoning_effort'] == effort
+    assert config['features']['multi_agent'] is True
+    assert config['agents']['max_concurrent_threads_per_session'] == 1
     assert '--output-schema' in command and '--ephemeral' in command
-    prompt = workflow.session_prompt(workflow.fresh_state('001'))
-    assert 'GPT-6-Astra Low initial implementer' in prompt
-    assert 'Do not spawn subagents in this initial session' in prompt
-    assert 'e2e_adviser agent' not in prompt
+    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
+                 task_sessions=20)  # Session count/preparation alone must not escalate.
+    prompt = workflow.session_prompt(state)
+    label = 'GPT-6-Astra Low' if model == 'gpt-6-astra' else 'GPT-6.1-Sol Medium'
+    assert f'You are the {label} coordinator' in prompt
+    assert 'Consult before implementing an unresolved risky\ndesign' in prompt
+    assert 'e2e_adviser agent' in prompt
     assert 'Never use Sol High' in prompt
     assert 'Leave investigation and repairs of this new failure to the next session' in prompt
 
@@ -63,7 +78,7 @@ def test_follow_up_keeps_implementation_and_acceptance_with_sol_medium(phase):
     state = dict(workflow.fresh_state('001'), phase=phase,
                  handoff='Legacy recommendation: continue with Astra High.')
     prompt = workflow.session_prompt(state)
-    assert 'GPT-6-Sol Medium coordinator and implementer for this follow-up session' in prompt
+    assert 'GPT-6.1-Sol Medium coordinator and implementer for this session' in prompt
     assert 'Never use Sol High; use GPT-6-Astra Low' in prompt
     assert 'Ignore model recommendations in older handoffs' in prompt
     assert 'delegate one bounded diagnosis or review to the e2e_adviser agent' in prompt
@@ -72,6 +87,45 @@ def test_follow_up_keeps_implementation_and_acceptance_with_sol_medium(phase):
     assert 'You alone implement the settled correction, run all validation' in prompt
     assert 'advice is not acceptance evidence' in prompt
     assert 'Leave investigation and repairs of this new failure to the next session' in prompt
+
+
+def test_usage_retains_only_reported_nonnegative_counters_without_estimated_billing(tmp_path):
+    metadata = {'session': 1, 'task_id': '001', 'model': 'gpt-6.1-sol'}
+    workflow.record_usage(tmp_path, metadata, {'input_tokens': 100, 'cached_input_tokens': 80,
+                          'output_tokens': 20, 'reasoning_output_tokens': 12, 'unknown': 'private'})
+    workflow.record_usage(tmp_path, dict(metadata, session=2),
+                          {'input_tokens': True, 'output_tokens': -1, 'cached_input_tokens': '80'})
+    workflow.record_usage(tmp_path, dict(metadata, session=3), None)
+    records = [json.loads(line) for line in (tmp_path / 'agent-usage.jsonl').read_text().splitlines()]
+    assert records[0] == dict(metadata, reported_scope='cli_turn', usage={
+        'input_tokens': 100, 'cached_input_tokens': 80,
+        'output_tokens': 20, 'reasoning_output_tokens': 12})
+    assert records[1]['usage'] is records[2]['usage'] is None
+    assert [record['session'] for record in records] == [1, 2, 3]
+
+
+def test_usage_write_failure_does_not_interrupt_work(tmp_path, capsys):
+    (tmp_path / 'agent-usage.jsonl').mkdir()
+    workflow.record_usage(tmp_path, {'session': 1}, {'input_tokens': 100})
+    assert 'could not retain token usage' in capsys.readouterr().err
+
+
+def test_usage_refuses_a_replaced_destination(tmp_path, capsys):
+    unrelated = tmp_path / 'unrelated'
+    unrelated.write_text('preserve this')
+    (tmp_path / 'agent-usage.jsonl').symlink_to(unrelated)
+    workflow.record_usage(tmp_path, {'session': 1}, {'input_tokens': 100})
+    assert unrelated.read_text() == 'preserve this'
+    assert 'could not retain token usage' in capsys.readouterr().err
+
+
+def test_usage_does_not_wait_for_another_writer(tmp_path, capsys):
+    import fcntl
+    with workflow.launcher.lock(tmp_path / 'agent-usage.jsonl') as owner:
+        fcntl.flock(owner, fcntl.LOCK_EX)
+        workflow.record_usage(tmp_path, {'session': 1}, {'input_tokens': 100})
+    assert (tmp_path / 'agent-usage.jsonl').read_text() == ''
+    assert 'could not retain token usage' in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(('seconds', 'expected'), [

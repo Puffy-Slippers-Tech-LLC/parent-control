@@ -79,6 +79,7 @@ import feedback_privacy
 import feedback_states
 import trace_stable_state
 import trace_transition
+import compose_observation
 import format_qualification
 import feedback_block_semantics
 import feedback_formats_qualification
@@ -189,7 +190,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  parent_terminal_provider.PLAN, license_viewer_provider.PLAN,
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
-                                 trace_stable_state.PLAN, trace_transition.PLAN,
+                                 trace_stable_state.PLAN, trace_transition.PLAN, compose_observation.PLAN,
                                  format_qualification.PLAN, feedback_block_semantics.PLAN,
                                  feedback_formats_qualification.PLAN,
                                  feedback_formats_qualification.LINK_PLAN,
@@ -211,7 +212,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-no-approver', 'no-parent-case',
                               'terminal-provider', 'license-viewer-provider', 'repeated-operations',
                               'challenges', 'app-rows', 'feedback-read', 'feedback-privacy', 'feedback-states',
-                              'trace-stable', 'trace-transition',
+                              'trace-stable', 'trace-transition', 'compose-observation',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
                               'feedback-rejection', 'feedback-length', 'window-switch',
                               'text', 'allowance-presets',
@@ -347,12 +348,21 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             result['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
+        if plan is compose_observation.PLAN and operation in (
+                'feedback-state-empty', 'feedback-trace-finish'):
+            state_value = {'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
+                           'collection': 'ready', 'controls': 'ready',
+                           'validation': 'none', 'send_enabled': True}
+            if operation == 'feedback-state-empty':
+                result['feedback_state'] = state_value
+            else:
+                result['samples'] = [{'elapsed_ms': 1, 'state': state_value}]
         return result
     ui_observer = SimpleNamespace(
         boot_proof='b' * 64, observe=observe_ui,
         start_trace=lambda binding=None: {**observe_ui('feedback-trace-start'), 'token': 'a' * 32, 'ready': True},
         poll_trace=Mock(),
-        finish_trace=lambda token: {**observe_ui('feedback-trace-finish'), 'token': token},
+        finish_trace=lambda token, terminal=None: {**observe_ui('feedback-trace-finish'), 'token': token},
         observe_challenge=lambda operation, binding: observe_ui(operation))
     monkeypatch.setattr(journeys, 'UiObservations', Mock(return_value=ui_observer))
     monkeypatch.setattr(command_documentation, 'observe',
@@ -444,13 +454,17 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         context.run_worker = worker
         actions = {name: Mock(return_value={'eligible_account_created': True})
                    for name in plan.stage_actions.values()}
+        journey_type = (compose_observation.ComposeObservationJourney
+                        if plan is compose_observation.PLAN else journeys.InstalledJourney)
         if failure:
             with pytest.raises((OSError, RuntimeError)):
-                journeys.record_installed_journey(recorder, context, plan, actions=actions)
+                journeys.record_installed_journey(recorder, context, plan, actions=actions,
+                                                  journey_type=journey_type)
             assert acknowledged == list(plan.stages[:plan.stages.index(boundary)])
             assert recorder.records[0]['failures']
         else:
-            journeys.record_installed_journey(recorder, context, plan, actions=actions)
+            journeys.record_installed_journey(recorder, context, plan, actions=actions,
+                                              journey_type=journey_type)
             assert acknowledged == list(plan.stages)
             steps = recorder.records[0]['steps']
             expected_steps = ['setup', 'start', 'step-1', 'step-2']

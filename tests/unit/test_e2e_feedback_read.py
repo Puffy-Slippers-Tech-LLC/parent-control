@@ -79,24 +79,32 @@ def test_transition_sample_refuses_undeclared_text(body):
 
 @pytest.mark.parametrize('fault', ['', 'token', 'stale', 'boot', 'order', 'controls',
                                   'terminal', 'unobserved', 'storage', 'wrong-input'])
-def test_transition_trace_decodes_pumped_samples_and_latches(monkeypatch, fault):
+@pytest.mark.parametrize('binding', ['body-first', 'body-clear'])
+def test_transition_trace_decodes_pumped_samples_and_latches(monkeypatch, fault, binding):
     reader, reply, clock = trace_reader(monkeypatch)
     retained = []
     reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
-    ready = reader.start_trace('body-first')
+    if binding == 'body-clear':
+        reply['operation'] = 'feedback-state-no-reply'
+        reply['feedback_state']['draft'] = 'states-no-reply'
+        reader.call.return_value = (json.dumps(reply).encode(), [])
+    ready = reader.start_trace(binding)
+    from ui_observations import FeedbackStateObservation
+    terminal = (FeedbackStateObservation('initial-empty', 'none', True)
+                if binding == 'body-clear' else None)
     original = reader._observe
     # Input mechanics have separate actual-worker and adapter checks below;
     # samples still cross the real controller's bounded JSON decoder.
     reader._observe = lambda op: original(op) if op == 'feedback-trace-sample' else {}
-    reader.observe('text-body-first-focus')
-    reader.observe('text-body-first-selected')
+    reader.observe('text-' + binding + '-focus')
+    reader.observe('text-' + binding + '-selected')
     reply['operation'] = 'feedback-trace-sample'
     reply['feedback_state']['draft'] = 'trace-prefix'
     reader.call.return_value = (json.dumps(reply).encode(), [])
     if fault != 'unobserved':
         reader.poll_trace()
-    reader.observe('text-body-first-read')
-    reply['feedback_state']['draft'] = 'states-no-reply'
+    reader.observe('text-' + binding + '-read')
+    reply['feedback_state']['draft'] = 'initial-empty' if binding == 'body-clear' else 'states-no-reply'
     if fault == 'boot':
         reply['boot_sha256'] = 'c' * 64
     if fault == 'controls':
@@ -114,15 +122,16 @@ def test_transition_trace_decodes_pumped_samples_and_latches(monkeypatch, fault)
             if fault == 'wrong-input':
                 reader.observe('feedback-close')
             else:
-                reader.finish_trace('foreign' if fault == 'token' else ready['token'])
+                reader.finish_trace('foreign' if fault == 'token' else ready['token'], terminal)
         assert reader.trace_failed and reader.trace is None
         with pytest.raises(EvidenceError, match='trace-previous-failure'):
             reader.start_trace('body-first')
     else:
-        result = reader.finish_trace(ready['token'])
-        assert result['terminal'] == 'body-first-ready'
+        result = reader.finish_trace(ready['token'], terminal)
+        assert result['terminal'] == binding + '-ready'
         assert [s['state']['draft'] for s in result['samples']] == [
-            'initial-empty', 'trace-prefix', 'states-no-reply']
+            'states-no-reply' if binding == 'body-clear' else 'initial-empty',
+            'trace-prefix', 'initial-empty' if binding == 'body-clear' else 'states-no-reply']
         assert [index for index, _ in retained] == [0, 1, 2]
         with pytest.raises(EvidenceError, match='trace-token'):
             reader.finish_trace(ready['token'])
@@ -183,13 +192,17 @@ def test_transition_plan_refuses_unbound_or_unsafe_compositions(fault):
 
 @pytest.mark.parametrize('fault', ['', 'trace-first-start', 'first-selected', 'first-read',
                                   'trace-first-finish', 'trace-wrong-entry', 'trace-second-start'])
-def test_transition_worker_composes_text_and_stops_before_followup_input(fault):
+@pytest.mark.parametrize('composition', [False, True])
+def test_transition_worker_composes_text_and_stops_before_followup_input(fault, composition):
     from tests.support.perl import run_perl
     from trace_transition import PLAN as plan
+    if composition:
+        from compose_observation import PLAN as plan
     result = json.loads(run_perl(r'''
 use strict; use warnings; use JSON::PP;
 our (@events, @stages);
 our $fault = shift @ARGV;
+our $run = shift @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
@@ -202,14 +215,15 @@ no warnings 'redefine';
 *onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
 *onpc_journey::finish = sub { push @events, 'finish'; };
 my $ok = eval {
-    onpc_feedback_states::run_transition(sub {
+    my $call = onpc_feedback_states->can($run);
+    $call->(sub {
         push @events, $_[0]; push @stages, $_[0];
         die 'failed proof' if $_[0] eq $fault;
         return {observed => $_[0], ui_focused => JSON::PP::true};
     }); 1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
-''', fault).stdout)
+''', fault, 'run_composition' if composition else 'run_transition').stdout)
     stages = list(plan.screen_tags)
     stages = stages[stages.index('parent-selected'):]
     assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
@@ -217,6 +231,55 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
     assert result['events'][-1] == (fault or 'finish')
     if not fault:
         assert result['events'].count('type:Synthetic feedback first') == 2
+        if composition:
+            assert result['events'].count('key:backspace') == 2
+
+
+def test_clear_trace_refuses_empty_entry_and_blocks_input(monkeypatch):
+    reader, _, _ = trace_reader(monkeypatch)
+    with pytest.raises(EvidenceError):
+        reader.start_trace('body-clear')
+    with pytest.raises(EvidenceError, match='trace-intervening-operation'):
+        reader.observe('text-body-clear-focus')
+    assert reader.trace_failed
+
+
+def test_composition_selector_uses_guarded_envelope(monkeypatch):
+    import check_e2e_compose_observation_around_one_caller_input as check
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['compose_observation'] is True
+
+
+@pytest.mark.parametrize('uncertain', [False, True])
+def test_observed_text_independent_caller_never_replays_uncertain_input(uncertain):
+    from tests.support.perl import run_perl
+    from journey_blocks import observed_text
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages);
+our $uncertain = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key {
+    push @main::events, $_[0];
+    die 'uncertain input' if $main::uncertain && $_[0] eq 'backspace';
+}
+package main;
+require onpc_feedback_states;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @stages, $_[0];
+    return {observed => $_[0], ui_focused => JSON::PP::true};
+});
+my $ok = eval { onpc_feedback_states::observed_text($journey, 'renamed', 'body-clear'); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', '1' if uncertain else '0').stdout)
+    expected = list(observed_text('renamed', 'body-clear'))
+    assert result['stages'] == (expected[:3] if uncertain else expected)
+    assert result['events'] == ['ctrl-a', 'backspace']
+    assert bool(result['ok']) is (not uncertain)
 
 
 def trace_reader(monkeypatch):

@@ -22,6 +22,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
+Start at `UiObservations.start_trace`, `poll_trace`, `finish_trace(token, terminal)`
+in `tests/e2e/ui_observations.py`, `JourneyPlan.trace_bindings` / `trace_terminals`
+and the worker pump in `tests/e2e/installed_journey.py`. UI22's current finite
+input declarations are `journey_blocks.observed_text` and
+`onpc_feedback_states::observed_text`; `compose_observation.PLAN` demonstrates
+explicit terminal binding and independent snapshot comparison. These qualify
+only Parent feedback body edits, not saving or conflicting-control samples.
+Focused lifecycle/refusal checks are `tests/unit/test_e2e_feedback_read.py`,
+`tests/unit/test_installed_journey_cleanup_safety.py` and
+`tests/unit/test_e2e_progress.py`. The selector below is still unimplemented.
+
 ## Implementation
 
 Bind UI22 to Parent's saving and conflicting-control states. Arm observation and acknowledge readiness before one caller-owned Screen time limit change; collect the trace and terminal saved result without delaying the product.

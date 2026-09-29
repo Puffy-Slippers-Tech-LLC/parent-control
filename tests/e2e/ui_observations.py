@@ -436,11 +436,13 @@ class UiObservations:
         require(not self.trace_failed, 'ui:trace-previous-failure')
         try:
             require(self.trace is None, 'ui:trace-duplicate')
-            require(binding in (None, 'body-first'), 'ui:trace-binding')
+            require(binding in (None, 'body-first', 'body-clear'), 'ui:trace-binding')
             started = self._trace_clock()
-            value = self._trace_sample()
+            value = (self._observe('feedback-state-no-reply') if binding == 'body-clear'
+                     else self._trace_sample())
             state = FeedbackStateObservation.from_value(value['feedback_state'])
-            require(state == FeedbackStateObservation('initial-empty', 'none', True),
+            require(state == FeedbackStateObservation(
+                'states-no-reply' if binding == 'body-clear' else 'initial-empty', 'none', True),
                     'ui:trace-entry')
             now = self._trace_clock()
             require(now < started + 60, 'ui:trace-deadline')
@@ -488,25 +490,30 @@ class UiObservations:
             self.trace = None
             raise
 
-    def finish_trace(self, token):
+    def finish_trace(self, token, terminal=None):
         """UI26: consume exactly the caller's live token, never infer one."""
         require(not self.trace_failed, 'ui:trace-previous-failure')
         try:
             trace = self.trace
             require(trace is not None and type(token) is str and token == trace['token'],
                     'ui:trace-token')
+            expected = FeedbackStateObservation(
+                'initial-empty' if trace['binding'] == 'body-clear' else 'states-no-reply',
+                'none', True)
+            require(terminal == expected if trace['binding'] == 'body-clear' else
+                    terminal is None or terminal == expected, 'ui:trace-predicate')
             if trace['binding'] is not None:
                 self.poll_trace()
                 require(trace['input_index'] == 3 and any(
                     sample.get('input_index') == 2 for sample in trace['samples']),
                     'ui:trace-input-unobserved')
                 state = FeedbackStateObservation.from_value(trace['samples'][-1]['state'])
-                require(state == FeedbackStateObservation('states-no-reply', 'none', True),
+                require(state == expected,
                         'ui:trace-terminal')
                 self.trace = None
                 return {'operation': 'feedback-trace-finish', 'outcome': 'passed',
                         'interface': 'AT-SPI', 'token': token,
-                        'terminal': 'body-first-ready', 'samples': trace['samples']}
+                        'terminal': trace['binding'] + '-ready', 'samples': trace['samples']}
             self.trace = None  # Consume before any fallible read; never replay.
             for _ in range(2):
                 require(self._trace_clock() < trace['deadline'], 'ui:trace-deadline')
@@ -606,8 +613,9 @@ class UiObservations:
     def observe(self, operation):
         import time
         trace = self.trace
-        if trace is not None and trace['binding'] == 'body-first' and not self.trace_failed:
-            order = ('text-body-first-focus', 'text-body-first-selected', 'text-body-first-read')
+        if trace is not None and trace['binding'] is not None and not self.trace_failed:
+            order = tuple('text-' + trace['binding'] + '-' + suffix
+                          for suffix in ('focus', 'selected', 'read'))
             index = trace['input_index']
             if index < len(order) and operation == order[index]:
                 try:

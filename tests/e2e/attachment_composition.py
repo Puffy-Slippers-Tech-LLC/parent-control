@@ -5,6 +5,7 @@ preview/rejection comparisons. Invocation names may differ from operation names.
 """
 from window_switch import WindowSwitchJourney
 from private_artifacts import require
+from copy import deepcopy
 import re
 
 
@@ -21,7 +22,23 @@ def formatted_draft_expected(*, reset=False):
 
 def compare_formatted_draft(value, *, reset=False):
     require(value == formatted_draft_expected(reset=reset), 'feedback:formatted-draft')
-    return value
+    return deepcopy(value)
+
+
+def save_handoff(prefix):
+    """FILE03 Save only; callers own preparation, readback and later Cancel."""
+    require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
+            'save:invocation')
+    return {prefix + '-' + step: 'ui:save-chooser-' + step for step in (
+        'open', 'name', 'location', 'navigated', 'destination', 'restored', 'accept', 'result')}
+
+
+def save_cancellation(prefix):
+    """Fresh chooser Cancel with independently unchanged saved output."""
+    require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
+            'save:invocation')
+    return {prefix + '-' + step: 'ui:save-chooser-' + step for step in (
+        'reopen', 'cancel-name', 'cancel', 'preserved')}
 
 
 def file_handoff(prefix='chooser'):
@@ -61,7 +78,7 @@ def compare_file_draft(value):
         'collection': 'ready', 'validation': 'none', 'controls': 'ready',
         'items': [['Synthetic note.txt', '34 bytes']], 'include_logs': False},
         'attachment:preserved-draft')
-    return value
+    return deepcopy(value)
 
 
 class AttachmentJourney(WindowSwitchJourney):

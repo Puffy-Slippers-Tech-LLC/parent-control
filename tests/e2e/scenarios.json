@@ -1644,7 +1644,7 @@
         {"coverage_id": 152, "id": "draft-reopen", "owner": "parent-navigation", "parameters": {"flow": "draft-reopen"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_draft.py", "test_id": "draft-reopen"}},
         {"coverage_id": 153, "id": "validation", "owner": "parent-navigation", "parameters": {"flow": "validation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_validation.py", "test_id": "validation"}},
         {"coverage_id": 154, "id": "attachments", "owner": "parent-navigation", "parameters": {"flow": "attachments"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_attachments.py", "test_id": "attachments"}},
-        {"coverage_id": 155, "id": "diagnostic-export", "owner": "parent-navigation", "parameters": {"flow": "diagnostic-export"}, "status": "pending", "pending_reason": "Real Download/Save and bounded SSH artifact readers require qualification; resume when FILE03 Save, FILE08 exported-ZIP inspection and FEED08 composition are qualified for full installed acceptance.", "executable": null}
+        {"coverage_id": 155, "id": "diagnostic-export", "owner": "parent-navigation", "parameters": {"flow": "diagnostic-export"}, "status": "pending", "pending_reason": "FILE03 named Save/Cancel is qualified; resume when FILE08 exported-ZIP inspection and FEED08 composition are qualified for full installed acceptance, including save-error recovery.", "executable": null}
       ]
     },
     {

@@ -1,4 +1,4 @@
-"""Private tmp_path filesystem and process-local transport; no VM or host files."""
+"""Private tmp_path files, mocked transport and bounded isolated Python; no VM."""
 import json
 import fcntl
 import os
@@ -34,6 +34,139 @@ def test_exact_copy_rename_and_independent_cleanup(home):
     assert guest.operate(home, 'cleanup', renamed) == {'absent': True}
     assert guest.operate(home, 'absent', {'absent': True}) == {'absent': True}
     assert list(home.iterdir()) == []
+
+
+# Save uses private tmp_path files, transport doubles and a bounded Python child; the
+# existing compatible unit and cleanup classifications remain appropriate.
+def test_save_worker_loads_shared_destination_in_isolated_guest(home):
+    import subprocess
+    import sys
+    from download_destination import download_directory
+    transport = Mock()
+    transport.call.return_value = b'{"absent": true}\n'
+    controller.SyntheticFiles(transport, 'save')._command('absent', {'absent': True})
+    program = transport.call.call_args.kwargs['input']
+    subprocess.run([sys.executable, '-I', '-c',
+                    "import sys; namespace={'__name__':'worker'}; "
+                    "exec(compile(sys.stdin.read(), 'worker.py', 'exec'), namespace); "
+                    "assert str(namespace['download_directory']('/home/bound-user')) "
+                    "== '/home/bound-user/Downloads'"],
+                   input=program, check=True, capture_output=True, timeout=20)
+    assert download_directory(home) == home / 'Downloads'
+
+
+def test_save_destinations_capture_real_output_and_cancel_absence(home):
+    staged = guest.operate(home, 'stage', None, 'save')
+    root = home / guest.SAVE_DIRECTORY
+    assert not os.access(root / 'Unwritable', os.W_OK)
+    path = root / guest.SAVE_NAME
+    path.write_bytes(b'product-output-stand-in')
+    path.chmod(0o600)
+    saved = guest.operate(home, 'saved', staged, 'save')
+    assert saved['files'][guest.SAVE_NAME]['size'] == len(b'product-output-stand-in')
+    assert guest.operate(home, 'read', saved, 'save') == saved
+    assert guest.operate(home, 'cleanup', saved, 'save') == {'absent': True}
+    assert guest.operate(home, 'absent', {'absent': True}, 'save') == {'absent': True}
+
+
+@pytest.mark.parametrize('fault', ['missing', 'symlink', 'hardlink', 'public', 'empty',
+    'oversize', 'unknown', 'cancelled', 'replaced-directory', 'writable-denied'])
+def test_save_capture_refuses_unsafe_output_without_cleanup(home, fault):
+    staged = guest.operate(home, 'stage', None, 'save')
+    root = home / guest.SAVE_DIRECTORY
+    path = root / guest.SAVE_NAME
+    path.write_bytes(b'output')
+    path.chmod(0o600)
+    if fault == 'missing':
+        path.unlink()
+    elif fault == 'symlink':
+        path.unlink()
+        path.symlink_to(home / 'unrelated')
+    elif fault == 'hardlink':
+        os.link(path, home / 'unrelated')
+    elif fault == 'public':
+        path.chmod(0o644)
+    elif fault == 'empty':
+        path.write_bytes(b'')
+    elif fault == 'oversize':
+        with path.open('wb') as stream:
+            stream.truncate(guest.SAVE_LIMIT + 1)
+    elif fault in ('unknown', 'cancelled'):
+        (root / ('Cancelled diagnostics.zip' if fault == 'cancelled' else 'unknown')).touch()
+    elif fault == 'replaced-directory':
+        staged['directory'][1] += 1
+    else:
+        (root / 'Unwritable').chmod(0o700)
+    with pytest.raises((ValueError, OSError)):
+        guest.operate(home, 'saved', staged, 'save')
+    assert root.exists()
+
+
+@pytest.mark.parametrize('fault', ['changed', 'replaced', 'unknown', 'cancelled'])
+def test_save_cleanup_preserves_changed_or_unknown_objects(home, fault):
+    staged = guest.operate(home, 'stage', None, 'save')
+    root = home / guest.SAVE_DIRECTORY
+    path = root / guest.SAVE_NAME
+    path.write_bytes(b'output')
+    path.chmod(0o600)
+    saved = guest.operate(home, 'saved', staged, 'save')
+    if fault == 'changed':
+        path.write_bytes(b'change')
+    elif fault == 'replaced':
+        path.rename(home / 'original')
+        path.write_bytes(b'output')
+        path.chmod(0o600)
+    else:
+        (root / ('Cancelled diagnostics.zip' if fault == 'cancelled' else 'unknown')).touch()
+    with pytest.raises(ValueError):
+        guest.operate(home, 'cleanup', saved, 'save')
+    assert path.exists()
+
+
+def test_save_preserves_existing_downloads_and_unrelated_files(home):
+    root = home / 'Downloads'
+    root.mkdir(mode=0o755)
+    unrelated = root / 'existing.txt'
+    unrelated.write_bytes(b'keep existing download')
+    before = guest.identity(unrelated.lstat())
+    staged = guest.operate(home, 'stage', None, 'save')
+    path = root / guest.SAVE_NAME
+    path.write_bytes(b'output')
+    path.chmod(0o600)
+    saved = guest.operate(home, 'saved', staged, 'save')
+    assert guest.operate(home, 'cleanup', saved, 'save') == {'absent': True}
+    assert guest.operate(home, 'absent', {'absent': True}, 'save') == {'absent': True}
+    assert list(root.iterdir()) == [unrelated]
+    assert guest.identity(unrelated.lstat()) == before
+    assert unrelated.read_bytes() == b'keep existing download'
+
+
+@pytest.mark.parametrize('name', [guest.SAVE_NAME, guest.SAVE_CANCEL_NAME, 'Unwritable'])
+def test_save_refuses_preexisting_destination_objects(home, name):
+    root = home / 'Downloads'
+    root.mkdir(mode=0o755)
+    existing = root / name
+    existing.write_bytes(b'preserve')
+    with pytest.raises(ValueError):
+        guest.operate(home, 'stage', None, 'save')
+    assert list(root.iterdir()) == [existing]
+    assert existing.read_bytes() == b'preserve'
+
+
+def test_save_qualification_owns_actions_and_failed_transport_latches(tmp_path):
+    from parent_setup_qualification import SaveChooserQualification
+    from save_chooser import PLAN
+    journey = SaveChooserQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is PLAN
+    assert set(journey.actions) == {'save-prepare', 'save-read', 'save-preserved', 'save-cleanup'}
+    transport = Mock()
+    transport.call.side_effect = TimeoutError
+    files = controller.SyntheticFiles(transport, 'save')
+    with pytest.raises(TimeoutError):
+        files.call('stage')
+    with pytest.raises(EvidenceError, match='replay'):
+        files.call('stage')
+    transport.call.assert_called_once()
 
 
 def test_declared_text_read_and_disposable_refusal_probes(home):
@@ -238,7 +371,10 @@ def test_qualification_uses_argument_arrays_and_reads_independently(home):
         calls.append(argv[-2])
         assert argv[:7] == ['/usr/sbin/runuser', '--user', 'onpc-parent-jamie', '--',
                             '/usr/bin/python3', '-I', '-']
-        assert kwargs['input'] == Path(guest.__file__).read_bytes()
+        assert kwargs['input'].endswith(Path(guest.__file__).read_bytes())
+        namespace = {'__name__': 'worker'}
+        exec(compile(kwargs['input'], 'worker.py', 'exec'), namespace)
+        assert namespace['download_directory'](home) == home / 'Downloads'
         assert kwargs['timeout'] == 30
         try:
             value = guest.operate(home, argv[-2], json.loads(argv[-1]))
@@ -452,7 +588,7 @@ def test_chooser_qualification_uses_registered_actions_and_installed_snapshot(tm
 
 
 @pytest.mark.parametrize('failure', [False, True])
-@pytest.mark.parametrize('archive', [False, True, 'source'])
+@pytest.mark.parametrize('archive', [False, True, 'source', 'save'])
 def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkeypatch, failure, archive):
     from parent_setup_qualification import (SyntheticFilesQualification, ArchiveOpenQualification,
                                             SourceChangeQualification)
@@ -463,10 +599,14 @@ def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkey
     action_name = 'archive-open' if archive else 'synthetic-files'
     if archive == 'source':
         qualification, action_name = SourceChangeQualification, 'source-change'
+    if archive == 'save':
+        from parent_setup_qualification import SaveChooserQualification
+        qualification, action_name = SaveChooserQualification, 'save-prepare'
     journey = qualification.journey(context, progress)
-    assert journey.plan.worker_mode == 'fresh_parent_desktop'
-    assert journey.plan.stage_actions == {'desktop': action_name}
-    journey.steps = [{'stage': name} for name in journey.plan.stages[:-1]]
+    stage = 'first-refused' if archive == 'save' else 'desktop'
+    assert journey.plan.stage_actions[stage] == action_name
+    stages = list(journey.plan.stages)
+    journey.steps = [{'stage': name} for name in stages[:stages.index(stage)]]
     journey.ui = SimpleNamespace(boot_guard='', boot_proof='a' * 64,
                                  observe=Mock(return_value={}))
     journey.transport = Mock()
@@ -474,20 +614,20 @@ def test_fixture_stage_records_before_reply_and_latches_failure(tmp_path, monkey
     action = Mock(side_effect=ValueError('refused') if failure else None,
                   return_value={'owned_cleanup': True})
     journey.actions[action_name] = action
-    (tmp_path / 'desktop.request.json').write_text(json.dumps({'stage': 'desktop', 'screenshot': None}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
     if failure:
         with pytest.raises(ValueError, match='refused'):
             journey.step(Mock())
         with pytest.raises(EvidenceError, match='previous-failure'):
             journey.step(Mock())
-        assert not (tmp_path / 'desktop.reply.json').exists()
+        assert not (tmp_path / (stage + '.reply.json')).exists()
         progress.assert_not_called()
     else:
         progress.side_effect = lambda *_: pytest.fail('reply preceded evidence') if (
-            tmp_path / 'desktop.reply.json').exists() else None
+            tmp_path / (stage + '.reply.json')).exists() else None
         journey.step(Mock())
         assert journey.steps[-1]['fixture'] == {'owned_cleanup': True}
-        assert (tmp_path / 'desktop.reply.json').exists()
+        assert (tmp_path / (stage + '.reply.json')).exists()
     action.assert_called_once()
 
 

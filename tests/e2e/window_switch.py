@@ -2,6 +2,7 @@
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop
 from private_artifacts import require
+from copy import deepcopy
 import re
 
 
@@ -55,7 +56,7 @@ class WindowSwitchJourney(InstalledJourney):
                    'feedback': 'switch-draft-before'}
         if stage == entries[binding]:
             require(binding not in self.windows, 'switch:replayed-entry')
-            self.windows[binding] = value
+            self.windows[binding] = deepcopy(value)
         else:
             expected = self.windows.get(binding)
             if stage.endswith('-ready') and expected is not None:

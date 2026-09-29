@@ -10,7 +10,7 @@ from watch_activity import operation
 class SyntheticFiles:
     def __init__(self, transport, profile='standard'):
         require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow',
-                            'name180', 'name181', 'hidden', 'mixed', 'zip'),
+                            'name180', 'name181', 'hidden', 'mixed', 'zip', 'save'),
                 'files:profile')
         self.transport = transport
         self.profile = profile
@@ -20,7 +20,8 @@ class SyntheticFiles:
 
     def call(self, name):
         require(not self.failed and name not in self.attempted, 'files:replay')
-        require(name in ('stage', 'read', 'copy', 'rename', 'cleanup', 'change-source'), 'files:operation')
+        require(name in ('stage', 'read', 'copy', 'rename', 'cleanup', 'change-source')
+                or (name == 'saved' and self.profile == 'save'), 'files:operation')
         self.attempted.add(name)
         self.failed = True  # Includes interrupted or uncertain transport results.
         with operation('Synthetic fixtures: ' + name):
@@ -39,6 +40,13 @@ class SyntheticFiles:
 
     def _command(self, name, previous):
         program = Path(__file__).with_name('synthetic_files_guest.py').read_bytes()
+        source = Path(__file__).with_name('download_destination.py').read_text()
+        modules = ('import sys, types\n'
+                   'download_destination = types.ModuleType("download_destination")\n'
+                   'sys.modules["download_destination"] = download_destination\n'
+                   f'exec(compile({source!r}, "download_destination.py", "exec"), '
+                   'download_destination.__dict__)\n')
+        program = modules.encode() + program
         raw = self.transport.call([
             '/usr/sbin/runuser', '--user', 'onpc-parent-jamie', '--',
             '/usr/bin/python3', '-I', '-', name,
@@ -67,6 +75,40 @@ def read_declared_text(transport, receipt, *, attempt, user='onpc-parent-jamie',
     require(result == {'artifact': artifact, 'matched': True, 'size': len(expected),
                        'sha256': hashlib.sha256(expected).hexdigest()}, 'text:comparison')
     return result
+
+
+def save_destination_actions():
+    """Owned writable/unwritable preparation and independent FILE05 readback."""
+    def prepare(journey, guard):
+        require(not hasattr(journey, 'save_files'), 'files:save-replay')
+        guard()
+        journey.save_files = SyntheticFiles(journey.transport, 'save')
+        return journey.save_files.call('stage')
+
+    def saved(journey, guard):
+        guard()
+        require(hasattr(journey, 'save_files'), 'files:save-entry')
+        result = journey.save_files.call('saved')
+        require(set(result['files']) == {'Selected diagnostics.zip'}, 'files:save-result')
+        return result
+
+    def preserved(journey, guard):
+        guard()
+        require(hasattr(journey, 'save_files'), 'files:save-entry')
+        previous = journey.save_files.previous
+        require(bool(previous['files']), 'files:save-entry')
+        require(journey.save_files.call('read') == previous, 'files:cancel-changed')
+        return {'saved_unchanged': True, 'cancelled_absent': True}
+
+    def cleanup(journey, guard):
+        guard()
+        require(hasattr(journey, 'save_files'), 'files:save-entry')
+        result = journey.save_files.call('cleanup')
+        del journey.save_files
+        return result
+
+    return {'save-prepare': prepare, 'save-read': saved,
+            'save-preserved': preserved, 'save-cleanup': cleanup}
 
 
 def fixture_actions(profiles, *, stage='chooser-fixtures', cleanup='chooser-cleanup'):

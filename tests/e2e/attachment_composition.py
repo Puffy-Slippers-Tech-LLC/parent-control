@@ -5,6 +5,7 @@ preview/rejection comparisons. Invocation names may differ from operation names.
 """
 from window_switch import WindowSwitchJourney
 from private_artifacts import require
+import re
 
 
 def formatted_draft_expected(*, reset=False):
@@ -26,6 +27,22 @@ def compare_formatted_draft(value, *, reset=False):
 def file_handoff(prefix='chooser'):
     return {f'{prefix}-{step}': f'ui:{prefix}-{step}'
             for step in ('open', 'location', 'files', 'accept')}
+
+
+def chooser_preservation(invocation=''):
+    """Read accepted files, reopen/Cancel, then independently read preservation."""
+    require(type(invocation) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', invocation),
+            'chooser:invocation')
+    return {invocation + 'chooser-' + step: 'ui:chooser-' + step
+            for step in ('attachments', 'reopen', 'cancel', 'preserved')}
+
+
+def attachment_removal(invocation=''):
+    """Remove the declared owned row and independently read the remaining list."""
+    require(type(invocation) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', invocation),
+            'attachment:invocation')
+    return {invocation + 'attachment-' + step: 'ui:attachment-' + step
+            for step in ('remove', 'remaining')}
 
 
 def boundary_batch(batch):

@@ -34,7 +34,7 @@ observer and worker; add no independent runner or fixture framework.
 
 With a real grant, capture public settings/balance, open and Cancel the warning and independently compare unchanged values within elapsed-time bounds. Wrong child/confirmation refuses.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

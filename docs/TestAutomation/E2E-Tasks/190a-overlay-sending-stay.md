@@ -36,7 +36,7 @@ observer and worker; add no independent runner or fixture framework.
 
 In an authorized VM attempt, disconnect normally, Send once and observe retry. Close, read the warning and choose stay; independently require the report still open. Reconnect within the retry window, observe the same submission succeed and use the already-qualified success exit for cleanup.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

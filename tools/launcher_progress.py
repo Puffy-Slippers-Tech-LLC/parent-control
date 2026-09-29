@@ -47,12 +47,13 @@ def publish_repair_status(run, round_number, category, categories, status):
     publish_progress(run, key, [summary, 'Status: ' + status])
 
 
-def repair_progress(run, steps):
+def repair_progress(run, steps, *, child_steps=None):
     """Overlay a child's test summary without changing the repair controller."""
     if not steps or steps[-1]['lines'][-1] != 'Status: Running tests':
         return steps
-    child = run / 'test-controller.json'
-    child_steps = json.loads(child.read_text()) if child.exists() else []
+    if child_steps is None:
+        child = run / 'test-controller.json'
+        child_steps = json.loads(child.read_text()) if child.exists() else []
     if child_steps:
         prefix, _, summary = steps[-1]['lines'][0].partition(': ')
         nested = child_steps[-1]['lines'][0]

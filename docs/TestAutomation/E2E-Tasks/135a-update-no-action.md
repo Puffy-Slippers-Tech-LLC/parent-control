@@ -40,7 +40,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Install the declared no-action update, independently read the final notice and unchanged usable app entry/settings. Wrong assets, failed completion or an unexpected activation notice refuse.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

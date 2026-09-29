@@ -34,7 +34,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Launch from Files, observe a normal action's effect, then open a distinguishable second window beside the first. Independently compare the original activity; wrong file or a reused first window refuses.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

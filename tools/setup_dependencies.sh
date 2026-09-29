@@ -64,16 +64,16 @@ add-apt-repository -y universe
     qemu-system-x86 \
     qemu-system-modules-opengl \
     virtiofsd \
-    libvirt-clients=12.0.0-1ubuntu5.3 \
+    libvirt-clients=12.0.0-1ubuntu5.5 \
     libguestfs-tools=1:1.58.1-3ubuntu3 \
     lintian \
     make \
-    mutter=50.1-0ubuntu2.2 \
-    mutter-dev-bin=50.1-0ubuntu2.2 \
+    mutter=50.1-0ubuntu2.4 \
+    mutter-dev-bin=50.1-0ubuntu2.4 \
     nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1 \
     openssh-client=1:10.2p1-2ubuntu3.6 \
     openssl=3.5.5-1ubuntu3.5 \
-    pipewire=1.6.2-1ubuntu1.1 \
+    pipewire=1.6.2-1ubuntu1.2 \
     wireplumber \
     gstreamer1.0-pipewire \
     gstreamer1.0-gtk4 \

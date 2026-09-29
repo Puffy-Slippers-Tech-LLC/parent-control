@@ -56,11 +56,12 @@ class LauncherDisplay:
     The lower pane starts focused. Absolute positioning isolates redraws.
     """
 
-    def __init__(self, stream, *, log_path=None):
+    def __init__(self, stream, *, log_path=None, terminal_size=None):
         self.stream = stream
+        self.terminal_size = terminal_size
         self.log_path = log_path
         self.unsaved = deque()
-        self.tty = stream.isatty() and os.environ.get('TERM') != 'dumb'
+        self.tty = terminal_size is not None or (stream.isatty() and os.environ.get('TERM') != 'dumb')
         self.console = Console(file=stream, force_terminal=True, markup=False,
                                highlight=False, color_system='truecolor', no_color=False)
         self.transcript = deque(maxlen=SCROLLBACK_LINES)
@@ -317,7 +318,8 @@ class LauncherDisplay:
         if not self.tty:
             return
         try:
-            size = os.get_terminal_size(self.stream.fileno())
+            size = (self.terminal_size() if self.terminal_size is not None
+                    else os.get_terminal_size(self.stream.fileno()))
         except (OSError, ValueError):
             size = shutil.get_terminal_size()
         # The observer polls while its worker is paused. Snapshot values (not

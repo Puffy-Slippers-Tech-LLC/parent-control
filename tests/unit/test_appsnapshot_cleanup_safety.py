@@ -97,7 +97,7 @@ def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
     control.run.return_value = status
     assert launcher.main(['--overwrite', 'false']) == status
     assert control.run.call_args.args[0] == [
-        '/usr/bin/pkexec', '--disable-internal-agent',
+        '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
         '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online']
     control.run.assert_called_once()
     cleanup.assert_not_called()
@@ -433,9 +433,10 @@ def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, res
     command = control.run.call_args_list[-2].args[0]
     assert command[1] == '--disable-internal-agent'
     assert '--retention-run=' + 'a' * 32 in command
-    assert command[4:7] == ['--unattended', 'appsnapshot', '--overwrite']
-    assert command[7] == 'true'
-    assert command[8:] == ['--artifacts', allocation.return_value, '--mode', 'online']
+    assert command[2] == '--keep-cwd'
+    assert command[5:8] == ['--unattended', 'appsnapshot', '--overwrite']
+    assert command[8] == 'true'
+    assert command[9:] == ['--artifacts', allocation.return_value, '--mode', 'online']
     assert control.run.call_args_list[-2].kwargs['cooperative'] is True
     assert control.run.call_args.args[0][-4:] == ['appsnapshot', '--resume', '--mode', 'online']
 

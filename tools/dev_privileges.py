@@ -34,5 +34,6 @@ def check(program):
 
 def launch(program, argv):
     check(program)
-    command = ['/usr/bin/pkexec', program, *argv]
+    os.chdir(Path(__file__).resolve().parents[1])
+    command = ['/usr/bin/pkexec', '--keep-cwd', program, *argv]
     os.execve(command[0], command, {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'})

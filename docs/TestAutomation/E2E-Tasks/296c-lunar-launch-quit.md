@@ -35,7 +35,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Launch the prepared original AppImage, independently observe usable Lunar, Quit normally and prove absence within the complete surrounding desktop. Independently supplied valid Lunar entry works; process/rule probes cannot pass.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

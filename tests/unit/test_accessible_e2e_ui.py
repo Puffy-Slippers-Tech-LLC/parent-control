@@ -261,6 +261,57 @@ def parent_save_ui(*, enabled=True, controls_enabled=True, child_uid=1001):
     return ui_for(root), root, picker, toggle, allowance
 
 
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'wrong-surface', 'source', 'event', 'cancel'])
+def test_parent_checked_observer_is_input_free_and_cleans_up(monkeypatch, capsys, fault):
+    from contextlib import contextmanager
+    ui, root, picker, toggle, allowance = parent_save_ui(enabled=False)
+    allowance.children.append(Node('30 minutes', 'label'))
+    root.bus = toggle.bus = ':1.10'
+    root.path, toggle.path = '/window', '/switch'
+    ui.trace_request, ui.trace_boot = 'a' * 32, 'b' * 64
+    closed = []
+    @contextmanager
+    def subscribe(node, receive):
+        assert node is toggle
+        def iteration(_):
+            if fault == 'cancel': raise KeyboardInterrupt()
+            assert 'accessibility-trace-ready' in capsys.readouterr().out
+            toggle.states.add('checked')
+            allowance.states.add('sensitive')
+            if fault == 'source': root.path = '/replacement'
+            receive(True, ValueError('malformed event') if fault == 'event' else None)
+        try:
+            yield SimpleNamespace(pending=lambda: False, iteration=iteration)
+        finally:
+            closed.append(True)
+    ui.api.checked_events = subscribe
+    if fault.startswith('wrong-'):
+        result = ui.parent_checked_events('parent-trace-' + fault + '-refused')
+        assert result == {'refusal': fault}
+        assert not closed
+    elif fault:
+        with pytest.raises((UiError, KeyboardInterrupt)):
+            ui.parent_checked_events('parent-checked-events')
+        assert closed == [True]
+    else:
+        result = ui.parent_checked_events('parent-checked-events')
+        assert result['samples'][0]['checked'] is True
+        assert result['samples'][0]['source'] == 'event'
+        assert closed == [True]
+    toggle.action.do_action.assert_not_called()
+
+
+def test_observed_toggle_refuses_replaced_source_before_input():
+    ui, root, _, toggle, allowance = parent_save_ui(enabled=False)
+    allowance.children.append(Node('30 minutes', 'label'))
+    root.bus = toggle.bus = ':1.10'
+    root.path, toggle.path = '/window', '/switch'
+    ui.expected_trace_source = 'f' * 64
+    with pytest.raises(UiError, match='trace-source-changed'):
+        ui.parent_toggle_operation('parent-toggle-enabled')
+    toggle.action.do_action.assert_not_called()
+
+
 def time_explanation_ui():
     ui, root, picker, _toggle, _allowance = parent_save_ui()
     explanation = Node('Daily allowance remaining: 15m\nOne-time grant remaining: 0m\n'

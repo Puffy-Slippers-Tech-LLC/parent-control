@@ -22,6 +22,8 @@ def test_noninteractive_permission_preflight_gates_pkexec(monkeypatch, returncod
     monkeypatch.setattr(Path, 'lstat', lambda _: SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=0))
     check = Mock(return_value=SimpleNamespace(returncode=returncode))
     execute = Mock()
+    chdir = Mock()
+    monkeypatch.setattr(os, 'chdir', chdir)
     monkeypatch.setattr(privileges['subprocess'], 'run', check)
     monkeypatch.setattr(os, 'execve', execute)
     if returncode:
@@ -30,7 +32,8 @@ def test_noninteractive_permission_preflight_gates_pkexec(monkeypatch, returncod
         execute.assert_not_called()
     else:
         privileges['launch'](program, ['vm', 'status'])
-        assert execute.call_args.args[1] == ['/usr/bin/pkexec', program, 'vm', 'status']
+        assert execute.call_args.args[1] == ['/usr/bin/pkexec', '--keep-cwd', program, 'vm', 'status']
+        chdir.assert_called_once_with(Path(__file__).resolve().parents[2])
     command = check.call_args.args[0]
     assert '--allow-user-interaction' not in command
     assert '--enable-internal-agent' not in command

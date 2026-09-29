@@ -127,7 +127,7 @@ are separate bindings and keep separate live results.
 
 Task briefs select fixed qualification routes in the maintained envelope.
 Planned selectors must be implemented, registered and cleanup-tested before
-use. Preparation and every live operation use the shared watchvm lease,
+use. Preparation and every live operation use the shared watch lease,
 intention, display and guarded command transport. No additional runner, viewer,
 generic selector language or VM controller is part of this plan.
 
@@ -154,7 +154,7 @@ internal faults and cosmetic/screenshot comparisons cannot pass customer cases.
 Reuse the existing [consumer path](E2E-Building-Blocks.md#add-a-consumer):
 `InstalledJourney/JourneyPlan`, `UiObservations`, `AccessibleUI` and the shared
 worker/dispatch. Locate only the relevant callables through the catalogue.
-Publish nonsecret operation/progress labels and open `tools/watchvm` as the
+Publish nonsecret operation/progress labels and open `tools/watch` as the
 desktop user for VM work.
 
 Each attempt starts with fresh declared state and its own session/window ledger.
@@ -163,7 +163,10 @@ under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenario
 Use `--overwrite true` when application code changed; documentation-only and
 test-only changes continue to use `false`.
 Wait for completion without monitoring or reporting incremental output; proceed
-only on success. The normal dispatcher owns preparation/restoration. Package
+only on success. Online preparation leaves a maintenance-owned running VM;
+release it with `tools/test-vm stop` before launching qualification or E2E so
+the guarded attempt can acquire its own lease. The normal dispatcher owns
+preparation/restoration. Package
 lifecycle cases use their declared product-free start and real customer install.
 Never use manual snapshots, resets or prior task state as a journey step.
 

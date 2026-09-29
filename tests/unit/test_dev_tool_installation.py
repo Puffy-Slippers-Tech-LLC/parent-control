@@ -63,13 +63,71 @@ def test_unsafe_baseline_cannot_pin_vm(baseline, kind):
         installer['pinned_vm_uuid'](baseline, owner=os.getuid())
 
 
-def test_rendered_dispatcher_pins_checkout_and_uuid():
+def test_rendered_dispatcher_resolves_checkout_and_pins_uuid(monkeypatch):
+    monkeypatch.chdir(ROOT)
     source = installer['render_helper'](ROOT, 'onpc-test-runner', UUID)
     namespace = {}
     exec(compile(source, '<installed-dispatcher-fixture>', 'exec'), namespace)
     assert namespace['CHECKOUT'] == str(ROOT)
     assert namespace['VM_UUID'] == UUID
     assert namespace['selection'](ROOT, ['vm', 'reboot'])[-3:] == ['--expected-uuid', UUID, 'reboot']
+    assert str(ROOT) not in source
+
+
+@pytest.mark.parametrize('name', ['onpc-test-runner', 'onpc-setup',
+                                 'onpc-test-artifacts', 'onpc-export-screenshot'])
+def test_same_installed_helper_follows_two_repositories(tmp_path, monkeypatch, name):
+    source = installer['render_helper'](ROOT, name, UUID)
+    for directory in ('first checkout', 'second checkout'):
+        checkout = tmp_path / directory
+        for relative in ('setup.sh', 'Makefile', 'tools/onpc-test-runner',
+                         'tools/install_test_runner.py',
+                         'config/com.puffyslippers.onpc.development.policy'):
+            target = checkout / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text('fixture')
+        monkeypatch.chdir(checkout)
+        namespace = {}
+        exec(compile(source, '<installed-helper>', 'exec'), namespace)
+        assert namespace['CHECKOUT'] == str(checkout)
+        if name == 'onpc-setup':
+            assert namespace['command'](Path(namespace['CHECKOUT']), ['test-tools']) == [
+                '/usr/bin/python3', '-IB', str(checkout / 'tools/install_test_runner.py')]
+        elif name == 'onpc-test-artifacts':
+            path = str(checkout / 'output/result.json')
+            assert namespace['source_parts'](path, namespace['CHECKOUT']) == path.split('/')[1:]
+
+
+@pytest.mark.parametrize('defect', ['missing', 'symlink', 'writable', 'writable-tools', 'owner',
+                                  'shared-group'])
+def test_checkout_resolver_refuses_unsafe_inputs(tmp_path, monkeypatch, defect):
+    from dev_checkout import checkout_root
+    for relative in ('setup.sh', 'Makefile', 'tools/onpc-test-runner',
+                     'tools/install_test_runner.py',
+                     'config/com.puffyslippers.onpc.development.policy'):
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text('fixture')
+    target = tmp_path / 'setup.sh'
+    if defect == 'missing':
+        target.unlink()
+    elif defect == 'symlink':
+        target.unlink()
+        target.symlink_to(tmp_path / 'Makefile')
+    elif defect == 'writable':
+        target.chmod(0o666)
+    elif defect == 'writable-tools':
+        (tmp_path / 'tools').chmod(0o777)
+    elif defect == 'owner':
+        monkeypatch.setenv('PKEXEC_UID', str(os.getuid() + 1))
+    else:
+        import grp
+        from types import SimpleNamespace
+        target.chmod(0o664)
+        monkeypatch.setattr(grp, 'getgrgid', lambda gid: SimpleNamespace(gr_mem=['unrelated-user']))
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match='repository'):
+        checkout_root()
 
 
 def test_atomic_helper_install_and_symlink_refusal(tmp_path, monkeypatch):
@@ -88,8 +146,7 @@ def test_atomic_helper_install_and_symlink_refusal(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('existing_cache', [False, True])
-@pytest.mark.parametrize('ui_watch', [False, True])
-def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypatch, existing_cache, ui_watch):
+def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypatch, existing_cache):
     import gi
     gi.require_version('Gtk', '4.0')
     from gi.repository import Gio, GLib, Gtk
@@ -106,15 +163,13 @@ def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypat
                        check=True)
     monkeypatch.setattr(os, 'fchown', Mock())
     for _ in range(2):
-        options = dict(application_id='org.onpc.UIWatch', launcher='watch-ui',
-                       title='UI tests — View only') if ui_watch else {}
-        installer['install_watch_desktop'](ROOT, data_root=data_root, **options)
-        app_id = 'org.onpc.UIWatch' if ui_watch else 'org.onpc.E2EWatch'
+        installer['install_watch_desktop'](ROOT, data_root=data_root)
+        app_id = 'org.onpc.E2EWatch'
         entry = Gio.DesktopAppInfo.new_from_filename(
             str(data_root / 'applications' / (app_id + '.desktop')))
         assert entry is not None
         parsed, command = GLib.shell_parse_argv(entry.get_commandline())
-        assert parsed and command == [str(ROOT / 'tools' / ('watch-ui' if ui_watch else 'watchvm'))]
+        assert parsed and command == [str(ROOT / 'tools' / 'watch')]
         icon_name = entry.get_icon().to_string()
         lookup = Gtk.IconTheme.new()
         lookup.set_search_path([str(data_root / 'icons'), '/usr/share/icons'])
@@ -220,7 +275,11 @@ def test_rules_render_for_a_checkout_with_spaces(tmp_path):
     shutil.copy2(ROOT / 'config/codex-tests.rules', root / 'config/codex-tests.rules')
     rendered = rules['render'](root)
     assert '@CHECKOUT@' not in rendered
-    assert str(root / 'tools/run-tests') in rendered
+    assert str(root) not in rendered
+    moved = tmp_path / 'another enlistment'
+    root.rename(moved)
+    assert rules['render'](moved) == rendered
+    root = moved
     ast.parse(rendered)  # This declaration-only rules subset has valid string literals.
     (root / 'tools/test-vm').chmod(0o644)
     with pytest.raises(ValueError):
@@ -236,7 +295,7 @@ def test_project_tool_allow_covers_new_nested_executables_without_manual_invento
     executable.chmod(0o755)
     (nested / 'support.py').write_text('# import-only module\n')
     assert rules['project_tool_paths'](root) == [
-        'tools/future/new-tool', './tools/future/new-tool', str(executable)]
+        'tools/future/new-tool', './tools/future/new-tool']
     executable.chmod(0o644)
     with pytest.raises(ValueError, match='no executable project tools'):
         rules['project_tool_paths'](root)

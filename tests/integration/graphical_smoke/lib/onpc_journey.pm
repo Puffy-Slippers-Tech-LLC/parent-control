@@ -21,13 +21,15 @@ sub observe {
 }
 
 sub seen {
-    my ($self, $stage) = @_;
+    my ($self, $stage, $input) = @_;
     die 'journey:previous-failure' if $self->{invocation_failed};
     delete $self->{last_observation};
     testapi::record_info($self->{prefix} . '-' . $stage, $self->{review}
         ? 'Qualification observation; terminal matching remains required.'
         : 'Installed customer surface observed.');
-    my $reply = $self->{exchange}->($stage, undef);
+    die 'journey:input-callback' if defined($input) && ref($input) ne 'CODE';
+    my $reply = defined($input) ? $self->{exchange}->($stage, undef, $input)
+                              : $self->{exchange}->($stage, undef);
     $self->{last_observation} = {stage => $stage, reply => $reply};
     return $reply;
 }

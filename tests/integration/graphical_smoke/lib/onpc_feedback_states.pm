@@ -7,6 +7,142 @@ use onpc_gdm ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_text ();
+use onpc_allowance_boundaries ();
+
+sub stable_trace {
+    onpc_progress::operation('Starting and collecting unchanged public feedback samples');
+    my ($journey, $entry) = @_;
+    die 'trace:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($entry eq 'first' || $entry eq 'second');
+    rejection_observe($journey, "trace-$entry-start");
+    rejection_observe($journey, "trace-$entry-finish");
+}
+
+sub transition_trace {
+    onpc_progress::operation('Tracing one caller-owned synthetic text change');
+    my ($journey, $entry) = @_;
+    die 'trace:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($entry eq 'first' || $entry eq 'second');
+    observed_text($journey, $entry, 'body-first');
+}
+
+sub observed_text {
+    onpc_progress::operation('Observing one explicitly declared caller text input');
+    my ($journey, $entry, $binding) = @_;
+    die 'trace:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($entry) && $entry =~ /^[a-z][a-z0-9-]*$/
+        && ($binding eq 'body-first' || $binding eq 'body-clear');
+    rejection_observe($journey, "trace-$entry-start");
+    onpc_text::replace_text($journey, $binding, $entry);
+    rejection_observe($journey, "trace-$entry-finish");
+}
+
+sub observed_toggle {
+    onpc_progress::operation('Observing one explicitly declared accessibility toggle');
+    my ($journey, $stage) = @_;
+    die 'trace:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($stage) && $stage =~ /^[a-z][a-z0-9-]*$/;
+    rejection_observe($journey, $stage);
+}
+
+sub run_accessibility_trace {
+    onpc_progress::operation('Qualifying checked-state events during synchronous accessibility input');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    return run_control_trace($exchange, 'accessibility-trace');
+}
+
+sub run_parent_save_trace {
+    onpc_progress::operation('Qualifying Parent saving and control inhibition during accessibility input');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    return run_control_trace($exchange, 'parent-save-trace');
+}
+
+sub run_custom_save_trace {
+    onpc_progress::operation('Qualifying rapid custom saving and independent reloaded results');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'custom-save-trace', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, $_) for ('disabled-refused', 'enable', 'enabled');
+    for my $entry ('first', 'second') {
+        rejection_observe($journey, "$entry-$_") for ('preset', 'open', 'focus', 'wrong-child', 'wrong-surface');
+        onpc_text::observed_custom_edits($journey, "$entry-rapid", 5, 6);
+        rejection_observe($journey, "$entry-saved");
+        onpc_allowance_boundaries::reload_child($journey, $entry);
+        rejection_observe($journey, "$entry-reopened");
+    }
+    $journey->finish();
+}
+
+sub run_control_trace {
+    onpc_progress::operation('Running the declared Parent control trace sequence');
+    my ($exchange, $prefix) = @_;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    for my $entry ('first', 'second') {
+        rejection_observe($journey, "$entry-$_") for ('disabled', 'wrong-child', 'wrong-surface');
+        observed_toggle($journey, "$entry-observed-enable");
+        rejection_observe($journey, "$entry-independent-saved");
+        rejection_observe($journey, 'restore-disabled') if $entry eq 'first';
+    }
+    $journey->finish();
+}
+
+sub run_composition {
+    onpc_progress::operation('Qualifying valid-to-invalid feedback observation and independent readback');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'compose-observation', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, 'feedback-open');
+    for my $entry ('first', 'second') {
+        onpc_text::replace_text($journey, 'body-first', "prepare-$entry");
+        observed_text($journey, $entry, 'body-clear');
+        rejection_observe($journey, "independent-$entry");
+        rejection_observe($journey, $_) for ($entry eq 'first'
+            ? ('trace-close', 'trace-wrong-entry', 'trace-open-again') : ());
+    }
+    $journey->finish();
+}
+
+sub run_transition {
+    onpc_progress::operation('Qualifying public feedback observation during caller input');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'trace-transition', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, 'feedback-open');
+    transition_trace($journey, 'first');
+    onpc_text::replace_text($journey, 'body-clear', 'clear');
+    rejection_observe($journey, $_) for ('trace-close', 'trace-wrong-entry', 'trace-open-again');
+    transition_trace($journey, 'second');
+    $journey->finish();
+}
+
+sub run_trace {
+    onpc_progress::operation('Qualifying unchanged feedback traces and independent entry');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'trace-stable', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, 'feedback-open');
+    stable_trace($journey, 'first');
+    rejection_observe($journey, $_) for ('feedback-close', 'feedback-state-wrong-entry', 'feedback-open-again');
+    stable_trace($journey, 'second');
+    $journey->finish();
+}
 
 sub run {
     onpc_progress::operation('Reading feedback validation and Send availability without sending');

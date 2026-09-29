@@ -20,14 +20,14 @@ from ui_watch_capture import DISPLAY, Capture
 
 @pytest.mark.parametrize('fails', [False, True])
 def test_viewer_logs_native_output_and_restores_terminal(tmp_path, monkeypatch, capfd, fails):
-    import ui_watch_viewer as viewer
+    import watch_viewer as viewer
 
     allocate = tempfile.mkdtemp
     monkeypatch.setattr(viewer.tempfile, 'mkdtemp',
                         lambda **kwargs: allocate(prefix=kwargs['prefix'], dir=tmp_path))
 
     def run(arguments):
-        assert arguments == ['watch-ui']
+        assert arguments == ['watch']
         print('Python viewer output')
         os.write(1, b'native stdout\n')
         os.write(2, b'Gtk-WARNING: viewer measurement\n')
@@ -48,7 +48,7 @@ def test_viewer_logs_native_output_and_restores_terminal(tmp_path, monkeypatch, 
     assert len(directories) == 1
     directory = directories[0]
     assert directory.stat().st_mode & 0o777 == 0o700
-    assert terminal.out == (f'UI viewer diagnostics: {directory / "viewer.log"}\n'
+    assert terminal.out == (f'Viewer diagnostics: {directory / "viewer.log"}\n'
                             'terminal stdout restored\n')
     assert terminal.err == 'terminal stderr restored\n'
     logged = (directory / 'viewer.log').read_text()
@@ -198,6 +198,24 @@ def test_registry_is_checkout_specific(tmp_path):
 def test_labels_are_bounded_and_remove_terminal_controls():
     assert label('\nHello\x00') == 'Hello'
     assert len(label('x' * 10000)) == 700
+
+
+def test_hidden_workers_skip_pixels_and_resume_without_new_publication(publications):
+    directory, sources = publications
+    feeds = Feeds(directory)
+    try:
+        for source in sources:
+            source.frames.publish(b'\x01\x02\x03\0' * 4, state='live', width=2, height=2,
+                                  stride=8, format=0x20020888)
+        ready(feeds)
+        hidden = feeds.poll(pixels=False)
+        assert len(hidden) == 4 and all(frame[2] == b'' for frame in hidden.values())
+        selected = feeds.poll(selected=sources[0].run)
+        assert selected[sources[0].run][2] == b'\x01\x02\x03\0' * 4
+        assert all(frame[2] == b'' for run, frame in selected.items() if run != sources[0].run)
+        assert all(frame[2] for frame in feeds.poll().values())
+    finally:
+        feeds.close()
 
 
 @pytest.fixture

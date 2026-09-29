@@ -663,11 +663,28 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
+         trace_stable_state=False, trace_transition=False, compose_observation=False,
+         accessibility_input_trace=False, parent_save_trace=False, custom_save_trace=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
          synthetic_files=False, document_open=False, archive_open=False, source_change=False,
          file_chooser=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False):
+    require(type(custom_save_trace) is bool and type(parent_save_trace) is bool and type(accessibility_input_trace) is bool and
+            sum((parent_save_trace, accessibility_input_trace, custom_save_trace)) <= 1 and
+            not ((accessibility_input_trace or parent_save_trace or custom_save_trace) and
+            (compose_observation or trace_transition or trace_stable_state)), 'smoke:trace-prerequisites')
+    require(type(compose_observation) is bool and not (compose_observation and
+            (trace_transition or trace_stable_state)), 'smoke:trace-prerequisites')
+    require(type(trace_transition) is bool and not (trace_transition and trace_stable_state),
+            'smoke:trace-prerequisites')
+    require(type(trace_stable_state) is bool and not ((trace_stable_state or trace_transition or compose_observation or accessibility_input_trace or parent_save_trace or custom_save_trace) and (
+        feedback_states or feedback_read or feedback_privacy or format_qualification
+        or feedback_reset or window_switch or feedback_rejection or feedback_length
+        or file_chooser or attachment_items or attachment_preview or attachment_boundaries
+        or feedback_formats or feedback_block_semantics or feedback_link_semantics)),
+        'smoke:trace-prerequisites')
+    feedback_states = feedback_states or trace_stable_state or trace_transition or compose_observation or accessibility_input_trace or parent_save_trace or custom_save_trace
     require(type(feedback_link_semantics) is bool and not (feedback_link_semantics and (
         feedback_formats or feedback_block_semantics or format_qualification)),
         'smoke:linked-prerequisites')
@@ -1225,6 +1242,18 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-feedback-reset-qualification'
         if feedback_states:
             result['scope'] = 'installed-feedback-states-qualification'
+        if trace_stable_state:
+            result['scope'] = 'installed-trace-stable-state-qualification'
+        if trace_transition:
+            result['scope'] = 'installed-trace-transition-qualification'
+        if compose_observation:
+            result['scope'] = 'installed-compose-observation-qualification'
+        if accessibility_input_trace:
+            result['scope'] = 'installed-accessibility-input-trace-qualification'
+        if parent_save_trace:
+            result['scope'] = 'installed-parent-save-trace-qualification'
+        if custom_save_trace:
+            result['scope'] = 'installed-custom-save-trace-qualification'
         if format_qualification:
             result['scope'] = 'installed-format-qualification'
         if feedback_block_semantics:
@@ -1461,6 +1490,24 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if feedback_states:
                     from parent_setup_qualification import FeedbackStatesQualification
                     qualification_class = FeedbackStatesQualification
+                if trace_stable_state:
+                    from parent_setup_qualification import TraceStableStateQualification
+                    qualification_class = TraceStableStateQualification
+                if trace_transition:
+                    from parent_setup_qualification import TraceTransitionQualification
+                    qualification_class = TraceTransitionQualification
+                if compose_observation:
+                    from parent_setup_qualification import ComposeObservationQualification
+                    qualification_class = ComposeObservationQualification
+                if accessibility_input_trace:
+                    from parent_setup_qualification import AccessibilityInputTraceQualification
+                    qualification_class = AccessibilityInputTraceQualification
+                if parent_save_trace:
+                    from parent_setup_qualification import ParentSaveTraceQualification
+                    qualification_class = ParentSaveTraceQualification
+                if custom_save_trace:
+                    from parent_setup_qualification import CustomSaveTraceQualification
+                    qualification_class = CustomSaveTraceQualification
                 if format_qualification:
                     from parent_setup_qualification import FormatQualification
                     qualification_class = FormatQualification

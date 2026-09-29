@@ -61,7 +61,13 @@ validation and regression coverage. Do not normalize per-command approvals.
 
 Run `./setup.sh --test-tools-only`, then restart Codex with this checkout trusted.
 Setup installs root-owned helpers and scoped Polkit rules, pins the finalized
-test baseline's VM UUID, and renders this checkout's absolute command prefixes.
+test baseline's VM UUID, and renders portable project-relative command prefixes.
+Installed helpers resolve the invoking repository root at execution time, rather
+than retaining the installation checkout. Launchers select their repository root
+and preserve it through `pkexec --keep-cwd`. Direct artifact and screenshot helper
+invocations must likewise use `--keep-cwd` from the intended repository root.
+The embedded resolver checks repository markers, ownership, permissions and
+symlinks before loading checkout code. It does not replace Polkit authorization.
 First install uses `./setup.sh --bootstrap-tools` and can require administrator
 authentication to establish the grant. Repeated bootstrap and routine refreshes
 reuse the dedicated `onpc-setup` helper without asking for authentication.
@@ -76,12 +82,19 @@ dependencies and host policies. Explicit baseline preparation is
 The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
 plugin and GTK 4 VTE viewer packages without requesting package upgrades; ordinary test commands
 never install dependencies. Full setup includes these prerequisites too.
+For an additional worktree on a configured host, `./setup.sh --ui-tests-only`
+creates its checkout-local UI environment from the pinned requirements. This
+unprivileged mode changes neither host package versions nor Git configuration;
+missing system prerequisites still require the normal dependency setup route.
 
 The [rules renderer](../tools/install_codex_rules.py) validates its required
 launcher inventory, then discovers every regular executable under `tools/`
 without following symlinks. The user preapproves direct project-tool execution;
-setup renders one allow rule containing the exact `tools/`, `./tools/` and
-checkout-absolute executable paths. This includes validated launcher actions and
+setup renders one allow rule containing the exact `tools/` and `./tools/`
+executable paths. Run these commands with the intended checkout root as the
+working directory; the same rules then apply across worktrees and local
+enlistments without embedding checkout locations. Installed system helpers keep
+their fixed absolute paths. This includes validated launcher actions and
 argument orders. A new executable joins the grant at the next rules refresh;
 removed or nonexecutable tools leave it. Codex matches literal argument tokens,
 so a `tools/*` string is not a directory-wide grant. General shells/interpreters
@@ -117,13 +130,13 @@ Development activation is `none`: installed helpers change on their next
 invocation, Polkit watches its rule directory, and Codex loads rules on restart.
 The standalone app-snapshot route requires the current installed test dispatcher;
 refresh it with `./setup.sh --test-tools-only` when adding these tools. It shares
-the existing test-runner Polkit action, cleanup gate and fixed VM UUID, without
+the existing test-runner Polkit action, owned recovery and fixed VM UUID, without
 adding general snapshot or libvirt permissions.
 Online mode is the default and reuses fresh matching snapshots without building;
 it leaves the restored running guest in the existing VM-maintenance ownership
 journal. Its restore-only dispatch uses maintenance scratch rather than an
 evidence-retention session, whose entry gate requires an idle VM. The shared
-cleanup qualification and live VM ownership checks still apply. Offline mode
+owned recovery and live VM ownership checks still apply. Offline mode
 retains the previous shutdown/snapshot behavior. Mode mismatches and online
 snapshots older than 24 hours force replacement. Explicit overwrite still rebuilds.
 There is no product package, service restart, reboot, or saved-data migration.
@@ -218,8 +231,8 @@ answer the tool's existing confirmation prompt with `y`. Manual mode requires
 explicit developer authorization. Both modes require the VM off and retain the
 tool's confirmation and safety checks. Auto restores the accepted baseline and updates Ubuntu; manual
 prepares the current disk state. Both capture `onpc_baseline` after validation.
-The dispatcher uses fixed modules from its pinned trusted checkout and a clean
-environment; trust includes edits to that checkout's setup code. The dependency
+The dispatcher uses fixed modules relative to the invoking repository root and a
+clean environment; trust includes edits to that checkout's setup code. The dependency
 operation runs only the fixed host-package module with noninteractive package
 configuration. Checkout Git settings and the UI virtual environment run afterward
 as the invoking user, outside the privileged dispatcher. Full clean-machine
@@ -246,7 +259,7 @@ selected suite is large or slow; additional suites and package builds need
 their own validation justification. Direct unit/UI launchers remain suitable
 for narrow iteration or diagnosis.
 
-`tools/run-tests ui` reuses the aggregate's UI buckets, cleanup gate and scheduler
+`tools/run-tests ui` reuses the aggregate's UI buckets and scheduler
 with up to four branches, without other host suites or package builds. File/case
 selectors, `-k`, `-m` and scoped ignores retain the exact selected inventory.
 Execution defaults to the host's 1800-second per-bucket timeout; an explicit
@@ -271,7 +284,7 @@ the checkout activity lock.
 | Existing or planned coverage | Stable command / extension pattern | Boundary |
 | --- | --- | --- |
 | Unit, property, contract, harness and cleanup regressions | `tools/run-tests unit` with optional quoted selectors | Only the justified unit scope; direct `tools/run-unit-tests` remains available for narrow checks |
-| Private-D-Bus components | `tools/run-tests component 'tests/component/test_*.py' -q` | Only this category; cleanup prerequisites run first |
+| Private-D-Bus components | `tools/run-tests component 'tests/component/test_*.py' -q` | Only this category; live ownership checks remain active |
 | GTK, parent, shared form, feedback and nested Shell | `tools/run-tests ui` with optional quoted selectors | Only the justified UI scope; direct `tools/run-ui-tests` remains available for narrow checks |
 | Child Node tests | `tools/run-tests child-node 'tests/child/**/*.test.mjs'` | `.test.mjs` and `.test.js`; defaults discover both |
 | Child GJS adapters | `tools/run-tests child-gjs 'tests/child/**/*_test.js'` | Fixed GJS runtime; new private coverage directory |
@@ -286,9 +299,9 @@ the checkout activity lock.
 | Named qualification inputs | `tools/run-tests artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-parent-setup-input'` | Replace `/REPO` with this checkout's absolute path. Same unprivileged builder and retention; a new direct managed `onpc-*` allocation only, exclusive creation, no overwrite. Integration qualifications using `named_input()` prepare absent inputs automatically before privileged dispatch; launcher regression coverage checks every consumer. |
 | Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
 | Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
-| Graphical journeys and harness scenarios | `tools/run-tests e2e` / `tools/run-tests e2e --id 1,3,4` / `tools/run-tests e2e --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Guarded cleanup-safety prerequisites remain mandatory. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
-| Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with isolated safety prerequisites; no scenario/list selector or product installation; pending customer dispatch stays closed |
-| Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and safety prerequisites. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
+| Graphical journeys and harness scenarios | `tools/run-tests e2e` / `tools/run-tests e2e --id 1,3,4` / `tools/run-tests e2e --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Serial owned recovery remains mandatory; no prerequisite test suite runs. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
+| Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with live ownership checks; no scenario/list selector or product installation; pending customer dispatch stays closed |
+| Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and owned recovery. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all` / `tools/run-tests all` / `tools/run-tests` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. No arguments starts `all` when idle; an active or unread session still attaches. |
 | Scripted test repair | `tools/fix-tests [CATEGORY ...] [--model MODEL] [--effort low]` / `tools/fix-tests --stop` | Granular pass then complete regression retries by default; explicit categories restrict repair and verification to those leaves; detached owner, GPT-6-astra low classification and app repair in fresh ephemeral sessions; developer blockers pause in the shared write-e2e question menu; existing sandbox/rules and test-runner cleanup, no automatic setup or authority expansion |
 | Scripted E2E implementation | `tools/write-e2e [--sessions N] [--tasks N]` / `tools/write-e2e --stop` | Fresh Astra Low implementation and Astra High live/repair sessions; a parameterless new run defaults to 5 sessions and 1 completed task, while a new run with `--tasks` alone retains unlimited total sessions; each new launcher permits 5 more sessions for its current task while retaining cumulative task numbering, and the next task begins with its own 5-session cap; stop at either limit; plain invocation attaches unchanged, explicit live limits are signed adjustments applied at session boundaries (minimum zero; unlimited sessions become sessions already started plus N); safe stop at the next session boundary, Ctrl+C owned cancellation; staging of explicit paths and task-session worktree changes without commits, excluding prior work and output artifacts; existing grants and guarded test cleanup |
@@ -392,32 +405,36 @@ the [test storage mandate](Mandates/Test-Storage-Mandate.md) for allocation and
 the [artifact access contract](../tests/README.md#prompt-free-test-artifact-access)
 for reading retained output.
 
-Host-integrated categories run all `test_*cleanup_safety.py` and
-`test_graphical_lease.py` in isolation before the protected operation. The
-aggregate's UI, component and fixture-runtime workers may reuse its passing
-gate only through the inherited checkout activity lock. Checkout edits do not
-expire this passing gate. Fresh invocations clear the temporary record;
-standalone commands still require prerequisites, and invalid records refuse.
-The maintained cleanup coordinator can separately reuse a content-qualified
-passing result across invocations; see
-[startup preparation](../tests/e2e/README.md#reusable-startup-preparation).
-Publishing, artifact and VM gates do not use the inherited host gate. The
-privileged dispatcher obtains its qualification as the caller, then starts the
-selected controller as root. Live VM authorization and ownership checks always
-run. A failed prerequisite prevents the operation. Tests that
-introduce another cleanup implementation must add its corresponding regression.
+Cleanup performs only serial, identity-checked recovery and reclamation before
+parallel test scheduling. It never launches cleanup-safety regressions, collects
+pytest cases, hashes a regression qualification cache, or creates cleanup test
+buckets. The privileged dispatcher executes only the selected controller with
+the existing authorization, retention, VM lease and live ownership checks.
+Actual cleanup remains complete: reap owned children, restore recorded VM state
+when required, reclaim recorded scratch and rotate registered output while
+preserving foreign/replaced resources and failure evidence. A recovery refusal
+still blocks the operation. Idle cleanup should take seconds or less; necessary
+process settlement or VM restoration must finish rather than be abandoned to
+meet a time limit.
+
+Cleanup-safety regressions remain in explicit unit/host/all selections. Validate
+changes to cleanup with the relevant tests during development; introducing a new
+cleanup implementation still requires its corresponding regression. No runtime
+passing-test receipt substitutes for live ownership checks.
 Collection/listing does not run cleanup or claim passing test coverage.
 
 ## The one test VM
 
 All VM consumers inherit the [VM observation mandate](Mandates/VM-Mandate.MD#vm-observation-mandate).
-`tools/watchvm` observes the shared lease and guarded command transport during
+`tools/watch` observes the shared lease and guarded command transport during
 E2E, installed tests, qualifications, snapshot preparation and maintenance.
 Publish nonsecret intent through `watch_activity.operation` or `observed` before
 work starts; keep it visible through blocking work and restore enclosing intent
 after nested work. Reuse this infrastructure for new routes. Independent capture,
 SSH transcript or footer implementations are outside the contract. Viewing is
-read-only and may attach or detach at any time without controlling VM activity.
+read-only for VM activity and may attach or detach at any time without controlling
+the VM. In the left runner terminal, selection and Copy are available; Ctrl+C
+requests the displayed runner's cooperative cancellation and cleanup.
 
 `tools/test-vm` has no domain, URI, disk, XML, snapshot-name or arbitrary-command
 argument. It uses `qemu:///system`, the name in
@@ -457,7 +474,7 @@ idle unfinished VM-side retention or before a new VM category. Host-only runs
 leave VM-side retention untouched and refuse unfinished records in their own
 journal. `tools/cleanup-e2e` also reconciles that host journal under its activity
 lock after VM recovery succeeds. This uses the same
-identity-checked recovery, mandatory cleanup prerequisites and exclusive leases;
+identity-checked recovery and exclusive leases;
 it archives recovery markers after validation and leaves evidence in normal
 retention. It never signals an unrecorded process or bypasses a failed VM audit.
 

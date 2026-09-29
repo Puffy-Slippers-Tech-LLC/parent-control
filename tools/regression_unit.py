@@ -96,7 +96,7 @@ system_remote_accounts system_runner system_runner_cleanup_safety system_snapsho
 terminal_cleanup_safety test_account_password test_activity test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety
 ui_cleanup_safety ui_watch ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
-vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity
+vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
 write_e2e write_e2e_cleanup_safety
 """.split())
 
@@ -120,6 +120,9 @@ write_e2e write_e2e_cleanup_safety
 # trees and retention journals. None operates the installed product or test VM.
 # Package-build cleanup uses a synthetic checkout and private scratch directory;
 # launcher rendering uses in-memory terminals, private PTYs and temporary logs.
+# Combined watcher output tests use private storage/locks and mocked launches;
+# they never start a runner, desktop service or VM, and need no exclusive resource.
+# Its Make alias check waits for one harmless shell fixture in a private checkout.
 # Both launchers' blocker decisions use checkout-private question locks/files and bounded threads;
 # pause/reconnect tests own all fake agent children. No live Codex/VM is used.
 # Challenge, install, reboot and package-authority contracts mock host/guest

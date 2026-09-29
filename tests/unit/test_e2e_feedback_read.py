@@ -51,6 +51,779 @@ from ui_observations import FeedbackStateObservation
 # in-memory observers; no scheduler or resource admission change is needed.
 # Case 154 retains bounded in-memory profiles, pytest-owned paths and waited
 # private Perl children. No VM, bus, display, cache or shared-path resources.
+# Stable traces add only mocked clocks/transports and waited private Perl;
+# existing compatible scheduling and resource ownership remain unchanged.
+# Transition pumping uses the same mocks and pytest-owned immutable sample
+# files. No threads, sockets, shared caches or scheduler changes are introduced.
+# Accessibility-event checks retain mocked transports, private values and waited
+# Perl children; no live bus, thread, display or new shared resource is allocated.
+# Saving projections add only bounded in-memory public event sequences.
+# Custom saving retains private pytest paths, mocked transports and waited Perl
+# children; no new live bus, display, cache or scheduler resource is introduced.
+
+
+@pytest.mark.parametrize('fault', ['', 'disabled-entry', 'editor-disabled', 'picker-disabled',
+                                  'no-inhibition', 'no-recovery', 'input', 'source'])
+def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault):
+    from ui_observations import UiObservations
+    reader = UiObservations(SimpleNamespace(commands=SimpleNamespace(progress=None)))
+    reader.boot_guard = 'b' * 64
+    retained, operations, inputs = [], [], []
+    reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
+    sequence = [('child', False), ('toggle', False), ('child', True), ('toggle', True)]
+    if fault == 'editor-disabled': sequence.insert(2, ('editor', False))
+    if fault == 'picker-disabled': sequence.insert(2, ('allowance', False))
+    if fault == 'no-inhibition': sequence = sequence[2:]
+    if fault == 'no-recovery': sequence.pop()
+    # Realistic multi-save output, large enough to exercise response limits.
+    samples = [{'elapsed_ms': index * 10, 'target': target, 'state': 'sensitive', 'value': value}
+               for index, (target, value) in enumerate(sequence * 4)]
+
+    def call(argv, *, input, timeout, on_output):
+        operation = argv[3]
+        operations.append(operation)
+        reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                 'boot_sha256': 'b' * 64}
+        if operation == 'parent-custom-events':
+            token = argv[-1]
+            on_output((json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                'source': 'c' * 64, 'boot_sha256': 'b' * 64,
+                'checked': fault != 'disabled-entry'}) + '\n').encode())
+            reply['trace'] = {'token': token, 'source': ('d' if fault == 'source' else 'c') * 64,
+                              'terminal': True, 'samples': samples}
+        else:
+            assert operation == 'parent-custom-trace-focus'
+            assert retained[0][0] == 0 and argv[-1] == 'c' * 64
+            reply['trace'] = {'focused': True}
+        on_output((json.dumps(reply) + '\n').encode())
+        return b''
+
+    def release(token, source):
+        inputs.append((token, source))
+        if fault == 'input': raise OSError('uncertain keyboard batch')
+
+    reader.transport.call = call
+    if fault:
+        with pytest.raises((EvidenceError, OSError)):
+            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+        assert reader.trace_failed
+        with pytest.raises(EvidenceError, match='previous-failure'):
+            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+    else:
+        result = reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release)
+        assert result['samples'] == samples and len(retained) == len(samples) + 1
+    assert len(inputs) == (0 if fault == 'disabled-entry' else 1)
+
+
+@pytest.mark.parametrize('fault', ['', 'first-rapid', 'input', 'second-reopened',
+    *[f'{entry}-{direction}-{step}' for entry in ('first', 'second')
+      for direction in ('away', 'back') for step in ('open', 'focus', 'selected')]])
+def test_custom_worker_actual_sequence_and_failed_input_stop(fault):
+    from custom_save_trace import PLAN
+    from tests.support.perl import run_perl
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@stages, @keys); our ($fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::keys, $_[0]; die 'uncertain' if $main::fault eq 'input'; }
+sub type_string { push @main::keys, $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @stages, 'finish'; };
+my $ok = eval { onpc_feedback_states::run_custom_save_trace(sub {
+    my ($stage, $shot, $input) = @_;
+    push @stages, $stage; die 'refused' if $stage eq $fault;
+    $input->({binding => 'custom-rapid', values => [5, 6]}) if defined($input);
+    return {observed => $stage};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
+''', fault).stdout)
+    stages = list(PLAN.screen_tags)
+    stages = stages[stages.index('parent-selected'):] + ['finish']
+    boundary = 'first-rapid' if fault == 'input' else fault
+    assert result['stages'] == (stages[:stages.index(boundary) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    if not fault:
+        assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2
+
+
+def test_custom_trace_renamed_stage_and_immutable_input_gate(tmp_path):
+    from dataclasses import replace
+    from installed_journey import InstalledJourney
+    from custom_save_trace import PLAN
+    plan = replace(PLAN, screen_tags={'renamed-input': 'ui:parent-custom-save-trace'},
+                   accessibility_inputs={'renamed-input': ('parent-custom-trace-focus', 6, 'custom-save')},
+                   keyboard_inputs={'renamed-input': (5, 6)}, settings_checks={}, advance_after={},
+                   phases={'ready': 'setup', 'setup-detached': 'setup', 'renamed-input': 'step-1'})
+    journey = InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+    journey.publish_trace_input('renamed-input', 'a' * 32, 'b' * 64)
+    with pytest.raises(EvidenceError, match='replay'):
+        journey.publish_trace_input('renamed-input', 'a' * 32, 'b' * 64)
+    with pytest.raises(EvidenceError, match='incomplete'):
+        journey.verify_trace_input('renamed-input', 'a' * 32)
+    (tmp_path / 'renamed-input.input-done.json').write_text(json.dumps(
+        {'stage': 'renamed-input', 'token': 'a' * 32}))
+    journey.verify_trace_input('renamed-input', 'a' * 32)
+    with pytest.raises(EvidenceError, match='incomplete'):
+        journey.verify_trace_input('renamed-input', 'c' * 32)
+
+
+def test_custom_trace_selector_and_mode_refusal(monkeypatch):
+    import check_e2e_custom_save_trace as selector
+    run = Mock(return_value=0)
+    monkeypatch.setattr(selector, 'smoke', run)
+    assert selector.main() == 0
+    assert run.call_args.kwargs['custom_save_trace'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(custom_save_trace=True, parent_save_trace=True)
+
+
+@pytest.mark.parametrize('fault', ['', 'editor', 'allowance'])
+def test_custom_event_collector_preserves_live_editor_and_source(monkeypatch, capsys, fault):
+    from contextlib import contextmanager
+    controls = {name: SimpleNamespace(bus=':1.20', path='/' + name)
+                for name in ('toggle', 'child', 'allowance', 'editor')}
+    sequence = [('child', False), ('toggle', False), ('child', True), ('toggle', True)]
+    if fault: sequence.insert(2, (fault, False))
+    @contextmanager
+    def events(endpoints, receive):
+        assert len(endpoints) == 5
+        assert endpoints[(':1.20', '/editor', 'sensitive')] == 'editor'
+        def iteration(_blocking):
+            assert 'accessibility-trace-ready' in capsys.readouterr().out
+            for name, value in sequence:
+                receive(name, 'sensitive', value, None)
+        yield SimpleNamespace(pending=lambda: False, iteration=iteration)
+    ui = SimpleNamespace(
+        trace_request='a' * 32, trace_boot='b' * 64,
+        api=SimpleNamespace(StateType=SimpleNamespace(CHECKED=1, SENSITIVE=2), state_events=events),
+        parent_save_snapshot=Mock(), parent_save_trace_source=Mock(return_value=('c' * 64, controls)),
+        text_recipient=Mock(), has_state=lambda node, state: True,
+        invalidate_observation=Mock(), read_custom_trace_draft=Mock())
+    if fault:
+        with pytest.raises(accessible_ui.UiError, match='custom-trace-controls'):
+            accessible_ui.AccessibleUI.parent_save_events(ui, True)
+    else:
+        result = accessible_ui.AccessibleUI.parent_save_events(ui, True)
+        assert len(result['samples']) == 4 and result['terminal'] is True
+        ui.parent_save_snapshot.assert_called_with(accessible_ui.CHILD, True)
+        ui.parent_save_trace_source.assert_called_with(True)
+
+
+@pytest.mark.parametrize('disabled', [None, 'allowance', 'editor'])
+def test_custom_trace_draft_allows_inhibited_child_selector(disabled):
+    states = SimpleNamespace(ACTIVE='active', VISIBLE='visible', SENSITIVE='sensitive',
+                             DEFUNCT='defunct', EDITABLE='editable')
+    nodes = {name: SimpleNamespace(get_role_name=lambda: 'entry',
+                                   get_text_iface=lambda: 'text')
+             for name in ('root', 'child', 'allowance', 'editor')}
+    identities = {'parent-child-selector': 'child',
+                  'parent-daily-limit-selector': 'allowance',
+                  'parent-custom-daily-limit': 'editor'}
+    def state(node, field):
+        name = next(name for name, candidate in nodes.items() if candidate is node)
+        return field in {'active' if name == 'root' else 'visible', 'editable'} or (
+            field == 'sensitive' and name not in ('child', disabled))
+    ui = SimpleNamespace(
+        api=SimpleNamespace(StateType=states, Text=SimpleNamespace(
+            get_character_count=lambda value: 1,
+            get_text=lambda value, start, end: '6')),
+        parent=lambda: nodes['root'],
+        id_target=lambda identity, **kwargs: nodes[identities[identity]],
+        child_id_control=lambda *args, **kwargs: nodes['child'],
+        has_state=state)
+    if disabled:
+        with pytest.raises(accessible_ui.UiError, match='ui:custom-trace-controls'):
+            accessible_ui.AccessibleUI.read_custom_trace_draft(ui)
+    else:
+        accessible_ui.AccessibleUI.read_custom_trace_draft(ui)
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-stage', 'wrong-token', 'uncertain'])
+def test_actual_exchange_releases_only_one_validated_keyboard_batch(tmp_path, fault):
+    from tests.support.perl import run_perl
+    from tests.support.paths import ROOT
+    source = (ROOT / 'tests/integration/graphical_smoke/tests/smoke.pm').read_text()
+    exchange = source[source.index('sub exchange {'):source.index('\nsub capture {')]
+    proof = {'stage': 'other' if fault == 'wrong-stage' else 'renamed',
+             'token': 'invalid' if fault == 'wrong-token' else 'a' * 32,
+             'source': 'b' * 64, 'binding': 'custom-rapid', 'values': [5, 6]}
+    (tmp_path / 'renamed.input.json').write_text(json.dumps(proof))
+    result = json.loads(run_perl('use strict; use warnings; use JSON::PP; use Time::HiRes qw(time sleep);\n' + exchange + r'''
+my ($directory, $fault) = @ARGV; chdir($directory) or die 'chdir';
+my $count = 0;
+my $ok = eval { exchange('renamed', undef, sub {
+    $count++; die 'uncertain' if $fault eq 'uncertain';
+    open(my $reply, '>', 'renamed.reply.json') or die 'reply';
+    print {$reply} encode_json({observed => 'renamed'}); close($reply);
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, count => $count});
+''', str(tmp_path), fault).stdout)
+    assert result == {'ok': int(not fault), 'count': int(fault not in ('wrong-stage', 'wrong-token'))}
+    assert (tmp_path / 'renamed.input-done.json').exists() is (not fault)
+
+
+@pytest.mark.parametrize('fault', ['', 'final-only', 'nonoverlap', 'no-recovery',
+                                  'wrong-control', 'no-checked'])
+def test_parent_save_trace_requires_event_derived_inhibition_and_recovery(fault):
+    from ui_observations import save_trace_complete
+    sequence = [('toggle', 'checked', True), ('allowance', 'sensitive', True),
+                ('child', 'sensitive', False), ('toggle', 'sensitive', False),
+                ('allowance', 'sensitive', False), ('child', 'sensitive', True),
+                ('toggle', 'sensitive', True), ('allowance', 'sensitive', True)]
+    if fault == 'final-only': sequence = sequence[:2] + sequence[-3:]
+    if fault == 'nonoverlap': sequence.insert(3, ('child', 'sensitive', True))
+    if fault == 'no-recovery': sequence.pop(-2)
+    if fault == 'wrong-control': sequence[3] = ('allowance', 'sensitive', False)
+    if fault == 'no-checked': sequence.pop(0)
+    samples = [{'elapsed_ms': index, 'target': target, 'state': state, 'value': value}
+               for index, (target, state, value) in enumerate(sequence)]
+    assert save_trace_complete(samples) is (not fault)
+
+
+def test_parent_save_trace_plan_and_controller_keep_readiness_before_one_input():
+    from parent_save_trace import PLAN as SAVE_PLAN
+    from ui_observations import UiObservations
+    assert SAVE_PLAN.accessibility_inputs['first-observed-enable'] == (
+        'parent-toggle-enabled', True, 'save')
+    operations, retained = [], []
+    transport = SimpleNamespace(commands=SimpleNamespace(progress=None))
+    reader = UiObservations(transport)
+    reader.boot_guard = 'b' * 64
+    reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
+    samples = [{'elapsed_ms': index, 'target': target, 'state': state, 'value': value}
+               for index, (target, state, value) in enumerate((
+                   ('toggle', 'checked', True), ('allowance', 'sensitive', True),
+                   ('child', 'sensitive', False), ('toggle', 'sensitive', False),
+                   ('allowance', 'sensitive', False), ('child', 'sensitive', True),
+                   ('toggle', 'sensitive', True), ('allowance', 'sensitive', True)))]
+
+    def call(argv, *, input, timeout, on_output=None):
+        operation = argv[3]
+        operations.append(operation)
+        if operation == 'parent-save-events':
+            token = argv[-1]
+            on_output((json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                                   'source': 'c' * 64, 'boot_sha256': 'b' * 64,
+                                   'checked': False}) + '\n').encode())
+            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                     'boot_sha256': 'b' * 64, 'trace': {'token': token, 'source': 'c' * 64,
+                                                     'terminal': True, 'samples': samples}}
+        else:
+            assert operation == 'parent-toggle-enabled'
+            assert retained[0][0] == 0 and argv[-1] == 'save:' + 'c' * 64
+            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                     'boot_sha256': 'b' * 64,
+                     'toggle': {'state': True, 'activated': True}}
+        on_output((json.dumps(reply) + '\n').encode())
+        return b''
+
+    transport.call = call
+    result = reader.observe_accessibility_input('parent-toggle-enabled', True, 'save')
+    assert result['operation'] == 'parent-save-trace'
+    assert result['samples'] == samples
+    assert operations == ['parent-save-events', 'parent-toggle-enabled']
+    assert len(retained) == len(samples) + 1
+
+
+@pytest.mark.parametrize('fault', ['', 'no-ready', 'duplicate', 'foreign', 'boot',
+                                  'storage', 'input', 'observer', 'cancel', 'oversize', 'order'])
+def test_accessibility_trace_stream_brackets_one_input_and_latches(monkeypatch, fault):
+    from ui_observations import UiObservations
+    operations, retained = [], []
+    transport = SimpleNamespace(commands=SimpleNamespace(progress=None))
+    reader = UiObservations(transport)
+    reader.boot_guard = 'b' * 64
+
+    def call(argv, *, input, timeout, on_output=None):
+        operation = argv[3]
+        operations.append(operation)
+        if operation == 'parent-toggle-enabled':
+            assert retained and argv[-1] == 'c' * 64
+            if fault == 'input':
+                raise OSError('uncertain action')
+            reply = json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                               'boot_sha256': 'b' * 64,
+                               'toggle': {'state': True, 'activated': True}}).encode()
+            assert on_output is not None  # The nested call must own its parser.
+            on_output(reply + b'\n')
+            return reply
+        assert operation == 'parent-checked-events'
+        token = argv[-1]
+        ready = {'event': 'accessibility-trace-ready', 'token': token, 'source': 'c' * 64,
+                 'boot_sha256': 'b' * 64, 'checked': False}
+        if fault == 'foreign': ready['token'] = 'd' * 32
+        if fault == 'boot': ready['boot_sha256'] = 'd' * 64
+        if fault != 'no-ready':
+            encoded = json.dumps(ready).encode() + b'\n'
+            on_output(encoded[:17])
+            on_output(encoded[17:])
+        if fault == 'duplicate': on_output(encoded)
+        if fault == 'observer': raise OSError('observer lost')
+        if fault == 'cancel': raise KeyboardInterrupt()
+        samples = [{'elapsed_ms': i, 'checked': True, 'source': 'event'} for i in range(32)]
+        if fault == 'order': samples[-1]['elapsed_ms'] = 0
+        if fault == 'oversize': samples.append(samples[-1])
+        reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                 'boot_sha256': 'b' * 64, 'trace': {'token': token, 'source': 'c' * 64,
+                     'terminal': True, 'samples': samples}}
+        on_output(json.dumps(reply).encode() + b'\n')
+        return b''
+
+    transport.call = call
+    def retain(token, index, sample):
+        if fault == 'storage': raise OSError('durable readiness failed')
+        retained.append((token, index, sample))
+    reader.trace_sink = retain
+    if fault:
+        with pytest.raises((EvidenceError, OSError, KeyboardInterrupt)):
+            reader.observe_accessibility_input('parent-toggle-enabled', True)
+        assert reader.trace_failed and reader.accessibility_trace is None
+        with pytest.raises(EvidenceError):
+            reader.observe_accessibility_input('parent-toggle-enabled', True)
+        with pytest.raises(EvidenceError):
+            reader.observe('parent-toggle-enabled')
+        assert operations.count('parent-toggle-enabled') == (
+            0 if fault in ('no-ready', 'foreign', 'boot', 'storage') else 1)
+    else:
+        result = reader.observe_accessibility_input('parent-toggle-enabled', True)
+        assert result['operation'] == 'accessibility-input-trace'
+        assert len(result['samples']) == 32 and len(retained) == 33
+        assert operations == ['parent-checked-events', 'parent-toggle-enabled']
+    assert transport.commands.progress is None
+
+
+@pytest.mark.parametrize('worker', ['accessibility', 'save'])
+@pytest.mark.parametrize('fault', ['', 'first-disabled', 'first-wrong-child', 'first-wrong-surface',
+                                  'first-observed-enable', 'first-independent-saved',
+                                  'restore-disabled', 'second-observed-enable'])
+def test_accessibility_trace_worker_stops_at_failed_boundary(worker, fault):
+    from tests.support.perl import run_perl
+    from accessibility_input_trace import PLAN as checked_plan
+    from parent_save_trace import PLAN as save_plan
+    plan = save_plan if worker == 'save' else checked_plan
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@stages); our ($worker, $fault) = @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi; sub record_info { }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @stages, 'finish'; };
+my $operation = $worker eq 'save' ? \&onpc_feedback_states::run_parent_save_trace
+                               : \&onpc_feedback_states::run_accessibility_trace;
+my $ok = eval { $operation->(sub {
+    push @stages, $_[0]; die 'failed proof' if $_[0] eq $fault;
+    return {observed => $_[0]};
+}); 1; };
+print encode_json({ok => $ok ? 1 : 0, stages => \@stages});
+''', worker, fault).stdout)
+    stages = list(plan.screen_tags)
+    stages = stages[stages.index('parent-selected'):] + ['finish']
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+
+
+def test_accessibility_trace_selector_and_explicit_plan(monkeypatch):
+    from dataclasses import replace
+    from accessibility_input_trace import PLAN as plan
+    import check_e2e_accessibility_input_trace as check_trace
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_trace, 'smoke', run)
+    assert check_trace.main() == 0
+    assert run.call_args.kwargs['accessibility_input_trace'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(accessibility_input_trace=True, trace_transition=True)
+    with pytest.raises(EvidenceError, match='accessibility-input-plan'):
+        replace(plan, accessibility_inputs={})
+    with pytest.raises(EvidenceError, match='accessibility-input-plan'):
+        replace(plan, accessibility_inputs={s: ('parent-toggle-disabled', False)
+                                            for s in plan.accessibility_inputs})
+
+
+def test_parent_save_trace_selector_and_explicit_plan(monkeypatch):
+    from dataclasses import replace
+    from parent_save_trace import PLAN
+    import check_e2e_parent_save_trace as check_trace
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_trace, 'smoke', run)
+    assert check_trace.main() == 0
+    assert run.call_args.kwargs['parent_save_trace'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(parent_save_trace=True, accessibility_input_trace=True)
+    with pytest.raises(EvidenceError, match='accessibility-input-plan'):
+        replace(PLAN, accessibility_inputs={})
+
+
+@pytest.mark.parametrize('body,draft', [('', 'initial-empty'), ('S', 'trace-prefix'),
+    ('Synthetic feedback first', 'states-no-reply'), ('Synthetic feedback first\n', 'states-no-reply')])
+def test_transition_sample_reads_public_prefix_and_terminal_controls(body, draft):
+    ui, _, _, controls = feedback_ui()
+    controls['feedback-editor-input'].text.count = len(body)
+    ui.api.Text.get_text = lambda text, first, last: body[first:last]
+    assert ui.feedback_state_operation('feedback-trace-sample') == {
+        'draft': draft, 'attachments': ['diagnostic-logs.zip'], 'collection': 'ready',
+        'validation': 'none', 'controls': 'ready', 'send_enabled': True}
+
+
+@pytest.mark.parametrize('body', ['private', 'Synthetic feedback firstX', 'S\n\n'])
+def test_transition_sample_refuses_undeclared_text(body):
+    ui, _, _, controls = feedback_ui()
+    controls['feedback-editor-input'].text.count = len(body)
+    ui.api.Text.get_text = lambda text, first, last: body[first:last]
+    with pytest.raises(accessible_ui.UiError, match='feedback-nonempty-draft'):
+        ui.feedback_state_operation('feedback-trace-sample')
+
+
+@pytest.mark.parametrize('fault', ['', 'token', 'stale', 'boot', 'order', 'controls',
+                                  'terminal', 'unobserved', 'storage', 'wrong-input'])
+@pytest.mark.parametrize('binding', ['body-first', 'body-clear'])
+def test_transition_trace_decodes_pumped_samples_and_latches(monkeypatch, fault, binding):
+    reader, reply, clock = trace_reader(monkeypatch)
+    retained = []
+    reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
+    if binding == 'body-clear':
+        reply['operation'] = 'feedback-state-no-reply'
+        reply['feedback_state']['draft'] = 'states-no-reply'
+        reader.call.return_value = (json.dumps(reply).encode(), [])
+    ready = reader.start_trace(binding)
+    from ui_observations import FeedbackStateObservation
+    terminal = (FeedbackStateObservation('initial-empty', 'none', True)
+                if binding == 'body-clear' else None)
+    original = reader._observe
+    # Input mechanics have separate actual-worker and adapter checks below;
+    # samples still cross the real controller's bounded JSON decoder.
+    reader._observe = lambda op: original(op) if op == 'feedback-trace-sample' else {}
+    reader.observe('text-' + binding + '-focus')
+    reader.observe('text-' + binding + '-selected')
+    reply['operation'] = 'feedback-trace-sample'
+    reply['feedback_state']['draft'] = 'trace-prefix'
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    if fault != 'unobserved':
+        reader.poll_trace()
+    reader.observe('text-' + binding + '-read')
+    reply['feedback_state']['draft'] = 'initial-empty' if binding == 'body-clear' else 'states-no-reply'
+    if fault == 'boot':
+        reply['boot_sha256'] = 'c' * 64
+    if fault == 'controls':
+        reply['feedback_state']['send_enabled'] = False
+    if fault == 'terminal':
+        reply['feedback_state']['draft'] = 'trace-prefix'
+    if fault in ('stale', 'order'):
+        clock.side_effect = None
+        clock.return_value = 61 if fault == 'stale' else 0
+    if fault == 'storage':
+        reader.trace_sink = Mock(side_effect=OSError('owned sample write failed'))
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    if fault:
+        with pytest.raises((EvidenceError, OSError)):
+            if fault == 'wrong-input':
+                reader.observe('feedback-close')
+            else:
+                reader.finish_trace('foreign' if fault == 'token' else ready['token'], terminal)
+        assert reader.trace_failed and reader.trace is None
+        with pytest.raises(EvidenceError, match='trace-previous-failure'):
+            reader.start_trace('body-first')
+    else:
+        result = reader.finish_trace(ready['token'], terminal)
+        assert result['terminal'] == binding + '-ready'
+        assert [s['state']['draft'] for s in result['samples']] == [
+            'states-no-reply' if binding == 'body-clear' else 'initial-empty',
+            'trace-prefix', 'initial-empty' if binding == 'body-clear' else 'states-no-reply']
+        assert [index for index, _ in retained] == [0, 1, 2]
+        with pytest.raises(EvidenceError, match='trace-token'):
+            reader.finish_trace(ready['token'])
+
+
+def test_transition_pump_runs_without_worker_checkpoint_and_storage_is_immutable(tmp_path):
+    from installed_journey import InstalledJourney
+    from trace_transition import PLAN as plan
+    context = SimpleNamespace(directory=tmp_path)
+    journey = InstalledJourney(context, Mock(), plan)
+    journey.trace_token = 'a' * 32
+    journey.ui = SimpleNamespace(poll_trace=Mock())
+    guard = Mock()
+    journey.step(guard)
+    journey.ui.poll_trace.assert_called_once_with()
+    journey.retain_trace_sample('a' * 32, 0, {'state': 'public'})
+    with pytest.raises(FileExistsError):
+        journey.retain_trace_sample('a' * 32, 0, {'state': 'replacement'})
+    assert json.loads((tmp_path / ('trace-' + 'a' * 32 + '-000.json')).read_text()) == {'state': 'public'}
+    journey.ui.poll_trace.side_effect = EvidenceError('ui:trace-terminal')
+    with pytest.raises(EvidenceError, match='trace-terminal'):
+        journey.step(guard)
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        journey.step(guard)
+
+
+def test_transition_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_trace
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_trace, 'smoke', run)
+    assert check_e2e_trace.main() == 0
+    assert run.call_args.kwargs['trace_transition'] is True
+    assert run.call_args.kwargs['provision_credentials'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(trace_transition=True, trace_stable_state=True)
+
+
+@pytest.mark.parametrize('fault', ['binding', 'input', 'missing', 'nested', 'action'])
+def test_transition_plan_refuses_unbound_or_unsafe_compositions(fault):
+    from dataclasses import replace
+    from trace_transition import PLAN as plan
+    tags = dict(plan.screen_tags)
+    bindings = dict(plan.trace_bindings)
+    actions = {}
+    if fault == 'binding':
+        bindings['trace-first-start'] = 'reply-first'
+    elif fault == 'missing':
+        del tags['first-selected']
+    elif fault == 'input':
+        tags['first-selected'] = 'ui:feedback-close'
+    elif fault == 'nested':
+        tags['first-selected'] = 'ui:feedback-trace-start'
+    else:
+        actions['first-selected'] = 'extra-input'
+    with pytest.raises(EvidenceError, match='trace-plan'):
+        replace(plan, screen_tags=tags, trace_bindings=bindings, stage_actions=actions)
+
+
+@pytest.mark.parametrize('fault', ['', 'trace-first-start', 'first-selected', 'first-read',
+                                  'trace-first-finish', 'trace-wrong-entry', 'trace-second-start'])
+@pytest.mark.parametrize('composition', [False, True])
+def test_transition_worker_composes_text_and_stops_before_followup_input(fault, composition):
+    from tests.support.perl import run_perl
+    from trace_transition import PLAN as plan
+    if composition:
+        from compose_observation import PLAN as plan
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages);
+our $fault = shift @ARGV;
+our $run = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, 'key:' . $_[0]; }
+sub type_string { push @main::events, 'type:' . $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    my $call = onpc_feedback_states->can($run);
+    $call->(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0], ui_focused => JSON::PP::true};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault, 'run_composition' if composition else 'run_transition').stdout)
+    stages = list(plan.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+    if not fault:
+        assert result['events'].count('type:Synthetic feedback first') == 2
+        if composition:
+            assert result['events'].count('key:backspace') == 2
+
+
+def test_clear_trace_refuses_empty_entry_and_blocks_input(monkeypatch):
+    reader, _, _ = trace_reader(monkeypatch)
+    with pytest.raises(EvidenceError):
+        reader.start_trace('body-clear')
+    with pytest.raises(EvidenceError, match='trace-intervening-operation'):
+        reader.observe('text-body-clear-focus')
+    assert reader.trace_failed
+
+
+def test_composition_selector_uses_guarded_envelope(monkeypatch):
+    import check_e2e_compose_observation_around_one_caller_input as check
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['compose_observation'] is True
+
+
+@pytest.mark.parametrize('uncertain', [False, True])
+def test_observed_text_independent_caller_never_replays_uncertain_input(uncertain):
+    from tests.support.perl import run_perl
+    from journey_blocks import observed_text
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages);
+our $uncertain = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key {
+    push @main::events, $_[0];
+    die 'uncertain input' if $main::uncertain && $_[0] eq 'backspace';
+}
+package main;
+require onpc_feedback_states;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @stages, $_[0];
+    return {observed => $_[0], ui_focused => JSON::PP::true};
+});
+my $ok = eval { onpc_feedback_states::observed_text($journey, 'renamed', 'body-clear'); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', '1' if uncertain else '0').stdout)
+    expected = list(observed_text('renamed', 'body-clear'))
+    assert result['stages'] == (expected[:3] if uncertain else expected)
+    assert result['events'] == ['ctrl-a', 'backspace']
+    assert bool(result['ok']) is (not uncertain)
+
+
+def trace_reader(monkeypatch):
+    import ui_observations
+    ui, _, _, _ = feedback_ui()
+    value = ui.feedback_snapshot(states=True)
+    reply = {'operation': 'feedback-state-empty', 'outcome': 'passed', 'interface': 'AT-SPI',
+             'feedback_state': value, 'boot_sha256': 'b' * 64}
+    reader = ui_observations.UiObservations(Mock())
+    reader.boot_guard = 'b' * 64
+    reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
+    clock = Mock(side_effect=range(100))
+    monkeypatch.setattr(reader, '_trace_clock', clock)
+    return reader, reply, clock
+
+
+def test_stable_trace_decodes_samples_and_consumes_explicit_token(monkeypatch):
+    reader, reply, _ = trace_reader(monkeypatch)
+    ready = reader.start_trace()
+    assert ready['ready'] is True and len(ready['token']) == 32
+    assert reader.call.call_count == 1
+    result = reader.finish_trace(ready['token'])
+    assert result['terminal'] == 'three-unchanged-samples'
+    assert [sample['state'] for sample in result['samples']] == [reply['feedback_state']] * 3
+    assert [sample['elapsed_ms'] for sample in result['samples']] == [1000, 3000, 5000]
+    assert reader.trace is None and reader.call.call_count == 3
+    with pytest.raises(EvidenceError, match='trace-token'):
+        reader.finish_trace(ready['token'])
+    assert reader.call.call_count == 3
+
+
+@pytest.mark.parametrize('fault', ['duplicate', 'missing', 'foreign', 'stale', 'input',
+                                  'changed', 'boot', 'malformed', 'wrong-entry'])
+def test_stable_trace_refuses_and_latches_without_replay(monkeypatch, fault):
+    reader, reply, clock = trace_reader(monkeypatch)
+    if fault == 'wrong-entry':
+        reader.call.side_effect = accessible_ui.UiError('ui:feedback-entry')
+        with pytest.raises(accessible_ui.UiError, match='feedback-entry'):
+            reader.start_trace()
+    elif fault == 'missing':
+        with pytest.raises(EvidenceError, match='trace-token'):
+            reader.finish_trace(None)
+    else:
+        ready = reader.start_trace()
+        if fault == 'stale':
+            clock.side_effect = None
+            clock.return_value = 61
+        if fault == 'changed':
+            reply['feedback_state']['send_enabled'] = False
+        if fault == 'boot':
+            reply['boot_sha256'] = 'c' * 64
+        if fault == 'malformed':
+            reply['feedback_state']['private'] = 'must refuse'
+        reader.call.return_value = (json.dumps(reply).encode(), [])
+        with pytest.raises(EvidenceError):
+            if fault == 'duplicate':
+                reader.start_trace()
+            elif fault == 'input':
+                reader.observe('feedback-close')
+            else:
+                reader.finish_trace('foreign' if fault == 'foreign' else ready['token'])
+    calls = reader.call.call_count
+    assert reader.trace_failed and reader.trace is None
+    with pytest.raises(EvidenceError, match='trace-previous-failure'):
+        reader.start_trace()
+    assert reader.call.call_count == calls
+
+
+def test_trace_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_trace_stable_state as check_trace
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_trace, 'smoke', run)
+    assert check_trace.main() == 0
+    assert run.call_args.kwargs['trace_stable_state'] is True
+    assert run.call_args.kwargs['provision_credentials'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(trace_stable_state=True, feedback_states=True)
+
+
+def test_stable_trace_new_entry_cannot_consume_prior_token(monkeypatch):
+    reader, _, _ = trace_reader(monkeypatch)
+    old = reader.start_trace()['token']
+    reader.finish_trace(old)
+    new = reader.start_trace()['token']
+    assert new != old
+    with pytest.raises(EvidenceError, match='trace-token'):
+        reader.finish_trace(old)
+    assert reader.call.call_count == 4
+
+
+@pytest.mark.parametrize('tags,actions', [
+    ({'start': 'ui:feedback-trace-start'}, {}),
+    ({'end': 'ui:feedback-trace-finish'}, {}),
+    ({'start': 'ui:feedback-trace-start', 'input': 'ui:feedback-close',
+      'end': 'ui:feedback-trace-finish'}, {}),
+    ({'start': 'ui:feedback-trace-start', 'end': 'ui:feedback-trace-finish'}, {'start': 'input'}),
+])
+def test_stable_trace_plan_refuses_missing_pairs_and_intervening_input(tags, actions):
+    from installed_journey import JourneyPlan
+    with pytest.raises(EvidenceError, match='trace-plan'):
+        JourneyPlan(prefix='test', worker_mode='trace', screen_tags=tags,
+                    phases={}, stage_actions=actions)
+
+
+@pytest.mark.parametrize('fault', ['', 'trace-first-start', 'trace-first-finish',
+                                  'feedback-state-wrong-entry', 'trace-second-start'])
+def test_trace_worker_uses_shared_sequence_and_stops_on_refusal(fault):
+    from tests.support.perl import run_perl
+    from trace_stable_state import PLAN as trace_plan
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages);
+our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { die 'unexpected input'; }
+sub type_string { die 'unexpected input'; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_states::run_trace(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0]};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = list(trace_plan.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
 
 
 @pytest.mark.parametrize('fault', ['', 'text-body-first-selected', 'format-home',
@@ -1489,6 +2262,54 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     if fault:
         expected = expected[:expected.index(prefix + '-' + fault) + 1]
     assert result == {'ok': int(not fault), 'events': expected}
+
+
+@pytest.mark.parametrize('fragment', ['chooser_preservation', 'attachment_removal'])
+@pytest.mark.parametrize('prefix', ['', 'independent-'])
+def test_attachment_fragments_share_protocol_and_stop_at_every_refusal(fragment, prefix):
+    import attachment_composition
+    from tests.support.perl import run_perl
+    declaration = getattr(attachment_composition, fragment)
+    stages = declaration(prefix)
+    assert list(stages.values()) == list(declaration().values())
+    changed = declaration(prefix)
+    changed.clear()
+    assert declaration(prefix) == stages
+    for invalid in ('bad prefix', 'missing-dash', None):
+        with pytest.raises(EvidenceError):
+            declaration(invalid)
+    script = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { die 'unexpected input'; }
+package main;
+require onpc_feedback_read;
+my ($fragment, $prefix, $fault, @stages) = @ARGV;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, $_[0];
+    die 'proof refused' if $_[0] eq $fault;
+    return {observed => $_[0]};
+});
+$journey->declare_invocations(\@stages) if length $prefix;
+my $ok = eval {
+    if ($fragment eq 'chooser_preservation') {
+        onpc_feedback_read::chooser_preservation($journey, $prefix);
+    } else { onpc_feedback_read::attachment_removal($journey, $prefix); }
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+    for fault in ('', *stages):
+        result = json.loads(run_perl(script, fragment, prefix, fault, *stages).stdout)
+        expected = list(stages)
+        if fault:
+            expected = expected[:expected.index(fault) + 1]
+        assert result == {'ok': int(not fault), 'events': expected}
+    result = json.loads(run_perl(script, fragment, 'bad prefix', '', *stages).stdout)
+    assert result == {'ok': 0, 'events': []}
 
 
 @pytest.mark.parametrize('fault', sorted(

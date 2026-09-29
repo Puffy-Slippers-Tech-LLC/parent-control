@@ -34,7 +34,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Copy the declared executable on the VM through FILE05; under publicly saved Hard and Soft rules require original/copy denial while N remains usable. Qualify independently prepared owned source/destination fixtures and wrong-path/owner/destination refusal before mutation.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

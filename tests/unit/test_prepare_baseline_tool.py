@@ -67,7 +67,8 @@ def test_failed_baseline_does_not_refresh_test_tools(authorized, monkeypatch, ca
     assert authorized['main'](['--mode', 'manual']) == 1
     run.assert_called_once()
     assert run.call_args.args[0] == [
-        '/usr/bin/pkexec', authorized['HELPER'], 'prepare-baseline', '--mode', 'manual']
+        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', 'manual']
+    assert run.call_args.kwargs['cwd'] == ROOT
     assert run.call_args.kwargs['env']['PATH'] == '/usr/sbin:/usr/bin:/sbin:/bin'
     output = capsys.readouterr()
     assert output.out == output.err == ''
@@ -80,7 +81,7 @@ def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode)
     assert authorized['main'](['--mode', mode]) == 0
     assert run.call_count == 2
     assert run.call_args_list[0].args[0] == [
-        '/usr/bin/pkexec', authorized['HELPER'], 'prepare-baseline', '--mode', mode]
+        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', mode]
     assert run.call_args_list[1].args[0] == [str(ROOT / 'setup.sh'), '--test-tools-only']
     assert run.call_args_list[1].kwargs['cwd'] == ROOT
 

@@ -34,7 +34,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Capture child activity with positive daily time, lock normally and unlock correctly. Independently compare the same usable activity. Qualify separate valid retained-lock entry and refuse GDM proofs or wrong recipients.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

@@ -77,11 +77,11 @@ def test_id_is_independent_of_order_and_unnamed_containers():
 
 
 def test_spectator_ids_are_scoped_to_the_owned_window_and_application():
-    assert owned_surface_id("e2e-watch-progress") == "e2e-watch-window"
-    assert owned_surface_id("e2e-watch-window") is None
+    assert owned_surface_id("e2e-watch-progress") == "watch-window"
+    assert owned_surface_id("watch-window") is None
     assert owned_applications("e2e-watch-close") == (WATCH_APPLICATION,)
     progress = Node("e2e-watch-progress")
-    window = Node("e2e-watch-window", [progress])
+    window = Node("watch-window", [progress])
     ui = adapter(window)
     ui.application_ids = lambda: {WATCH_APPLICATION}
     ui.application_owners = lambda: {WATCH_APPLICATION: {100}}
@@ -337,7 +337,7 @@ def test_owned_gtk_surfaces_share_the_core_identity_publisher(monkeypatch):
         with pytest.raises(ValueError, match="lowercase hyphenated"):
             gtk_automation.set_automation_id(widget, invalid)
 
-    viewer = (ROOT / "tools/e2e_watch_viewer.py").read_text()
+    viewer = (ROOT / "tools/watch_viewer.py").read_text()
     fixture = (ROOT / "tests/fixtures/gui_application.py").read_text()
     assert "def set_automation_id" not in viewer
     assert "def identify" not in fixture
@@ -349,7 +349,7 @@ def test_owned_gtk_surfaces_share_the_core_identity_publisher(monkeypatch):
 
 def test_owned_control_inventory_supports_product_spectator_and_fixture_namespaces():
     for surface_identity in (
-        "parent-window", "e2e-watch-window", "onpc-fixture-native-primary",
+        "parent-window", "watch-window", "onpc-fixture-native-primary",
     ):
         control = Node(surface_identity + "-submit")
         control.get_role_name = lambda: "button"
@@ -361,9 +361,9 @@ def test_owned_control_inventory_supports_product_spectator_and_fixture_namespac
 
     missing = Node("")
     missing.get_role_name = lambda: "button"
-    root = Node("e2e-watch-window", [missing])
+    root = Node("watch-window", [missing])
     with pytest.raises(AssertionError, match="owned controls without public IDs"):
-        audit_owned_controls(adapter(root), "e2e-watch-window")
+        audit_owned_controls(adapter(root), "watch-window")
 
 
 def test_toolkit_title_buttons_require_an_identified_window_controls_owner():

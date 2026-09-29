@@ -19,7 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **016b — [Start and collect a trace of an unchanged public state](E2E-Tasks/016b-trace-stable-state.md)**.
+Next task: **201 — [E2E-035: save-order](E2E-Tasks/201-case-159.md)**.
+
+Task 017b qualified the reusable rapid custom-edit route in
+`20260929T030021Z-d7980dce`. The affected toggle-saving regression passed in
+`20260929T030347Z-821a11a0`. Case 159 remains pending for Task 201's complete
+journey and acceptance.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -186,7 +191,7 @@ Before implementation, read the
 [capability](E2E-Execution-Contracts.md#capability-acceptance),
 [scenario](E2E-Execution-Contracts.md#scenario-acceptance) or
 [system](E2E-Execution-Contracts.md#system-acceptance) acceptance branch.
-They retain snapshot preparation, watchvm, isolated safety gates, affected
+They retain snapshot preparation, watch, isolated safety gates, affected
 regressions, public-result observation, collection and cleanup requirements.
 Host checks cannot complete live work. Task 192 remains the sole host-only
 exception; no new exception is introduced by scoped reading.

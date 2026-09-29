@@ -172,9 +172,10 @@ Read the [VM mandate](docs/Mandates/VM-Mandate.MD) only when doing VM operations
 - Quote test patterns and parametrized IDs. New privileged integration checks are
   argument-free `tests/integration/check_[a-z][a-z0-9_]*.py` files with applicable
   cleanup-safety coverage.
-- Signal only explicitly spawned, identity-recorded processes. Before a
-  host-integrated test terminates processes, pass its cleanup-safety regressions
-  in isolation.
+- Signal only explicitly spawned, identity-recorded processes. Cleanup is a
+  lightweight serial ownership/recovery operation before parallel scheduling;
+  never launch regression tests as cleanup prerequisites. Validate changed
+  cleanup implementations with scoped explicit regressions during development.
 - Use only the documented artifact readers/exporters. Export graphical PNGs with
   `onpc-export-screenshot` and clean only explicit caller-owned `/tmp/onpc-*.png`
   files through `tools/cleanup-screenshots`.

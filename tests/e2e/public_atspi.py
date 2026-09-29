@@ -95,6 +95,84 @@ class PublicAtspi:
             self._connection.close_sync(None)
             self._connection = None
 
+    @contextmanager
+    def checked_events(self, node, receive):
+        """Subscribe only to the pinned public object's checked-state signal.
+
+        The owning caller drives the private context while its separate input
+        command runs. No application callbacks or input run on this connection.
+        Registration and a bus round trip precede readiness; every exit removes
+        this connection's registration and match rule.
+        """
+        if node.api is not self:
+            raise ValueError('public-atspi:event-owner')
+        with self.state_events({(node.bus, node.path, 'checked'): 'toggle'},
+                               lambda _target, _state, value, error: receive(value, error)) as context:
+            yield context
+
+    @contextmanager
+    def state_events(self, endpoints, receive):
+        """Subscribe to a fixed set of owned public state transitions."""
+        from gi.repository import Gio, GLib
+        if (not endpoints or len(endpoints) > 5 or
+                any(not bus.startswith(':') or not path.startswith('/') or
+                    state not in ('checked', 'sensitive')
+                    for bus, path, state in endpoints) or
+                len({bus for bus, _path, _state in endpoints}) != 1):
+            raise ValueError('public-atspi:event-owner')
+        context = GLib.MainContext.new()
+        context.push_thread_default()
+        subscriptions = []
+        registered = []
+        try:
+            def signal(connection, sender, path, interface, member, parameters, *_user_data):
+                # Decode the documented (siiva{sv}) envelope, never arbitrary
+                # text or cached object properties. Exceptions must reach the
+                # owner rather than disappearing in a GLib callback.
+                try:
+                    if (interface != PREFIX + 'Event.Object' or member != 'StateChanged' or
+                            parameters.get_type_string() != '(siiva{sv})' or
+                            parameters.get_size() > 4096):
+                        raise ValueError('public-atspi:event-envelope')
+                    value = parameters.unpack()
+                    if ((sender, path, value[0]) not in endpoints or
+                            type(value[1]) is not int or
+                            value[1] not in (0, 1) or value[2] != 0):
+                        raise ValueError('public-atspi:event-state')
+                    receive(endpoints[(sender, path, value[0])], value[0], bool(value[1]), None)
+                except Exception as error:
+                    receive(None, None, None, error)
+
+            bus = next(iter(endpoints))[0]
+            for _bus, path, state in endpoints:
+                subscriptions.append(self._connection.signal_subscribe(
+                    bus, PREFIX + 'Event.Object', 'StateChanged', path,
+                    state, Gio.DBusSignalFlags.NONE, signal))
+            for state in sorted({key[2] for key in endpoints}):
+                self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
+                          PREFIX + 'Registry', 'RegisterEvent', 'sass',
+                          ('object:state-changed:' + state, [], bus))
+                registered.append(state)
+            self.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                      'org.freedesktop.DBus', 'GetId')
+            yield context
+        finally:
+            try:
+                cleanup_error = None
+                for state in reversed(registered):
+                    try:
+                        self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
+                                  PREFIX + 'Registry', 'DeregisterEvent', 'ss',
+                                  ('object:state-changed:' + state, bus))
+                    except Exception as error:
+                        cleanup_error = error
+                if cleanup_error is not None:
+                    raise cleanup_error
+            finally:
+                for subscription in reversed(subscriptions):
+                    self._connection.signal_unsubscribe(subscription)
+                context.pop_thread_default()
+
     def invalidate_snapshot(self):
         self._generation += 1
         self._records = None

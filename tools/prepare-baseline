@@ -38,7 +38,8 @@ def main(argv=None):
         read_password(ROOT)
         check(HELPER)
         status = subprocess.run(
-            ['/usr/bin/pkexec', HELPER, 'prepare-baseline', '--mode', args.mode],
+            ['/usr/bin/pkexec', '--keep-cwd', HELPER, 'prepare-baseline', '--mode', args.mode],
+            cwd=ROOT,
             env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
         ).returncode
         if status == 3:  # Operator declined; no baseline was prepared.

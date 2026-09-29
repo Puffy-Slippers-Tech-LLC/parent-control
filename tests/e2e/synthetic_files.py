@@ -83,6 +83,7 @@ def save_destination_actions():
         require(not hasattr(journey, 'save_files'), 'files:save-replay')
         guard()
         journey.save_files = SyntheticFiles(journey.transport, 'save')
+        journey.save_files.attempt = journey.transport.config['run']
         return journey.save_files.call('stage')
 
     def saved(journey, guard):
@@ -191,11 +192,55 @@ def qualify_source_change(journey, guard):
 
 
 def read_declared_zip(transport, receipt, *, attempt, user='onpc-parent-jamie',
-                      artifact='synthetic-archive'):
+                      artifact='synthetic-archive', owner=None):
     """Read the declared ZIP; return only exact names, sizes and digests."""
     require(type(attempt) is str and attempt and type(transport.config) is dict
             and transport.config.get('run') == attempt, 'zip:attempt')
-    require(user == 'onpc-parent-jamie' and artifact == 'synthetic-archive', 'zip:declaration')
+    require(user == 'onpc-parent-jamie' and artifact in ('synthetic-archive', 'diagnostic-export'),
+            'zip:declaration')
+    if artifact == 'diagnostic-export':
+        require(isinstance(owner, SyntheticFiles) and owner.transport is transport
+                and owner.profile == 'save' and not owner.failed
+                and owner.attempt == attempt and owner.previous == receipt
+                and 'saved' in owner.attempted and 'cleanup' not in owner.attempted
+                and 'inspect' not in owner.attempted,
+                'zip:save-owner')
+        require(type(receipt) is dict and set(receipt) == {
+            'directory', 'unwritable', 'baseline', 'created', 'files'}
+            and set(receipt['files']) == {'Selected diagnostics.zip'}, 'zip:receipt')
+        with operation('Inspecting the newly saved diagnostic ZIP'):
+            owner.attempted.add('inspect')
+            owner.failed = True
+            result = owner._command('open-zip', {'receipt': receipt, 'artifact': artifact})
+        require(type(result) is dict and set(result) == {'artifact', 'matched', 'members', 'checks'}
+                and result['artifact'] == artifact and result['matched'] is True, 'zip:comparison')
+        members, checks = result['members'], result['checks']
+        require(type(members) is dict and 5 <= len(members) <= 17
+                and {'system-info.json', 'broker/', 'child/', 'kiosk/', 'parent/'} <= set(members),
+                'zip:comparison')
+        import re
+        from datetime import date
+        for name, value in members.items():
+            if name not in ('system-info.json', 'broker/', 'child/', 'kiosk/', 'parent/'):
+                require(re.fullmatch(r'(broker|child|kiosk|parent)/\d{4}-\d{2}-\d{2}\.log', name),
+                        'zip:comparison')
+                require(date.fromisoformat(name.split('/')[1][:10]).isoformat()
+                        == name.split('/')[1][:10], 'zip:comparison')
+            require(type(value) is dict and set(value) == {'size', 'sha256'}
+                    and type(value['size']) is int and 0 <= value['size'] <= 16 * 1024 * 1024
+                    and type(value['sha256']) is str
+                    and re.fullmatch('[0-9a-f]{64}', value['sha256']), 'zip:comparison')
+            if name.endswith('/'):
+                require(value == {'size': 0, 'sha256': hashlib.sha256(b'').hexdigest()},
+                        'zip:comparison')
+        require(sum(value['size'] for value in members.values()) <= 16 * 1024 * 1024
+                and type(checks) is dict and set(checks) == {
+                    'inventory', 'headers', 'system', 'contents', 'records'}
+                and all(checks[key] is True for key in ('inventory', 'headers', 'system', 'contents'))
+                and type(checks['records']) is int and 0 <= checks['records'] <= 12000,
+                'zip:comparison')
+        owner.failed = False
+        return result
     require(type(receipt) is dict and set(receipt) == {'directory', 'files'}
             and type(receipt['files']) is dict
             and set(receipt['files']) == {'Synthetic archive.zip'}, 'zip:receipt')
@@ -210,6 +255,34 @@ def read_declared_zip(transport, receipt, *, attempt, user='onpc-parent-jamie',
         for name, value in contents.items()}}
     require(result == expected, 'zip:comparison')
     return result
+
+
+def diagnostic_export_actions():
+    """Bind FILE08 to the original Save owner, with read-only refusal checks."""
+    def inspect(journey, guard):
+        guard()
+        owner = getattr(journey, 'save_files', None)
+        require(isinstance(owner, SyntheticFiles), 'zip:save-owner')
+        attempt = journey.transport.config['run']
+        for overrides in ({'attempt': attempt + '-wrong'}, {'user': 'onpc-child-alex'},
+                          {'artifact': 'unrelated'}, {'owner': None}):
+            options = dict(attempt=attempt, artifact='diagnostic-export', owner=owner)
+            options.update(overrides)
+            try:
+                read_declared_zip(journey.transport, owner.previous, **options)
+            except EvidenceError:
+                pass
+            else:
+                require(False, 'zip:wrong-entry-accepted')
+        require(owner._command('open-zip', {'receipt': owner.previous, 'artifact': 'unrelated'})
+                == {'refused': True}, 'zip:guest-wrong-entry')
+        guard()
+        return read_declared_zip(journey.transport, owner.previous, attempt=attempt,
+                                 artifact='diagnostic-export', owner=owner)
+    actions = save_destination_actions()
+    del actions['save-preserved']
+    actions['diagnostic-inspect'] = inspect
+    return actions
 
 
 def qualify_zip(journey, guard):

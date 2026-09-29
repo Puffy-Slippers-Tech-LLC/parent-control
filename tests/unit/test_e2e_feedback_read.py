@@ -2541,7 +2541,7 @@ def test_save_refuses_accept_while_location_editor_is_showing():
 def test_save_controller_requires_exact_mode_caller_and_result(operation):
     from ui_observations import UiObservations
     value = {'checked': operation}
-    if operation in ('save-chooser-open', 'save-chooser-reopen'):
+    if operation.removeprefix('export-') in ('save-chooser-open', 'save-chooser-reopen'):
         value['provider'] = {'route': 'nautilus-portal', 'version': '50.2.2-1',
             'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']],
             'mode': 'save', 'caller': 'parent-feedback'}
@@ -2558,33 +2558,43 @@ def test_save_controller_requires_exact_mode_caller_and_result(operation):
         controller.observe(operation)
 
 
-def test_save_worker_matches_plan_and_refuses_before_later_input():
-    from save_chooser import PLAN
+@pytest.mark.parametrize('export', [False, True])
+def test_save_worker_matches_plan_and_refuses_before_later_input(export):
+    if export:
+        from diagnostic_export import PLAN
+    else:
+        from save_chooser import PLAN
     from tests.support.perl import run_perl
     stages = list(PLAN.screen_tags)
     stages = stages[stages.index('parent-selected'):]
     script = r'''
 use strict; use warnings; use JSON::PP;
-our (@events, @stages); my $fault = shift @ARGV;
+our (@events, @stages); my ($fault, $export) = @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
 sub send_key { push @main::events, $_[0]; }
+sub type_string { push @main::events, 'typed'; }
 package main;
 require onpc_feedback_read;
 no warnings 'redefine';
 *onpc_gdm::reattach_functional = sub { };
 *onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
 *onpc_journey::finish = sub { push @events, 'finish'; };
-my $ok = eval { onpc_feedback_read::run_save_chooser(sub {
+my $exchange = sub {
     push @events, $_[0]; push @stages, $_[0];
     die 'failed proof' if $_[0] eq $fault;
     return {observed => $_[0]};
-}); 1; };
+};
+my $ok = eval {
+    if ($export) { onpc_feedback_read::run_diagnostic_export($exchange); }
+    else { onpc_feedback_read::run_save_chooser($exchange); }
+    1;
+};
 print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
 '''
     for fault in ('', *stages):
-        result = json.loads(run_perl(script, fault).stdout)
+        result = json.loads(run_perl(script, fault, str(int(export))).stdout)
         assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
         assert result['ok'] == (not fault)
         assert result['events'][-1] == (fault or 'finish')
@@ -2601,6 +2611,90 @@ def test_save_selector_and_prepare_registration(monkeypatch):
     assert run.call_args.kwargs['save_chooser'] is True
     with pytest.raises(CommandError, match='save-chooser-prerequisites'):
         smoke.main(save_chooser=True, file_chooser=True)
+
+
+def test_export_selector_and_constructor_registration(tmp_path, monkeypatch):
+    import check_e2e_diagnostic_export as selector
+    from parent_setup_qualification import DiagnosticExportQualification
+    from diagnostic_export import PLAN
+    from tests.unit.test_e2e_case_composition import composition_errors, CASE_MODULES, ROOT
+    run = Mock(return_value=0)
+    monkeypatch.setattr(selector, 'smoke', run)
+    assert selector.main() == 0 and run.call_args.kwargs['diagnostic_export'] is True
+    with pytest.raises(CommandError, match='diagnostic-export-prerequisites'):
+        smoke.main(diagnostic_export=True, save_chooser=True)
+    journey = DiagnosticExportQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is PLAN
+    assert set(journey.actions) == {'save-prepare', 'save-read', 'diagnostic-inspect', 'save-cleanup'}
+    assert composition_errors((ROOT / 'tests/e2e/diagnostic_export.py').read_text(), CASE_MODULES) == []
+
+
+def test_export_comparison_runs_through_recorder_and_refuses_before_reply(tmp_path, monkeypatch):
+    from copy import deepcopy
+    from diagnostic_export import PLAN, journey as factory
+    import installed_journey
+    window = {'binding': 'feedback', 'pid': 42, 'endpoint': [':1.42', '/feedback'],
+              'active': True, 'feedback': {'draft': 'synthetic-first',
+                'attachments': ['diagnostic-logs.zip'], 'collection': 'ready',
+                'validation': 'none', 'controls': 'ready'}}
+    for fault in ('', 'pid', 'endpoint', 'feedback', 'capture'):
+        directory = tmp_path / (fault or 'success')
+        directory.mkdir()
+        recorder = factory(SimpleNamespace(directory=directory), Mock())
+        if fault != 'capture': recorder.check_settings('first-capture', {'ui': {'window': window}})
+        actual = deepcopy(window)
+        if fault == 'pid': actual['pid'] += 1
+        if fault == 'endpoint': actual['endpoint'][1] = '/replaced'
+        if fault == 'feedback': actual['feedback']['attachments'] = []
+        stage = 'first-return'
+        stages = list(PLAN.stages)
+        recorder.steps = [{'stage': name} for name in stages[:stages.index(stage)]]
+        recorder.ui = SimpleNamespace(boot_guard='', boot_proof='a' * 64,
+            observe=Mock(return_value={'window': actual}))
+        recorder.transport = Mock()
+        monkeypatch.setattr(installed_journey.session_control, 'observe', Mock(return_value={}))
+        (directory / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+        if fault:
+            with pytest.raises(EvidenceError, match='window-or-draft-changed'): recorder.step(Mock())
+            assert not (directory / (stage + '.reply.json')).exists()
+        else:
+            recorder.step(Mock())
+            assert (directory / (stage + '.reply.json')).exists()
+            # Independent reentry may capture again only after consuming comparison.
+            recorder.check_settings('second-capture', {'ui': {'window': window}})
+
+
+def test_export_shared_fragment_works_with_renamed_independent_consumer():
+    from attachment_composition import diagnostic_export
+    from tests.support.perl import run_perl
+    stages = list(diagnostic_export('another-consumer'))
+    script = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, $_[0]; }
+package main;
+require onpc_feedback_read;
+my $fault = shift @ARGV;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, $_[0]; die 'refused' if $_[0] eq $fault;
+    return {observed => $_[0]};
+});
+my $ok = eval { onpc_feedback_read::diagnostic_export($journey, 'another-consumer'); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+    expected = []
+    for stage in stages:
+        expected.append(stage)
+        if stage.endswith(('-name', '-navigated')): expected.append('ctrl-l')
+        if stage.endswith('-location'): expected.append('ret')
+        if stage.endswith('-destination'): expected.append('esc')
+    for fault in ('', *stages):
+        value = json.loads(run_perl(script, fault).stdout)
+        assert value == {'ok': int(not fault), 'events': (
+            expected[:expected.index(fault) + 1] if fault else expected)}
 
 
 @pytest.mark.parametrize('fragment', ['save_handoff', 'save_cancellation'])

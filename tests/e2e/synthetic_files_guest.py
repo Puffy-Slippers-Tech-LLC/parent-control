@@ -16,6 +16,7 @@ import tempfile
 import time
 import zipfile
 import zlib
+from datetime import date
 from download_destination import DIRECTORY as SAVE_DIRECTORY, download_directory
 
 ZIP_NAME = 'Synthetic archive.zip'
@@ -158,11 +159,13 @@ def _read_text_open(root_fd, home, receipt, expected):
             'size': len(content), 'sha256': hashlib.sha256(content).hexdigest()}
 
 
-def read_pinned(root_fd, root, receipt, expected, name, limit):
+def read_pinned(root_fd, root, receipt, expected, name, limit, *, diagnostic=False):
     """Bounded bytes from the exact owned inode; no caller-controlled paths."""
     root_info = os.fstat(root_fd)
     require(identity(root_info) == receipt['directory'] and stat.S_ISDIR(root_info.st_mode)
-            and root_info.st_uid == os.getuid() and stat.S_IMODE(root_info.st_mode) == 0o700)
+            and root_info.st_uid == os.getuid()
+            and (not root_info.st_mode & 0o022 if diagnostic
+                 else stat.S_IMODE(root_info.st_mode) == 0o700))
     before = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
     require(identity(before) == expected['identity'] and stat.S_ISREG(before.st_mode)
             and before.st_uid == os.getuid() and before.st_nlink == 1
@@ -170,7 +173,13 @@ def read_pinned(root_fd, root, receipt, expected, name, limit):
     fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root_fd)
     try:
         require(identity(os.fstat(fd)) == identity(before))
-        content = os.read(fd, limit + 1)
+        chunks, remaining = [], before.st_size
+        while remaining:
+            chunk = os.read(fd, min(65536, remaining))
+            require(chunk)
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        content = b''.join(chunks)
         require(len(content) == before.st_size and os.read(fd, 1) == b'')
         require(len(content) == expected['size']
                 and hashlib.sha256(content).hexdigest() == expected['sha256'])
@@ -183,14 +192,17 @@ def read_pinned(root_fd, root, receipt, expected, name, limit):
         os.close(fd)
 
 
-def inspect_zip(content):
+def inspect_zip(content, *, diagnostic=False):
     """Observe actual member bytes using zipfile, without extraction."""
-    require(0 < len(content) <= ZIP_LIMIT)
+    archive_limit, count_limit, member_limit, expanded_limit = (
+        (2 * 1024 * 1024, 17, 16 * 1024 * 1024, 16 * 1024 * 1024)
+        if diagnostic else (ZIP_LIMIT, ZIP_MEMBERS, ZIP_MEMBER_LIMIT, ZIP_EXPANDED_LIMIT))
+    require(0 < len(content) <= archive_limit)
     deadline = time.monotonic() + ZIP_SECONDS
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             entries = archive.infolist()
-            require(0 < len(entries) <= ZIP_MEMBERS)
+            require(0 < len(entries) <= count_limit)
             names = [entry.filename for entry in entries]
             require(len(set(names)) == len(names))
             for entry in entries:
@@ -203,25 +215,87 @@ def inspect_zip(content):
                         and not entry.flag_bits & 1
                         and stat.S_IFMT(entry.external_attr >> 16) in (0, stat.S_IFREG, stat.S_IFDIR)
                         and entry.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
-                        and 0 <= entry.file_size <= ZIP_MEMBER_LIMIT)
-            require(sum(entry.file_size for entry in entries) <= ZIP_EXPANDED_LIMIT)
-            require(set(names) == set(ZIP_CONTENTS))
-            result = {}
+                        and 0 <= entry.file_size <= member_limit)
+            require(sum(entry.file_size for entry in entries) <= expanded_limit)
+            if not diagnostic:
+                require(set(names) == set(ZIP_CONTENTS))
+            result, contents = {}, {}
             for entry in entries:
                 require(time.monotonic() < deadline)
                 with archive.open(entry) as member:
-                    actual = member.read(ZIP_MEMBER_LIMIT + 1)
-                    require(len(actual) <= ZIP_MEMBER_LIMIT and member.read(1) == b'')
-                require(len(actual) == entry.file_size and actual == ZIP_CONTENTS[entry.filename])
+                    actual = member.read(member_limit + 1)
+                    require(len(actual) <= member_limit and member.read(1) == b'')
+                require(len(actual) == entry.file_size)
+                if diagnostic:
+                    contents[entry.filename] = actual
+                else:
+                    require(actual == ZIP_CONTENTS[entry.filename])
                 actual.decode('utf-8', errors='strict')
-                if entry.filename.endswith('.json'):
+                if not diagnostic and entry.filename.endswith('.json'):
                     require(json.loads(actual) == {'kind': 'synthetic', 'version': 1})
                 result[entry.filename] = {'size': len(actual),
                                           'sha256': hashlib.sha256(actual).hexdigest()}
             require(time.monotonic() < deadline)
+            if diagnostic:
+                checks = compare_diagnostic_contents(archive, contents)
+                require(time.monotonic() < deadline)
+                return {'artifact': 'diagnostic-export', 'members': result,
+                        'matched': True, 'checks': checks}
             return {'artifact': ZIP_ARTIFACT, 'members': result, 'matched': True}
-    except (zipfile.BadZipFile, zlib.error, RuntimeError, NotImplementedError, EOFError) as error:
+    except (zipfile.BadZipFile, zlib.error, RuntimeError, NotImplementedError, EOFError,
+            KeyError, TypeError) as error:
         raise ValueError('files:zip-refused') from error
+
+
+def compare_diagnostic_contents(archive, contents):
+    """Independent public inventory/header/system assertions, then closed grammar.
+
+    The installed format validator is supplemental: no collector or source log
+    is opened. Only the customer-selected exported archive is inspected.
+    """
+    if '/usr/lib/oh-no-parent-control/common' not in sys.path:
+        sys.path.append('/usr/lib/oh-no-parent-control/common')
+    from oh_no_parent_control_ui.diagnostic_report import read_report
+    info = json.loads(contents['system-info.json'])
+    require(type(info) is dict and set(info) == {'schema', 'system', 'health', 'counts', 'logs'}
+            and type(info['schema']) is int and info['schema'] == 3
+            and type(info['logs']) is dict and len(info['logs']) <= 12)
+    folders = {'broker/', 'child/', 'kiosk/', 'parent/'}
+    require(set(contents) == {'system-info.json', *folders, *info['logs']}
+            and all(contents[name] == b'' for name in folders))
+    header = (b'ONPC component log (schema 3)\n'
+        b'Offsets are elapsed time within a broker diagnostic segment, not clock times.\n'
+        b'Dates name retained source files; incident context can include earlier observations.\n'
+        b'Frontend events are observations; broker events describe broker decisions.\n'
+        b'Missing observations do not establish that an operation did not occur.\n\n')
+    totals = dict.fromkeys(('broker', 'child', 'kiosk', 'parent'), 0)
+    records = 0
+    for name, count in info['logs'].items():
+        component, filename = name.split('/')
+        require(component in totals and len(filename) == 14 and filename.endswith('.log')
+                and date.fromisoformat(filename[:10]).isoformat() == filename[:10])
+        totals[component] += 1
+        require(totals[component] <= 3 and type(count) is int and 0 <= count <= 12000)
+        records += count
+        actual = contents[name]
+        require(actual.startswith(header)
+                and len(actual[len(header):].decode('ascii').splitlines()) == count)
+    require(records <= 12000)
+    system = info['system']
+    require(type(system) is dict and set(system) == {'schema', 'app_version', 'os', 'kernel',
+        'architecture', 'timezone', 'session_type', 'accounts', 'dependencies'}
+        and type(system['schema']) is int and system['schema'] == 1
+        and system['os']['id'] == 'ubuntu' and system['session_type'] == 'wayland'
+        and system['app_version'] != 'unknown')
+    require(set(info['health']) == {'accounts', 'timer', 'polkit', 'systemd', 'migration', 'storage'}
+            and all(value in ('available', 'inactive', 'unavailable', 'incomplete', 'unknown')
+                    for value in info['health'].values()))
+    require(set(info['counts']) == {'suppressed', 'rotations', 'incidents', 'invalid',
+        'truncated', 'missing', 'write_failures'} and all(type(value) is int
+        and 0 <= value <= 2**53 - 1 for value in info['counts'].values()))
+    read_report(archive)  # Validates system categories and every closed log field/prose.
+    return {'inventory': True, 'headers': True, 'system': True, 'contents': True,
+            'records': records}
 
 
 def read_zip(home, request):
@@ -431,9 +505,36 @@ def save_snapshot(root, previous, *, saved=False):
     return result
 
 
+def read_saved_zip(home, request):
+    require(type(request) is dict and set(request) == {'receipt', 'artifact'}
+            and request['artifact'] == 'diagnostic-export')
+    receipt = request['receipt']
+    require(type(receipt) is dict and set(receipt) == {
+        'directory', 'unwritable', 'baseline', 'created', 'files'}
+        and type(receipt['files']) is dict and set(receipt['files']) == {SAVE_NAME})
+    root = download_directory(home)
+    require(save_snapshot(root, receipt, saved=True) == receipt)
+    home_fd = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        require(identity(os.fstat(home_fd)) == identity(home.lstat()))
+        root_fd = os.open(root.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=home_fd)
+        try:
+            content = read_pinned(root_fd, root, receipt, receipt['files'][SAVE_NAME],
+                                  SAVE_NAME, 2 * 1024 * 1024, diagnostic=True)
+            result = inspect_zip(content, diagnostic=True)
+            require(save_snapshot(root, receipt, saved=True) == receipt)
+            return result
+        finally:
+            os.close(root_fd)
+    finally:
+        os.close(home_fd)
+
+
 def save_operate(home, operation, previous):
     root = download_directory(home)
-    require(operation in ('stage', 'read', 'saved', 'cleanup', 'absent'))
+    require(operation in ('stage', 'read', 'saved', 'cleanup', 'absent', 'open-zip'))
+    if operation == 'open-zip':
+        return read_saved_zip(home, previous)
     if operation == 'absent':
         require(previous == {'absent': True})
         if os.path.lexists(root):

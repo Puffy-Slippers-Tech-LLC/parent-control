@@ -41,6 +41,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # no new process, account, socket or shared resource in either scheduler.
 # Source-change checks use tiny private files and process-local transport/write
 # doubles, retaining compatible cleanup and unit scheduling.
+# Diagnostic-export checks retain pytest-private Downloads and bounded ZIP bytes
+# (at most 16 MiB expanded), mocked SSH and waited isolated import children.
+# They add no shared files, caches, accounts, buses, displays or live VM access.
 # Installed journey/setup/About tests write only beneath tmp_path and replace
 # guest operations with process-local doubles. About's matcher reads repository
 # fixtures in its own Perl child; watcher sockets, processes and signals are

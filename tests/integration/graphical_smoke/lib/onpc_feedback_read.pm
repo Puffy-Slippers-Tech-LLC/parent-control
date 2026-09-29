@@ -6,6 +6,7 @@ use onpc_gdm ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_text ();
+use onpc_window ();
 use testapi ();
 
 sub activate_existing_window {
@@ -170,6 +171,42 @@ sub save_cancellation {
         my $stage = "$entry-$step";
         $journey->consume_observation($stage, $journey->seen($stage));
     }
+}
+
+sub diagnostic_export {
+    onpc_progress::operation('Saving diagnostics, inspecting the exported ZIP and rereading the draft');
+    my ($journey, $entry) = @_;
+    save_handoff($journey, $entry);
+    for my $step ('inspect', 'return') {
+        my $stage = "$entry-$step";
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+}
+
+sub run_diagnostic_export {
+    onpc_progress::operation('Qualifying two independent diagnostic export entries');
+    my ($exchange) = @_;
+    die 'export:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'diagnostic-export', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    for my $entry ('first', 'second') {
+        for my $step ('feedback', 'collection') {
+            my $stage = "$entry-$step";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        onpc_text::replace_text($journey, $_, "$entry-text-$_") for ('body-first', 'reply-first');
+        for my $step ('capture', 'refused') {
+            my $stage = "$entry-$step";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        diagnostic_export($journey, $entry);
+        my $proof = $journey->seen("$entry-feedback-draft-reread");
+        my $closed = onpc_window::close($journey, 'feedback', $proof, "$entry-");
+        $journey->consume_observation("$entry-feedback-draft-closed", $closed);
+    }
+    $journey->finish();
 }
 
 sub run_save_chooser {

@@ -868,6 +868,7 @@ SAVE_NAMES = ('Selected diagnostics.zip', 'Cancelled diagnostics.zip')
 SAVE_OPERATIONS = frozenset('save-chooser-' + suffix for suffix in (
     'wrong-entry', 'open', 'name', 'location', 'navigated', 'destination', 'restored', 'accept',
     'result', 'reopen', 'cancel-name', 'cancel', 'preserved'))
+SAVE_OPERATIONS |= frozenset('export-' + operation for operation in SAVE_OPERATIONS)
 OPERATIONS |= SAVE_OPERATIONS
 DRAFT_OPERATIONS = frozenset('draft-' + name for name in (
     'chooser-open', 'chooser-location', 'chooser-files', 'chooser-accept',
@@ -2174,10 +2175,11 @@ class AccessibleUI:
     def save_chooser_operation(self, operation):
         """Nautilus Save binding; destination readback precedes the real Save."""
         require(operation in SAVE_OPERATIONS, 'ui:save-operation')
-        step = operation.removeprefix('save-chooser-')
+        projection = 'synthetic-first' if operation.startswith('export-') else 'initial-empty'
+        step = operation.removeprefix('export-').removeprefix('save-chooser-')
         result = {'checked': operation}
         if step == 'wrong-entry':
-            self.feedback_snapshot()
+            self.feedback_snapshot(projection)
             try:
                 self.chooser_snapshot(mode='save')
             except UiError as error:
@@ -2255,7 +2257,7 @@ class AccessibleUI:
                 raise
         else:
             self.wait_feedback_collection()
-            self.feedback_snapshot()
+            self.feedback_snapshot(projection)
             if step == 'result':
                 row = self.id_target('feedback-logs-row')
                 descriptions = [relation.get_target(index)

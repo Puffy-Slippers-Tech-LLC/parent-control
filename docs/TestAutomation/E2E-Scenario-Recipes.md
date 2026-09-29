@@ -682,6 +682,16 @@ delivery remains outside this recipe. Error-report review on all three surfaces,
 diagnostic privacy, byte bounds and role authorization retain their separate
 customer/engineering obligations; this local case does not establish them.
 
+Case 155 reuses shared `attachment_composition.diagnostic_export` and its matching
+`onpc_feedback_read::diagnostic_export` for named Save, receipt-bound FILE08
+inspection and independent same-dialog/draft return. `DiagnosticExportJourney`
+compares copied public endpoint/PID and `synthetic-first` body/reply/attachments
+and controls. `diagnostic_export_actions` retains the Save owner through bounded
+ZIP inspection and cleanup; qualification code is not a consumer API.
+The success slice passed in `20260929T194911Z-9bb9b122`. Complete Cancel,
+unwritable-destination error/recovery, Privacy and scenario acceptance remain
+task 046's scope; no valid Send or original-log inspection is permitted.
+
 ### E2E-032
 
 Implementation status: All cases pending.

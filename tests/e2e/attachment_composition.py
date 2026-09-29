@@ -25,12 +25,29 @@ def compare_formatted_draft(value, *, reset=False):
     return deepcopy(value)
 
 
-def save_handoff(prefix):
+def save_handoff(prefix, *, draft='initial-empty'):
     """FILE03 Save only; callers own preparation, readback and later Cancel."""
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'save:invocation')
-    return {prefix + '-' + step: 'ui:save-chooser-' + step for step in (
+    require(draft in ('initial-empty', 'synthetic-first'), 'save:draft')
+    operation = 'ui:' + ('export-' if draft == 'synthetic-first' else '') + 'save-chooser-'
+    return {prefix + '-' + step: operation + step for step in (
         'open', 'name', 'location', 'navigated', 'destination', 'restored', 'accept', 'result')}
+
+
+def diagnostic_export(prefix):
+    """Shared Save, bounded inspection and independent same-dialog draft read."""
+    return {**save_handoff(prefix, draft='synthetic-first'),
+            prefix + '-inspect': 'ui:feedback-collection-ready',
+            prefix + '-return': 'ui:switch-feedback'}
+
+
+class DiagnosticExportJourney(WindowSwitchJourney):
+    """Each independent export captures and consumes one unchanged dialog/draft."""
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if self.plan.screen_tags.get(stage) == 'ui:switch-feedback':
+            del self.windows['feedback']
 
 
 def save_cancellation(prefix):

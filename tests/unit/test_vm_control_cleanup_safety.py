@@ -139,6 +139,198 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     assert command[3:] == ['--expected-uuid', UUID, 'send-key', '28']
 
 
+@pytest.mark.parametrize('argv', [
+    ['vm', 'rename'], ['vm', 'rename', '--new-name', '../another'],
+    ['vm', 'rename', '--new-name', '-flag'],
+    ['vm', 'start', '--new-name', 'another'],
+    ['vm', 'rename', '1', '--new-name', 'another'],
+])
+def test_dispatcher_refuses_invalid_rename_destinations(argv):
+    dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
+    dispatcher['selection'].__globals__['VM_UUID'] = UUID
+    with pytest.raises(ValueError):
+        dispatcher['selection'](Path(__file__).resolve().parents[2], argv)
+
+
+def test_dispatcher_rename_keeps_uuid_pin_and_only_accepts_destination_label():
+    root = Path(__file__).resolve().parents[2]
+    dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
+    dispatcher['selection'].__globals__['VM_UUID'] = UUID
+    assert dispatcher['selection'](root, ['vm', 'rename', '--new-name', 'custom-Ubuntu26.04'])[3:] == [
+        '--expected-uuid', UUID, 'rename', '--new-name', 'custom-Ubuntu26.04']
+
+
+def rename_rig(lease, current, monkeypatch):
+    """Private shared lock and snapshot metadata, with no real libvirt access."""
+    import vm_config
+    root = lease.directory.parent
+    lease.capture.lock_path.rename(root / '.lock')
+    monkeypatch.setattr(vm_config, 'STATE_ROOT', root)
+    monkeypatch.setattr(runner.baseline, 'DOMAIN', runner.baseline.DOMAIN)
+    source = lease.source
+    source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE = 1
+    source.api.VIR_DOMAIN_SNAPSHOT_CREATE_CURRENT = 2
+    source.domain.UUIDString.return_value = UUID
+    source.domain.name.side_effect = lambda: ET.fromstring(current['xml']).findtext('name')
+    source.connection.lookupByUUIDString.return_value = source.domain
+    snapshots = {runner.baseline.SNAPSHOT: source.baseline_xml,
+                 'onpc-v9.9': source.baseline_xml.replace(
+                     '<name>' + runner.baseline.SNAPSHOT + '</name>', '<name>onpc-v9.9</name>')}
+    def snapshot(name):
+        value = Mock()
+        value.getName.return_value = name
+        value.getXMLDesc.side_effect = lambda *_: snapshots[name]
+        return value
+    source.domain.listAllSnapshots.side_effect = lambda *_: [snapshot(name) for name in snapshots]
+    source.domain.snapshotLookupByName.side_effect = lambda name, *_: snapshot(name)
+    source.domain.hasCurrentSnapshot.return_value = True
+    source.domain.snapshotCurrent.return_value = snapshot(runner.baseline.SNAPSHOT)
+    def renamed(name, *_):
+        tree = ET.fromstring(current['xml'])
+        tree.find('name').text = name
+        current['xml'] = ET.tostring(tree, encoding='unicode')
+    source.domain.rename.side_effect = renamed
+    def redefine(xml, flags):
+        name = ET.fromstring(xml).findtext('name')
+        assert flags & source.api.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE
+        snapshots[name] = xml
+        source.baseline_xml = snapshots[runner.baseline.SNAPSHOT]
+        return snapshot(name)
+    source.domain.snapshotCreateXML.side_effect = redefine
+    return snapshots, redefine
+
+
+def test_rename_preserves_disks_uuid_snapshot_contents_and_provenance(lease_rig, monkeypatch):
+    lease, current = lease_rig
+    snapshots, _ = rename_rig(lease, current, monkeypatch)
+    old_name = runner.baseline.DOMAIN
+    directory = lease.directory
+    identity = directory.stat().st_ino
+    original = current['xml']
+    originals = snapshots.copy()
+    state = (directory / 'phase.json').read_bytes()
+    before = {item['path']: Path(item['path']).read_bytes()
+              for item in json.loads(state)['source']['chain']}
+    try:
+        control.rename(lease, 'custom-Ubuntu26.04')
+        assert not directory.exists()
+        assert lease.directory.name == 'custom-Ubuntu26.04'
+        assert lease.directory.stat().st_ino == identity
+        assert (lease.directory / 'phase.json').read_bytes() == state
+        assert control.same_xml(current['xml'], control.renamed_xml(original, old_name, 'custom-Ubuntu26.04', UUID))
+        assert snapshots == originals
+        lease.source.domain.snapshotCreateXML.assert_not_called()
+        assert all(Path(path).read_bytes() == content for path, content in before.items())
+        assert lease.source.domain.ID() == -1
+        assert json.loads(next(lease.directory.glob('rename-*.json')).read_bytes())['phase'] == 'complete'
+        assert lease.capture.verify_snapshot() == lease.capture.state['proof']
+        lease.source.domain.create.assert_not_called()
+        lease.source.domain.revertToSnapshot.assert_not_called()
+        assert lease.source.creations == [lease.capture.description()]
+    finally:
+        lease.release()
+
+
+@pytest.mark.parametrize('fault', ['metadata', 'record-uuid', 'record-name', 'missing-record', 'pending'])
+def test_historical_snapshot_name_requires_exact_owned_rename_proof(lease_rig, monkeypatch, fault):
+    lease, current = lease_rig
+    rename_rig(lease, current, monkeypatch)
+    try:
+        control.rename(lease, 'custom-Ubuntu26.04')
+        record_path = next(lease.directory.glob('rename-*.json'))
+        record = json.loads(record_path.read_bytes())
+        if fault == 'metadata':
+            lease.source.baseline_xml += ' '
+        elif fault == 'missing-record':
+            record_path.rename(lease.directory / 'preserved-record.json')
+        else:
+            if fault == 'record-uuid':
+                record['domain_uuid'] = 'f' * 36
+            elif fault == 'record-name':
+                record['new_name'] = 'unrelated-vm'
+            else:
+                record['phase'] = 'requested'
+            record_path.write_text(json.dumps(record))
+        with pytest.raises(runner.Error, match='domain-identity'):
+            lease.capture.verify_snapshot()
+        lease.source.domain.snapshotCreateXML.assert_not_called()
+        lease.source.domain.revertToSnapshot.assert_not_called()
+    finally:
+        lease.release()
+
+
+@pytest.mark.parametrize('fault', ['running', 'busy', 'destination', 'snapshot-uuid', 'pending'])
+def test_rename_refusals_leave_domain_snapshots_and_provenance_untouched(lease_rig, monkeypatch, fault):
+    import fcntl
+    lease, current = lease_rig
+    snapshots, _ = rename_rig(lease, current, monkeypatch)
+    destination = lease.directory.parent / 'custom-Ubuntu26.04'
+    lock = None
+    if fault == 'running':
+        current['id'], lease.source.off = 71, False
+    elif fault == 'destination':
+        destination.mkdir()
+    elif fault == 'snapshot-uuid':
+        snapshots['onpc-v9.9'] = snapshots['onpc-v9.9'].replace(UUID, 'f' * 36)
+    elif fault == 'pending':
+        (lease.directory / 'rename-previous.json').write_text('{"phase":"requested"}')
+        (lease.directory / 'rename-previous.json').chmod(0o600)
+    else:
+        lock = lease.capture.lock_path.open('rb')
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    original = current['xml']
+    originals = snapshots.copy()
+    try:
+        with pytest.raises(runner.Error):
+            control.rename(lease, destination.name)
+        assert current['xml'] == original and snapshots == originals
+        assert lease.directory.exists()
+        lease.source.domain.rename.assert_not_called()
+        lease.source.domain.snapshotCreateXML.assert_not_called()
+    finally:
+        lease.release()
+        if lock is not None:
+            lock.close()
+
+
+@pytest.mark.parametrize('fault', ['api', 'snapshot', 'move', 'interrupt'])
+def test_rename_failures_roll_back_only_owned_metadata(lease_rig, monkeypatch, fault):
+    lease, current = lease_rig
+    snapshots, redefine = rename_rig(lease, current, monkeypatch)
+    original, originals = current['xml'], snapshots.copy()
+    directory = lease.directory
+    if fault == 'api':
+        rename_api = lease.source.domain.rename.side_effect
+        def fail_rename(name, flags):
+            if name == 'custom-Ubuntu26.04':
+                raise runner.Error('fixture:rename-failed')
+            return rename_api(name, flags)
+        lease.source.domain.rename.side_effect = fail_rename
+    elif fault in ('snapshot', 'interrupt'):
+        reads = 0
+        list_snapshots = lease.source.domain.listAllSnapshots.side_effect
+        def fail_snapshot(*args):
+            nonlocal reads
+            reads += 1
+            if reads == 3:
+                raise KeyboardInterrupt() if fault == 'interrupt' else runner.Error('fixture:snapshot-failed')
+            return list_snapshots(*args)
+        lease.source.domain.listAllSnapshots.side_effect = fail_snapshot
+    else:
+        monkeypatch.setattr(control.os, 'rename', Mock(side_effect=OSError('fixture:move-failed')))
+    try:
+        with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else (runner.Error, OSError)):
+            control.rename(lease, 'custom-Ubuntu26.04')
+        assert control.same_xml(current['xml'], original)
+        assert all(control.same_xml(snapshots[name], xml) for name, xml in originals.items())
+        assert directory.exists() and lease.directory == directory
+        assert json.loads(next(directory.glob('rename-*.json')).read_bytes())['phase'] == 'rolled-back'
+        lease.source.domain.create.assert_not_called()
+        lease.source.domain.revertToSnapshot.assert_not_called()
+    finally:
+        lease.release()
+
+
 @pytest.mark.parametrize('status', [0, 1, 130])
 @pytest.mark.parametrize('argv', [['vm', 'start'], ['vm', 'stop'],
                                  ['integration', 'check_test_recovery']])

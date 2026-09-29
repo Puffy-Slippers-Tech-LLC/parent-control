@@ -402,7 +402,7 @@ def inspect_guest(guestfs, disk, script_digest):
                         for path in guest_contract.guest_tools.DORMANT_PATHS),
                 'guest:directory-fixture-not-clean')
         require(marker["preparation_script_sha256"] == script_digest, "guest:script-digest")
-        require(g.read_file("/etc/hostname").decode().strip() == DOMAIN and
+        require(g.read_file("/etc/hostname").decode().strip() == guest_contract.HOSTNAME and
                 g.read_file("/etc/machine-id").decode().strip() == marker["guest"]["machine_id"],
                 "guest:identity")
 
@@ -602,6 +602,36 @@ class Capture:
     def description(self):
         return f"Prepared product-free baseline; operation={self.state['operation']}; preparation={self.state['script_digest']}"
 
+    def proven_snapshot_xml(self, xml):
+        """Accept a historical name only for exact metadata attested at rename.
+
+        Libvirt preserves the current domain name on snapshot revert. Its saved
+        domain definition retains the old name and cannot be renamed by redefine.
+        Keep ordinary domain identity checks strict; this applies only to saved
+        metadata bound to our UUID and a private, recorded rename operation.
+        """
+        if xml is None or '<!' in xml:
+            return xml
+        root = ET.fromstring(xml)
+        if root.findtext('domain/name') == DOMAIN:
+            return xml
+        for path in self.directory.glob('rename-*.json'):
+            identity(path, private=True, mode=0o600)
+            record = parse_json(path.read_bytes())
+            if (record.get('phase') not in ('renamed', 'complete') or record.get('new_name') != DOMAIN or
+                    record.get('domain_uuid') != self.state['source']['layout']['uuid']):
+                continue
+            for name, original in record['snapshots']:
+                if name != root.findtext('name') or original != xml:
+                    continue
+                for domain in root.findall('domain') + root.findall('inactiveDomain'):
+                    require(len(domain.findall('name')) == len(domain.findall('uuid')) == 1 and
+                            domain.findtext('name') == record['old_name'] and
+                            domain.findtext('uuid') == record['domain_uuid'], 'snapshot:rename-identity')
+                    domain.find('name').text = DOMAIN
+                return ET.tostring(root, encoding='unicode')
+        return xml  # The normal strict domain-name check will refuse it.
+
     def disk_snapshot(self):
         layout, off = self.source.snapshot()
         records = self.commands.info(Path(layout["disk"]), active=not off).get("snapshots", [])
@@ -615,6 +645,11 @@ class Capture:
         require(self.source.baseline() is None and self.disk_snapshot() is None, "snapshot:already-exists")
 
     def require_idle_attempt(self):
+        for record in self.directory.glob('rename-*.json'):
+            identity(record, private=True, mode=0o600)
+            rename = parse_json(record.read_bytes())
+            require(isinstance(rename, dict) and rename.get('phase') in ('complete', 'rolled-back'),
+                    'state:interrupted-rename; preserve state for recovery')
         attempt = self.directory / 'system-run.json'
         if os.path.lexists(attempt):
             identity(attempt, private=True, mode=0o600)
@@ -752,7 +787,7 @@ class Capture:
             if existing is not None:
                 require(self.state['phase'] in ('snapshot-requested', 'finalized'),
                         'state:unfinished-preparation')
-                proof = snapshot_proof(existing, self.state['source']['layout'], self.description())
+                proof = snapshot_proof(self.proven_snapshot_xml(existing), self.state['source']['layout'], self.description())
                 if self.state['phase'] == 'finalized':
                     require(all(self.state['proof'].get(key) == value for key, value in proof.items()),
                             'snapshot:changed')
@@ -829,7 +864,8 @@ class Capture:
 
     def _verify_snapshot(self):
         self.revalidate()
-        proof = snapshot_proof(self.source.baseline(), self.state["source"]["layout"], self.description())
+        proof = snapshot_proof(self.proven_snapshot_xml(self.source.baseline()),
+                               self.state["source"]["layout"], self.description())
         record = self.disk_snapshot()
         require(record is not None and isinstance(record.get("id"), str) and
                 record.get("name") == proof["name"] and

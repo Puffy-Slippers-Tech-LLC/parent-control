@@ -44,6 +44,9 @@ Automatic main-update regressions add only private Git clones/remotes and
 process-local confirmation/terminal doubles. Interrupted push/merge recovery
 uses the same private journals; no real credentials, terminal or shared ref is
 modified, and no heavy fixture construction is added.
+VM rename checks use private pytest provenance trees and process-local libvirt
+doubles, including rollback and lock contention. No real VM, disk, socket,
+display or shared controller state is accessed; compatible overlap remains.
 """
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,

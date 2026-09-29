@@ -29,14 +29,15 @@ def test_shared_config_selects_domain_hostname_disk_and_separate_state(tmp_path)
     assert configured.name == 'custom-test-vm'
     assert configured.disk_anchor == Path('/images/base.qcow2')
     assert configured.baseline_directory == vm_config.STATE_ROOT / 'custom-test-vm'
-    assert host.DOMAIN == guest.HOSTNAME == vm_config.load().name
+    assert host.DOMAIN == vm_config.load().name
+    assert guest.HOSTNAME == vm_config.load().hostname
     assert host.ANCHOR == vm_config.load().disk_anchor
     assert host.BASELINES == vm_config.load().baseline_directory
 
 
 @pytest.mark.parametrize('changes', [
     {'name': ''}, {'name': '../another'}, {'name': '-flag'}, {'name': 'vm\nname'},
-    {'name': 'VM'}, {'name': 'vm..name'}, {'name': 'x' * 64}, {'name': None},
+    {'name': 'vm..name'}, {'name': 'x' * 64}, {'name': None},
     {'name': []}, {'disk_anchor': 'relative.qcow2'}, {'disk_anchor': '/images/../disk'},
     {'disk_anchor': '/images//disk'}, {'disk_anchor': '/images/disk\n'},
     {'disk_anchor': None}, {'unexpected': True},
@@ -58,6 +59,23 @@ def test_malformed_or_ambiguous_configuration_is_refused(tmp_path, contents):
 def test_missing_configuration_has_no_hardcoded_vm_fallback(tmp_path):
     with pytest.raises(ValueError, match='vm-config:unreadable'):
         vm_config.load(tmp_path / 'absent')
+
+
+def test_display_name_preserves_case_and_hostname_is_lowercase(tmp_path):
+    configured = vm_config.load(write_config(tmp_path, name='custom-Ubuntu26.04'))
+    assert configured.name == 'custom-Ubuntu26.04'
+    assert configured.hostname == 'custom-ubuntu26.04'
+    assert configured.baseline_directory.name == configured.name
+
+
+def test_configured_vm_name_has_no_literal_in_tooling_or_documentation():
+    configured = vm_config.load()
+    # The configured display name belongs in config, not its consumers.
+    name = configured.name
+    for directory in ('tools', 'tests/integration', 'docs'):
+        for path in (ROOT / directory).rglob('*'):
+            if path.is_file() and path.suffix in ('', '.py', '.md', '.MD', '.json', '.rules', '.sh'):
+                assert name not in path.read_text(), str(path.relative_to(ROOT))
 
 
 def test_configuration_change_invalidates_guest_preparation_digest(tmp_path):

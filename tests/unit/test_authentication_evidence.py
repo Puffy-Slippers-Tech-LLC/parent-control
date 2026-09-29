@@ -16,7 +16,7 @@ from tests.support.authentication import collect_local
 from tests.support.vm_runner import INVENTORIES
 
 
-@pytest.mark.parametrize('hostname', ['oh-no-parent-control', 'custom-evidence-vm'])
+@pytest.mark.parametrize('hostname', ['baseline-test-vm', 'custom-evidence-vm'])
 def test_junit_redaction_handles_escaped_values_without_breaking_xml(monkeypatch, tmp_path, hostname):
     results = tmp_path / 'results'
     results.mkdir()

@@ -107,13 +107,20 @@ pinning is refreshed by host preparation); no product activation or data migrati
 
 | Resource | Contract |
 | --- | --- |
-| Libvirt connection and domain | `qemu:///system`; `name` in the shared config, currently `oh-no-parent-control` |
+| Libvirt connection and domain | `qemu:///system`; `name` in the shared config; guest hostname is its lowercase form |
 | Host/guest preparation checkout | The checkout containing the invoked `tools/prepare-baseline`; maintained guest modules are staged privately inside the VM. Installed host helpers retain their checkout pin. |
-| Disk-chain anchor | `disk_anchor` in the shared config, currently `/Data/virt-manager/oh-no-parent-control.qcow2`; resolve and validate the actual active chain. |
+| Disk-chain anchor | `disk_anchor` in the shared config; resolve and validate the actual active chain. |
 | Retained product-free baseline | Internal `onpc_baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_baseline.py](prepare_baseline.py). Runners also accept `onpc-baseline` and `oh-no-parent-control-baseline`; explicit preparation replaces them with `onpc_baseline`. |
 | Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/<configured-name>/` |
 | Provenance and active attempt | Immutable finalized `phase.json`; separate mutable `system-run.json`. |
 | Guest preparation record | Root-owned mode-0600 `/etc/oh-no-parent-control-test-baseline.json` |
+
+The shared config is the sole definition of the VM name. To rename the same
+pinned guest, use `tools/test-vm rename --new-name LABEL` while it is off and
+idle, then update the config's `name`, refresh test tools, and run auto-mode
+baseline preparation. The guarded rename keeps disk paths and snapshot contents,
+attests historical snapshot domain names, and moves the existing private provenance tree.
+Its rollback records preserve original metadata; unfinished records block tests.
 
 The controller binds the domain, disk/backing identities, snapshot metadata and
 preparation evidence. Do not substitute preview UIDs for actual guest UIDs.

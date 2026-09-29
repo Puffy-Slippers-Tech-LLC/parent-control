@@ -32,7 +32,7 @@ import vm_config
 
 VM = vm_config.load(CHECKOUT / 'config/test-vm.json')
 MARKER = Path("/etc/oh-no-parent-control-test-baseline.json")
-HOSTNAME = VM.name
+HOSTNAME = VM.hostname
 UBUNTU_VERSION = "26.04"
 MARKER_PURPOSE = "oh-no-parent-control-test-baseline"
 MARKER_VERSION = 2

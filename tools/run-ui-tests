@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Run scoped, isolated UI tests after cleanup-safety prerequisites."""
+"""Run scoped, isolated UI tests with owned cleanup."""
 from pathlib import Path
 import sys
 

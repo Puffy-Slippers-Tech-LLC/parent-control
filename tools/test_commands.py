@@ -153,7 +153,7 @@ Aggregate aliases (no suite selectors)
   --continue-on-errors   continue independent tests after failures
   --serial-builds        host-builds only: publish/builds after the host join
 
-  Host includes cleanup-safety prerequisites, unit, component, ui,
+  Host includes unit (including cleanup regressions), component, ui,
   fixture-runtime, source/traceability, static, child-node, child-gjs,
   backend, publish, package builds A/B and their comparison.
   All VM operations use metadata-only verification; image contents are never
@@ -170,7 +170,8 @@ UI-only validation (same UI buckets and resource limits as host)
   tools/run-tests ui --timeout 1800s
   tools/run-tests ui 'tests/ui/test_request*.py' -q
 
-  Runs only selected UI tests and mandatory cleanup prerequisites; no builds.
+  Runs only selected UI tests; serial owned cleanup precedes parallel work.
+  Cleanup never launches regression tests or package builds.
   Compatible UI buckets use up to four branches. Unknown modules stay exclusive.
   File/case selectors, -k, -m and --ignore retain the exact selected inventory.
   Default execution timeout is 1800s per bucket; explicit --timeout is preserved.
@@ -571,9 +572,7 @@ def _main(argv=None, *, detached=False):
             environment = host.environment(root)
             return subprocess.run(command, env=environment, pass_fds=scratch_descriptors(),
                                   check=False).returncode
-        commands, safety = plan(root, category, args)
-        if safety:
-            host.prerequisites(root)
+        commands, _ = plan(root, category, args)
         env = host.environment(root)
         if category in ('fixture-runtime', 'coverage'):
             env = host.test_environment(root)

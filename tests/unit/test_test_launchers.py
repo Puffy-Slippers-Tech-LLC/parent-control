@@ -414,15 +414,15 @@ with tempfile.TemporaryDirectory(prefix='onpc-storage-probe-') as directory:
     assert host.environment(checkout)['TMPDIR'] == env['TMPDIR']
 
 
-def test_failed_cleanup_gates_component(checkout, monkeypatch):
+def test_component_runs_only_selected_tests_without_prerequisite_suite(checkout, monkeypatch):
     prerequisite = Mock(side_effect=ValueError('failed prerequisites'))
     execute = Mock(return_value=subprocess.CompletedProcess([], 0))
     monkeypatch.setattr(host, 'prerequisites', prerequisite)
     monkeypatch.setattr(host.subprocess, 'run', execute)
-    with pytest.raises(ValueError):
-        host.run_host(checkout, 'component', [])
-    prerequisite.assert_called_once_with(checkout)
-    execute.assert_not_called()
+    monkeypatch.chdir(checkout)
+    assert host.run_host(checkout, 'component', []) == 0
+    prerequisite.assert_not_called()
+    execute.assert_called_once()
 
 
 @pytest.mark.parametrize('category', ['unit', 'component', 'ui'])

@@ -237,9 +237,10 @@ justify a new discriminating experiment before another boot; carry that history
 across handoffs. Never leave a VM running or restore an intermediate state to
 save conversation context. A completed attempt's failure remains preserved.
 
-First run the applicable
+When changing a cleanup implementation, explicitly run the applicable
 [isolated cleanup-safety regressions](../README.md#cleanup-safety-prerequisites),
-including persistent-caller cleanup if that helper is used. After building and
+including persistent-caller cleanup if that helper changes. These are development
+regressions, not automatic startup work. After building and
 verifying the input, invoke the host controller from a root shell:
 
 ```sh

@@ -92,14 +92,8 @@ class SelectedRun(Run):
         # The common builder validates the inventory before protected work.
         # Exact IDs retain partial files, parametrization, -k, -m and ignores.
         jobs = self.pytest_jobs(kind, inventory, options, exact=True)
-        # Unit selections keep their exact scope and existing prerequisite
-        # policy. Only UI adds the mandatory host-integrated cleanup gate.
-        if kind == 'ui':
-            safety = Category('Cleanup safety prerequisites', phase='cleanup')
-            self.categories.insert(self.categories.index(jobs[0].item), safety)
-            status = self.run_cleanup(safety)
-            if status:
-                return status
+        # Cleanup is the serial ownership/recovery preflight, not another test
+        # selection. Unit/host/all still include all cleanup regression modules.
         if self.control.stopped.is_set():
             return 130
         self.host_jobs(jobs)

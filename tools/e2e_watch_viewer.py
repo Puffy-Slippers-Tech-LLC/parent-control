@@ -331,12 +331,34 @@ def panel(feed=None):
             self.writer = TerminalWriter(self.terminal)
             pane.set_end_child(scroll)
             pane.set_resize_end_child(False)
-            pane.set_shrink_end_child(True)
-            pane.set_position(400)
+            pane.set_shrink_end_child(False)
+            self.screen_layout = None
+            pane.add_tick_callback(self.size_screen, scroll)
             self.append(pane)
             self.append(self.status)
             self.activity_identity = None
             self.activity_end = 0
+
+        def size_screen(self, pane, _clock, scroll):
+            # Keep five SSH rows available, then fit the VM to the panel width.
+            # Recompute for window/column and guest-resolution changes, while
+            # leaving a manually dragged divider alone between those changes.
+            row_height = max(1, self.terminal.get_char_height())
+            minimum = row_height * 5 + 8
+            if scroll.get_property('height-request') != minimum:
+                scroll.set_size_request(-1, minimum)
+            width, height = pane.get_width(), pane.get_height()
+            if width <= 1 or height <= 1:
+                return True
+            meta = self.screen.meta
+            frame_width = meta.get('width', 1024)
+            frame_height = meta.get('height', 768)
+            maximum = pane.get_property('max-position')
+            layout = width, height, frame_width, frame_height, minimum, maximum
+            if layout != self.screen_layout:
+                self.screen_layout = layout
+                pane.set_position(max(0, min(round(width * frame_height / frame_width), maximum)))
+            return True
 
         def tick(self, *, render=True):
             frame = self.feed.poll(pixels=render)

@@ -85,7 +85,7 @@ def test_idle_reconciliation_preserves_evidence_and_refuses_unsafe_recovery(tmp_
 
 
 @pytest.mark.parametrize('status', [0, 1])
-def test_unattended_integration_runs_safety_before_recovery(tmp_path, monkeypatch, capsys, status):
+def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys, status):
     import test_storage
     monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'privileged-state')
     dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
@@ -93,12 +93,10 @@ def test_unattended_integration_runs_safety_before_recovery(tmp_path, monkeypatc
     commands = []
     def execute(command, **kwargs):
         output = capsys.readouterr().out
-        if command == ['safety']:
-            assert 'cleanup prerequisites starting (unprivileged)' in output
-        else:
-            assert 'cleanup prerequisites passed; selected operation starting' in output
+        assert 'cleanup prerequisites' not in output
+        assert command == ['recovery']
         commands.append(command)
-        return status if command == ['safety'] else 0
+        return status
     control = SimpleNamespace(run=execute, installed=lambda **kw: nullcontext(control))
     monkeypatch.setattr(dispatcher['runpy'], 'run_path', lambda path: {
         'Control': lambda: control, 'safety_command': lambda root: ['safety']})
@@ -107,9 +105,7 @@ def test_unattended_integration_runs_safety_before_recovery(tmp_path, monkeypatc
     caller = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name='fixture',
                              pw_dir=str(tmp_path))
     assert dispatcher['run'](tmp_path, ['--unattended', 'integration', 'check_test_recovery'], caller) == status
-    assert commands == ([['safety']] if status else [['safety'], ['recovery']])
-    if status:
-        assert 'selected operation was not started' in capsys.readouterr().err
+    assert commands == [['recovery']]
 
 
 def test_recovery_safety_uses_shared_parallel_cleanup_coordinator():

@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import textwrap
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -93,27 +93,21 @@ def test_system_rejects_invalid_options(checkout, arguments):
         select(checkout, ['system', *arguments])
 
 
-@pytest.mark.parametrize('safety_status', [0, 1])
-def test_prerequisites_drop_privileges_and_gate_root_test(checkout, monkeypatch, safety_status):
+@pytest.mark.parametrize('status', [0, 1])
+def test_dispatch_runs_only_selected_controller_with_retention_guard(checkout, monkeypatch, status):
     import test_storage
     monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: checkout / 'retention')
-    monkeypatch.setitem(runner['run'].__globals__, 'retention_guard', lambda root: None)
-    execute = Mock(side_effect=[SimpleNamespace(returncode=safety_status),
-                               SimpleNamespace(returncode=0)])
+    guard = Mock()
+    monkeypatch.setitem(runner['run'].__globals__, 'retention_guard', guard)
+    execute = Mock(return_value=SimpleNamespace(returncode=status))
     monkeypatch.setattr(runner['subprocess'], 'run', execute)
     monkeypatch.setattr(runner['os'], 'getgrouplist', lambda *args: [1000])
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir='/tmp')
-    assert runner['run'](checkout, ['integration', 'check_future_feature'], caller) == safety_status
-    assert execute.call_count == (2 if safety_status == 0 else 1)
-    prerequisites = execute.call_args_list[0]
-    assert prerequisites.kwargs['user'] == 1000
-    assert prerequisites.kwargs['group'] == 1000
-    assert prerequisites.args[0] == [
-        '/usr/bin/python3', '-IB', str(checkout / 'tools/regression_process.py'),
-        '--cleanup-prerequisites',
-    ]
-    if safety_status == 0:
-        assert 'user' not in execute.call_args_list[1].kwargs
+    assert runner['run'](checkout, ['integration', 'check_future_feature'], caller) == status
+    execute.assert_called_once()
+    assert execute.call_args.args[0] == select(checkout, ['integration', 'check_future_feature'])
+    assert 'user' not in execute.call_args.kwargs
+    assert guard.call_args_list == [call(checkout), call(checkout)]
 
 
 @pytest.mark.parametrize('safety_status', [0, 1])
@@ -140,7 +134,7 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
 
     # Use the rendered helper's actual shebang in a fresh process. Only process
     # execution and signal/pipe setup are replaced; selection and the real
-    # fixed cleanup-coordinator command still execute unchanged.
+    # selected controller command still execute unchanged, without a test gate.
     probe = checkout.parent / 'dispatcher-probe'
     probe.write_text(rendered.splitlines()[0] + '\n' + textwrap.dedent('''\
         from contextlib import nullcontext
@@ -177,9 +171,9 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
                 ['--unattended', 'system', '--artifacts', '/tmp/onpc-build-regression'],
                 pwd.getpwuid(os.getuid()))
         assert status == safety_status
-        assert len(calls) == (1 if safety_status else 2)
-        assert calls[0][2].endswith('/tools/regression_process.py')
-        assert calls[0][3:] == ['--cleanup-prerequisites']
+        assert len(calls) == 1
+        assert calls[0][2].endswith('/tests/integration/system_runner.py')
+        assert '--cleanup-prerequisites' not in calls[0]
         print('dispatcher checkout imports exercised')
         '''))
     probe.chmod(0o755)
@@ -238,8 +232,9 @@ def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch
     arguments = ['integration', name]
     assert runner['run'](checkout, (['--unattended'] if unattended else []) + arguments, caller) == 0
     calls = (control.run if unattended else execute).call_args_list
-    assert len(calls) == 2
-    assert calls[0].kwargs['user'] == 1000
-    assert calls[1].args[0][-1] == str(checkout / 'tests/integration' / (name + '.py'))
+    assert len(calls) == 1
+    assert 'user' not in calls[0].kwargs
+    assert calls[0].kwargs['env']['PKEXEC_UID'] == '1000'
+    assert calls[0].args[0][-1] == str(checkout / 'tests/integration' / (name + '.py'))
     guard.assert_not_called()
     assert journal.read_bytes() == before

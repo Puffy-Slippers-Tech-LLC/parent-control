@@ -53,6 +53,170 @@ from ui_observations import FeedbackStateObservation
 # private Perl children. No VM, bus, display, cache or shared-path resources.
 # Stable traces add only mocked clocks/transports and waited private Perl;
 # existing compatible scheduling and resource ownership remain unchanged.
+# Transition pumping uses the same mocks and pytest-owned immutable sample
+# files. No threads, sockets, shared caches or scheduler changes are introduced.
+
+
+@pytest.mark.parametrize('body,draft', [('', 'initial-empty'), ('S', 'trace-prefix'),
+    ('Synthetic feedback first', 'states-no-reply'), ('Synthetic feedback first\n', 'states-no-reply')])
+def test_transition_sample_reads_public_prefix_and_terminal_controls(body, draft):
+    ui, _, _, controls = feedback_ui()
+    controls['feedback-editor-input'].text.count = len(body)
+    ui.api.Text.get_text = lambda text, first, last: body[first:last]
+    assert ui.feedback_state_operation('feedback-trace-sample') == {
+        'draft': draft, 'attachments': ['diagnostic-logs.zip'], 'collection': 'ready',
+        'validation': 'none', 'controls': 'ready', 'send_enabled': True}
+
+
+@pytest.mark.parametrize('body', ['private', 'Synthetic feedback firstX', 'S\n\n'])
+def test_transition_sample_refuses_undeclared_text(body):
+    ui, _, _, controls = feedback_ui()
+    controls['feedback-editor-input'].text.count = len(body)
+    ui.api.Text.get_text = lambda text, first, last: body[first:last]
+    with pytest.raises(accessible_ui.UiError, match='feedback-nonempty-draft'):
+        ui.feedback_state_operation('feedback-trace-sample')
+
+
+@pytest.mark.parametrize('fault', ['', 'token', 'stale', 'boot', 'order', 'controls',
+                                  'terminal', 'unobserved', 'storage', 'wrong-input'])
+def test_transition_trace_decodes_pumped_samples_and_latches(monkeypatch, fault):
+    reader, reply, clock = trace_reader(monkeypatch)
+    retained = []
+    reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
+    ready = reader.start_trace('body-first')
+    original = reader._observe
+    # Input mechanics have separate actual-worker and adapter checks below;
+    # samples still cross the real controller's bounded JSON decoder.
+    reader._observe = lambda op: original(op) if op == 'feedback-trace-sample' else {}
+    reader.observe('text-body-first-focus')
+    reader.observe('text-body-first-selected')
+    reply['operation'] = 'feedback-trace-sample'
+    reply['feedback_state']['draft'] = 'trace-prefix'
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    if fault != 'unobserved':
+        reader.poll_trace()
+    reader.observe('text-body-first-read')
+    reply['feedback_state']['draft'] = 'states-no-reply'
+    if fault == 'boot':
+        reply['boot_sha256'] = 'c' * 64
+    if fault == 'controls':
+        reply['feedback_state']['send_enabled'] = False
+    if fault == 'terminal':
+        reply['feedback_state']['draft'] = 'trace-prefix'
+    if fault in ('stale', 'order'):
+        clock.side_effect = None
+        clock.return_value = 61 if fault == 'stale' else 0
+    if fault == 'storage':
+        reader.trace_sink = Mock(side_effect=OSError('owned sample write failed'))
+    reader.call.return_value = (json.dumps(reply).encode(), [])
+    if fault:
+        with pytest.raises((EvidenceError, OSError)):
+            if fault == 'wrong-input':
+                reader.observe('feedback-close')
+            else:
+                reader.finish_trace('foreign' if fault == 'token' else ready['token'])
+        assert reader.trace_failed and reader.trace is None
+        with pytest.raises(EvidenceError, match='trace-previous-failure'):
+            reader.start_trace('body-first')
+    else:
+        result = reader.finish_trace(ready['token'])
+        assert result['terminal'] == 'body-first-ready'
+        assert [s['state']['draft'] for s in result['samples']] == [
+            'initial-empty', 'trace-prefix', 'states-no-reply']
+        assert [index for index, _ in retained] == [0, 1, 2]
+        with pytest.raises(EvidenceError, match='trace-token'):
+            reader.finish_trace(ready['token'])
+
+
+def test_transition_pump_runs_without_worker_checkpoint_and_storage_is_immutable(tmp_path):
+    from installed_journey import InstalledJourney
+    from trace_transition import PLAN as plan
+    context = SimpleNamespace(directory=tmp_path)
+    journey = InstalledJourney(context, Mock(), plan)
+    journey.trace_token = 'a' * 32
+    journey.ui = SimpleNamespace(poll_trace=Mock())
+    guard = Mock()
+    journey.step(guard)
+    journey.ui.poll_trace.assert_called_once_with()
+    journey.retain_trace_sample('a' * 32, 0, {'state': 'public'})
+    with pytest.raises(FileExistsError):
+        journey.retain_trace_sample('a' * 32, 0, {'state': 'replacement'})
+    assert json.loads((tmp_path / ('trace-' + 'a' * 32 + '-000.json')).read_text()) == {'state': 'public'}
+    journey.ui.poll_trace.side_effect = EvidenceError('ui:trace-terminal')
+    with pytest.raises(EvidenceError, match='trace-terminal'):
+        journey.step(guard)
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        journey.step(guard)
+
+
+def test_transition_selector_preserves_guarded_envelope(monkeypatch):
+    import check_e2e_trace
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check_e2e_trace, 'smoke', run)
+    assert check_e2e_trace.main() == 0
+    assert run.call_args.kwargs['trace_transition'] is True
+    assert run.call_args.kwargs['provision_credentials'] is True
+    with pytest.raises(CommandError, match='trace-prerequisites'):
+        smoke.main(trace_transition=True, trace_stable_state=True)
+
+
+@pytest.mark.parametrize('fault', ['binding', 'input', 'missing', 'nested', 'action'])
+def test_transition_plan_refuses_unbound_or_unsafe_compositions(fault):
+    from dataclasses import replace
+    from trace_transition import PLAN as plan
+    tags = dict(plan.screen_tags)
+    bindings = dict(plan.trace_bindings)
+    actions = {}
+    if fault == 'binding':
+        bindings['trace-first-start'] = 'reply-first'
+    elif fault == 'missing':
+        del tags['first-selected']
+    elif fault == 'input':
+        tags['first-selected'] = 'ui:feedback-close'
+    elif fault == 'nested':
+        tags['first-selected'] = 'ui:feedback-trace-start'
+    else:
+        actions['first-selected'] = 'extra-input'
+    with pytest.raises(EvidenceError, match='trace-plan'):
+        replace(plan, screen_tags=tags, trace_bindings=bindings, stage_actions=actions)
+
+
+@pytest.mark.parametrize('fault', ['', 'trace-first-start', 'first-selected', 'first-read',
+                                  'trace-first-finish', 'trace-wrong-entry', 'trace-second-start'])
+def test_transition_worker_composes_text_and_stops_before_followup_input(fault):
+    from tests.support.perl import run_perl
+    from trace_transition import PLAN as plan
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @stages);
+our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, 'key:' . $_[0]; }
+sub type_string { push @main::events, 'type:' . $_[0]; }
+package main;
+require onpc_feedback_states;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub { };
+*onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
+*onpc_journey::finish = sub { push @events, 'finish'; };
+my $ok = eval {
+    onpc_feedback_states::run_transition(sub {
+        push @events, $_[0]; push @stages, $_[0];
+        die 'failed proof' if $_[0] eq $fault;
+        return {observed => $_[0], ui_focused => JSON::PP::true};
+    }); 1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
+''', fault).stdout)
+    stages = list(plan.screen_tags)
+    stages = stages[stages.index('parent-selected'):]
+    assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
+    assert bool(result['ok']) is (not fault)
+    assert result['events'][-1] == (fault or 'finish')
+    if not fault:
+        assert result['events'].count('type:Synthetic feedback first') == 2
 
 
 def trace_reader(monkeypatch):

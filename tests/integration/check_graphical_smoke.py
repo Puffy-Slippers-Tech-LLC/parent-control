@@ -663,19 +663,21 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
-         trace_stable_state=False,
+         trace_stable_state=False, trace_transition=False,
          window_switch=False, feedback_rejection=False, feedback_length=False,
          synthetic_files=False, document_open=False, archive_open=False, source_change=False,
          file_chooser=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False):
-    require(type(trace_stable_state) is bool and not (trace_stable_state and (
+    require(type(trace_transition) is bool and not (trace_transition and trace_stable_state),
+            'smoke:trace-prerequisites')
+    require(type(trace_stable_state) is bool and not ((trace_stable_state or trace_transition) and (
         feedback_states or feedback_read or feedback_privacy or format_qualification
         or feedback_reset or window_switch or feedback_rejection or feedback_length
         or file_chooser or attachment_items or attachment_preview or attachment_boundaries
         or feedback_formats or feedback_block_semantics or feedback_link_semantics)),
         'smoke:trace-prerequisites')
-    feedback_states = feedback_states or trace_stable_state
+    feedback_states = feedback_states or trace_stable_state or trace_transition
     require(type(feedback_link_semantics) is bool and not (feedback_link_semantics and (
         feedback_formats or feedback_block_semantics or format_qualification)),
         'smoke:linked-prerequisites')
@@ -1235,6 +1237,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-feedback-states-qualification'
         if trace_stable_state:
             result['scope'] = 'installed-trace-stable-state-qualification'
+        if trace_transition:
+            result['scope'] = 'installed-trace-transition-qualification'
         if format_qualification:
             result['scope'] = 'installed-format-qualification'
         if feedback_block_semantics:
@@ -1474,6 +1478,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if trace_stable_state:
                     from parent_setup_qualification import TraceStableStateQualification
                     qualification_class = TraceStableStateQualification
+                if trace_transition:
+                    from parent_setup_qualification import TraceTransitionQualification
+                    qualification_class = TraceTransitionQualification
                 if format_qualification:
                     from parent_setup_qualification import FormatQualification
                     qualification_class = FormatQualification

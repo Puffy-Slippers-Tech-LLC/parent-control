@@ -44,6 +44,7 @@ class JourneyPlan:
     assertions_after: dict = field(default_factory=dict)
     challenges: dict = field(default_factory=dict)
     reboot_transition: tuple = ()
+    trace_bindings: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -64,16 +65,24 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
+        require(all(stage in stages and self.screen_tags[stage] == 'ui:feedback-trace-start'
+                    and binding == 'body-first' for stage, binding in self.trace_bindings.items()),
+                self.prefix + ':trace-plan')
+        trace_ends = set()
         for index, stage in enumerate(stages):
             tag = self.screen_tags[stage]
             if tag == 'ui:feedback-trace-start':
-                require(index + 1 < len(stages)
-                        and self.screen_tags[stages[index + 1]] == 'ui:feedback-trace-finish'
-                        and stage not in self.stage_actions
-                        and stages[index + 1] not in self.stage_actions,
+                inputs = (['ui:text-body-first-focus', 'ui:text-body-first-selected',
+                           'ui:text-body-first-read'] if stage in self.trace_bindings else [])
+                end = index + len(inputs) + 1
+                require(end < len(stages)
+                        and [self.screen_tags[s] for s in stages[index + 1:end]] == inputs
+                        and self.screen_tags[stages[end]] == 'ui:feedback-trace-finish'
+                        and not set(stages[index:end + 1]) & set(self.stage_actions),
                         self.prefix + ':trace-plan')
+                trace_ends.add(stages[end])
             elif tag == 'ui:feedback-trace-finish':
-                require(index > 0 and self.screen_tags[stages[index - 1]] == 'ui:feedback-trace-start',
+                require(stage in trace_ends,
                         self.prefix + ':trace-plan')
         require(type(self.reboot_transition) is tuple and
                 (not self.reboot_transition or
@@ -247,6 +256,16 @@ class InstalledJourney:
             self.failed = True
             raise
 
+    def retain_trace_sample(self, token, index, sample):
+        """Exclusive immutable evidence in the attempt's owned allocation."""
+        require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token)
+                and type(index) is int and 0 <= index < 256, 'ui:trace-evidence')
+        path = self.context.directory / f'trace-{token}-{index:03d}.json'
+        with path.open('x') as stream:
+            json.dump(sample, stream, sort_keys=True)
+            stream.flush()
+            os.fsync(stream.fileno())
+
     def submit_reboot(self, guard):
         """Only the declared input stage may consume this attempt's reboot."""
         require(not self.failed and self.plan.reboot_transition and
@@ -272,6 +291,10 @@ class InstalledJourney:
 
     def _step(self, guard):
         plan, context = self.plan, self.context
+        if self.trace_token is not None and plan.trace_bindings:
+            guard()
+            self.ui.poll_trace()
+            guard()
         if len(self.steps) == len(plan.stages):
             return
         stage = plan.stages[len(self.steps)]
@@ -350,13 +373,15 @@ class InstalledJourney:
             if tag.startswith('ui:'):
                 if self.ui is None:
                     self.ui = UiObservations(self.transport, progress=self.watch_progress)
+                    self.ui.trace_sink = self.retain_trace_sample
                 # Check the boot before UI input on the same guarded SSH call;
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
                 if tag == 'ui:feedback-trace-start':
                     require(self.trace_token is None, 'ui:trace-duplicate')
-                    observed['ui'] = self.ui.start_trace()
+                    observed['ui'] = (self.ui.start_trace(plan.trace_bindings[stage])
+                                      if stage in plan.trace_bindings else self.ui.start_trace())
                     self.trace_token = observed['ui']['token']
                 elif tag == 'ui:feedback-trace-finish':
                     observed['ui'] = self.ui.finish_trace(self.trace_token)

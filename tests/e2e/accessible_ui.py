@@ -96,6 +96,7 @@ FEEDBACK_PROJECTIONS = {
     **{f'length-{family}-{units}': (f'body-{family}-{units}', 'reply-clear')
        for family in ('ascii', 'mixed') for units in (5000, 5001)},
     'initial-empty': ('body-clear', 'reply-clear'),
+    'trace-prefix': ('body-first', 'reply-clear'),
     'synthetic-first': ('body-first', 'reply-first'),
     'formatted': ('body-smoke', 'reply-first'),
     'formatted-file': ('body-smoke', 'reply-first'),
@@ -107,6 +108,7 @@ FEEDBACK_PROJECTIONS = {
     'rejection-complex': ('body-complex', 'reply-clear'),
 }
 FEEDBACK_STATE_PROJECTIONS = {
+    'feedback-trace-sample': 'trace-prefix',
     'feedback-state-empty': 'initial-empty',
     'feedback-state-whitespace': 'states-whitespace',
     'feedback-state-no-reply': 'states-no-reply',
@@ -2294,13 +2296,19 @@ class AccessibleUI:
             # declared lengths; never project mismatching text into evidence.
             allowed = ((expected, expected + '\n')
                        if identity == 'feedback-editor-input' else (expected,))
-            require(count in {len(value) for value in allowed},
+            tracing = projection == 'trace-prefix' and identity == 'feedback-editor-input'
+            require((0 <= count <= len(expected) + 1) if tracing else
+                    count in {len(value) for value in allowed},
                     'ui:feedback-nonempty-draft')
             actual = (''.join(chr(self.api.Text.get_character_at_offset(text, offset))
                               for offset in range(count)) if binding == 'body-hidden' else
                       self.api.Text.get_text(text, 0, count) if count else '')
-            require(actual in allowed,
+            require((expected.startswith(actual.removesuffix('\n'))) if tracing else actual in allowed,
                     'ui:feedback-nonempty-draft')
+            if tracing:
+                body = actual.removesuffix('\n')
+                trace_draft = ('initial-empty' if not body else
+                               'states-no-reply' if body == expected else 'trace-prefix')
         require(attachments in (False, True, 'details', 'remaining', 'preview'), 'ui:attachment-profile')
         inputs = tuple((name, data) for name, data in ATTACHMENT_INPUTS
                        if attachments != 'remaining' or name == 'Synthetic note.txt') if attachments else ()
@@ -2405,7 +2413,8 @@ class AccessibleUI:
             require(self.has_state(target(identity), self.api.StateType.SENSITIVE),
                     'ui:feedback-control')
         if states:
-            return {'draft': projection, 'attachments': ['diagnostic-logs.zip'],
+            return {'draft': trace_draft if projection == 'trace-prefix' else projection,
+                    'attachments': ['diagnostic-logs.zip'],
                     'collection': 'ready', 'validation': FEEDBACK_VALIDATION[status_text],
                     'controls': 'ready',
                     'send_enabled': bool(self.has_state(target('feedback-send'),

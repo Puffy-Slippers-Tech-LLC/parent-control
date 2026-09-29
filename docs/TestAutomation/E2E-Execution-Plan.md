@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **016 — [Trace one public state transition](E2E-Tasks/016-trace.md)**.
+Next task: **016a — [Compose observation around one caller input](E2E-Tasks/016a-compose-observation-around-one-caller-input.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

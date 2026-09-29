@@ -95,6 +95,62 @@ class PublicAtspi:
             self._connection.close_sync(None)
             self._connection = None
 
+    @contextmanager
+    def checked_events(self, node, receive):
+        """Subscribe only to the pinned public object's checked-state signal.
+
+        The owning caller drives the private context while its separate input
+        command runs. No application callbacks or input run on this connection.
+        Registration and a bus round trip precede readiness; every exit removes
+        this connection's registration and match rule.
+        """
+        from gi.repository import Gio, GLib
+        if node.api is not self or not node.bus.startswith(':'):
+            raise ValueError('public-atspi:event-owner')
+        context = GLib.MainContext.new()
+        context.push_thread_default()
+        subscription = None
+        registered = False
+        try:
+            def signal(connection, sender, path, interface, member, parameters, *_user_data):
+                # Decode the documented (siiva{sv}) envelope, never arbitrary
+                # text or cached object properties. Exceptions must reach the
+                # owner rather than disappearing in a GLib callback.
+                try:
+                    if (sender != node.bus or path != node.path or
+                            interface != PREFIX + 'Event.Object' or member != 'StateChanged' or
+                            parameters.get_type_string() != '(siiva{sv})' or
+                            parameters.get_size() > 4096):
+                        raise ValueError('public-atspi:event-envelope')
+                    value = parameters.unpack()
+                    if (value[0] != 'checked' or type(value[1]) is not int or
+                            value[1] not in (0, 1) or value[2] != 0):
+                        raise ValueError('public-atspi:event-state')
+                    receive(bool(value[1]), None)
+                except Exception as error:
+                    receive(None, error)
+
+            subscription = self._connection.signal_subscribe(
+                node.bus, PREFIX + 'Event.Object', 'StateChanged', node.path,
+                'checked', Gio.DBusSignalFlags.NONE, signal)
+            self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
+                      PREFIX + 'Registry', 'RegisterEvent', 'sass',
+                      ('object:state-changed:checked', [], node.bus))
+            registered = True
+            self.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                      'org.freedesktop.DBus', 'GetId')
+            yield context
+        finally:
+            try:
+                if registered:
+                    self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
+                              PREFIX + 'Registry', 'DeregisterEvent', 'ss',
+                              ('object:state-changed:checked', node.bus))
+            finally:
+                if subscription is not None:
+                    self._connection.signal_unsubscribe(subscription)
+                context.pop_thread_default()
+
     def invalidate_snapshot(self):
         self._generation += 1
         self._records = None

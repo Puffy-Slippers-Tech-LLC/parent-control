@@ -36,6 +36,31 @@ sub observed_text {
     rejection_observe($journey, "trace-$entry-finish");
 }
 
+sub observed_toggle {
+    onpc_progress::operation('Observing one explicitly declared accessibility toggle');
+    my ($journey, $stage) = @_;
+    die 'trace:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($stage) && $stage =~ /^[a-z][a-z0-9-]*$/;
+    rejection_observe($journey, $stage);
+}
+
+sub run_accessibility_trace {
+    onpc_progress::operation('Qualifying checked-state events during synchronous accessibility input');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'accessibility-trace', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    for my $entry ('first', 'second') {
+        rejection_observe($journey, "$entry-$_") for ('disabled', 'wrong-child', 'wrong-surface');
+        observed_toggle($journey, "$entry-observed-enable");
+        rejection_observe($journey, "$entry-independent-saved");
+        rejection_observe($journey, 'restore-disabled') if $entry eq 'first';
+    }
+    $journey->finish();
+}
+
 sub run_composition {
     onpc_progress::operation('Qualifying valid-to-invalid feedback observation and independent readback');
     my ($exchange) = @_;

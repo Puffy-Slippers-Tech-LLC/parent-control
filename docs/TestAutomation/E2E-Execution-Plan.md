@@ -21,6 +21,10 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **017a — [Observe saving while a Parent control changes](E2E-Tasks/017a-parent-save-trace.md)**.
 
+Task 016c qualified observation during synchronous UI17 accessibility input.
+Task 017a remains unchecked and needs its own saving/control-state composition
+and live acceptance; no VM attempt has been made for 017a.
+
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
 pointer; record its exact remaining work and return condition here and in its

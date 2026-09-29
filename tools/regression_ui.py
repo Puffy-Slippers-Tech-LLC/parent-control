@@ -61,6 +61,8 @@ GROUPS = (
 # accessibility bus; keyboard input and app cleanup stay inside that fixture.
 # Synthetic duplication uses that same editor's clipboard on the private
 # display; it adds no helper process or host clipboard access.
+# Checked-event observation uses that same private GTK preview/accessibility
+# bus, with scoped subscriptions and no added thread, display or shared cache.
 # Combined-format/rejection checks retain this same private preview and bounded
 # 1,200-line document, including close/reopen and decoration removal. No new
 # processes, sockets, caches or shared state; the existing adapter budget applies.

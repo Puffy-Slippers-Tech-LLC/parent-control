@@ -19,21 +19,37 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **017** — PARENT08 snapshot saved/control states; installed qualification and owned cleanup passed.
 - **016a** — UI22.
+- **016c** — UI25/26 observation during synchronous accessibility input.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
-Start at `UiObservations.start_trace`, `poll_trace`, `finish_trace(token, terminal)`
-in `tests/e2e/ui_observations.py`, `JourneyPlan.trace_bindings` / `trace_terminals`
-and the worker pump in `tests/e2e/installed_journey.py`. UI22's current finite
-input declarations are `journey_blocks.observed_text` and
-`onpc_feedback_states::observed_text`; `compose_observation.PLAN` demonstrates
-explicit terminal binding and independent snapshot comparison. These qualify
-only Parent feedback body edits, not saving or conflicting-control samples.
+Start at `UiObservations.observe_accessibility_input`, `accessibility_ready`
+and `_observe` in `tests/e2e/ui_observations.py`,
+`AccessibleUI.parent_checked_events`, `parent_trace_source` and
+`parent_save_snapshot` in `tests/e2e/accessible_ui.py`, and
+`PublicAtspi.checked_events` in `tests/e2e/public_atspi.py`.
+`JourneyPlan.accessibility_inputs` declares the ordinary UI17 action and
+terminal; `accessibility_input_trace.PLAN` and
+`onpc_feedback_states::run_accessibility_trace` share the qualified sequence.
+The Parent checked-state event is qualified, but saving and
+conflicting-control samples are not.
 Focused lifecycle/refusal checks are `tests/unit/test_e2e_feedback_read.py`,
 `tests/unit/test_installed_journey_cleanup_safety.py` and
 `tests/unit/test_e2e_progress.py`. The selector below is still unimplemented.
 
-## Implementation
+## Session boundary
+
+Compose the qualified 016c observer with the PARENT08 saving/control projection
+and ordinary saved snapshot. The extracted prerequisite owns observer lifetime,
+event transport and concurrency, not this saving assertion. All original live
+outcomes below remain required in a fresh composition qualification.
+
+The 016c observer keeps its input-free public event subscription active during
+one synchronous UI17 call. Extend its public projection for this task's
+saving/control-state assertion without substituting a final switch value. No
+live attempt or product-behavior mismatch has been established for 017a.
+
+## Implementation binding
 
 Bind UI22 to Parent's saving and conflicting-control states. Arm observation and acknowledge readiness before one caller-owned Screen time limit change; collect the trace and terminal saved result without delaying the product.
 

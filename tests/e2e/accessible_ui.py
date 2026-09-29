@@ -364,6 +364,11 @@ TOGGLE_OPERATIONS = {
     'parent-toggle-hidden-refused': {'refusal': 'hidden-control', 'state': False},
 }
 OPERATIONS |= frozenset(TOGGLE_OPERATIONS)
+ACCESSIBILITY_TRACE_OPERATIONS = frozenset((
+    'parent-checked-events', 'parent-trace-wrong-child-refused',
+    'parent-trace-wrong-surface-refused',
+))
+OPERATIONS |= ACCESSIBILITY_TRACE_OPERATIONS
 PARENT_SAVE_OPERATIONS = {
     'multiple-other-saved': {
         'child': 'existing-fixture-child', 'result': 'saved', 'limit_enabled': True,
@@ -3602,6 +3607,11 @@ class AccessibleUI:
         """Installed Parent binding and bounded refusal checks for UI17."""
         require(operation in TOGGLE_OPERATIONS, 'ui:toggle-operation')
         root = self.parent()
+        if getattr(self, 'expected_trace_source', None) is not None:
+            require(operation == 'parent-toggle-enabled', 'ui:trace-input-binding')
+            self.parent_save_snapshot(CHILD, False)
+            require(self.parent_trace_source()[0] == self.expected_trace_source,
+                    'ui:trace-source-changed')
         if operation == 'multiple-other-enable':
             self.parent_save_snapshot(EXISTING_CHILD, False)
             return self.set_toggle('parent-screen-limit-toggle', True, root=root)
@@ -3643,6 +3653,81 @@ class AccessibleUI:
             return {'refusal': 'hidden-control', 'state': False}
         desired = operation == 'parent-toggle-enabled'
         return self.set_toggle('parent-screen-limit-toggle', desired, root=root)
+
+    def parent_trace_source(self, child=CHILD, surface='parent-window'):
+        """Resolve the bounded public projection and pin its window/object owner."""
+        import hashlib
+        require(surface == 'parent-window', 'ui:trace-surface')
+        # PARENT03 checks the exact selected child through its owned public ID.
+        self.settings(child)
+        root = self.parent()
+        target = self.id_target('parent-screen-limit-toggle', root=root, sensitive=True)
+        require(not self.has_state(target, self.api.StateType.DEFUNCT), 'ui:trace-stale')
+        references = [(node.bus, node.path) for node in (root, target)]
+        require(references[0][0] == references[1][0] and
+                references[0][0].startswith(':'), 'ui:trace-owner')
+        digest = hashlib.sha256(json.dumps(references).encode()).hexdigest()
+        return digest, target
+
+    def parent_checked_events(self, operation):
+        """Input-free UI25/26 leaf; the controller owns the separate UI17 call."""
+        if operation != 'parent-checked-events':
+            child, surface, category = (
+                (EXISTING_CHILD, 'parent-window', 'ui:selected-child')
+                if operation == 'parent-trace-wrong-child-refused' else
+                (CHILD, 'feedback-dialog', 'ui:trace-surface'))
+            try:
+                self.parent_trace_source(child, surface)
+            except UiError as error:
+                require(str(error) == category, 'ui:trace-refusal')
+                return {'refusal': 'wrong-child' if child == EXISTING_CHILD else 'wrong-surface'}
+            raise UiError('ui:trace-wrong-entry-accepted')
+        token = self.trace_request
+        require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token), 'ui:trace-token')
+        self.parent_save_snapshot(CHILD, False)
+        source, target = self.parent_trace_source()
+        started = time.monotonic()
+        samples, failures = [], []
+        armed = False
+
+        def receive(checked, error):
+            if error is not None:
+                failures.append(True)
+                return
+            if not armed or len(samples) >= 32:
+                failures.append(True)
+                return
+            samples.append({'elapsed_ms': int((time.monotonic() - started) * 1000),
+                            'checked': checked, 'source': 'event'})
+
+        with self.api.checked_events(target, receive) as context:
+            self.invalidate_observation()
+            require(self.parent_trace_source()[0] == source and
+                    not self.has_state(target, self.api.StateType.CHECKED), 'ui:trace-entry')
+            # Drain anything queued during registration before arming. An
+            # unexpected earlier event invalidates entry, never becomes proof.
+            for _ in range(64):
+                if not context.pending():
+                    break
+                context.iteration(False)
+            require(not context.pending(), 'ui:trace-event-limit')
+            require(not failures, 'ui:trace-entry')
+            armed = True
+            print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                              'source': source, 'boot_sha256': self.trace_boot,
+                              'checked': False}, sort_keys=True), flush=True)
+            while not samples and not failures and time.monotonic() - started < 60:
+                context.iteration(False)
+                time.sleep(0.01)
+            require(not failures and samples and samples[-1]['checked'] is True,
+                    'ui:trace-event-missing')
+            require(time.monotonic() - started < 60, 'ui:trace-deadline')
+            # Read continuity afresh after the event. This saved-state read is
+            # not substituted for the event nor for the caller's later PARENT08.
+            self.invalidate_observation()
+            self.parent_save_snapshot(CHILD, True)
+            require(self.parent_trace_source()[0] == source, 'ui:trace-source-changed')
+        return {'token': token, 'source': source, 'terminal': True, 'samples': samples}
 
     def parent_save_snapshot(self, child, expected_enabled):
         """PARENT08: wait for one terminal saved/control-state snapshot."""
@@ -6900,6 +6985,8 @@ class AccessibleUI:
                 raise UiError('ui:window-refusal-missing')
         elif operation == 'parent-empty':
             self.parent_empty()
+        elif operation in ACCESSIBILITY_TRACE_OPERATIONS:
+            result['trace'] = self.parent_checked_events(operation)
         elif operation in TOGGLE_OPERATIONS:
             result['toggle'] = self.parent_toggle_operation(operation)
         elif operation in APP_ROW_OPERATIONS:
@@ -7418,7 +7505,12 @@ def main():
         timing=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.branch_owner = branch_owner
-    ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 else None
+    trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or
+                      sys.argv[1] == 'parent-toggle-enabled')
+    ui.trace_request = sys.argv[4] if len(sys.argv) == 5 and trace_argument else None
+    ui.trace_boot = boot
+    ui.expected_trace_source = (ui.trace_request if sys.argv[1] == 'parent-toggle-enabled' else None)
+    ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 and not trace_argument else None
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')

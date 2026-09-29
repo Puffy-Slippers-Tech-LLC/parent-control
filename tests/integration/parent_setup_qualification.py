@@ -842,6 +842,16 @@ class TraceTransitionQualification(KioskEntryQualification):
         return journey(context, progress)
 
 
+class AccessibilityInputTraceQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from accessibility_input_trace import journey
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress)
+
+
 class ComposeObservationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

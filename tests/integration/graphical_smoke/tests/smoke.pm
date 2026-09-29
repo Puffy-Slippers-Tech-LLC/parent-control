@@ -552,6 +552,12 @@ sub run {
         onpc_feedback_states::run_custom_save_trace(\&exchange);
         return;
     }
+    if ($ready->{parent_diagnostic_export}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_privacy::run(\&exchange, 'export');
+        return;
+    }
     if ($ready->{diagnostic_export}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

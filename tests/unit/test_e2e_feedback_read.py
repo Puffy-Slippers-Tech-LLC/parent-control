@@ -64,6 +64,8 @@ from ui_observations import FeedbackStateObservation
 # children; unit scheduling and cleanup ownership are unchanged.
 # Collection uses the same private mocks and waited Perl children; no additional
 # mutable paths, buses, displays, caches or scheduling resources.
+# Case 155 retains these private paths, bounded doubles and waited Perl children;
+# no resource ownership, unit scheduler or cleanup classification changes.
 
 
 @pytest.mark.parametrize('fault', ['', 'storage', 'input', 'terminal-only', 'terminal', 'order', 'boot'])
@@ -2541,7 +2543,7 @@ def test_save_refuses_accept_while_location_editor_is_showing():
 def test_save_controller_requires_exact_mode_caller_and_result(operation):
     from ui_observations import UiObservations
     value = {'checked': operation}
-    if operation.removeprefix('export-') in ('save-chooser-open', 'save-chooser-reopen'):
+    if operation.removeprefix('denied-').removeprefix('export-') in ('save-chooser-open', 'save-chooser-reopen'):
         value['provider'] = {'route': 'nautilus-portal', 'version': '50.2.2-1',
             'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']],
             'mode': 'save', 'caller': 'parent-feedback'}
@@ -2558,9 +2560,11 @@ def test_save_controller_requires_exact_mode_caller_and_result(operation):
         controller.observe(operation)
 
 
-@pytest.mark.parametrize('export', [False, True])
+@pytest.mark.parametrize('export', [False, True, 'case'])
 def test_save_worker_matches_plan_and_refuses_before_later_input(export):
-    if export:
+    if export == 'case':
+        from parent_diagnostic_export import PLAN
+    elif export:
         from diagnostic_export import PLAN
     else:
         from save_chooser import PLAN
@@ -2577,6 +2581,7 @@ sub send_key { push @main::events, $_[0]; }
 sub type_string { push @main::events, 'typed'; }
 package main;
 require onpc_feedback_read;
+require onpc_feedback_privacy;
 no warnings 'redefine';
 *onpc_gdm::reattach_functional = sub { };
 *onpc_parent::open_for_child = sub { return $_[0]->seen('parent-selected'); };
@@ -2587,14 +2592,15 @@ my $exchange = sub {
     return {observed => $_[0]};
 };
 my $ok = eval {
-    if ($export) { onpc_feedback_read::run_diagnostic_export($exchange); }
+    if ($export eq 'case') { onpc_feedback_privacy::run($exchange, 'export'); }
+    elsif ($export) { onpc_feedback_read::run_diagnostic_export($exchange); }
     else { onpc_feedback_read::run_save_chooser($exchange); }
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
 '''
     for fault in ('', *stages):
-        result = json.loads(run_perl(script, fault, str(int(export))).stdout)
+        result = json.loads(run_perl(script, fault, 'case' if export == 'case' else str(int(export))).stdout)
         assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
         assert result['ok'] == (not fault)
         assert result['events'][-1] == (fault or 'finish')
@@ -2790,6 +2796,126 @@ def test_save_cancel_checks_fresh_filename_and_closure_without_save():
     ui.save_chooser_operation('save-chooser-cancel')
     cancel.action.do_action.assert_called_once()
     accept.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('step', ['location', 'destination'])
+def test_denied_save_supplies_and_independently_checks_only_fixed_destination(step):
+    ui, window, field, _, _ = save_ui()
+    field.identity = 'location_entry'
+    field.value = accessible_ui.SAVE_DIRECTORY + '/Unwritable'
+    if step == 'location': field.value = 'previous'
+    ui.save_chooser_operation('denied-export-save-chooser-' + step)
+    assert field.value == accessible_ui.SAVE_DIRECTORY + '/Unwritable' + (
+        '/' if step == 'location' else '')
+    if step == 'destination':
+        field.value = accessible_ui.SAVE_DIRECTORY
+        with pytest.raises(accessible_ui.UiError, match='save-field-readback'):
+            ui.save_chooser_operation('denied-export-save-chooser-destination')
+
+
+@pytest.mark.parametrize('fault', ['', 'delayed', 'timeout', 'owner', 'ambiguous', 'chooser'])
+def test_save_error_requires_exact_app_subtitle_and_refuses_unsafe_result(fault):
+    ui, _, _, controls = feedback_ui()
+    expected = 'Could not save logs. Try another location.'
+    subtitle = Node(expected, role='label')
+    row = controls['feedback-logs-row']
+    row.children.append(subtitle)
+    subtitle.parent = row
+    ui.api.RelationType.DESCRIBED_BY = 'described-by'
+    row.relations = [SimpleNamespace(get_relation_type=lambda: 'described-by',
+        get_n_targets=lambda: 2 if fault == 'ambiguous' else 1,
+        get_target=lambda _: subtitle)]
+    ui.chooser_snapshot = Mock(return_value=fault != 'chooser')
+    if fault == 'owner': row.get_process_id = lambda: 999
+    if fault == 'timeout': subtitle.name = 'Could not choose a download location. Try again.'
+    if fault == 'delayed':
+        subtitle.name = 'Latest 3 log dates · ZIP archive'
+        original_wait = ui.wait
+        def delayed(predicate, label, **kwargs):
+            if label == 'save-app-result':
+                assert predicate() is False
+                subtitle.name = expected
+            return original_wait(predicate, label, **kwargs)
+        ui.wait = delayed
+    if fault in ('timeout', 'owner', 'ambiguous', 'chooser'):
+        with pytest.raises(accessible_ui.UiError): ui.save_app_result(expected)
+    else:
+        ui.save_app_result(expected)
+    for node in controls.values(): node.action.do_action.assert_not_called()
+
+
+def test_synthetic_cancel_and_failed_save_preserve_draft_before_recovery():
+    from attachment_composition import save_handoff, save_cancellation
+    assert set(save_handoff('independent', draft='synthetic-first', destination='unwritable').values()) <= {
+        'ui:' + operation for operation in accessible_ui.SAVE_OPERATIONS}
+    with pytest.raises(EvidenceError, match='save:destination'):
+        save_handoff('independent', draft='synthetic-first', destination='../other')
+    ui, window, field, accept, _ = save_ui()
+    cancel = next(node for node in window.children if node.name == 'Close')
+    cancel.action.do_action.side_effect = lambda _: window.states.clear() or True
+    ui.save_chooser_operation('export-save-chooser-cancel-name')
+    ui.save_chooser_operation('export-save-chooser-cancel')
+    ui.wait_feedback_collection = Mock()
+    ui.feedback_snapshot = Mock()
+    ui.save_chooser_operation('export-save-chooser-preserved')
+    ui.feedback_snapshot.assert_called_once_with('synthetic-first')
+    accept.action.do_action.assert_not_called()
+    assert all(value.startswith('ui:export-save-chooser-')
+               for value in save_cancellation('independent', draft='synthetic-first').values())
+
+
+def test_case155_recorder_constructs_shared_journey_and_registered_actions(tmp_path):
+    from parent_diagnostic_export import PLAN, execute
+    from attachment_composition import DiagnosticExportJourney
+    recorder = MagicMock(assertion=Mock())
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+        verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock(), recorder=recorder)
+    def worker(**options):
+        journey = options['guarded_observe'].__self__
+        assert type(journey) is DiagnosticExportJourney and journey.plan is PLAN
+        assert set(journey.actions) == set(PLAN.stage_actions.values())
+        assert options['validate'].__self__ is journey
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'): execute(recorder, context)
+    context.run_worker.assert_called_once()
+    recorder.assertion.assert_not_called()
+
+
+@pytest.mark.parametrize('phase', ['cancel', 'denied', 'export', 'privacy'])
+@pytest.mark.parametrize('fault', ['', 'pid', 'endpoint', 'draft', 'capture'])
+def test_case155_independent_comparison_refuses_before_durable_reply(tmp_path, monkeypatch, phase, fault):
+    from copy import deepcopy
+    from parent_diagnostic_export import PLAN
+    from attachment_composition import DiagnosticExportJourney
+    from synthetic_files import diagnostic_export_actions
+    import installed_journey
+    window = {'binding': 'feedback', 'pid': 42, 'endpoint': [':1.42', '/feedback'],
+              'active': True, 'feedback': {'draft': 'synthetic-first',
+                'attachments': ['diagnostic-logs.zip'], 'collection': 'ready',
+                'validation': 'none', 'controls': 'ready'}}
+    journey = DiagnosticExportJourney(SimpleNamespace(directory=tmp_path), Mock(), PLAN,
+                                      actions=diagnostic_export_actions(preservation=True))
+    if fault != 'capture': journey.check_settings(phase + '-capture', {'ui': {'window': window}})
+    actual = deepcopy(window)
+    if fault == 'pid': actual['pid'] += 1
+    if fault == 'endpoint': actual['endpoint'][1] = '/replaced'
+    if fault == 'draft': actual['feedback']['attachments'] = []
+    stage = phase + '-return'
+    stages = list(PLAN.stages)
+    journey.steps = [{'stage': name} for name in stages[:stages.index(stage)]]
+    journey.ui = SimpleNamespace(boot_guard='', boot_proof='a' * 64,
+        observe=Mock(return_value={'window': actual}))
+    journey.transport = Mock()
+    monkeypatch.setattr(installed_journey.session_control, 'observe', Mock(return_value={}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError, match='window-or-draft-changed'): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        assert 'feedback' not in journey.windows
 
 
 def portal_query():

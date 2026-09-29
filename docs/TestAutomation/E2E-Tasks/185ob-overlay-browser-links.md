@@ -1,16 +1,16 @@
-# 185ob — Qualify overlay website and privacy links
+# 185ob — Check overlay website and privacy links
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **INFO01 overlay website/privacy browser destinations**. Named consumer: task **185o** and any
+Deliver **INFO01 overlay website/privacy link clickability**. Named consumer: task **185o** and any
 complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **185oa** — ABOUT01/02 overlay information and license-handler binding.
+- **185oa** — ABOUT01 and INFO01 overlay information and license link clickability.
 
 ## Read only this context
 
@@ -22,16 +22,22 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Bind the offered website and privacy actions to the actual child-session browser. Reuse destination readers while proving this session's owner, URL/content and normal return.
+Use the shared clickable-link reader for the offered website and privacy
+controls on the owned overlay About surface. Stop at visible/enabled state and
+a usable public activation action. Do not activate links, inspect their URIs,
+launch a browser or validate destinations. No browser-specific adapter is needed.
 
-Keep repository-owned targets addressed by public automation IDs. External
-provider bindings use the approved scoped adapter and its ownership, ambiguity,
-freshness and uncertain-input guards. Reuse the existing attempt envelope,
+Keep targets addressed by owned public automation IDs, with ownership,
+ambiguity and freshness guards. Link checks need no external provider binding.
+Reuse the existing attempt envelope,
 observer and worker; add no independent runner or fixture framework.
 
 ## Live VM acceptance
 
-Follow each offered browser link in separate entries, independently read its destination, close normally and compare the original form choices. Wrong tabs/owners and incomplete destinations refuse.
+Check both links are clickable without invoking them, close About and compare
+the original form choices. Qualify independent entry and
+missing/disabled/nonactionable/wrong-owner refusal. No browser availability,
+page content, tabs or external close/return behavior is tested.
 
 Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation

@@ -228,16 +228,16 @@ def test_return_block_accepts_independent_entry_and_never_replays_uncertain_inpu
     if fault in ('missing', 'stale'):
         assert not keys
     elif fault == 'checkpoint':
-        assert keys == ['alt-f4']
+        assert keys == []
     else:
-        assert keys == ['alt-f4', 'alt-f4']
+        assert keys == ['alt-f4']
     assert not any(event[0] in ('secret', 'click', 'text') for event in result['events'])
 
 
-def test_close_observation_precedes_semantic_footer_reveal_and_return_close():
+def test_link_check_precedes_footer_and_only_about_is_closed():
     result = json.loads(run_perl(PROBE, '0', '', 'return').stdout)
     assert result['events'] == [
-        ['stage', 'license'], ['key', 'alt-f4'], ['stage', 'license-closed'],
+        ['stage', 'license'], ['stage', 'license-closed'],
         ['stage', 'about-returned'],
         ['key', 'alt-f4'], ['stage', 'parent-returned'],
     ]

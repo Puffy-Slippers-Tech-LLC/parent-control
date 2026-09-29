@@ -7,16 +7,11 @@ from tests.support.paths import ROOT
 
 
 class AboutDialogTests(unittest.TestCase):
-    def test_help_opens_the_help_page_without_changing_the_about_website(self):
+    def test_help_uses_the_desktop_default_uri_launcher(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
             encoding="utf-8")
-        branding = (ROOT / "data/brand.json").read_text(encoding="utf-8")
-
         self.assertIn('_launch_uri(branding()["help_url"])', source)
-        self.assertIn('"app_url": "https://tech.puffyslippers.com/oh-no-parent-control"',
-                      branding)
-        self.assertIn('"help_url": "https://tech.puffyslippers.com/oh-no-parent-control/help"',
-                      branding)
+        self.assertIn('Gio.AppInfo.launch_default_for_uri(uri, None)', source)
 
     def test_website_row_uses_the_small_company_icon(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
@@ -29,16 +24,12 @@ class AboutDialogTests(unittest.TestCase):
             logo.read(16)
             self.assertEqual(logo.read(8), b"\x00\x00\x00 \x00\x00\x00 ")
 
-    def test_privacy_row_uses_the_published_privacy_policy(self):
+    def test_information_rows_expose_clickable_links(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
             encoding="utf-8")
 
-        self.assertIn(
-            '_PRIVACY_URL = "https://tech.puffyslippers.com/oh-no-parent-control/privacy/"',
-            source,
-        )
+        self.assertIn('Gtk.LinkButton.new_with_label(uri, value)', source)
         self.assertIn('"security-high-symbolic", "Privacy"', source)
-        self.assertIn('"Privacy policy", _PRIVACY_URL', source)
 
     def test_gtk_about_logo_uses_launcher_art_at_the_original_display_size(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(

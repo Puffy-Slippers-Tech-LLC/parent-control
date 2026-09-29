@@ -1,4 +1,4 @@
-# 185p — Read Parent Help and legal notices and complete information links
+# 185p — Check Parent Help/About information links
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
@@ -18,25 +18,34 @@ Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-sur
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **044a** — DESK10 same-desktop window switching.
-- **185w** — INFO01 Parent website browser identity and close/return.
-- **185v** — INFO01 Parent privacy page identity and close/return.
-- **185s** — INFO01 Parent support mail recipient/subject and close without sending.
-- **185l** — ABOUT02/03 actual license handler identity/content and close/return.
+- **185w** — INFO01 Parent website link clickability.
+- **185v** — INFO01 Parent privacy link clickability.
+- **185s** — INFO01 Parent support link clickability.
+- **185l** — Retained ABOUT02/03 entry/return helpers; use the current link-only contract.
 
 Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Complete the Parent UI matrix for Help/About content, offered actions and URI
-callbacks using the existing information-route readers. Installed acceptance
-below owns actual handlers, destination identity and return behavior, without
+Complete the Parent UI matrix for owned Help/About information and clickable
+link controls using the shared readers. Installed acceptance
+below owns link clickability and unchanged product state, without
 repeating layout/scale/content permutations.
 
-Reuse the separately qualified website, privacy, support and license handlers from tasks 185w, 185v, 185s and 185l. Qualify the owned Help/About entry and the remaining Legal notices destination through its actual document handler, then compose INFO01 Parent from those completed leaves. Keep exact public destination identity/content, normal close/return and Parent state comparison.
+Reuse the website, privacy and support readers from tasks 185w, 185v and 185s.
+Check Help, License and Legal notices are clickable through the same shared
+reader, then compose INFO01 Parent. Stop at visible/enabled state and a usable
+public activation action; do not activate links or inspect their URIs or
+destinations. Keep owned About close and Parent state comparison.
 
 ## Live VM acceptance
 
-In installed Parent, capture selected child/settings, open Help/About and follow Legal notices. Read the actual notice document, close normally and compare the same Parent state. Independently supplied valid entry and wrong-document/handler/ambiguous-window refusals must pass. Retain each other destination's valid qualified result; the complete case 190 follows all offered links. No mail is submitted, and an inaccessible required destination leaves this task incomplete.
+In installed Parent, capture selected child/settings, check Help and the
+License/Legal notices controls are clickable without invoking them, close
+About and compare the same Parent state. Independent entry and
+missing/disabled/nonactionable/wrong-owner refusals must pass. Retain each
+other link's qualified clickability result; complete case 190 checks all
+offered links. Browser, mail and document handlers are not prerequisites.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

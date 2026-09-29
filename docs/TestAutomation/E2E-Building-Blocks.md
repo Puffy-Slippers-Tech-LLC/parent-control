@@ -1029,9 +1029,9 @@ routes remain separate consumers.
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
 | ABOUT01 | C | Open the declared surface's About entry; read product/version and reach the license information. Parent and restricted kiosk bindings are ready; overlay remains pending. Kiosk reads plain legal information and proves external actions absent. | Parent: `onpc_about::open_about` / `AccessibleUI.open_about(version)`. Kiosk: `AccessibleUI.open_kiosk_about` / `read_kiosk_about(version)`; `onpc_window::close('station-about')` returns to the unchanged form. UI01 → UI04(menu) → UI04(About) → UI01 → UI03 → UI09, plus kiosk UI11 exclusion. [About contracts](#about-block-contracts). | ready for Parent and kiosk; overlay pending |
-| ABOUT02 | C | Follow the license link to the actual viewer and read the identifying license content. | `AccessibleUI.open_license` follows the ID-addressed product link once. `license_viewer_snapshot` scopes GNOME Text Editor's public `view` ID; `read_document` verifies bounded GPL title/version text. `check_e2e_license_viewer` qualified independent entry and live unrelated/empty/ambiguous viewer refusal in run `20260923T201618Z-50520052`. [Provider scope](#about-block-contracts). | ready for Parent/GNOME Text Editor; other bindings pending |
+| ABOUT02 | C | Check the owned license link is clickable without invoking it or inspecting its URI/destination. | `AccessibleUI.open_license` is a compatibility name for `clickable_link('about-license-value', root=about())`. No external handler/content dependency. `check_e2e_license_viewer` retains its selector name for link-only qualification. [Scope](#about-block-contracts). | ready for Parent link-only scope in `20260929T220011Z-55987e7f`; other bindings pending |
 | ABOUT04 | C | Reach and read the About footer in the already open About window through semantic ID reveal. | `onpc_about::read_footer(journey, returned, 'semantic-reveal')` delegates to `AccessibleUI.about_footer`: UI09 → UI03(footer), with no preliminary positional keys. [About contracts](#about-block-contracts). | ready |
-| ABOUT03 | C | Close the license, read the About footer, close About and compare the selected child/settings with the supplied earlier observation. | `onpc_about::return_to_parent` composes UI18 → ABOUT04 → UI18; `JourneyPlan.settings_checks` supplies UI12. `onpc_license_viewer_provider::run` qualified those leaves with active-viewer proof, ambiguous-close refusal, single-use close, complete viewer absence, active owned About return, footer read and unchanged child/switch/allowance in run `20260923T201618Z-50520052`. Complete case 151 passed the composed journey, collection and owned cleanup in run `20260923T202401Z-9e9a5886`. | ready for Parent/GNOME Text Editor; other bindings pending |
+| ABOUT03 | C | Read the owned About footer, close only About and compare the selected child/settings with the supplied earlier observation. | `onpc_about::return_to_parent` consumes the clickable-license observation, confirms About remains open, then composes ABOUT04 → UI18; `JourneyPlan.settings_checks` supplies UI12. No external window or handler is inspected/closed. | ready for Parent link-only scope in `20260929T220011Z-55987e7f`; other bindings pending |
 | FEED01 | C | Open ordinary Parent feedback through its Feedback action and observe editor/collection state. Error-report entry uses FEED15; no hidden error creation. | `AccessibleUI.open_feedback(projection='initial-empty')`: UI01 → UI04(`parent-feedback-button`) → UI01 → UI02 → UI03. `feedback_read.PLAN` / `onpc_feedback_read::run` qualified initial empty entry and independent reopen through `check_e2e_feedback_read` in run `20260925T011124Z-21d4f936`. `check_e2e_feedback_privacy` additionally qualified preserved `synthetic-first` entry in `20260926T214728Z-4a3ca1b4`; collection, owned cleanup and baseline restoration passed. Send remains untouched. | ready for ordinary Parent initial-empty and synthetic-first entry; other bindings pending |
 | FEED03 | C | Read the visible synthetic draft, exact attachment list and validation/control state into an explicit observation. | `AccessibleUI.feedback_snapshot(projection)` → explicit closed comparison: UI01 → UI02 → UI03 → UI13(attachments). `check_e2e_feedback_read` qualified `initial-empty` in `20260925T011124Z-21d4f936`. `check_e2e_feedback_privacy` qualified `synthetic-first` in `20260926T214728Z-4a3ca1b4`, including unchanged Privacy/dialog reopening. The [attachment handoff](#attachment-chooser-handoff), [boundary lists/statuses](#attachment-rejection-boundaries) and [formatted one-file lifecycle](#formatted-one-file-draft-lifecycle) add exact finite files, metadata and format comparisons. Never project arbitrary private text. | ready for Parent initial-empty, synthetic-first, formatted single-file, fixed two-file and declared boundary readback; other bindings pending |
 | FEED04 | C | Apply one offered rich-text format to an explicit synthetic range and observe its public inline attributes or block meaning/text association. Select through normal keyboard input, then use its toolbar/menu. | `onpc_format::apply_bold(journey)` / `AccessibleUI.format_operation`: UI21(editor) → Ctrl+Home → observed caret → nine Shift+Right inputs → exact public selection `[0, 9)` → UI04(`feedback-format-bold`) → UI24. `onpc_format::apply_block(journey, kind)` / `AccessibleUI.block_operation` use the same guarded home/selection envelope for the finite `block_semantics.RANGES`, then heading picker/format action and independent semantic read. `BlockSemanticsJourney` / `onpc_format::run_blocks` qualify every declared block plus independent reopen and wrong-entry refusal in `20260927T220402Z-60e41f1b`. `onpc_feedback_states::run_rejection` / `rejection_operation` retain Ctrl-A, exact selection and combined bold/italic/underline/strike proof on `body-complex`; see [feedback rejection](#feedback-rejection). Required bold/rejection regressions passed in `20260927T221053Z-796e5c0f` / `20260927T221352Z-4432e213`, with collection, cleanup and baseline restoration. No valid Send, DOM bridge or private draft assignment. `feedback_formats.read` / `read_links` associate unique public link Text with `Plain` at flattened `[86, 91)`, read all four styles locally, and derive root attribute/selection boundaries from its observed embedded width through `root_offset`; local Hyperlink start indices are never editor offsets. `FeedbackLinkJourney` / `onpc_format::run_links` reuse `apply_inline` and qualify the exact URI `https://example.com/feedback`, adjacent normal text, independent reopen and wrong-entry refusal in `20260928T000001Z-b07e2a8f`. Format/rejection regressions passed in `20260928T000512Z-196ba37b` / `20260928T000805Z-44ce5cac`, with collection, owned cleanup and baseline restoration. Host removal, undo/redo and delta restoration pass. `FeedbackFormatsJourney` / `onpc_format::run_formats` qualify the shared `apply_all` / `apply_inline` composition through `check_e2e_feedback_formats` in `20260928T005139Z-951ec3ec`: all six block meanings, four inline styles and exact link text/destination coexist, persist across reopen, and are removed while preserving the exact 98-character body. Both formatted and cleared states retain independent reopen and wrong-entry refusal. Public selection boundaries use the observed embedded link width. Bold/rejection regressions passed in `20260928T005856Z-1f56e149` / `20260928T010152Z-75515a1c`; collection, owned cleanup and baseline restoration passed throughout. No Send, link navigation or complete-case credit. | ready for declared Parent bold, four-format complex and `body-blocks` fixtures, linked inline and complete format/removal composition; other bindings and complete scenarios pending |
@@ -1227,7 +1227,7 @@ binding does not extend an existing callable's qualified scope.
 | PANEL01 | C | Open the child's countdown context menu and read the named animation choice. | DESK12(countdown) → UI01 → UI28 → UI01(menu) → UI02(choice). E2E-037. | pending |
 | PANEL02 | C | Set the animation choice in an already open menu, then close the menu and verify return to the desktop. | UI17(choice) → UI05(Escape) → UI11(menu) → DESK01. E2E-037. | pending |
 | PANEL03 | C | Reveal and read the countdown's hover explanation. | DESK12(countdown) → UI01 → UI27 → UI03(tooltip). E2E-011/037. | pending |
-| INFO01 | C | Follow one declared Help/About link and read the identifying browser, mail-composer or legal-viewer destination; return without submitting mail. Kiosk asserts unavailable external actions instead. | UI04(link) → UI01(destination) → UI03(identity) → UI18(destination); kiosk UI11 on recognized About. E2E-042. | pending |
+| INFO01 | C | Check one declared Help/About external link is clickable, then stop. Never invoke it or inspect its URI/destination. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. No browser/mail/document adapter, destination content, handler availability or external close/return gate. Kiosk UI11 on recognized About. E2E-042. | shared reader implemented; per-surface live qualification pending |
 | INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account; check the public desktop afterward. | `onpc_documentation::read(journey, binding)` composes `command_documentation.observe` and the registered public desktop-clear observation. The stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. All four bindings and independent desktop returns passed complete case 193 in run `20260923T194553Z-e2f16f7e`, with collection and owned cleanup. | ready |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: UI01 → FEED03; decline UI11(report) → UI01(destination). E2E-045. | pending |
 | FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Without-logs submission reuses FEED11; it is not hidden inside retry. E2E-046. | pending |
@@ -2048,7 +2048,7 @@ completed initial migration. Composition checks alone supply no live credit.
 | [parent_discovery.py](../../tests/e2e/parent_discovery.py), [onpc_parent_discovery.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_discovery.pm) | GDM07, SEARCH06, PARENT02/03/04/19, FIX01 in case 3 or FIX02 in case 4 and explicit UI12 comparisons. | Every picker resolves choices by ID, highlights before Enter and verifies selection afterward. Existing child starts limits-off/zero; each child's returned values compare with its own observation. FIX01 stays after visible initial settings; FIX02 stays after launchable search but before launching Parent. |
 | [parent_access.py](../../tests/e2e/parent_access.py), [onpc_parent_access.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_access.pm) | GDM07(standard), SEARCH01 → UI21 → SEARCH03 → SEARCH04(unavailable). | Direct standard-account selection and two fresh intended-recipient checks; semantic focus then independent focus observation; first character then readback, remainder then full readback; exact query-specific web suggestion and complete stable absence; no Enter on it. |
 | [parent_terminal.py](../../tests/e2e/parent_terminal.py), [onpc_parent_terminal.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_terminal.pm) | GDM07(standard) → PARENT01(denied) → `onpc_window::close` (UI18). | Direct command once, management denial and exclusion, fresh active-window proof before close, desktop return with management absent. The legacy variant ID remains `terminal`. |
-| [parent_about.py](../../tests/e2e/parent_about.py), [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) | FLOW01(GDM07, direct-command PARENT01), ABOUT01/02/04/03 and explicit settings observation. | Functional GDM goes straight to the intended account and retains two fresh recipient checks. Read actual installed version/license/footer, close the real viewer, and return to the same child/switch/allowance. Open step-2 before the acknowledgement that permits closing the license. |
+| [parent_about.py](../../tests/e2e/parent_about.py), [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) | FLOW01(GDM07, direct-command PARENT01), ABOUT01/02/04/03 and explicit settings observation. | Functional GDM goes straight to the intended account and retains two fresh recipient checks. Read owned version/footer, check license link clickability without invocation or destination inspection, close only About and compare child/switch/allowance. |
 | [command_help.py](../../tests/e2e/command_help.py), [onpc_command_help.pm](../../tests/integration/graphical_smoke/lib/onpc_command_help.pm) | GDM07(Parent) → four explicit INFO02 bindings → final desktop-clear observation. | Parent/station help and manuals use bounded command stdout with identity/content checks, followed by independent desktop checks. No terminal or arbitrary command API. |
 | [clean_install.py](../../tests/e2e/clean_install.py) | `package_journey.record_package_journey`, `journey_checks`, LIFE04/02 and shared Parent/station blocks. | The recipe declares result-check placement; the envelope stages assets and submits once. Independent completion, account preservation and nonempty Allowed rows must pass before the durable reply. |
 | [kiosk_no_child.py](../../tests/e2e/kiosk_no_child.py), [kiosk_no_approver.py](../../tests/e2e/kiosk_no_approver.py), [disabled_child.py](../../tests/e2e/disabled_child.py) | FIX03 `account_fixture.station_fixture_actions` for the two empty-account cases, `journey_blocks.parent_management` for disabled-child, `station_entry` and shared request operations. | Each empty-account attempt receives a fresh single-use fixture. No-child preparation remains at setup; no-approver preparation remains after its public baseline. Disabled-child never enables limits. |
@@ -2249,60 +2249,36 @@ role, password surface or appearance gate is qualified. Legacy image helpers
 refuse before backend or input; their safety obligations remain represented by
 the functional semantic recipient proofs.
 
-ABOUT01 resolves the About surface and its product, version and license controls
-by their public IDs, then reads the showing labels and reveals the license link.
-ABOUT02 follows that ID-addressed link once and resolves the viewer and document
-through the qualified provider route before reading public text. UI03 reads at most 1,024 characters and returns only whether
-both GPL title and version/date headings match. Masked, hidden, unregistered or
-oversized reads refuse; document contents never enter controller evidence.
+ABOUT01 resolves the owned About product/version information by public IDs.
+ABOUT02 checks the license control with `AccessibleUI.clickable_link`: visible,
+enabled, nondefunct and offering one public activation action. It does not
+invoke that action, inspect the URI or validate any external handler/content.
+The retained `open_license` callable and `license` stage are compatibility names
+for this read-only check. No browser, mail or document provider is required.
 
-`AccessibleUI.license_viewer_snapshot` is the external-provider exception for
-GNOME Text Editor's license route. It resolves the unique application directly
-under the public desktop registry, then its sole showing window and the
-provider's `view` Builder ID (see the
-[upstream template](https://github.com/GNOME/gnome-text-editor/blob/50.0/src/editor-page.ui)).
-Application/window semantics remain inside this adapter; no window title,
-geometry or document text identifies a target. Process ownership, complete
-snapshots and prompt refusal remain mandatory. An already open editor refuses
-before link input; unsupported handlers, multiple windows/documents and missing
-IDs cannot fall back to generic text discovery. The close checkpoint reacquires
-the active viewer and rechecks both GPL headings. Return requires viewer absence
-and the active ID-owned About dialog in one fresh complete snapshot. This route
-does not qualify ordinary document editing, saving, other handlers or overlay
-About. Its installed qualification is recorded in the provider table below.
+`check_e2e_license_viewer`, `LicenseViewerProviderJourney` and
+`onpc_license_viewer_provider::run` retain their names but now qualify only
+owned link clickability and About return. External fixture launches and
+unrelated/empty/ambiguous document checks are retired from this qualification.
+Historical viewer passes do not qualify the changed link-only scope.
 
-The fixed `check_e2e_license_viewer` capability qualification passed in run
-`20260923T201618Z-50520052` (now outside runner retention).
-`LicenseViewerProviderJourney` and `onpc_license_viewer_provider::run` enter
-through fresh Parent/About observations, refuse a wrong entry proof, and open
-real unrelated and empty fixture documents through the desktop user's service
-manager. The adapter independently reads each fixture and refuses license-link
-input while its viewer exists. After closing both fixtures and reacquiring About,
-it follows the real license link, reads both GPL headings, and opens a second
-viewer to prove ambiguous read/close refusal. Closing that fixture permits a
-fresh license read and normal return through About/footer to the unchanged
-selected child, switch and allowance. Fixture files are exclusively created,
-contain no trailing newline (matching GtkSourceView's public buffer), and are
-removed after observed closure; the guarded attempt owns failure cleanup.
-Private evidence reconciliation, collection and owned cleanup passed. This
-qualifies the capability only. Complete case 151 separately passed through
-`parent_about.PLAN` and `onpc_parent_about::run` in run
-`20260923T202401Z-9e9a5886`: fresh Parent entry, direct launch, selected child,
-About/version, actual GPL content, normal license close, footer, About close and
-unchanged child/switch/allowance. Capture reconciliation, product,
-infrastructure, collection, owned cleanup and suite baseline restoration passed.
+The link-only scope passed `check_e2e_license_viewer` in run
+`20260929T220011Z-55987e7f`: owned clickable license control, fresh repeated
+entry, wrong-entry proof refusal, owned footer/About close and unchanged Parent
+settings, with collection, owned cleanup and baseline restoration. The capability
+and case workers share `onpc_about::return_to_parent`; its finite source-stage
+binding accepts the ordinary link read or the qualification's repeated read.
+This qualifies Parent ABOUT02/03, not INFO01's other links or a new complete
+case 151 pass.
 
-UI18 observes the ID-owned About window or qualified viewer's active state
-before acknowledging Alt-F4.
-The worker consumes that exact fresh proof once, closes once and waits for a
-complete fresh absence observation with the expected underlying window present.
-`license` durably opens step-2 before permitting its close; `license-closed`
-precedes ABOUT04's semantic ID reveal and independent footer read, with no
-positional navigation. The final close reacquires Parent and reads its displayed
-child, limit switch and allowance without changing selection or settings.
+ABOUT03 consumes the link observation, confirms About remains open, reads
+ABOUT04's owned footer and closes only About through UI18. The legacy
+`license-closed` stage observes the same About; it sends no external close.
+The final close reacquires Parent and reads its child, limit switch and
+allowance without changing selection/settings.
 `settings_checks={'parent-returned': 'parent-selected'}` compares immutable,
 scenario-owned values before the terminal acknowledgement. Missing, changed,
-stale or replayed observations fail, including after successful window input.
+stale or replayed observations fail, including after successful About input.
 
 Qualification uses the actual [Perl worker](../../tests/unit/test_parent_about_worker.py),
 [public adapter](../../tests/unit/test_accessible_e2e_ui.py),
@@ -2478,7 +2454,7 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 | gcr keyring prompt | `AccessibleUI.keyring_cancel_target` / `cancel_keyring_prompt` qualified the prepared standard-account login-keyring Cancel route through `check_e2e_desktop_keyring` (run `20260923T051904Z-f0d79b4d`, outside runner retention). Recorded tuple: Ubuntu 26.04, gcr `3.41.2-6`, Shell `50.1-0ubuntu1.2`, actual gcr locale `en_US.UTF-8`, keyboard sources `[["xkb", "us"]]`. The semantic adapter requires a unique live gcr application owner, visible Login Keyring dialog, sole empty masked focused field and unique enabled Cancel; the application container itself has no visibility requirement. It invokes Cancel once, observes disappearance and independently observes a prompt-free desktop for two seconds. Host regressions reject wrong/ambiguous ownership, hidden/disabled input, lost focus, replacement/queued prompts, incomplete absence and uncertain input. Preparation activates installed `PrivatePrompter`, verifies its ownership of `SystemPrompter`, and locks/requests unlock of the existing Login collection through Secret Service without reading or supplying a password. Separate fresh Parent and standard attempts passed private collection, reconciliation and owned cleanup. Other locales, provider tuples, Parent keyring cancellation and automatic search-middleware composition remain unqualified. | Prepared standard DESK01 gcr Cancel return ready; other keyring handling and secret routes pending |
 | GTK native file chooser | Qualify each caller-owned dialog route, exact selected-file readback and wrong-dialog refusal. | FILE03, FEED06, FEED08 native routes |
 | GNOME portal / Nautilus chooser | `chooser_snapshot` binds the unique active modal and provider controls; `validate_chooser_portal_owner` binds the sole live delegated request to feedback through public D-Bus ownership and Request introspection. Missing/ambiguous/replaced requests and contradictory explicit relations refuse. Imported Wayland parents lack GTK `CONTROLLED_BY`; see [Nautilus](https://github.com/GNOME/nautilus/blob/50.0/src/nautilus-portal.c) and the [public caller-path contract](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Request.html). Cancellation uses scoped Close; native GTK retains Cancel. Current `button` and legacy `push button` roles are supported. The [attachment handoff](#attachment-chooser-handoff) qualified two-file Open/Cancel in `20260927T161010Z-7e6515c9` on `1:50.2.2-0ubuntu0.1`; Open/Cancel regression passed in `20260929T191829Z-3d1fd72a` on `1:50.2.2-0ubuntu0.2`, both `en_US.UTF-8`, `xkb/us`. Case 155's Cancel/unwritable-save/recovery passed in `20260929T203255Z-29d6637e`; named Save/Cancel and export qualifications passed in `20260929T203754Z-7b47ee7e` and `20260929T204158Z-388a25b4` on `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`, `xkb/us`, caller `parent-feedback`, with collection, owned cleanup and baseline restoration. Save restores the collapsed filename through scoped `filename_label` before exact-name proof and real Save. | fixed Parent Open/Cancel, named Save/Cancel, fixed unwritable save-error/recovery and FEED08 export ready; other profiles/tuples pending |
-| Default document/license viewer | `license_viewer_snapshot` and `check_e2e_license_viewer` qualified Parent's actual GNOME Text Editor handler in run `20260923T201618Z-50520052`: Ubuntu 26.04, editor `50.1-0ubuntu0.1`, actual provider locale `en_US.UTF-8`, keyboard sources `[["xkb", "us"]]`. Live independent entry, wrong-entry/unrelated/empty content refusal, ambiguous viewer/close refusal, bounded GPL headings, active viewer, normal close/absence, owned About/footer and unchanged Parent settings passed with private collection and owned cleanup. Wrong ownership, masked/hidden content, incomplete trees and uncertain input also retain host regressions. DESK10 additionally qualified shared command launch of the installed LICENSE and repeated existing-window activation on the same tuple; see [scope and evidence](#same-desktop-window-activation). Other handlers and document workflows remain pending. | Parent ABOUT02/03 and DESK10 supporting GPL viewer bindings ready; other About bindings pending. FILE08/FEED08 artifact reads require no viewer |
+| Supporting document viewer | `license_viewer_snapshot` and `check_e2e_license_viewer` qualified Parent's actual GNOME Text Editor handler in run `20260923T201618Z-50520052`: Ubuntu 26.04, editor `50.1-0ubuntu0.1`, actual provider locale `en_US.UTF-8`, keyboard sources `[["xkb", "us"]]`. Live independent entry, wrong-entry/unrelated/empty content refusal, ambiguous viewer/close refusal, bounded GPL headings, active viewer, normal close/absence, owned About/footer and unchanged Parent settings passed with private collection and owned cleanup. Wrong ownership, masked/hidden content, incomplete trees and uncertain input also retain host regressions. DESK10 additionally qualified shared command launch of the installed LICENSE and repeated existing-window activation on the same tuple; see [scope and evidence](#same-desktop-window-activation). This historical viewer qualification now supports DESK10 only; link acceptance uses the owned clickable-link reader and never invokes a handler. Other supporting document workflows remain pending. | DESK10 supporting GPL viewer binding ready; ABOUT02/03 and INFO01 need no external provider. FILE08/FEED08 artifact reads require no viewer |
 | Terminal | Retired as supporting infrastructure. Shared FILE01/02/06 execute fixed commands over guarded SSH; INFO02 already reads bounded stdout. Historical Ptyxis qualification creates no customer requirement or provider dependency. | No Terminal GUI consumers |
 | GNOME Settings Users / Date & Time | Retired provider work. Use protected spare-account commands and read-only date/timezone commands in shared infrastructure. Observe the app refresh/fallback and time behavior independently. | ACCOUNT01/02, AUTH04 and TIME05 system helpers |
 | DING desktop icons | No provider registry route exists. Qualify the declared desktop icon, focus/selection, activation and independent launched-window result inside a DING-specific adapter. | APP01/02 desktop launch route |
@@ -2495,14 +2471,14 @@ claims or an alternate execution order:
 | Provider work | Queue owners |
 | --- | --- |
 | Necessary GDM entry, isolated keyring safety and system session helpers | 003a/003ba unavoidable login observations; 003b isolated keyring qualification; 003c/003d shared system operations; case 1 remains harness qualification |
-| Product search, direct launch and license viewer | 001s product search; 001t direct-command denial; 185l product license viewer; retained scenario regressions |
+| Product search, direct launch and owned license link | 001s product search; 001t direct-command denial; historical 185l scope now follows ABOUT02/03 link-only acceptance; retained scenario regressions |
 | Kiosk MATE prompt and request results | 019a, 019, 020a, 020 |
 | Overlay Shell prompt and request results | 048c, 048d, 048b |
 | Shared file preparation and tested file-manager launch | 036 shared file preparation; 036f/036a explicitly tested file-manager enforcement launches |
 | Installed feedback Open/Cancel, with its actual native/portal provider binding | 037; attachment composition 038 |
 | Installed feedback Save/Cancel, with its actual native/portal provider binding | 037a; export composition 045 |
 | Shared text/ZIP artifact reads and source edits; separately observed retained work | 195a/195 SSH artifact readers; 196 source-change commands and separately qualified work binding |
-| Browser/mail/legal destinations | 185w, 185v, 185s, 185p and overlay 185o |
+| Owned information-link clickability; no browser/mail/legal provider work | 185w, 185v, 185s, 185p and overlay 185oa/185ob/185o |
 | Shared system lifecycle helpers and required unlock observations | 005/006 package commands, 007 reboot command, 042/043a necessary lock/unlock observation, 044a shared window activation, 193 network command, 166 suspend command |
 | DING desktop fixture launch | 036b |
 | System account and clock helpers | 184/184b/184c shared account operations; 191 read-only clock/timezone commands |
@@ -2708,9 +2684,9 @@ Examples:
 - Toggle a time limit, verify its UI state and exercise the affected child's
   normal login/session behavior. Reopen settings when persistence is required.
   An illuminated switch alone cannot prove enforcement.
-- Open About, read product/version information, follow the license link to its
-  actual viewer, read the license, close it, reach the footer and return to the
-  same child and displayed settings. Font/color/layout changes do not matter.
+- Open About, read product/version information, check license link clickability
+  without invoking it or inspecting its URI/destination, reach the owned footer,
+  close About and compare the same child/settings. No external handler is needed.
 
 For required text, assert meaning-bearing content on a showing public UI node,
 not its line breaks, font or coordinates. Missing controls, failed expansion,
@@ -3074,7 +3050,8 @@ Viewing cannot authorize input or change scenario acceptance.
    `onpc_journey` prefix. `worker_mode` names the fixed ready-reply branch.
    `phases` maps every stage to a declared recorder step. `advance_after` opens
    the next step before the current reply permits that step's first input.
-   The About plan opens `step-2` at `license`, before closing the viewer.
+   The About plan opens `step-2` at its compatibility `license` link-clickability
+   stage, before reading the footer and closing only About.
    For settings comparisons, `settings_checks` maps the current stage to an
    immutable `SettingsObservation` expectation or an explicit earlier stage.
    The controller retains sanitized immutable values, compares before fixture

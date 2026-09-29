@@ -136,19 +136,10 @@ OPERATION_LABELS = {
     'parent-apps-page': 'Opening App Limits and checking its controls',
     'parent-page-wrong-child-refused': 'Refusing page input for a different child',
     'about': 'Opening About and reading product information',
-    'about-rechecked': 'Rechecking About after closing temporary documents',
-    'license-unrelated-launched': 'Opening a synthetic unrelated viewer document',
-    'license-unrelated-ready': 'Refusing unrelated license content and link entry',
-    'license-unrelated-closed': 'Checking the unrelated document closed',
-    'license-empty-launched': 'Opening an empty viewer document',
-    'license-empty-ready': 'Refusing empty license content and link entry',
-    'license-empty-closed': 'Checking the empty document closed',
-    'license': 'Opening and reading the installed license',
-    'license-ambiguous-launched': 'Opening a second viewer window',
-    'license-ambiguous-ready': 'Refusing ambiguous viewer and close input',
-    'license-ambiguous-closed': 'Checking the second window closed',
-    'license-provider-refusals': 'Qualifying the installed license viewer and refusal guards',
-    'license-closed': 'Checking the license window is closed',
+    'about-rechecked': 'Rechecking owned About information',
+    'license': 'Checking the license link is clickable without following it',
+    'license-provider-refusals': 'Rechecking the clickable license link',
+    'license-closed': 'Checking About remains open after link inspection',
     'about-returned': 'Reading the About footer',
     'parent-returned': 'Checking the returned child and unchanged settings',
     'parent-toggle-enabled': 'Enabling the Parent screen time limit',
@@ -1006,7 +997,7 @@ class UiObservations:
             # private; journey records and worker replies receive only presence.
             expected['approver_uids'] = uids
         if operation in ('parent-search-close-ready', 'standard-search-qualified',
-                         'license-provider-refusals', 'parent-desktop-provider'):
+                         'parent-desktop-provider'):
             require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
             expected['provider'] = accessible_ui.validate_shell_metadata(result['provider'])
         if operation == 'gdm-product-free-provider':

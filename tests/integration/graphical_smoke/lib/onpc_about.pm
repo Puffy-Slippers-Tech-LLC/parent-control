@@ -4,7 +4,7 @@ use warnings;
 use onpc_progress ();
 use onpc_window ();
 
-# ABOUT01/02: the registered adapter composes public menu/link actions and reads.
+# ABOUT01/02: owned About information and link clickability; no external launch.
 sub open_about {
     onpc_progress::operation('Opening About');
     my ($journey, $selected) = @_;
@@ -13,7 +13,7 @@ sub open_about {
 }
 
 sub open_license {
-    onpc_progress::operation('Opening the license');
+    onpc_progress::operation('Checking the license link is clickable');
     my ($journey, $about, $stage) = @_;
     $stage //= 'about';
     die 'about:license-stage' unless (@_ == 2 && $stage eq 'about')
@@ -34,8 +34,13 @@ sub read_footer {
 # ABOUT03: recipe-owned settings comparison runs before the terminal reply.
 sub return_to_parent {
     onpc_progress::operation('Returning to Parent');
-    my ($journey, $license, $route) = @_;
-    my $returned = onpc_window::close($journey, 'license', $license);
+    my ($journey, $license, $route, $stage) = @_;
+    $stage //= 'license';
+    die 'about:return-binding' unless (@_ == 3 || @_ == 4)
+        && $route eq 'semantic-reveal'
+        && ($stage eq 'license' || $stage eq 'license-provider-refusals');
+    $journey->consume_observation($stage, $license);
+    my $returned = $journey->seen('license-closed');
     my $footer = read_footer($journey, $returned, $route);
     return onpc_window::close($journey, 'about', $footer);
 }

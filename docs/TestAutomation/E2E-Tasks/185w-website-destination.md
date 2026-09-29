@@ -1,11 +1,11 @@
-# 185w — Qualify the Parent website destination
+# 185w — Check the Parent website link
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **INFO01 Parent website browser identity and close/return**.
+Deliver **INFO01 Parent website link clickability**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
@@ -21,11 +21,19 @@ catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Open the owned Help/About surface, activate its website link and bind the actual browser handler and destination through a provider adapter. Register public URL/content identity and ordinary close/return; neither window title alone nor an unrelated tab is enough.
+Open the owned Help/About surface and use the shared clickable-link reader for
+its ID-resolved website link. Require visible/enabled state and a usable public
+activation action, then stop. Do not activate it, inspect its URI, launch or
+qualify a browser, or validate a destination. Ordinary product clicks use the
+system default browser; tests have no Firefox/Chrome dependency.
 
 ## Live VM acceptance
 
-Capture Parent child/settings, follow the website link, read its actual destination and return to the same unchanged Parent. Qualify independent valid entry, wrong destination/owner, ambiguous tabs and uncertain close refusal. Require live evidence and cleanup.
+Capture Parent child/settings, open About, verify the website link is clickable
+without invoking it, close About and compare the unchanged Parent. Qualify
+independent valid entry and missing/disabled/nonactionable/wrong-owner link
+refusal. Require live evidence and owned cleanup. Browser availability, URL,
+page content, destination identity and external return are outside acceptance.
 
 Implement and register this planned fixed qualification before invoking it:
 

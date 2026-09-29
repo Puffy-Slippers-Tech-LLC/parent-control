@@ -1,30 +1,36 @@
-# 185v — Qualify the Parent privacy destination
+# 185v — Check the Parent privacy link
 
 Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
 Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **INFO01 Parent privacy page identity and close/return**.
+Deliver **INFO01 Parent privacy link clickability**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **185w** — INFO01 Parent website browser identity and close/return.
+- **185w** — INFO01 Parent website link clickability.
 
 ## Read only this context
 
-Read INFO01 and the actual privacy action in [about.py](../../../common/oh_no_parent_control_ui/about.py). Reuse only the qualified browser provider operations.
+Read INFO01 and the privacy control in [about.py](../../../common/oh_no_parent_control_ui/about.py). Reuse the shared clickable-link reader.
 Read the affected safety tests and named source callables, not predecessor
 briefs or unrelated providers. Current route qualification comes from the
 catalogue; a checked historical task does not override it.
 
 ## Implementation
 
-Bind the privacy destination independently, with public destination identity/content and normal return to the owned About/Parent surface.
+Check the ID-resolved privacy link is visible, enabled and offers a usable
+public activation action, then stop. Do not activate it, inspect its URI or
+validate any browser, privacy page or portal workflow.
 
 ## Live VM acceptance
 
-Follow the installed privacy link, read the actual privacy page and return with the same Parent selection/settings. Independently reached valid entry works; wrong page, stale tab and uncertain close refuse. Require evidence and cleanup. A website pass does not qualify privacy.
+Open installed About, check privacy link clickability without invoking it,
+close About and compare the same Parent selection/settings. Qualify independent
+entry and missing/disabled/nonactionable/wrong-owner refusal. Require evidence
+and owned cleanup. A website pass does not establish privacy link clickability;
+no external destination is inspected.
 
 Implement and register this planned fixed qualification before invoking it:
 

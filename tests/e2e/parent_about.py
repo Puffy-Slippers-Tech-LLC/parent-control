@@ -25,7 +25,7 @@ PLAN = JourneyPlan(
         'parent-selected': 'step-1', 'about': 'step-1', 'license': 'step-1',
         'license-closed': 'step-2', 'about-returned': 'step-2', 'parent-returned': 'step-2',
     },
-    # The reply permits closing LICENSE. Open the return phase before that input.
+    # Legacy license stage names now observe clickability and unchanged About.
     advance_after={'license': 'step-2'},
     settings_checks={'parent-returned': 'parent-selected'},
 )

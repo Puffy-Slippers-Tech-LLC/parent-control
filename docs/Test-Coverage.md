@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">16451</span>/<span style="color: gray">0</span>/16451 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">16522</span>/<span style="color: gray">0</span>/16522 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">173</span>/<span style="color: gray">0</span>/173 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">98</span>/<span style="color: gray">0</span>/98 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| Integration qualification | <span style="color: green">99</span>/<span style="color: gray">0</span>/99 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">26</span>/<span style="color: gray">216</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">17148</span>/<span style="color: gray">216</span>/17364** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">17220</span>/<span style="color: gray">216</span>/17436** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -507,8 +507,8 @@ Variant: surface: parent
 
 **Steps:**
 
-- Log in as Parent, invoke PARENT01 to run the installed oh-no-parent-control-parent command directly and observe its management window, select an existing child, open About, read its product/version information and open the installed license text.
-- Close the license, read the About copyright/footer, close About and return to the same selected child without changing policy.
+- Log in as Parent, invoke PARENT01 to run the installed oh-no-parent-control-parent command directly and observe its management window, select an existing child, open About, read its product/version information and check the license link is clickable without invoking it or inspecting its URI or destination.
+- Read the About copyright/footer, close only About and return to the same selected child without changing policy. No external handler is launched or validated.
 
 ### Scenario 152
 
@@ -615,7 +615,7 @@ Variant: surface: kiosk
 **Steps:**
 
 - For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop.
-- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
+- For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
 - Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
 
 ### Scenario 193
@@ -629,7 +629,7 @@ Variant: surface: command help
 **Steps:**
 
 - For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop.
-- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
+- For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
 - Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
 
 <div style="color: gray">
@@ -3745,7 +3745,7 @@ Variant: surface: parent links
 **Steps:**
 
 - For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop.
-- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
+- For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
 - Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3765,7 +3765,7 @@ Variant: surface: child overlay
 **Steps:**
 
 - For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop.
-- For Parent/overlay, follow Help, website, privacy, support and legal links to their displayed destinations without sending mail. Overlay also reads About and license content. Kiosk reads information without external launches. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
+- For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
 - Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.

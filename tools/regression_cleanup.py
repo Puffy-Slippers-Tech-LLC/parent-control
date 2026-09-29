@@ -8,6 +8,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 
 from pathlib import PurePosixPath
 
+# TIME03 deadline/recorder additions retain private tmp_path collectors and
+# process-local worker, clock and UI doubles; both existing classifications hold.
+
 from regression_ui import Bucket
 from regression_resources import HOST_WORKERS
 

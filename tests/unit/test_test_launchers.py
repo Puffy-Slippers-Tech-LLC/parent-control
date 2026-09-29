@@ -194,6 +194,8 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_kiosk_fixtures', 'check_e2e_kiosk_fixtures.py',
     'check_e2e_kiosk_multiple', 'check_e2e_kiosk_multiple.py',
     'check_e2e_eligible_kiosk_fixtures', 'check_e2e_eligible_kiosk_fixtures.py',
+    'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard',
+    'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py',
 ])
 def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(monkeypatch, selector):
     import regression_process
@@ -232,14 +234,17 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
     allocate.assert_called_once_with(str(output))
 
 
-def test_toggle_qualification_reuses_existing_inputs_without_overwriting(monkeypatch):
+@pytest.mark.parametrize('selector', ['check_e2e_toggle',
+    'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard',
+    'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py'])
+def test_toggle_qualification_reuses_existing_inputs_without_overwriting(monkeypatch, selector):
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
     validate = Mock()
     monkeypatch.setattr(commands, 'artifact_path', validate)
     allocate = Mock(side_effect=AssertionError('existing inputs replaced'))
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     assert commands.qualification_artifact_command(
-        ROOT, 'integration', ['check_e2e_toggle']) is None
+        ROOT, 'integration', [selector]) is None
     validate.assert_called_once_with(str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input'))
 
 

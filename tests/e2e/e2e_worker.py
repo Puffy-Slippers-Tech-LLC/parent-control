@@ -274,7 +274,9 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                 adapter.serial = SerialConsole(adapter, directory)
             secrets.stage(directory, variables(directory, server, lease.state['run'], serial=serial))
             worker = Worker(directory, server.path, lease.state['run'], list(COMMAND))
+            deadline = time.monotonic() + timeout
             def guard_current_worker(*, service=False):
+                require(time.monotonic() < deadline, 'e2e:deadline')
                 adapter.revalidate()
                 require(worker.poll() is None and worker.ready and worker.result is None,
                         'e2e:input-worker-not-running')
@@ -293,7 +295,11 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
                     # Keep the existing callback server on the lease owner's
                     # thread while awaiting that worker's input receipt.
                     server.serve_once()
-            deadline = time.monotonic() + timeout
+                    adapter.revalidate()
+                    require(worker.poll() is None and worker.ready and worker.result is None,
+                            'e2e:input-worker-not-running')
+                require(time.monotonic() < deadline, 'e2e:deadline')
+                return deadline
             while time.monotonic() < deadline:
                 # Revalidate even when no callback is queued or the worker exits.
                 adapter.revalidate()

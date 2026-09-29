@@ -411,3 +411,39 @@ def test_arbitrary_secret_mapping_cannot_enter_worker(attempt):
         attempt.run(credentials={'parent': 'private-canary'})
     runtime.CallbackServer.assert_not_called()
     runtime.Worker.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['ownership', 'stopped', 'distribution', 'interrupt', 'deadline', 'service-deadline'])
+def test_time03_active_guard_refuses_and_owns_cleanup(attempt, monkeypatch, fault):
+    import real_interval
+    clock = [100.0]
+    monkeypatch.setattr(runtime.time, 'monotonic', lambda: clock[0])
+    attempt.worker.poll.return_value = None
+    attempt.worker.ready, attempt.worker.result = True, None
+    def sleep(seconds):
+        clock[0] += seconds
+        if fault == 'ownership': attempt.adapter.revalidate.side_effect = RuntimeError('lost-owner')
+        elif fault == 'stopped': attempt.worker.poll.return_value = 0
+        elif fault == 'interrupt': raise KeyboardInterrupt()
+        elif fault == 'deadline': clock[0] = 110
+        elif fault == 'distribution':
+            (attempt.directory / 'distribution/tests/smoke.pm').write_text('changed')
+    monkeypatch.setattr(real_interval.time, 'sleep', sleep)
+    successful = []
+    callbacks = []
+    def callback():
+        callbacks.append(1)
+        if fault == 'service-deadline' and len(callbacks) == 2: clock[0] = 110
+    attempt.server.serve_once.side_effect = callback
+    def observe(guard):
+        deadline = guard()
+        if fault == 'service-deadline': guard(service=True)
+        successful.append(real_interval.wait_real_interval(
+            5, deadline=deadline, guard=guard, progress=lambda *_: None))
+    with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else RuntimeError):
+        attempt.run(guarded_observe=observe, timeout=10)
+    assert not successful
+    attempt.worker.close.assert_called_once()
+    attempt.server.close.assert_called_once()
+    assert report(attempt)['outcome'] == 'failed'
+    assert report(attempt)['worker_stopped'] and report(attempt)['callback_closed']

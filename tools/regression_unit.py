@@ -52,6 +52,9 @@ modified, and no heavy fixture construction is added.
 
 from pathlib import PurePosixPath
 
+# TIME03 uses fake clocks and process-local guard/UI doubles, private tmp_path
+# records and bounded waited Perl children. No VM, bus, display or shared cache.
+
 from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
 from regression_resources import HOST_WORKERS
 from regression_ui import Bucket
@@ -74,7 +77,7 @@ e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
 e2e_license_viewer
 e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch
-e2e_plan e2e_pointer_helper e2e_progress
+e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
 e2e_request_choices e2e_request_exit e2e_secret_variables e2e_serial_helper
 e2e_serial_observation e2e_shell_search e2e_shell_search_results e2e_shutdown

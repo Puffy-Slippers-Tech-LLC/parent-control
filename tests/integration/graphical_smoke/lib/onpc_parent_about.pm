@@ -19,4 +19,17 @@ sub run {
     $journey->finish();
 }
 
+sub run_interval {
+    onpc_progress::operation('Qualifying a guarded real interval between About reads');
+    my ($exchange) = @_;
+    die 'real-interval:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'real-interval', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    onpc_about::open_about($journey, $selected);
+    $journey->seen('before');
+    $journey->seen('after');
+    $journey->finish();
+}
+
 1;

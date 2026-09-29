@@ -702,6 +702,16 @@ class SetAllowanceQualification(KioskEntryQualification):
         return SetAllowanceJourney(context, progress)
 
 
+class RealIntervalQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from real_interval_qualification import RealIntervalJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RealIntervalJourney(context, progress)
+
+
 class FreshThirtyAllowanceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

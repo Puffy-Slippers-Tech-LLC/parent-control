@@ -42,6 +42,31 @@ def test_checked_event_subscription_is_scoped_bounded_and_owned(fault):
             assert events[0][0] is None and isinstance(events[0][1], ValueError)
 
 
+def test_multi_state_subscription_pins_every_endpoint_and_cleans_up():
+    from gi.repository import GLib
+    api, _, rpc, _, toggle = fixture_bus()
+    rpc.side_effect = None
+    api._connection = Mock()
+    api._connection.signal_subscribe.side_effect = (7, 8)
+    endpoints = {(toggle.bus, toggle.path, 'checked'): 'toggle',
+                 (toggle.bus, toggle.path, 'sensitive'): 'toggle'}
+    events = []
+    with api.state_events(endpoints, lambda *args: events.append(args)):
+        callback = api._connection.signal_subscribe.call_args.args[-1]
+        signal = GLib.Variant('(siiva{sv})', ('sensitive', 0, 0,
+                                             GLib.Variant('s', ''), {}))
+        callback(api._connection, toggle.bus, toggle.path,
+                 PREFIX + 'Event.Object', 'StateChanged', signal)
+        callback(api._connection, ':1.999', toggle.path,
+                 PREFIX + 'Event.Object', 'StateChanged', signal)
+    assert events[0] == ('toggle', 'sensitive', False, None)
+    assert events[1][:3] == (None, None, None)
+    assert isinstance(events[1][3], ValueError)
+    assert [call.args[3] for call in rpc.call_args_list].count('RegisterEvent') == 2
+    assert [call.args[3] for call in rpc.call_args_list].count('DeregisterEvent') == 2
+    assert api._connection.signal_unsubscribe.call_count == 2
+
+
 def fixture_bus():
     native = SimpleNamespace(Role=SimpleNamespace(EXTENDED=99),
                              role_get_name=lambda role: {1: 'application', 2: 'push button'}[role])

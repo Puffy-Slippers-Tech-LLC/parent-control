@@ -365,7 +365,7 @@ TOGGLE_OPERATIONS = {
 }
 OPERATIONS |= frozenset(TOGGLE_OPERATIONS)
 ACCESSIBILITY_TRACE_OPERATIONS = frozenset((
-    'parent-checked-events', 'parent-trace-wrong-child-refused',
+    'parent-checked-events', 'parent-save-events', 'parent-trace-wrong-child-refused',
     'parent-trace-wrong-surface-refused',
 ))
 OPERATIONS |= ACCESSIBILITY_TRACE_OPERATIONS
@@ -3610,7 +3610,10 @@ class AccessibleUI:
         if getattr(self, 'expected_trace_source', None) is not None:
             require(operation == 'parent-toggle-enabled', 'ui:trace-input-binding')
             self.parent_save_snapshot(CHILD, False)
-            require(self.parent_trace_source()[0] == self.expected_trace_source,
+            source = (self.parent_save_trace_source()[0]
+                      if self.expected_trace_source.startswith('save:')
+                      else self.parent_trace_source()[0])
+            require(source == self.expected_trace_source.removeprefix('save:'),
                     'ui:trace-source-changed')
         if operation == 'multiple-other-enable':
             self.parent_save_snapshot(EXISTING_CHILD, False)
@@ -3668,6 +3671,23 @@ class AccessibleUI:
                 references[0][0].startswith(':'), 'ui:trace-owner')
         digest = hashlib.sha256(json.dumps(references).encode()).hexdigest()
         return digest, target
+
+    def parent_save_trace_source(self):
+        """Pin the window and all four public transition endpoints."""
+        import hashlib
+        self.settings(CHILD)
+        root = self.parent()
+        controls = {
+            name: self.id_target(identity, root=root)
+            for name, identity in (
+                ('toggle', 'parent-screen-limit-toggle'),
+                ('child', 'parent-child-selector'),
+                ('allowance', 'parent-daily-limit-selector'))
+        }
+        references = [(node.bus, node.path) for node in (root, *controls.values())]
+        require(len(set(references)) == 4 and len({bus for bus, _ in references}) == 1
+                and references[0][0].startswith(':'), 'ui:trace-owner')
+        return hashlib.sha256(json.dumps([CHILD_IDENTITIES[CHILD], references]).encode()).hexdigest(), controls
 
     def parent_checked_events(self, operation):
         """Input-free UI25/26 leaf; the controller owns the separate UI17 call."""
@@ -3728,6 +3748,73 @@ class AccessibleUI:
             self.parent_save_snapshot(CHILD, True)
             require(self.parent_trace_source()[0] == source, 'ui:trace-source-changed')
         return {'token': token, 'source': source, 'terminal': True, 'samples': samples}
+
+    def parent_save_events(self):
+        """Observe the public inhibited interval and recovery during one UI17 input."""
+        token = self.trace_request
+        require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token), 'ui:trace-token')
+        self.parent_save_snapshot(CHILD, False)
+        source, controls = self.parent_save_trace_source()
+        state = {'checked': False, 'child': True, 'toggle': True, 'allowance': False}
+        events, failures = [], []
+        started = time.monotonic()
+        armed = False
+        endpoints = {(node.bus, node.path, 'sensitive'): name
+                     for name, node in controls.items()}
+        endpoints[(controls['toggle'].bus, controls['toggle'].path, 'checked')] = 'toggle'
+
+        def receive(target, field, value, error):
+            if error is not None or not armed or len(events) >= 32:
+                failures.append(True)
+                return
+            events.append({'elapsed_ms': int((time.monotonic() - started) * 1000),
+                           'target': target, 'state': field, 'value': value})
+
+        with self.api.state_events(endpoints, receive) as context:
+            self.invalidate_observation()
+            require(self.parent_save_trace_source()[0] == source, 'ui:trace-source-changed')
+            require(not self.has_state(controls['toggle'], self.api.StateType.CHECKED) and
+                    self.has_state(controls['child'], self.api.StateType.SENSITIVE) and
+                    self.has_state(controls['toggle'], self.api.StateType.SENSITIVE) and
+                    not self.has_state(controls['allowance'], self.api.StateType.SENSITIVE),
+                    'ui:trace-entry')
+            for _ in range(64):
+                if not context.pending():
+                    break
+                context.iteration(False)
+            require(not context.pending() and not failures, 'ui:trace-entry')
+            armed = True
+            print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                              'source': source, 'boot_sha256': self.trace_boot,
+                              'checked': False}, sort_keys=True), flush=True)
+            inhibited = recovered = False
+            saw_child_off = saw_toggle_off = False
+            examined = 0
+            while not recovered and not failures and time.monotonic() - started < 60:
+                context.iteration(False)
+                while examined < len(events):
+                    event = events[examined]
+                    examined += 1
+                    key = 'checked' if event['state'] == 'checked' else event['target']
+                    state[key] = event['value']
+                    if key == 'child' and not event['value']:
+                        saw_child_off = True
+                    if key == 'toggle' and event['state'] == 'sensitive' and not event['value']:
+                        saw_toggle_off = True
+                    if saw_child_off and saw_toggle_off and not any(
+                            state[name] for name in ('child', 'toggle', 'allowance')):
+                        inhibited = True
+                    if inhibited and state == {'checked': True, 'child': True,
+                                               'toggle': True, 'allowance': True}:
+                        recovered = True
+                time.sleep(0.01)
+            require(not failures and inhibited and recovered and len(events) <= 32,
+                    'ui:save-trace-missing')
+            require(time.monotonic() - started < 60, 'ui:trace-deadline')
+            self.invalidate_observation()
+            self.parent_save_snapshot(CHILD, True)
+            require(self.parent_save_trace_source()[0] == source, 'ui:trace-source-changed')
+        return {'token': token, 'source': source, 'terminal': True, 'samples': events}
 
     def parent_save_snapshot(self, child, expected_enabled):
         """PARENT08: wait for one terminal saved/control-state snapshot."""
@@ -6986,7 +7073,8 @@ class AccessibleUI:
         elif operation == 'parent-empty':
             self.parent_empty()
         elif operation in ACCESSIBILITY_TRACE_OPERATIONS:
-            result['trace'] = self.parent_checked_events(operation)
+            result['trace'] = (self.parent_save_events() if operation == 'parent-save-events'
+                               else self.parent_checked_events(operation))
         elif operation in TOGGLE_OPERATIONS:
             result['toggle'] = self.parent_toggle_operation(operation)
         elif operation in APP_ROW_OPERATIONS:

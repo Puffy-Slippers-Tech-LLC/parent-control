@@ -19,11 +19,11 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **017a — [Observe saving while a Parent control changes](E2E-Tasks/017a-parent-save-trace.md)**.
+Next task: **201 — [E2E-035: save-order](E2E-Tasks/201-case-159.md)**.
 
-Task 016c qualified observation during synchronous UI17 accessibility input.
-Task 017a remains unchecked and needs its own saving/control-state composition
-and live acceptance; no VM attempt has been made for 017a.
+Task 017a qualified PARENT08 transition observation during synchronous UI17
+input, including saving/control inhibition and independent saved readback.
+Task 201 remains unchecked and needs complete case 159 acceptance.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

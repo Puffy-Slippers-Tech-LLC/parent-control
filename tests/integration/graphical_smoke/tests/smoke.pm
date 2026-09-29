@@ -514,6 +514,12 @@ sub run {
         onpc_format::run(\&exchange);
         return;
     }
+    if ($ready->{parent_save_trace}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_feedback_states::run_parent_save_trace(\&exchange);
+        return;
+    }
     if ($ready->{accessibility_input_trace}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

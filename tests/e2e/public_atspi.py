@@ -104,50 +104,72 @@ class PublicAtspi:
         Registration and a bus round trip precede readiness; every exit removes
         this connection's registration and match rule.
         """
+        if node.api is not self:
+            raise ValueError('public-atspi:event-owner')
+        with self.state_events({(node.bus, node.path, 'checked'): 'toggle'},
+                               lambda _target, _state, value, error: receive(value, error)) as context:
+            yield context
+
+    @contextmanager
+    def state_events(self, endpoints, receive):
+        """Subscribe to a fixed set of owned public state transitions."""
         from gi.repository import Gio, GLib
-        if node.api is not self or not node.bus.startswith(':'):
+        if (not endpoints or len(endpoints) > 4 or
+                any(not bus.startswith(':') or not path.startswith('/') or
+                    state not in ('checked', 'sensitive')
+                    for bus, path, state in endpoints) or
+                len({bus for bus, _path, _state in endpoints}) != 1):
             raise ValueError('public-atspi:event-owner')
         context = GLib.MainContext.new()
         context.push_thread_default()
-        subscription = None
-        registered = False
+        subscriptions = []
+        registered = []
         try:
             def signal(connection, sender, path, interface, member, parameters, *_user_data):
                 # Decode the documented (siiva{sv}) envelope, never arbitrary
                 # text or cached object properties. Exceptions must reach the
                 # owner rather than disappearing in a GLib callback.
                 try:
-                    if (sender != node.bus or path != node.path or
-                            interface != PREFIX + 'Event.Object' or member != 'StateChanged' or
+                    if (interface != PREFIX + 'Event.Object' or member != 'StateChanged' or
                             parameters.get_type_string() != '(siiva{sv})' or
                             parameters.get_size() > 4096):
                         raise ValueError('public-atspi:event-envelope')
                     value = parameters.unpack()
-                    if (value[0] != 'checked' or type(value[1]) is not int or
+                    if ((sender, path, value[0]) not in endpoints or
+                            type(value[1]) is not int or
                             value[1] not in (0, 1) or value[2] != 0):
                         raise ValueError('public-atspi:event-state')
-                    receive(bool(value[1]), None)
+                    receive(endpoints[(sender, path, value[0])], value[0], bool(value[1]), None)
                 except Exception as error:
-                    receive(None, error)
+                    receive(None, None, None, error)
 
-            subscription = self._connection.signal_subscribe(
-                node.bus, PREFIX + 'Event.Object', 'StateChanged', node.path,
-                'checked', Gio.DBusSignalFlags.NONE, signal)
-            self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
-                      PREFIX + 'Registry', 'RegisterEvent', 'sass',
-                      ('object:state-changed:checked', [], node.bus))
-            registered = True
+            bus = next(iter(endpoints))[0]
+            for _bus, path, state in endpoints:
+                subscriptions.append(self._connection.signal_subscribe(
+                    bus, PREFIX + 'Event.Object', 'StateChanged', path,
+                    state, Gio.DBusSignalFlags.NONE, signal))
+            for state in sorted({key[2] for key in endpoints}):
+                self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
+                          PREFIX + 'Registry', 'RegisterEvent', 'sass',
+                          ('object:state-changed:' + state, [], bus))
+                registered.append(state)
             self.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
                       'org.freedesktop.DBus', 'GetId')
             yield context
         finally:
             try:
-                if registered:
-                    self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
-                              PREFIX + 'Registry', 'DeregisterEvent', 'ss',
-                              ('object:state-changed:checked', node.bus))
+                cleanup_error = None
+                for state in reversed(registered):
+                    try:
+                        self.call('org.a11y.atspi.Registry', '/org/a11y/atspi/registry',
+                                  PREFIX + 'Registry', 'DeregisterEvent', 'ss',
+                                  ('object:state-changed:' + state, bus))
+                    except Exception as error:
+                        cleanup_error = error
+                if cleanup_error is not None:
+                    raise cleanup_error
             finally:
-                if subscription is not None:
+                for subscription in reversed(subscriptions):
                     self._connection.signal_unsubscribe(subscription)
                 context.pop_thread_default()
 

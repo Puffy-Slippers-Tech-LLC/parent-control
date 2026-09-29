@@ -227,22 +227,37 @@ Use registered E2E scenarios for selected runs. The `make test-fast`,
 
 ## Publish an app upgrade
 
-Commit application changes on `main`, add the newest release entry to
-`docs/VersionHistory.md`, then run:
+Prepare application changes and the newest dated release entry in
+`docs/VersionHistory.md` on `main`, then run:
 
 ```sh
 make test-all-verify
+```
+
+Commit those release inputs, create `releases/vX.Y` from main, and check out
+that branch in a separate clone or linked worktree. Configure its signing
+credentials, then run from the release checkout:
+
+```sh
 make publish
 ```
 
-Both test commands include the reusable publishing test module: source checks,
+The test command includes the reusable publishing test module: source checks,
 clean Ubuntu sbuild with declared tests, and Lintian. `make publish` validates the history, bumps the
 version, signs and uploads source, and waits for the package to become
 downloadable. It does not rerun the local publishing tests.
+Confirm the highlighted request to pause development on a clean main checkout.
+The publisher automatically cherry-picks and pushes the version/changelog
+update, then highlights **MAIN UPDATED**. Main is then clean and synchronized
+with its remote; no manual Git commands are needed. Resume development while
+Launchpad monitoring refreshes one terminal status line. Publishing holds only
+its own checkout's publishing lock and needs no reconciliation on main.
 See [Publishing](docs/Publishing.md) for one-time credentials, release review,
-retained evidence and retry behavior. Routine manual publishing needs no prompts.
+retained evidence, main checkout selection and retry behavior. The main pause
+confirmation is the only routine publishing confirmation; credentials remain
+noninteractive.
 
-To check or resume monitoring an uploaded release:
+To check or resume monitoring an uploaded release from its release checkout:
 
 ```sh
 make publish-status

@@ -32,6 +32,15 @@ ZIP reader checks use the same private trees and process-local transport doubles
 with archives bounded to 64 KiB; no new process, socket or shared resource.
 Source-change checks add tiny private files and process-local write/transport
 doubles, retaining compatible unit and cleanup scheduling.
+Publisher branch/resume tests use tiny tmp_path Git repositories, bare remotes,
+linked worktrees and local flock files. Git children finish synchronously;
+signing, network, uploads and package builds are mocked. No shared repository,
+credential store, activity lock, socket or display is used; compatible overlap
+remains appropriate for the publish module.
+Automatic main-update regressions add only private Git clones/remotes and
+process-local confirmation/terminal doubles. Interrupted push/merge recovery
+uses the same private journals; no real credentials, terminal or shared ref is
+modified, and no heavy fixture construction is added.
 """
 
 from pathlib import PurePosixPath

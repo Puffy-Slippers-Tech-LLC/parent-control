@@ -178,7 +178,7 @@ def test_unit_workers_emit_inventory_without_running_cleanup(tmp_path, monkeypat
 
 @pytest.mark.parametrize('verified', [False, True])
 @pytest.mark.parametrize('category', ['ui', 'component'])
-def test_host_workers_reuse_only_verified_aggregate_cleanup(tmp_path, monkeypatch, verified, category):
+def test_host_workers_never_launch_cleanup_tests(tmp_path, monkeypatch, verified, category):
     import test_activity
     import test_launcher
     calls = []
@@ -188,11 +188,11 @@ def test_host_workers_reuse_only_verified_aggregate_cleanup(tmp_path, monkeypatc
     monkeypatch.setattr(test_activity, 'cleanup_verified', lambda root: verified)
     monkeypatch.setattr(regression_process, 'safety_command', lambda root: ['safety'])
     assert regression_process.host_run(tmp_path, category, []) == 0
-    assert calls == ([['pytest', 'selected']] if verified else [['safety'], ['pytest', 'selected']])
+    assert calls == [['pytest', 'selected']]
 
 
 @pytest.mark.parametrize('category', ['fixture-runtime', 'publish', 'artifacts', 'system', 'e2e'])
-def test_aggregate_cleanup_reuse_does_not_replace_build_or_vm_prerequisites(tmp_path, monkeypatch, category):
+def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, monkeypatch, category):
     import test_activity
     import test_retention
     calls = []
@@ -216,7 +216,7 @@ def test_aggregate_cleanup_reuse_does_not_replace_build_or_vm_prerequisites(tmp_
     monkeypatch.setattr(test_activity, 'cleanup_verified', lambda root: True)
     monkeypatch.setattr(regression_process, 'safety_command', lambda root: ['safety'])
     assert regression_process.category_run(tmp_path, category, ['verify']) == 0
-    expected = [['selected']] if category == 'fixture-runtime' else [['safety'], ['selected']]
+    expected = [['selected']]
     expected_plans = [(tmp_path, category, ['verify'])]
     if category == 'e2e':
         expected.insert(0, ['/usr/bin/python3', '-B', str(builder), '--reuse', '--output', str(artifacts)])
@@ -225,7 +225,7 @@ def test_aggregate_cleanup_reuse_does_not_replace_build_or_vm_prerequisites(tmp_
     assert plans == expected_plans
 
 
-def test_failed_standalone_cleanup_prevents_host_worker(tmp_path, monkeypatch):
+def test_host_worker_failure_propagates_without_extra_tests(tmp_path, monkeypatch):
     import test_activity
     import test_launcher
     calls = []
@@ -235,7 +235,7 @@ def test_failed_standalone_cleanup_prevents_host_worker(tmp_path, monkeypatch):
     monkeypatch.setattr(test_activity, 'cleanup_verified', lambda root: False)
     monkeypatch.setattr(regression_process, 'safety_command', lambda root: ['safety'])
     assert regression_process.host_run(tmp_path, 'ui', []) == 1
-    assert calls == [['safety']]
+    assert calls == [['pytest', 'selected']]
 
 
 @pytest.mark.parametrize('installed', ['--unattended', '--skip-backing-verification',
@@ -1138,12 +1138,12 @@ def test_vm_aggregate_uses_one_suite_and_retains_progress_and_final_failure(
                                           (failure is not None and not continue_on_errors))
 
 
-@pytest.mark.parametrize('fail_unit,fail_publish,fail_safety', [
-    (False, False, False), (True, False, False), (False, True, False), (False, False, True)])
+@pytest.mark.parametrize('fail_unit,fail_publish', [
+    (False, False), (True, False), (False, True)])
 @pytest.mark.parametrize('scope', ['all', 'all-future-category', 'host', 'host-builds', 'host-builds-serial',
                                   'host system', 'host e2e', 'system', 'e2e', 'system e2e'])
 def test_entire_plan_discovers_ready_cases_and_preserves_failure(
-        report, tmp_path, monkeypatch, fail_unit, fail_publish, fail_safety, scope):
+        report, tmp_path, monkeypatch, fail_unit, fail_publish, scope):
     host_builds = scope.startswith('host-builds')
     phases = (('host', 'system', 'e2e') if scope in ('all', 'all-future-category') else
               ('host',) if host_builds else tuple(scope.split()))
@@ -1203,7 +1203,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
                 if category != 'system':
                     event('collection', total=len(nodes),
                           **({'nodeids': nodes} if category in ('unit', 'ui') else {}))
-                failed = category == 'unit' and ((fail_unit and not safety) or (fail_safety and safety))
+                failed = category == 'unit' and fail_unit
                 if failed:
                     event('failure', nodeid=nodes[0], detail='test assertion failed')
                     event('failure', nodeid=nodes[0], detail='test teardown failed')
@@ -1226,15 +1226,9 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
     run = regression.Run(tmp_path, report, control,
                          phases=phases,
                          serial_builds=scope == 'host-builds-serial', continue_on_errors=True)
-    if fail_safety and includes_host:
-        with pytest.raises(ValueError, match='cleanup safety prerequisites failed'):
-            run.run()
-        executed = [call for call in control.calls if '--collect-only' not in call and '--list' not in call]
-        assert executed
-        assert all(call[1] == 'unit' and any('cleanup_safety' in arg or 'test_graphical_lease.py' in arg
-                                           for arg in call) for call in executed)
-        return
     run.run()
+    assert not any(item.phase == 'cleanup' for item in run.categories)
+    assert not any('test_*cleanup_safety.py' in call for call in control.calls)
     if includes_host:
         assert all(item.retry_category == 'ui' for item in run.categories
                    if item.name.startswith('UI — '))

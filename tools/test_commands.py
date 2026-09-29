@@ -153,7 +153,7 @@ Aggregate aliases (no suite selectors)
   --continue-on-errors   continue independent tests after failures
   --serial-builds        host-builds only: publish/builds after the host join
 
-  Host includes cleanup-safety prerequisites, unit, component, ui,
+  Host includes unit (including cleanup regressions), component, ui,
   fixture-runtime, source/traceability, static, child-node, child-gjs,
   backend, publish, package builds A/B and their comparison.
   All VM operations use metadata-only verification; image contents are never
@@ -170,7 +170,8 @@ UI-only validation (same UI buckets and resource limits as host)
   tools/run-tests ui --timeout 1800s
   tools/run-tests ui 'tests/ui/test_request*.py' -q
 
-  Runs only selected UI tests and mandatory cleanup prerequisites; no builds.
+  Runs only selected UI tests; serial owned cleanup precedes parallel work.
+  Cleanup never launches regression tests or package builds.
   Compatible UI buckets use up to four branches. Unknown modules stay exclusive.
   File/case selectors, -k, -m and --ignore retain the exact selected inventory.
   Default execution timeout is 1800s per bucket; explicit --timeout is preserved.
@@ -325,6 +326,13 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_feedback_reset'], ['check_e2e_feedback_reset.py'],
             ['check_e2e_feedback_privacy'], ['check_e2e_feedback_privacy.py'],
             ['check_e2e_feedback_states'], ['check_e2e_feedback_states.py'],
+            ['check_e2e_trace_stable_state'], ['check_e2e_trace_stable_state.py'],
+            ['check_e2e_trace'], ['check_e2e_trace.py'],
+            ['check_e2e_compose_observation_around_one_caller_input'],
+            ['check_e2e_compose_observation_around_one_caller_input.py'],
+            ['check_e2e_accessibility_input_trace'], ['check_e2e_accessibility_input_trace.py'],
+            ['check_e2e_parent_save_trace'], ['check_e2e_parent_save_trace.py'],
+            ['check_e2e_custom_save_trace'], ['check_e2e_custom_save_trace.py'],
             ['check_e2e_feedback_rejection'], ['check_e2e_feedback_rejection.py'],
             ['check_e2e_feedback_length'], ['check_e2e_feedback_length.py'],
             ['check_e2e_format'], ['check_e2e_format.py'],
@@ -571,9 +579,7 @@ def _main(argv=None, *, detached=False):
             environment = host.environment(root)
             return subprocess.run(command, env=environment, pass_fds=scratch_descriptors(),
                                   check=False).returncode
-        commands, safety = plan(root, category, args)
-        if safety:
-            host.prerequisites(root)
+        commands, _ = plan(root, category, args)
         env = host.environment(root)
         if category in ('fixture-runtime', 'coverage'):
             env = host.test_environment(root)
@@ -610,6 +616,7 @@ def _main(argv=None, *, detached=False):
         if commands[-1][0] == '/usr/bin/pkexec':
             from dev_privileges import check
             check(commands[-1][1])
+            commands[-1].insert(1, '--keep-cwd')
         print('run-tests: validated category starting', file=sys.stderr, flush=True)
         from test_storage import scratch_descriptors
         return subprocess.run(commands[-1], env=env, pass_fds=scratch_descriptors(),

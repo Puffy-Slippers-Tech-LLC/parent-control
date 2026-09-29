@@ -181,11 +181,16 @@ remain host-safe; a listing is never an execution pass.
 
 ### Optional live viewing
 
-Run `tools/watchvm` from your desktop terminal whenever you want to watch the
+Run `tools/watch` or `make watch` from your desktop terminal whenever you want to watch the
 guarded test VM, during E2E or any other VM work. Tests remain headless by default: the runner never launches a
 window. You can open, close or reopen the viewer during an attempt. Another
-`tools/watchvm` launch reuses and presents the existing window;
+`tools/watch` launch reuses and presents the existing window;
 the pinned VM has one viewer per desktop session, including concurrent launches.
+Launch commands return after service startup without holding the terminal.
+Select **VM** to keep the VM viewer visible, or **Active** to share the right
+panel with concurrent host UI tests. Hidden viewers stop rendering and reading
+pixel payloads. The left terminal follows the invoking checkout's active
+`fix-tests` or `run-tests` output. The VM command transcript stays in the VM view.
 Leave it open across reboot, shutdown, failure cleanup and subsequent attempts; it shows
 Waiting between available displays and resumes automatically. Only closing the
 window yourself ends it. Automation neither owns nor signals your viewer process.
@@ -395,31 +400,14 @@ the preparation. A missing or altered retained bundle rebuilds both components.
 The log identifies each reused/rebuilt component, changed input groups and lookup
 time. Explicit `artifacts build` and reproducibility builds remain fresh.
 
-Standalone prerequisite routes, including foreground VM maintenance and direct host
-launchers, use the shared cleanup coordinator. It reuses only a complete
-successful qualification whose tracked and nonignored untracked executable
-inputs, bytecode in source directories (including Git-ignored caches), and
-runtime identity still match. Prose Markdown beneath `docs/`, the root
-`README.md`/`AGENTS.md`, and `tests/README.md`/`tests/e2e/README.md` are excluded;
-code, configurations, inventories and test
-fixtures remain inputs regardless of their filename. Documentation edits therefore
-do not create another full qualification and its temporary fixtures/reports.
-It hashes bytes on each lookup; preserving a file's timestamp and size
-does not preserve its identity. Runtime identity includes importable Python/native
-module contents and search paths, managed package records, selected tool binaries,
-the sanitized environment and the host boot identity. Overlapping import roots
-hash each dependency only once per capture. The qualification coordinator uses
-isolated Python and a fixed headless environment, so terminal, locale and desktop
-settings cannot alternate the receipt between callers. Maintained test workers
-disable user-site imports. An inherited activity's passing gate is reused directly;
-a new activity always validates its lock and recaptures qualification inputs.
-The coordinator logs lookup time and which input group caused a miss.
-A failed or interrupted
-qualification is not cached. Checkout changes during a passing qualification,
-including files replaced or removed during fingerprinting, prevent publication
-of a reusable result without invalidating that existing run. If input capture
-is unavailable before the gate, the coordinator runs a fresh qualification.
-Explicit regression-suite selections still execute their requested tests.
+Cleanup is serial operational work before parallel test scheduling. Standalone
+cleanup, UI/E2E startup and foreground/unattended dispatch never run prerequisite
+regression suites or inspect their qualification cache. They retain live activity
+locks, recorded resource identities, VM recovery, retention and evidence checks.
+Idle cleanup should take seconds or less without producing fresh test fixtures
+that would themselves need cleanup. Required VM restoration and owned child
+settlement still finish in full. Cleanup regressions remain in explicit unit,
+host and all selections; package preparation keeps its separate verified cache.
 
 Storage is bounded: one artifact receipt and one safety receipt per checkout/user
 are atomically replaced in a private `/tmp/onpc-startup-cache-*` directory. The
@@ -1363,8 +1351,8 @@ still the qualified smoke; the graphical runner owns screen matching and scenari
 
 `e2e_worker.run_distribution` now runs the qualified, fixed credential-free
 distribution for `tests/integration/check_graphical_smoke.py`. Invoke the smoke
-through `tools/run-tests integration check_graphical_smoke`; the dispatcher runs
-isolated cleanup prerequisites before entering the existing VM lease. This is
+through `tools/run-tests integration check_graphical_smoke`; the dispatcher invokes
+the selected controller with the existing VM lease and ownership checks. This is
 worker integration evidence, not an executed E2E-001 variant. The distribution's
 Perl sources still live in `tests/integration/graphical_smoke`; this extraction
 does not replace its feasibility geometry with the graphical runner's stable matching.

@@ -44,6 +44,10 @@ class JourneyPlan:
     assertions_after: dict = field(default_factory=dict)
     challenges: dict = field(default_factory=dict)
     reboot_transition: tuple = ()
+    trace_bindings: dict = field(default_factory=dict)
+    trace_terminals: dict = field(default_factory=dict)
+    accessibility_inputs: dict = field(default_factory=dict)
+    keyboard_inputs: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -64,6 +68,48 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
+        require(set(self.accessibility_inputs) == {stage for stage, tag in self.screen_tags.items()
+                    if tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace',
+                               'ui:parent-custom-save-trace')} and
+                all(binding == ('parent-toggle-enabled', True) if
+                    self.screen_tags[stage] == 'ui:accessibility-input-trace' else
+                    binding == (('parent-custom-trace-focus', 6, 'custom-save') if
+                        self.screen_tags[stage] == 'ui:parent-custom-save-trace' else
+                        ('parent-toggle-enabled', True, 'save'))
+                    for stage, binding in self.accessibility_inputs.items()) and
+                not set(self.accessibility_inputs) & set(self.stage_actions),
+                self.prefix + ':accessibility-input-plan')
+        require(set(self.keyboard_inputs) == {stage for stage, tag in self.screen_tags.items()
+                    if tag == 'ui:parent-custom-save-trace'} and
+                all(values == (5, 6) for values in self.keyboard_inputs.values()),
+                self.prefix + ':keyboard-input-plan')
+        require(all(stage in stages and self.screen_tags[stage] == 'ui:feedback-trace-start'
+                    and binding in ('body-first', 'body-clear')
+                    for stage, binding in self.trace_bindings.items()),
+                self.prefix + ':trace-plan')
+        trace_ends = set()
+        require(set(self.trace_terminals) <= set(stages), self.prefix + ':trace-plan')
+        for index, stage in enumerate(stages):
+            tag = self.screen_tags[stage]
+            if tag == 'ui:feedback-trace-start':
+                inputs = (['ui:text-' + self.trace_bindings[stage] + '-' + suffix
+                           for suffix in ('focus', 'selected', 'read')]
+                          if stage in self.trace_bindings else [])
+                end = index + len(inputs) + 1
+                require(end < len(stages)
+                        and [self.screen_tags[s] for s in stages[index + 1:end]] == inputs
+                        and self.screen_tags[stages[end]] == 'ui:feedback-trace-finish'
+                        and not set(stages[index:end + 1]) & set(self.stage_actions),
+                        self.prefix + ':trace-plan')
+                trace_ends.add(stages[end])
+                if self.trace_bindings.get(stage) == 'body-clear':
+                    from ui_observations import FeedbackStateObservation
+                    require(self.trace_terminals.get(stages[end]) ==
+                            FeedbackStateObservation('initial-empty', 'none', True),
+                            self.prefix + ':trace-plan')
+            elif tag == 'ui:feedback-trace-finish':
+                require(stage in trace_ends,
+                        self.prefix + ':trace-plan')
         require(type(self.reboot_transition) is tuple and
                 (not self.reboot_transition or
                  len(self.reboot_transition) == 2 and
@@ -183,6 +229,7 @@ class InstalledJourney:
         self.vm = None
         self.transport = None
         self.ui = None
+        self.trace_token = None
         self.boot = None
         self.reboot_submitted = False
         self.reboot_observed = False
@@ -235,6 +282,38 @@ class InstalledJourney:
             self.failed = True
             raise
 
+    def retain_trace_sample(self, token, index, sample):
+        """Exclusive immutable evidence in the attempt's owned allocation."""
+        require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token)
+                and type(index) is int and 0 <= index < 256, 'ui:trace-evidence')
+        path = self.context.directory / f'trace-{token}-{index:03d}.json'
+        with path.open('x') as stream:
+            json.dump(sample, stream, sort_keys=True)
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    def publish_trace_input(self, stage, token, source):
+        """Release one focused keyboard batch while the owned observer runs."""
+        require(self.plan.screen_tags.get(stage) == 'ui:parent-custom-save-trace'
+                and re.fullmatch(r'[0-9a-f]{32}', token)
+                and re.fullmatch(r'[0-9a-f]{64}', source), 'ui:trace-input-plan')
+        pending = self.context.directory / (stage + '.input.tmp')
+        destination = self.context.directory / (stage + '.input.json')
+        require(not os.path.lexists(destination), 'ui:trace-input-replay')
+        with pending.open('x') as stream:
+            json.dump({'stage': stage, 'token': token, 'source': source,
+                       'binding': 'custom-rapid', 'values': list(self.plan.keyboard_inputs[stage])}, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        pending.rename(destination)
+
+    def verify_trace_input(self, stage, token):
+        path = self.context.directory / (stage + '.input-done.json')
+        require(not path.is_symlink() and path.is_file() and path.stat().st_size <= 1024,
+                'ui:trace-input-incomplete')
+        require(json.loads(path.read_bytes()) == {'stage': stage, 'token': token},
+                'ui:trace-input-incomplete')
+
     def submit_reboot(self, guard):
         """Only the declared input stage may consume this attempt's reboot."""
         require(not self.failed and self.plan.reboot_transition and
@@ -260,6 +339,10 @@ class InstalledJourney:
 
     def _step(self, guard):
         plan, context = self.plan, self.context
+        if self.trace_token is not None and plan.trace_bindings:
+            guard()
+            self.ui.poll_trace()
+            guard()
         if len(self.steps) == len(plan.stages):
             return
         stage = plan.stages[len(self.steps)]
@@ -338,12 +421,34 @@ class InstalledJourney:
             if tag.startswith('ui:'):
                 if self.ui is None:
                     self.ui = UiObservations(self.transport, progress=self.watch_progress)
+                    self.ui.trace_sink = self.retain_trace_sample
                 # Check the boot before UI input on the same guarded SSH call;
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
-                observed['ui'] = (self.ui.observe_challenge(tag[3:], challenge)
-                                  if challenge else self.ui.observe(tag[3:]))
+                if tag == 'ui:parent-custom-save-trace':
+                    def worker_input(token, source):
+                        guard()
+                        self.publish_trace_input(stage, token, source)
+                    observed['ui'] = self.ui.observe_accessibility_input(
+                        *plan.accessibility_inputs[stage], worker_input=worker_input)
+                    self.verify_trace_input(stage, observed['ui']['token'])
+                elif tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace'):
+                    observed['ui'] = self.ui.observe_accessibility_input(
+                        *plan.accessibility_inputs[stage])
+                elif tag == 'ui:feedback-trace-start':
+                    require(self.trace_token is None, 'ui:trace-duplicate')
+                    observed['ui'] = (self.ui.start_trace(plan.trace_bindings[stage])
+                                      if stage in plan.trace_bindings else self.ui.start_trace())
+                    self.trace_token = observed['ui']['token']
+                elif tag == 'ui:feedback-trace-finish':
+                    observed['ui'] = (self.ui.finish_trace(
+                        self.trace_token, terminal=plan.trace_terminals[stage])
+                        if stage in plan.trace_terminals else self.ui.finish_trace(self.trace_token))
+                    self.trace_token = None
+                else:
+                    observed['ui'] = (self.ui.observe_challenge(tag[3:], challenge)
+                                      if challenge else self.ui.observe(tag[3:]))
                 current = self.ui.boot_proof
                 if challenge:
                     observed['challenge'] = challenge
@@ -411,6 +516,7 @@ class InstalledJourney:
 
     def validate(self):
         require(not self.failed, self.plan.prefix + ':previous-failure')
+        require(self.trace_token is None, 'ui:trace-uncollected')
         require([s['stage'] for s in self.steps] == list(self.plan.stages),
                 self.plan.prefix + ':missing-stages')
         return matched_screens(self.context.directory, self.plan, self.steps)

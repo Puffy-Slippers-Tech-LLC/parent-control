@@ -1,10 +1,10 @@
 #!/usr/bin/python3 -B
-"""View-only UI-test spectator, independent of the test runner's lifetime."""
+"""Combined test output, host UI and VM spectator."""
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ui_watch_viewer import main
+from watch_viewer import main
 
 raise SystemExit(main())

@@ -92,7 +92,7 @@ def test_reported_setup_search_uses_existing_generic_reader_allowance():
 
 
 @pytest.mark.parametrize('unsafe', ['missing', 'not-executable', 'symlink'])
-def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_paths(tmp_path, unsafe):
+def test_renderer_requires_inspection_launcher_and_uses_relative_paths(tmp_path, unsafe):
     root = tmp_path / 'checkout with "quotes"'
     (root / 'tools').mkdir(parents=True)
     (root / 'config').mkdir()
@@ -113,8 +113,10 @@ def test_renderer_requires_inspection_launcher_and_preserves_quoted_checkout_pat
     rendered = installer['render'](root)
     assert installer['render'](root) == rendered
     rules = parse_entries(rendered)
-    assert {rule['decision'] for rule in rules
-            if matches(rule['pattern'], [str(launcher), '--help'])} == {'allow'}
+    for executable in ('tools/read-only', './tools/read-only'):
+        assert {rule['decision'] for rule in rules
+                if matches(rule['pattern'], [executable, '--help'])} == {'allow'}
+    assert not any(matches(rule['pattern'], [str(launcher), '--help']) for rule in rules)
 
 
 @pytest.mark.parametrize('command', [
@@ -147,7 +149,7 @@ def test_project_tools_do_not_grant_unlisted_make_targets(command):
                            if matches(rule['pattern'], shlex.split(command))}
 
 
-def test_every_executable_project_tool_is_allowed_in_all_direct_forms():
+def test_every_executable_project_tool_is_allowed_in_relative_direct_forms():
     rules = [*entries('codex-read-only.rules'), *entries()]
     executables = [path for path in (ROOT / 'tools').rglob('*')
                    if path.is_file() and path.stat().st_mode & 0o111]
@@ -155,9 +157,10 @@ def test_every_executable_project_tool_is_allowed_in_all_direct_forms():
     assert ROOT / 'tools/publish.py' in executables
     for path in executables:
         relative = path.relative_to(ROOT).as_posix()
-        for executable in (relative, './' + relative, str(path)):
+        for executable in (relative, './' + relative):
             assert [rule['decision'] for rule in rules
                     if matches(rule['pattern'], [executable, '--help'])] == ['allow']
+        assert not any(matches(rule['pattern'], [str(path), '--help']) for rule in rules)
 
 
 def test_new_executable_tools_are_discovered_on_refresh(tmp_path):
@@ -168,7 +171,7 @@ def test_new_executable_tools_are_discovered_on_refresh(tmp_path):
     tool.touch(mode=0o755)
     (root / 'tools/module.py').touch(mode=0o644)
     paths = installer['project_tool_paths'](root)
-    assert paths == ['tools/nested/new tool', './tools/nested/new tool', str(tool)]
+    assert paths == ['tools/nested/new tool', './tools/nested/new tool']
     assert installer['project_tool_paths'](root) == paths
     # Executable removal must remove its grant on the next refresh.
     tool.chmod(0o644)

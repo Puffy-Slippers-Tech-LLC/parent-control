@@ -1,22 +1,19 @@
 """Case 154: installed chooser handoff, Cancel preservation and row removal."""
-from attachment_composition import AttachmentJourney, file_handoff
+from attachment_composition import (AttachmentJourney, file_handoff,
+                                    chooser_preservation, attachment_removal)
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
 from synthetic_files import fixture_actions
 
 ENTRY = {
-    **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
-    **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected')},
+    **fresh_desktop('parent'), **parent_management(),
     'feedback-open': 'ui:feedback-open',
 }
 MATRIX = {
     **file_handoff(),
-    **{stage: 'ui:' + stage for stage in (
-        'chooser-attachments', 'chooser-reopen', 'chooser-cancel', 'chooser-preserved')},
+    **chooser_preservation(),
 }
-REVIEW = {stage: 'ui:' + stage for stage in (
-    'attachment-details', 'attachment-remove', 'attachment-remaining')}
+REVIEW = {'attachment-details': 'ui:attachment-details', **attachment_removal()}
 SCREENS = {**ENTRY, **MATRIX, **REVIEW}
 PLAN = JourneyPlan(prefix='feedback-attachments', worker_mode='feedback_attachments',
     screen_tags=SCREENS,

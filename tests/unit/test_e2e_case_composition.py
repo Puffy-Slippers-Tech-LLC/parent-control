@@ -26,7 +26,7 @@ CASE_MODULES = {Path(variant['executable']['path']).stem for _, variant in READY
 APIS = {
     'account_fixture': {'DynamicAccountFixture', 'EmptyAccountFixture', 'station_fixture_actions'},
     'installed_journey': {'JourneyPlan', 'InstalledJourney', 'matched_screens', 'record_installed_journey'},
-    'journey_blocks': {'fresh_desktop', 'parent_management', 'parent_search',
+    'journey_blocks': {'fresh_desktop', 'parent_management', 'parent_search', 'observed_text',
                        'product_free_desktop', 'reboot_desktop', 'station_entry'},
     'journey_checks': {'allowed_app_rows', 'installed_accounts'},
     'request_flow': {'prepared_request'},
@@ -49,7 +49,8 @@ APIS = {
     'file_chooser': {'stage_files', 'cleanup_files'},
     'synthetic_files': {'fixture_actions', 'read_declared_text', 'read_declared_zip',
                         'change_attachment_source'},
-    'attachment_composition': {'file_handoff', 'boundary_batch', 'AttachmentJourney'},
+    'attachment_composition': {'file_handoff', 'boundary_batch', 'AttachmentJourney',
+                               'chooser_preservation', 'attachment_removal'},
     'serial_harness': {'PLAN', 'SERIAL_STAGES', 'matched_screens', 'record_serial_journey',
                        'validate_completion', 'validate_stages'},
 }
@@ -79,9 +80,11 @@ WORKER_APIS = {
     'onpc_text': {'replace_text', 'append_scalar'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
-                             'input_hidden', 'input_complex'},
+                             'input_hidden', 'input_complex', 'stable_trace', 'transition_trace',
+                             'observed_toggle'},
     'onpc_feedback_read': {'activate_existing_window', 'prepare_window_switch',
-                            'supply_files', 'boundary_batch', 'attachment_limits'},
+                            'supply_files', 'boundary_batch', 'attachment_limits',
+                            'chooser_preservation', 'attachment_removal'},
 }
 
 
@@ -133,6 +136,13 @@ def composition_errors(source, case_modules, apis=APIS):
 @pytest.mark.parametrize('path', sorted({v['executable']['path'] for _, v in READY}))
 def test_ready_modules_only_declare_and_compose_shared_apis(path):
     assert not composition_errors((ROOT / path).read_text(), CASE_MODULES)
+
+
+def test_accessibility_trace_qualification_declares_shared_input_binding():
+    assert not composition_errors(
+        (ROOT / 'tests/e2e/accessibility_input_trace.py').read_text(), CASE_MODULES)
+    assert not composition_errors(
+        (ROOT / 'tests/e2e/parent_save_trace.py').read_text(), CASE_MODULES)
 
 
 @pytest.mark.parametrize('module', ['file_chooser', 'attachment_items', 'attachment_preview',
@@ -248,11 +258,11 @@ def test_worker_guard_allows_semantic_labels_and_logging():
 
 def test_entry_fragments_do_not_share_mutable_recipe_state():
     from journey_blocks import (fresh_desktop, parent_management, parent_search,
-                                product_free_desktop, reboot_desktop, station_entry)
+                                product_free_desktop, reboot_desktop, station_entry, observed_text)
     for factory, args in ((fresh_desktop, ('parent',)), (fresh_desktop, ('other-child',)),
                           (parent_search, ()), (parent_management, ()),
                           (product_free_desktop, ()), (reboot_desktop, ()),
-                          (station_entry, ('cancel-',))):
+                          (station_entry, ('cancel-',)), (observed_text, ('renamed', 'body-clear'))):
         expected = factory(*args)
         changed = factory(*args)
         changed.clear()

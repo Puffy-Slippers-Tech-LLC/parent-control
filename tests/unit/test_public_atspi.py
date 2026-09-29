@@ -8,6 +8,65 @@ import pytest
 from tests.e2e.public_atspi import PublicAtspi, IncompleteTree, PREFIX, ROOT, NULL
 
 
+@pytest.mark.parametrize('fault', ['', 'sender', 'path', 'signature', 'large', 'value',
+                                  'register', 'cancel'])
+def test_checked_event_subscription_is_scoped_bounded_and_owned(fault):
+    # Pure mocked connection and local GVariant/context; no bus connection,
+    # threads, processes or shared resources. Existing unit scheduling applies.
+    from gi.repository import GLib
+    api, _, rpc, _, node = fixture_bus()
+    connection = Mock()
+    api._connection = connection
+    connection.signal_subscribe.return_value = 7
+    events = []
+    rpc.side_effect = RuntimeError('registration failed') if fault == 'register' else None
+    try:
+        with api.checked_events(node, lambda value, error: events.append((value, error))):
+            callback = connection.signal_subscribe.call_args.args[-1]
+            value = GLib.Variant('(siiva{sv})', ('checked', 2 if fault == 'value' else 1,
+                       0, GLib.Variant('s', 'x' * 5000 if fault == 'large' else ''), {}))
+            if fault == 'signature': value = GLib.Variant('(s)', ('checked',))
+            callback(connection, ':1.999' if fault == 'sender' else node.bus,
+                     '/foreign' if fault == 'path' else node.path,
+                     PREFIX + 'Event.Object', 'StateChanged', value)
+            if fault == 'cancel': raise KeyboardInterrupt()
+    except (RuntimeError, KeyboardInterrupt):
+        assert fault in ('register', 'cancel')
+    connection.signal_unsubscribe.assert_called_once_with(7)
+    if fault != 'register':
+        assert rpc.call_args.args[3:] == ('DeregisterEvent', 'ss',
+                                         ('object:state-changed:checked', node.bus))
+        if fault in ('', 'cancel'):
+            assert events == [(True, None)]
+        else:
+            assert events[0][0] is None and isinstance(events[0][1], ValueError)
+
+
+def test_multi_state_subscription_pins_every_endpoint_and_cleans_up():
+    from gi.repository import GLib
+    api, _, rpc, _, toggle = fixture_bus()
+    rpc.side_effect = None
+    api._connection = Mock()
+    api._connection.signal_subscribe.side_effect = (7, 8)
+    endpoints = {(toggle.bus, toggle.path, 'checked'): 'toggle',
+                 (toggle.bus, toggle.path, 'sensitive'): 'toggle'}
+    events = []
+    with api.state_events(endpoints, lambda *args: events.append(args)):
+        callback = api._connection.signal_subscribe.call_args.args[-1]
+        signal = GLib.Variant('(siiva{sv})', ('sensitive', 0, 0,
+                                             GLib.Variant('s', ''), {}))
+        callback(api._connection, toggle.bus, toggle.path,
+                 PREFIX + 'Event.Object', 'StateChanged', signal)
+        callback(api._connection, ':1.999', toggle.path,
+                 PREFIX + 'Event.Object', 'StateChanged', signal)
+    assert events[0] == ('toggle', 'sensitive', False, None)
+    assert events[1][:3] == (None, None, None)
+    assert isinstance(events[1][3], ValueError)
+    assert [call.args[3] for call in rpc.call_args_list].count('RegisterEvent') == 2
+    assert [call.args[3] for call in rpc.call_args_list].count('DeregisterEvent') == 2
+    assert api._connection.signal_unsubscribe.call_count == 2
+
+
 def fixture_bus():
     native = SimpleNamespace(Role=SimpleNamespace(EXTENDED=99),
                              role_get_name=lambda role: {1: 'application', 2: 'push button'}[role])

@@ -57,7 +57,7 @@ def test_every_named_input_consumer_prepares_before_dispatch(
         assert execute.call_count == 2
         authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
         assert execute.call_args.args[0] == [
-            '/usr/bin/pkexec', '--disable-internal-agent',
+            '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
             '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector]
 
 
@@ -137,6 +137,13 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_feedback_read', 'check_e2e_feedback_read.py',
     'check_e2e_feedback_privacy', 'check_e2e_feedback_privacy.py',
     'check_e2e_feedback_states', 'check_e2e_feedback_states.py',
+    'check_e2e_trace_stable_state', 'check_e2e_trace_stable_state.py',
+    'check_e2e_trace', 'check_e2e_trace.py',
+    'check_e2e_compose_observation_around_one_caller_input',
+    'check_e2e_compose_observation_around_one_caller_input.py',
+    'check_e2e_accessibility_input_trace', 'check_e2e_accessibility_input_trace.py',
+    'check_e2e_parent_save_trace', 'check_e2e_parent_save_trace.py',
+    'check_e2e_custom_save_trace', 'check_e2e_custom_save_trace.py',
     'check_e2e_feedback_rejection', 'check_e2e_feedback_rejection.py',
     'check_e2e_feedback_length', 'check_e2e_feedback_length.py',
     'check_e2e_format', 'check_e2e_format.py',
@@ -414,15 +421,15 @@ with tempfile.TemporaryDirectory(prefix='onpc-storage-probe-') as directory:
     assert host.environment(checkout)['TMPDIR'] == env['TMPDIR']
 
 
-def test_failed_cleanup_gates_component(checkout, monkeypatch):
+def test_component_runs_only_selected_tests_without_prerequisite_suite(checkout, monkeypatch):
     prerequisite = Mock(side_effect=ValueError('failed prerequisites'))
     execute = Mock(return_value=subprocess.CompletedProcess([], 0))
     monkeypatch.setattr(host, 'prerequisites', prerequisite)
     monkeypatch.setattr(host.subprocess, 'run', execute)
-    with pytest.raises(ValueError):
-        host.run_host(checkout, 'component', [])
-    prerequisite.assert_called_once_with(checkout)
-    execute.assert_not_called()
+    monkeypatch.chdir(checkout)
+    assert host.run_host(checkout, 'component', []) == 0
+    prerequisite.assert_not_called()
+    execute.assert_called_once()
 
 
 @pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
@@ -471,14 +478,20 @@ def test_missing_roadmap_target_refuses_but_fixed_target_can_be_added(checkout):
     assert safety is False
 
 
-def test_e2e_listing_is_host_safe_and_pending_execution_refused():
+def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     plan, safety = commands.plan(ROOT, 'e2e', ['--list'])
     assert 'pkexec' not in plan[0][0]
     assert plan[0][2].endswith('/tests/e2e/runner.py')
     assert '--list' in plan[0]
     assert safety is False
+    # Listing loads the shared password module without reading credentials.
+    # Supply the unrelated execution prerequisite without using the host .envrc.
+    import test_account_password
+    password = Mock(return_value='fixture-password')
+    monkeypatch.setattr(test_account_password, 'read_password', password)
     with pytest.raises(ValueError, match='selection:pending'):
         commands.plan(ROOT, 'e2e', ['--scenario=E2E-031', '--artifacts=/tmp/onpc-future'])
+    password.assert_called_once_with(ROOT)
 
 
 def test_privileged_parent_symlink_is_rejected(checkout):

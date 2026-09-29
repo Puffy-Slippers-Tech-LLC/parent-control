@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from ui_watch_transport import Feeds, Publication
-from ui_watch_viewer import application
+from watch_viewer import application
 
 from gi.repository import GLib
 
@@ -15,7 +15,8 @@ directory = Path(os.environ['ONPC_UI_WATCH_REGISTRY'])
 control = Path(os.environ['ONPC_UI_WATCH_CONTROL'])
 evidence = Path(os.environ['ONPC_UI_WATCH_EVIDENCE'])
 sources = []
-app = application(Feeds(directory))
+app = application(feeds=Feeds(directory))
+app.connect_after('activate', lambda *_: app.buttons['ui'].set_active(True))
 stage = ''
 
 

@@ -35,7 +35,7 @@ observer and worker; add no independent runner or fixture framework.
 
 On the VM, place/trust the declared entry if needed, activate it from the desktop and observe a real usability action. Qualify independent desktop entry and wrong-icon/ambiguous-owner refusal.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

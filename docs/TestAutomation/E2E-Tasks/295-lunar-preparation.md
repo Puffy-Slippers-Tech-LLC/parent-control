@@ -29,7 +29,7 @@ updates or unresolved restored-state ownership leave this task blocked.
 ## Qualification and close-out
 
 Implement one read-only fixture-validation operation in the existing envelope.
-Use the guarded VM/watchvm path to verify an independently prepared valid profile
+Use the guarded VM/watch path to verify an independently prepared valid profile
 after normal restore and refusal of missing, drifted or wrong-account inputs.
 Supporting setup checks are engineering evidence, not a blocked-launch pass.
 Run affected host safety/unit checks first; keep public app/secret observations

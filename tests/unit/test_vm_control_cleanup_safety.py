@@ -142,7 +142,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
 @pytest.mark.parametrize('status', [0, 1, 130])
 @pytest.mark.parametrize('argv', [['vm', 'start'], ['vm', 'stop'],
                                  ['integration', 'check_test_recovery']])
-def test_foreground_dispatch_uses_qualified_gate_before_vm_work(tmp_path, monkeypatch, argv, status):
+def test_foreground_dispatch_runs_only_owned_operation_without_test_gate(tmp_path, monkeypatch, argv, status):
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     dispatcher['run'].__globals__['selection'] = lambda *args: ['selected-operation']
@@ -154,17 +154,13 @@ def test_foreground_dispatch_uses_qualified_gate_before_vm_work(tmp_path, monkey
     calls = []
     def execute(command, **kwargs):
         calls.append(command)
-        if command == ['shared-qualified-gate']:
-            assert kwargs['user'] == caller.pw_uid
-            assert kwargs['group'] == caller.pw_gid
-            return SimpleNamespace(returncode=status)
-        assert calls == [['shared-qualified-gate'], ['selected-operation']]
+        assert calls == [['selected-operation']]
         assert kwargs['env']['PKEXEC_UID'] == str(caller.pw_uid)
         assert 'user' not in kwargs
-        return SimpleNamespace(returncode=0)
+        return SimpleNamespace(returncode=status)
     monkeypatch.setattr(dispatcher['subprocess'], 'run', execute)
     assert dispatcher['run'](root, argv, caller) == status
-    assert len(calls) == (1 if status else 2)
+    assert len(calls) == 1
 
 
 def test_reset_leaves_vm_off_and_never_creates_snapshot_or_vm(lease_rig):

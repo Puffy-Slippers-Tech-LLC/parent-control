@@ -529,6 +529,46 @@ def test_empty_parent_functional_adapter_at_display_scales(
         raise
 
 
+def test_parent_checked_event_observer_around_public_toggle(launch_ui, monkeypatch):
+    """Real GTK signal envelope, with the ordinary UI17 action as caller."""
+    from gi.repository import Atspi, GLib
+    spec = importlib.util.spec_from_file_location('e2e_event_ui', ROOT / 'tests/e2e/accessible_ui.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    launch_ui('parent_component_preview', wait_for_application=False)
+    def observer():
+        return module.AccessibleUI(Atspi, timeout=20, query_errors=(GLib.Error,),
+            application_ids=(module.PARENT_APPLICATION,),
+            application_owners=launch_ui.application_owners,
+            fixture_uids={module.CHILD: 1001, module.EXISTING_CHILD: 1002},
+            provider_contracts=_qualified_absent_prompt_contracts(module),
+            dispatch=lambda: GLib.MainContext.default().iteration(False))
+    ui = observer()
+    ui.run('child-picker-opened', '')
+    ui.run('child-choice-highlighted', '')
+    from tests.support.keyboard import press_key
+    press_key(ui, 'parent-child-choice-1001', 'Return', state=Atspi.StateType.FOCUSED)
+    ui.run('parent-selected', '')
+    ui.parent_toggle_operation('parent-toggle-disabled')
+    ui.parent_save_snapshot(module.CHILD, False)
+    ui.trace_request, ui.trace_boot = 'a' * 32, 'b' * 64
+    calls = []
+    def ready(line, **kwargs):
+        value = json.loads(line)
+        assert value['event'] == 'accessibility-trace-ready'
+        assert not calls
+        calls.append(value)
+        actor = observer()
+        actor.expected_trace_source = value['source']
+        assert actor.parent_toggle_operation('parent-toggle-enabled') == {
+            'state': True, 'activated': True}
+    monkeypatch.setattr(module, 'print', ready, raising=False)
+    result = ui.parent_checked_events('parent-checked-events')
+    assert result['samples'] and all(sample['source'] == 'event' for sample in result['samples'])
+    assert result['samples'][-1]['checked'] is True and len(calls) == 1
+    assert observer().parent_save_snapshot(module.CHILD, True)['result'] == 'saved'
+
+
 @pytest.mark.parametrize('dpi_scale', [1.0, 1.25])
 def test_parent_functional_adapter_at_display_scales(
         launch_ui, request_display_scale, dpi_scale):

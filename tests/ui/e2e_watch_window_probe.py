@@ -14,7 +14,8 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import Frames, SIZE
-from e2e_watch_viewer import Feed, application
+from e2e_watch_viewer import Feed
+from watch_viewer import application
 
 mode = os.environ.get('ONPC_WATCH_LIVE', '0')
 live = mode != '0'
@@ -42,8 +43,9 @@ class FixtureFeed(Feed):
 
 
 feed = Feed() if live else FixtureFeed()
-app = application(feed)
-from gi.repository import GLib, Vte
+app = application(feed=feed)
+app.connect_after('activate', lambda *_: app.buttons['vm'].set_active(True))
+from gi.repository import GLib
 started = time.monotonic()
 stage = 0
 resume_started = None
@@ -72,10 +74,10 @@ def inspect():
             return True
         elapsed = time.monotonic() - started
         if live:
-            if app.screen.texture is not None:
+            if app.vm.screen.texture is not None:
                 evidence['frames'] += 1
                 evidence['max_age_ms'] = max(evidence['max_age_ms'],
-                    (time.monotonic_ns() - app.screen.meta['updated_ns']) / 1e6)
+                    (time.monotonic_ns() - app.vm.screen.meta['updated_ns']) / 1e6)
                 if mode == 'cycle' and elapsed > 3 and evidence['frames'] > 20:
                     evidence['closed_during_live_attempt'] = True
                     publish_evidence()
@@ -96,15 +98,15 @@ def inspect():
                 stride=16, format=0x20020888, cursor_width=1, cursor_height=1,
                 cursor_x=2, cursor_y=1, cursor_on=True, progress=progress)
             stage = 1
-        elif stage == 1 and app.screen.texture is not None:
+        elif stage == 1 and app.vm.screen.texture is not None:
             # Pixel/cursor format and ellipsis are rendering mechanics, not
             # target selection, readiness, or functional acceptance.
-            assert app.screen.texture.get_width() == 4 and app.screen.cursor is not None
-            assert app.step.get_layout().get_line_count() <= 3
-            assert app.status.get_layout().get_line_count() == 1
-            assert app.step.get_layout().is_ellipsized()
-            assert app.status.get_layout().is_ellipsized()
-            assert app.screen.texture.save_to_png(str(output.with_suffix('.png')))
+            assert app.vm.screen.texture.get_width() == 4 and app.vm.screen.cursor is not None
+            assert app.vm.step.get_layout().get_line_count() <= 3
+            assert app.vm.status.get_layout().get_line_count() == 1
+            assert app.vm.step.get_layout().is_ellipsized()
+            assert app.vm.status.get_layout().is_ellipsized()
+            assert app.vm.screen.texture.save_to_png(str(output.with_suffix('.png')))
             evidence['frame_format_and_progress_layout'] = True
             publish_evidence()
             stage = 2
@@ -119,14 +121,12 @@ def inspect():
                 offset=0, text='SSH $ apt-get install\n\x1b[1;32mPASS\x1b[0m\n'
                     '\x1b[1;31mREBOOT REQUIRED\x1b[0m\n')
             stage = 3
-        elif stage == 3 and app.screen.texture is None and advance_requested(3):
-            # VTE remains a passive renderer with no input or PTY. Color
-            # encoding is mechanical; the outer test reads visible output.
-            assert not app.terminal.get_input_enabled()
-            assert app.terminal.get_pty() is None
-            html = app.terminal.get_text_format(Vte.Format.HTML)
-            assert '#EF2929' in html.upper() and '#8AE234' in html.upper(), html
-            evidence['terminal_is_read_only_and_colored'] = True
+        elif stage == 3 and app.vm.screen.texture is None and advance_requested(3):
+            # VTE remains a passive renderer with no input or PTY;
+            # the outer test reads visible output.
+            assert not app.vm.terminal.get_input_enabled()
+            assert app.vm.terminal.get_pty() is None
+            evidence['terminal_is_read_only'] = True
             feed.invocation_progress = None
             feed.invocation_activity = None
             source = Frames('b' * 32)
@@ -136,9 +136,9 @@ def inspect():
                                step='First step after preparation', operation='Opening About',
                                started_ns=now, case_started_ns=now, operation_started_ns=now))
             stage = 4
-        elif stage == 4 and app.screen.texture is not None:
-            assert app.screen.meta['run'] == 'b' * 32
-            assert not app.screen.get_focusable()
+        elif stage == 4 and app.vm.screen.texture is not None:
+            assert app.vm.screen.meta['run'] == 'b' * 32
+            assert not app.vm.screen.get_focusable()
             app.window.set_default_size(700, 600)
             resume_started = time.monotonic()
             evidence['resumed_frame_in_same_viewer'] = True

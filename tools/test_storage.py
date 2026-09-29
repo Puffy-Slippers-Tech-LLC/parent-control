@@ -32,7 +32,7 @@ def disk_backed(fd):
         raise ValueError('test storage must be disk-backed; tmpfs/ramfs refused')
 
 
-def directory(kind='allocations', *, root=None):
+def directory(kind='allocations', *, root=None, create=True):
     base = (Path(root) if root is not None else ROOT) / 'output/test-runs'
     if kind not in ('allocations', 'scratch', 'sessions', 'sessions-host', 'fix-tests', 'write-e2e',
                     'reports', 'state', 'exports', 'cache', 'sbuild'):
@@ -47,10 +47,11 @@ def directory(kind='allocations', *, root=None):
             candidate = candidate / part
             mode = (0o755 if candidate in (base.parent, base, base / owner)
                     else 0o711 if candidate == path and kind == 'sbuild' else 0o700)
-            try:
-                os.mkdir(part, mode=mode, dir_fd=fd)
-            except FileExistsError:
-                pass
+            if create:
+                try:
+                    os.mkdir(part, mode=mode, dir_fd=fd)
+                except FileExistsError:
+                    pass
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
             os.close(fd)
             fd = child

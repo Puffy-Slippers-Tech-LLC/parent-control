@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
+CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 OPERATIONS = {
     'dependencies': ('tools/setup_dependencies.sh',),
     'ppa-build-tools': ('tools/setup_dependencies.sh', '--ppa-build-tools'),

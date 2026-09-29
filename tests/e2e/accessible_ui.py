@@ -96,6 +96,7 @@ FEEDBACK_PROJECTIONS = {
     **{f'length-{family}-{units}': (f'body-{family}-{units}', 'reply-clear')
        for family in ('ascii', 'mixed') for units in (5000, 5001)},
     'initial-empty': ('body-clear', 'reply-clear'),
+    'trace-prefix': ('body-first', 'reply-clear'),
     'synthetic-first': ('body-first', 'reply-first'),
     'formatted': ('body-smoke', 'reply-first'),
     'formatted-file': ('body-smoke', 'reply-first'),
@@ -107,6 +108,7 @@ FEEDBACK_PROJECTIONS = {
     'rejection-complex': ('body-complex', 'reply-clear'),
 }
 FEEDBACK_STATE_PROJECTIONS = {
+    'feedback-trace-sample': 'trace-prefix',
     'feedback-state-empty': 'initial-empty',
     'feedback-state-whitespace': 'states-whitespace',
     'feedback-state-no-reply': 'states-no-reply',
@@ -181,7 +183,7 @@ TEXT_VALUES = {
     'reply-clear': ('feedback-reply-email', ''),
     'reply-malformed': ('feedback-reply-email', 'invalid-reply'),
     **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
-       for value in (0, 1, 2, 3, 15, 1439)},
+       for value in (0, 1, 2, 3, 6, 15, 1439)},
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
@@ -311,7 +313,7 @@ def duration_projection(text):
 
 CUSTOM_ALLOWANCE_OPERATIONS = {
     'custom-' + str(value) + '-' + action: (value, action)
-    for value in (0, 1, 2, 3, 15, 1439)
+    for value in (0, 1, 2, 3, 6, 15, 1439)
     for action in ('open', 'saved', 'reopen')
 }
 CUSTOM_ALLOWANCE_OPERATIONS.update({
@@ -362,6 +364,13 @@ TOGGLE_OPERATIONS = {
     'parent-toggle-hidden-refused': {'refusal': 'hidden-control', 'state': False},
 }
 OPERATIONS |= frozenset(TOGGLE_OPERATIONS)
+ACCESSIBILITY_TRACE_OPERATIONS = frozenset((
+    'parent-checked-events', 'parent-save-events', 'parent-trace-wrong-child-refused',
+    'parent-trace-wrong-surface-refused',
+    'parent-custom-events', 'parent-custom-trace-focus',
+    'parent-custom-trace-disabled-refused',
+))
+OPERATIONS |= ACCESSIBILITY_TRACE_OPERATIONS
 PARENT_SAVE_OPERATIONS = {
     'multiple-other-saved': {
         'child': 'existing-fixture-child', 'result': 'saved', 'limit_enabled': True,
@@ -735,8 +744,9 @@ def owned_surface_id(identity):
         ('startup-error-', 'startup-error-window'),
         ('preview-screen-', 'preview-screen-dialog'),
         ('preview-viewer-', 'preview-viewer-window'),
-        ('e2e-watch-', 'e2e-watch-window'),
-        ('ui-watch-', 'ui-watch-window'),
+        ('e2e-watch-', 'watch-window'),
+        ('ui-watch-', 'watch-window'),
+        ('watch-', 'watch-window'),
         ('about-', 'about-dialog'),
         ('feedback-', 'feedback-dialog'),
         ('parent-', 'parent-window'),
@@ -759,7 +769,6 @@ PARENT_APPLICATION = 'com.puffyslippers.OhNoParentControl.Parent'
 KIOSK_APPLICATION = 'com.puffyslippers.OhNoParentControl'
 CHILD_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildRequest'
 WATCH_APPLICATION = 'org.onpc.E2EWatch'
-UI_WATCH_APPLICATION = 'org.onpc.UIWatch'
 PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION)
 
 
@@ -767,10 +776,8 @@ def owned_applications(identity):
     fixture = re.match(r'^onpc-fixture-(native|flatpak|snap|game)-(primary|secondary)(?:-|$)', identity)
     if fixture:
         return (f'com.puffyslippers.ONPCFixture.{fixture[1]}.{fixture[2]}',)
-    if identity.startswith('e2e-watch-'):
+    if identity.startswith(('e2e-watch-', 'ui-watch-', 'watch-')):
         return (WATCH_APPLICATION,)
-    if identity.startswith('ui-watch-'):
-        return (UI_WATCH_APPLICATION,)
     if identity.startswith('parent-'):
         return (PARENT_APPLICATION,)
     if identity.startswith(('kiosk-', 'preview-screen-')):
@@ -1485,8 +1492,7 @@ class AccessibleUI:
         app_id = identify(application)
         primary = ((f'onpc-fixture-{"-".join(app_id.split(".")[-2:])}',)
                    if app_id.startswith('com.puffyslippers.ONPCFixture.') else
-                   ('e2e-watch-window',) if app_id == WATCH_APPLICATION else
-                   ('ui-watch-window',) if app_id == UI_WATCH_APPLICATION else
+                   ('watch-window',) if app_id == WATCH_APPLICATION else
                    ('parent-window', 'parent-access-denied-window', 'startup-error-window')
                    if app_id == PARENT_APPLICATION else
                    ('kiosk-request-window', 'startup-error-window')
@@ -2297,13 +2303,19 @@ class AccessibleUI:
             # declared lengths; never project mismatching text into evidence.
             allowed = ((expected, expected + '\n')
                        if identity == 'feedback-editor-input' else (expected,))
-            require(count in {len(value) for value in allowed},
+            tracing = projection == 'trace-prefix' and identity == 'feedback-editor-input'
+            require((0 <= count <= len(expected) + 1) if tracing else
+                    count in {len(value) for value in allowed},
                     'ui:feedback-nonempty-draft')
             actual = (''.join(chr(self.api.Text.get_character_at_offset(text, offset))
                               for offset in range(count)) if binding == 'body-hidden' else
                       self.api.Text.get_text(text, 0, count) if count else '')
-            require(actual in allowed,
+            require((expected.startswith(actual.removesuffix('\n'))) if tracing else actual in allowed,
                     'ui:feedback-nonempty-draft')
+            if tracing:
+                body = actual.removesuffix('\n')
+                trace_draft = ('initial-empty' if not body else
+                               'states-no-reply' if body == expected else 'trace-prefix')
         require(attachments in (False, True, 'details', 'remaining', 'preview'), 'ui:attachment-profile')
         inputs = tuple((name, data) for name, data in ATTACHMENT_INPUTS
                        if attachments != 'remaining' or name == 'Synthetic note.txt') if attachments else ()
@@ -2408,7 +2420,8 @@ class AccessibleUI:
             require(self.has_state(target(identity), self.api.StateType.SENSITIVE),
                     'ui:feedback-control')
         if states:
-            return {'draft': projection, 'attachments': ['diagnostic-logs.zip'],
+            return {'draft': trace_draft if projection == 'trace-prefix' else projection,
+                    'attachments': ['diagnostic-logs.zip'],
                     'collection': 'ready', 'validation': FEEDBACK_VALIDATION[status_text],
                     'controls': 'ready',
                     'send_enabled': bool(self.has_state(target('feedback-send'),
@@ -3596,6 +3609,14 @@ class AccessibleUI:
         """Installed Parent binding and bounded refusal checks for UI17."""
         require(operation in TOGGLE_OPERATIONS, 'ui:toggle-operation')
         root = self.parent()
+        if getattr(self, 'expected_trace_source', None) is not None:
+            require(operation == 'parent-toggle-enabled', 'ui:trace-input-binding')
+            self.parent_save_snapshot(CHILD, False)
+            source = (self.parent_save_trace_source()[0]
+                      if self.expected_trace_source.startswith('save:')
+                      else self.parent_trace_source()[0])
+            require(source == self.expected_trace_source.removeprefix('save:'),
+                    'ui:trace-source-changed')
         if operation == 'multiple-other-enable':
             self.parent_save_snapshot(EXISTING_CHILD, False)
             return self.set_toggle('parent-screen-limit-toggle', True, root=root)
@@ -3637,6 +3658,213 @@ class AccessibleUI:
             return {'refusal': 'hidden-control', 'state': False}
         desired = operation == 'parent-toggle-enabled'
         return self.set_toggle('parent-screen-limit-toggle', desired, root=root)
+
+    def parent_trace_source(self, child=CHILD, surface='parent-window'):
+        """Resolve the bounded public projection and pin its window/object owner."""
+        import hashlib
+        require(surface == 'parent-window', 'ui:trace-surface')
+        # PARENT03 checks the exact selected child through its owned public ID.
+        self.settings(child)
+        root = self.parent()
+        target = self.id_target('parent-screen-limit-toggle', root=root, sensitive=True)
+        require(not self.has_state(target, self.api.StateType.DEFUNCT), 'ui:trace-stale')
+        references = [(node.bus, node.path) for node in (root, target)]
+        require(references[0][0] == references[1][0] and
+                references[0][0].startswith(':'), 'ui:trace-owner')
+        digest = hashlib.sha256(json.dumps(references).encode()).hexdigest()
+        return digest, target
+
+    def parent_save_trace_source(self, custom=False):
+        """Pin the window and all four public transition endpoints."""
+        import hashlib
+        self.settings(CHILD)
+        root = self.parent()
+        controls = {
+            name: self.id_target(identity, root=root)
+            for name, identity in (
+                ('toggle', 'parent-screen-limit-toggle'),
+                ('child', 'parent-child-selector'),
+                ('allowance', 'parent-daily-limit-selector'))
+        }
+        if custom:
+            controls['editor'] = self.id_target('parent-custom-daily-limit', root=root)
+        references = [(node.bus, node.path) for node in (root, *controls.values())]
+        require(len(set(references)) == len(controls) + 1 and len({bus for bus, _ in references}) == 1
+                and references[0][0].startswith(':'), 'ui:trace-owner')
+        return hashlib.sha256(json.dumps([CHILD_IDENTITIES[CHILD], references]).encode()).hexdigest(), controls
+
+    def parent_checked_events(self, operation):
+        """Input-free UI25/26 leaf; the controller owns the separate UI17 call."""
+        if operation != 'parent-checked-events':
+            child, surface, category = (
+                (EXISTING_CHILD, 'parent-window', 'ui:selected-child')
+                if operation == 'parent-trace-wrong-child-refused' else
+                (CHILD, 'feedback-dialog', 'ui:trace-surface'))
+            try:
+                self.parent_trace_source(child, surface)
+            except UiError as error:
+                require(str(error) == category, 'ui:trace-refusal')
+                return {'refusal': 'wrong-child' if child == EXISTING_CHILD else 'wrong-surface'}
+            raise UiError('ui:trace-wrong-entry-accepted')
+        token = self.trace_request
+        require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token), 'ui:trace-token')
+        self.parent_save_snapshot(CHILD, False)
+        source, target = self.parent_trace_source()
+        started = time.monotonic()
+        samples, failures = [], []
+        armed = False
+
+        def receive(checked, error):
+            if error is not None:
+                failures.append(True)
+                return
+            if not armed or len(samples) >= 32:
+                failures.append(True)
+                return
+            samples.append({'elapsed_ms': int((time.monotonic() - started) * 1000),
+                            'checked': checked, 'source': 'event'})
+
+        with self.api.checked_events(target, receive) as context:
+            self.invalidate_observation()
+            require(self.parent_trace_source()[0] == source and
+                    not self.has_state(target, self.api.StateType.CHECKED), 'ui:trace-entry')
+            # Drain anything queued during registration before arming. An
+            # unexpected earlier event invalidates entry, never becomes proof.
+            for _ in range(64):
+                if not context.pending():
+                    break
+                context.iteration(False)
+            require(not context.pending(), 'ui:trace-event-limit')
+            require(not failures, 'ui:trace-entry')
+            armed = True
+            print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                              'source': source, 'boot_sha256': self.trace_boot,
+                              'checked': False}, sort_keys=True), flush=True)
+            while not samples and not failures and time.monotonic() - started < 60:
+                context.iteration(False)
+                time.sleep(0.01)
+            require(not failures and samples and samples[-1]['checked'] is True,
+                    'ui:trace-event-missing')
+            require(time.monotonic() - started < 60, 'ui:trace-deadline')
+            # Read continuity afresh after the event. This saved-state read is
+            # not substituted for the event nor for the caller's later PARENT08.
+            self.invalidate_observation()
+            self.parent_save_snapshot(CHILD, True)
+            require(self.parent_trace_source()[0] == source, 'ui:trace-source-changed')
+        return {'token': token, 'source': source, 'terminal': True, 'samples': samples}
+
+    def parent_save_events(self, custom=False):
+        """Observe the public inhibited interval and recovery during one UI17 input."""
+        token = self.trace_request
+        require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token), 'ui:trace-token')
+        self.parent_save_snapshot(CHILD, custom)
+        source, controls = self.parent_save_trace_source(custom)
+        state = {'checked': custom, 'child': True, 'toggle': True, 'allowance': custom}
+        if custom:
+            self.text_recipient('parent-custom-daily-limit', focused=True)
+            state['editor'] = True
+        events, failures = [], []
+        started = time.monotonic()
+        armed = False
+        endpoints = {(node.bus, node.path, 'sensitive'): name
+                     for name, node in controls.items()}
+        endpoints[(controls['toggle'].bus, controls['toggle'].path, 'checked')] = 'toggle'
+
+        def receive(target, field, value, error):
+            if error is not None or not armed or len(events) >= 32:
+                failures.append(True)
+                return
+            events.append({'elapsed_ms': int((time.monotonic() - started) * 1000),
+                           'target': target, 'state': field, 'value': value})
+
+        with self.api.state_events(endpoints, receive) as context:
+            self.invalidate_observation()
+            require(self.parent_save_trace_source(custom)[0] == source, 'ui:trace-source-changed')
+            require(self.has_state(controls['toggle'], self.api.StateType.CHECKED) == custom and
+                    self.has_state(controls['child'], self.api.StateType.SENSITIVE) and
+                    self.has_state(controls['toggle'], self.api.StateType.SENSITIVE) and
+                    self.has_state(controls['allowance'], self.api.StateType.SENSITIVE) == custom and
+                    (not custom or self.has_state(controls['editor'], self.api.StateType.SENSITIVE)),
+                    'ui:trace-entry')
+            for _ in range(64):
+                if not context.pending():
+                    break
+                context.iteration(False)
+            require(not context.pending() and not failures, 'ui:trace-entry')
+            armed = True
+            print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                              'source': source, 'boot_sha256': self.trace_boot,
+                              'checked': custom}, sort_keys=True), flush=True)
+            inhibited = recovered = False
+            saw_child_off = saw_toggle_off = False
+            examined = 0
+            while not recovered and not failures and time.monotonic() - started < 60:
+                context.iteration(False)
+                while examined < len(events):
+                    event = events[examined]
+                    examined += 1
+                    key = 'checked' if event['state'] == 'checked' else event['target']
+                    state[key] = event['value']
+                    if key == 'child' and not event['value']:
+                        saw_child_off = True
+                    if key == 'toggle' and event['state'] == 'sensitive' and not event['value']:
+                        saw_toggle_off = True
+                    if custom:
+                        require(state['checked'] and state['allowance'] and state['editor'],
+                                'ui:custom-trace-controls')
+                    if saw_child_off and saw_toggle_off and not any(
+                            state[name] for name in (('child', 'toggle') if custom else
+                                                    ('child', 'toggle', 'allowance'))):
+                        inhibited = True
+                    if inhibited and all(state.values()):
+                        recovered = True
+                if custom:
+                    recovered = inhibited and all(state.values())
+                if custom and recovered:
+                    # A first save may drain before the second edit arrives.
+                    # Only the declared final public draft can end observation.
+                    self.invalidate_observation()
+                    try:
+                        self.read_custom_trace_draft()
+                    except UiError as error:
+                        require(str(error) == 'ui:text-value', 'ui:custom-trace-result')
+                        recovered = False
+                time.sleep(0.01)
+            require(not failures and inhibited and recovered and len(events) <= 32,
+                    'ui:save-trace-missing')
+            require(time.monotonic() - started < 60, 'ui:trace-deadline')
+            self.invalidate_observation()
+            self.parent_save_snapshot(CHILD, True)
+            require(self.parent_save_trace_source(custom)[0] == source, 'ui:trace-source-changed')
+        return {'token': token, 'source': source, 'terminal': True, 'samples': events}
+
+    def read_custom_trace_draft(self):
+        """Read the pinned custom editor while a queued save inhibits navigation."""
+        root = self.parent()
+        require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:trace-surface')
+        picker = self.id_target('parent-child-selector', root=root)
+        require(self.child_id_control(CHILD, 'parent-child-selected-', root=picker,
+                                      showing=True) is not None, 'ui:wrong-child')
+        allowance = self.id_target('parent-daily-limit-selector', root=root)
+        editor = self.id_target('parent-custom-daily-limit', root=root, showing=False)
+        require(all(self.has_state(node, self.api.StateType.VISIBLE) and
+                    self.has_state(node, self.api.StateType.SENSITIVE) and
+                    not self.has_state(node, self.api.StateType.DEFUNCT)
+                    for node in (allowance, editor)), 'ui:custom-trace-controls')
+        require(editor.get_role_name() != 'password text' and
+                self.has_state(editor, self.api.StateType.EDITABLE), 'ui:text-editor')
+        value = editor.get_text_iface()
+        require(value is not None, 'ui:text-editor')
+        count = self.api.Text.get_character_count(value)
+        require(count == 1 and self.api.Text.get_text(value, 0, count) == '6',
+                'ui:text-value')
+
+    def custom_trace_focus(self):
+        self.parent_save_snapshot(CHILD, True)
+        source, _controls = self.parent_save_trace_source(True)
+        require(source == self.trace_request, 'ui:trace-source-changed')
+        self.text_recipient('parent-custom-daily-limit', focused=True)
+        return {'focused': True}
 
     def parent_save_snapshot(self, child, expected_enabled):
         """PARENT08: wait for one terminal saved/control-state snapshot."""
@@ -3876,7 +4104,7 @@ class AccessibleUI:
         presets. ``reopen-current`` keeps the existing custom selection, as
         autosave intentionally preserves the ongoing editor and its focus.
         """
-        require(type(minutes) is int and minutes in (0, 1, 2, 3, 15, 1439)
+        require(type(minutes) is int and minutes in (0, 1, 2, 3, 6, 15, 1439)
                 and action in ('open', 'saved', 'reopen', 'reopen-current'),
                 'ui:allowance-binding')
         self.allowance_entry(child)
@@ -6637,7 +6865,7 @@ class AccessibleUI:
             application_kind = self._prompt_application_kind(facts[application]['name'])
             owned = bool(identities[application] in (
                 PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION,
-                WATCH_APPLICATION, UI_WATCH_APPLICATION))
+                WATCH_APPLICATION))
             for surface in application_nodes:
                 if surface is application or not facts[surface]['showing']:
                     continue
@@ -6894,6 +7122,22 @@ class AccessibleUI:
                 raise UiError('ui:window-refusal-missing')
         elif operation == 'parent-empty':
             self.parent_empty()
+        elif operation in ACCESSIBILITY_TRACE_OPERATIONS:
+            if operation == 'parent-custom-trace-focus':
+                result['trace'] = self.custom_trace_focus()
+            elif operation == 'parent-custom-trace-disabled-refused':
+                self.parent_save_snapshot(CHILD, False)
+                try:
+                    self.custom_allowance(CHILD, 6, action='open')
+                except UiError as error:
+                    require(str(error) == 'ui:unusable-target', 'ui:trace-refusal')
+                    result['trace'] = {'refusal': 'disabled'}
+                else:
+                    raise UiError('ui:trace-wrong-entry-accepted')
+            else:
+                result['trace'] = (self.parent_save_events(operation == 'parent-custom-events')
+                    if operation in ('parent-save-events', 'parent-custom-events')
+                    else self.parent_checked_events(operation))
         elif operation in TOGGLE_OPERATIONS:
             result['toggle'] = self.parent_toggle_operation(operation)
         elif operation in APP_ROW_OPERATIONS:
@@ -7412,7 +7656,12 @@ def main():
         timing=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.branch_owner = branch_owner
-    ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 else None
+    trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or
+                      sys.argv[1] == 'parent-toggle-enabled')
+    ui.trace_request = sys.argv[4] if len(sys.argv) == 5 and trace_argument else None
+    ui.trace_boot = boot
+    ui.expected_trace_source = (ui.trace_request if sys.argv[1] == 'parent-toggle-enabled' else None)
+    ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 and not trace_argument else None
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')

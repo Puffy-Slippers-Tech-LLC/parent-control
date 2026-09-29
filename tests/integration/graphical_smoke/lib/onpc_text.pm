@@ -85,6 +85,30 @@ sub replace_text {
 
 # The same finite seed/doubling/remainder recipe as the public adapter. Never
 # fall back to full typing after an uncertain or mismatching clipboard result.
+sub observed_custom_edits {
+    onpc_progress::operation('Typing two declared custom allowances while observing saves');
+    my ($journey, $stage, $first, $last) = @_;
+    die 'text:rapid-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
+        && $stage =~ /\A[a-z][a-z0-9-]*\z/ && $first eq '5' && $last eq '6';
+    my $used = 0;
+    my $result = $journey->seen($stage, sub {
+        my ($proof) = @_;
+        die 'text:rapid-proof' unless !$used && $proof->{binding} eq 'custom-rapid'
+            && ref($proof->{values}) eq 'ARRAY' && @{$proof->{values}} == 2
+            && $proof->{values}[0] == $first && $proof->{values}[1] == $last;
+        $used = 1;
+        # Focus/owner/child proof is fresh and the recorder is already armed.
+        # One bounded keyboard batch, with no settled-save round trip between
+        # the two commits. Return starts the first save before the next edit.
+        testapi::send_key('ctrl-a');
+        testapi::type_string($first . "\n", max_interval => 20);
+        testapi::send_key('ctrl-a');
+        testapi::type_string($last . "\n", max_interval => 20);
+    });
+    die 'text:rapid-missing' unless $used;
+    return $journey->consume_observation($stage, $result);
+}
+
 sub repeat_text {
     onpc_progress::operation('Building synthetic text with a short seed and clipboard doubles');
     my ($journey, $binding) = @_;

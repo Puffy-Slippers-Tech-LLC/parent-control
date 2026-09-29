@@ -34,7 +34,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Prepare positive daily time through Parent and observe saving, Switch User, log the child in correctly and independently observe the usable child desktop. Wrong-recipient and stale-proof tests must pass.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

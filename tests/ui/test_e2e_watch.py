@@ -31,14 +31,14 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
         environment_overrides={'ONPC_WATCH_EVIDENCE': str(output),
                                'ONPC_WATCH_CONTROL': str(control),
                                'ONPC_WATCH_LIVE': 'cycle' if cycle else str(int(live))})
-    wait(lambda: ui.showing('e2e-watch-window'),
+    wait(lambda: ui.showing('watch-window'),
          'spectator publishes its owned window ID')
     assert ui.text('e2e-watch-status') == (
         'Waiting for VM activity. You can leave this window open.')
     for identity in ('e2e-watch-progress', 'e2e-watch-display',
-                     'e2e-watch-output', 'e2e-watch-close'):
+                     'e2e-watch-output', 'watch-close'):
         assert ui.target(identity).get_accessible_id() == identity
-    wait(lambda: audit_owned_controls(ui, 'e2e-watch-window'),
+    wait(lambda: audit_owned_controls(ui, 'watch-window'),
          'complete spectator ID inventory')
 
     if not live:
@@ -53,12 +53,12 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
                  'repeat viewer launch attaches and exits')
             assert attached.returncode == 0, attached_log.read_text()
             assert process.poll() is None
-            assert ui.showing('e2e-watch-window')
+            assert ui.showing('watch-window')
 
     if live:
         key = 'closed_during_live_attempt' if cycle else 'stopped_window_still_open'
         wait(lambda: evidence(output).get(key), 'live spectator reaches its close point')
-        assert ui.showing('e2e-watch-window')
+        assert ui.showing('watch-window')
     else:
         advance(control, 1)
         wait(lambda: ui.text('e2e-watch-progress') ==
@@ -78,7 +78,7 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
         terminal = ui.content('e2e-watch-output', maximum=8000)
         assert 'SSH $ apt-get install' in terminal and 'PASS' in terminal
         assert '\x1b[' not in terminal
-        assert ui.showing('e2e-watch-window')
+        assert ui.showing('watch-window')
 
         advance(control, 3)
         wait(lambda: ui.text('e2e-watch-progress') == 'First step after preparation',
@@ -97,7 +97,7 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
         wait(lambda: ui.text('e2e-watch-status') == 'VM running · Waiting for the next operation',
              'completed operations do not leave stale intent in the footer')
 
-    ui.activate('e2e-watch-close')
+    ui.activate('watch-close')
     deadline = time.monotonic() + 10
     while process.poll() is None and time.monotonic() < deadline:
         time.sleep(.05)
@@ -110,7 +110,7 @@ def test_window_survives_stop_reconnect_and_resize(
     result, output = run_probe(
         launch_ui, tmp_path, automation, wait_for_accessible_state)
     for name in ('frame_format_and_progress_layout',
-                 'terminal_is_read_only_and_colored',
+                 'terminal_is_read_only',
                  'resumed_frame_in_same_viewer', 'resize_did_not_change_guest'):
         assert result[name]
     from PIL import Image

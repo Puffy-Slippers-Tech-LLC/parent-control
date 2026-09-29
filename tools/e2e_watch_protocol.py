@@ -112,7 +112,7 @@ class Frames:
         os.close(self.fd)
 
 
-def read_frame(memory, previous=0):
+def read_frame(memory, previous=0, *, pixels=True):
     prefix = memory[:PREFIX.size]
     sequence, length = PREFIX.unpack(prefix)
     if sequence == previous or sequence % 2 or not 0 < length < HEADER - PREFIX.size:
@@ -123,14 +123,17 @@ def read_frame(memory, previous=0):
     if memory[:PREFIX.size] != prefix:
         return None
     meta = json.loads(metadata)
+    include_pixels = pixels
     pixels = cursor = b''
     if meta['state'] == 'live':
         count = layout(meta['width'], meta['height'], meta['stride'], meta['format'])
-        pixels = memory[HEADER:HEADER + count]
+        if include_pixels:
+            pixels = memory[HEADER:HEADER + count]
         width, height = meta['cursor_width'], meta['cursor_height']
         require(type(width) is int and type(height) is int
                 and 0 <= width <= 256 and 0 <= height <= 256, 'cursor-layout')
-        cursor = memory[HEADER + PIXELS:HEADER + PIXELS + width * height * 4]
+        if include_pixels:
+            cursor = memory[HEADER + PIXELS:HEADER + PIXELS + width * height * 4]
     if memory[:PREFIX.size] != prefix:
         return None
     return sequence, meta, pixels, cursor

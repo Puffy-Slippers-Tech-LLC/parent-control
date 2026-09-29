@@ -2,6 +2,8 @@
 
 import json
 import sys
+import time
+import secrets
 from dataclasses import dataclass
 
 import accessible_ui
@@ -13,6 +15,9 @@ import system_runner as system
 # Collection replies need room for their full bounded semantic projection.
 # App rows still validate at most 256 fixed-format ID/access/match triples.
 RESPONSE_BYTE_LIMITS = {
+    'parent-checked-events': 8192,
+    'parent-save-events': 8192,
+    'parent-custom-events': 8192,
     'kiosk-approver-baseline': 65536,
     'parent-app-rows': 32768,
     'parent-app-rows-reopened': 32768,
@@ -22,6 +27,9 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Observing the owned Parent checked-state event without input'
+       for operation in accessible_ui.ACCESSIBILITY_TRACE_OPERATIONS},
+    'feedback-trace-sample': 'Observing the caller-owned synthetic feedback transition',
     **{operation: 'Comparing the file-bearing feedback draft across public review and return'
        for operation in accessible_ui.FILE_REVIEW_OPERATIONS},
     **{operation: 'Checking public attachment metadata and the declared attachment operation'
@@ -168,6 +176,27 @@ OPERATION_LABELS = {
     'standard-search-qualified': 'Qualifying stable Parent search unavailability',
     'standard-management-denied': 'Reading administrator-access denial and checking management is absent',
 }
+
+
+def save_trace_complete(samples, custom=False):
+    """Require an event-derived inhibited interval followed by full recovery."""
+    state = {'checked': custom, 'child': True, 'toggle': True, 'allowance': custom}
+    if custom:
+        state['editor'] = True
+    child_off = toggle_off = inhibited = False
+    for sample in samples:
+        key = 'checked' if sample['state'] == 'checked' else sample['target']
+        state[key] = sample['value']
+        if custom and not (state['checked'] and state['allowance'] and state['editor']):
+            return False
+        if key == 'child' and not sample['value']:
+            child_off = True
+        if key == 'toggle' and sample['state'] == 'sensitive' and not sample['value']:
+            toggle_off = True
+        if child_off and toggle_off and not any(state[name] for name in
+                (('child', 'toggle') if custom else ('child', 'toggle', 'allowance'))):
+            inhibited = True
+    return inhibited and all(state.values())
 OPERATION_LABELS.update({
     'help-desktop-clear': 'Checking the desktop after command documentation',
 })
@@ -419,6 +448,182 @@ class UiObservations:
         self.system_prompt = system_prompt
         self.boot_guard = None
         self.boot_proof = None
+        self.trace = None
+        self.trace_failed = False
+        self._trace_clock = time.monotonic
+        self.trace_sink = lambda token, index, sample: None
+        self.accessibility_trace = None
+
+    def observe_accessibility_input(self, operation, terminal, mode='checked', *, worker_input=None):
+        """Declared UI22 composition: arm read-only events, invoke UI17 once,
+        collect UI26. The outer owned SSH command stays alive during the nested
+        synchronous input call; no thread or alternate runner owns its lifetime.
+        """
+        custom = mode == 'custom-save'
+        require((custom and operation == 'parent-custom-trace-focus' and terminal == 6
+                 and callable(worker_input)) or
+                (operation == 'parent-toggle-enabled' and terminal is True and
+                 mode in ('checked', 'save') and worker_input is None),
+                'ui:trace-input-binding')
+        require(not self.trace_failed and self.trace is None and
+                self.accessibility_trace is None, 'ui:trace-previous-failure')
+        token = secrets.token_hex(16)
+        trace = {'token': token, 'ready': False, 'input': False,
+                 'started': self._trace_clock(), 'operation': operation, 'mode': mode,
+                 'worker_input': worker_input}
+        self.accessibility_trace = trace
+        try:
+            with watch_activity.operation('Observing one declared Parent accessibility toggle'):
+                result = self._observe('parent-custom-events' if custom else 'parent-save-events' if mode == 'save'
+                                       else 'parent-checked-events')
+            require(trace['ready'] and trace['input'] and
+                    self._trace_clock() - trace['started'] < 60, 'ui:trace-incomplete')
+            value = result['trace']
+            require(value['token'] == token and value['source'] == trace['source'],
+                    'ui:trace-token')
+            if mode in ('save', 'custom-save'):
+                require(save_trace_complete(value['samples'], custom), 'ui:save-trace-missing')
+            for index, sample in enumerate(value['samples'], 1):
+                self.trace_sink(token, index, sample)
+            return {'operation': ('parent-custom-save-trace' if custom else 'parent-save-trace' if mode == 'save'
+                                  else 'accessibility-input-trace'), 'outcome': 'passed',
+                    'interface': 'AT-SPI', 'token': token, 'terminal': terminal,
+                    'samples': value['samples']}
+        except BaseException:
+            self.trace_failed = True
+            raise
+        finally:
+            self.accessibility_trace = None
+
+    def accessibility_ready(self, value):
+        import re
+        trace = self.accessibility_trace
+        require(trace is not None and not trace['ready'] and
+                type(value) is dict and set(value) == {
+                    'event', 'token', 'source', 'boot_sha256', 'checked'} and
+                value['event'] == 'accessibility-trace-ready' and
+                value['token'] == trace['token'] and
+                value['checked'] is (trace['mode'] == 'custom-save') and
+                type(value['source']) is str and re.fullmatch(r'[0-9a-f]{64}', value['source']) and
+                value['boot_sha256'] == self.boot_guard and bool(self.boot_guard) and
+                self._trace_clock() - trace['started'] < 60, 'ui:trace-readiness')
+        trace['ready'] = True
+        trace['source'] = value['source']
+        # Durable readiness is a prerequisite of input, not a later report.
+        self.trace_sink(trace['token'], 0, dict(value))
+        require(self._trace_clock() - trace['started'] < 60, 'ui:trace-deadline')
+        trace['input'] = True  # Consume before the fallible action; never replay.
+        self._observe(trace['operation'])
+        if trace['mode'] == 'custom-save':
+            require(self._trace_clock() - trace['started'] < 60, 'ui:trace-deadline')
+            trace['worker_input'](trace['token'], trace['source'])
+
+    def _trace_sample(self):
+        with watch_activity.operation('Reading one unchanged public feedback trace sample'):
+            return self._observe('feedback-state-empty')
+
+    def start_trace(self, binding=None):
+        """UI25: bind empty feedback and a finite terminal before caller input."""
+        require(not self.trace_failed, 'ui:trace-previous-failure')
+        try:
+            require(self.trace is None, 'ui:trace-duplicate')
+            require(binding in (None, 'body-first', 'body-clear'), 'ui:trace-binding')
+            started = self._trace_clock()
+            value = (self._observe('feedback-state-no-reply') if binding == 'body-clear'
+                     else self._trace_sample())
+            state = FeedbackStateObservation.from_value(value['feedback_state'])
+            require(state == FeedbackStateObservation(
+                'states-no-reply' if binding == 'body-clear' else 'initial-empty', 'none', True),
+                    'ui:trace-entry')
+            now = self._trace_clock()
+            require(now < started + 60, 'ui:trace-deadline')
+            token = secrets.token_hex(16)
+            self.trace = {'token': token, 'started': started, 'deadline': started + 60,
+                          'binding': binding, 'input_index': 0,
+                          'boot': self.boot_proof, 'state': state,
+                          'samples': [{'elapsed_ms': int((now - started) * 1000),
+                                       'state': value['feedback_state']}]}
+            self.trace_sink(token, 0, self.trace['samples'][0])
+            return {'operation': 'feedback-trace-start', 'outcome': 'passed',
+                    'interface': 'AT-SPI', 'token': token, 'ready': True}
+        except BaseException:
+            self.trace_failed = True
+            self.trace = None
+            raise
+
+    def poll_trace(self):
+        """Read-only pump in the worker rendezvous, including while it types.
+
+        Sampling never authorizes or performs input. Only observed states are
+        retained; no transient is inferred between these bounded reads.
+        """
+        require(not self.trace_failed, 'ui:trace-previous-failure')
+        trace = self.trace
+        if trace is None or trace['binding'] is None:
+            return
+        try:
+            require(self._trace_clock() < trace['deadline'], 'ui:trace-deadline')
+            value = self._observe('feedback-trace-sample')
+            now = self._trace_clock()
+            require(now < trace['deadline'], 'ui:trace-deadline')
+            require(self.boot_proof == trace['boot'], 'ui:trace-boot')
+            state = FeedbackStateObservation.from_value(value['feedback_state'])
+            require(state.validation == 'none' and state.send_enabled,
+                    'ui:trace-controls')
+            elapsed = int((now - trace['started']) * 1000)
+            require(elapsed >= trace['samples'][-1]['elapsed_ms'], 'ui:trace-order')
+            require(len(trace['samples']) < 256, 'ui:trace-sample-limit')
+            trace['samples'].append({'elapsed_ms': elapsed, 'state': value['feedback_state'],
+                                    'input_index': trace['input_index']})
+            self.trace_sink(trace['token'], len(trace['samples']) - 1, trace['samples'][-1])
+        except BaseException:
+            self.trace_failed = True
+            self.trace = None
+            raise
+
+    def finish_trace(self, token, terminal=None):
+        """UI26: consume exactly the caller's live token, never infer one."""
+        require(not self.trace_failed, 'ui:trace-previous-failure')
+        try:
+            trace = self.trace
+            require(trace is not None and type(token) is str and token == trace['token'],
+                    'ui:trace-token')
+            expected = FeedbackStateObservation(
+                'initial-empty' if trace['binding'] == 'body-clear' else 'states-no-reply',
+                'none', True)
+            require(terminal == expected if trace['binding'] == 'body-clear' else
+                    terminal is None or terminal == expected, 'ui:trace-predicate')
+            if trace['binding'] is not None:
+                self.poll_trace()
+                require(trace['input_index'] == 3 and any(
+                    sample.get('input_index') == 2 for sample in trace['samples']),
+                    'ui:trace-input-unobserved')
+                state = FeedbackStateObservation.from_value(trace['samples'][-1]['state'])
+                require(state == expected,
+                        'ui:trace-terminal')
+                self.trace = None
+                return {'operation': 'feedback-trace-finish', 'outcome': 'passed',
+                        'interface': 'AT-SPI', 'token': token,
+                        'terminal': trace['binding'] + '-ready', 'samples': trace['samples']}
+            self.trace = None  # Consume before any fallible read; never replay.
+            for _ in range(2):
+                require(self._trace_clock() < trace['deadline'], 'ui:trace-deadline')
+                value = self._trace_sample()
+                now = self._trace_clock()
+                require(now < trace['deadline'], 'ui:trace-deadline')
+                require(self.boot_proof == trace['boot'], 'ui:trace-boot')
+                require(FeedbackStateObservation.from_value(value['feedback_state']) == trace['state'],
+                        'ui:trace-changed')
+                elapsed = int((now - trace['started']) * 1000)
+                require(elapsed >= trace['samples'][-1]['elapsed_ms'], 'ui:trace-order')
+                trace['samples'].append({'elapsed_ms': elapsed, 'state': value['feedback_state']})
+            return {'operation': 'feedback-trace-finish', 'outcome': 'passed',
+                    'interface': 'AT-SPI', 'token': token,
+                    'terminal': 'three-unchanged-samples', 'samples': trace['samples']}
+        except BaseException:
+            self.trace_failed = True
+            self.trace = None
+            raise
 
     @staticmethod
     def point(value):
@@ -456,7 +661,9 @@ class UiObservations:
                           or operation in accessible_ui.STATION_BRANCH_OPERATIONS) else (
             120 if operation in accessible_ui.KIOSK_SESSION_OPERATIONS else 90)
         kiosk = operation in accessible_ui.KIOSK_SESSION_OPERATIONS
-        if self.system_prompt is None and not kiosk:
+        event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events')
+        if (self.system_prompt is None and not kiosk and not event_trace
+                and self.accessibility_trace is None):
             return self.transport.call(argv, input=input, timeout=timeout), []
         commands = self.transport.commands
         previous = commands.progress
@@ -468,7 +675,7 @@ class UiObservations:
         def output(data):
             nonlocal received, diagnostic_count
             received += len(data)
-            limit = 131072 if kiosk else 8192
+            limit = 131072 if kiosk else 16384 if event_trace else 8192
             if operation in accessible_ui.APP_ROW_OPERATIONS:
                 limit = max(limit, RESPONSE_BYTE_LIMITS.get(operation, 2048))
             require(received <= limit, 'ui:response-size')
@@ -477,7 +684,10 @@ class UiObservations:
                 line, _, rest = pending.partition(b'\n')
                 pending[:] = rest
                 value = json.loads(line)
-                if type(value) is dict and value.get('event') == 'kiosk-form-observation':
+                if type(value) is dict and value.get('event') == 'accessibility-trace-ready':
+                    require(event_trace and not results, 'ui:trace-readiness')
+                    self.accessibility_ready(value)
+                elif type(value) is dict and value.get('event') == 'kiosk-form-observation':
                     diagnostic_count += 1
                     require(kiosk and not results and diagnostic_count <= 128,
                             'ui:diagnostic-order')
@@ -498,6 +708,26 @@ class UiObservations:
 
     def observe(self, operation):
         import time
+        trace = self.trace
+        if trace is not None and trace['binding'] is not None and not self.trace_failed:
+            order = tuple('text-' + trace['binding'] + '-' + suffix
+                          for suffix in ('focus', 'selected', 'read'))
+            index = trace['input_index']
+            if index < len(order) and operation == order[index]:
+                try:
+                    value = self._observe(operation)
+                    require(self.boot_proof == trace['boot'], 'ui:trace-boot')
+                    require(self._trace_clock() < trace['deadline'], 'ui:trace-deadline')
+                    trace['input_index'] += 1
+                    return value
+                except BaseException:
+                    self.trace_failed = True
+                    self.trace = None
+                    raise
+        if trace is not None or self.trace_failed:
+            self.trace_failed = True
+            self.trace = None
+            require(False, 'ui:trace-intervening-operation')
         previous_operation = getattr(self, 'last_mate_operation', None)
         self.last_mate_operation = None
         self.pending_challenge = None
@@ -595,6 +825,16 @@ class UiObservations:
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
                 'kiosk-mate-open', 'kiosk-mate-rejection-open'):
             binding = [self.boot_guard or '', self.mate_approval_identity]
+        if self.accessibility_trace is not None:
+            trace = self.accessibility_trace
+            require(operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
+                                  trace['operation']),
+                    'ui:trace-intervening-operation')
+            binding = [self.boot_guard or '', trace['token'] if operation ==
+                       ('parent-custom-events' if trace['mode'] == 'custom-save' else
+                        'parent-save-events' if trace['mode'] == 'save'
+                        else 'parent-checked-events') else
+                       ('save:' if trace['mode'] == 'save' else '') + trace['source']]
         # The standalone observer can exceed Linux's per-argument limit after
         # SSH shell quoting. Carry its bytes on the existing guarded stdin pipe.
         try:
@@ -612,6 +852,44 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in accessible_ui.ACCESSIBILITY_TRACE_OPERATIONS:
+            value = result.get('trace')
+            if operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events'):
+                require(type(value) is dict and set(value) == {
+                    'token', 'source', 'terminal', 'samples'} and
+                    type(value['token']) is str and re.fullmatch(r'[0-9a-f]{32}', value['token']) and
+                    type(value['source']) is str and re.fullmatch(r'[0-9a-f]{64}', value['source']) and
+                    value['terminal'] is True and type(value['samples']) is list and
+                    1 <= len(value['samples']) <= 32, 'ui:trace-response')
+                previous = 0
+                for sample in value['samples']:
+                    require(type(sample) is dict and type(sample.get('elapsed_ms')) is int and
+                            previous <= sample['elapsed_ms'] < 60000, 'ui:trace-sample')
+                    if operation == 'parent-checked-events':
+                        require(set(sample) == {'elapsed_ms', 'checked', 'source'} and
+                                type(sample['checked']) is bool and sample['source'] == 'event',
+                                'ui:trace-sample')
+                    else:
+                        require(set(sample) == {'elapsed_ms', 'target', 'state', 'value'} and
+                                sample['target'] in (('toggle', 'child', 'allowance', 'editor')
+                                    if operation == 'parent-custom-events' else ('toggle', 'child', 'allowance')) and
+                                sample['state'] in ('checked', 'sensitive') and
+                                (sample['state'] != 'checked' or sample['target'] == 'toggle') and
+                                type(sample['value']) is bool, 'ui:trace-sample')
+                    previous = sample['elapsed_ms']
+                if operation == 'parent-checked-events':
+                    require(value['samples'][-1]['checked'] is True, 'ui:trace-terminal')
+                else:
+                    require(save_trace_complete(value['samples'], operation == 'parent-custom-events'),
+                            'ui:save-trace-missing')
+            elif operation == 'parent-custom-trace-focus':
+                require(value == {'focused': True}, 'ui:trace-focus')
+            elif operation == 'parent-custom-trace-disabled-refused':
+                require(value == {'refusal': 'disabled'}, 'ui:trace-refusal')
+            else:
+                require(value == {'refusal': 'wrong-child' if operation ==
+                    'parent-trace-wrong-child-refused' else 'wrong-surface'}, 'ui:trace-refusal')
+            expected['trace'] = value
         if operation in accessible_ui.FILE_REVIEW_OPERATIONS and not operation.startswith('files-switch-'):
             from attachment_composition import compare_file_draft
             if operation != 'files-feedback-privacy-open':
@@ -846,7 +1124,9 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'feedback_state'},
                     'ui:feedback-state-response')
             state = FeedbackStateObservation.from_value(result['feedback_state'])
-            require(state.draft == accessible_ui.FEEDBACK_STATE_PROJECTIONS[operation],
+            require((state.draft in ('initial-empty', 'trace-prefix', 'states-no-reply'))
+                    if operation == 'feedback-trace-sample' else
+                    state.draft == accessible_ui.FEEDBACK_STATE_PROJECTIONS[operation],
                     'ui:feedback-state-response')
             expected['feedback_state'] = result['feedback_state']
         if operation in accessible_ui.LENGTH_OBSERVATIONS:

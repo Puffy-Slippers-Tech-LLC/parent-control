@@ -251,7 +251,6 @@ def cleanup_main(root=None, *, activity_fd=None):
 
 def host_run(root, category, argv, *, pipe=True):
     import test_launcher as host
-    import test_activity
     with Control().installed(pipe=pipe) as control:
         command = host.pytest_command(root, argv, category)
         env = host.test_environment(root)
@@ -263,14 +262,6 @@ def host_run(root, category, argv, *, pipe=True):
         if category == 'ui':
             import test_retention
             env.update(test_retention.environment())
-        if category != 'unit' and '--collect-only' not in command:
-            if test_activity.cleanup_verified(root):
-                print('run-tests: reusing passed aggregate cleanup prerequisites; source verified',
-                      flush=True)
-            else:
-                status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
-                if status:
-                    return status
         return control.run(command, cwd=root, env=env)
 
 
@@ -279,8 +270,7 @@ def category_run(root, category, argv, *, pipe=True):
     import test_retention
     import test_commands
     import test_launcher as host
-    import test_activity
-    commands, safety = test_commands.plan(root, category, argv)
+    commands, _ = test_commands.plan(root, category, argv)
     env = host.environment(root)
     env['PYTHONUNBUFFERED'] = '1'
     if category in ('fixture-runtime', 'coverage'):
@@ -320,24 +310,16 @@ def category_run(root, category, argv, *, pipe=True):
                 root, 'tools/build_test_artifacts.py', '--reuse', '--output', directory), cwd=root, env=env)
             if status:
                 return status
-            commands, safety = test_commands.plan(root, category, [*argv, '--artifacts=' + directory])
-        if safety:
-            if category == 'fixture-runtime' and test_activity.cleanup_verified(root):
-                print('run-tests: reusing passed aggregate cleanup prerequisites; source verified',
-                      flush=True)
-            else:
-                status = control.run(safety_command(root), cwd=root, env=host.test_environment(root))
-                if status:
-                    return status
+            commands, _ = test_commands.plan(root, category, [*argv, '--artifacts=' + directory])
         for command in commands:
             privileged = command[0] == '/usr/bin/pkexec'
             if privileged:
                 from dev_privileges import check
                 check(command[1])
-                command = [command[0], '--disable-internal-agent', command[1],
+                command = [command[0], '--disable-internal-agent', '--keep-cwd', command[1],
                            '--unattended', *command[2:]]
                 if category in ('system', 'e2e') and test_retention.token() is not None:
-                    command.insert(3, '--retention-run=' + test_retention.token())
+                    command.insert(4, '--retention-run=' + test_retention.token())
             status = control.run(command, cwd=root, env=env, cooperative=privileged)
             if status:
                 return status

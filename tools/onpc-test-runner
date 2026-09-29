@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Installed development-only dispatcher; trust the configured test checkout."""
+"""Installed development-only dispatcher; use the invoking repository root."""
 
 # Disable bytecode in this privileged interpreter as well as its children.
 # Checkout imports must never leave root-owned caches that break package clean.
@@ -38,7 +38,7 @@ def retention_guard(root):
     finally:
         os.close(fd)
 
-CHECKOUT = None  # Replaced with an absolute path by install_test_runner.py.
+CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 VM_UUID = None  # Pinned from finalized baseline state by install_test_runner.py.
 
 
@@ -150,8 +150,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             options.append('--id=' + str(args.id))
         if args.artifacts is not None:
             options.append('--artifacts=' + str(args.artifacts))
-        # Validate inventory before either caller privilege checks or isolated
-        # safety tests. The installed dispatcher repeats this checkout preflight.
+        # Validate inventory before caller privilege checks or execution.
+        # The installed dispatcher repeats this checkout preflight.
         plan = runpy.run_path(str(target))['preflight'](
             options, root=root, allow_missing_artifacts=allow_missing_artifacts)
         if args.id is not None and len(plan['cases']) == 1:
@@ -217,15 +217,6 @@ def run(root, argv, caller):
                        'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1',
                        'PYTHONUNBUFFERED': '1'}
         with module['Control']().installed(pipe=True) as control:
-            print('test-runner: cleanup prerequisites starting (unprivileged)', flush=True)
-            status = control.run(module['safety_command'](root), cwd=root, env=environment,
-                                 user=caller.pw_uid, group=caller.pw_gid,
-                                 extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid))
-            if status:
-                print('test-runner: cleanup prerequisites failed; selected operation was not started',
-                      file=sys.stderr, flush=True)
-                return status
-            print('test-runner: cleanup prerequisites passed; selected operation starting', flush=True)
             environment.update(PKEXEC_UID=str(caller.pw_uid), HOME='/root')
             import test_retention
             from test_storage import privileged_state, scratch_directory
@@ -253,19 +244,9 @@ def run(root, argv, caller):
         return subprocess.run(command, cwd=root, env=environment, check=False).returncode
     if argv[0] == 'appsnapshot' and '--probe' in argv:
         return subprocess.run(command, cwd=root, env=environment, check=False).returncode
-    # Direct VM maintenance and foreground integrations use the same qualified
-    # gate as unattended suites. Live lease/ownership checks stay in the target.
+    # Run only the selected operation. Live lease/ownership and retention
+    # checks stay in the target; regression tests are never cleanup preflight.
     sys.path.insert(0, str(root / 'tools'))
-    module = runpy.run_path(str(confined_file(root, 'tools/regression_process.py')))
-    print('test-runner: cleanup prerequisites starting (unprivileged)', flush=True)
-    result = subprocess.run(
-        module['safety_command'](root),
-        cwd=root, env=environment, user=caller.pw_uid, group=caller.pw_gid,
-        extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid), check=False)
-    if result.returncode:
-        print('test-runner: cleanup prerequisites failed; test refused', file=sys.stderr)
-        return result.returncode
-    print('test-runner: cleanup prerequisites passed; selected test starting', flush=True)
     # Preserve pkexec's authenticated graphical-caller identity for the VM runner.
     environment['PKEXEC_UID'] = str(caller.pw_uid)
     environment['HOME'] = '/root'

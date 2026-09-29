@@ -41,7 +41,7 @@ world/owner, ambiguity, unavailable assets and uncertain input; never replay.
 
 Implement and register the following fixed qualification in the existing guarded
 envelope before invoking it. Pass the affected cleanup/ownership regressions in
-isolation first. Use the shared watchvm observation and intention transport.
+isolation first. Use the shared watch observation and intention transport.
 Require independent valid entry, wrong-entry refusal, sanitized results and owned
 cleanup; host tests alone do not close this row.
 

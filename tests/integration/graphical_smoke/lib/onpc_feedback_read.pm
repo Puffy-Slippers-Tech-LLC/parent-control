@@ -89,6 +89,30 @@ sub supply_files {
     }
 }
 
+sub chooser_preservation {
+    onpc_progress::operation('Checking accepted files and preservation after chooser Cancel');
+    my ($journey, $invocation) = @_;
+    $invocation //= '';
+    die 'chooser:invocation' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    for my $step ('attachments', 'reopen', 'cancel', 'preserved') {
+        my $stage = $invocation . 'chooser-' . $step;
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+}
+
+sub attachment_removal {
+    onpc_progress::operation('Removing one declared attachment and independently reading the result');
+    my ($journey, $invocation) = @_;
+    $invocation //= '';
+    die 'attachment:invocation' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    for my $step ('remove', 'remaining') {
+        my $stage = $invocation . 'attachment-' . $step;
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+}
+
 sub boundary_batch {
     onpc_progress::operation('Checking a finite attachment boundary and independently preserved list');
     my ($journey, $batch) = @_;
@@ -107,9 +131,8 @@ sub attachment_limits {
     onpc_progress::operation('Checking the full count and size attachment table');
     my ($journey) = @_;
     die 'attachment:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
-    for my $stage ('attachment-remove', 'attachment-remaining', 'boundary-clear-small') {
-        $journey->consume_observation($stage, $journey->seen($stage));
-    }
+    attachment_removal($journey);
+    $journey->consume_observation('boundary-clear-small', $journey->seen('boundary-clear-small'));
     boundary_batch($journey, 'count');
     boundary_batch($journey, 'sixth');
     for my $stage ('boundary-clear-count', 'boundary-exclude-logs') {
@@ -139,15 +162,13 @@ sub run_file_chooser {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
     supply_files($journey, 'chooser');
-    for my $stage ('chooser-attachments', 'chooser-reopen', 'chooser-cancel', 'chooser-preserved') {
-        $journey->consume_observation($stage, $journey->seen($stage));
-    }
+    chooser_preservation($journey);
     if ($items) {
         for my $stage ('attachment-details', ($items >= 2
-                ? ('attachment-preview', 'attachment-preview-return')
-                : ('attachment-remove', 'attachment-remaining'))) {
+                ? ('attachment-preview', 'attachment-preview-return') : ())) {
             $journey->consume_observation($stage, $journey->seen($stage));
         }
+        attachment_removal($journey) if $items == 1;
     }
     if ($items == 3) {
         attachment_limits($journey);

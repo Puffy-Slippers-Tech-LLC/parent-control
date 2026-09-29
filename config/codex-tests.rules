@@ -43,8 +43,9 @@ prefix_rule(
 
 # Operator authorization: direct execution of every executable project tool
 # is preapproved, with validated arguments.
-# Setup expands this placeholder to exact tools/, ./tools/ and checkout-absolute
-# paths. Prefix rules have no filename glob; new executables need a rules refresh.
+# Setup expands this placeholder to exact tools/ and ./tools/ paths.
+# Run from the project root so these grants work in every checkout/worktree.
+# Prefix rules have no filename glob; new executables need a rules refresh.
 # This trusts the tools and their future edits. It does not validate arguments
 # or grant unrelated task scope, general interpreters, shells or root wrappers.
 prefix_rule(

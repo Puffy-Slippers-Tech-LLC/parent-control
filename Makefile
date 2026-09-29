@@ -110,6 +110,10 @@ bump-version:
 	@$(PYTHON) tools/bump_version.py "$(VERSION)" $(if $(CHANGE),--change "$(CHANGE)",)
 
 .PHONY: package-source-files
+.PHONY: watch
+watch:
+	@tools/watch
+
 package-source-files:
 	@printf '%s\n' $(sort $(PACKAGE_SOURCE_FILES))
 

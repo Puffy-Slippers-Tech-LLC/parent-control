@@ -230,8 +230,6 @@ def pytest_command(root, argv, category):
 
 def run_host(root, category, argv):
     command = pytest_command(root, argv, category)
-    if category != 'unit' and '--collect-only' not in command:
-        prerequisites(root)
     os.chdir(root)
     count = len(command) - command.index('--') - 1
     print(f'run-{category}-tests: starting pytest with {count} validated selection(s)',

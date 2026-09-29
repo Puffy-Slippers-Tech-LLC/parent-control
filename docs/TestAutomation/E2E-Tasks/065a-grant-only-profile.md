@@ -34,7 +34,7 @@ observer and worker; add no independent runner or fixture framework.
 
 Observe D=0/G>0 after real approval and finish at GDM. In a separate attempt, explicitly revoke first and independently read G=0 before preparing the grant; an unexpected undeclared existing grant refuses.
 
-Use a fresh guarded VM attempt through shared watchvm intent, display and
+Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation
 first. Require independent valid entry, wrong-entry refusal, public results,
 sanitized collection and owned cleanup. Secret and shared infrastructure changes

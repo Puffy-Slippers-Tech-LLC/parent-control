@@ -18,9 +18,9 @@ problem. A fresh chat does not require rerunning unaffected tests.
 Every test execution through `tools/run-tests` uses the same live dashboard and
 final summary: category results, actual host branches and joins, durations and
 overall wall time. Only selected categories appear; unused branches are omitted.
-The `Overall` counts and percentage exclude cleanup safety prerequisites in both
-`tools/run-tests` and `tools/fix-tests`. Cleanup retains its own progress rows,
-and its failures still fail the run; overall wall time includes cleanup.
+Cleanup is a lightweight serial ownership/recovery preflight before parallel
+work. It runs no regression tests and has no host branch or cleanup join stage.
+Recovery failures still fail the run; overall wall time includes cleanup.
 For example, `tools/run-tests unit -k 'grant' static shell` runs the selected unit
 tests followed by shell checks in one report. Each category keeps its own
 arguments, and all selections are validated before execution. Arbitrary category
@@ -48,8 +48,8 @@ in source checks; package artifacts include the fixture payload. Bare
 reproducibility comparison, matching the granular artifact category in `all`;
 `artifacts build` still requests just one build. UI's explicit inventory arguments
 select the aggregate's non-live scope; the shared launcher applies that same
-host-only boundary to focused UI commands. Mandatory cleanup prerequisites
-and required package inputs still run wherever the selected suite needs them.
+host-only boundary to focused UI commands. Owned cleanup and required package
+inputs still run wherever the selected suite needs them.
 
 The complete partition is **host + system + e2e = all**. Combine any of these
 categories in one invocation; execution always orders host first, then system,
@@ -63,7 +63,7 @@ tools/run-tests host system
 tools/run-tests host system e2e
 ```
 
-`host` includes discovery, isolated cleanup prerequisites, unit, component, UI,
+`host` includes discovery, unit (including cleanup regressions), component, UI,
 fixture runtime, source/traceability, static, child Node/GJS, backend checks,
 publishing checks, two fresh package builds and reproducibility comparison.
 It uses the complete aggregate's existing four-branch scheduling and stops at
@@ -78,8 +78,7 @@ launcher parallelism wherever supported within that selection. Do not expand
 to `host` merely to accelerate a large suite. Direct unit/UI launchers remain
 appropriate for narrow iteration or diagnosis.
 
-`tools/run-tests ui` collects only its selected UI inventory, completes the
-mandatory isolated cleanup prerequisites, then runs the existing
+`tools/run-tests ui` collects only its selected UI inventory, then runs the existing
 [UI buckets](../tools/regression_ui.py) through the same four-branch scheduler
 as `host`. The shared job builder in [regression.py](../tools/regression.py)
 serves both routes; [selected execution](../tools/regression_selection.py) adds
@@ -588,11 +587,11 @@ exact test IDs because its fixtures and outputs are function-local. This review
 applies to both schedulers, with a regression guard against shared fixture scope.
 Its synthetic inventories contain only the exercised scenario family, preserving
 that family's complete matrix and the real durable recorder while avoiding copies
-of unrelated families for every injected fault. **Join cleanup prerequisites** requires every
-bucket to pass and exit before downstream execution. UI, component and
-fixture-runtime workers validate the shared passing gate. Standalone prerequisite
-calls and foreground/unattended VM dispatch share content-qualified cleanup
-reuse; every live ownership, recovery and VM lease check still runs.
+of unrelated families for every injected fault. These are explicit regression
+tests, included in unit/host/all coverage; startup and cleanup do not run them.
+Actual cleanup runs serially before worker scheduling with every live ownership,
+recovery and VM lease check intact. It creates no pytest fixtures or qualification
+reports and has no parallel cleanup branches or join stage.
 
 Host work and independent publishing/build jobs share the branches; comparison
 joins both successful builders and their validated distinct outputs. Publishing
@@ -657,8 +656,7 @@ Ordinary pytest caches are disabled. The report labels every output fragment
 with its category and links separate private raw streams; one coordinator writes
 all progress. Category `waiting` records time queued separately from execution.
 Source identity is recorded at startup for reference. Checkout edits during a
-run do not stop scheduling, invalidate results or expire the current activity's
-passed cleanup prerequisites. Tests can load later edits; a passing run does not
+run do not stop scheduling or invalidate results. Tests can load later edits; a passing run does not
 certify one immutable checkout revision.
 
 The aggregate dispatches each complete `system` or ready `e2e` selection in one
@@ -669,11 +667,10 @@ automatic aggregate cancellation waits for the controller to finish evidence
 collection, restoration and its final audit. Explicit user cancellation remains
 available through the normal owned-process channel.
 
-Automatic package preparation and the maintained cleanup coordinator can reuse
-content-qualified startup work across invocations. See
+Automatic package preparation can reuse content-qualified inputs across invocations. See
 [reusable startup preparation](e2e/README.md#reusable-startup-preparation) for the
-input keys, invalidation and bounded storage contract. A cached qualification
-does not bypass live ownership or VM checks. Explicit regression and fresh-build
+input keys, invalidation and bounded storage contract. Cleanup does not use a
+test qualification cache. Explicit regression and fresh-build
 selections remain fresh.
 
 Installed-system runs retain one exclusive VM lease. Package installation/reboot
@@ -694,7 +691,7 @@ Any case or transition failure stops the suite. Single-case runs retain their
 full independent attempt lifecycle.
 
 The command collects current unit/contract, private-D-Bus, UI and fixture runtime
-cases; runs cleanup prerequisites in isolation before protected operations;
+cases (including cleanup-safety regressions in the unit category);
 runs source/static, child Node/GJS and backend checks; runs the local publishing
 module (source packaging/integrity, clean sbuild with declared tests, and source
 and binary Lintian); builds two fresh artifact
@@ -792,8 +789,8 @@ Privileged system/E2E
 outputs have a separate root-owned journal under
 `output/test-runs/privileged/state/retention-<uid>/`; all VM categories in
 one aggregate share its run token. Privileged outputs older than its three-run
-window rotate during preflight, before VM memory admission, after cleanup prerequisites
-pass and the shared VM lease/journal show no unfinished recovery. A host-only
+window rotate during serial preflight, before VM memory admission, after the
+shared VM lease/journal show no unfinished recovery. A host-only
 run or a failure before VM execution does not discard the last VM diagnostics.
 Refresh the installed dispatcher with `./setup.sh --test-tools-only` after this
 change. Test tooling has package update activation **none**.
@@ -822,7 +819,7 @@ cleanup requires an idle privileged retention owner and completed VM recovery,
 refuses live process references, and validates every identity and mount boundary
 before deleting anything. It never selects deletion targets by prefix or age.
 Keep needed recent diagnostics out of the manifest. Both commands use the
-existing integration dispatcher and its cleanup-safety gate.
+existing integration dispatcher and live ownership checks.
 
 System evidence keeps its registered allocation root at mode 0700; use the
 installed artifact reader for privileged results. Legacy journals with mismatched
@@ -851,7 +848,7 @@ and acquire the storage owner locks; a live owner is never killed or displaced.
 The installed `check_test_recovery` route reconciles the VM through the existing
 identity-checked recovery controller and shared VM lease. It also runs before a
 new VM category, so a stale VM journal cannot strand otherwise completed host work.
-Recovery runs its mandatory cleanup-safety prerequisites, not product suites.
+Recovery runs no test suites and creates no parallel cleanup branches.
 
 After VM recovery succeeds, unfinished retention journals and recovery markers
 are archived as `recovered-<run>.json` and `recovered-<run>.marker`. Every registered
@@ -955,7 +952,7 @@ Command output and results are retained for the artifact reader below.
 
 Always quote filename patterns and parametrized IDs. The launchers validate
 every selection and option, expand globs without a shell, preserve exit status,
-and run cleanup prerequisites automatically before host-integrated operations.
+and retain live ownership checks without running extra prerequisite test suites.
 Unit/property/contract selections stay in `tests/unit`, components in
 `tests/component`, and UI tests in `tests/ui`. Arbitrary pytest config/plugins,
 external paths, symlinks, shell commands and Make argument injection are refused.
@@ -1047,10 +1044,9 @@ precedence over local allow rules.
 
 ### Manual entry points
 
-Before a host-integrated test that terminates processes, run its cleanup-safety
-regressions in isolation. They must pass before the protected operation starts.
-For the existing aggregate local/system commands, this cleanup-only selection
-covers the current UI, nested-Shell, VM controller and persistent caller paths:
+When changing a cleanup implementation, validate its cleanup-safety regressions
+explicitly during development. They are not runtime prerequisites. For example,
+this selection covers UI, nested-Shell, VM controller and persistent caller paths:
 
 ```sh
 tools/run-unit-tests \
@@ -1064,16 +1060,15 @@ tools/run-unit-tests \
 
 For a focused test, select the safety modules for every cleanup implementation
 it uses. New controllers must add their own ownership regressions. The validated
-category launchers now run these prerequisites automatically for focused and
-aggregate protected operations. Direct legacy Make entry points still require
-explicit safety prerequisites.
+category launchers perform live ownership and recovery checks without launching
+additional test suites. Full unit/host/all selections retain the regressions.
 
-The developing graphical adapter additionally requires
-`tests/unit/test_graphical_lease.py` in isolation before its live use. It covers
+Graphical adapter changes additionally require explicit validation with
+`tests/unit/test_graphical_lease.py`. It covers
 VM ownership refusal and real display descriptor transfer/revocation. The
 worker adds `tests/unit/test_graphical_worker_cleanup_safety.py`. The privileged
-integration dispatcher runs both automatically before
-`integration check_graphical_worker`, whose non-VM fixtures verify byte transfer,
+integration dispatcher executes only the requested operation.
+`integration check_graphical_worker` has non-VM fixtures that verify byte transfer,
 normal exit, controller disconnect, and forced supervisor interruption. This
 qualifies namespace containment, not the actual os-autoinst/VM integration.
 
@@ -1108,7 +1103,15 @@ development tools, not customer E2E commands.
 
 ### Watching host UI tests
 
-Open `tools/watch-ui` as the desktop user before or during a run. It discovers
+Open `tools/watch` (or `make watch`) as the desktop user before or during a run.
+Both return after launching and repeated launches present the singleton VM
+watcher. The left terminal follows active `fix-tests` output before `run-tests`,
+using VS Code Dark+ colors, wrapping and vertical scrollback. The initial
+horizontal split is 30%/70%, adjustable by dragging. On the right, **Active**
+shows UI, VM, or both with an adjustable 50%/50% vertical split. **UI** and **VM**
+select a single viewer. Hidden panels inspect only small activity metadata;
+they do not copy frame pixels, query VM transcripts or update widgets.
+The viewer discovers
 private UI workers from this checkout for both `tools/run-ui-tests` and all
 aggregate paths (`tools/run-tests ui`, `host`, `all`, and mixed selections).
 **All branches** lays out up to four workers in a 2×2 grid, with a separate tab
@@ -1117,10 +1120,12 @@ appear when their private compositor fixture starts, disappear on shutdown or
 expired heartbeat, and later workers reconnect automatically. The viewer may be
 opened, closed, resized or reopened without controlling the tests. Runs started
 before this feature was loaded need to finish and start again to publish frames.
-The viewer prints its private `/var/tmp/onpc-ui-viewer-*/viewer.log` location
-at startup and records Python and native GTK output there, so later warnings
-cannot interrupt the launching terminal. Reopen an existing viewer to load changes
-to its output handling.
+The detached service records Python and native GTK output in a retained
+`onpc-watch-viewer-*/viewer.log` allocation under this checkout's test storage.
+Its location is printed in the service journal. Close and reopen the viewer to
+load source changes or to follow a different worktree's UI feeds and runner logs.
+The VM feed remains shared across worktrees. The viewer does not create runner
+state, consume results, send cancellation or change test ownership.
 
 The shared [fixture](ui/conftest.py) owns an optional
 [collector](../tools/ui_watch_capture.py) and private PipeWire/WirePlumber
@@ -1147,7 +1152,7 @@ Frames are review aids, never automation targets or acceptance evidence.
 Activation is `none`: new test fixtures and viewer invocations load the source;
 no product package, service or data migration is involved. The existing
 `./setup.sh --test-tools-only` route installs the optional viewer desktop/icon
-identity, and the existing executable-tool discovery includes `tools/watch-ui`
+identity, and the existing executable-tool discovery includes `tools/watch`
 at the next rules refresh. No broader command or privilege grant is needed.
 
 The bare-Mutter fixture disables its opening-window scale effect through

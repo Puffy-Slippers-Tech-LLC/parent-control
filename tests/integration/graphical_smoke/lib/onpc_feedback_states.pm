@@ -22,9 +22,37 @@ sub transition_trace {
     my ($journey, $entry) = @_;
     die 'trace:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && ($entry eq 'first' || $entry eq 'second');
+    observed_text($journey, $entry, 'body-first');
+}
+
+sub observed_text {
+    onpc_progress::operation('Observing one explicitly declared caller text input');
+    my ($journey, $entry, $binding) = @_;
+    die 'trace:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($entry) && $entry =~ /^[a-z][a-z0-9-]*$/
+        && ($binding eq 'body-first' || $binding eq 'body-clear');
     rejection_observe($journey, "trace-$entry-start");
-    onpc_text::replace_text($journey, 'body-first', $entry);
+    onpc_text::replace_text($journey, $binding, $entry);
     rejection_observe($journey, "trace-$entry-finish");
+}
+
+sub run_composition {
+    onpc_progress::operation('Qualifying valid-to-invalid feedback observation and independent readback');
+    my ($exchange) = @_;
+    die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'compose-observation', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    rejection_observe($journey, 'feedback-open');
+    for my $entry ('first', 'second') {
+        onpc_text::replace_text($journey, 'body-first', "prepare-$entry");
+        observed_text($journey, $entry, 'body-clear');
+        rejection_observe($journey, "independent-$entry");
+        rejection_observe($journey, $_) for ($entry eq 'first'
+            ? ('trace-close', 'trace-wrong-entry', 'trace-open-again') : ());
+    }
+    $journey->finish();
 }
 
 sub run_transition {

@@ -1,7 +1,7 @@
 """One caller-owned text edit inside a sampled public feedback trace."""
 
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, observed_text
 
 SCREENS = {
     **fresh_desktop('parent'),
@@ -10,10 +10,7 @@ SCREENS = {
         'parent-window', 'child-picker-opened', 'child-choice-highlighted',
         'parent-selected', 'feedback-open')},
     **{stage: operation for entry in ('first', 'second') for stage, operation in (
-        (f'trace-{entry}-start', 'ui:feedback-trace-start'),
-        *((f'{entry}-{suffix}', f'ui:text-body-first-{suffix}')
-          for suffix in ('focus', 'selected', 'read')),
-        (f'trace-{entry}-finish', 'ui:feedback-trace-finish'),
+        *observed_text(entry, 'body-first').items(),
         *((*((f'clear-{suffix}', f'ui:text-body-clear-{suffix}')
               for suffix in ('focus', 'selected', 'read')),
            ('trace-close', 'ui:feedback-close'),

@@ -26,7 +26,7 @@ CASE_MODULES = {Path(variant['executable']['path']).stem for _, variant in READY
 APIS = {
     'account_fixture': {'DynamicAccountFixture', 'EmptyAccountFixture', 'station_fixture_actions'},
     'installed_journey': {'JourneyPlan', 'InstalledJourney', 'matched_screens', 'record_installed_journey'},
-    'journey_blocks': {'fresh_desktop', 'parent_management', 'parent_search',
+    'journey_blocks': {'fresh_desktop', 'parent_management', 'parent_search', 'observed_text',
                        'product_free_desktop', 'reboot_desktop', 'station_entry'},
     'journey_checks': {'allowed_app_rows', 'installed_accounts'},
     'request_flow': {'prepared_request'},
@@ -248,11 +248,11 @@ def test_worker_guard_allows_semantic_labels_and_logging():
 
 def test_entry_fragments_do_not_share_mutable_recipe_state():
     from journey_blocks import (fresh_desktop, parent_management, parent_search,
-                                product_free_desktop, reboot_desktop, station_entry)
+                                product_free_desktop, reboot_desktop, station_entry, observed_text)
     for factory, args in ((fresh_desktop, ('parent',)), (fresh_desktop, ('other-child',)),
                           (parent_search, ()), (parent_management, ()),
                           (product_free_desktop, ()), (reboot_desktop, ()),
-                          (station_entry, ('cancel-',))):
+                          (station_entry, ('cancel-',)), (observed_text, ('renamed', 'body-clear'))):
         expected = factory(*args)
         changed = factory(*args)
         changed.clear()

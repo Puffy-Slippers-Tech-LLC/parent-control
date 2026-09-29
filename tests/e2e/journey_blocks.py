@@ -7,6 +7,19 @@ phase transitions. Each call returns a fresh mapping owned by its caller.
 from private_artifacts import require
 
 
+def observed_text(entry, binding):
+    """UI22 declaration: UI25, one explicitly bound UI16 input, UI26."""
+    import re
+    require(type(entry) is str and re.fullmatch(r'[a-z][a-z0-9-]*', entry)
+            and binding in ('body-first', 'body-clear'), 'journey:trace-binding')
+    return {
+        f'trace-{entry}-start': 'ui:feedback-trace-start',
+        **{f'{entry}-{suffix}': f'ui:text-{binding}-{suffix}'
+           for suffix in ('focus', 'selected', 'read')},
+        f'trace-{entry}-finish': 'ui:feedback-trace-finish',
+    }
+
+
 def fresh_desktop(account):
     """Direct fixture entry, with fresh recipient proofs before secret input.
 

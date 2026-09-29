@@ -35,3 +35,15 @@ WEBSITE_PLAN = replace(
 class ParentWebsiteJourney(InstalledJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, WEBSITE_PLAN)
+
+
+PRIVACY_PLAN = replace(
+    PLAN, prefix='parent-privacy', worker_mode='parent_privacy',
+    screen_tags={**PLAN.screen_tags, 'license': 'ui:privacy-clickable',
+                 'license-provider-refusals': 'ui:privacy-clickable'},
+)
+
+
+class ParentPrivacyJourney(InstalledJourney):
+    def __init__(self, context, progress):
+        super().__init__(context, progress, PRIVACY_PLAN)

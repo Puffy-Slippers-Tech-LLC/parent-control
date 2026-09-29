@@ -15,6 +15,15 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 ## Read only this context
 
 Read INFO01 and the support control in [about.py](../../../common/oh_no_parent_control_ui/about.py). Reuse the shared clickable-link reader.
+Start at `AccessibleUI.clickable_link` / `run` in
+`tests/e2e/accessible_ui.py`, `PRIVACY_PLAN` in
+`tests/e2e/license_viewer_provider.py`, `ParentPrivacyQualification` in
+`tests/integration/parent_setup_qualification.py`, and
+`onpc_license_viewer_provider::run` / `onpc_about::check_link` in the shared
+worker. Support remains an unimplemented binding. Extend the finite shared
+flow; retain the refusal matrix in `test_accessible_e2e_ui.py`, worker checks
+in `test_e2e_license_viewer.py`, installed-journey cleanup coverage and automatic
+named-input preparation in `tools/test_commands.py` / `test_test_launchers.py`.
 Read the affected safety tests and named source callables, not predecessor
 briefs or unrelated providers. Current route qualification comes from the
 catalogue; a checked historical task does not override it.

@@ -41,7 +41,7 @@ OPERATIONS = frozenset({
     'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'parent-window', 'parent-window-count', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'about-interval-read', 'about-interval-refused', 'about-rechecked', 'license',
-    'license-provider-refusals', 'website-clickable', 'license-closed', 'about-returned', 'parent-returned',
+    'license-provider-refusals', 'website-clickable', 'privacy-clickable', 'license-closed', 'about-returned', 'parent-returned',
     'discovery-ready', 'new-child-picker-opened', 'new-child-choice-highlighted',
     'new-child-selected', 'existing-child-picker-opened', 'existing-child-choice-highlighted',
     'existing-returned', 'existing-apps', 'new-child-apps', 'new-child-screen',
@@ -7646,6 +7646,8 @@ class AccessibleUI:
             self.open_license()
         elif operation == 'website-clickable':
             self.clickable_link('about-website-value', root=self.about())
+        elif operation == 'privacy-clickable':
+            self.clickable_link('about-privacy-value', root=self.about())
         elif operation == 'license-closed':
             self.about()
         elif operation == 'about-returned':

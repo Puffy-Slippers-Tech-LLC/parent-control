@@ -2,6 +2,7 @@
 
 from io import BytesIO
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -128,6 +129,60 @@ def test_dependency_failure_does_not_format_exception():
     assert info.dependency_info(BrokenCache())["status"] == "unavailable"
 
 
+def test_fedora_dependency_query_is_bounded_and_survives_archive_projection(monkeypatch):
+    def query(command, **kwargs):
+        assert command == ["/usr/bin/rpm", "--query", "--queryformat",
+                           "%{NAME}\t%{VERSION}\t%{ARCH}\n", "--", *info.RPM_DIAGNOSTIC_PACKAGES]
+        assert 0 < kwargs["timeout"] <= 10
+        assert kwargs["env"]["LC_ALL"] == "C"
+        rows = [f"{name}\t1.2-{SECRET}\tx86_64" for name in info.RPM_DIAGNOSTIC_PACKAGES
+                if name != "dconf"]
+        return subprocess.CompletedProcess(command, 1, "\n".join(rows) + "\npackage dconf is not installed\n", SECRET)
+    monkeypatch.setattr(info.subprocess, "run", query)
+    dependencies = info.dependency_info(os_id="fedora")
+    assert dependencies["status"] == "partial"
+    assert {row["name"] for row in dependencies["packages"]} == set(info.RPM_DIAGNOSTIC_PACKAGES) | {"quill"}
+    assert SECRET not in json.dumps(dependencies)
+    assert next(row for row in dependencies["packages"] if row["name"] == "dconf")["status"] == "missing"
+    system = sample_info()
+    system["os"] = {"id": "fedora", "version": "44"}
+    system["dependencies"] = dependencies
+    archive_bytes = with_system_info(build_bundle([]), system)
+    assert validate_bundle(archive_bytes) == archive_bytes
+    with ZipFile(BytesIO(archive_bytes)) as archive:
+        assert json.loads(archive.read("system-info.json"))["system"] == system
+
+
+@pytest.mark.parametrize("failure", [OSError(SECRET), subprocess.TimeoutExpired([], 10),
+                                     subprocess.CompletedProcess([], 2, SECRET, SECRET),
+                                     subprocess.CompletedProcess([], 0, SECRET, SECRET)])
+def test_fedora_query_failures_are_explicit_and_private(monkeypatch, failure):
+    def query(*args, **kwargs):
+        if isinstance(failure, Exception):
+            raise failure
+        return failure
+    monkeypatch.setattr(info.subprocess, "run", query)
+    result = info.dependency_info(os_id="fedora")
+    assert result["status"] == "unavailable"
+    assert SECRET not in json.dumps(result)
+
+
+def test_fedora_dependency_deadline_does_not_launch_rpm(monkeypatch):
+    query = Mock(side_effect=AssertionError("Expired budget"))
+    monkeypatch.setattr(info.subprocess, "run", query)
+    assert info.dependency_info(os_id="fedora", deadline=0)["status"] == "partial"
+    query.assert_not_called()
+
+
+def test_ubuntu_dependencies_still_use_apt_and_never_launch_rpm(monkeypatch):
+    query = Mock(side_effect=AssertionError("Ubuntu must use APT"))
+    monkeypatch.setattr(info.subprocess, "run", query)
+    cache = {name: SimpleNamespace(installed=installed(name)) for name in info.DIAGNOSTIC_PACKAGES}
+    result = info.dependency_info(cache, os_id="ubuntu")
+    assert result["status"] == "complete"
+    assert {row["name"] for row in result["packages"]} == set(info.DIAGNOSTIC_PACKAGES) | {"quill"}
+    query.assert_not_called()
+
 def test_runtime_roots_track_declared_dependencies():
     control = (Path(__file__).resolve().parents[2] / "debian/control").read_text()
     depends = next(line for line in control.splitlines() if line.startswith("Depends: "))
@@ -194,7 +249,7 @@ def test_collector_discards_os_branding_and_environment(monkeypatch):
         return '{"version":"1.2+private-person"}'
     monkeypatch.setattr(info, "_bounded_read", read)
     monkeypatch.setattr(info, "account_info", lambda _: sample_info()["accounts"])
-    monkeypatch.setattr(info, "dependency_info", lambda: sample_info()["dependencies"])
+    monkeypatch.setattr(info, "dependency_info", lambda **_: sample_info()["dependencies"])
     monkeypatch.setattr(info.platform, "release", lambda: "6.17.0-" + SECRET)
     monkeypatch.setenv("XDG_SESSION_TYPE", SECRET)
     monkeypatch.setenv("TZ", SECRET)

@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
+from common.oh_no_parent_control_ui.diagnostic_events import decode
 
 from oh_no_parent_control.extension_manager import (
     DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ExtensionManager,
@@ -99,6 +100,47 @@ class ExtensionManagerTests(unittest.TestCase):
 
         self.assertIn("error_type=CalledProcessError", logs.output[-1])
         self.assertNotIn("session bus failed", logs.output[-1])
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_successful_exit_retains_commit_warning_without_private_text(self, run):
+        secret = "/home/private-child/private-file private@example.test"
+        run.return_value = subprocess.CompletedProcess(
+            [], 0, stdout="", stderr="failed to commit changes to dconf: Permission denied " + secret)
+        with self.assertLogs("onpc", "INFO") as logs:
+            result = self.manager._run_as(
+                self.account, "gsettings", "set", "org.gnome.shell", ENABLED_KEY, repr([secret]))
+        self.assertEqual(result.returncode, 0)
+        payloads = [decode(record.onpc_payload) for record in logs.records]
+        warning = next(item for item in payloads if item["event"] == "extension-manager.command-warning")
+        self.assertEqual(warning["fields"], {
+            "tool": "gsettings", "operation": "set", "key": ENABLED_KEY,
+            "transport": "offline", "reason": "dconf-access-denied"})
+        self.assertNotIn(secret, "\n".join(logs.output))
+        self.assertNotIn("diagnostic.rejected", [item["event"] for item in payloads])
+        self.assertEqual(run.call_args.kwargs["env"]["LC_MESSAGES"], "C")
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_failed_exit_retains_warning_category(self, run):
+        run.side_effect = subprocess.CalledProcessError(
+            1, [], stderr="No such schema private@example.test")
+        with self.assertLogs("onpc", "INFO") as logs:
+            with self.assertRaisesRegex(RuntimeError, "interface is unavailable"):
+                self.manager._run_as(self.account, "gsettings", "get", "org.gnome.shell", ENABLED_KEY)
+        self.assertTrue(any("reason=settings-schema-missing" in row for row in logs.output))
+        self.assertNotIn("private@example.test", "\n".join(logs.output))
+
+    def test_readback_failure_and_rollback_name_the_setting(self):
+        state = GnomeRecoveryState(ignore_switch=True)
+        with self.assertLogs("onpc", "INFO") as logs:
+            with self.assertRaisesRegex(RuntimeError, "switch verification failed"):
+                self._recover(state, live=False)
+        payloads = [decode(record.onpc_payload) for record in logs.records]
+        verification = [item["fields"] for item in payloads
+                        if item["event"] == "extension-manager.setting-verification"]
+        self.assertIn({"key": DISABLE_ALL_KEY, "stage": "switch", "matches": False}, verification)
+        self.assertIn({"key": ENABLED_KEY, "stage": "rollback", "matches": True}, verification)
+        self.assertIn({"key": DISABLED_KEY, "stage": "rollback", "matches": True}, verification)
+        self.assertNotIn("diagnostic.rejected", [item["event"] for item in payloads])
 
     def test_shell_availability_uses_standard_bus_name_ownership(self):
         result = subprocess.CompletedProcess(

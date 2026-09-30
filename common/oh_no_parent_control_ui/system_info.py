@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import subprocess
 import time
 
 from .diagnostic_privacy import account_counts, category, version
@@ -48,8 +49,16 @@ PACKAGE_NAMES = frozenset(RUNTIME_ROOTS) | frozenset((
     "libdrm2", "libegl1", "libgl1", "libgbm1", "libepoxy0", "libpipewire-0.3-0",
     "libpulse0", "libasound2t64", "zlib1g", "libssl3t64", "libapt-pkg7.0",
 ))
-ARCHITECTURES = ("amd64", "arm64", "armhf", "i386", "ppc64el", "s390x", "riscv64", "all")
-OS_IDS = ("ubuntu", "debian")
+RPM_DIAGNOSTIC_PACKAGES = (
+    "accountsservice", "fapolicyd", "gdm", "gnome-kiosk", "gnome-shell", "gjs",
+    "malcontent", "polkit", "systemd", "dbus", "glib2", "gtk4", "libadwaita",
+    "webkitgtk6.0", "malcontent-libs", "malcontent-pam", "python3",
+    "python3-gobject", "python3-requests", "dconf",
+)
+PACKAGE_NAMES = PACKAGE_NAMES | frozenset(RPM_DIAGNOSTIC_PACKAGES)
+ARCHITECTURES = ("amd64", "arm64", "armhf", "i386", "ppc64el", "s390x", "riscv64", "all",
+                 "x86_64", "aarch64", "ppc64le", "noarch")
+OS_IDS = ("ubuntu", "debian", "fedora")
 MAX_DEPENDENCIES = 2048
 # These versions explain the application's principal integration boundaries.
 # Do not walk their dependency closures or enumerate unrelated installed software.
@@ -98,8 +107,10 @@ def _dependency_row(name, raw_version, architecture, status="installed"):
             "architecture": category(architecture, ARCHITECTURES), "status": status}
 
 
-def dependency_info(cache=None, *, deadline=None):
-    """Read only key runtime versions from the local, in-memory APT cache."""
+def dependency_info(cache=None, *, deadline=None, os_id=None):
+    """Read fixed runtime versions from APT, or RPM on Fedora only."""
+    if os_id == "fedora":
+        return _rpm_dependency_info(deadline=deadline)
     rows = [_dependency_row("quill", "2.0.3", "all", "bundled")]
     status = "complete"
     deadline = time.monotonic() + 10 if deadline is None else deadline
@@ -124,6 +135,47 @@ def dependency_info(cache=None, *, deadline=None):
         status = "unavailable"
         rows = [_dependency_row("quill", "2.0.3", "all", "bundled")]
     return {"status": status, "packages": rows}
+
+
+def _rpm_dependency_info(*, deadline=None):
+    """One read-only RPM query for fixed names; no installed-software inventory."""
+    bundled = _dependency_row("quill", "2.0.3", "all", "bundled")
+    deadline = time.monotonic() + 10 if deadline is None else deadline
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return {"status": "partial", "packages": [bundled]}
+    try:
+        result = subprocess.run(
+            ["/usr/bin/rpm", "--query", "--queryformat", "%{NAME}\t%{VERSION}\t%{ARCH}\n",
+             "--", *RPM_DIAGNOSTIC_PACKAGES],
+            check=False, text=True, capture_output=True, timeout=remaining,
+            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+        )
+        if result.returncode not in (0, 1) or len(result.stdout) > 65536:
+            raise ValueError("Diagnostic RPM query failed")
+        packages = {}
+        missing_messages = {f"package {name} is not installed" for name in RPM_DIAGNOSTIC_PACKAGES}
+        for line in result.stdout.splitlines():
+            if line in missing_messages:
+                continue
+            fields = line.split("\t")
+            if len(fields) != 3 or fields[0] not in RPM_DIAGNOSTIC_PACKAGES:
+                raise ValueError("Invalid diagnostic RPM row")
+            name, raw_version, architecture = fields
+            if name in packages:
+                # Parallel-installable packages (e.g. multilib) are represented
+                # deterministically by one reviewed version/architecture row.
+                packages[name] = min(packages[name], _dependency_row(name, raw_version, architecture),
+                                     key=lambda row: (row["architecture"], row["version"]))
+            else:
+                packages[name] = _dependency_row(name, raw_version, architecture)
+        rows = [packages.get(name, _dependency_row(name, "", "unknown", "missing"))
+                for name in RPM_DIAGNOSTIC_PACKAGES]
+        status = "partial" if any(row["status"] == "missing" for row in rows) else "complete"
+        return {"status": status, "packages": sorted([bundled, *rows], key=lambda row: row["name"])}
+    except Exception:
+        # RPM stderr, origins, revisions and exception messages are never exported.
+        return {"status": "unavailable", "packages": [bundled]}
 
 
 def account_info(connection):
@@ -210,7 +262,7 @@ def collect_system_info(connection):
         "architecture": category(platform.machine(), ("x86_64", "aarch64", "armv7l", "i686", "ppc64le", "s390x", "riscv64")),
         "timezone": timezone_info(),
         "session_type": category(os.environ.get("XDG_SESSION_TYPE"), ("wayland", "x11", "tty")),
-        "accounts": account_info(connection), "dependencies": dependency_info(),
+        "accounts": account_info(connection), "dependencies": dependency_info(os_id=os_info["id"]),
     })
 
 

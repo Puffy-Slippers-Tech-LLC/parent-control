@@ -19,6 +19,44 @@ COMMAND_TIMEOUT_SECONDS = 10
 LOG = get_logger("extension-manager")
 
 
+def _command_diagnostics(arguments):
+    # Only fixed executable/key categories cross the privacy boundary. Never
+    # include argv values: extension lists may contain private identifiers.
+    tool = arguments[0] if arguments else "other"
+    key = (arguments[3] if tool == "gsettings" and len(arguments) > 3
+           else "none")
+    return {
+        "tool": tool if tool in {"gsettings", "gnome-extensions", "gdbus"} else "other",
+        "key": key if key in {ENABLED_KEY, DISABLED_KEY, DISABLE_ALL_KEY, "none"} else "other",
+    }
+
+
+def _stderr_reason(value):
+    # Inspect subprocess text transiently; emit a closed category only. Force
+    # the command locale below so upstream warning markers are predictable.
+    if not isinstance(value, str) or not value.strip():
+        return None
+    if "failed to commit changes to dconf" in value:
+        if "org.freedesktop.DBus.Error.ServiceUnknown" in value:
+            return "dconf-service-missing"
+        if "org.freedesktop.DBus.Error.Spawn" in value:
+            return "dconf-service-start-failed"
+        if "Permission denied" in value or "org.freedesktop.DBus.Error.AccessDenied" in value:
+            return "dconf-access-denied"
+        if "Read-only file system" in value:
+            return "dconf-read-only"
+        return "dconf-commit-failed"
+    if "Using the 'memory' GSettings backend" in value:
+        return "settings-memory-backend"
+    if "The key is not writable" in value:
+        return "settings-not-writable"
+    if "No such schema" in value:
+        return "settings-schema-missing"
+    if "dconf will not work properly" in value:
+        return "dconf-runtime-unavailable"
+    return "other"
+
+
 class ExtensionManager:
     def __init__(
             self,
@@ -46,6 +84,7 @@ class ExtensionManager:
         environment = {
             "HOME": account.pw_dir,
             "LANG": os.environ.get("LANG", "C.UTF-8"),
+            "LC_MESSAGES": "C",
             "LOGNAME": account.pw_name,
             "PATH": "/usr/local/bin:/usr/bin:/bin",
             "USER": account.pw_name,
@@ -81,6 +120,9 @@ class ExtensionManager:
             raise RuntimeError("child GNOME session is unavailable")
         operation = arguments[1] if len(arguments) > 1 else "unknown"
         LOG.info("extension-manager.001", operation=operation, transport=transport)
+        context = _command_diagnostics(arguments)
+        LOG.info("extension-manager.command", operation=operation, transport=transport,
+                 tool=context["tool"], key=context["key"])
         try:
             result = subprocess.run(
                 command, check=True, text=True, capture_output=True,
@@ -88,6 +130,7 @@ class ExtensionManager:
                 extra_groups=(), timeout=COMMAND_TIMEOUT_SECONDS,
             )
         except (OSError, subprocess.SubprocessError) as error:
+            self._log_stderr(getattr(error, "stderr", None), operation, transport, context)
             LOG.error(
                 "extension-manager.002",
                 operation=operation,
@@ -95,8 +138,24 @@ class ExtensionManager:
                 error_type=error_code(error),
             )
             raise RuntimeError("child GNOME interface is unavailable") from error
+        self._log_stderr(result.stderr, operation, transport, context)
         LOG.info("extension-manager.003", operation=operation, transport=transport)
         return result
+
+    @staticmethod
+    def _log_stderr(value, operation, transport, context):
+        reason = _stderr_reason(value)
+        if reason is not None:
+            LOG.warning("extension-manager.command-warning", operation=operation,
+                        transport=transport, reason=reason, tool=context["tool"], key=context["key"])
+
+    @staticmethod
+    def _verify_setting(key, matches, stage):
+        if matches:
+            LOG.info("extension-manager.setting-verification", key=key, matches=matches, stage=stage)
+        else:
+            LOG.error("extension-manager.setting-verification", key=key, matches=matches, stage=stage)
+        return matches
 
     def _session_transport(self, account):
         return self._command(account, ("gsettings",))[2]
@@ -120,6 +179,7 @@ class ExtensionManager:
         )
         value = result.stdout.strip()
         if value not in {"(true,)", "(false,)"}:
+            LOG.error("extension-manager.invalid-state", source="shell-owner")
             raise RuntimeError("D-Bus returned an invalid GNOME Shell state")
         LOG.info("extension-manager.004", available=value == "(true,)")
         return value == "(true,)"
@@ -129,8 +189,10 @@ class ExtensionManager:
         try:
             value = ast.literal_eval(result.stdout.strip().removeprefix("@as "))
         except (SyntaxError, ValueError) as error:
+            LOG.error("extension-manager.invalid-state", source=key)
             raise RuntimeError("GNOME returned an invalid extension list") from error
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            LOG.error("extension-manager.invalid-state", source=key)
             raise RuntimeError("GNOME returned an invalid extension list")
         return value
 
@@ -138,6 +200,7 @@ class ExtensionManager:
         result = self._run_as(account, "gsettings", "get", SCHEMA, key)
         value = result.stdout.strip()
         if value not in {"true", "false"}:
+            LOG.error("extension-manager.invalid-state", source=key)
             raise RuntimeError("GNOME returned an invalid extension switch")
         return value == "true"
 
@@ -147,7 +210,7 @@ class ExtensionManager:
     def _set_boolean(self, account, key, value):
         self._run_as(account, "gsettings", "set", SCHEMA, key,
                      "true" if value else "false")
-        if self._boolean(account, key) != value:
+        if not self._verify_setting(key, self._boolean(account, key) == value, "switch"):
             raise RuntimeError("GNOME extension switch verification failed")
 
     def _runtime_uuids(self, account, state):
@@ -179,8 +242,10 @@ class ExtensionManager:
             previous = old_enabled if key == ENABLED_KEY else old_disabled
             if values != previous:
                 self._set_list(account, key, values)
-        if (self._list(account, ENABLED_KEY) != new_enabled or
-                self._list(account, DISABLED_KEY) != new_disabled):
+        if (not self._verify_setting(
+                ENABLED_KEY, self._list(account, ENABLED_KEY) == new_enabled, "offline") or
+                not self._verify_setting(
+                    DISABLED_KEY, self._list(account, DISABLED_KEY) == new_disabled, "offline")):
             raise RuntimeError("GNOME extension activation verification failed")
 
     def _set_live(self, account, enabled):
@@ -190,12 +255,16 @@ class ExtensionManager:
             require_live=True,
         )
         configured, active = self._runtime_state(account)
+        LOG.info("extension-manager.runtime-verification", expected=enabled,
+                 configured=configured, active=active)
         if configured != enabled or active != enabled:
             raise RuntimeError("GNOME extension runtime verification failed")
         enabled_settings = self._list(account, ENABLED_KEY)
         disabled_settings = self._list(account, DISABLED_KEY)
-        if ((UUID in enabled_settings) != enabled or
-                (enabled and UUID in disabled_settings)):
+        if (not self._verify_setting(
+                ENABLED_KEY, (UUID in enabled_settings) == enabled, "live") or
+                not self._verify_setting(
+                    DISABLED_KEY, not enabled or UUID not in disabled_settings, "live")):
             raise RuntimeError("GNOME extension activation verification failed")
         LOG.info("extension-manager.005", configured=configured, active=active)
 
@@ -235,6 +304,8 @@ class ExtensionManager:
             raise RuntimeError("GNOME user extensions are disabled")
 
         shell_available = self._shell_is_available(account)
+        LOG.info("extension-manager.activation-context", shell_available=shell_available,
+                 recover_global_switch=recover_global_switch, switch_recovery_needed=bool(restore_switch))
         old_runtime = self._runtime_state(account) if shell_available else None
 
         try:
@@ -263,8 +334,10 @@ class ExtensionManager:
                 finally:
                     self._set_list(account, ENABLED_KEY, old_enabled)
                     self._set_list(account, DISABLED_KEY, old_disabled)
-                if (self._list(account, ENABLED_KEY) != old_enabled or
-                        self._list(account, DISABLED_KEY) != old_disabled):
+                if (not self._verify_setting(
+                        ENABLED_KEY, self._list(account, ENABLED_KEY) == old_enabled, "rollback") or
+                        not self._verify_setting(
+                            DISABLED_KEY, self._list(account, DISABLED_KEY) == old_disabled, "rollback")):
                     raise RuntimeError("GNOME extension rollback verification failed")
                 if (shell_available and self._shell_is_available(account) and
                         self._runtime_state(account) != old_runtime):

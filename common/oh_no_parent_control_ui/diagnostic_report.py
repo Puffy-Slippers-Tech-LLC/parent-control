@@ -8,7 +8,7 @@ from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
 from .diagnostic_bundle import MAX_BYTES, MAX_INPUT_BYTES, MAX_RECORDS, _manifest, validate_record
 from .diagnostic_events import COMPONENTS, describe, encode
-from .system_info import DIAGNOSTIC_PACKAGES, validate_system_info
+from .system_info import DIAGNOSTIC_PACKAGES, RPM_DIAGNOSTIC_PACKAGES, validate_system_info
 
 DIRECTORIES = tuple(component + "/" for component in sorted(COMPONENTS))
 HEADER = (
@@ -51,7 +51,7 @@ def compact_system_info(value):
         return None
     validate_system_info(value)
     packages = {row["name"]: row for row in value["dependencies"]["packages"]
-                if row["name"] in (*DIAGNOSTIC_PACKAGES, "quill")}
+                if row["name"] in (*DIAGNOSTIC_PACKAGES, *RPM_DIAGNOSTIC_PACKAGES, "quill")}
     return {**value, "dependencies": {**value["dependencies"],
             "packages": [packages[name] for name in sorted(packages)]}}
 

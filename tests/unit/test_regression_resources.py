@@ -1,4 +1,5 @@
 """Admission budgets and pressure hysteresis use deterministic observations."""
+from tests.support.vm_registry import vm_name
 
 from dataclasses import replace
 from types import SimpleNamespace
@@ -448,7 +449,7 @@ def test_vm_reservation_uses_configured_ram_and_cpu_through_pinned_reader(tmp_pa
     demand = vm_demand(tmp_path)
     assert demand.cpu == 7
     assert demand.memory == 7200 * 1024 ** 2
-    assert calls[0][0] == [str(tmp_path / 'tools/test-vm'), 'xml', '--vm', 'onpc-Ubuntu26.04']
+    assert calls[0][0] == [str(tmp_path / 'tools/test-vm'), 'xml', '--vm', vm_name()]
     assert calls[0][1]['timeout'] == 15 and calls[0][1]['check']
 
 

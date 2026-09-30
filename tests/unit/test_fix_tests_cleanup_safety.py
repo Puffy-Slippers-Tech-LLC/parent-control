@@ -1,4 +1,5 @@
 """Real detach, cancellation and restart paths using private process doubles."""
+from tests.support.vm_registry import vm_name
 
 from concurrent.futures import ThreadPoolExecutor
 import fcntl
@@ -127,7 +128,7 @@ def test_cancellation_waits_for_runner_cleanup_then_fresh_start(checkout, monkey
                 return follow(run, io.StringIO())
 
             monkeypatch.setattr(fix_tests, 'follow', interrupt)
-        assert fix_tests.main(['--vm', 'onpc-Ubuntu26.04', *(['--stop'] if action == 'stop' else [])]) == 130
+        assert fix_tests.main(['--vm', vm_name(), *(['--stop'] if action == 'stop' else [])]) == 130
     assert (root / 'test-cleaned').exists()
     (root / 'mode').write_text('pass')
     # Remove the main-only hook; this is a new caller after ownership is idle.
@@ -305,7 +306,7 @@ def test_stale_runner_uses_existing_recovery_route_then_retries_category(checkou
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    vm_args = ['--vm', 'onpc-Ubuntu26.04'] if scope == 'vm' else []
+    vm_args = ['--vm', vm_name()] if scope == 'vm' else []
     recovery_args = ['--host-only'] if scope == 'host' else vm_args
     assert [call['args'] for call in calls] == [
         ['--stop-on-error', 'unit', *vm_args], recovery_args,
@@ -388,7 +389,7 @@ def test_category_arguments_survive_worker_repairs_and_verification(checkout, op
     tests = [call for call in calls if call['kind'] == 'test']
     assert len(tests) == 5  # Initial attempt, two repair retries, two verification rounds.
     assert all(call['args'] == ['--stop-on-error', 'unit', *options,
-                                '--vm', 'onpc-Ubuntu26.04'] for call in tests)
+                                '--vm', vm_name()] for call in tests)
     assert len([call for call in calls if call['kind'] == 'agent']) == 2
 
 
@@ -473,10 +474,10 @@ def test_discovered_arguments_reach_each_test_without_reconstruction(checkout):
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['args'] for call in calls] == [
-        ['--stop-on-error', 'unit', '--future-option', '--vm', 'onpc-Ubuntu26.04'],
-        ['--stop-on-error', 'future-suite', '--case', 'two words', '--vm', 'onpc-Ubuntu26.04'],
-        ['--stop-on-error', 'e2e', '--vm', 'onpc-Ubuntu26.04'],
-        ['--stop-on-error', 'all', '--vm', 'onpc-Ubuntu26.04']]
+        ['--stop-on-error', 'unit', '--future-option', '--vm', vm_name()],
+        ['--stop-on-error', 'future-suite', '--case', 'two words', '--vm', vm_name()],
+        ['--stop-on-error', 'e2e', '--vm', vm_name()],
+        ['--stop-on-error', 'all', '--vm', vm_name()]]
     marker = '\033[1;36mRunning category [future-suite] (2/3)\033[0m'
     text = output.getvalue()
     assert marker in text

@@ -1,4 +1,5 @@
 """Real owner lifetimes with isolated agent and test doubles, never a live VM."""
+from tests.support.vm_registry import vm_name
 
 from concurrent.futures import ThreadPoolExecutor
 import io
@@ -19,7 +20,7 @@ from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
 def select_vm(root, argv):
-    return workflow.select(root, ['--vm', 'onpc-Ubuntu26.04', *argv])
+    return workflow.select(root, ['--vm', vm_name(), *argv])
 
 
 def wait_for(path):
@@ -641,7 +642,7 @@ def test_cancellation_awaits_only_registered_test_cleanup(checkout, monkeypatch,
                 return follow(run, io.StringIO())
 
             monkeypatch.setattr(launcher, 'follow', interrupt)
-            assert workflow.main(['--vm', 'onpc-Ubuntu26.04']) == 130
+            assert workflow.main(['--vm', vm_name()]) == 130
         assert not (unrelated / 'cancel').exists()
     assert (root / 'nested-cleaned').exists()
     with launcher.lock(run.parent / 'owner') as owner:

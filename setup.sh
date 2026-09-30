@@ -13,11 +13,12 @@ Usage: ./setup.sh [MODE] [--vm NAME]
   --ppa-build-tools     Install clean local PPA build prerequisites
   --rpm-build-tools     Install RPM/container tools and prepare the Fedora 44 builder
   --test-tools-only     Refresh test helpers/policies/rules, viewer icon and old bytecode ownership
+                       Includes guarded root guest commands through tools/test-vm exec
   --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
-                             Requires --vm NAME from config/test-vm.json
+                             Requires --vm NAME or ID from config/test-vm.json
   --install-extension   Install the development extension for the current user
   -h, --help            Show this help
 

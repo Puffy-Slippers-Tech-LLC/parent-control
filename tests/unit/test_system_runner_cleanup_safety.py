@@ -1,4 +1,5 @@
 """Run in isolation before any live system runner: all process/VM calls mocked."""
+from tests.support.vm_registry import vm_name
 
 import signal
 import stat
@@ -115,7 +116,7 @@ def test_unprivileged_controller_refuses_before_any_host_or_guest_action():
             patch.object(runner.subprocess, 'Popen') as spawn, \
             patch.object(runner, 'Lease') as lease, \
             patch.object(runner.tempfile, 'mkdtemp') as mkdir:
-        assert runner.main(['--vm', 'onpc-Ubuntu26.04', '--artifacts', '/tmp/unused']) == 1
+        assert runner.main(['--vm', vm_name(), '--artifacts', '/tmp/unused']) == 1
     spawn.assert_not_called()
     lease.assert_not_called()
     mkdir.assert_not_called()

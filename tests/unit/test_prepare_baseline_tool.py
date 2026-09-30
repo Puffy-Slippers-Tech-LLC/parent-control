@@ -1,4 +1,5 @@
 """Standalone baseline replacement cannot skip password, privilege or tools refresh."""
+from tests.support.vm_registry import vm_name
 import runpy
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -7,7 +8,7 @@ import pytest
 
 from tests.support.paths import ROOT
 
-VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+VM_ARGS = ['--vm', vm_name()]
 
 
 @pytest.fixture
@@ -89,7 +90,7 @@ def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode,
         *confirmation_args, *VM_ARGS]
     assert run.call_args_list[1].args[0] == [str(ROOT / 'setup.sh'), '--test-tools-only']
     assert run.call_args_list[1].kwargs['cwd'] == ROOT
-    assert 'onpc_baseline prepared and accepted for onpc-Ubuntu26.04' in capsys.readouterr().out
+    assert f'onpc_baseline prepared and accepted for {vm_name()}' in capsys.readouterr().out
 
 
 def test_tools_refresh_failure_is_returned_after_baseline(authorized, monkeypatch):
@@ -131,13 +132,14 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, 
 
 def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypatch, capsys):
     names = list(authorized['registry']())
+    ids = [vm.id for vm in authorized['registry']().values()]
     def answer(prompt):
         output = capsys.readouterr().out
-        for number, name in enumerate(names, 1):
-            assert f'{number}. {name}' in output
+        for identifier, name in zip(ids, names):
+            assert f'{identifier}. {name}' in output
         assert output.index(names[0]) < output.index(names[1])
         authorized['check'].assert_not_called()
-        return '2'
+        return ids[1]
     monkeypatch.setitem(authorized, 'input', answer)
     def dispatch(command, **kwargs):
         assert command[-2:] == ['--vm', names[1]]
@@ -150,11 +152,14 @@ def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypa
 
 
 def test_vm_prompt_retries_invalid_numbers(launcher, monkeypatch, capsys):
-    monkeypatch.setitem(launcher, 'registry', lambda: {'first-vm': None, 'second-vm': None})
-    answers = iter(['', 'first-vm', '0', '3', '-1', '1.5', ' 2 '])
+    monkeypatch.setitem(launcher, 'registry', lambda: {
+        'first-vm': SimpleNamespace(id='83'), 'second-vm': SimpleNamespace(id='17')})
+    answers = iter(['', 'unknown-vm', '0', '3', '-1', '1.5', ' 17 '])
     monkeypatch.setitem(launcher, 'input', lambda prompt: next(answers))
     assert launcher['choose_vm']() == 'second-vm'
-    assert capsys.readouterr().out.count('Please enter a number') == 6
+    output = capsys.readouterr().out
+    assert output.count('Please enter a configured VM ID or name') == 6
+    assert '83. first-vm' in output and '17. second-vm' in output
 
 
 @pytest.mark.parametrize('exception', [EOFError, KeyboardInterrupt])
@@ -194,12 +199,12 @@ def test_terminal_choice_updates_bold_row_and_number_before_enter(monkeypatch, a
     frames = []
     screen.erase.side_effect = lambda: frames.append([])
     screen.addnstr.side_effect = lambda *args: frames[-1].append(args)
-    selected = vm_selection.choice_screen(screen, ['Ubuntu', 'Fedora'])
+    selected = vm_selection.choice_screen(screen, ['Ubuntu', 'Fedora'], ['1', '2'])
     expected = 0 if action == 'scroll-up' else 1
     assert selected == expected
     assert frames[-1][selected + 1][-1] == curses.A_BOLD
     assert frames[-1][2 - selected][-1] == curses.A_NORMAL
-    assert frames[-1][3][2] == f'Select VM [1-2]: {selected + 1}'
+    assert frames[-1][3][2] == f'Select VM ID [1, 2]: {selected + 1}'
 
 
 def test_terminal_choice_restores_mouse_reporting_on_cancel(monkeypatch, capsys):
@@ -207,7 +212,7 @@ def test_terminal_choice_restores_mouse_reporting_on_cancel(monkeypatch, capsys)
     import vm_selection
     monkeypatch.setattr(curses, 'wrapper', Mock(side_effect=KeyboardInterrupt))
     with pytest.raises(ValueError, match='VM selection cancelled'):
-        vm_selection.interactive_choice(['Ubuntu', 'Fedora'])
+        vm_selection.interactive_choice(['Ubuntu', 'Fedora'], ['1', '2'])
     assert capsys.readouterr().out.endswith('\033[?1003l')
 
 
@@ -219,4 +224,18 @@ def test_tty_chooser_uses_interactive_selection(launcher, monkeypatch):
     monkeypatch.setitem(launcher, 'interactive_choice', chooser)
     names = list(launcher['registry']())
     assert launcher['choose_vm']() == names[1]
-    chooser.assert_called_once_with(names)
+    chooser.assert_called_once_with(names, [vm.id for vm in launcher['registry']().values()])
+
+
+def test_terminal_chooser_uses_configured_ids_instead_of_row_numbers(monkeypatch):
+    import curses
+    import vm_selection
+    for name in ('mousemask', 'mouseinterval', 'curs_set'):
+        monkeypatch.setattr(curses, name, Mock())
+    screen = Mock()
+    screen.getmaxyx.return_value = (24, 100)
+    screen.get_wch.side_effect = ['1', '7', '\n']
+    assert vm_selection.choice_screen(screen, ['first-vm', 'second-vm'], ['83', '17']) == 1
+    labels = [call.args[2] for call in screen.addnstr.call_args_list]
+    assert '  83. first-vm' in labels and '  17. second-vm' in labels
+    assert 'Select VM ID [83, 17]: 17' in labels

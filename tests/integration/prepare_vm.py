@@ -246,6 +246,14 @@ def preparation_digest(checkout: Path = CHECKOUT) -> str:
             contents = path.read_bytes()
         except OSError as error:
             raise PreparationError("guard:checkout", "preparation source is incomplete") from error
+        if relative == 'config/test-vm.json':
+            # Selector aliases do not change the prepared guest. Keep names,
+            # disks and other configuration in the proof, but never require
+            # baseline replacement merely because the developer renumbers IDs.
+            document = json.loads(contents, object_pairs_hook=vm_config.unique_keys)
+            for entry in document.get('vms', []):
+                entry.pop('id', None)
+            contents = json.dumps(document, sort_keys=True, separators=(',', ':')).encode('utf-8')
         digest.update(relative.encode("utf-8") + b"\0")
         digest.update(len(contents).to_bytes(8, "big"))
         digest.update(contents)

@@ -12,7 +12,7 @@ from vm_selection import select, vm_config, BATCH
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     scope = parser.add_mutually_exclusive_group()
-    scope.add_argument('--vm', help='one configured VM; omitted: all enabled VMs')
+    scope.add_argument('--vm', help='configured VM name or ID; omitted: all enabled VMs')
     scope.add_argument('--host-only', action='store_true', help='host retention only; no VM access')
     args = parser.parse_args(argv)
     try:

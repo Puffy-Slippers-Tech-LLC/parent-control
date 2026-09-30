@@ -1,4 +1,5 @@
 """Task selection, handoff boundaries and fail-closed completion."""
+from tests.support.vm_registry import vm_name
 
 import subprocess
 import json
@@ -612,7 +613,7 @@ def test_multiple_inserted_prerequisites_keep_consumer_across_launcher_boundarie
 @pytest.mark.parametrize('option', ['--sessions', '--tasks'])
 def test_invalid_limit_refuses_before_spawn(tmp_path, value, option):
     with pytest.raises(SystemExit) as error:
-        workflow.select(tmp_path, [option, value, '--vm', 'onpc-Ubuntu26.04'])
+        workflow.select(tmp_path, [option, value, '--vm', vm_name()])
     assert error.value.code == 2
 
 

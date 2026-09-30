@@ -29,7 +29,8 @@ def watch_terminal_available():
 def install_missing_dependencies():
     """Fill missing launcher prerequisites with no requested upgrades or removals."""
     packages = [package for executable, package in
-                (('/usr/bin/rg', 'ripgrep'), ('/usr/bin/curl', 'curl'),
+                (('/usr/bin/ssh', 'openssh-client'),
+                 ('/usr/bin/rg', 'ripgrep'), ('/usr/bin/curl', 'curl'),
                  ('/usr/bin/gtk-update-icon-cache', 'gtk-update-icon-cache'))
                 if not os.access(executable, os.X_OK)]
     if importlib.util.find_spec('pytest_cov') is None:

@@ -133,6 +133,8 @@ Help, listing and collection return immediately without attaching.
 VM categories read config/test-vm.json and execute every entry with enabled
 equal to the string "true", using at most concurrency VMs simultaneously.
 --vm NAME restricts execution to one enabled entry for diagnosis.
+NAME may also be an ID from config/test-vm.json. Each invocation resolves IDs
+from the current file; changing IDs needs no tool refresh or baseline replacement.
 Host-only tests and declaration listing need no VM.
 
 Inspection

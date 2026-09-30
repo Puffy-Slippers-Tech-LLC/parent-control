@@ -61,6 +61,10 @@
   Astra Low. Use bounded Astra High advice where an applicable workflow requires
   it. Prefer quality, then weekly allowance.
 
+## Compatibility Matrix
+- When making change to a specific distro / DE, classify if it's generic across distros/DEs; If yes, 
+- fix it in a generic way; otherwise ensure the targeted change does not break other
+
 ## Test and customer acceptance
 
 - Follow the [test-automation documentation map](docs/TestAutomation/README.md)

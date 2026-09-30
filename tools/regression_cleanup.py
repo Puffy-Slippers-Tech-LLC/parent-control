@@ -8,6 +8,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.
+# Root guest probes reuse those private lease/scratch trees and mocked transport
+# streams; snapshot connection checks mock SSH and the clock. Both existing
+# VM-control and app-snapshot cleanup buckets remain compatible.
 # VM rename refusal/rollback coverage uses private pytest records and mocked
 # libvirt calls; the existing compatible vm_control classification still applies.
 # Per-VM leases, moved lease identity and legacy-journal refusal checks retain

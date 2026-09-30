@@ -1487,7 +1487,7 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     argv, _ = baseline.guest_contract.vm_config.extract(argv, required='--list' not in argv)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--vm', help='required configured VM name; optional for --list')
+    parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
     parser.add_argument('--artifacts', type=Path, help='Verified package and fixture artifact directory')
     parser.add_argument('--previous-artifacts', type=Path,
                         help='verified prior package to install and reboot before upgrading')

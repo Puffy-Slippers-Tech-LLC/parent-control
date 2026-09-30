@@ -38,7 +38,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     """Read declarations only. Never import worker/VM code or create artifacts."""
     argv, _ = vm_config.extract(argv, required=False, path=root / 'config/test-vm.json')
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--vm', help='required configured VM name; optional for --list')
+    parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
     parser.add_argument('--list', action='store_true')
     selectors = parser.add_mutually_exclusive_group()
     selectors.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')

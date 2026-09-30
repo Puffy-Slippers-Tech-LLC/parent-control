@@ -1,4 +1,5 @@
 """E2E dispatch refuses unsafe/unfinished work before privileges or VM access."""
+from tests.support.vm_registry import vm_name
 
 import hashlib
 import json
@@ -18,7 +19,7 @@ import test_commands as commands
 import dev_privileges
 import test_account_password
 REAL_READ_PASSWORD = test_account_password.read_password
-VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+VM_ARGS = ['--vm', vm_name()]
 
 
 def select_vm(root, argv):
@@ -234,7 +235,7 @@ def test_ready_declaration_still_requires_valid_artifacts(checkout, artifact, co
     (['LIST=0'], 'LIST-must-be-1'),
     (['LIST=1', 'VM_IMAGE=unused'], 'VM_IMAGE-refused'),
     (['LIST=1', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'listing-does-not-use-artifacts'),
-    (['SCENARIO=E2E-023/fullscreen', 'ARTIFACT_DIR=/tmp/onpc-unused', 'VM=onpc-Ubuntu26.04'], 'selection:pending'),
+    (['SCENARIO=E2E-023/fullscreen', 'ARTIFACT_DIR=/tmp/onpc-unused', 'VM=' + vm_name()], 'selection:pending'),
 ])
 def test_make_target_refusals(cli_checkout, assignments, code):
     result = subprocess.run(['/usr/bin/make', '--no-print-directory', 'check-e2e', *assignments],

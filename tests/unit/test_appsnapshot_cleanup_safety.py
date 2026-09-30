@@ -1,4 +1,5 @@
 """Standalone entry points cannot bypass validation, ownership or failed setup."""
+from tests.support.vm_registry import vm_name
 from contextlib import nullcontext
 import runpy
 import time
@@ -16,7 +17,7 @@ import prepare_snapshot as controller
 import app_snapshot
 from tests.support.paths import ROOT
 
-VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+VM_ARGS = ['--vm', vm_name()]
 
 
 @pytest.mark.parametrize('version', ['1.1', '1.1+ppa1~ubuntu26.04.1',
@@ -170,6 +171,24 @@ def test_saved_transport_verifies_clock_after_resuming(tmp_path, monkeypatch, cl
     transport.probe_ready.assert_called_once()
     assert transport.call.call_args_list[0].args[0] == ['date', '--set', '@1000']
     assert (tmp_path / 'snapshot-transport/ssh-key').stat().st_mode & 0o777 == 0o600
+
+
+def test_connecting_for_a_probe_does_not_restore_or_change_guest_time(tmp_path, monkeypatch):
+    import online_snapshot
+    import vm_transport
+    transport = Mock()
+    factory = Mock(return_value=transport)
+    monkeypatch.setattr(vm_transport, 'Transport', factory)
+    lease = Mock()
+    record = {'run': 'a' * 32, 'private_key': 'private-fixture-key',
+              'host_key': 'ssh-ed25519 fixture'}
+    assert online_snapshot.connect_saved_transport(lease, tmp_path, record, '192.168.122.20') is transport
+    transport.probe_ready.assert_called_once()
+    transport.call.assert_not_called()
+    lease.source.domain.revertToSnapshot.assert_not_called()
+    assert factory.call_args.args[0]['run'] == record['run']
+    assert (tmp_path / 'snapshot-transport/ssh-key').stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / 'snapshot-transport/known-hosts').read_text() == '192.168.122.20 ssh-ed25519 fixture\n'
 
 
 def test_online_bootstrap_never_mounts_or_writes_offline_guest(tmp_path, monkeypatch):
@@ -500,11 +519,11 @@ def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypat
     def cleanup(root):
         assert cleanup_e2e.test_activity.descriptors()
         paths.append(cleanup_e2e.test_activity.retention_path(root))
-        assert paths == [tmp_path / 'output/test-runs/host/state/retention-onpc-Ubuntu26.04']
+        assert paths == [tmp_path / f'output/test-runs/host/state/retention-{vm_name()}']
         return status
     monkeypatch.setattr(cleanup_e2e, 'cleanup', cleanup)
     assert cleanup_e2e.main(VM_ARGS) == status
-    assert paths == [tmp_path / 'output/test-runs/host/state/retention-onpc-Ubuntu26.04']
+    assert paths == [tmp_path / f'output/test-runs/host/state/retention-{vm_name()}']
     assert (store.path / 'recovery-required').exists() == bool(status)
     assert (store.path / f'recovered-{run}.json').exists() == (status == 0)
     if not status:
@@ -539,7 +558,7 @@ def test_host_cleanup_refuses_a_vm_selector():
 def dispatch():
     module = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
     select = module['selection']
-    select.__globals__['VM_UUIDS'] = {'onpc-Ubuntu26.04': 'pinned-test-uuid'}
+    select.__globals__['VM_UUIDS'] = {vm_name(): 'pinned-test-uuid'}
     return select
 
 

@@ -1,4 +1,5 @@
 """Shared pytest classification for the host-safe test suite."""
+from tests.support.vm_registry import vm_name
 
 from pathlib import Path
 import warnings
@@ -9,17 +10,17 @@ import vm_config
 
 # Host-safe VM adapters use an explicit fixture selection; product launchers
 # never infer a default from this fixture or from registry order.
-vm_config.select('onpc-Ubuntu26.04')
+vm_config.select(vm_name())
 
 
 @pytest.fixture(autouse=True)
 def configured_vm_fixture(monkeypatch):
     monkeypatch.delenv('ONPC_TEST_VM_BATCH', raising=False)
-    monkeypatch.setenv(vm_config.VARIABLE, 'onpc-Ubuntu26.04')
-    vm_config.select('onpc-Ubuntu26.04')
+    monkeypatch.setenv(vm_config.VARIABLE, vm_name())
+    vm_config.select(vm_name())
     yield
     monkeypatch.undo()
-    vm_config.select('onpc-Ubuntu26.04')
+    vm_config.select(vm_name())
 
 from tools.regression_events import (pytest_collection_finish, pytest_collectreport,
                                      pytest_runtest_logreport)

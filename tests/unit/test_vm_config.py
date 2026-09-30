@@ -1,4 +1,5 @@
 """Configuration selection and provenance isolation without accessing real VMs."""
+from tests.support.vm_registry import vm_name
 
 import json
 import fcntl
@@ -69,14 +70,155 @@ def test_display_name_preserves_case_and_hostname_is_lowercase(tmp_path):
     assert configured.baseline_directory.name == configured.name
 
 
-def test_configured_vm_name_has_no_literal_in_tooling_or_documentation():
-    configured = vm_config.selected()
+def test_configured_vm_names_have_no_literal_in_code_or_documentation():
     # The configured display name belongs in config, not its consumers.
-    name = configured.name
-    for directory in ('tools', 'tests/integration', 'docs'):
+    names = list(vm_config.registry())
+    for directory in ('tools', 'tests', 'docs'):
         for path in (ROOT / directory).rglob('*'):
             if path.is_file() and path.suffix in ('', '.py', '.md', '.MD', '.json', '.rules', '.sh'):
-                assert name not in path.read_text(), str(path.relative_to(ROOT))
+                contents = path.read_text()
+                assert not any(name in contents for name in names), str(path.relative_to(ROOT))
+    for relative in ('setup.sh', 'Makefile'):
+        assert not any(name in (ROOT / relative).read_text() for name in names)
+
+
+@pytest.fixture
+def selector_config(tmp_path, monkeypatch):
+    path = tmp_path / 'config/test-vm.json'
+    path.parent.mkdir()
+    document = {'concurrency': 2, 'vms': [
+        {'id': '17', 'name': 'Alpha-guest', 'disk_anchor': '/alpha', 'enabled': 'true'},
+        {'id': 83, 'name': 'Beta-guest', 'disk_anchor': '/beta', 'enabled': 'true'}]}
+    path.write_text(json.dumps(document))
+    monkeypatch.setattr(vm_config, 'CONFIG', path)
+    return path, document
+
+
+@pytest.mark.parametrize('equal_form', [False, True])
+def test_ids_are_fresh_lookups_after_swapping_in_the_same_process(selector_config, equal_form):
+    path, document = selector_config
+    for swapped in (False, True):
+        if swapped:
+            first, second = document['vms']
+            first['id'], second['id'] = second['id'], first['id']
+            path.write_text(json.dumps(document))
+        for entry in document['vms']:
+            identifier = str(entry['id'])
+            by_name = vm_config.load(entry['name'])
+            assert vm_config.load(identifier) == by_name
+            assert vm_config.execution(identifier) == vm_config.execution(entry['name'])
+            option = ['--vm=' + identifier] if equal_form else ['--vm', identifier]
+            args, configured = vm_config.extract(['status', *option])
+            assert args == ['status'] and configured == by_name
+            assert os.environ[vm_config.VARIABLE] == entry['name']
+            assert vm_config.arguments() == ['--vm', entry['name']]
+            assert host.DOMAIN == entry['name'] and guest.HOSTNAME == entry['name'].lower()
+
+
+@pytest.mark.parametrize('identifier', [None, '', '0', 0, -1, True, '01', '1.5', ' 17', 'guest', [], {}])
+def test_invalid_ids_fail_closed(selector_config, identifier):
+    path, document = selector_config
+    document['vms'][0]['id'] = identifier
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match='vm-config:id'):
+        vm_config.registry()
+
+
+@pytest.mark.parametrize('collision', ['duplicate', 'name'])
+def test_ids_cannot_ambiguously_select_another_guest(selector_config, collision):
+    path, document = selector_config
+    if collision == 'duplicate':
+        document['vms'][1]['id'] = int(document['vms'][0]['id'])
+    else:
+        document['vms'][1]['name'] = document['vms'][0]['id']
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match='vm-config:(duplicate-id|ambiguous-id-or-name)'):
+        vm_config.load('17')
+
+
+def test_deleted_id_never_uses_an_earlier_lookup(selector_config):
+    path, document = selector_config
+    assert vm_config.load('17').name == 'Alpha-guest'
+    document['vms'][0]['id'] = '96'
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match='unknown-vm'):
+        vm_config.load('17')
+    assert vm_config.load('96').name == 'Alpha-guest'
+
+
+def test_all_and_make_vm_selectors_rebind_from_json(selector_config):
+    import runpy
+    import test_commands
+    from vm_selection import make_command, execution_binding
+    path, document = selector_config
+    make_e2e = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))['make_arguments']
+    for entry in document['vms']:
+        for selector in (str(entry['id']), entry['name']):
+            args, selected = test_commands.vm_request(['all', '--vm', selector])
+            assert args == ['all'] and selected.name == entry['name']
+            assert execution_binding() == entry['name']
+            for target in ('all', 'all-verify', 'system', 'appsnapshot'):
+                command = make_command(ROOT, target, {'ONPC_MAKE_VM': selector})
+                assert command[-2:] == ['--vm', entry['name']]
+            assert make_e2e({'ONPC_E2E_VM': selector}) == ['--vm', entry['name']]
+    document['vms'][0]['id'], document['vms'][1]['id'] = (
+        document['vms'][1]['id'], document['vms'][0]['id'])
+    path.write_text(json.dumps(document))
+    assert make_command(ROOT, 'all', {'ONPC_MAKE_VM': '17'})[-1] == 'Beta-guest'
+    assert make_e2e({'ONPC_E2E_VM': '17'}) == ['--vm', 'Beta-guest']
+    test_commands.vm_request(['all', '--vm', '17'])
+    assert execution_binding() == 'Beta-guest'
+
+
+def test_agent_launchers_resolve_current_ids_before_session_creation(selector_config, monkeypatch):
+    import fix_tests
+    import write_e2e
+    import vm_selection
+    path, document = selector_config
+    monkeypatch.setattr(fix_tests, 'select', Mock(return_value=(None, False)))
+    monkeypatch.setattr(write_e2e.launcher, 'select', Mock(return_value=(None, False)))
+    for swapped in (False, True):
+        if swapped:
+            first, second = document['vms']
+            first['id'], second['id'] = second['id'], first['id']
+            path.write_text(json.dumps(document))
+        for entry in document['vms']:
+            for selector in (str(entry['id']), entry['name']):
+                assert fix_tests.main(['system', '--vm', selector]) == 0
+                assert vm_selection.execution_binding() == entry['name']
+                assert write_e2e.select(ROOT, ['--vm', selector]) == (None, False)
+                assert vm_selection.execution_binding() == entry['name']
+
+
+def test_disabled_vm_id_has_the_same_execution_guard_as_its_name(selector_config):
+    path, document = selector_config
+    document['vms'][1]['enabled'] = 'false'
+    path.write_text(json.dumps(document))
+    assert vm_config.load('83') == vm_config.load('Beta-guest')
+    for selector in ('83', 'Beta-guest'):
+        with pytest.raises(ValueError, match='no enabled'):
+            vm_config.execution(selector)
+
+
+def test_installed_dispatcher_keeps_uuid_pins_by_name_when_ids_swap(selector_config):
+    import runpy
+    path, document = selector_config
+    root = path.parent.parent
+    controller = root / 'tests/integration/vm_control.py'
+    controller.parent.mkdir(parents=True)
+    controller.write_text('# private command target; never executed\n')
+    dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
+    pins = {'Alpha-guest': UUID, 'Beta-guest': '33d86c8c-3b87-4c7b-9520-2df0b7e21e16'}
+    dispatch.__globals__['VM_UUIDS'] = pins
+    for swapped in (False, True):
+        if swapped:
+            first, second = document['vms']
+            first['id'], second['id'] = second['id'], first['id']
+            path.write_text(json.dumps(document))
+        for entry in document['vms']:
+            by_id = dispatch(root, ['vm', 'status', '--vm', str(entry['id'])])
+            assert by_id == dispatch(root, ['vm', 'status', '--vm', entry['name']])
+            assert by_id[3:7] == ['--vm', entry['name'], '--expected-uuid', pins[entry['name']]]
 
 
 def test_configuration_change_invalidates_guest_preparation_digest(tmp_path):
@@ -87,6 +229,26 @@ def test_configuration_change_invalidates_guest_preparation_digest(tmp_path):
     before = guest.preparation_digest(tmp_path)
     (tmp_path / 'config/test-vm.json').write_text(
         '{"name":"different-vm","disk_anchor":"/images/base.qcow2"}')
+    assert guest.preparation_digest(tmp_path) != before
+
+
+def test_id_changes_do_not_invalidate_guest_preparation_or_baseline_proof(tmp_path):
+    for relative in guest.SCRIPT_FILES:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes((ROOT / relative).read_bytes())
+    path = tmp_path / 'config/test-vm.json'
+    document = json.loads(path.read_text())
+    before = guest.preparation_digest(tmp_path)
+    first, second = document['vms'][:2]
+    first['id'], second['id'] = second['id'], first['id']
+    path.write_text(json.dumps(document, indent=4))
+    assert guest.preparation_digest(tmp_path) == before
+    first['id'] = '97'
+    path.write_text(json.dumps(document))
+    assert guest.preparation_digest(tmp_path) == before
+    first['name'] = 'renamed-guest'
+    path.write_text(json.dumps(document))
     assert guest.preparation_digest(tmp_path) != before
 
 
@@ -178,12 +340,12 @@ def test_shared_lock_is_used_by_runner_and_backing_ownership_checks(lease_rig, m
 
 def test_registry_contains_both_requested_vms():
     configured = vm_config.registry()
-    assert configured['onpc-Fedora-Workstation-44'].disk_anchor == Path(
-        '/Data/virt-manager/onpc-Fedora-Workstation-44.qcow2')
-    assert 'onpc-Ubuntu26.04' in configured
+    assert configured[vm_name(1)].disk_anchor == Path(
+        json.loads((ROOT / 'config/test-vm.json').read_text())['vms'][1]['disk_anchor'])
+    assert vm_name() in configured
 
 
-@pytest.mark.parametrize('name', [None, '', 'unknown-vm', 'onpc-fedora-workstation-44'])
+@pytest.mark.parametrize('name', [None, '', 'unknown-vm', vm_name(1).lower()])
 def test_selection_requires_exact_configured_name(name):
     with pytest.raises(ValueError, match='vm-config:'):
         vm_config.load(name)
@@ -202,19 +364,42 @@ def test_registry_refuses_ambiguous_entries(tmp_path, entries):
 
 
 @pytest.mark.parametrize('argv', [[], ['--vm'], ['--vm=unknown-vm'],
-    ['--vm', 'onpc-Ubuntu26.04', '--vm', 'onpc-Fedora-Workstation-44']])
+    ['--vm', vm_name(), '--vm', vm_name(1)]])
 def test_cli_selection_has_no_environment_or_default_fallback(argv):
     with pytest.raises(ValueError, match='vm-config:'):
         vm_config.extract(argv)
 
 
+def test_guest_arguments_never_reselect_vm_or_trigger_host_help():
+    guest = ['printf', '--vm', 'unknown-vm', '--help', '--list', '--vm=other']
+    remaining, configured = vm_config.extract(['--vm', vm_name(), 'exec', '--', *guest])
+    assert configured.name == vm_name()
+    assert remaining == ['exec', '--', *guest]
+    with pytest.raises(ValueError, match='--vm'):
+        vm_config.extract(['exec', '--', *guest])
+
+
+@pytest.mark.parametrize('args', [[], ['id'], ['--'], ['--', ''], ['--', '-o'],
+    ['--timeout', '0', '--', 'id'], ['--timeout', '86401', '--', 'id'],
+    ['--timeout', 'x', '--', 'id'], ['--host', 'other', '--', 'id'], ['--', 'id', '\0']])
+def test_guest_command_controls_are_bounded_and_unambiguous(args):
+    with pytest.raises(ValueError, match='vm-probe:'):
+        vm_config.guest_command_arguments(args)
+
+
+def test_guest_command_has_no_guest_program_allowlist_or_shell_interpolation():
+    command = ['sh', '-c', 'journalctl; printf "%s" "$(id -u)"', '--vm', '--timeout', '--help']
+    assert vm_config.guest_command_arguments(['--timeout', '600', '--', *command]) == (600, command)
+    assert vm_config.guest_command_arguments(['--', 'id']) == (120, ['id'])
+
+
 def test_selection_updates_imported_controller_and_guest(monkeypatch):
-    configured = vm_config.select('onpc-Fedora-Workstation-44')
+    configured = vm_config.select(vm_name(1))
     assert host.DOMAIN == configured.name
     assert host.ANCHOR == configured.disk_anchor
     assert host.BASELINES == configured.baseline_directory
     assert guest.HOSTNAME == configured.hostname
-    assert host.BASELINES != vm_config.load('onpc-Ubuntu26.04').baseline_directory
+    assert host.BASELINES != vm_config.load(vm_name()).baseline_directory
 
 
 @pytest.mark.parametrize('command', [
@@ -323,11 +508,11 @@ def test_batch_test_selection_and_explicit_diagnosis_obey_enabled_config(monkeyp
     args, configured = test_commands.vm_request(['system'])
     assert args == ['system'] and configured is None
     assert vm_selection.execution_arguments() == []
-    assert vm_selection.execution_binding()['vms'] == ['onpc-Ubuntu26.04']
+    assert vm_selection.execution_binding()['vms'] == [vm_name()]
     with pytest.raises(ValueError, match='no enabled'):
-        test_commands.vm_request(['system', '--vm', 'onpc-Fedora-Workstation-44'])
-    test_commands.vm_request(['system', '--vm', 'onpc-Ubuntu26.04'])
-    assert vm_selection.execution_arguments() == ['--vm', 'onpc-Ubuntu26.04']
+        test_commands.vm_request(['system', '--vm', vm_name(1)])
+    test_commands.vm_request(['system', '--vm', vm_name()])
+    assert vm_selection.execution_arguments() == ['--vm', vm_name()]
 
 
 def test_mixed_host_and_vm_categories_use_queue_without_reinterpreting_host_options():
@@ -497,8 +682,8 @@ def test_make_targets_require_configured_vm_and_preserve_literal_name():
             make_command(ROOT, target, {})
         with pytest.raises(ValueError, match='unknown-vm'):
             make_command(ROOT, target, {'ONPC_MAKE_VM': 'unknown-vm'})
-        command = make_command(ROOT, target, {'ONPC_MAKE_VM': 'onpc-Fedora-Workstation-44'})
-        assert command[-2:] == ['--vm', 'onpc-Fedora-Workstation-44']
+        command = make_command(ROOT, target, {'ONPC_MAKE_VM': vm_name(1)})
+        assert command[-2:] == ['--vm', vm_name(1)]
 
 
 def test_make_watch_observes_all_vms_and_refuses_vm_parameter():
@@ -527,9 +712,9 @@ def test_configured_vm_pins_are_selected_by_name_and_missing_pin_never_falls_bac
 
 def test_retained_launcher_binding_requires_original_configured_vm(tmp_path):
     from vm_selection import check_binding, save_binding
-    name = 'onpc-Fedora-Workstation-44'
+    name = vm_name(1)
     save_binding(tmp_path, name)
     check_binding(tmp_path, name)
-    for other in (None, 'onpc-Ubuntu26.04'):
+    for other in (None, vm_name()):
         with pytest.raises(ValueError, match='original --vm NAME'):
             check_binding(tmp_path, other)

@@ -486,12 +486,19 @@ also requires `--vm NAME`. `tools/cleanup-e2e` without a selector reconciles all
 enabled guests serially. Workers receive validated selections, never an ambient
 environment default. Each VM has separate leases and retention journals;
 unfinished legacy journals remain blockers until recovered.
+Every `--vm NAME` and Make `VM=NAME` also accepts that entry's `id` from the
+current JSON. IDs are unique positive decimal strings or integers. Each selector
+lookup rereads the file; swapping or changing IDs needs neither a tools refresh
+nor baseline replacement. Names and disks still participate in baseline proof.
+Active runs retain their canonical guest names and UUID pins; reattachment accepts
+the current ID for that same guest, and refuses an ID reassigned to another guest.
 `tools/watch` and `make watch` observe all registered VMs without a VM parameter.
 Reattachment and cancellation of a narrowed VM run require its original selected
 name; attach to a configured queue without `--vm`.
 
-`tools/test-vm` accepts this configured-name selector and no URI, disk, XML,
-snapshot-name or arbitrary-command input. It uses `qemu:///system` and the UUID
+`tools/test-vm` accepts this configured-name selector and no URI, disk, XML or
+snapshot-name input. Its `exec` action accepts arbitrary guest command arguments
+after a mandatory `--`, never an arbitrary host command. It uses `qemu:///system` and the UUID
 pinned separately for that name from its root-private finalized baseline
 provenance during setup. Setup refreshes pins for all configured entries.
 A missing baseline
@@ -501,6 +508,7 @@ replacement by name alone.
 | Command | Effect |
 | --- | --- |
 | `tools/test-vm --vm NAME status` / `xml` | Inspect only the pinned guest using a read-only connection |
+| `tools/test-vm --vm NAME exec [--timeout SECONDS] -- COMMAND [ARG ...]` | Execute as guest root in the current owned online app-snapshot maintenance instance; reuse saved private credentials, strict SSH host-key and guest identity checks, shared observation and the exclusive lease; preserve guest state and return its command status |
 | `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
 | `tools/test-vm --vm NAME rename-disk` | Rename the idle pinned guest's single QCOW2 image to `NAME.qcow2` in its existing directory; update domain/internal-snapshot references and provenance, preserving bytes and inode; refuses overlays, shared disks, destination collisions and unfinished controllers |
 | `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, remove host shares, record and boot an isolated maintenance attempt |
@@ -516,7 +524,18 @@ maintenance operations require a matching root-private ownership record,
 run/domain instance, original configuration, baseline digest and snapshot digest.
 Other active controllers and replaced identities are refused. No new domain,
 snapshot, clone, overlay, arbitrary XML, host-device attachment or general
-guest/host shell is exposed. No reset occurs between reboot/input steps.
+host shell is exposed. Guest root commands have no program allowlist; shell
+programs and interpreters execute only inside the isolated guest. No reset occurs
+between reboot/input/probe steps. Probing neither starts nor restores a guest,
+rotates its keys nor adjusts its clock. It requires the current online app
+snapshot's private credential record and the existing maintenance ownership
+journal; manually started guests and active test controllers are refused.
+The default command deadline is 120 seconds; `--timeout` accepts 1–86400 seconds.
+This is finite command execution, without an interactive terminal or host shares.
+Private key copies and command artifacts remain in shared root-private scratch;
+stdout/stderr return to the authenticated caller and the existing filtered watch
+transcript. Setup refresh installs this route and any missing OpenSSH client via
+`./setup.sh --test-tools-only`, without new Polkit actions or general SSH grants.
 Rename accepts only a destination label, preserving the UUID and disks. It
 records original metadata before mutation and rolls back checked failures;
 interrupted records remain a refusal gate. After renaming, update `name` in the

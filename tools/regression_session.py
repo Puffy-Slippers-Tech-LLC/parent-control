@@ -121,6 +121,12 @@ def select(root, argv):
         # selections. Validate only when starting a new run, under the same gate.
         # Idle invocations with no arguments start the complete aggregate.
         validate(root, requested)
+        # Persist the actual selected guest, not an ID whose mapping may change
+        # while this run is active. New public selectors still read current JSON.
+        from vm_selection import extract
+        requested, configured = extract(requested, required=False)
+        if configured is not None:
+            requested.extend(('--vm', configured.name))
         # Keep host-only ownership independent of standalone VM preparation.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
         with test_activity.activity(root, host_only=host_only):

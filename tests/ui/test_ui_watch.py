@@ -1,4 +1,5 @@
 """View-only tabs, four-worker grid and attachment to the real test compositor."""
+from tests.support.vm_registry import vm_name
 
 import json
 import os
@@ -27,7 +28,7 @@ def test_four_branch_tabs_grid_resize_stop_and_reconnect(
     directory = watch_registry
     control, evidence = tmp_path / 'control', tmp_path / 'evidence.json'
     process, log = launch_ui('ui_watch_window_probe', environment_overrides={
-        'ONPC_TEST_VM': 'onpc-Ubuntu26.04',
+        'ONPC_TEST_VM': vm_name(),
         'ONPC_UI_WATCH_REGISTRY': str(directory), 'ONPC_UI_WATCH_CONTROL': str(control),
         'ONPC_UI_WATCH_EVIDENCE': str(evidence)})
     ui, wait = automation, wait_for_accessible_state

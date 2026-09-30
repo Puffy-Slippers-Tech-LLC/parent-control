@@ -22,7 +22,7 @@ def arguments(argv=None):
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--mode', required=True, choices=('auto', 'manual'),
                         help='auto: restore baseline and update guest; manual: prepare current VM state')
-    parser.add_argument('--vm', help='exact name in config/test-vm.json; prompts when omitted')
+    parser.add_argument('--vm', help='name or ID in config/test-vm.json; prompts when omitted')
     parser.add_argument('--y', action='store_true',
                         help='proceed without y/n confirmation; use for authorized launcher/session work')
     parser.epilog = help_message()
@@ -35,22 +35,24 @@ def arguments(argv=None):
 
 
 def choose_vm():
-    names = list(registry())
+    configured = registry()
+    names = list(configured)
+    ids = [vm.id or vm.name for vm in configured.values()]
     if sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get('TERM', '') not in ('', 'dumb'):
-        return names[interactive_choice(names)]
+        return names[interactive_choice(names, ids)]
     print('Choose a VM from config/test-vm.json:')
-    for number, name in enumerate(names, 1):
-        print(f'  {number}. {name}')
+    for identifier, name in zip(ids, names):
+        print(f'  {identifier}. {name}')
     while True:
         try:
-            answer = input(f'Select VM [1-{len(names)}]: ').strip()
+            answer = input('Select VM ID or name: ').strip()
         except (EOFError, KeyboardInterrupt) as error:
             raise ValueError('VM selection cancelled; supply --vm NAME to proceed') from error
-        if answer.isascii() and answer.isdecimal():
-            number = int(answer)
-            if 1 <= number <= len(names):
-                return names[number - 1]
-        print(f'Please enter a number from 1 to {len(names)}.')
+        if answer in names:
+            return answer
+        if answer in ids:
+            return names[ids.index(answer)]
+        print('Please enter a configured VM ID or name.')
 
 
 def main(argv=None):
@@ -58,7 +60,7 @@ def main(argv=None):
     try:
         if args.vm is None:
             args.vm = choose_vm()
-        select(args.vm)
+        args.vm = select(args.vm).name
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         read_password(ROOT)

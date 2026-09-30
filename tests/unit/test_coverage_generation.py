@@ -1,4 +1,5 @@
 """Generated coverage and numeric E2E selection share exact persistent IDs."""
+from tests.support.vm_registry import vm_name
 
 import copy
 import json
@@ -126,11 +127,11 @@ def test_pending_number_refuses_execution_before_artifact_or_privilege_checks(fi
 def test_numeric_execution_forwards_exact_case_to_existing_installed_dispatcher(fixture_password):
     with tempfile.TemporaryDirectory(prefix='onpc-coverage-selector-', dir='/tmp') as directory:
         commands, safety = coverage.test_commands.plan(
-            ROOT, 'e2e', ['--vm', 'onpc-Ubuntu26.04', '--id', '1',
+            ROOT, 'e2e', ['--vm', vm_name(), '--id', '1',
                           '--artifacts', directory])
     assert safety is False
     assert commands == [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
-                         'e2e', '--vm', 'onpc-Ubuntu26.04', '--artifacts=' + directory,
+                         'e2e', '--vm', vm_name(), '--artifacts=' + directory,
                          '--scenario=E2E-001/gdm-observation']]
 
 

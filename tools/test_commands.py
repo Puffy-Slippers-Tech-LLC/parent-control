@@ -103,11 +103,13 @@ def execution_arguments(argv):
 
 
 def vm_request(argv):
-    from vm_selection import extract
+    from vm_selection import extract, execution_selection
     args, configured = extract(argv, required=False)
     if not is_inspection(args) and args != ['--stop'] and not host_only_request(args):
         if configured is None:
-            raise ValueError('vm-config: --vm NAME is required for VM categories')
+            execution_selection()
+        else:
+            execution_selection(configured.name)
     return args, configured
 
 
@@ -123,13 +125,15 @@ def usage():
        tools/run-tests --list
        tools/run-tests --stop
 
-With --vm NAME and no categories, start the all aggregate. An active run or
-unread result takes precedence over new execution categories. Attaching to a
-VM run requires its original --vm NAME; another VM is refused.
+With no categories, start the all aggregate. An active run or
+unread result takes precedence over new execution categories. Attach to a
+configured queue without --vm; narrowed runs require their original --vm NAME.
 Help, listing and collection return immediately without attaching.
 --stop requests cancellation of the active run and waits for owned cleanup.
-VM categories (system, e2e, integration, all) require --vm NAME, matching
-config/test-vm.json. Host-only tests and declaration listing need no VM.
+VM categories read config/test-vm.json and execute every entry with enabled
+equal to the string "true", using at most concurrency VMs simultaneously.
+--vm NAME restricts execution to one enabled entry for diagnosis.
+Host-only tests and declaration listing need no VM.
 
 Inspection
   --help, -h   this usage, including how all breaks down into pieces
@@ -152,7 +156,8 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   tools/run-tests host system --vm NAME
   tools/run-tests host system e2e --vm NAME    (same as all)
 
-  Combined categories share one report and reuse host's package artifacts.
+  Each VM retains its report; configured queues retain a combined result summary.
+  Narrowed combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).
   After host and e2e, only system remains.
 
@@ -549,6 +554,11 @@ def _main(argv=None, *, detached=False):
         return 0
     if not argv:
         argv = ['all']
+    if not is_inspection(argv) and not host_only_request(argv):
+        from vm_selection import BATCH
+        if BATCH in os.environ:
+            from vm_test_queue import run
+            return run(Path(__file__).resolve().parents[1], argv)
     try:
         argv, stop_on_error = execution_arguments(argv)
         if os.geteuid() == 0:
@@ -711,6 +721,13 @@ def host_only_request(argv):
     if category in PHASES:
         phases = [argument for argument in args if argument in PHASES]
         return bool(phases) and all(phase == 'host' for phase in phases)
+    if category in CATEGORIES and any(argument in ('system', 'e2e', 'integration') for argument in args[1:]):
+        # A valid focused host selection may contain a category word as an
+        # option value. Otherwise a mixed category request owns the VM scope.
+        try:
+            validate_one(Path(__file__).resolve().parents[1], args)
+        except ValueError:
+            return False
     return category in CATEGORIES and category not in (
         'all', 'all-verify', 'system', 'e2e', 'integration', 'fast')
 

@@ -1,11 +1,14 @@
 {
+  "concurrency": 1,
   "vms": [
     {
       "name": "onpc-Ubuntu26.04",
+      "enabled": "true",
       "disk_anchor": "/Data/virt-manager/oh-no-parent-control.qcow2"
     },
     {
       "name": "onpc-Fedora-Workstation-44",
+      "enabled": "false",
       "disk_anchor": "/Data/virt-manager/onpc-Fedora-Workstation-44.qcow2"
     }
   ]

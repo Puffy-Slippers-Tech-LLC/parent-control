@@ -15,11 +15,122 @@ select = vm_config.select
 selected = vm_config.selected
 registry = vm_config.registry
 VARIABLE = vm_config.VARIABLE
+BATCH = 'ONPC_TEST_VM_BATCH'
 
 
-def check_binding(run, name):
+def execution_selection(name=None):
+    concurrency, vms = vm_config.execution(name)
+    select(vms[0].name)
+    if name is None:
+        os.environ[BATCH] = json.dumps({'concurrency': concurrency, 'vms': [vm.name for vm in vms]})
+    else:
+        os.environ.pop(BATCH, None)
+    return concurrency, vms
+
+
+def execution_arguments():
+    return [] if BATCH in os.environ else arguments()
+
+
+def execution_binding():
+    if BATCH in os.environ:
+        return json.loads(os.environ[BATCH])
+    vm = selected(required=False)
+    return vm.name if vm else None
+
+
+def execution_instructions():
+    if BATCH in os.environ:
+        queue = json.loads(os.environ[BATCH])
+        return (f"Run VM tests through tools/run-tests without --vm: it executes all enabled VMs "
+                f"({', '.join(queue['vms'])}), at most {queue['concurrency']} simultaneously. "
+                "Use an explicit --vm NAME only for scoped diagnosis, maintenance or preparation. "
+                "Complete required live validation on every enabled VM before closing the task.")
+    vm = selected(required=False)
+    return (f'Every VM command must include --vm {vm.name}; Make VM targets use VM={vm.name}. '
+            'Do not select another VM.') if vm else ''
+
+
+def choice_screen(screen, names):
+    """Terminal VM selection with one shared keyboard/mouse selection index."""
+    import curses
+    selected = 0
+    digits = ''
+    screen.keypad(True)
+    curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
+    curses.mouseinterval(0)
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
+    while True:
+        screen.erase()
+        height, width = screen.getmaxyx()
+        if height < len(names) + 5 or width < 24:
+            raise ValueError('VM chooser needs a larger terminal; use --vm NAME')
+        screen.addnstr(0, 0, 'Choose a VM from config/test-vm.json:', width - 1)
+        for index, name in enumerate(names):
+            label = f'  {index + 1}. {name}'
+            screen.addnstr(index + 1, 0, label, width - 1,
+                           curses.A_BOLD if index == selected else curses.A_NORMAL)
+        screen.addnstr(len(names) + 2, 0, f'Select VM [1-{len(names)}]: {selected + 1}', width - 1)
+        screen.addnstr(len(names) + 3, 0, 'Up/Down, mouse or number; Enter confirms; Esc cancels.', width - 1)
+        screen.refresh()
+        key = screen.get_wch()
+        if key in ('\n', '\r', curses.KEY_ENTER):
+            return selected
+        if key in ('\x1b', '\x03', '\x04'):
+            raise ValueError('VM selection cancelled; supply --vm NAME to proceed')
+        if key in (curses.KEY_UP, curses.KEY_DOWN):
+            selected = (selected + (-1 if key == curses.KEY_UP else 1)) % len(names)
+            digits = ''
+        elif key == curses.KEY_MOUSE:
+            _device, _x, y, _z, buttons = curses.getmouse()
+            if buttons & curses.BUTTON4_PRESSED:
+                selected = max(0, selected - 1)
+            elif buttons & getattr(curses, 'BUTTON5_PRESSED', 0):
+                selected = min(len(names) - 1, selected + 1)
+            elif 1 <= y <= len(names):
+                selected = y - 1
+            digits = ''
+        elif isinstance(key, str) and key.isascii() and key.isdecimal():
+            candidate = digits + key
+            if 1 <= int(candidate) <= len(names):
+                digits = candidate
+                selected = int(candidate) - 1
+            elif 1 <= int(key) <= len(names):
+                digits = key
+                selected = int(key) - 1
+
+
+def interactive_choice(names):
+    import curses
+    # ncurses enables button reporting; xterm all-motion adds hover selection.
+    # Restore it even on cancellation before returning to ordinary line input.
+    try:
+        sys.stdout.write('\033[?1003h')
+        sys.stdout.flush()
+        index = curses.wrapper(choice_screen, names)
+    except (EOFError, KeyboardInterrupt) as error:
+        raise ValueError('VM selection cancelled; supply --vm NAME to proceed') from error
+    except curses.error as error:
+        raise ValueError('VM terminal chooser unavailable; supply --vm NAME') from error
+    finally:
+        sys.stdout.write('\033[?1003l')
+        sys.stdout.flush()
+    print('Choose a VM from config/test-vm.json:')
+    for number, name in enumerate(names, 1):
+        line = f'  {number}. {name}'
+        print('\033[1m' + line + '\033[0m' if number == index + 1 else line)
+    print(f'Select VM [1-{len(names)}]: {index + 1}')
+    return index
+
+
+def check_binding(run, name, *, stopping=False):
     path = run / 'vm.json'
     previous = json.loads(path.read_text())['vm'] if path.exists() else None
+    if stopping and name is None and isinstance(previous, dict):
+        return  # Cancellation of a configured queue does not reselect guests.
     if previous != name:
         raise ValueError('vm-config: launcher requires its original --vm NAME')
 

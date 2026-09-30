@@ -37,7 +37,7 @@ UBUNTU_VERSION = "26.04"
 MARKER_PURPOSE = "oh-no-parent-control-test-baseline"
 MARKER_VERSION = 2
 INTERACTIVE_SHELL = "/bin/bash"
-FORBIDDEN_CHILD_GROUPS = frozenset({"adm", "sudo"})
+FORBIDDEN_CHILD_GROUPS = frozenset({"adm", "sudo", "wheel"})
 KIOSK_USER = "oh-no-parent-control"
 SCRIPT_FILES = (
     "tests/integration/prepare_vm.py",
@@ -76,12 +76,13 @@ RESIDUE_PATHS = {
         "/usr/libexec/oh-no-parent-control-execution-policy-ready",
         "/usr/libexec/oh-no-parent-control-execution-policy-probe",
         "/usr/libexec/oh-no-parent-control-package-activation",
+        "/usr/libexec/oh-no-parent-control-fedora-pam",
         "/usr/share/oh-no-parent-control",
         "/usr/share/applications/com.puffyslippers.OhNoParentControl.desktop",
         "/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop",
         "/usr/share/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png",
     ),
-    "configuration": ("/etc/oh-no-parent-control",),
+    "configuration": ("/etc/oh-no-parent-control", "/etc/authselect/custom/oh-no-parent-control"),
     "saved-state": ("/var/lib/oh-no-parent-control",),
     "service-session": (
         "/usr/lib/systemd/system/oh-no-parent-control-broker.service",
@@ -118,6 +119,12 @@ PAM_FILES_TO_SCAN = (
     "/etc/pam.d/common-auth",
     "/etc/pam.d/common-session",
     "/etc/gdm3/PreSession/Default",
+    "/etc/gdm/PreSession/Default",
+    "/etc/pam.d/system-auth",
+    "/etc/pam.d/password-auth",
+    "/etc/pam.d/gdm-password",
+    "/etc/pam.d/gdm-autologin",
+    "/etc/pam.d/oh-no-parent-control",
 )
 
 
@@ -133,8 +140,9 @@ class PreparationError(RuntimeError):
 class GuestIdentity:
     hostname: str
     machine_id: str
-    ubuntu_version: str
+    version: str
     virtualization: str
+    os_id: str = 'ubuntu'
 
 
 @dataclasses.dataclass(frozen=True)
@@ -171,22 +179,63 @@ def _rooted(root: Path, absolute: str) -> Path:
     return root / absolute.removeprefix("/")
 
 
-def _read_os_release(path: Path) -> dict[str, str]:
+def parse_os_release(contents: str) -> dict[str, str]:
     values: dict[str, str] = {}
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as error:
-        raise PreparationError("guard:os", "Ubuntu release identity is unavailable") from error
-    for line in lines:
+    for line in contents.splitlines():
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
         try:
             parsed = shlex.split(value, posix=True)
         except ValueError as error:
-            raise PreparationError("guard:os", "Ubuntu release identity is malformed") from error
+            raise PreparationError("guard:os", "guest release identity is malformed") from error
+        if key in values or len(parsed) > 1:
+            raise PreparationError('guard:os', 'guest release identity is ambiguous')
         values[key] = parsed[0] if parsed else ""
     return values
+
+
+def _read_os_release(path: Path) -> dict[str, str]:
+    try:
+        return parse_os_release(path.read_text(encoding='utf-8'))
+    except OSError as error:
+        raise PreparationError('guard:os', 'guest release identity is unavailable') from error
+
+
+def release_identity(release):
+    os_id, version = release.get('ID'), release.get('VERSION_ID')
+    if ((os_id, version) == ('ubuntu', UBUNTU_VERSION) or
+            ((os_id, version) == ('fedora', '44') and release.get('VARIANT_ID') == 'workstation')):
+        return os_id, version
+    raise PreparationError('guard:os', 'requires Ubuntu 26.04 or Fedora Workstation 44')
+
+
+def administrator_groups(os_id):
+    if os_id == 'ubuntu':
+        return {'adm', 'sudo'}
+    if os_id == 'fedora':
+        return {'wheel'}
+    raise PreparationError('guard:os', 'unsupported administrator group policy')
+
+
+def inspected_release(g, root):
+    """Bind offline inspection to the same supported release as guest setup."""
+    identity = (g.inspect_get_distro(root), g.inspect_get_major_version(root),
+                g.inspect_get_minor_version(root))
+    if identity == ('ubuntu', 26, 4):
+        return 'ubuntu', UBUNTU_VERSION
+    if identity == ('fedora', 44, 0):
+        release = release_identity(parse_os_release(g.read_file('/etc/os-release').decode('utf-8')))
+        if release == ('fedora', '44'):
+            return release
+    raise PreparationError('guard:os', 'requires Ubuntu 26.04 or Fedora Workstation 44')
+
+
+def selinux_policy(contents):
+    settings = parse_os_release(contents)
+    if settings.get('SELINUX') != 'enforcing' or settings.get('SELINUXTYPE') != 'targeted':
+        raise PreparationError('guard:selinux', 'Fedora baseline requires enforcing targeted SELinux')
+    return '/etc/selinux/targeted/contexts/files/file_contexts'
 
 
 def preparation_digest(checkout: Path = CHECKOUT) -> str:
@@ -219,9 +268,10 @@ def validate_checkout(cwd: Path, checkout: Path = CHECKOUT) -> None:
         raise PreparationError("guard:checkout", "the preparer is not this checkout's copy")
 
 
-def find_residue(root: Path, runner: Runner, lookup_user: Callable[[str], object]) -> str | None:
+def find_residue(root: Path, runner: Runner, lookup_user: Callable[[str], object], *, os_id='ubuntu') -> str | None:
     package = runner.run(
-        ["dpkg-query", "-W", "-f=${db:Status-Status}", "oh-no-parent-control"],
+        (["rpm", "-q", "oh-no-parent-control"] if os_id == 'fedora' else
+         ["dpkg-query", "-W", "-f=${db:Status-Status}", "oh-no-parent-control"]),
         check=False,
     )
     if package.returncode == 0 and package.stdout.strip() != "not-installed":
@@ -290,13 +340,14 @@ def validate_environment(
         raise PreparationError("guard:virtualization", "virtual-machine identity is malformed")
 
     release = _read_os_release(_rooted(root, "/etc/os-release"))
-    if release.get("ID") != "ubuntu" or release.get("VERSION_ID") != UBUNTU_VERSION:
-        raise PreparationError("guard:os", "this command requires Ubuntu 26.04")
+    os_id, version = release_identity(release)
+    if os_id == 'fedora' and _rooted(root, '/sys/fs/selinux/enforce').read_text().strip() != '1':
+        raise PreparationError('guard:selinux', 'Fedora preparation requires SELinux enforcing')
 
     actual_hostname = hostname if hostname is not None else os.uname().nodename
     validate_checkout(cwd or Path.cwd(), checkout)
 
-    residue = find_residue(root, runner, lookup_user)
+    residue = find_residue(root, runner, lookup_user, os_id=os_id)
     if residue is not None:
         raise PreparationError(f"guard:residue:{residue}", "product installation or residue is present")
 
@@ -307,7 +358,7 @@ def validate_environment(
     if not re.fullmatch(r"[0-9a-f]{32}", machine_id):
         raise PreparationError("guard:machine-identity", "guest machine identity is malformed")
 
-    return GuestIdentity(actual_hostname, machine_id, UBUNTU_VERSION, virtualization)
+    return GuestIdentity(actual_hostname, machine_id, version, virtualization, os_id)
 
 
 def _uid_min(root: Path) -> int:
@@ -364,7 +415,7 @@ def preflight_accounts(
     return existing
 
 
-def account_commands(existing: dict[str, ExistingAccount | None]) -> list[list[str]]:
+def account_commands(existing: dict[str, ExistingAccount | None], *, os_id='ubuntu') -> list[list[str]]:
     commands: list[list[str]] = []
     for identity in IDENTITIES:
         if existing[identity.username] is None:
@@ -377,10 +428,11 @@ def account_commands(existing: dict[str, ExistingAccount | None]) -> list[list[s
             "--shell", INTERACTIVE_SHELL, identity.username,
         ])
         if identity.role == "administrator":
-            commands.append(["usermod", "--append", "--groups", "adm,sudo", identity.username])
+            commands.append(["usermod", "--append", "--groups", ','.join(sorted(administrator_groups(os_id))), identity.username])
         else:
             commands.append(["gpasswd", "--delete", identity.username, "adm"])
             commands.append(["gpasswd", "--delete", identity.username, "sudo"])
+            commands.append(["gpasswd", "--delete", identity.username, "wheel"])
     return commands
 
 
@@ -421,17 +473,16 @@ def _bool(value: str) -> bool:
     raise PreparationError("verify:accounts-service", "AccountsService returned a malformed boolean")
 
 
-def suppress_initial_setup(username: str, *, runner: Runner) -> None:
-    """Satisfy Ubuntu 26.04's first-login and upgrade-login unit conditions."""
+def suppress_initial_setup(username: str, *, runner: Runner, os_id='ubuntu') -> None:
+    """Satisfy GNOME's first-login conditions, plus Ubuntu's upgrade marker."""
     config = Path("/home") / username / ".config"
-    markers = (
-        config / "gnome-initial-setup-done",
-        config / "gnome-initial-setup" / f"upgrade-{UBUNTU_VERSION}-done",
-    )
+    markers = [config / "gnome-initial-setup-done"]
+    if os_id == 'ubuntu':
+        markers.append(config / "gnome-initial-setup" / f"upgrade-{UBUNTU_VERSION}-done")
     # Drop privileges before accessing account-controlled paths, including any
     # symlinks. New directories and markers belong to the account, not root.
     prefix = ["runuser", "--user", username, "--"]
-    runner.run([*prefix, "mkdir", "-p", "--", str(markers[1].parent)])
+    runner.run([*prefix, "mkdir", "-p", "--", str(markers[-1].parent)])
     runner.run([*prefix, "touch", "--", *(str(path) for path in markers)])
     for path in markers:
         runner.run([*prefix, "test", "-f", str(path)])
@@ -457,11 +508,12 @@ def reconcile_accounts(
     runner: Runner,
     lookup_user: Callable[[str], object] = pwd.getpwnam,
     list_users: Callable[[], Sequence[object]] = pwd.getpwall,
+    os_id: str = 'ubuntu',
 ) -> dict[str, dict[str, int | str]]:
     if not password or ":" in password or "\n" in password or "\x00" in password:
         raise PreparationError("password:format", "the shared password contains an unsupported character")
 
-    for command in account_commands(existing):
+    for command in account_commands(existing, os_id=os_id):
         # An absent membership is already reconciled. Probe it explicitly so
         # repeats do not depend on gpasswd's error codes or suppress failures.
         if command[0] == "gpasswd":
@@ -528,7 +580,7 @@ def reconcile_accounts(
         groups_result = runner.run(["id", "-nG", identity.username])
         groups = set(groups_result.stdout.split())
         if identity.role == "administrator":
-            if not {"adm", "sudo"}.issubset(groups):
+            if not administrator_groups(os_id).issubset(groups):
                 raise PreparationError("verify:groups", f"{identity.label} is not a local administrator")
         elif groups & FORBIDDEN_CHILD_GROUPS:
             raise PreparationError("verify:groups", f"{identity.label} retained an administrative group")
@@ -539,7 +591,7 @@ def reconcile_accounts(
         if uid_names.get(uid) != {identity.username}:
             raise PreparationError("verify:uid-collision", f"{identity.label} shares a UID with another account")
         seen_uids.add(uid)
-        suppress_initial_setup(identity.username, runner=runner)
+        suppress_initial_setup(identity.username, runner=runner, os_id=os_id)
         disable_screensaver(identity.username, runner=runner)
         print(f"prepare-vm: {identity.label} first-login welcome suppression verified", file=sys.stderr)
         verified[identity.username] = {"uid": uid, "role": identity.role}
@@ -556,34 +608,40 @@ def marker_document(
     if set(accounts) != expected_users or not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise PreparationError("marker:schema", "verified preparation data is incomplete")
     document: dict[str, object] = {
-        "schema_version": MARKER_VERSION,
+        "schema_version": MARKER_VERSION if guest.os_id == 'ubuntu' else 3,
         "purpose": MARKER_PURPOSE,
         "guest": {
             "hostname": guest.hostname,
             "machine_id": guest.machine_id,
-            "ubuntu_version": guest.ubuntu_version,
+            **({'ubuntu_version': guest.version} if guest.os_id == 'ubuntu' else
+               {'os_id': guest.os_id, 'version': guest.version}),
             "virtualization": guest.virtualization,
         },
         "preparation_script_sha256": digest,
         "accounts": accounts,
-        "test_dependencies": dict(guest_tools.VERSIONS),
+        "test_dependencies": dict(guest_tools.versions(guest.os_id)),
     }
     validate_marker(document)
     return document
 
 
-def validate_marker(document: dict[str, object]) -> None:
+def validate_marker(document: dict[str, object], *, os_id=None) -> None:
     if set(document) != {"schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"}:
         raise PreparationError("marker:schema", "preparation record has unexpected fields")
-    if type(document['schema_version']) is not int or document["schema_version"] != MARKER_VERSION or document["purpose"] != MARKER_PURPOSE:
+    if type(document['schema_version']) is not int or document["schema_version"] not in (MARKER_VERSION, 3) or document["purpose"] != MARKER_PURPOSE:
         raise PreparationError("marker:schema", "preparation record identity is invalid")
-    if document['test_dependencies'] != guest_tools.VERSIONS:
-        raise PreparationError('marker:dependencies', 'prepared guest tool inventory is incompatible')
     guest = document["guest"]
-    if not isinstance(guest, dict) or set(guest) != {"hostname", "machine_id", "ubuntu_version", "virtualization"}:
+    platform = 'ubuntu' if document['schema_version'] == MARKER_VERSION else 'fedora'
+    fields = {'hostname', 'machine_id', 'virtualization'} | (
+        {'ubuntu_version'} if platform == 'ubuntu' else {'os_id', 'version'})
+    if not isinstance(guest, dict) or set(guest) != fields:
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
-    if guest["hostname"] != HOSTNAME or guest["ubuntu_version"] != UBUNTU_VERSION:
+    if (guest['hostname'] != HOSTNAME or (os_id is not None and os_id != platform) or
+            (platform == 'ubuntu' and guest['ubuntu_version'] != UBUNTU_VERSION) or
+            (platform == 'fedora' and (guest['os_id'], guest['version']) != ('fedora', '44'))):
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
+    if document['test_dependencies'] != guest_tools.versions(platform):
+        raise PreparationError('marker:dependencies', 'prepared guest tool inventory is incompatible')
     if not isinstance(guest["machine_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", guest["machine_id"]):
         raise PreparationError("marker:schema", "preparation record machine identity is invalid")
     if not isinstance(guest["virtualization"], str) or not re.fullmatch(r"[a-z0-9_-]+", guest["virtualization"]):
@@ -636,7 +694,7 @@ def verify_marker_permissions(info: os.stat_result) -> None:
         raise PreparationError("marker:permissions", "preparation record ownership or mode verification failed")
 
 
-def prepare_test_dependencies(*, runner, root=Path('/')):
+def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
     """Install once; repeats verify without network or package transactions.
 
     Keep directory services unconfigured. Their supported package reconfiguration
@@ -647,6 +705,21 @@ def prepare_test_dependencies(*, runner, root=Path('/')):
         if candidate.exists() or candidate.is_symlink():
             raise PreparationError('guest-tools:configuration-collision',
                                    'LDAP/SSSD must be unconfigured before preparation')
+    if os_id == 'fedora':
+        try:
+            guest_tools.verify_installed(os_id, runner=runner, root=root)
+        except ValueError as error:
+            if str(error) != 'guest-tools:missing-or-mismatched-package':
+                raise PreparationError('guest-tools:package-status', 'package database is ambiguous or unsupported') from error
+            runner.run(['dnf5', '--refresh', '-y', 'install', *guest_tools.FEDORA_VERSIONS], timeout=1800)
+        try:
+            guest_tools.verify_installed(os_id, runner=runner, root=root)
+        except ValueError as error:
+            raise PreparationError('guest-tools:verification', 'required Fedora test packages are not configured') from error
+        prepare_ssh(runner=runner, service='sshd.service')
+        return
+    if os_id != 'ubuntu':
+        raise PreparationError('guard:os', 'unsupported guest tool policy')
     status = _rooted(root, '/var/lib/dpkg/status')
     sources = _rooted(root, '/etc/apt/sources.list.d/ubuntu.sources')
     original = sources.read_text()
@@ -681,11 +754,15 @@ def prepare_test_dependencies(*, runner, root=Path('/')):
         if result.returncode != 3 or result.stdout.strip() not in {'inactive', 'failed'}:
             raise PreparationError('guest-tools:directory-active', 'directory services must be inactive')
         runner.run(['systemctl', 'disable', unit])
+    prepare_ssh(runner=runner, service='ssh.service')
+
+
+def prepare_ssh(*, runner, service):
     runner.run(['ssh-keygen', '-A'])
-    runner.run(['systemctl', 'enable', 'ssh.service'])
+    runner.run(['systemctl', 'enable', service])
     # The packaged service creates its runtime directory before sshd -t. Socket
     # activation alone need not have created that directory on a fresh guest.
-    runner.run(['systemctl', 'start', 'ssh.service'])
+    runner.run(['systemctl', 'start', service])
     runner.run(['/usr/sbin/sshd', '-t'])
     ssh = runner.run(['/usr/sbin/sshd', '-T', '-C', 'user=root,host=localhost,addr=127.0.0.1'])
     settings = dict(line.split(' ', 1) for line in ssh.stdout.splitlines() if ' ' in line)
@@ -748,15 +825,17 @@ def main(password=None) -> int:
         guest = validate_environment(runner=runner)
         existing = preflight_accounts()
         digest = preparation_digest()
-        prepare_test_dependencies(runner=runner)
+        prepare_test_dependencies(runner=runner, os_id=guest.os_id)
         print(f"prepare-vm: [stage:hostname] setting test guest hostname to {HOSTNAME}", file=sys.stderr)
         runner.run(["hostnamectl", "set-hostname", HOSTNAME])
         guest = dataclasses.replace(guest, hostname=HOSTNAME)
         print("prepare-vm: [stage:accounts] reconciling four fixed test identities", file=sys.stderr)
-        accounts = reconcile_accounts(existing, password, runner=runner)
+        accounts = reconcile_accounts(existing, password, runner=runner, os_id=guest.os_id)
         password = ""
         print("prepare-vm: [stage:record] writing verified preparation record", file=sys.stderr)
         write_marker(MARKER, marker_document(guest, accounts, digest))
+        if guest.os_id == 'fedora':
+            runner.run(['restorecon', str(MARKER)])
     except (PreparationError, subprocess.SubprocessError, KeyError, OSError, ValueError) as error:
         if isinstance(error, PreparationError):
             detail = str(error)

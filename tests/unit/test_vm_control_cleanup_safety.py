@@ -163,10 +163,10 @@ def test_dispatcher_rename_keeps_uuid_pin_and_only_accepts_destination_label():
 
 
 def rename_rig(lease, current, monkeypatch):
-    """Private shared lock and snapshot metadata, with no real libvirt access."""
+    """Private named and legacy leases; no real libvirt access."""
     import vm_config
     root = lease.directory.parent
-    lease.capture.lock_path.rename(root / '.lock')
+    (root / '.lock').touch(mode=0o600)
     monkeypatch.setattr(vm_config, 'STATE_ROOT', root)
     monkeypatch.setattr(runner.baseline, 'DOMAIN', runner.baseline.DOMAIN)
     source = lease.source

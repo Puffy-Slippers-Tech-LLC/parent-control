@@ -6,11 +6,22 @@
   work. Run authorized work unattended through its existing grants and validated
   tools. Reuse session and category-wide authorization; do not broaden libvirt
   grants or bypass a missing prerequisite or grant.
-- Every VM execution, maintenance and recovery operation requires an explicit `--vm NAME` whose exact, case-sensitive
-  name appears in `config/test-vm.json`'s `vms` array. There is no default VM.
+- Test launchers `tools/run-tests`, `tools/fix-tests` and `tools/write-e2e` read
+  `config/test-vm.json`: only entries whose `enabled` is the string `"true"`
+  participate, and its positive integer `concurrency` caps simultaneous guests.
+  They drain that finite queue, including after an individual VM fails. Tests
+  within each VM remain ordered. `--vm NAME` narrows tests to one enabled entry.
+  VM maintenance and preparation still require an explicit `--vm NAME` whose
+  exact, case-sensitive name appears in the registry. `tools/cleanup-e2e` may
+  reconcile all enabled VMs serially when the selector is omitted.
   Operate the selected, individually pinned VM only through `tools/test-vm`.
   Do not bypass ownership or create snapshots, overlays or clones. Stop maintenance
   before system/E2E tests; reset is not a customer journey step.
+  Each VM has an exclusive preparation/execution lease and separate evidence
+  journals. New controllers also hold a shared legacy root lease,
+  excluding older controllers that still require it exclusively. Existing
+  unfinished legacy journals refuse new execution until recovered; evidence
+  is never discarded to enable parallelism.
 
 ## VM observation mandate
 

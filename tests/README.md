@@ -146,11 +146,17 @@ exclusively at runtime so incomplete checkouts fail safely. Validate partition
 coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
-`system` and `e2e` remain sequential VM categories. A combined run shares one
-report and reuses host's qualified package. Without `host`, the runner builds one
-required package input automatically. After running host and E2E, only system
-remains. Focused category commands remain available for diagnosis; they are not
-additional phases of `all`.
+`system` and `e2e` remain sequential within each VM. VM tests default to every
+entry in `config/test-vm.json` whose `enabled` equals the string `"true"`.
+Its positive integer `concurrency` limits active guests: 1 is serial, 2 permits
+two simultaneous guests. Free slots refill until every enabled VM executes,
+including after another guest fails. Cancellation stops queued work and waits
+for active guests' cleanup. `--vm NAME` narrows tests to one enabled entry.
+Host work runs once; VM workers keep individual reports and journals, with a
+retained queue summary linking their logs and failure handoffs. Required package
+inputs are prepared through the maintained builders. Repair and implementation
+agents remain serial; `fix-tests` and `write-e2e` share the VM queue through
+`run-tests`.
 
 `host-builds` remains a compatibility alias for `host`. Its `--serial-builds`
 option runs publishing/builds after the host join for scheduling comparisons.
@@ -169,7 +175,8 @@ conflicts with `--continue-on-errors`.
 
 ### Scripted repair loop
 
-Run [`tools/fix-tests`](../tools/fix-tests) with `--vm NAME` for its default VM scope to start or attach to the scripted
+Run [`tools/fix-tests`](../tools/fix-tests) for the configured enabled VM queue,
+or with `--vm NAME` for one enabled VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
 arguments, until each passes. After a failure, a fresh Codex process receives
 that run's generated investigation prompt, applies a repair, exits, and the
@@ -582,7 +589,8 @@ live test passed. Lifecycle qualification lives in
 
 ### Aggregate execution and reconnection
 
-Run `make test-all VM=NAME` (`tools/run-tests all --vm NAME`, also the default with only `--vm NAME`)
+Run `tools/run-tests all` for the enabled VM queue, or `make test-all VM=NAME`
+(`tools/run-tests all --vm NAME`, also the default with only `--vm NAME`) for one enabled VM,
 for all established regressions. `make test-all-verify VM=NAME` / `tools/run-tests all-verify --vm NAME`
 are compatibility aliases for the same work. Every VM entry point uses
 metadata-only snapshot verification, including standalone preparation,
@@ -602,7 +610,9 @@ terminal detaches the display; tests continue. Ctrl+C requests cancellation and
 waits for owned cleanup. Invoke `tools/run-tests --vm NAME` for a VM run in a new terminal to attach to
 the existing progress and final output, including its exit status. While any run
 is active, execution invocations warn and attach to it, ignoring new categories or invalid options. VM attachment and cancellation
-require the original configured `--vm NAME`; missing or different names refuse. `tools/run-tests --vm NAME --stop` attaches to a VM run, requests
+require the original configured `--vm NAME` for narrowed runs; missing or different
+names refuse. Configured queue runs attach and cancel without `--vm`.
+`tools/run-tests --vm NAME --stop` attaches to a narrowed VM run, requests
 cancellation, and waits for owned cleanup; when idle it returns without starting
 tests or consuming saved results. An active host run is found even with no
 arguments or a VM category, and an active VM run is found with host arguments.

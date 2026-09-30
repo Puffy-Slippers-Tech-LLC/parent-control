@@ -39,6 +39,7 @@ def recovery_session():
     if uid <= 0 or os.geteuid() != 0:
         raise ValueError('retention: authenticated recovery caller required')
     from tools.test_storage import privileged_state
-    store = test_retention.Store(privileged_state(uid).with_name(f'recovery-diagnostics-{uid}'))
+    path = privileged_state(uid)
+    store = test_retention.Store(path.with_name(path.name.replace('retention-', 'recovery-diagnostics-', 1)))
     with store.session(recover=lambda state: True):
         yield

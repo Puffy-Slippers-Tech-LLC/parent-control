@@ -18,6 +18,7 @@ VARIABLE = 'ONPC_TEST_VM'
 class VMConfig:
     name: str
     disk_anchor: Path
+    enabled: bool = False
 
     @property
     def hostname(self):
@@ -48,14 +49,17 @@ def validate_name(name):
     return name
 
 
-def registry(path=CONFIG):
+def configuration(path=CONFIG):
     try:
         document = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique_keys)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/test-vm.json') from error
-    if (not isinstance(document, dict) or set(document) != {'vms'} or
+    if (not isinstance(document, dict) or set(document) not in ({'vms'}, {'vms', 'concurrency'}) or
             not isinstance(document['vms'], list) or not document['vms']):
         raise ValueError('vm-config:fields')
+    concurrency = document.get('concurrency', 1)
+    if type(concurrency) is not int or concurrency < 1:
+        raise ValueError('vm-config:concurrency must be a positive integer')
     result = {}
     anchors = set()
     for entry in document['vms']:
@@ -64,11 +68,30 @@ def registry(path=CONFIG):
             raise ValueError('vm-config:duplicate-vm-or-disk')
         result[configured.name] = configured
         anchors.add(configured.disk_anchor)
-    return result
+    return concurrency, result
+
+
+def registry(path=CONFIG):
+    return configuration(path)[1]
+
+
+def execution(name=None, path=CONFIG):
+    """Snapshot the finite enabled queue and its maximum simultaneous guests."""
+    concurrency, configured = configuration(path)
+    if name is not None:
+        validate_name(name)
+        if name not in configured:
+            raise ValueError('vm-config:unknown-vm; choose a name in config/test-vm.json')
+        configured = {name: configured[name]}
+    enabled = tuple(vm for vm in configured.values() if vm.enabled)
+    if not enabled:
+        raise ValueError('vm-config:no enabled VMs in config/test-vm.json')
+    return min(concurrency, len(enabled)), enabled
 
 
 def validate_entry(document):
-    if not isinstance(document, dict) or set(document) != {'name', 'disk_anchor'}:
+    if (not isinstance(document, dict) or
+            set(document) not in ({'name', 'disk_anchor'}, {'name', 'disk_anchor', 'enabled'})):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
     value = document['disk_anchor']
@@ -76,7 +99,10 @@ def validate_entry(document):
             any(ord(char) < 32 for char in value) or
             any(part in {'', '.', '..'} for part in value.split('/')[1:])):
         raise ValueError('vm-config:disk-anchor; use an absolute image path without traversal')
-    return VMConfig(name, Path(value))
+    enabled = document.get('enabled', 'false')
+    if enabled not in ('true', 'false'):
+        raise ValueError('vm-config:enabled must be the string true or false')
+    return VMConfig(name, Path(value), enabled == 'true')
 
 
 def load(name=None, path=CONFIG):

@@ -12,6 +12,30 @@ import pytest
 from tools import test_retention as retention, test_storage as storage
 
 
+def test_legacy_retention_is_preserved_and_live_or_unfinished_owners_refuse(tmp_path):
+    legacy = retention.Store(tmp_path / 'legacy')
+    with legacy.session():
+        with pytest.raises(BlockingIOError):
+            storage.legacy_retention_guard(legacy.path)
+        retention.preserve_for_recovery()
+    before = (legacy.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='legacy VM journal is unfinished'):
+        storage.legacy_retention_guard(legacy.path)
+    assert (legacy.path / 'current.json').read_bytes() == before
+    legacy.reconcile(lambda: None)
+    storage.legacy_retention_guard(legacy.path)
+
+
+def test_vm_privileged_journals_are_separate(tmp_path, monkeypatch):
+    import vm_selection
+    monkeypatch.setattr(storage.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(storage, 'directory', lambda kind: tmp_path)
+    names = iter(['first', 'second'])
+    monkeypatch.setattr(vm_selection, 'selected', lambda **kwargs: SimpleNamespace(name=next(names)))
+    assert storage.privileged_state(1000) == tmp_path / 'retention-1000-first'
+    assert storage.privileged_state(1000) == tmp_path / 'retention-1000-second'
+
+
 def test_current_named_input_changes_with_product_bytes_without_overwriting(tmp_path, monkeypatch):
     from tools import package_inputs
     # Only private files and read-only hashing; no subprocess, allocation or cleanup.

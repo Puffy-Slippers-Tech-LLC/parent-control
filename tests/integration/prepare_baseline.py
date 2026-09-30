@@ -150,6 +150,7 @@ class Commands:
 
     def __init__(self):
         self.lock_fd = None
+        self.compatibility_fd = None
 
     def run(self, arguments, *, timeout=120):
         from watch_activity import operation
@@ -159,7 +160,8 @@ class Commands:
     def _run(self, arguments, *, timeout):
         with subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                               stderr=subprocess.DEVNULL,
-                              pass_fds=(() if self.lock_fd is None else (self.lock_fd,))) as child:
+                              pass_fds=tuple(fd for fd in (self.lock_fd, self.compatibility_fd)
+                                             if fd is not None)) as child:
             pidfd = os.pidfd_open(child.pid)
             try:
                 try:
@@ -383,13 +385,15 @@ def inspect_guest(guestfs, disk, script_digest):
         g.add_drive_opts(str(disk), readonly=True, format="qcow2")
         g.launch()
         roots = g.inspect_os()
-        require(len(roots) == 1 and g.inspect_get_distro(roots[0]) == "ubuntu" and
-                g.inspect_get_major_version(roots[0]) == 26 and
-                g.inspect_get_minor_version(roots[0]) == 4, "guest:release")
+        require(len(roots) == 1, "guest:release")
         mounts = g.inspect_get_mountpoints(roots[0])
         require("/" in mounts, "guest:mounts")
         for mount in sorted(mounts, key=lambda value: (len(value), value)):
             g.mount_ro(mounts[mount], mount)
+        try:
+            os_id, version = guest_contract.inspected_release(g, roots[0])
+        except guest_contract.PreparationError:
+            require(False, 'guest:release; requires Ubuntu 26.04 or Fedora Workstation 44')
         marker_path = str(guest_contract.MARKER)
         info = g.lstatns(marker_path)
         require(stat.S_ISREG(info["st_mode"]) and stat.S_IMODE(info["st_mode"]) == 0o600 and
@@ -397,8 +401,16 @@ def inspect_guest(guestfs, disk, script_digest):
         raw = g.read_file(marker_path)
         marker = parse_json(raw)
         require(isinstance(marker, dict) and type(marker.get("schema_version")) is int, "guest:marker-schema")
-        guest_contract.validate_marker(marker)
-        guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
+        guest_contract.validate_marker(marker, os_id=os_id)
+        if os_id == 'ubuntu':
+            guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
+        else:
+            guest_contract.selinux_policy(g.read_file('/etc/selinux/config').decode('utf-8'))
+            applications = g.inspect_list_applications2(roots[0])
+            guest_contract.guest_tools.verify_fedora_packages(
+                (row['app2_name'], row['app2_version']) for row in applications)
+            require(not any(row['app2_name'].startswith('oh-no-parent-control')
+                            for row in applications), 'guest:residue:package')
         require(not any(g.exists(path) or g.is_symlink(path)
                         for path in guest_contract.guest_tools.DORMANT_PATHS),
                 'guest:directory-fixture-not-clean')
@@ -423,9 +435,9 @@ def inspect_guest(guestfs, disk, script_digest):
                     row[4] == account.display_name and row[5] == f"/home/{account.username}" and
                     row[6] == guest_contract.INTERACTIVE_SHELL, "guest:account-identity")
             roles = {r[0] for r in groups if account.username in r[3].split(",") or r[2] == row[3]}
-            require(({"adm", "sudo"} <= roles) if account.role == "administrator" else
+            require((guest_contract.administrator_groups(os_id) <= roles) if account.role == "administrator" else
                     not (roles & guest_contract.FORBIDDEN_CHILD_GROUPS), "guest:account-role")
-        for block in text_file("/var/lib/dpkg/status").split("\n\n"):
+        for block in (text_file("/var/lib/dpkg/status").split("\n\n") if os_id == 'ubuntu' else []):
             fields = dict(line.split(": ", 1) for line in block.splitlines() if ": " in line and not line.startswith(" "))
             require(fields.get("Package") not in ("oh-no-parent-control", "oh-no-parent-control-dbgsym"),
                     "guest:residue:package")
@@ -437,23 +449,47 @@ def inspect_guest(guestfs, disk, script_digest):
                 require("oh-no-parent-control" not in contents and "pam_oh_no_parent_control.so" not in contents,
                         "guest:residue:pam-polkit")
         for pattern in ("/usr/lib/*/security/pam_oh_no_parent_control.so",
+                        "/usr/lib64/security/pam_oh_no_parent_control.so",
                         "/etc/systemd/system/*oh-no-parent-control*",
                         "/etc/systemd/system.control/*oh-no-parent-control*",
                         "/usr/local/lib/systemd/system/*oh-no-parent-control*",
                         "/run/systemd/system/*oh-no-parent-control*"):
             require(not g.glob_expand(pattern), "guest:residue:service-session")
         return {"preparation_record_sha256": hashlib.sha256(raw).hexdigest(),
-                "preparation_script_sha256": script_digest, "ubuntu_version": guest_contract.UBUNTU_VERSION,
+                "preparation_script_sha256": script_digest,
+                **({'ubuntu_version': version} if os_id == 'ubuntu' else {'os_id': os_id, 'version': version}),
                 "accounts": marker["accounts"]}
     finally:
         g.close()
 
 
 def baseline_lock_path(directory):
-    """All named baselines share the preparation and execution lease."""
-    root = guest_contract.vm_config.STATE_ROOT
-    directory = root if directory.parent == root else directory
+    """Preparation and execution share one exclusive lease per named VM."""
     return directory / '.lock'
+
+
+def compatibility_lock(directory):
+    """Exclude older controllers using the root lease while named leases overlap."""
+    root = guest_contract.vm_config.STATE_ROOT
+    if directory.parent != root:
+        return None
+    path = root / '.lock'
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        identity(path, private=True, mode=0o600)
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def private_baseline_directory(directory):
+    canonical(directory)
+    info = directory.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid() and info.st_gid == os.getegid() and
+            stat.S_IMODE(info.st_mode) == 0o700, 'guard:baseline-directory')
+    return {'device': info.st_dev, 'inode': info.st_ino}
 
 
 class Capture:
@@ -536,11 +572,7 @@ class Capture:
             require(self.private_directory() == self.directory_identity, "guard:directory-changed")
 
     def private_directory(self):
-        canonical(self.directory)
-        info = self.directory.lstat()
-        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid() and info.st_gid == os.getegid() and
-                stat.S_IMODE(info.st_mode) == 0o700, "guard:baseline-directory")
-        return {"device": info.st_dev, "inode": info.st_ino}
+        return private_baseline_directory(self.directory)
 
     def prepare_private_directory(self, *, refresh=False):
         """Create, or safely repair, the empty controller-state directory.
@@ -734,14 +766,17 @@ class Capture:
         if refresh:
             require(_off, "guard:source-running")
         self.directory_identity = self.prepare_private_directory(refresh=refresh)
-        fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        compatibility = compatibility_lock(self.directory)
+        fd = None
         try:
+            fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
             identity(self.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
                 raise CaptureError("state:busy-controller") from error
             self.commands.lock_fd = fd
+            self.commands.compatibility_fd = compatibility
             if mode is not None:
                 return self.prepare_mode(inventory, mode, confirm)
             if os.path.lexists(self.directory / "phase.json"):
@@ -770,7 +805,11 @@ class Capture:
             self.execute(require_off=refresh)
         finally:
             self.commands.lock_fd = None
-            os.close(fd)
+            self.commands.compatibility_fd = None
+            if fd is not None:
+                os.close(fd)
+            if compatibility is not None:
+                os.close(compatibility)
 
     def prepare_mode(self, inventory, mode, confirm):
         """Hold the shared lease from confirmation through offline replacement.

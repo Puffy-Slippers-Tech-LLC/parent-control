@@ -10,6 +10,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.
 # VM rename refusal/rollback coverage uses private pytest records and mocked
 # libvirt calls; the existing compatible vm_control classification still applies.
+# Per-VM leases, moved lease identity and legacy-journal refusal checks retain
+# only private tmp_path locks/journals and process-local libvirt doubles. Storage,
+# qualification and VM-control modules keep their compatible classification.
 
 from pathlib import PurePosixPath
 

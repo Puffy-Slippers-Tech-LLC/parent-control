@@ -221,7 +221,7 @@ def test_idempotent_account_command_construction_is_explicit():
     assert sum(command[0] == "useradd" for command in first) == 4
     assert all(command[0] != "useradd" for command in repeated)
     assert sum(command[0] == "usermod" for command in repeated) == 6
-    assert sum(command[0] == "gpasswd" for command in repeated) == 4
+    assert sum(command[0] == "gpasswd" for command in repeated) == 6
     assert repeated == prepare.account_commands(repeat_state)
 
 
@@ -567,3 +567,93 @@ def test_dependency_inventory_accepts_security_updates_without_downgrading():
     updated = version + '.1'
     result = prepare.guest_tools.verify_packages(package_status().replace(version, updated))
     assert result[name] == updated
+
+
+@pytest.mark.parametrize('release,accepted', [
+    ({'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'}, True),
+    ({'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'server'}, False),
+    ({'ID': 'fedora', 'VERSION_ID': '43', 'VARIANT_ID': 'workstation'}, False),
+])
+def test_fedora_requires_exact_workstation_release(release, accepted):
+    if accepted:
+        assert prepare.release_identity(release) == ('fedora', '44')
+    else:
+        with pytest.raises(prepare.PreparationError, match='guard:os'):
+            prepare.release_identity(release)
+
+
+def test_fedora_account_roles_use_wheel_and_remove_all_child_admin_memberships():
+    commands = prepare.account_commands({item.username: None for item in prepare.IDENTITIES}, os_id='fedora')
+    for item in prepare.IDENTITIES:
+        owned = [command for command in commands if item.username in command]
+        if item.role == 'administrator':
+            assert ['usermod', '--append', '--groups', 'wheel', item.username] in owned
+            assert not any('adm,sudo' in command for command in owned)
+        else:
+            assert {command[-1] for command in owned if command[0] == 'gpasswd'} == {'adm', 'sudo', 'wheel'}
+
+
+def test_fedora_marker_is_distinct_and_cannot_pass_as_ubuntu():
+    accounts = {item.username: {'uid': 1300 + index, 'role': item.role}
+                for index, item in enumerate(prepare.IDENTITIES)}
+    document = prepare.marker_document(
+        prepare.GuestIdentity(prepare.HOSTNAME, 'b' * 32, '44', 'kvm', 'fedora'), accounts, 'c' * 64)
+    assert document['schema_version'] == 3
+    assert document['guest']['os_id'] == 'fedora'
+    assert 'ubuntu_version' not in document['guest']
+    assert document['test_dependencies'] == prepare.guest_tools.FEDORA_VERSIONS
+    prepare.validate_marker(document, os_id='fedora')
+    with pytest.raises(prepare.PreparationError, match='marker:schema'):
+        prepare.validate_marker(document, os_id='ubuntu')
+
+
+@pytest.mark.parametrize('failure', [None, 'install', 'verify', 'duplicate'])
+def test_fedora_dependencies_install_retry_verify_and_never_use_apt(tmp_path, failure):
+    installed = {}
+    commands = []
+    class FedoraRunner:
+        def run(self, command, **kwargs):
+            commands.append(command)
+            if command[0] == 'rpm':
+                output = ''.join(f'{name}\t{version}\n' for name, version in installed.items())
+                if failure == 'duplicate':
+                    output = 'openssh-server\t10.2p1\n' * 2
+                return subprocess.CompletedProcess(command, 0, output)
+            if command[0] == 'dnf5':
+                assert kwargs['timeout'] == 1800
+                if failure == 'install':
+                    raise subprocess.CalledProcessError(1, command)
+                if failure != 'verify':
+                    installed.update(prepare.guest_tools.FEDORA_VERSIONS)
+            if command[:2] == ['/usr/sbin/sshd', '-T']:
+                return subprocess.CompletedProcess(command, 0, 'pubkeyauthentication yes\n'
+                    'permitrootlogin prohibit-password\nauthenticationmethods any\n'
+                    'authorizedkeysfile .ssh/authorized_keys\n')
+            return subprocess.CompletedProcess(command, 0, '')
+    runner = FedoraRunner()
+    if failure:
+        with pytest.raises((prepare.PreparationError, subprocess.CalledProcessError)):
+            prepare.prepare_test_dependencies(runner=runner, root=tmp_path, os_id='fedora')
+        assert ['systemctl', 'start', 'sshd.service'] not in commands
+    else:
+        prepare.prepare_test_dependencies(runner=runner, root=tmp_path, os_id='fedora')
+        assert ['systemctl', 'start', 'sshd.service'] in commands
+        assert sum(command[0] == 'dnf5' for command in commands) == 1
+        commands.clear()
+        prepare.prepare_test_dependencies(runner=runner, root=tmp_path, os_id='fedora')
+        assert not any(command[0] in ('dnf5', 'apt-get', 'dpkg-query') for command in commands)
+
+
+@pytest.mark.parametrize('versions,accepted', [
+    ({'openssh-server': '10.2p1', 'python3-pytest': '8.4.2'}, True),
+    ({'openssh-server': '10.3p1', 'python3-pytest': '9.0.2'}, True),
+    ({'openssh-server': '10.1p1', 'python3-pytest': '8.4.2'}, False),
+    ({'openssh-server': '10.2p1', 'python3-pytest': '8.4.2rc1'}, False),
+    ({'openssh-server': '10.2p1'}, False),
+])
+def test_fedora_package_inventory_refuses_old_missing_or_prerelease_tools(versions, accepted):
+    if accepted:
+        assert prepare.guest_tools.verify_fedora_packages(versions.items()) == versions
+    else:
+        with pytest.raises(ValueError, match='guest-tools:'):
+            prepare.guest_tools.verify_fedora_packages(versions.items())

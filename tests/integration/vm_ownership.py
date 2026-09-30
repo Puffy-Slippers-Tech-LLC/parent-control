@@ -45,8 +45,14 @@ class VMOwnership:
                 and (self.owner.state is None or self.owner.state['run'] == self.run),
                 'guard:backing-owner-changed')
         require(self.capture.state == self.state, 'guard:backing-state-changed')
+        # An owned VM rename moves the entire attested provenance directory,
+        # including its lease. Require the same directory and lock inodes; an
+        # unrelated replacement cannot acquire ownership by reusing a path.
+        require(self.capture.private_directory() == self.capture.directory_identity,
+                'guard:backing-owner-changed')
         lock = self.capture.lock_path
-        require(identity(lock, private=True, mode=0o600) == self.lock_identity,
+        current = identity(lock, private=True, mode=0o600)
+        require(all(current[key] == self.lock_identity[key] for key in ('device', 'inode')),
                 'guard:backing-owner-changed')
         info = os.fstat(self.lock_fd)
         require((info.st_dev, info.st_ino) ==

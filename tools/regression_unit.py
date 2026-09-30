@@ -47,6 +47,9 @@ modified, and no heavy fixture construction is added.
 VM rename checks use private pytest provenance trees and process-local libvirt
 doubles, including rollback and lock contention. No real VM, disk, socket,
 display or shared controller state is accessed; compatible overlap remains.
+VM queue checks join bounded in-process thread pools and mocked controllers,
+with private retained logs and journals. Lease/legacy-journal tests hold only
+tmp_path flock files; existing compatible VM, launcher and storage buckets apply.
 """
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,

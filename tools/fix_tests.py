@@ -34,6 +34,41 @@ APP_EFFORT = 'high'
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
+def requested_inventory(root, requested, *, inventory=None):
+    """Keep runner selectors intact for every retry and verification round."""
+    inventory = suite_inventory(inventory=inventory)
+    if not requested:
+        return inventory
+    # Preserve category-only aliases, including the legacy "unit ui" spelling.
+    # Otherwise prefer the runner's parser: an argument may itself be a category
+    # word, as in "static all" or "unit -k component".
+    if len(requested) == 1 or requested[0] in ('host', 'host-builds', 'all'):
+        return suite_inventory(requested, inventory=inventory)
+    from test_commands import selections, INSPECTION_FLAGS
+    try:
+        groups = selections(root, requested)
+    except ValueError as error:
+        try:
+            return suite_inventory(requested, inventory=inventory)
+        except ValueError:
+            raise error
+    if not any(options for _, options in groups) and any(arg.startswith('-') for arg in requested):
+        raise ValueError('runner coordinator options cannot select a repair run')
+    selected = {}
+    for category, options in groups:
+        expanded = suite_inventory([category], inventory=inventory)
+        if options and category not in inventory:
+            raise ValueError('aggregate repair selections do not accept options')
+        if any(option in INSPECTION_FLAGS for option in options):
+            raise ValueError('inspection options cannot select a repair run')
+        for name, spec in expanded.items():
+            value = dict(spec, args=list(options)) if options else spec
+            if name in selected and selected[name] != value:
+                raise ValueError(f'conflicting repair selections for {name}')
+            selected[name] = value
+    return {name: selected[name] for name in inventory if name in selected}
+
+
 def initial_model(model=None, effort=DEFAULT_EFFORT):
     model = model or DEFAULT_MODEL
     if model.endswith('-sol') and model != DEFAULT_MODEL:
@@ -419,7 +454,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
         requested = json.loads(requested)
-        inventory = suite_inventory(requested, inventory=category_inventory(listing.stdout))
+        inventory = requested_inventory(root, requested, inventory=category_inventory(listing.stdout))
         categories = list(inventory)
         rounds = int(rounds)
         print(f'fix-tests: category pass, then {rounds - 1} verification round(s)', flush=True)
@@ -488,10 +523,12 @@ def main(argv=None):
                         help='run round 1 once, then round 2 X-1 times (default: 1)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
                         default=DEFAULT_EFFORT, help='initial reasoning effort (default: medium; repair review uses Sol high)')
-    parser.add_argument('categories', nargs='*', metavar='CATEGORY',
-                        help='leaf categories, host (or host-builds), or all; accepts "unit ui"; '
-                             'omitting categories selects every leaf')
-    args = parser.parse_args(argv)
+    parser.epilog = ('Pass categories and arguments as for run-tests, e.g. e2e --id 6 '
+                     'or unit tests/unit/test_fix_tests.py -q. Launcher options are recognized '
+                     'anywhere and removed from the forwarded arguments. '
+                     'Omitting categories selects every leaf.')
+    args, categories = parser.parse_known_args(argv)
+    args.categories = categories
     if args.rounds < 1:
         parser.error('--rounds must be a positive integer')
     root = Path(__file__).resolve().parents[1]
@@ -507,19 +544,27 @@ def main(argv=None):
     previous = signal.signal(signal.SIGINT, cancel)
     try:
         from vm_selection import execution_selection
-        inventory = suite_inventory(args.categories)
+        from test_commands import host_only_request
+        host_only = host_only_request(args.categories)
+        if not host_only:
+            try:
+                host_only = not any(name in suite_inventory(args.categories)
+                                    for name in ('system', 'e2e'))
+            except ValueError:
+                pass
         if args.stop and args.vm is None:
             from vm_selection import VARIABLE, BATCH
             os.environ.pop(VARIABLE, None)
             os.environ.pop(BATCH, None)
         elif args.vm is not None:
             execution_selection(args.vm)
-        elif any(name in inventory for name in ('system', 'e2e')):
+        elif not host_only:
             execution_selection()
         else:
             from vm_selection import VARIABLE, BATCH
             os.environ.pop(VARIABLE, None)
             os.environ.pop(BATCH, None)
+        requested_inventory(root, args.categories)
         run, started = select(root, stop=requested, model=args.model, effort=args.effort,
                               categories=args.categories, rounds=args.rounds)
         if run is None:

@@ -30,6 +30,9 @@ existing recorded owner/agent doubles; they start no real Codex or VM process.
 Model-routing and usage-recording checks use those same private trees and tiny
 JSON records, in-memory renderer callbacks and recorded child doubles. No new
 shared cache, network, bus, display or heavy fixture; compatible overlap remains.
+Fix-tests argument forwarding checks reuse those recorded child doubles and
+private test files; validation reads checkout inputs without running real tests
+or touching a VM. Their compatible unit and cleanup classifications still apply.
 Named qualification preparation coverage reads wrapper ASTs and mocks allocation,
 builder execution and privilege checks; no builds, shared writes or VM access.
 Attachment boundary tests retain private tmp_path files (<= 5 MiB+1 each),

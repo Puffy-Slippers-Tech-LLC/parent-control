@@ -372,6 +372,26 @@ def test_selected_categories_stay_scoped_through_worker_and_repair(checkout, cat
     assert 'all selected categories passed' in output.getvalue()
 
 
+@pytest.mark.parametrize('options', [
+    ['-k', 'unit or component', '-q', '--tb=short'],
+    ['tests/unit/test_selected.py::test_case[has spaces]', '--durations', '2'],
+])
+def test_category_arguments_survive_worker_repairs_and_verification(checkout, options):
+    root, _ = checkout
+    tests = root / 'tests/unit'
+    tests.mkdir(parents=True)
+    (tests / 'test_selected.py').write_text('def test_case(): pass\n')
+    (root / 'mode').write_text('agent-repeat')
+    run, _ = fix_tests.select(root, rounds=3, categories=['unit', *options])
+    assert fix_tests.follow(run, io.StringIO()) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    tests = [call for call in calls if call['kind'] == 'test']
+    assert len(tests) == 5  # Initial attempt, two repair retries, two verification rounds.
+    assert all(call['args'] == ['--stop-on-error', 'unit', *options,
+                                '--vm', 'onpc-Ubuntu26.04'] for call in tests)
+    assert len([call for call in calls if call['kind'] == 'agent']) == 2
+
+
 def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-repeat')

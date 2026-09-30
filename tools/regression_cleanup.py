@@ -71,6 +71,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # identity-recorded owner/agent fixture, with no new cleanup or shared resource.
 # Routing/restart and usage-recording cases use the same private owner/agent
 # doubles and tiny JSON files; both unit and cleanup classifications stay compatible.
+# Fix-tests argument forwarding uses the same private checkout and reaped child
+# doubles through retries/verification; no real tests, VM or shared resource.
 # App-snapshot and suite tests use private locks with mocked libvirt sources;
 # baseline-guest uses an in-memory guestfs double; update/reboot checks mock all
 # package/VM operations and use tmp_path for guest entry records. Fix-tests owns every child it

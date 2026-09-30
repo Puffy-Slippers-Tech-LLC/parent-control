@@ -273,6 +273,9 @@ def test_both_workflows_explain_decisions_without_requiring_technical_translatio
     prompts = [fix_tests.repair_prompt('failure'),
                write_e2e.session_prompt(write_e2e.fresh_state('017c'))]
     for prompt in prompts:
+        assert 'tools/prepare-baseline --vm NAME --mode auto --y' in prompt
+        assert 'omit it for manual work' in prompt
+        assert '--mode manual --y only with explicit developer authorization' in prompt
         assert BLOCKER_INSTRUCTIONS in prompt
         assert 'Use everyday language and short sentences in ALL three fields' in prompt
         assert 'why you cannot finish' in prompt

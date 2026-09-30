@@ -177,11 +177,18 @@ choose one required mode on the host:
 - `tools/prepare-baseline --vm NAME --mode manual`: boot the current guest state, run
   no-app prerequisites, shut down and create or replace `onpc_baseline`.
 
-Both modes show a red confirmation warning and delete all versioned app
-snapshots (`onpc-[version]` and `onpc-v[version]`) after confirmation. Declining
+Both modes show a red warning and delete all versioned app
+snapshots (`onpc-[version]` and `onpc-v[version]`) after confirmation or `--y`. Declining
 exits without changing the guest or snapshots. Missing `--mode` or its value
 shows usage help; there is no default. Every confirmed run repeats its steps.
 Ordinary `./setup.sh` never prepares a baseline.
+
+Launcher/session work uses `tools/prepare-baseline --vm NAME --mode auto --y`
+for authorized auto-mode refresh, or `--mode manual --y` for an explicitly
+authorized manual-mode preparation. `--y` suppresses the y/n prompt and retains
+the warning and every safety check. Manual work omits `--y` to keep confirmation.
+Refresh the installed dispatcher with `./setup.sh --test-tools-only` when updating
+from a version without this flag.
 
 The command validates `.envrc` first. Existing accounts keep their UIDs and homes;
 their password, picture, display name, role, shell and unlocked status are reconciled with the

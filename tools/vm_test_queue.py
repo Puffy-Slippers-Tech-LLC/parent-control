@@ -8,6 +8,10 @@ import sys
 import tempfile
 import threading
 
+# Workers use isolated Python; restore only this checkout's sibling modules.
+if __name__ == '__main__':
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import test_activity
 import test_launcher
 import test_retention

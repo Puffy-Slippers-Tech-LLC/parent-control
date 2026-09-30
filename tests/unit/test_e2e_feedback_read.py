@@ -2623,7 +2623,8 @@ def test_export_selector_and_constructor_registration(tmp_path, monkeypatch):
     import check_e2e_diagnostic_export as selector
     from parent_setup_qualification import DiagnosticExportQualification
     from diagnostic_export import PLAN
-    from tests.unit.test_e2e_case_composition import composition_errors, CASE_MODULES, ROOT
+    from tests.support.e2e_composition import composition_errors, CASE_MODULES
+    from tests.support.paths import ROOT
     run = Mock(return_value=0)
     monkeypatch.setattr(selector, 'smoke', run)
     assert selector.main() == 0 and run.call_args.kwargs['diagnostic_export'] is True

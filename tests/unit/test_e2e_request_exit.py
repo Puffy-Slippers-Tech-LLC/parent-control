@@ -196,7 +196,10 @@ def test_request_exit_qualification_reuses_the_prepared_app_snapshot():
     assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     context = type('Context', (), {})()
     RequestExitQualification.journey(context, lambda *_: None)
-    assert context.installed_snapshot == 'onpc-v1.1'
+    # The prepared snapshot follows the app release, not the release at which
+    # this qualification test was introduced.
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == f'onpc-v{version}'
 
 
 @pytest.mark.parametrize('operation', accessible_ui.KIOSK_EXIT_OPERATIONS)

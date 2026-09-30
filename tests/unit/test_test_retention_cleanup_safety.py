@@ -84,8 +84,20 @@ def test_idle_reconciliation_preserves_evidence_and_refuses_unsafe_recovery(tmp_
         assert evidence.exists()
 
 
+@pytest.fixture
+def dispatcher_vm(monkeypatch):
+    """Keep VM selection process-local while exercising real argument parsing."""
+    import vm_config
+    name = 'fixture-vm'
+    def select(selected, path):
+        assert selected == name
+        return SimpleNamespace(name=name)
+    monkeypatch.setattr(vm_config, 'select', select)
+    return name
+
+
 @pytest.mark.parametrize('status', [0, 1])
-def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys, status):
+def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys, status, dispatcher_vm):
     import test_storage
     monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'privileged-state')
     dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
@@ -95,6 +107,7 @@ def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys
         output = capsys.readouterr().out
         assert 'cleanup prerequisites' not in output
         assert command == ['recovery']
+        assert kwargs['env']['ONPC_TEST_VM'] == dispatcher_vm
         commands.append(command)
         return status
     control = SimpleNamespace(run=execute, installed=lambda **kw: nullcontext(control))
@@ -104,7 +117,9 @@ def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(dispatcher['os'], 'getgrouplist', lambda *args: [])
     caller = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name='fixture',
                              pw_dir=str(tmp_path))
-    assert dispatcher['run'](tmp_path, ['--unattended', 'integration', 'check_test_recovery'], caller) == status
+    assert dispatcher['run'](tmp_path, [
+        '--unattended', 'integration', 'check_test_recovery', '--vm', dispatcher_vm,
+    ], caller) == status
     assert commands == [['recovery']]
 
 
@@ -142,10 +157,23 @@ def test_launcher_reconciles_only_idle_pending_storage(tmp_path, monkeypatch, fa
     import test_recovery
     import test_retention as live_retention
     import regression_process
+    import vm_config
+    import vm_selection
+    # Model one selected VM, independent of the enclosing launcher's selection
+    # and host/batch activity. Keep all journals in this test's private root.
+    vm = SimpleNamespace(name='fixture-vm')
+    def load(name):
+        assert name == vm.name
+        return vm
+    monkeypatch.setattr(vm_config, 'load', load)
+    monkeypatch.setenv(vm_config.VARIABLE, vm.name)
+    monkeypatch.delenv(vm_selection.BATCH, raising=False)
+    monkeypatch.setattr(test_recovery.test_activity, '_host_only', False)
     monkeypatch.setattr(test_recovery.test_activity, 'descriptors', lambda: (123,))
-    store = live_retention.Store(tmp_path / 'output/test-runs/host/state/retention')
+    store = live_retention.Store(test_recovery.test_activity.retention_path(tmp_path))
     with store.session():
         live_retention.preserve_for_recovery()
+    original = (store.path / 'current.json').read_bytes()
     calls = []
     def recover(root, category, args, **kwargs):
         calls.append((category, args))
@@ -155,11 +183,13 @@ def test_launcher_reconciles_only_idle_pending_storage(tmp_path, monkeypatch, fa
         with pytest.raises(ValueError, match='automatic recovery failed'):
             test_recovery.before_run(tmp_path, ['integration', 'check_test_recovery'])
         assert (store.path / 'recovery-required').exists()
+        assert (store.path / 'current.json').read_bytes() == original
     else:
         test_recovery.before_run(tmp_path, ['integration', 'check_test_recovery'])
         test_recovery.before_run(tmp_path, ['unit', 'selected'])
         assert not (store.path / 'recovery-required').exists()
-    assert calls == [('integration', ['check_test_recovery'])]
+        assert json.loads((store.path / 'current.json').read_text())['finished']
+    assert calls == [('integration', ['check_test_recovery', '--vm', vm.name])]
 
 
 def test_execution_option_does_not_bypass_required_recovery(tmp_path, monkeypatch):
@@ -785,7 +815,7 @@ def test_root_replacement_during_deletion_never_erases_replacement(tmp_path, mon
     assert (path / 'keep').read_text() == 'replacement'
 
 
-def test_dispatcher_groups_privileged_categories_by_aggregate(tmp_path, monkeypatch):
+def test_dispatcher_groups_privileged_categories_by_aggregate(tmp_path, monkeypatch, dispatcher_vm):
     import test_storage
     monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'root-state')
     import test_retention as dispatcher_retention
@@ -802,6 +832,7 @@ def test_dispatcher_groups_privileged_categories_by_aggregate(tmp_path, monkeypa
     owned = []
     def execute(command, **kwargs):
         if command == ['selected-controller']:
+            assert kwargs['env']['ONPC_TEST_VM'] == dispatcher_vm
             assert kwargs['env'][retention.VARIABLE] == os.environ[retention.VARIABLE]
             owned.append(allocated(tmp_path, f'vm-{len(owned)}'))
         return 0
@@ -810,12 +841,15 @@ def test_dispatcher_groups_privileged_categories_by_aggregate(tmp_path, monkeypa
         'Control': lambda: control, 'safety_command': lambda root: ['safety']})
     first = uuid.uuid4().hex
     for category in ('system', 'e2e'):
-        assert run(root, [f'--retention-run={first}', '--unattended', category], caller) == 0
+        assert run(root, [f'--retention-run={first}', '--unattended', category,
+                          '--vm', dispatcher_vm], caller) == 0
     assert all(path.exists() for path in owned)
     for _ in range(2):
-        assert run(root, [f'--retention-run={uuid.uuid4().hex}', '--unattended', 'system'], caller) == 0
+        assert run(root, [f'--retention-run={uuid.uuid4().hex}', '--unattended', 'system',
+                          '--vm', dispatcher_vm], caller) == 0
         assert all(path.exists() for path in owned)
-    assert run(root, [f'--retention-run={uuid.uuid4().hex}', '--unattended', 'system'], caller) == 0
+    assert run(root, [f'--retention-run={uuid.uuid4().hex}', '--unattended', 'system',
+                      '--vm', dispatcher_vm], caller) == 0
     assert not any(path.exists() for path in owned[:2])
     assert all(path.exists() for path in owned[2:])
 
@@ -938,15 +972,34 @@ def test_privileged_guard_uses_shared_named_baseline_lease(tmp_path, monkeypatch
         path.chmod(0o600)
     lock_path = tmp_path / '.lock'
     lock_path.touch(mode=0o600)
-    # Production has no per-VM lock. A completed journal alone must not
-    # authorize retention while another controller holds the shared lease.
+    # Completed journals do not authorize retention while this VM is leased
+    # or an older controller holds the legacy root lease exclusively.
     dispatcher['retention_guard'](root)
-    with lock_path.open('rb') as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with pytest.raises(BlockingIOError):
-            dispatcher['retention_guard'](root)
+    vm_lock_path = directory / '.lock'
+    assert vm_lock_path.is_file()
+    for busy_path in (vm_lock_path, lock_path):
+        with busy_path.open('rb') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with pytest.raises(BlockingIOError):
+                dispatcher['retention_guard'](root)
+        dispatcher['retention_guard'](root)
+
+    # A newer controller for another VM shares the compatibility lease and
+    # owns only its own exclusive lease, so it must not block this VM.
+    other_directory = tmp_path / 'other-vm'
+    other_directory.mkdir(mode=0o700)
+    other_lock_path = other_directory / '.lock'
+    other_lock_path.touch(mode=0o600)
+    with lock_path.open('rb') as legacy, other_lock_path.open('rb') as other:
+        fcntl.flock(legacy.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+        fcntl.flock(other.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        dispatcher['retention_guard'](root)
+
+    # Success and refusal must both release every descriptor they acquired.
+    for released_path in (vm_lock_path, lock_path):
+        with released_path.open('rb') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     dispatcher['retention_guard'](root)
-    assert not (directory / '.lock').exists()
 
 
 @pytest.mark.parametrize('value', ['../outside', '', 'a' * 31, 'g' * 32])

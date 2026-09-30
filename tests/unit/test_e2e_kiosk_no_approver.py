@@ -154,14 +154,25 @@ def test_every_conflicting_mode_refuses_before_vm_access(monkeypatch):
     storage = Mock(side_effect=AssertionError('conflict reached VM run allocation'))
     monkeypatch.setattr(smoke, 'FixtureCredentials', credentials)
     monkeypatch.setattr(smoke, 'storage_session', storage)
+    # Named bindings are not boolean modes. Exercise their public callers'
+    # valid arguments so refusal proves a conflict, not a malformed input.
+    bindings = {
+        'fresh_desktop': [{'fresh_desktop': value}
+                          for value in ('parent', 'standard', 'standard-keyring')],
+        'information_link': [
+            {'license_viewer_provider': True, 'information_link': value}
+            for value in ('license', 'website', 'privacy')],
+        'approval_flow': [{'approval_flow': value} for value in ('rejection', 'cancel')],
+    }
     for name in inspect.signature(smoke.main).parameters:
         if name in ('assets', 'provision_credentials', 'kiosk_no_approver'):
             continue
         # Either conflicting mode may be validated first. The safety contract
         # is refusal before preparation, independent of validator source order.
-        with pytest.raises(CommandError, match=r'^smoke:[a-z-]+-prerequisites$'):
-            smoke.main(assets='/unused', provision_credentials=True,
-                       kiosk_no_approver=True, **{name: 'parent' if name == 'fresh_desktop' else True})
+        for arguments in bindings.get(name, [{name: True}]):
+            with pytest.raises(CommandError, match=r'^smoke:[a-z-]+-prerequisites$'):
+                smoke.main(assets='/unused', provision_credentials=True,
+                           kiosk_no_approver=True, **arguments)
     credentials.assert_not_called()
     storage.assert_not_called()
 

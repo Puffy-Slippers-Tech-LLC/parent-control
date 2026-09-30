@@ -6,8 +6,10 @@ import ast
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception
 import os
 import pwd
+import re
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
@@ -17,6 +19,35 @@ DISABLED_KEY = "disabled-extensions"
 DISABLE_ALL_KEY = "disable-user-extensions"
 COMMAND_TIMEOUT_SECONDS = 10
 LOG = get_logger("extension-manager")
+LOAD_ASSETS = {"indicatorLogic.mjs": "indicator-logic", "diagnosticEvents.mjs": "diagnostic-events"}
+
+
+def _load_error_fields(info):
+    """Project untrusted Shell details; never return paths or error text."""
+    states = {1: "active", 2: "inactive", 3: "error", 4: "out-of-date",
+              5: "downloading", 6: "initialized", 99: "uninstalled"}
+    state = info.get("state")
+    error = info.get("error")
+    asset, reason = "other", "other"
+    if isinstance(error, str):
+        # Require an exact shipped URI, not a basename in a private path.
+        for name, category in LOAD_ASSETS.items():
+            uri = f"file:///usr/share/gnome-shell/extensions/{UUID}/{name}"
+            if error.startswith("ImportError: Unable to load file from: " + uri + " ("):
+                asset = category
+                if error.endswith(": Operation not permitted)"):
+                    reason = "import-operation-not-permitted"
+                elif error.endswith(": Permission denied)"):
+                    reason = "import-permission-denied"
+                elif error.endswith(": No such file or directory)"):
+                    reason = "import-file-missing"
+                else:
+                    reason = "import-failed"
+                break
+        if not error:
+            reason = "none"
+    return {"state": states.get(state, "other") if type(state) in (int, float) else "other",
+            "asset": asset, "reason": reason}
 
 
 def _command_diagnostics(arguments):
@@ -114,7 +145,8 @@ class ExtensionManager:
     def _run_as(self, account, *arguments):
         return self._run_command(account, arguments)
 
-    def _run_command(self, account, arguments, *, require_live=False):
+    def _run_command(self, account, arguments, *, require_live=False,
+                     timeout=COMMAND_TIMEOUT_SECONDS):
         command, environment, transport = self._command(account, arguments)
         if require_live and transport != "live-session":
             raise RuntimeError("child GNOME session is unavailable")
@@ -127,7 +159,7 @@ class ExtensionManager:
             result = subprocess.run(
                 command, check=True, text=True, capture_output=True,
                 env=environment, user=account.pw_uid, group=account.pw_gid,
-                extra_groups=(), timeout=COMMAND_TIMEOUT_SECONDS,
+                extra_groups=(), timeout=timeout,
             )
         except (OSError, subprocess.SubprocessError) as error:
             self._log_stderr(getattr(error, "stderr", None), operation, transport, context)
@@ -141,6 +173,125 @@ class ExtensionManager:
         self._log_stderr(result.stderr, operation, transport, context)
         LOG.info("extension-manager.003", operation=operation, transport=transport)
         return result
+
+    def collect_diagnostics(self, uids):
+        """Read failed imports outside the extension, including before enable().
+
+        One shared eight-second budget bounds the whole export observation.
+        Nothing here enables extensions, writes settings, or changes policy.
+        """
+        from gi.repository import GLib
+
+        deadline = time.monotonic() + 8
+        observed_assets = set()
+        for uid in uids:
+            try:
+                account, _home = self._account(uid)
+                if self._session_transport(account) != "live-session":
+                    continue
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    LOG.warning("extension-manager.load-observation", outcome="budget-exhausted")
+                    break
+                # NameHasOwner prevents activating Shell for an offline user bus.
+                result = self._run_command(account, (
+                    "gdbus", "call", "--session", "--dest", "org.freedesktop.DBus",
+                    "--object-path", "/org/freedesktop/DBus", "--method",
+                    "org.freedesktop.DBus.NameHasOwner", "org.gnome.Shell"),
+                    require_live=True, timeout=remaining)
+                if result.stdout.strip() == "(false,)":
+                    continue
+                if result.stdout.strip() != "(true,)":
+                    raise ValueError("invalid Shell availability")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError()
+                result = self._run_command(account, (
+                    "gdbus", "call", "--session", "--dest", "org.gnome.Shell.Extensions",
+                    "--object-path", "/org/gnome/Shell/Extensions", "--method",
+                    "org.gnome.Shell.Extensions.GetExtensionInfo", UUID),
+                    require_live=True, timeout=remaining)
+                if len(result.stdout) > 65536:
+                    raise ValueError("oversized extension info")
+                info, = GLib.Variant.parse(GLib.VariantType.new("(a{sv})"),
+                                          result.stdout, None, None).unpack()
+                fields = _load_error_fields(info)
+                if fields["state"] == "error":
+                    LOG.error("extension-manager.load-state", state=fields["state"],
+                              asset=fields["asset"], reason=fields["reason"])
+                else:
+                    LOG.info("extension-manager.load-state", state=fields["state"],
+                             asset=fields["asset"], reason=fields["reason"])
+                if fields["asset"] != "other" and fields["asset"] not in observed_assets:
+                    observed_assets.add(fields["asset"])
+                    self._payload_diagnostics(fields["asset"], deadline)
+            except Exception:
+                # Availability is evidence, never a reason to discard the report.
+                LOG.warning("extension-manager.load-observation", outcome="unavailable")
+
+    def _payload_diagnostics(self, asset, deadline):
+        name = next(name for name, category in LOAD_ASSETS.items() if category == asset)
+        path = f"/usr/share/gnome-shell/extensions/{UUID}/{name}"
+
+        def query(*arguments):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError()
+            result = subprocess.run(arguments, check=True, text=True, capture_output=True,
+                                    env={"PATH": "/usr/bin:/usr/sbin:/bin:/sbin", "LC_ALL": "C"},
+                                    timeout=remaining)
+            if len(result.stdout) > 16 * 1024 * 1024:
+                raise ValueError("oversized policy observation")
+            return result.stdout
+
+        values = {"asset": asset, "file_type": "unknown", "trust": "unknown",
+                  "filter": "unknown", "language_policy": "unknown"}
+        # Each fixed, read-only query fails independently. Full database/rule
+        # output is transient and is never attached or sent to a logger.
+        try:
+            kind = query("fapolicyd-cli", "--ftype", path).strip()
+            values["file_type"] = "javascript" if kind in {
+                "application/javascript", "text/javascript"} else "other"
+        except Exception:
+            pass
+        try:
+            rows = query("fapolicyd-cli", "--dump-db").splitlines()
+            paths = []
+            for row in rows:
+                # Paths elsewhere in the DB can contain spaces. Parse numeric
+                # size/hash from the right and discard them and every path.
+                source, entry = row.split(None, 1)
+                entry_path, size, digest = entry.rsplit(None, 2)
+                if (source not in {"rpmdb", "file"} or not size.isdecimal() or
+                        not re.fullmatch(r"[0-9a-fA-F]{64}", digest)):
+                    raise ValueError("unsupported trust database format")
+                paths.append(entry_path)
+            values["trust"] = "present" if path in paths else "absent"
+        except Exception:
+            pass
+        try:
+            result = query("fapolicyd-cli", "--test-filter", path).splitlines()
+            if result and result[-1] in {"decision include", "decision exclude"}:
+                values["filter"] = "included" if result[-1] == "decision include" else "excluded"
+        except Exception:
+            pass
+        try:
+            policy = query("fapolicyd-cli", "--list")
+            # Describe this reviewed rule pattern, not arbitrary policy text or
+            # an acknowledgement of the daemon's active generation.
+            languages = next((line for line in policy.splitlines()
+                              if "%languages=" in line), "")
+            if ("application/javascript" in languages or "text/javascript" in languages) and (
+                    "allow perm=open all : ftype=%languages trust=1" in policy and
+                    "deny_audit perm=any all : ftype=%languages" in policy):
+                values["language_policy"] = "trusted-only-rule-present"
+            else:
+                values["language_policy"] = "other"
+        except Exception:
+            pass
+        LOG.info("extension-manager.payload-policy", asset=values["asset"],
+                 file_type=values["file_type"], trust=values["trust"],
+                 filter=values["filter"], language_policy=values["language_policy"])
 
     @staticmethod
     def _log_stderr(value, operation, transport, context):
@@ -338,6 +489,11 @@ class ExtensionManager:
             # Preserve the shipped failure location before the broker converts
             # it to BackendFailure; never format private exception details.
             record_exception(error)
+            if shell_available:
+                try:
+                    self.collect_diagnostics((uid,))
+                except Exception:
+                    LOG.warning("extension-manager.load-observation", outcome="unavailable")
             LOG.warning("extension-manager.009", enabled=enabled, error_type=error_code(error))
             try:
                 try:

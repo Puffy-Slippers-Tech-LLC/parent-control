@@ -21,6 +21,15 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_extension_diagnostic_collection_targets_only_eligible_children(self):
+        extensions = mock.Mock()
+        broker = make_broker(extensions=extensions)
+        observed = []
+        extensions.collect_diagnostics.side_effect = lambda uids: observed.extend(uids)
+        broker.collect_extension_diagnostics()
+        self.assertEqual(set(observed), {user.uid for user in broker.list_managed_users(1003)})
+        extensions.set_enabled.assert_not_called()
+
     def test_management_revalidates_administrator_locality_before_read_or_write(self):
         accounts, preferences = Accounts(), Preferences()
         broker = make_broker(accounts=accounts, preferences=preferences)

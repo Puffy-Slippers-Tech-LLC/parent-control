@@ -101,6 +101,13 @@ system-guest, provenance, package-content and snapshot modules stay compatible.
 # doubles, existing private tmp_path logs and bounded in-memory archives. They
 # launch no RPM/GNOME process and access no host package DB, bus or display;
 # extension_manager, diagnostic_privacy and system_info remain compatible.
+# Extension import and payload-policy observations use process-local command,
+# clock, account and export doubles, with no live Shell, trust DB, bus, files,
+# threads or host services. Existing extension_manager, core and service_contract
+# compatible unit classifications remain appropriate.
+# The diagnostic-report import-failure regression uses its existing tmp_path
+# writer and restored process-local logger/command doubles; no additional shared
+# service, bus, subprocess or cache. diagnostic collectors remain compatible.
 # Broker address-family checks read immutable unit/payload inputs; payload
 # fixtures retain their existing private build trees and resource admission.
 # Sandbox socket probes use process-local doubles, including netlink; no real

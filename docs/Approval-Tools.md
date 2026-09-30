@@ -324,7 +324,7 @@ the checkout activity lock.
 | Asset-transfer runner qualification | `tools/run-tests e2e --vm NAME --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with live ownership checks; no scenario/list selector or product installation; pending customer dispatch stays closed |
 | Authenticated installation qualification | `tools/run-tests e2e --vm NAME --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and owned recovery. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
 | Established regressions | `make test-all VM=NAME` / `tools/run-tests all --vm NAME` / `tools/run-tests --vm NAME` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. With only `--vm NAME`, starts `all` when idle; VM attachment requires the same explicit name. |
-| Scripted test repair | `tools/fix-tests [--vm NAME] [CATEGORY ...] [--model MODEL] [--effort medium]` / `tools/fix-tests --vm NAME --stop` | Granular pass then complete regression retries by default; explicit categories restrict repair and verification to those leaves; detached owner, GPT-6.1 Sol Medium classification/mechanical repair and GPT-6.1 Sol High app/uncertain/failed-verification repair in fresh Standard-speed ephemeral sessions; developer blockers pause in the shared write-e2e question menu; existing sandbox/rules and scripted test-runner cleanup, no automatic setup or authority expansion |
+| Scripted test repair | `tools/fix-tests [--vm NAME] [CATEGORY ...] [--model MODEL] [--effort medium] [--rounds X]` / `tools/fix-tests --vm NAME --stop` | Granular pass only by default; --rounds X adds X-1 verification rounds; explicit categories restrict repair and verification to those leaves; detached owner, GPT-6.1 Sol Medium classification/mechanical repair and GPT-6.1 Sol High app/uncertain/failed-verification repair in fresh Standard-speed ephemeral sessions; developer blockers pause in the shared write-e2e question menu; existing sandbox/rules and scripted test-runner cleanup, no automatic setup or authority expansion |
 | Scripted E2E implementation | `tools/write-e2e --vm NAME [--sessions N] [--tasks N]` / `tools/write-e2e --vm NAME --stop` | Fresh GPT-6.1 Sol Medium coordination/implementation, GPT-6.1 Sol High after two live attempts on an unfinished task, and bounded read-only Astra High advice; a new run with only `--vm NAME` defaults to 5 sessions and 1 completed task, while a new run with `--tasks` alone retains unlimited total sessions; each new launcher permits 5 more sessions for its current task while retaining cumulative task numbering, and the next task begins with its own 5-session cap; stop at either limit; plain invocation attaches unchanged, explicit live limits are signed adjustments applied at session boundaries (minimum zero; unlimited sessions become sessions already started plus N); safe stop at the next session boundary, Ctrl+C owned cancellation; staging of explicit paths and task-session worktree changes without commits, excluding prior work and output artifacts; existing grants and guarded test cleanup |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
 | Combined complete categories | `tools/run-tests host system e2e --vm NAME` | Equals `all`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; VM-only selections build their required input automatically |
@@ -444,6 +444,10 @@ changes to cleanup with the relevant tests during development; introducing a new
 cleanup implementation still requires its corresponding regression. No runtime
 passing-test receipt substitutes for live ownership checks.
 Collection/listing does not run cleanup or claim passing test coverage.
+Host-only startup and `tools/cleanup-e2e --host-only` reconcile interrupted host
+retention under its activity and storage owner locks, without VM configuration
+or privileged dispatch. Recovery validates recorded identities and preserves
+evidence in bounded retention; active owners and replaced resources still refuse.
 
 ## The configured test VMs
 
@@ -488,6 +492,7 @@ replacement by name alone.
 | --- | --- |
 | `tools/test-vm --vm NAME status` / `xml` | Inspect only the pinned guest using a read-only connection |
 | `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
+| `tools/test-vm --vm NAME rename-disk` | Rename the idle pinned guest's single QCOW2 image to `NAME.qcow2` in its existing directory; update domain/internal-snapshot references and provenance, preserving bytes and inode; refuses overlays, shared disks, destination collisions and unfinished controllers |
 | `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, remove host shares, record and boot an isolated maintenance attempt |
 | `tools/test-vm --vm NAME reboot` | Request an ACPI reboot of that same recorded running instance; preserve guest state |
 | `tools/test-vm --vm NAME send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |
@@ -511,6 +516,15 @@ guest hostname consumers derive the lowercase form from that same config.
 Historical snapshot domain names remain intact. Only exact saved metadata
 attested in the private rename record can use a historical name; libvirt keeps
 the current domain name when restoring those snapshots.
+Disk rename accepts no filename or path argument. Its private journal records
+exact original metadata before mutation and gates interrupted transactions.
+Checked failures roll back only the owned image and references. Update that
+entry's `disk_anchor` in `config/test-vm.json` immediately after success;
+the operation does not write checkout configuration as root. Internal snapshots
+are metadata-redefined without restoring or deleting them, retaining their
+current selection. Baseline proof and image bytes remain intact. Previously
+cached app snapshots retain their original baseline digest and must pass the
+ordinary reuse checks before use.
 An already-running manually started VM is not adopted. Stop the maintenance
 attempt before starting installed/E2E tests. A helper failure preserves its
 record and evidence for diagnosis; unsupported interrupted phases require a

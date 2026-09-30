@@ -223,22 +223,22 @@ def test_attachment_validation_matrix_and_source_snapshot(
     ui.attachment_operation('attachment-remaining')
     ui.boundary_operation('boundary-clear-small')
     for batch in ('count', 'sixth'):
-        add_component_attachments(ui, batch)
+        add_component_attachments(ui, batch, manifest)
     ui.boundary_operation('boundary-clear-count')
     ui.boundary_operation('boundary-exclude-logs')
     for batch in ('maximum', 'oversized', 'total'):
-        add_component_attachments(ui, batch)
+        add_component_attachments(ui, batch, manifest)
     ui.boundary_operation('boundary-remove-total')
-    add_component_attachments(ui, 'overflow')
+    add_component_attachments(ui, 'overflow', manifest)
     ui.boundary_operation('boundary-clear-maximum')
     for batch in ('name180', 'name181', 'hidden', 'mixed'):
-        add_component_attachments(ui, batch)
+        add_component_attachments(ui, batch, manifest)
     ui.boundary_operation('boundary-clear-name')
-    add_component_attachments(ui, 'single')
+    add_component_attachments(ui, 'single', manifest)
     paths['single'][0].write_bytes(CHANGED_ATTACHMENT[0][1])
     ui.boundary_operation('boundary-source-unchanged')
     ui.boundary_operation('boundary-remove-single')
-    assert add_component_attachments(ui, 'changed')['items'] == [
+    assert add_component_attachments(ui, 'changed', manifest)['items'] == [
         ['Synthetic note.txt', '34 bytes']]
 
 

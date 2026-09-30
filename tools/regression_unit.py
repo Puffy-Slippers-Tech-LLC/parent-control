@@ -35,6 +35,8 @@ builder execution and privilege checks; no builds, shared writes or VM access.
 Attachment boundary tests retain private tmp_path files (<= 5 MiB+1 each),
 bounded in-memory bytes and waited private Perl children; compatible in unit
 and cleanup scheduling, with no build, shared cache, bus, display or VM.
+Chooser delivery regressions add only tiny tmp_path acknowledgement files and
+in-memory queued callbacks; the existing compatible unit classification applies.
 ZIP reader checks use the same private trees and process-local transport doubles,
 with archives bounded to 64 KiB; no new process, socket or shared resource.
 Source-change checks add tiny private files and process-local write/transport
@@ -167,6 +169,10 @@ write_e2e write_e2e_cleanup_safety
 # process-local API doubles; registry tests use tmp_path, with no live VM/socket.
 # Both launchers' blocker decisions use checkout-private question locks/files and bounded threads;
 # pause/reconnect tests own all fake agent children. No live Codex/VM is used.
+# Host restart/recovery additions use private retention/activity locks and
+# identity-recorded, waited session/repair doubles. VM queue selection only
+# reads configuration; no live VM, display, bus, shared cache or heavy fixture.
+# Existing compatible classifications remain valid for these modules.
 # Challenge, install, reboot and package-authority contracts mock host/guest
 # mutations; app-row, feedback and no-approver reads use accessibility doubles.
 # Ineligible-approver fixture checks use only in-memory NSS/AccountsService

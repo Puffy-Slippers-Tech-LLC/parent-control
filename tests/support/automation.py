@@ -114,7 +114,14 @@ class Automation:
         node = self.find(identity)
         if node is None:
             return False
-        states = node.get_state_set()
+        try:
+            states = node.get_state_set()
+        except self.query_errors as error:
+            # Layout changes can retire the public object after ID lookup.
+            # A failed state query proves neither visibility nor absence;
+            # discard this read so the bounded wait reacquires the ID.
+            self.reader.invalidate_observation()
+            raise AutomationError("automation:incomplete-tree") from error
         return (states.contains(self.api.StateType.SHOWING)
                 and states.contains(self.api.StateType.VISIBLE)
                 and not states.contains(self.api.StateType.DEFUNCT))

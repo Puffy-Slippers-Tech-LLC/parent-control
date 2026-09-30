@@ -41,6 +41,31 @@ def same_xml(left, right):
     return ET.canonicalize(left, strip_text=True) == ET.canonicalize(right, strip_text=True)
 
 
+def acquire_idle(lease):
+    """Acquire the existing maintenance locks and attest an idle, off guest."""
+    base = runner.baseline
+    lease.capture.directory_identity = lease.capture.private_directory()
+    lease.compatibility_fd = base.compatibility_lock(lease.directory)
+    lock = lease.capture.lock_path
+    lease.fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    base.identity(lock, private=True, mode=0o600)
+    try:
+        fcntl.flock(lease.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        raise runner.Error('state:busy-controller') from error
+    lease.commands.lock_fd = lease.fd
+    lease.commands.compatibility_fd = lease.compatibility_fd
+    lease.capture.state = lease.capture.read_state()
+    runner.require(lease.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
+    lease.capture.require_idle_attempt()
+    lease.capture.revalidate(off=True)
+    runner.require(lease.source.domain.ID() == -1 and not lease.source.domain.autostart(),
+                   'vm-control:rename-requires-idle-off')
+    lease.ownership_run = uuid.uuid4().hex
+    lease.capture.begin_vm_ownership(lease)
+    lease.capture.verify_snapshot(boundary='acquisition')
+
+
 def rename(lease, new_name):
     """Rename an idle pinned guest and move its provenance under the same lease.
 
@@ -55,28 +80,9 @@ def rename(lease, new_name):
     old_directory = lease.directory
     destination = old_directory.parent / new_name
     with operation('VM maintenance: rename'):
-        lease.capture.directory_identity = lease.capture.private_directory()
         base.canonical(old_directory.parent)
         runner.require(not os.path.lexists(destination), 'vm-control:rename-state-exists')
-        lease.compatibility_fd = base.compatibility_lock(old_directory)
-        lock = lease.capture.lock_path
-        lease.fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-        base.identity(lock, private=True, mode=0o600)
-        try:
-            fcntl.flock(lease.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise runner.Error('state:busy-controller') from error
-        lease.commands.lock_fd = lease.fd
-        lease.commands.compatibility_fd = lease.compatibility_fd
-        lease.capture.state = lease.capture.read_state()
-        runner.require(lease.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
-        lease.capture.require_idle_attempt()
-        lease.capture.revalidate(off=True)
-        runner.require(lease.source.domain.ID() == -1 and not lease.source.domain.autostart(),
-                       'vm-control:rename-requires-idle-off')
-        lease.ownership_run = uuid.uuid4().hex
-        lease.capture.begin_vm_ownership(lease)
-        lease.capture.verify_snapshot(boundary='acquisition')
+        acquire_idle(lease)
         original_xml = lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE)
         expected_xml = renamed_xml(original_xml, old_name, new_name, lease.source.uuid)
         snapshots = sorted((item.getName(), item.getXMLDesc(0))
@@ -307,7 +313,7 @@ def main(argv=None):
     parser.add_argument('--vm', help='required configured VM name (validated before parsing)')
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reset',
-                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename'))
+                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk'))
     parser.add_argument('keys', nargs='*', type=int)
     parser.add_argument('--new-name')
     args = parser.parse_args(argv)
@@ -349,13 +355,17 @@ def main(argv=None):
         source = runner.baseline.LibvirtSource(api)
         check_identity(source, args.expected_uuid)
         commands = runner.Commands()
-        commands.directory = Path(tempfile.mkdtemp(prefix='onpc-vm-control-', dir='/tmp'))
+        from tools.test_storage import scratch_directory
+        commands.directory = Path(tempfile.mkdtemp(prefix='onpc-vm-control-', dir=scratch_directory()))
         lease = runner.Lease(source, commands,
                              lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
                              graphics_type='vnc')
         print('vm-control: validated operation starting', file=sys.stderr, flush=True)
         if args.action == 'rename':
             rename(lease, args.new_name)
+        elif args.action == 'rename-disk':
+            from vm_disk_rename import rename_disk
+            rename_disk(lease)
         else:
             operate(lease, args.action, args.keys)
         event('Maintenance: ' + args.action + ' complete')

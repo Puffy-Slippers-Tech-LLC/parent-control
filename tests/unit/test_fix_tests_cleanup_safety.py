@@ -60,6 +60,23 @@ def checkout(tmp_path, monkeypatch):
         child.wait(timeout=20)
 
 
+@pytest.mark.parametrize('rounds', [1, 2, 3])
+def test_worker_round_count_and_top_frame(checkout, rounds):
+    root, _ = checkout
+    (root / 'mode').write_text('pass')
+    run, _ = fix_tests.select(root, categories=('unit',), rounds=rounds)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['category'] for call in calls] == ['unit'] * rounds
+    progress = json.loads((run / 'controller.json').read_text())
+    assert [step['lines'][0] for step in progress] == [
+        f'Round {number}: Category: unit (1/1)' for number in range(max(1, rounds - 1), rounds + 1)]
+    rendered = Text.from_ansi(output.getvalue()).plain
+    assert all(f'Round {number}: Category: unit' in rendered
+               for number in range(1, rounds + 1))
+
+
 def test_concurrent_starts_share_one_owner_and_terminal_loss_only_detaches(checkout):
     root, spawned = checkout
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -77,7 +94,7 @@ def test_concurrent_starts_share_one_owner_and_terminal_loss_only_detaches(check
 
     with pytest.raises(BrokenPipeError):
         fix_tests.follow(run, ClosedTerminal())
-    assert fix_tests.select(root) == (run, False)
+    assert fix_tests.select(root, rounds=2) == (run, False)
     assert spawned[0].poll() is None
     assert fix_tests.select(root, stop=True) == (run, False)
     assert fix_tests.follow(run, io.StringIO()) == 130
@@ -87,7 +104,7 @@ def test_concurrent_starts_share_one_owner_and_terminal_loss_only_detaches(check
 @pytest.mark.parametrize('action', ['stop', 'ctrl-c', 'kill-owner'])
 def test_cancellation_waits_for_runner_cleanup_then_fresh_start(checkout, monkeypatch, action):
     root, spawned = checkout
-    run, _ = fix_tests.select(root)
+    run, _ = fix_tests.select(root, rounds=2)
     wait_for(root / 'test-ready')
     if action == 'kill-owner':
         with lock(run.parent / 'owner') as owner:
@@ -116,7 +133,7 @@ def test_cancellation_waits_for_runner_cleanup_then_fresh_start(checkout, monkey
     # Remove the main-only hook; this is a new caller after ownership is idle.
     if action != 'kill-owner':
         monkeypatch.setattr(fix_tests, 'select', select)
-    next_run, started = fix_tests.select(root)
+    next_run, started = fix_tests.select(root, rounds=2)
     assert started and next_run != run
     # Use the implementation, not the Ctrl+C hook, for the new observer.
     if action == 'ctrl-c':
@@ -129,7 +146,7 @@ def test_cancellation_waits_for_runner_cleanup_then_fresh_start(checkout, monkey
 def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode, expected):
     root, _ = checkout
     (root / 'mode').write_text(mode)
-    run, _ = fix_tests.select(root)
+    run, _ = fix_tests.select(root, rounds=2)
     output = io.StringIO()
     assert fix_tests.follow(run, output) == expected
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
@@ -170,7 +187,7 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
     from launcher_render import LauncherDisplay
     root, spawned = checkout
     (root / 'mode').write_text(mode)
-    run, _ = fix_tests.select(root, categories=('unit',))
+    run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     wait_for(run / 'question.json')
     before = (root / 'calls').read_text()
     # No terminal, timeout or preselected recommendation may authorize work.
@@ -217,7 +234,7 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
 def test_stop_while_awaiting_developer_never_runs_repair_or_tests(checkout):
     root, spawned = checkout
     (root / 'mode').write_text('agent-blocked')
-    run, _ = fix_tests.select(root, categories=('unit',))
+    run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     wait_for(run / 'question.json')
     before = (root / 'calls').read_text()
     assert fix_tests.select(root, stop=True) == (run, False)
@@ -234,7 +251,7 @@ def test_agent_stop_terminates_its_group_and_preserves_unrelated_sentinel(checko
     sentinel = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)'])
     sentinel_fd = os.pidfd_open(sentinel.pid)
     try:
-        run, _ = fix_tests.select(root)
+        run, _ = fix_tests.select(root, rounds=2)
         wait_for(root / 'agent-ready')
         if kill_owner:
             owner_fd = os.pidfd_open(spawned[-1].pid)
@@ -260,7 +277,7 @@ def test_stale_or_corrupt_metadata_cannot_block_a_fresh_owner(checkout):
     directory = fix_tests.private_directory(root / 'artifacts/fix-tests')
     (directory / 'current.json').write_text('interrupted metadata')
     (root / 'mode').write_text('pass')
-    run, started = fix_tests.select(root)
+    run, started = fix_tests.select(root, rounds=2)
     assert started and fix_tests.follow(run, io.StringIO()) == 0
     assert fix_tests.select(root, stop=True) == (None, False)
 
@@ -268,35 +285,42 @@ def test_stale_or_corrupt_metadata_cannot_block_a_fresh_owner(checkout):
 def test_unread_predecessor_result_does_not_count_as_the_requested_category(checkout):
     root, _ = checkout
     (root / 'mode').write_text('attach-once')
-    run, _ = fix_tests.select(root)
+    run, _ = fix_tests.select(root, rounds=2)
     assert fix_tests.follow(run, io.StringIO()) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['category'] for call in calls] == ['unit', 'unit', 'ui', 'system', 'e2e', 'all']
     assert all(call['kind'] == 'test' for call in calls)
 
 
-def test_stale_runner_uses_existing_recovery_route_then_retries_category(checkout):
+@pytest.mark.parametrize('scope', ['host', 'vm', 'batch'])
+def test_stale_runner_uses_existing_recovery_route_then_retries_category(checkout, monkeypatch, scope):
+    from vm_selection import VARIABLE, execution_selection
+    if scope == 'host':
+        monkeypatch.delenv(VARIABLE, raising=False)
+    elif scope == 'batch':
+        execution_selection()
     root, _ = checkout
     (root / 'mode').write_text('retention-once')
-    run, _ = fix_tests.select(root, categories=('unit',))
+    run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    vm_args = ['--vm', 'onpc-Ubuntu26.04'] if scope == 'vm' else []
+    recovery_args = ['--host-only'] if scope == 'host' else vm_args
     assert [call['args'] for call in calls] == [
-        ['--stop-on-error', 'unit', '--vm', 'onpc-Ubuntu26.04'],
-        ['--vm', 'onpc-Ubuntu26.04'],
-        ['--stop-on-error', 'unit', '--vm', 'onpc-Ubuntu26.04'],
-        ['--stop-on-error', 'unit', '--vm', 'onpc-Ubuntu26.04'],
-    ]
+        ['--stop-on-error', 'unit', *vm_args], recovery_args,
+        ['--stop-on-error', 'unit', *vm_args], ['--stop-on-error', 'unit', *vm_args]]
     assert calls[1]['kind'] == 'recovery'
-    assert 'recovering both retention scopes' in output.getvalue()
+    assert ('recovering host retention' if scope == 'host' else
+            'recovering both retention scopes') in output.getvalue()
+    assert 'Traceback' not in output.getvalue()
     assert not [call for call in calls if call['kind'] == 'agent']
 
 
 def test_recovery_failure_handoff_is_repaired_then_recovery_and_category_retry(checkout):
     root, _ = checkout
     (root / 'mode').write_text('retention-repair')
-    run, _ = fix_tests.select(root, categories=('unit',))
+    run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
@@ -324,7 +348,7 @@ def test_recovery_failure_handoff_is_repaired_then_recovery_and_category_retry(c
 def test_cancellation_during_recovery_waits_for_cleanup(checkout):
     root, _ = checkout
     (root / 'mode').write_text('recovery-wait')
-    run, _ = fix_tests.select(root, categories=('unit',))
+    run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     wait_for(root / 'test-ready')
     assert fix_tests.select(root, stop=True) == (run, False)
     assert fix_tests.follow(run, io.StringIO()) == 130
@@ -338,7 +362,7 @@ def test_cancellation_during_recovery_waits_for_cleanup(checkout):
 def test_selected_categories_stay_scoped_through_worker_and_repair(checkout, categories):
     root, _ = checkout
     (root / 'mode').write_text('agent-repeat')
-    run, _ = fix_tests.select(root, categories=categories)
+    run, _ = fix_tests.select(root, rounds=2, categories=categories)
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
@@ -351,7 +375,7 @@ def test_selected_categories_stay_scoped_through_worker_and_repair(checkout, cat
 def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-repeat')
-    run, _ = fix_tests.select(root)
+    run, _ = fix_tests.select(root, rounds=2)
     assert fix_tests.follow(run, io.StringIO()) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agents = [call for call in calls if call['kind'] == 'agent']
@@ -385,7 +409,7 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
 def test_initial_override_preserves_requested_model_and_effort_standard(checkout, options):
     root, _ = checkout
     (root / 'mode').write_text('agent-pass')
-    run, _ = fix_tests.select(root, categories=('unit',), **options)
+    run, _ = fix_tests.select(root, rounds=2, categories=('unit',), **options)
     assert fix_tests.follow(run, io.StringIO()) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agent, = [call for call in calls if call['kind'] == 'agent']
@@ -400,7 +424,7 @@ def test_app_or_uncertain_classification_starts_fresh_sol_high_agent(checkout, m
                                                                    classification):
     root, _ = checkout
     (root / 'mode').write_text(mode)
-    run, _ = fix_tests.select(root, categories=('unit',))
+    run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     assert fix_tests.follow(run, io.StringIO()) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agents = [call for call in calls if call['kind'] == 'agent']
@@ -424,7 +448,7 @@ def test_discovered_arguments_reach_each_test_without_reconstruction(checkout):
     (root / 'inventory.json').write_text(json.dumps({
         'e2e': {'args': []}, 'future-suite': {'args': ['--case', 'two words']},
         'unit': {'args': ['--future-option']}}))
-    run, _ = fix_tests.select(root)
+    run, _ = fix_tests.select(root, rounds=2)
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]

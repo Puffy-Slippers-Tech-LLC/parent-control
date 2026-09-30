@@ -12,10 +12,17 @@ def before_run(root, argv, *, categories=None):
     if not test_activity.descriptors():
         raise ValueError('retention: checkout activity ownership required')
     if host_only_selection([(kind, []) for kind in (categories or [argv[0]])]):
-        # Host journals remain subject to Store.session's identity/recovery
-        # checks, but host work never inspects or recovers VM-owned storage.
-        return 0
+        return cleanup_host(root)
     return cleanup(root)
+
+
+def cleanup_host(root):
+    """Recover only host evidence, under its independent checkout owner."""
+    with test_activity.activity(root, host_only=True):
+        path = test_activity.retention_path(root)
+        if path.exists():
+            test_retention.Store(path).reconcile(lambda: None)
+    return 0
 
 
 def cleanup(root):

@@ -124,10 +124,15 @@ def select(root, argv):
         # Keep host-only ownership independent of standalone VM preparation.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
         with test_activity.activity(root, host_only=host_only):
-            run = directory / uuid.uuid4().hex
-            run.mkdir(mode=0o700)
             import test_retention
-            with test_retention.Store(directory / 'retention').session():
+            store = test_retention.Store(directory / 'retention')
+            if store.path.exists():
+                # Registration can itself be interrupted before a worker is
+                # published. Gates and activity ownership exclude live users.
+                store.reconcile(lambda: None)
+            with store.session():
+                run = directory / uuid.uuid4().hex
+                run.mkdir(mode=0o700)
                 test_retention.retain(run)
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:
                 fcntl.flock(owner, fcntl.LOCK_EX)
@@ -228,14 +233,14 @@ def worker(root, argv, run, owner):
     original = sys.stdout
     sys.stdout = SessionOutput(run, original)
     try:
-        from test_commands import _main, selections
+        from test_commands import _main, selections, host_only_selection
         with test_activity.activity(root):
             from test_recovery import before_run
             categories = [kind for kind, _ in selections(root, argv)] if argv else []
             sys.stdout.controller('preparing', [
                 f'Category: {categories[0] if categories else "all"} (1/{len(categories) or 1}) | Preparing tests'])
             from vm_selection import BATCH
-            if BATCH not in os.environ:
+            if BATCH not in os.environ or host_only_selection([(kind, []) for kind in categories]):
                 before_run(root, argv, categories=categories)
             status = _main(argv, detached=True)
     finally:

@@ -3506,6 +3506,73 @@ def boundary_ui(state_name):
     return ui, dialog, rows
 
 
+@pytest.mark.parametrize('fault', ['', 'not-delivered', 'callback', 'result', 'preserved'])
+def test_component_chooser_waits_for_new_delivery_before_identical_rejection(tmp_path, fault):
+    from tests.support.feedback import install_component_chooser, add_component_attachments
+
+    manifest = tmp_path / 'chooser-inputs.json'
+    manifest.write_text(json.dumps([['long-name.txt'], ['hidden-name.txt']]), encoding='utf-8')
+    delivery = manifest.with_suffix('.delivered')
+    pending, received, operations, clicks = [], [], [], []
+    gtk = SimpleNamespace()
+    gio = SimpleNamespace(File=SimpleNamespace(new_for_path=lambda path: path))
+    glib = SimpleNamespace(idle_add=lambda callback: pending.append(callback), SOURCE_REMOVE=False)
+    install_component_chooser(manifest, gtk, gio, glib)
+
+    def selected(chooser, _result):
+        # The acknowledgement must follow the application callback, including
+        # its failure; chooser dispatch alone never establishes a handoff.
+        assert not delivery.exists() or delivery.read_text(encoding='ascii') == '1'
+        if len(clicks) == 2 and fault == 'callback':
+            raise RuntimeError('selection callback failed')
+        files = chooser.open_multiple_finish(None)
+        received.append(files.get_item(0))
+
+    def activate(identity):
+        assert identity == 'feedback-add-files'
+        clicks.append(identity)
+        chooser = gtk.FileDialog(title='Add feedback attachments')
+        chooser.open_multiple(None, None, selected)
+
+    def wait(predicate, code):
+        assert code == 'component-chooser-delivered'
+        # The first selection has no marker; the second has a stale marker.
+        # Neither may be mistaken for delivery of the new selection.
+        assert not predicate()
+        if len(clicks) == 2 and fault == 'not-delivered':
+            raise AssertionError('chooser delivery timed out')
+        assert pending.pop(0)() is glib.SOURCE_REMOVE
+        assert predicate()
+        return True
+
+    def boundary(operation):
+        operations.append(operation)
+        if not operation.endswith('-before'):
+            assert len(received) == len(clicks), 'previous rejection accepted before new delivery'
+        if operation == f'boundary-hidden-{fault}':
+            raise accessible_ui.UiError('ui:feedback-control')
+        # Both rejections deliberately have exactly the same public result.
+        return accessible_ui.boundary_expected('boundary-hidden-result')
+
+    ui = SimpleNamespace(boundary_operation=boundary, activate_id=activate,
+                         wait=wait, input_uncertain=False)
+    first = add_component_attachments(ui, 'name181', manifest)
+    if fault:
+        with pytest.raises((AssertionError, RuntimeError, accessible_ui.UiError)):
+            add_component_attachments(ui, 'hidden', manifest)
+    else:
+        assert add_component_attachments(ui, 'hidden', manifest) == first
+    assert len(clicks) == 2  # Delivery/read failures never replay input.
+    if fault in ('not-delivered', 'callback'):
+        assert delivery.read_text(encoding='ascii') == '1'
+        assert operations[-1] == 'boundary-hidden-before'
+        assert ui.input_uncertain
+    else:
+        assert delivery.read_text(encoding='ascii') == '2'
+        assert received == ['long-name.txt', 'hidden-name.txt']
+        assert operations[-1] == f'boundary-hidden-{fault or "preserved"}'
+
+
 @pytest.mark.parametrize('state', sorted(accessible_ui.BOUNDARY_STATES))
 @pytest.mark.parametrize('fault', ['', 'status', 'logs', 'extra', 'size', 'order'])
 def test_boundary_public_observations_require_exact_state(state, fault):

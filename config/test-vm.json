@@ -4,7 +4,7 @@
     {
       "name": "onpc-Ubuntu26.04",
       "enabled": "true",
-      "disk_anchor": "/Data/virt-manager/oh-no-parent-control.qcow2"
+      "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04.qcow2"
     },
     {
       "name": "onpc-Fedora-Workstation-44",

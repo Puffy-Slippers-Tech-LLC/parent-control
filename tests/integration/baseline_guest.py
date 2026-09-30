@@ -95,10 +95,19 @@ def label_preparation(g):
     os_id, _ = prepare_vm.release_identity(release)
     if os_id == 'fedora':
         policy = prepare_vm.selinux_policy(g.read_file('/etc/selinux/config').decode('utf-8'))
-        # The host's supported libguestfs provides selinux_relabel; use setfiles
-        # where the newer API is available. Do not change enforcement or policy.
         paths = [STAGE, UNIT, LINK]
-        if hasattr(g, 'setfiles'):
+        # Python API presence does not imply appliance support: Ubuntu's
+        # appliance omits setfiles. Use Fedora's tool and libraries through the
+        # mounted-guest command API when the appliance lacks that feature.
+        # -m keeps mounted guest filesystems eligible for relabelling.
+        if not g.feature_available(['selinuxrelabel']):
+            require(g.is_file('/usr/sbin/setfiles'),
+                    'guest:selinux-setfiles-missing; install policycoreutils in the Fedora guest')
+            try:
+                g.command(['/usr/sbin/setfiles', '-m', policy, *paths])
+            except RuntimeError:
+                require(False, 'guest:selinux-relabel-failed')
+        elif hasattr(g, 'setfiles'):
             g.setfiles(policy, paths)
         else:
             for path in paths:

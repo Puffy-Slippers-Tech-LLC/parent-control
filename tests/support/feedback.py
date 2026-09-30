@@ -61,15 +61,25 @@ def install_component_chooser(manifest, gtk, gio, glib):
     from pathlib import Path
     from types import SimpleNamespace
 
-    choices = iter(json.loads(Path(manifest).read_text(encoding='utf-8')))
+    manifest = Path(manifest)
+    choices = iter(enumerate(json.loads(manifest.read_text(encoding='utf-8')), 1))
+    delivery = manifest.with_suffix('.delivered')
 
     class Chooser:
         def __init__(self, *, title):
             assert title == 'Add feedback attachments'
 
         def open_multiple(self, parent, cancellable, callback):
-            self.paths = next(choices)
-            glib.idle_add(callback, self, None)
+            sequence, self.paths = next(choices)
+
+            def deliver():
+                callback(self, None)
+                # Acknowledges only the external chooser handoff. The real
+                # frontend worker and its public result still own completion.
+                delivery.write_text(str(sequence), encoding='ascii')
+                return glib.SOURCE_REMOVE
+
+            glib.idle_add(deliver)
 
         def open_multiple_finish(self, result):
             files = [gio.File.new_for_path(path) for path in self.paths]
@@ -78,9 +88,21 @@ def install_component_chooser(manifest, gtk, gio, glib):
     gtk.FileDialog = Chooser
 
 
-def add_component_attachments(ui, batch):
+def add_component_attachments(ui, batch, manifest):
     """Use the same public before/result projections as the installed handoff."""
+    delivery = manifest.with_suffix('.delivered')
+    previous = int(delivery.read_text(encoding='ascii')) if delivery.exists() else 0
     ui.boundary_operation(f'boundary-{batch}-before')
     ui.activate_id('feedback-add-files')
+    # Consecutive rejected selections can have identical rows and messages.
+    # Do not let the previous public result satisfy this selection before the
+    # asynchronous chooser double has even called the app's selection handler.
+    try:
+        ui.wait(lambda: delivery.exists()
+                and delivery.read_text(encoding='ascii') == str(previous + 1),
+                'component-chooser-delivered')
+    except BaseException:
+        ui.input_uncertain = True
+        raise
     ui.boundary_operation(f'boundary-{batch}-result')
     return ui.boundary_operation(f'boundary-{batch}-preserved')

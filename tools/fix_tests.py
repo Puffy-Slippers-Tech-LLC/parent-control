@@ -197,7 +197,7 @@ def category_status(category, categories):
 
 
 def run_loop(categories, test, repair, check_stop, *, selected=False, round_changed=lambda _: None,
-             verified=lambda _repair, _passed: None):
+             verified=lambda _repair, _passed: None, rounds=1):
     """Only the latest repair handoff survives until its category passes."""
     def finish_category(category, failure):
         previous = None
@@ -213,7 +213,13 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
     for category in categories:
         check_stop()
         finish_category(category, test(category))
-    round_changed(2)
+    for number in range(2, rounds + 1):
+        round_changed(number)
+        verify_round(categories, test, finish_category, check_stop, selected=selected)
+
+
+def verify_round(categories, test, finish_category, check_stop, *, selected):
+    """Repeat verification and repairs until this round has a clean pass."""
     if selected:
         # A later repair can break an earlier leaf. Require a whole selected
         # pass without repairs before finishing, never widening to all.
@@ -249,8 +255,9 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         command = [str(root / 'tools/run-tests'), '--stop-on-error', category,
                    *json.loads(test_args), *vm_args]
     elif kind == 'recovery':
-        from vm_selection import execution_arguments
-        command = [str(root / 'tools/cleanup-e2e'), *execution_arguments()]
+        from vm_selection import execution_arguments, execution_binding
+        options = execution_arguments() if execution_binding() is not None else ['--host-only']
+        command = [str(root / 'tools/cleanup-e2e'), *options]
     else:
         command = repair_command(root, model, effort, run)
         metadata = dict(json.loads(test_args), phase=category, model=model,
@@ -271,7 +278,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     return detached_launcher.supervise(root, run, owner, kind, command)
 
 
-def worker(root, run, owner, model, effort, app_model, requested='[]'):
+def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1'):
     from launcher_progress import publish_progress, publish_repair_status, read_progress, repair_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     round_number = 1
@@ -343,7 +350,9 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
                 if recovered:
                     raise ValueError('test runner remained stale after automatic recovery; '
                                      'see last-test.log')
-                print('fix-tests: interrupted test ownership found; recovering both retention scopes.',
+                from vm_selection import execution_binding
+                scope = 'both retention scopes' if execution_binding() is not None else 'host retention'
+                print(f'fix-tests: interrupted test ownership found; recovering {scope}.',
                       flush=True)
                 recovery_status = execute('recovery')
                 if recovery_status:
@@ -412,16 +421,16 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
         requested = json.loads(requested)
         inventory = suite_inventory(requested, inventory=category_inventory(listing.stdout))
         categories = list(inventory)
-        print('fix-tests: category pass, then ' +
-              ('selected leaf passes' if requested else 'complete all passes') +
-              ' until success', flush=True)
+        rounds = int(rounds)
+        print(f'fix-tests: category pass, then {rounds - 1} verification round(s)', flush=True)
         print('fix-tests: categories: ' + ', '.join(categories), flush=True)
-        run_loop(categories, test, repair, check_stop, selected=bool(requested),
+        run_loop(categories, test, repair, check_stop, selected=bool(requested), rounds=rounds,
                  round_changed=round_changed,
                  verified=lambda repair, passed: record_usage(
                      run, dict(repair_id=repair['repair_id'], attempt=repair['attempt'],
                                passed=passed), event='verification'))
         print('\nfix-tests: ' + ('all selected categories passed.' if requested else
+              'all categories passed.' if rounds == 1 else
               'all categories and the complete regression passed.'), flush=True)
         status = 0
     except Stopped:
@@ -440,7 +449,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
     return status
 
 
-def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()):
+def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=(), rounds=1):
     from vm_selection import execution_binding, check_binding, save_binding
     name = execution_binding()
     legacy = root / 'artifacts/fix-tests'
@@ -459,7 +468,7 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
         default_model, app_model = available_models(selected_model, selected_effort)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                 '--worker', str(root), str(run), str(owner), default_model,
-                selected_effort, app_model, json.dumps(categories)]
+                selected_effort, app_model, json.dumps(categories), str(rounds)]
 
     return detached_launcher.select(root, 'fix-tests', command, stop=stop,
         on_attach=lambda run: check_binding(run, name, stopping=stop),
@@ -475,12 +484,16 @@ def main(argv=None):
     parser.add_argument('--vm', help='one enabled VM; omitted: configured enabled queue and concurrency')
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
     parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
+    parser.add_argument('--rounds', type=int, default=1, metavar='X',
+                        help='run round 1 once, then round 2 X-1 times (default: 1)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
                         default=DEFAULT_EFFORT, help='initial reasoning effort (default: medium; repair review uses Sol high)')
     parser.add_argument('categories', nargs='*', metavar='CATEGORY',
                         help='leaf categories, host (or host-builds), or all; accepts "unit ui"; '
-                             'omitting categories preserves the full regression loop')
+                             'omitting categories selects every leaf')
     args = parser.parse_args(argv)
+    if args.rounds < 1:
+        parser.error('--rounds must be a positive integer')
     root = Path(__file__).resolve().parents[1]
     run = None
     requested = args.stop
@@ -508,7 +521,7 @@ def main(argv=None):
             os.environ.pop(VARIABLE, None)
             os.environ.pop(BATCH, None)
         run, started = select(root, stop=requested, model=args.model, effort=args.effort,
-                              categories=args.categories)
+                              categories=args.categories, rounds=args.rounds)
         if run is None:
             print('fix-tests: no active launcher.')
             return 0

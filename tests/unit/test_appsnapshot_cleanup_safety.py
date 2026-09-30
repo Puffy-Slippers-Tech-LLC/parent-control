@@ -10,6 +10,8 @@ import pytest
 import cleanup_e2e
 import prepare_appsnapshot as launcher
 import test_recovery
+import test_retention
+import test_storage
 import prepare_snapshot as controller
 import app_snapshot
 from tests.support.paths import ROOT
@@ -490,8 +492,8 @@ def test_standalone_cleanup_uses_the_shared_module_under_activity(tmp_path, monk
 def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypatch, status):
     monkeypatch.setattr(cleanup_e2e, '__file__', str(tmp_path / 'tools/cleanup_e2e.py'))
     monkeypatch.setattr(cleanup_e2e.os, 'geteuid', lambda: 1000)
-    retention = cleanup_e2e.test_retention
-    store = retention.Store(tmp_path / 'output/test-runs/host/state/retention-host')
+    retention = test_retention
+    store = retention.Store(test_storage.directory('state', root=tmp_path) / 'retention-host')
     with store.session() as run:
         retention.preserve_for_recovery()
     paths = []
@@ -508,6 +510,29 @@ def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypat
     if not status:
         with store.session():
             pass
+
+
+def test_host_cleanup_needs_no_vm_configuration(tmp_path, monkeypatch):
+    monkeypatch.setattr(cleanup_e2e, '__file__', str(tmp_path / 'tools/cleanup_e2e.py'))
+    monkeypatch.setattr(cleanup_e2e.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(cleanup_e2e.vm_config, 'execution',
+                        lambda *_: pytest.fail('host cleanup accessed VM configuration'))
+    monkeypatch.setattr(cleanup_e2e.vm_config, 'load',
+                        lambda *_: pytest.fail('host cleanup loaded a selected VM'))
+    monkeypatch.setattr(cleanup_e2e, 'cleanup',
+                        lambda *_: pytest.fail('host cleanup accessed VM recovery'))
+    store = test_retention.Store(test_storage.directory('state', root=tmp_path) / 'retention-host')
+    with store.session() as run:
+        test_retention.preserve_for_recovery()
+    assert cleanup_e2e.main(['--host-only']) == 0
+    assert (store.path / f'recovered-{run}.json').exists()
+    assert not (store.path / 'recovery-required').exists()
+
+
+def test_host_cleanup_refuses_a_vm_selector():
+    with pytest.raises(SystemExit) as error:
+        cleanup_e2e.main(['--host-only', *VM_ARGS])
+    assert error.value.code == 2
 
 
 @pytest.fixture

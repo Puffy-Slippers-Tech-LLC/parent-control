@@ -255,6 +255,57 @@ def test_host_leaves_pending_vm_recovery_untouched(tmp_path, monkeypatch, catego
     assert (store.path / 'recovery-required').exists()
 
 
+@pytest.mark.parametrize('fault', [None, 'active', 'replaced', 'activity'])
+def test_host_startup_recovers_only_idle_verified_evidence(tmp_path, monkeypatch, fault):
+    import test_activity
+    import test_recovery
+    import test_retention as live_retention
+    import test_storage
+    import regression_process
+    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
+    monkeypatch.setattr(test_activity, '_descriptor', None)
+    monkeypatch.setattr(regression_process, 'category_run',
+                        lambda *_args, **_kwargs: pytest.fail('host accessed VM recovery'))
+    store = live_retention.Store(test_storage.directory('state', root=tmp_path) / 'retention-host')
+    with store.session() as run:
+        evidence = tmp_path / 'evidence'
+        evidence.mkdir(mode=0o700)
+        live_retention.retain(evidence)
+        (evidence / 'test.log').write_text('interrupted evidence')
+        live_retention.preserve_for_recovery()
+    original = (store.path / 'current.json').read_bytes()
+    if fault == 'replaced':
+        evidence.rename(tmp_path / 'original')
+        evidence.mkdir(mode=0o700)
+    with test_activity.activity(tmp_path, host_only=True):
+        def start():
+            return test_recovery.before_run(tmp_path, ['--stop-on-error', 'unit'], categories=['unit'])
+        if fault == 'active':
+            with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+                with pytest.raises(ValueError, match='another owner'):
+                    start()
+        elif fault == 'activity':
+            descriptor = test_activity._descriptor
+            monkeypatch.setattr(test_activity, '_descriptor', None)
+            with pytest.raises(ValueError, match='another test launcher'):
+                test_recovery.cleanup_host(tmp_path)
+            monkeypatch.setattr(test_activity, '_descriptor', descriptor)
+        elif fault:
+            with pytest.raises(ValueError, match='replaced'):
+                start()
+        else:
+            assert start() == 0
+            assert start() == 0
+            assert (store.path / f'recovered-{run}.json').read_bytes() == original
+            assert (evidence / 'test.log').read_text() == 'interrupted evidence'
+            with store.session():
+                pass
+    if fault:
+        assert (store.path / 'current.json').read_bytes() == original
+        assert (store.path / 'recovery-required').exists()
+        assert evidence.exists()
+
+
 @pytest.fixture
 def repetition_tree():
     # Only the bounded repetition workload uses /tmp (tmpfs on the host).

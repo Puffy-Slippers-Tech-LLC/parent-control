@@ -13,6 +13,7 @@ import evidence
 import installed_journey as journeys
 import installed_setup
 import parent_about
+import parent_information
 import real_interval
 import real_interval_qualification
 import parent_access
@@ -200,6 +201,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  license_viewer_provider.PRIVACY_PLAN,
                                  license_viewer_provider.SUPPORT_PLAN,
                                  license_viewer_provider.INFORMATION_PLAN,
+                                 parent_information.PLAN,
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
                                  trace_stable_state.PLAN, trace_transition.PLAN, compose_observation.PLAN,
@@ -225,7 +227,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-eligible-choices', 'request-choices', 'kiosk-no-child', 'no-child-case',
                               'kiosk-no-approver', 'no-parent-case',
                               'terminal-provider', 'license-viewer-provider', 'parent-website',
-                              'parent-privacy', 'parent-support', 'parent-information', 'repeated-operations',
+                              'parent-privacy', 'parent-support', 'parent-information', 'parent-links',
+                              'repeated-operations',
                               'challenges', 'app-rows', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
@@ -254,6 +257,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-042/command-help'
     if plan is kiosk_about.PLAN:
         selector = 'E2E-042/kiosk'
+    if plan is parent_information.PLAN:
+        selector = 'E2E-042/parent-links'
     if plan is kiosk_no_child.CASE_PLAN:
         selector = 'E2E-017/no-child'
     if plan is kiosk_no_approver.CASE_PLAN:
@@ -528,7 +533,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 expected_steps.append('step-3')
                 actions['prepare-ineligible-approver'].assert_called_once()
             elif plan in (command_help.PLAN, restricted_station.PLAN, kiosk_multiple.CASE_PLAN,
-                          kiosk_about.PLAN):
+                          kiosk_about.PLAN, parent_information.PLAN):
                 expected_steps.append('step-3')
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)
@@ -691,6 +696,37 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
     assert not (tmp_path / (stage + '.reply.json')).exists()
 
 
+@pytest.mark.parametrize('fault', ['child', 'toggle', 'allowance', 'missing', 'missing-earlier'])
+def test_parent_information_return_comparison_refuses_before_durable_reply(tmp_path, fault):
+    plan = parent_information.PLAN
+    progress = Mock()
+    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), progress, plan)
+    stage = 'parent-returned'
+    journey.steps = [{'stage': name} for name in plan.stages[:plan.stages.index(stage)]]
+    earlier = journeys.SettingsObservation('fixture-child', False, ('0 minutes',))
+    if fault != 'missing-earlier':
+        journey.settings_observations['parent-selected'] = earlier
+    result = {'operation': 'parent-returned', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    if fault != 'missing':
+        result['settings'] = {
+            'child': 'existing-fixture-child' if fault == 'child' else earlier.child,
+            'limit_enabled': fault == 'toggle',
+            'allowance': ['1 hour'] if fault == 'allowance' else ['0 minutes'],
+        }
+    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))
+    journey.ui = SimpleNamespace(boot_proof='a' * 64, observe=Mock(return_value=result))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    category = ('ui:missing-settings-observation' if fault in ('missing', 'missing-earlier')
+                else 'ui:settings-changed:' + {'child': 'child', 'toggle': 'limit_enabled',
+                                             'allowance': 'allowance'}[fault])
+    with pytest.raises(EvidenceError, match=category):
+        journey.step(Mock())
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        journey.step(Mock())
+    progress.assert_not_called()
+    assert not (tmp_path / (stage + '.reply.json')).exists()
+
+
 @pytest.mark.parametrize('fault', [None, 'missing', 'reused', 'reordered', 'wrong-operation'])
 @pytest.mark.parametrize('plan', [parent_discovery.PLAN, parent_discovery.EMPTY_PLAN, parent_access.PLAN,
                                  parent_about.PLAN, license_viewer_provider.PLAN,
@@ -698,6 +734,7 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
                                  license_viewer_provider.PRIVACY_PLAN,
                                  license_viewer_provider.SUPPORT_PLAN,
                                  license_viewer_provider.INFORMATION_PLAN,
+                                 parent_information.PLAN,
                                  shell_search_results.PLAN, parent_search_launch.PLAN,
                                  shell_search.PLAN, kiosk_no_child.PLAN, kiosk_no_child.CASE_PLAN,
                                  kiosk_no_approver.PLAN, kiosk_no_approver.CASE_PLAN,
@@ -707,6 +744,7 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
                               'parent-privacy',
                               'parent-support',
                               'parent-information',
+                              'parent-links',
                               'shell-search', 'search-launch',
                               'standard-search', 'kiosk-no-child', 'no-child-case',
                               'kiosk-no-approver', 'no-parent-case', 'restricted-station'])

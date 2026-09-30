@@ -1273,27 +1273,33 @@ development tools, not customer E2E commands.
 Open `tools/watch` (or `make watch`) as the desktop user before or during a run.
 Both return after launching and repeated launches present one watcher for the
 desktop user session, including launches from other checkouts. Bottom tabs show
-**All** and each checkout's current Git branch name. Each checkout retains the
-whole terminal/UI/VM viewer described below. The bottom **All** tab puts active
-checkouts in two-column rows, leaving the right cell blank on an odd final row;
-one active checkout fills the space. Click a checkout cell or its heading to
-open its branch tab. Finished tabs retain their output and remain selectable.
-When every checkout is idle, **All** keeps the last finished checkout visible.
+**All** and each checkout's current Git branch name, in fixed discovery order.
+The bottom **All** tab divides the left terminal panel into equal vertical
+sections for branches with active runner output, in bottom-tab order. Each
+section has a bold branch heading. Sections appear and disappear as runners
+start and finish; when every runner is idle, the last finished terminal remains.
+Click a terminal heading to open its branch tab. An individual branch tab shows
+only its own terminal. Finished tabs retain their output and remain selectable.
 Related Git worktrees are discovered automatically; launch `tools/watch` from an
 unrelated checkout to add it to the same window. Branch names update after Git
 branch switches; checkout paths identify separate tabs even when labels match.
 The left terminal follows active `fix-tests` output before `run-tests`,
-using VS Code Dark+ colors, wrapping and vertical scrollback. The initial
-horizontal split is 30%/70%, adjustable by dragging. On the right, **All**
-shows active UI workers and VMs, with an adjustable 50%/50% vertical split
-when both are present. Its VM area uses two columns, adding rows as needed;
-an odd final row leaves the right cell blank. Each cell has its VM name as a
-title. **UI** selects the host viewer, and every registered VM has a tab named
-for that VM. Locked VM tabs appear normally; unlocked VM tabs are gray and
+using VS Code Light+ colors, wrapping and vertical scrollback. The initial
+horizontal split is 25%/75%, adjustable by dragging. The right viewer has one
+flat tab row: **All**, **UI - category** for each active UI worker category,
+and each registered VM's name. In the bottom **All** scope, category and VM
+tabs are prefixed with **[branch]:**. Its viewer **All** tab puts active viewers
+in one flat grid ordered by bottom branch, UI category name, then registered VM
+order. One cell fills the space; additional cells use two columns with as many
+rows as needed, leaving the right cell blank on an odd final row. Cell titles
+match their top tabs. Large grids scroll vertically at their minimum cell size.
+Double-click a cell to open its individual top tab while
+keeping the current bottom branch scope. UI categories and VMs share this grid;
+there is no nested UI tab row or separate UI/VM split. Viewer activity is
+independent of terminal activity. Locked VM tabs appear normally; unlocked VM tabs are gray and
 remain selectable, including running guests left idle between maintenance
 commands. The controller publishes that state through the read-only feed;
-the viewer never acquires a VM lease. Double-click a VM
-viewer to open its tab. Neither launcher accepts a VM parameter.
+the viewer never acquires a VM lease. Neither launcher accepts a VM parameter.
 
 Each VM's transport runs in its own worker with bounded latest-frame queues.
 Socket waits and shared-memory reads stay outside GTK and cannot block another
@@ -1304,8 +1310,7 @@ for each VM, and old controllers retain a compatible single-registry fallback.
 The viewer discovers
 private UI workers from each checkout for both `tools/run-ui-tests` and all
 aggregate paths (`tools/run-tests ui`, `host`, `all`, and mixed selections).
-**All branches** lays out up to four workers in a 2×2 grid, with a separate tab
-for each worker. Both views show the current pytest node ID and phase. Workers
+Each UI cell and its individual tab show the current pytest node ID and phase. Workers
 appear when their private compositor fixture starts, disappear on shutdown or
 expired heartbeat, and later workers reconnect automatically. The viewer may be
 opened, closed, resized or reopened without controlling the tests. Runs started

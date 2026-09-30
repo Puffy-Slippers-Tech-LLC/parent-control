@@ -12,29 +12,57 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 
 ## Scope and prerequisites
 
-Deliver **FIX04 native assets; LIFE04 fixture installation**. First scheduled consumer: [E2E-041, case 184](../E2E-Scenario-Recipes.md#e2e-041).
+Deliver **FIX04 native assets and launcher preparation**. First scheduled consumer: [E2E-041, case 184](../E2E-Scenario-Recipes.md#e2e-041).
 Read only the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope) and that consumer's selected recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **006** — LIFE04 install only.
+- **006** — existing guarded administrator SSH command route; its product package installation is not fixture preparation.
 - **077a** — PARENT12; UI13 complete public app-row observations.
 
 Use maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Bind A/H/S/N to the existing repository-built native fixture payloads and verified
-manifest. Reuse the maintained builder/artifact cache, FIX04 for transfer and
-LIFE04's shared administrator SSH helper for required local installation. Add
-only a missing finite fixture identity needed by the recipe; do not select,
-download or automate unrelated third-party apps. Staging does not install the
-payload. Stop at the declared catalogue identities/default rules; launch and
-usability belong to their following slices.
+These are repository-owned mock programs, not product components or third-party
+AppImages. The required product result is their discovery in Parent's App Limits.
+Use one preparation route:
+
+1. Bind A/H/S/N to a finite table of native executable paths, desktop IDs, visible
+   names/descriptions and expected default match fields. Reuse the existing GUI
+   fixture source and builder/artifact cache; add only the missing identities and
+   launchers. A/H/S/N name later test roles: preparation leaves every app allowed.
+2. Keep independently controlled role executables different in content using a
+   small build-time identity in the existing source. The current native layout
+   copies one binary under several names; a whitespace-path block uses content
+   matching and could therefore block the unrelated control too. Identical copies
+   belong only to a later case that explicitly tests that behavior.
+3. Use FIX04 to transfer the verified payload, then one fixed preparation helper
+   over the existing guarded administrator SSH transport to copy only the declared
+   executables, shared GUI files and desktop entries to their guest destinations.
+   Set executable modes and selected-child ownership explicitly, and read back
+   file digests, modes and launcher targets. Reuse shared file operations; keep
+   the source/destination set finite. Do not copy the whole image-root or its
+   hardcoded home directory into the guest.
+
+Native fixture preparation is ordinary file/launcher placement, not an APT/DNF
+installation. Do not add a fixture package, package-manager completion notice,
+reboot, new installer framework, vendor download or store UI. Reuse available
+guest Python/GTK prerequisites and report any missing dependency. Keep fixtures
+outside the shipped app, prepare them afresh in each owned attempt and let the
+existing baseline restoration remove them. Stop at catalogue identities/default
+rules; launch and usability belong to their following slices.
 
 ## Live VM acceptance
 
-In a fresh guarded installed VM attempt, stage the declared assets, install missing fixtures through the shared administrator SSH package helper and read successful completion. Open Parent's App Limits and independently observe each declared launcher and its default access/match fields through PARENT12/UI13. Reopening the catalogue must show the same fixture set. Do not count a manifest entry as an installed launcher or seed app policy. Missing supported assets or public catalogue identities block this consumer.
+In a fresh guarded installed VM attempt, stage the declared assets and prepare
+the finite native files/launchers through the shared guarded SSH route. Require
+successful preparation/readback before opening Parent's App Limits, then
+independently observe each declared launcher and its default access/match fields
+through PARENT12/UI13. Reopening the catalogue must show the same fixture set.
+Do not count a manifest entry or copied file as an observed catalogue row, or
+seed app policy. Missing supported assets or public catalogue identities block
+this consumer.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

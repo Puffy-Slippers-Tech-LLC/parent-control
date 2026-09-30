@@ -25,10 +25,13 @@ def checkout(tmp_path):
     (unit / 'helper.py').touch()
     (root / 'tools').mkdir()
     shutil.copy2(LAUNCHER, root / 'tools/run-unit-tests')
-    shutil.copy2(LAUNCHER.with_name('test_launcher.py'), root / 'tools/test_launcher.py')
-    shutil.copy2(LAUNCHER.with_name('test_retention.py'), root / 'tools/test_retention.py')
-    shutil.copy2(LAUNCHER.with_name('test_activity.py'), root / 'tools/test_activity.py')
-    shutil.copy2(LAUNCHER.with_name('test_storage.py'), root / 'tools/test_storage.py')
+    # Exercise the real shared session/observer dependencies in this private
+    # checkout, without accessing the development checkout's active session.
+    for module in LAUNCHER.parent.glob('*.py'):
+        shutil.copy2(module, root / 'tools' / module.name)
+    integration = root / 'tests/integration'
+    integration.mkdir()
+    shutil.copy2(LAUNCHER.parents[1] / 'tests/integration/vm_config.py', integration / 'vm_config.py')
     return root
 
 
@@ -152,6 +155,49 @@ def test_refuses_root_execution(monkeypatch, capsys):
     execute.assert_not_called()
 
 
+def test_public_unit_execution_publishes_serial_watch_session(checkout, monkeypatch):
+    import regression_session
+    import test_activity
+    main = runner['main']
+    monkeypatch.setitem(main.__globals__, '__file__', str(checkout / 'tools/run-unit-tests'))
+    monkeypatch.setattr(os, 'geteuid', lambda: 1000)
+    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
+    monkeypatch.setattr(test_activity, '_descriptor', None)
+    attach = Mock(return_value=7)
+    monkeypatch.setattr(regression_session, 'main', attach)
+    assert main(['tests/unit/test_graphical_lease.py', '-q']) == 7
+    attach.assert_called_once_with(checkout, [
+        'unit', '--unattended', 'tests/unit/test_graphical_lease.py', '-q'])
+
+
+def test_owned_unit_worker_does_not_reattach(checkout, monkeypatch):
+    import regression_session
+    import test_activity
+    main = runner['main']
+    monkeypatch.setitem(main.__globals__, '__file__', str(checkout / 'tools/run-unit-tests'))
+    monkeypatch.setattr(os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(regression_session, 'main', Mock(side_effect=AssertionError('reattached')))
+    execute = Mock(return_value=3)
+    monkeypatch.setitem(main.__globals__, 'run_host', execute)
+    with test_activity.activity(checkout, host_only=True):
+        assert main(['tests/unit/test_graphical_lease.py']) == 3
+    execute.assert_called_once_with(checkout, 'unit', ['tests/unit/test_graphical_lease.py'])
+
+
+def test_detached_direct_unit_request_keeps_serial_execution(monkeypatch):
+    import regression
+    import regression_process
+    import test_commands
+    monkeypatch.setattr(os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(test_commands, 'selections', lambda *_: [
+        ('unit', ['--unattended', '-q'])])
+    monkeypatch.setattr(regression, 'main', Mock(side_effect=AssertionError('parallelized')))
+    execute = Mock(return_value=5)
+    monkeypatch.setattr(regression_process, 'host_run', execute)
+    assert test_commands._main(['unit', '--unattended', '-q'], detached=True) == 5
+    execute.assert_called_once_with(LAUNCHER.parents[1], 'unit', ['-q'], pipe=False)
+
+
 @pytest.mark.parametrize('body,options,expected', [
     ('def test_pass(): pass\n', [], 0),
     ('def test_fail(): assert False\n', [], 1),
@@ -160,8 +206,8 @@ def test_refuses_root_execution(monkeypatch, capsys):
 ])
 def test_real_launcher_from_other_cwd_preserves_pytest_status(
         checkout, monkeypatch, body, options, expected):
-    # These fixture tests never start or signal other processes. subprocess owns
-    # the one launcher process, which execs pytest in place.
+    # Each private checkout owns its session and pytest child. The observer waits
+    # for the detached owner's result before the fixture can be reclaimed.
     (checkout / 'tests/unit/test_status.py').write_text(body)
     monkeypatch.setenv('PYTEST_DISABLE_PLUGIN_AUTOLOAD', '1')
     monkeypatch.setenv('PYTEST_ADDOPTS', '--rootdir=/missing-private-sentinel')
@@ -170,6 +216,15 @@ def test_real_launcher_from_other_cwd_preserves_pytest_status(
         [str(checkout / 'tools/run-unit-tests'), 'tests/unit/test_stat*.py', '-q', *options],
         cwd=checkout.parent, capture_output=True, text=True, timeout=20, check=False)
     assert result.returncode == expected, result.stdout + result.stderr
-    assert 'starting pytest with 1 validated selection(s)' in result.stderr
+    if '--collect-only' in options:
+        assert 'starting pytest with 1 validated selection(s)' in result.stderr
+    else:
+        from test_storage import directory
+        import json
+        base = directory('sessions-host', root=checkout, create=False)
+        run = base / json.loads((base / 'current.json').read_text())['run']
+        assert int((run / 'result').read_text()) == expected
+        summary = '1 deselected' if expected == 5 else ('1 passed' if expected == 0 else '1 failed')
+        assert summary in (run / 'output').read_text()
     assert 'private_sentinel' not in result.stdout + result.stderr
     assert not list((checkout / 'tests/unit').rglob('*.pyc'))

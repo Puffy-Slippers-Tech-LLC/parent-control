@@ -537,7 +537,9 @@ def _main(argv=None, *, detached=False):
             return regression_main(root, **phases)
         if detached:
             selected = selections(root, argv)
-            if selected[0][0] not in AGGREGATES and not any(
+            serial_host = (len(selected) == 1 and selected[0][0] in ('unit', 'component', 'ui')
+                           and selected[0][1][:1] == ['--unattended'])
+            if selected[0][0] not in AGGREGATES and not serial_host and not any(
                     '--list' in args or '--help' in args or '-h' in args or '--collect-only' in args
                     for _, args in selected):
                 from regression import main as regression_main

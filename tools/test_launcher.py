@@ -248,6 +248,14 @@ def main(argv=None, *, category='unit'):
         # Validate before creating ownership files or running prerequisites.
         pytest_command(root, argv[1:] if argv[:1] == ['--unattended'] else argv, category)
         inherited = test_activity.descriptors() or test_activity.VARIABLE in os.environ
+        if category == 'unit' and not inherited and not any(
+                flag in argv for flag in ('--help', '-h', '--collect-only')):
+            # Publish through the same durable session watched by tools/watch.
+            # The direct launcher keeps one serial pytest invocation; aggregate
+            # workers already own their session and must never reattach to it.
+            from regression_session import main as session_main
+            options = argv[1:] if argv[:1] == ['--unattended'] else argv
+            return session_main(root, [category, '--unattended', *options])
         with test_activity.activity(root, host_only=None if inherited else True):
             if argv[:1] == ['--unattended']:
                 from regression_process import host_run

@@ -219,26 +219,33 @@ def test_terminal_stream_keeps_colors_wrap_and_split_crlf_without_escape_payload
 
 def test_normal_launch_returns_after_service_exec_without_waiting_for_window(monkeypatch):
     import watch_viewer as viewer
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'select', Mock())
+    monkeypatch.setattr(vm_selection, 'arguments', lambda: ['--vm', 'watch-test'])
     monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
     monkeypatch.setattr(viewer.Path, 'read_text', lambda _: 'unconfined\n')
     monkeypatch.setattr(viewer, 'run_viewer', Mock(side_effect=AssertionError('must detach')))
     launch = Mock(return_value=Mock(returncode=0))
     monkeypatch.setattr(viewer.subprocess, 'run', launch)
-    assert viewer.main([]) == 0
+    assert viewer.main(['--vm', 'watch-test']) == 0
     command = launch.call_args.args[0]
     assert '--wait' not in command and '--pipe' not in command
-    assert command[-1] == '--desktop-session'
+    assert command[-3:] == ['--desktop-session', '--vm', 'watch-test']
+    vm_selection.select.assert_called_once_with('watch-test')
 
 
 def test_detached_entry_opens_viewer_once(monkeypatch):
     import watch_viewer as viewer
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'select', Mock())
     monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
     monkeypatch.setattr(viewer.Path, 'read_text', lambda _: 'unconfined\n')
     run = Mock(return_value=0)
     monkeypatch.setattr(viewer, 'run_viewer', run)
     monkeypatch.setattr(viewer.subprocess, 'run', Mock(side_effect=AssertionError('must not recurse')))
-    assert viewer.main(['--desktop-session']) == 0
+    assert viewer.main(['--desktop-session', '--vm', 'watch-test']) == 0
     run.assert_called_once_with()
+    vm_selection.select.assert_called_once_with('watch-test')
 
 
 def test_make_watch_delegates_to_this_checkout_and_returns(tmp_path):
@@ -246,10 +253,18 @@ def test_make_watch_delegates_to_this_checkout_and_returns(tmp_path):
     (root / 'tools').mkdir(parents=True)
     source = Path(__file__).resolve().parents[2]
     (root / 'Makefile').write_bytes((source / 'Makefile').read_bytes())
+    (root / 'tools/vm_selection.py').write_bytes((source / 'tools/vm_selection.py').read_bytes())
+    (root / 'tests/integration').mkdir(parents=True)
+    (root / 'tests/integration/vm_config.py').write_bytes(
+        (source / 'tests/integration/vm_config.py').read_bytes())
+    (root / 'config').mkdir()
+    (root / 'config/test-vm.json').write_text(json.dumps({'vms': [
+        {'name': 'watch-test', 'disk_anchor': '/unused/watch-test.qcow2'}]}))
     launcher = root / 'tools/watch'
-    launcher.write_text('#!/bin/sh\nprintf "watcher launched\\n"\n')
+    launcher.write_text('#!/bin/sh\n[ "$1" = "--vm" ] && [ "$2" = "watch-test" ] || exit 2\n'
+                        'printf "watcher launched\\n"\n')
     launcher.chmod(0o755)
-    result = subprocess.run(['make', '--no-print-directory', 'watch'], cwd=root,
+    result = subprocess.run(['make', '--no-print-directory', 'watch', 'VM=watch-test'], cwd=root,
                             capture_output=True, text=True, timeout=5)
     assert result.returncode == 0, result.stderr
     assert result.stdout == 'watcher launched\n'

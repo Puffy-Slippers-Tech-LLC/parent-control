@@ -1,7 +1,8 @@
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ElementTree
 
-from oh_no_parent_control.service import INTROSPECTION_XML
+from oh_no_parent_control.service import INTROSPECTION_XML, Service
 
 
 from tests.support.paths import ROOT
@@ -20,6 +21,25 @@ def signatures(xml):
 
 
 class ServiceContractTests(unittest.TestCase):
+    def test_export_collects_extension_evidence_before_snapshot_and_survives_failure(self):
+        service = Service.__new__(Service)
+        service.broker = mock.Mock()
+        service.log_writer = mock.Mock()
+        service._health_snapshot = mock.Mock(return_value={})
+        order = []
+        service.broker.collect_extension_diagnostics.side_effect = lambda: order.append("observe")
+        service.log_writer.snapshot.side_effect = lambda **_kwargs: order.append("snapshot") or b"report"
+        with mock.patch("oh_no_parent_control.service.GLib.idle_add") as reply:
+            service._export_logs_worker(None, 0)
+        self.assertEqual(order, ["observe", "snapshot"])
+        self.assertEqual(reply.call_args.args[3], b"report")
+        service.broker.collect_extension_diagnostics.side_effect = RuntimeError("private@example.test")
+        with (mock.patch("oh_no_parent_control.service.GLib.idle_add") as reply,
+              self.assertLogs("onpc", "WARNING") as logs):
+            service._export_logs_worker(None, 0)
+        self.assertEqual(reply.call_args.args[3], b"report")
+        self.assertNotIn("private", "\n".join(logs.output))
+
     def test_service_uses_current_binding_friendly_registration_api(self):
         source = (
             ROOT / "broker/oh_no_parent_control/service.py"

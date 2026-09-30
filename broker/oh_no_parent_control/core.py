@@ -235,6 +235,14 @@ class Broker:
                 value = self._accounts.get_extension(account.uid)
                 self._observe_grant(account.uid, *value, is_current=is_current)
 
+    def collect_extension_diagnostics(self) -> None:
+        """Observe eligible child sessions without mutating saved policy."""
+        if self._extensions is None:
+            return
+        config = self._load_config()
+        self._extensions.collect_diagnostics(
+            user.uid for user in self._accounts.list_users() if self._eligible(config, user))
+
     def refresh_enabled_extensions(self) -> tuple[int, ...]:
         """Reassert extension activation for every enabled managed child."""
         config = self._load_config()

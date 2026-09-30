@@ -1,4 +1,5 @@
 """Shared RPM source/payload contracts; no package install, VM or publication."""
+import configparser
 import hashlib
 import json
 import os
@@ -12,6 +13,7 @@ import pytest
 
 from tests.support.paths import ROOT
 from tests.support.package_scripts import machine, package_machine
+from tests.support.shell import relocate_system_paths
 from tools import build_rpm, package_inputs, rpm_builder
 
 
@@ -71,6 +73,46 @@ def test_fedora_pam_policy_tracks_both_shared_profiles(tmp_path):
     gate.write_text('Name: empty profile\nAccount:\n')
     with pytest.raises(ValueError, match='empty managed PAM profile'):
         stage['pam_stack'](tmp_path)
+
+
+def test_fedora_readiness_is_a_separate_required_boot_gate(fedora_payload):
+    system = fedora_payload / 'usr/lib/systemd/system'
+    # No additional process may inherit the daemon's SELinux-labelled runtime
+    # directory. This is the integration that previously broke Fedora boot.
+    assert not (system / 'fapolicyd.service.d/oh-no-parent-control-readiness.conf').exists()
+    gate = configparser.ConfigParser(interpolation=None)
+    gate.read(system / 'oh-no-parent-control-execution-policy-ready.service')
+    assert gate['Unit']['Requires'] == 'fapolicyd.service'
+    assert gate['Unit']['After'] == 'fapolicyd.service'
+    assert gate['Unit']['PartOf'] == 'fapolicyd.service'
+    assert gate['Service']['Type'] == 'oneshot'
+    assert gate['Service']['ExecStart'] == '/usr/libexec/oh-no-parent-control-execution-policy-ready'
+    assert gate['Service']['RemainAfterExit'] == 'yes'
+    assert gate['Service']['TimeoutStartSec'] == '90s'
+    assert 'RuntimeDirectory' not in gate['Service']
+    assert 'ExecStartPost' not in gate['Service']
+    display = configparser.ConfigParser(interpolation=None)
+    display.read(system / 'display-manager.service.d/oh-no-parent-control.conf')
+    assert display['Unit']['Requires'] == 'oh-no-parent-control-execution-policy-ready.service'
+    assert display['Unit']['After'] == 'oh-no-parent-control-execution-policy-ready.service'
+    assert (fedora_payload / 'usr/libexec/oh-no-parent-control-execution-policy-ready').read_bytes() == (
+        ROOT / 'tools/execution_policy_ready.py').read_bytes()
+    manifest = json.loads((fedora_payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
+    entries = {entry['path']: entry for entry in manifest['files']}
+    assert entries['usr/lib/systemd/system/oh-no-parent-control-execution-policy-ready.service']['activation'] == 'reboot'
+    canary = '00-oh-no-parent-control-canary.rules'
+    rule = fedora_payload / 'usr/share/oh-no-parent-control' / canary
+    assert rule.read_bytes() == (ROOT / 'data/fapolicyd' / canary).read_bytes()
+    assert entries['usr/share/oh-no-parent-control/' + canary]['activation'] == 'reboot'
+    # Fedora's known-libs default installs 42-trusted-elf.rules, whose execute
+    # allow also matches trusted RPM-owned scripts. The canary must precede it.
+    assert canary < '42-trusted-elf.rules'
+    assert [line for line in rule.read_text().splitlines() if line and not line.startswith('#')] == [
+        'deny perm=execute uid=0 : path=/usr/libexec/oh-no-parent-control-execution-policy-probe',
+    ]
+    spec = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
+    assert '%{_unitdir}/oh-no-parent-control-execution-policy-ready.service\n' in spec
+    assert '%{_unitdir}/fapolicyd.service.d/' not in spec
 
 
 @pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
@@ -190,6 +232,75 @@ def test_rpm_scriptlets_are_standalone_and_upgrade_removal_is_inert(tmp_path):
         assert result.stdout == result.stderr == ''
 
 
+@pytest.mark.parametrize('state', ['active', 'activating', 'failed', 'inactive'])
+def test_fedora_removal_clears_readiness_after_detaching_display_manager(machine, state):
+    machine.baseline(active=True, enabled=True, rules='administrator policy\n')
+    rule = machine.integration('fapolicyd-canary', 'etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules')
+    result = machine.run('postrm', 'remove', distribution='fedora', READINESS_STATE=state)
+    assert result.returncode == 0, result.stderr
+    assert not rule.exists()
+    assert not (machine.root / 'var/lib/oh-no-parent-control/installed-fapolicyd-canary').exists()
+    commands = machine.commands.splitlines()
+    unit = 'oh-no-parent-control-execution-policy-ready.service'
+    if state in ('active', 'activating'):
+        cleanup = f'systemctl stop {unit}'
+    elif state == 'failed':
+        cleanup = f'systemctl reset-failed {unit}'
+    else:
+        assert f'systemctl stop {unit}' not in commands
+        assert f'systemctl reset-failed {unit}' not in commands
+        return
+    assert commands.index('systemctl daemon-reload') < commands.index(cleanup)
+    assert commands.index(cleanup) < commands.index('fapolicyd-cli --reload-rules')
+    assert 'systemctl stop fapolicyd.service' not in commands
+    assert not any('gdm.service' in command for command in commands)
+
+
+def test_fedora_readiness_cleanup_failure_preserves_policy_baseline_for_retry(machine):
+    machine.baseline(active=True, enabled=True, rules='administrator policy\n')
+    result = machine.run('postrm', 'remove', distribution='fedora',
+                         READINESS_STATE='active', READINESS_STOP_STATUS='9')
+    assert result.returncode == 9
+    assert (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install/complete').exists()
+    assert 'fapolicyd-cli --reload-rules' not in machine.commands
+    retry = machine.run('postrm', 'remove', distribution='fedora', READINESS_STATE='active')
+    assert retry.returncode == 0, retry.stderr
+    assert not (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install').exists()
+
+
+def test_ubuntu_removal_does_not_touch_fedora_readiness(machine):
+    result = machine.run('postrm', 'remove', READINESS_STATE='active', READINESS_STOP_STATUS='9')
+    assert result.returncode == 0, result.stderr
+    assert 'oh-no-parent-control-execution-policy-ready.service' not in machine.commands
+
+
+@pytest.mark.parametrize('phase', ['prerm', 'postrm'])
+@pytest.mark.parametrize('changed', ['content', 'symlink'])
+def test_fedora_removal_preserves_modified_canary(machine, phase, changed):
+    rule = machine.integration('fapolicyd-canary', 'etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules')
+    if changed == 'content':
+        rule.write_text('administrator rule\n')
+    else:
+        rule.unlink()
+        rule.symlink_to(machine.write('administrator-rule', 'administrator rule\n'))
+    result = machine.run(phase, 'remove', distribution='fedora')
+    assert result.returncode != 0
+    assert rule.read_text() == 'administrator rule\n'
+    assert 'systemctl stop' not in machine.commands
+    assert 'fapolicyd-cli --reload-rules' not in machine.commands
+
+
+def test_fedora_install_refuses_unowned_canary_before_package_effects(machine):
+    machine.write('etc/os-release', 'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n')
+    machine.write('test-bin/authselect', '#!/bin/sh\ncase "$1" in current) echo local;; esac\n').chmod(0o755)
+    rule = machine.write('etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules', 'administrator rule\n')
+    result = machine.run('preinst', 'install', distribution='fedora')
+    assert result.returncode != 0
+    assert 'canary path already exists' in result.stderr
+    assert rule.read_text() == 'administrator rule\n'
+    assert not machine.commands
+
+
 @pytest.mark.parametrize('version,variant,accepted', [
     ('44', 'workstation', True), ('43', 'workstation', False),
     ('45', 'workstation', False), ('44', 'server', False), ('44', '', False),
@@ -205,12 +316,60 @@ def test_fedora_os_gate_precedes_package_effects(machine, version, variant, acce
 
 
 @pytest.mark.parametrize('package_machine', ['fedora'], indirect=True)
-def test_fedora_configuration_uses_shared_migration_and_activation(package_machine):
+@pytest.mark.parametrize('failure', [None, 'migration', 'compile', 'reload', 'readiness', 'broker'])
+def test_fedora_rpm_scriptlet_owns_configuration_and_preserves_failures(
+    package_machine, tmp_path, failure,
+):
     root, state, run = package_machine
-    result = run(IMPACTS='process-restart\nreboot')
+    renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
+    scripts = tmp_path / 'rpm-lifecycle'
+    renderer['rpm_scripts'](ROOT, scripts)
+    # Execute the actual RPM transaction callback with the existing isolated
+    # service/account machine, without a Make installation or repair step.
+    source = (scripts / 'rpm-posttrans').read_text()
+    (root / 'postinst').write_text(relocate_system_paths(source, root))
+    spec = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
+    assert '%posttrans -f rpm-lifecycle/rpm-posttrans' in spec
+    for dependency in ('authselect', 'fapolicyd', 'malcontent >= 0.14.0',
+                       'malcontent-libs >= 0.14.0', 'malcontent-pam >= 0.14.0',
+                       'policycoreutils', 'shadow-utils', 'systemd'):
+        assert f'Requires:       {dependency}\n' in spec
+    result = run(IMPACTS='process-restart\nreboot',
+                 MIGRATION_STATUS='7' if failure == 'migration' else '0',
+                 RULE_COMPILE_STATUS='10' if failure == 'compile' else '0',
+                 RULE_RELOAD_STATUS='11' if failure == 'reload' else '0',
+                 READINESS_STATUS='9' if failure == 'readiness' else '0',
+                 BROKER_STATUS='8' if failure == 'broker' else '0')
+    if failure:
+        assert result.returncode == {'migration': 7, 'compile': 10, 'reload': 11,
+                                     'readiness': 9, 'broker': 1}[failure]
+        assert (state / 'package-activation-pending').exists()
+        assert (state / 'previous-package-activation.json').exists()
+        assert (state / 'migration-in-progress').exists() == (failure == 'migration')
+        if failure in ('compile', 'reload', 'readiness'):
+            assert 'systemctl --system restart oh-no-parent-control-broker.service' not in (root / 'commands').read_text()
+            if failure != 'readiness':
+                assert 'systemctl start oh-no-parent-control-execution-policy-ready.service' not in (root / 'commands').read_text()
+            retry = run(IMPACTS='process-restart\nreboot')
+            assert retry.returncode == 0, retry.stderr
+            assert not (state / 'package-activation-pending').exists()
+        return
     assert result.returncode == 0, result.stderr
     commands = (root / 'commands').read_text().splitlines()
+    canary = '00-oh-no-parent-control-canary.rules'
+    assert (root / 'etc/fapolicyd/rules.d' / canary).read_bytes() == (ROOT / 'data/fapolicyd' / canary).read_bytes()
+    assert (state / 'installed-fapolicyd-canary').read_bytes() == (ROOT / 'data/fapolicyd' / canary).read_bytes()
     assert commands.index('oh-no-parent-control-migrate-state ') < commands.index('oh-no-parent-control-fedora-pam install')
+    assert 'systemd-sysusers malcontent-timer-extension-agent.conf malcontent-timerd.conf malcontent-webd.conf' in commands
+    assert 'systemctl enable fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service' in commands
+    assert 'systemctl start fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service' in commands
+    readiness = 'systemctl start oh-no-parent-control-execution-policy-ready.service'
+    assert commands.index('systemctl start fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service') < commands.index(readiness)
+    assert commands.index('fagenrules ') < commands.index('fapolicyd-cli --reload-rules')
+    assert commands.index('fapolicyd-cli --reload-rules') < commands.index(readiness)
+    assert commands.index(readiness) < commands.index('systemctl --system restart oh-no-parent-control-broker.service')
+    assert any(command.startswith('oh-no-parent-control-provision --kiosk-user ') for command in commands)
+    assert any(command.startswith('restorecon -R ') for command in commands)
     assert 'systemctl --system restart oh-no-parent-control-broker.service' in commands
     assert (root / 'etc/gdm/PreSession/Default').read_bytes() == (state / 'installed-gdm-presession').read_bytes()
     assert not any('pam-auth-update' in command or 'deb-systemd-invoke' in command for command in commands)

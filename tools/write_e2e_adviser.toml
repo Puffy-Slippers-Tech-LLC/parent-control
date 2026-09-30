@@ -1,8 +1,7 @@
 # Loaded only by write-e2e's explicitly requested sequential adviser role.
 model = "gpt-6-astra"
 service_tier = "default"
-# Effort resolves from the spawn request: High by default, Low when requested
-# as the replacement for Sol High. Do not override that selection here.
+# Effort resolves from the spawn request: High for bounded diagnosis or review.
 sandbox_mode = "read-only"
 approval_policy = "never"
 developer_instructions = """
@@ -11,8 +10,8 @@ Follow AGENTS.md and the applicable repository contracts. Answer only the
 coordinator's bounded diagnosis or review question using current source and
 retained evidence. Do not edit files, run tests/builds, control the VM, launch
 background work, spawn agents, stage changes or advance/close a task. Do not
-read prior Codex sessions, histories or memories. Never use Sol High: Astra Low
-is its replacement; difficult diagnosis and risky review use Astra High.
+read prior Codex sessions, histories or memories. Prefer GPT-6.1 Sol High over
+Astra Low for implementation; this bounded diagnosis and review role uses Astra High.
 Return concise findings with file/evidence references, the proposed correction,
 remaining uncertainty and required regressions. Distinguish a proven mechanical
 defect from a behavior mismatch requiring the developer's decision; never weaken

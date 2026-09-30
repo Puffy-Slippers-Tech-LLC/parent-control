@@ -59,7 +59,7 @@ diagnostic logs or feedback reports. Diagnostic-write failure does not gate
 readiness. Broker code activates with `process-restart`; this additive method
 adds no saved-data migration or GDM dependency.
 
-The packaged fapolicyd drop-in keeps the daemon in systemd's `activating` state
+On Ubuntu, the packaged fapolicyd drop-in keeps the daemon in systemd's `activating` state
 until a root-owned canary execution is denied by the live kernel policy. The
 display manager requires completed fapolicyd startup, so a managed graphical
 login cannot begin while the daemon rebuilds its trust database. Readiness
@@ -67,6 +67,16 @@ failure therefore fails closed before the login manager starts.
 The display-manager drop-in depends on fapolicyd, not the product broker.
 Broker registration failure prevents product operations but is not a separate
 GDM startup gate.
+
+Fedora uses a separate oneshot `oh-no-parent-control-execution-policy-ready.service`
+for the same canary. It requires and follows fapolicyd, has a 90-second startup
+timeout, and restarts with the daemon through `PartOf`. The Fedora display manager
+requires completed canary readiness, and package configuration starts that gate
+before broker activation. Separating the gate avoids systemd preparing fapolicyd's
+SELinux-labelled runtime directory again for an unrelated `ExecStartPost` command.
+Configuration compiles and reloads rules before the gate, including an owned
+Fedora-only early root-canary deny before the distribution's trusted-file allow.
+Ubuntu's drop-ins and readiness helper are unchanged.
 
 The PAM account stack exempts `systemd-user`, the kiosk account, and members
 of Ubuntu's `sudo` group from the Malcontent account check.

@@ -34,7 +34,7 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     role = tomllib.loads(adviser.read_text())
     assert role['model'] == 'gpt-6-astra'
     assert role['service_tier'] == 'default' and role['features']['fast_mode'] is False
-    assert 'model_reasoning_effort' not in role  # Preserve an explicit Astra Low request.
+    assert 'model_reasoning_effort' not in role  # Inherit the bounded adviser's requested effort.
     assert role['sandbox_mode'] == 'read-only' and role['approval_policy'] == 'never'
     assert role['agents']['enabled'] is False
     assert role['features']['multi_agent'] is role['features']['multi_agent_v2'] is False
@@ -47,10 +47,10 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
 @pytest.mark.parametrize('phase,attempts,model,effort', [
     ('implement', 0, 'gpt-6.1-sol', 'medium'),
     ('live', 1, 'gpt-6.1-sol', 'medium'),
-    ('live', 2, 'gpt-6-astra', 'low'),
+    ('live', 2, 'gpt-6.1-sol', 'high'),
     ('recover', 0, 'gpt-6.1-sol', 'medium'),
-    ('recover', 2, 'gpt-6-astra', 'low'),
-    ('recover', 5, 'gpt-6-astra', 'low'),
+    ('recover', 2, 'gpt-6.1-sol', 'high'),
+    ('recover', 5, 'gpt-6.1-sol', 'high'),
 ])
 def test_command_and_prompt_agree_on_stalled_task_escalation(tmp_path, monkeypatch,
                                                           phase, attempts, model, effort):
@@ -65,11 +65,12 @@ def test_command_and_prompt_agree_on_stalled_task_escalation(tmp_path, monkeypat
     state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
                  task_sessions=20)  # Session count/preparation alone must not escalate.
     prompt = workflow.session_prompt(state)
-    label = 'GPT-6-Astra Low' if model == 'gpt-6-astra' else 'GPT-6.1-Sol Medium'
+    label = f'GPT-6.1-Sol {effort.title()}'
     assert f'You are the {label} coordinator' in prompt
     assert 'Consult before implementing an unresolved risky\ndesign' in prompt
     assert 'e2e_adviser agent' in prompt
-    assert 'Never use Sol High' in prompt
+    assert 'Prefer GPT-6.1-Sol High over Astra Low' in prompt
+    assert 'Never use Sol High' not in prompt
     assert 'Leave investigation and repairs of this new failure to the next session' in prompt
 
 
@@ -79,7 +80,7 @@ def test_follow_up_keeps_implementation_and_acceptance_with_sol_medium(phase):
                  handoff='Legacy recommendation: continue with Astra High.')
     prompt = workflow.session_prompt(state)
     assert 'GPT-6.1-Sol Medium coordinator and implementer for this session' in prompt
-    assert 'Never use Sol High; use GPT-6-Astra Low' in prompt
+    assert 'Prefer GPT-6.1-Sol High over Astra Low' in prompt
     assert 'Ignore model recommendations in older handoffs' in prompt
     assert 'delegate one bounded diagnosis or review to the e2e_adviser agent' in prompt
     assert 'No parallel agents or overlapping work' in prompt

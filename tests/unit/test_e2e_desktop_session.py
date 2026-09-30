@@ -10,6 +10,7 @@ import session_control as control
 from accessible_ui import OPERATIONS, UiError
 from tests.support.accessible_ui import Node, ui_for
 from tests.support.desktop_session import RUN_PROBE, props
+from tests.support.paths import ROOT
 from tests.support.perl import run_perl
 
 
@@ -374,12 +375,14 @@ def test_session_qualification_uses_installed_snapshot_and_separate_attempts():
     from parent_setup_qualification import (DesktopLogoutQualification,
                                             DesktopSwitchQualification, KioskEntryQualification)
 
+    # Installed qualification follows the checkout release, not a fixed old snapshot.
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
     for qualification, mode in ((DesktopLogoutQualification, 'desktop_session_logout'),
                                 (DesktopSwitchQualification, 'desktop_session_switch')):
         assert issubclass(qualification, KioskEntryQualification)
         context = SimpleNamespace()
         journey = qualification.journey(context, Mock())
-        assert context.installed_snapshot == 'onpc-v1.1'
+        assert context.installed_snapshot == 'onpc-v' + version
         assert journey.plan.worker_mode == mode
 
     calls = []

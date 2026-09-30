@@ -393,6 +393,8 @@ def test_observer_monitor_forwards_changes_without_waiting_for_guest_frames():
     observer = Observer.__new__(Observer)
     observer.control = sender
     observer.progress = progress
+    # Match constructor state; the monitor sends lease metadata before progress.
+    observer.lease_locked = True
     observer.stop = threading.Event()
     observer.ready = threading.Event()
     observer.finished = threading.Event()
@@ -406,6 +408,7 @@ def test_observer_monitor_forwards_changes_without_waiting_for_guest_frames():
     try:
         with receiver:
             receiver.send(b'ready')
+            assert receiver.recv(3501) == b'lease-locked'
             assert json.loads(receiver.recv(3501))['current'] == 3
             progress.step('The next declared step')
             value = json.loads(receiver.recv(3501))

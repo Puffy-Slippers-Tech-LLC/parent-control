@@ -85,11 +85,23 @@ spec under `output/rpm/`. Native/container build output is retained in
 the product RPM. `make installdeb` reads the current version's package from
 `output/deb/`. `make installrpm` selects the most recently modified binary
 product RPM in `output/rpm/`, excluding source and debug packages, and uses
-`rpm -Uvh --force` to replace an older, equal or newer installed version.
-RPM dependencies must already be installed. `make install` detects the
+DNF to install it and resolve missing dependencies from enabled repositories.
+An equal installed version is reinstalled from the local RPM; an older or newer
+installed version is replaced by the selected build. RPM queries inspect the
+package identity without privilege; only the DNF transaction uses `sudo` for
+non-root callers. `make install` detects the
 distribution through `os-release` and dispatches to the DEB or RPM target;
 package lifecycle compatibility checks still apply. These targets install the
 app on the calling machine and are not development build or validation commands.
+
+The RPM is the installation authority. Its `Requires` resolve runtime
+dependencies and its embedded scriptlets perform all product configuration,
+including service accounts, PAM, provisioning, service activation and reboot
+notices. `make installrpm` only selects the local artifact, checks whether that
+exact version needs reinstalling and invokes DNF. Installing the same RPM
+directly with DNF or from COPR must perform the same setup without a checkout or
+any Make-side repair. Local same-version rebuilds explicitly use DNF reinstall;
+normal COPR upgrades use increasing RPM releases.
 
 ## Fedora lifecycle
 
@@ -133,7 +145,39 @@ keeps SELinux enforcing. A package marker under `/run` repeats the kiosk reboot
 reminder until reboot. Fedora needs no Ubuntu update-notifier dependency.
 Reminders never reboot or log users out.
 
+Fedora runs the shared execution canary in the independent
+`oh-no-parent-control-execution-policy-ready.service`. The display manager
+requires and orders itself after this oneshot gate, which requires fapolicyd;
+configuration also starts the gate and fails if it cannot complete. It
+is preceded by rule compilation and a rules-only reload during configuration,
+so a daemon already running before installation receives the new canary rule
+before the broker starts.
+The owned `00-oh-no-parent-control-canary.rules` contains only the fixed
+root-canary deny, ordered before Fedora's default trusted-file execute allow.
+It preserves the distribution and administrator rules; modified or substituted
+owned canary files block replacement/removal. Its template is tracked as `reboot`.
+The gate has a 90-second startup timeout and restarts with fapolicyd through `PartOf`.
+It has no runtime-directory ownership and does not add `ExecStartPost` to
+fapolicyd: systemd must not prepare the daemon's SELinux-labelled runtime files
+for an unrelated helper. SELinux remains enforcing without additional policy
+grants. Ubuntu retains its existing fapolicyd `ExecStartPost` integration.
+Changes to this Fedora boot gate require a reboot through the activation manifest.
+Removal reloads systemd after deleting the display-manager dependency, then
+stops any retained readiness service or clears its failed state before restoring
+the execution-policy baseline. This preserves the running desktop and prevents
+a reinstall from reusing a pre-removal readiness result. Upgrade erasure skips
+this cleanup; the replacement package owns configuration. The owned canary rule
+is removed before rebuilding the remaining policy or restoring the baseline.
+
 ## Local VM qualification
+
+Open enforcement blocker: Fedora's
+[default known-libs policy](https://src.fedoraproject.org/rpms/fapolicyd/raw/f44/f/fapolicyd.spec)
+loads a [trusted-file execute allow](https://github.com/linux-application-whitelisting/fapolicyd/blob/v2.0.1/rules.d/42-trusted-elf.rules)
+before the broker's current `89-oh-no-parent-control.rules`. Trusted child
+executables can therefore bypass those later native denies. The early root-canary
+rule fixes boot readiness only; Fedora application-policy ordering still needs
+repair and installed enforcement qualification before Fedora acceptance.
 
 Use the actual binary RPM in a separate Fedora Workstation 44 VM. This phase
 does not mutate VMs or replace the repository runner's pinned Ubuntu acceptance

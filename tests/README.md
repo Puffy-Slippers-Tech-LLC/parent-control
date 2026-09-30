@@ -205,15 +205,15 @@ and effort against the Codex CLI catalog before testing. Classification and
 proven mechanical test repairs use **GPT-6.1 Sol Medium** in one session.
 App issues, uncertainty and unresolved security, concurrency, ownership or
 difficult diagnosis end that session without edits and transfer to a fresh
-**Astra Low** session to recheck and repair. This preserves the stronger model
+**GPT-6.1 Sol High** session to recheck and repair. This raises reasoning effort
 at the judgment boundary without paying for an additional adviser and a second
 implementation context. Delegation stays disabled; classification is not an
 extra read-only agent before every mechanical repair.
 
 If verification after a claimed repair still fails, the next repair goes
-directly to Astra Low with the latest failure evidence and previous repair
+directly to GPT-6.1 Sol High with the latest failure evidence and previous repair
 summary. It stays there until that category passes, even if the next failure
-is different. This conservative rule avoids another Sol classification pass;
+is different. This conservative rule avoids another Medium classification pass;
 it does not wait for E2E's two-live-attempt threshold. A passing category clears
 that handoff. A new failure chain starts with classification. Detaching preserves
 the live loop; after a stopped/dead owner, a new run starts fresh, as before,
@@ -224,8 +224,8 @@ normal cleanup failure handoff enters the same repair policy, while refusal
 without a handoff still stops. No model performs routine ownership recovery.
 
 `--model` and `--effort` override the initial agent for a new run; review uses
-Astra Low. Sol must be `gpt-6.1-sol`; other Sol versions are refused, with no
-silent fallback. Sol High/Extra High requests map to Astra Low. Both required
+GPT-6.1 Sol High. Sol must be `gpt-6.1-sol`; other Sol versions are refused, with no
+silent fallback. Sol High/Extra High requests retain their requested effort. Both required
 model/effort pairs must be listed. All agent sessions pin **Standard speed**,
 including answered blockers and repair retries, overriding personal Fast defaults.
 Prompts require scoped reading and concise evidence handoffs without reducing
@@ -373,15 +373,15 @@ waits for owned cleanup.
 
 Initial implementation and follow-up sessions use GPT-6.1-Sol Medium as
 coordinator and implementer. After two recorded live attempts on an unfinished
-task, subsequent sessions use Astra Low, including after a launcher restart.
+task, subsequent sessions use GPT-6.1-Sol High, including after a launcher restart.
 A new task starts with 6.1 Sol Medium again; a suspended consumer retains its
 own attempt count. Preparation failures and session count alone do not trigger
 escalation. Settled implementation, mechanical
 repairs, test execution and close-out stay with that coordinator. Unresolved
 root causes, security, concurrency, ownership and risky
 correctness questions require one bounded GPT-6-Astra High consultation through
-the [read-only adviser](../tools/write_e2e_adviser.toml). Never use Sol High;
-select Astra Low explicitly whenever Sol High would otherwise be considered.
+the [read-only adviser](../tools/write_e2e_adviser.toml). Prefer GPT-6.1 Sol High
+over Astra Low for implementation and recovery.
 This policy overrides model recommendations in older saved handoffs.
 Consult before implementing an unresolved risky design, including in the initial
 session. All coordinators and advisers pin Standard speed, so personal Fast

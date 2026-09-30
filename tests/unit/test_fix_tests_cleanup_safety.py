@@ -202,11 +202,11 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
     assert answer in agents[-1]['prompt']
     assert 'fixture result' in agents[-1]['prompt']
     assert all(agent['prompt'].startswith('LATEST FAILURE ONLY\n') for agent in agents)
-    expected_models = (['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-astra']
-                       if mode == 'agent-app-blocked' else ['gpt-6.1-sol'] * len(agents))
-    assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == expected_models
-    for agent, model in zip(agents, expected_models):
-        effort = 'medium' if model == 'gpt-6.1-sol' else 'low'
+    assert all(agent['args'][agent['args'].index('--model') + 1] == 'gpt-6.1-sol'
+               for agent in agents)
+    efforts = (['medium', 'high', 'high'] if mode == 'agent-app-blocked'
+               else ['medium'] * len(agents))
+    for agent, effort in zip(agents, efforts):
         assert f'model_reasoning_effort="{effort}"' in agent['args']
     assert len(json.loads((run / 'developer-answers.json').read_text())) == len(answered)
     rendered = Text.from_ansi(output.getvalue()).plain
@@ -357,7 +357,9 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
     assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        'gpt-6.1-sol', 'gpt-6-astra']
+        'gpt-6.1-sol', 'gpt-6.1-sol']
+    assert 'model_reasoning_effort="medium"' in agents[0]['args']
+    assert 'model_reasoning_effort="high"' in agents[1]['args']
     assert 'verification_failed: fixture result' in agents[1]['prompt']
     records = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
     turns = [row for row in records if row['event'] == 'turn']
@@ -378,22 +380,23 @@ def test_repeated_repairs_are_distinct_processes_with_no_accumulated_prompt(chec
         assert not {'resume', 'fork', '--last'} & set(agent['args'])
 
 
-@pytest.mark.parametrize('options', [{'effort': 'high'}, {'model': 'gpt-6-astra', 'effort': 'low'}])
-def test_initial_override_is_validated_and_runs_astra_low_standard(checkout, options):
+@pytest.mark.parametrize('options', [{'effort': 'high'}, {'model': 'gpt-6.1-sol', 'effort': 'xhigh'},
+                                    {'model': 'gpt-6-astra', 'effort': 'low'}])
+def test_initial_override_preserves_requested_model_and_effort_standard(checkout, options):
     root, _ = checkout
     (root / 'mode').write_text('agent-pass')
     run, _ = fix_tests.select(root, categories=('unit',), **options)
     assert fix_tests.follow(run, io.StringIO()) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agent, = [call for call in calls if call['kind'] == 'agent']
-    assert agent['args'][agent['args'].index('--model') + 1] == 'gpt-6-astra'
-    assert 'model_reasoning_effort="low"' in agent['args']
+    assert agent['args'][agent['args'].index('--model') + 1] == options.get('model', 'gpt-6.1-sol')
+    assert f'model_reasoning_effort="{options["effort"]}"' in agent['args']
     assert 'service_tier="default"' in agent['args'] and 'features.fast_mode=false' in agent['args']
 
 
 @pytest.mark.parametrize('mode, classification', [
     ('agent-app', 'app_issue'), ('agent-uncertain', 'uncertain')])
-def test_app_or_uncertain_classification_starts_fresh_astra_low_agent(checkout, mode,
+def test_app_or_uncertain_classification_starts_fresh_sol_high_agent(checkout, mode,
                                                                    classification):
     root, _ = checkout
     (root / 'mode').write_text(mode)
@@ -403,9 +406,9 @@ def test_app_or_uncertain_classification_starts_fresh_astra_low_agent(checkout, 
     agents = [call for call in calls if call['kind'] == 'agent']
     assert len(agents) == 2 and agents[0]['pid'] != agents[1]['pid']
     assert [agent['args'][agent['args'].index('--model') + 1] for agent in agents] == [
-        'gpt-6.1-sol', 'gpt-6-astra']
+        'gpt-6.1-sol', 'gpt-6.1-sol']
     assert 'model_reasoning_effort="medium"' in agents[0]['args']
-    assert 'model_reasoning_effort="low"' in agents[1]['args']
+    assert 'model_reasoning_effort="high"' in agents[1]['args']
     assert all('service_tier="default"' in agent['args'] and 'features.fast_mode=false' in agent['args']
                for agent in agents)
     assert agents[1]['prompt'].startswith('LATEST FAILURE ONLY\n')

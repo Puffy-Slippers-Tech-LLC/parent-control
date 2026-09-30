@@ -56,6 +56,12 @@ def choice_screen(screen, names):
     import curses
     selected = 0
     digits = ''
+    # Keep the terminal's configured foreground/background instead of ncurses'
+    # white-on-black defaults, which can be unreadable in a light theme.
+    try:
+        curses.use_default_colors()
+    except curses.error:
+        pass  # Monochrome terminals may not support default color pairs.
     screen.keypad(True)
     curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
     curses.mouseinterval(0)

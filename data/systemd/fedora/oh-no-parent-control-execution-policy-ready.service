@@ -1,0 +1,14 @@
+[Unit]
+Description=Oh No! Parent Control execution policy readiness
+# An independent unit must not inherit fapolicyd's RuntimeDirectory: systemd
+# prepares it again for ExecStartPost, after the daemon has created files whose
+# SELinux labels prohibit the readiness command's setup context from changing them.
+Requires=fapolicyd.service
+After=fapolicyd.service
+PartOf=fapolicyd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/oh-no-parent-control-execution-policy-ready
+RemainAfterExit=yes
+TimeoutStartSec=90s

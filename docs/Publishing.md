@@ -624,6 +624,12 @@ and upgrade restarts are disabled to avoid a second activation attempt.
 These maintainer-script changes activate during package configuration (`none`);
 they introduce no boot integration or saved-data migration.
 
+The Fedora-only `oh-no-parent-control-execution-policy-ready.service` is also
+`reboot`: it owns the same fail-closed display-manager startup boundary without
+adding an `ExecStartPost` command to the Fedora fapolicyd unit.
+Its early canary rule template, `00-oh-no-parent-control-canary.rules`, also
+uses `reboot` because it defines the boot readiness contract.
+
 ### Maintaining classifications
 
 The padded kiosk account icon (`kiosk_account_icon.png`) activates during

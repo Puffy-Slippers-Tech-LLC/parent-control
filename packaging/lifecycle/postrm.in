@@ -180,14 +180,16 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
         /var/lib/oh-no-parent-control/installed-gdm-presession
     remove_integration /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback
+@readiness_remove_rule@
     rm -f \
         /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules \
         /etc/oh-no-parent-control/config.json \
         /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
-    # dpkg has removed our display-manager Requires=fapolicyd drop-in. Forget
-    # it before stopping fapolicyd or systemd would also stop the desktop.
+    # The package manager has removed our display-manager dependency. Forget
+    # it before stopping readiness/fapolicyd or systemd would stop the desktop.
     if [ -d /run/systemd/system ]; then
         systemctl daemon-reload
+@readiness_remove@
     fi
     restore_execution_policy
     @bus_reload@ >/dev/null || true

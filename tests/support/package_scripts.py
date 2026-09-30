@@ -85,6 +85,14 @@ record() { printf '%s\n' "$*" >> "$AUDIT_ROOT/commands"; }
 systemctl() {
     record systemctl "$@"
     case "$1" in
+        show)
+            test "$*" = 'show --property=ActiveState --value oh-no-parent-control-execution-policy-ready.service' || return 1
+            printf '%s\n' "${READINESS_STATE:-inactive}" ;;
+        stop)
+            if [ "$2" = oh-no-parent-control-execution-policy-ready.service ]; then
+                return "${READINESS_STOP_STATUS:-0}"
+            fi
+            return 0 ;;
         is-active)
             case "$3" in
                 user@*) test "${KIOSK_ACTIVE:-0}" = 1 ;;
@@ -157,6 +165,10 @@ def package_machine(tmp_path, request):
         path = tmp_path / "usr/share/oh-no-parent-control" / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("product integration\n")
+    if distribution == 'fedora':
+        name = '00-oh-no-parent-control-canary.rules'
+        (tmp_path / 'usr/share/oh-no-parent-control' / name).write_bytes(
+            (ROOT / 'data/fapolicyd' / name).read_bytes())
     (tmp_path / "etc/pam.d").mkdir(parents=True)
 
     # Every executable used by postinst is either this stub or a filesystem
@@ -197,6 +209,13 @@ case "$name" in
     policy-rc.d) exit "${POLICY_STATUS:-0}" ;;
     oh-no-parent-control-migrate-state) exit "${MIGRATION_STATUS:-0}" ;;
     oh-no-parent-control-package-activation) printf '%s\n' "$IMPACTS" ;;
+    fagenrules) exit "${RULE_COMPILE_STATUS:-0}" ;;
+    fapolicyd-cli)
+        test "$*" = '--reload-rules' || exit 99
+        test "${RULE_RELOAD_STATUS:-0}" = 0 || exit "$RULE_RELOAD_STATUS"
+        test -f "$AUDIT_ROOT/etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules" || exit 93
+        touch "$AUDIT_ROOT/canary-loaded"
+        ;;
     notify-reboot-required)
         test "$DPKG_MAINTSCRIPT_PACKAGE" = oh-no-parent-control || exit 91
         test "${NOTIFIER_STATUS:-0}" = 0 || exit "$NOTIFIER_STATUS"
@@ -207,6 +226,10 @@ case "$name" in
         ;;
     systemctl)
         case "$*" in
+            'start oh-no-parent-control-execution-policy-ready.service')
+                test -f "$AUDIT_ROOT/canary-loaded" || exit 92
+                exit "${READINESS_STATUS:-0}"
+                ;;
             '--system start oh-no-parent-control-broker.service'|\
             '--system restart oh-no-parent-control-broker.service')
                 test ! -e "$AUDIT_ROOT/var/lib/oh-no-parent-control/migration-in-progress" || exit 90
@@ -247,6 +270,8 @@ esac
     policy = tmp_path / "usr/sbin/policy-rc.d"
     policy.parent.mkdir(parents=True)
     policy.symlink_to(stub)
+    for name in ('fagenrules', 'fapolicyd-cli'):
+        (tmp_path / 'usr/sbin' / name).symlink_to(stub)
     notifier = tmp_path / "usr/share/update-notifier/notify-reboot-required"
     notifier.parent.mkdir(parents=True)
     notifier.symlink_to(stub)

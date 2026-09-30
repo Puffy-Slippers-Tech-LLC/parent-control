@@ -28,7 +28,9 @@ def test_gdm_navigation_qualification_reuses_the_prepared_app_snapshot():
     assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     context = type('Context', (), {})()
     journey = GdmNavigationQualification.journey(context, lambda *_: None)
-    assert context.installed_snapshot == 'onpc-v1.1'
+    # The prepared snapshot follows the checkout release, including after upgrades.
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == 'onpc-v' + version
     assert list(journey.plan.screen_tags) == [
         'initial-list', 'initial-focused', 'initial-prompt', 'initial-returned',
         'repeated-list', 'repeated-focused', 'repeated-prompt', 'repeated-returned',

@@ -29,8 +29,8 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 
 DEFAULT_MODEL = 'gpt-6.1-sol'
 DEFAULT_EFFORT = 'medium'
-APP_MODEL = 'gpt-6-astra'
-APP_EFFORT = 'low'
+APP_MODEL = 'gpt-6.1-sol'
+APP_EFFORT = 'high'
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
@@ -38,8 +38,6 @@ def initial_model(model=None, effort=DEFAULT_EFFORT):
     model = model or DEFAULT_MODEL
     if model.endswith('-sol') and model != DEFAULT_MODEL:
         raise ValueError('Sol must be gpt-6.1-sol')
-    if model == DEFAULT_MODEL and effort in ('high', 'xhigh'):
-        return APP_MODEL, APP_EFFORT
     return model, effort
 
 
@@ -102,7 +100,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
         'uncertain, make no edits and return status "uncertain" with the competing '
         'explanations. Unresolved security, concurrency, ownership or difficult diagnosis '
         'also requires "uncertain" before editing; do not guess a mechanical fix. '
-        'The launcher will start a fresh Astra Low repair agent for either of the '
+        'The launcher will start a fresh GPT-6.1 Sol High repair agent for either of the '
         'last two statuses. '
         if app_issue is None else
         'An earlier session reported an app issue, uncertainty, or a repair whose verification failed. '
@@ -134,7 +132,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'contract sections and complete relevant functions with their callers/shared state; '
             'expand when evidence requires it. Reuse unchanged context within this session. '
             'Keep searches and diagnostic output scoped, without reducing required checks '
-            'or understanding. Never use Sol High; Astra Low is its substitute. '
+            'or understanding. Prefer GPT-6.1 Sol High over Astra Low for difficult repairs. '
             'The script owns test execution: finish after classification or repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions. '
             'Do not read or resume previous Codex sessions, histories, memories or repair '
@@ -478,7 +476,7 @@ def main(argv=None):
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
     parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
-                        default=DEFAULT_EFFORT, help='reasoning effort (default: medium; Sol high/xhigh uses Astra low)')
+                        default=DEFAULT_EFFORT, help='initial reasoning effort (default: medium; repair review uses Sol high)')
     parser.add_argument('categories', nargs='*', metavar='CATEGORY',
                         help='leaf categories, host (or host-builds), or all; accepts "unit ui"; '
                              'omitting categories preserves the full regression loop')

@@ -498,11 +498,11 @@ def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypat
     def cleanup(root):
         assert cleanup_e2e.test_activity.descriptors()
         paths.append(cleanup_e2e.test_activity.retention_path(root))
-        assert paths == [tmp_path / 'output/test-runs/host/state/retention']
+        assert paths == [tmp_path / 'output/test-runs/host/state/retention-onpc-Ubuntu26.04']
         return status
     monkeypatch.setattr(cleanup_e2e, 'cleanup', cleanup)
     assert cleanup_e2e.main(VM_ARGS) == status
-    assert paths == [tmp_path / 'output/test-runs/host/state/retention']
+    assert paths == [tmp_path / 'output/test-runs/host/state/retention-onpc-Ubuntu26.04']
     assert (store.path / 'recovery-required').exists() == bool(status)
     assert (store.path / f'recovered-{run}.json').exists() == (status == 0)
     if not status:

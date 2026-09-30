@@ -245,13 +245,14 @@ def test_repeated_live_attempts_escalate_across_restart_and_reset_for_next_task(
     assert (first / 'checkpoint.json').read_bytes() == retained
     invocations = calls(root)
     assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
-        'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6.1-sol']
-    assert 'model_reasoning_effort="low"' in invocations[2]['args']
-    assert 'You are the GPT-6-Astra Low coordinator' in invocations[2]['prompt']
+        'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol']
+    assert 'model_reasoning_effort="high"' in invocations[2]['args']
+    assert 'You are the GPT-6.1-Sol High coordinator' in invocations[2]['prompt']
     assert 'You are the GPT-6.1-Sol Medium coordinator' in invocations[3]['prompt']
     records = [json.loads(line) for line in (second / 'agent-usage.jsonl').read_text().splitlines()]
     assert [(row['session'], row['task_id'], row['model']) for row in records] == [
-        (3, '001', 'gpt-6-astra'), (4, '002', 'gpt-6.1-sol')]
+        (3, '001', 'gpt-6.1-sol'), (4, '002', 'gpt-6.1-sol')]
+    assert [row['reasoning_effort'] for row in records] == ['high', 'medium']
     assert all(row['usage'] is None for row in records)  # Missing usage is never zero.
 
 

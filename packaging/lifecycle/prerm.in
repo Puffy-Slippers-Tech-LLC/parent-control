@@ -15,6 +15,7 @@ if [ "$1" = remove ]; then
         /var/lib/oh-no-parent-control/installed-gdm-presession
     check_integration /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback
+@readiness_check_remove@
     # A running kiosk may recreate files after deluser removes its home. Do not
     # terminate a user's processes based on account identity. Require logout.
     marker=/var/lib/oh-no-parent-control/package-created-kiosk-uid

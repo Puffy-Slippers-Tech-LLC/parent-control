@@ -7982,6 +7982,42 @@ def require_active_launch_session():
     require(len(active) == 1, 'ui:launch-session')
 
 
+def runtime_failure_diagnostic(account, pending, elapsed_ms):
+    """Failure-only service/session evidence on private command stderr.
+
+    This reads public OS state, never starts a session or retries UI input.
+    Diagnostic errors must not replace the original binding failure.
+    """
+    document = {'event': 'ui-runtime-timeout', 'object': pending,
+                'elapsed_ms': elapsed_ms, 'sessions': [], 'units': {}}
+
+    def read(argv):
+        return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, check=True, timeout=2).stdout
+
+    try:
+        sessions = read(['/usr/bin/loginctl', 'show-user', str(account.pw_uid),
+                         '--no-pager', '-p', 'Sessions', '--value']).split()
+        for session in sessions[:8]:
+            if not re.fullmatch(r'[a-zA-Z0-9]+', session):
+                continue
+            props = read(['/usr/bin/loginctl', 'show-session', session, '--no-pager',
+                          '-p', 'Class', '-p', 'Type', '-p', 'Active', '-p', 'Seat'])
+            document['sessions'].append(dict(line.split('=', 1) for line in
+                                              props.splitlines() if '=' in line))
+    except (OSError, subprocess.SubprocessError):
+        document['sessions_unavailable'] = True
+    for unit in ('display-manager.service', 'oh-no-parent-control-execution-policy-ready.service'):
+        try:
+            props = read(['/usr/bin/systemctl', 'show', unit, '--no-pager',
+                          '-p', 'ActiveState', '-p', 'SubState', '-p', 'Result'])
+            document['units'][unit] = dict(line.split('=', 1) for line in
+                                           props.splitlines() if '=' in line)
+        except (OSError, subprocess.SubprocessError):
+            document['units'][unit] = {'unavailable': True}
+    print(json.dumps(document, sort_keys=True), file=sys.stderr, flush=True)
+
+
 def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):
     """Wait for the selected account's owned public session-bus socket."""
     runtime = runtime_root / str(account.pw_uid)
@@ -8014,7 +8050,14 @@ def session_environment(account, *, runtime_root=Path('/run/user'), timeout=20):
             return {'XDG_RUNTIME_DIR': str(runtime),
                     'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(path)}
         except FileNotFoundError:
-            require(time.monotonic() < deadline, 'ui:timeout:' + pending)
+            now = time.monotonic()
+            if now >= deadline:
+                try:
+                    runtime_failure_diagnostic(account, pending,
+                                               max(0, int((now - started) * 1000)))
+                except Exception:
+                    pass  # Private diagnostics cannot replace the original error.
+                require(False, 'ui:timeout:' + pending)
             time.sleep(.2)
 
 

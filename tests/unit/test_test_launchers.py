@@ -203,6 +203,8 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_eligible_kiosk_fixtures', 'check_e2e_eligible_kiosk_fixtures.py',
     'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard',
     'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py',
+    'check_e2e_operate_public_connectivity_controls',
+    'check_e2e_operate_public_connectivity_controls.py',
 ])
 def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(monkeypatch, selector):
     import regression_process
@@ -242,6 +244,8 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_toggle',
+    'check_e2e_operate_public_connectivity_controls',
+    'check_e2e_operate_public_connectivity_controls.py',
     'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard',
     'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py'])
 def test_toggle_qualification_reuses_existing_inputs_without_overwriting(monkeypatch, selector):

@@ -406,7 +406,9 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard'],
             ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py'],
             ['check_e2e_independent_network_management'],
-            ['check_e2e_independent_network_management.py']):
+            ['check_e2e_independent_network_management.py'],
+            ['check_e2e_operate_public_connectivity_controls'],
+            ['check_e2e_operate_public_connectivity_controls.py']):
         return None
     from test_storage import named_input
     output = str(named_input(package_source=True) if args in (

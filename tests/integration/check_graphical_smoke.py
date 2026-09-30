@@ -672,7 +672,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          file_chooser=False, save_chooser=False, diagnostic_export=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
-         independent_network=False):
+         independent_network=False, public_connectivity_controls=False):
+    require(type(public_connectivity_controls) is bool and (not public_connectivity_controls or (
+        assets is not None and provision_credentials and parent_toggle
+        and fresh_desktop is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'parent_toggle',
+                            'public_connectivity_controls') and isinstance(value, bool)))),
+        'smoke:public-connectivity-controls-prerequisites')
     require(type(independent_network) is bool and (not independent_network or (
         assets is not None and provision_credentials and fresh_desktop == 'parent'
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1254,6 +1261,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-request-exit-qualification'
         if parent_toggle:
             result['scope'] = 'installed-parent-toggle-qualification'
+        if public_connectivity_controls:
+            result['scope'] = 'installed-public-connectivity-controls-qualification'
         if app_row_observations:
             result['scope'] = 'installed-app-row-observations-qualification'
         if feedback_read:
@@ -1517,6 +1526,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if parent_toggle:
                     from parent_setup_qualification import ParentToggleQualification
                     qualification_class = ParentToggleQualification
+                    if public_connectivity_controls:
+                        from parent_setup_qualification import PublicConnectivityControlsQualification
+                        qualification_class = PublicConnectivityControlsQualification
                 if app_row_observations:
                     from parent_setup_qualification import AppRowQualification
                     qualification_class = AppRowQualification

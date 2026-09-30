@@ -338,6 +338,163 @@ def probe_result(online):
         for address in ('1.1.1.1', '8.8.8.8') for protocol in ('tcp', 'udp-dns')]}
 
 
+@pytest.mark.parametrize('fault', [None, 'entry', 'offline', 'input', 'result',
+                                  'window', 'recovery', 'guard'])
+def test_offline_parent_controls_preserve_results_identity_and_owned_unwind(rig, monkeypatch, fault):
+    import offline_controls as shared
+    from public_connectivity_controls import CONTROLS, qualify
+    lease, connection, transport, _ = rig
+    before, offline, after = probe_result(True), probe_result(False), probe_result(True)
+    if fault == 'offline': offline['probes'][0]['reachable'] = True
+    if fault == 'recovery': after['probes'][0]['reachable'] = False
+    monkeypatch.setattr(shared, 'internet_result', Mock(side_effect=[before, offline, after]))
+    endpoint = {'binding': 'parent', 'pid': 42,
+                'endpoint': [':1.20', '/window/1'], 'active': True}
+    calls = []
+
+    def observe(name):
+        calls.append(name)
+        if fault == 'entry' and name == 'parent-save-disabled':
+            raise CommandError('ui:parent-save-response')
+        if name == 'switch-parent-before':
+            value = deepcopy(endpoint)
+            if fault == 'window' and calls.count(name) == 3:
+                value['endpoint'][1] = '/window/2'
+            return {'outcome': 'passed', 'window': value}
+        if name.startswith('parent-toggle-'):
+            assert lease.state['internet_isolation']['phase'] == 'offline'
+            if fault == 'input': raise CommandError('ui:uncertain-input')
+            return {'outcome': 'passed', 'toggle': {'state': name.endswith('enabled')}}
+        value = deepcopy(CONTROLS[0 if name.endswith('enabled') else 1][2])
+        if fault == 'result' and name == 'parent-save-enabled': value['result'] = 'saving'
+        return {'outcome': 'passed', 'save': value}
+
+    guard = Mock()
+    if fault == 'guard':
+        def guarded():
+            if lease.state.get('internet_isolation', {}).get('phase') == 'offline':
+                raise InterruptedError('cancelled')
+        guard.side_effect = guarded
+    journey = SimpleNamespace(context=SimpleNamespace(lease=lease),
+                              transport=transport, ui=SimpleNamespace(observe=observe))
+    if fault:
+        with pytest.raises((CommandError, ValueError, InterruptedError)):
+            qualify(journey, guard)
+    else:
+        result = qualify(journey, guard)
+        assert result['online_after'] == result['online_before']
+        assert [item['result']['save']['limit_enabled'] for item in result['controls']] == [True, False]
+        assert calls == ['parent-save-disabled', 'switch-parent-before',
+                         'switch-parent-before', 'parent-toggle-enabled', 'parent-save-enabled',
+                         'switch-parent-before', 'switch-parent-before', 'parent-toggle-disabled',
+                         'parent-save-disabled', 'switch-parent-before', 'switch-parent-before']
+        endpoint['endpoint'][1] = '/later-mutation'
+        assert result['window']['endpoint'][1] == '/window/1'
+    if fault in ('input', 'result', 'window', 'guard', 'offline'):
+        assert 'parent-toggle-disabled' not in calls
+    assert not connection.filters and not connection.bindings
+    assert len(connection.calls) == (0 if fault == 'entry' else 4)
+
+
+@pytest.mark.parametrize('fault', [None, 'result', 'storage'])
+def test_connectivity_composition_runs_through_real_recorder_before_reply(rig, monkeypatch, tmp_path, fault):
+    import offline_controls as shared
+    import parent_setup_qualification as setup
+    from public_connectivity_controls import CONTROLS, PLAN
+    lease, connection, transport, _ = rig
+    context = SimpleNamespace(directory=tmp_path, lease=lease)
+    progress = Mock(side_effect=OSError('storage') if fault == 'storage' else None)
+    journey = setup.PublicConnectivityControlsQualification.journey(context, progress)
+    stage = 'wrong-child-refused'
+    journey.steps = [{'stage': item} for item in PLAN.stages[:PLAN.stages.index(stage)]]
+    journey.transport = transport
+    journey.boot = 'a' * 64
+    endpoint = {'binding': 'parent', 'pid': 42, 'endpoint': [':1.20', '/window/1'], 'active': True}
+    def observe(name):
+        if name == 'parent-save-wrong-child-refused':
+            return {'outcome': 'passed', 'save': {'refusal': 'wrong-child'}}
+        if name == 'switch-parent-before': return {'outcome': 'passed', 'window': endpoint}
+        if name.startswith('parent-toggle-'): return {'outcome': 'passed'}
+        if fault == 'result' and name == 'parent-save-enabled': raise ValueError('save failed')
+        return {'outcome': 'passed', 'save': CONTROLS[0 if name.endswith('enabled') else 1][2]}
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=observe)
+    monkeypatch.setattr(shared, 'internet_result',
+                        Mock(side_effect=[probe_result(True), probe_result(False), probe_result(True)]))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises((ValueError, OSError)): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        with pytest.raises(ValueError, match='previous-failure'): journey.step(Mock())
+    else:
+        journey.step(Mock())
+        assert journey.steps[-1]['fixture']['controls'][0]['result']['save']['limit_enabled']
+        assert (tmp_path / (stage + '.reply.json')).exists()
+    assert not connection.filters and not connection.bindings
+
+
+@pytest.mark.parametrize('changed_window', [False, True])
+def test_offline_controls_support_independent_single_input_bindings(rig, monkeypatch, changed_window):
+    import offline_controls as shared
+    from private_artifacts import EvidenceError
+    lease, connection, transport, _ = rig
+    monkeypatch.setattr(shared, 'internet_result', Mock(side_effect=[
+        probe_result(True), probe_result(False), probe_result(True)]))
+    endpoint = {'binding': 'parent', 'pid': 42,
+                'endpoint': [':1.20', '/window/1'], 'active': True}
+    expected = {'saved': True}
+    calls = []
+
+    def observe(name):
+        calls.append(name)
+        if name == 'owned-window':
+            value = deepcopy(endpoint)
+            if changed_window and calls.count(name) == 3:
+                value['pid'] = 43
+            return {'outcome': 'passed', 'window': value}
+        if name == 'normal-input':
+            assert lease.state['internet_isolation']['phase'] == 'offline'
+        return {'outcome': 'passed', 'save': expected}
+
+    journey = SimpleNamespace(context=SimpleNamespace(lease=lease),
+                              transport=transport, ui=SimpleNamespace(observe=observe))
+    def run():
+        return shared.offline_controls(journey, Mock(), entry='declared-entry',
+            controls=(('normal-input', 'saved-result', expected),), window='owned-window')
+    if changed_window:
+        with pytest.raises(EvidenceError, match='window-changed'):
+            run()
+    else:
+        assert len(run()['controls']) == 1
+    assert calls == ['declared-entry', 'owned-window', 'owned-window',
+                     'normal-input', 'saved-result', 'owned-window',
+                     *([] if changed_window else ['owned-window'])]
+    assert not connection.filters and not connection.bindings
+
+
+def test_connectivity_selector_uses_qualified_ui17_envelope_and_worker(monkeypatch, tmp_path):
+    import check_e2e_operate_public_connectivity_controls as selector
+    import check_graphical_smoke as smoke
+    import parent_setup_qualification as setup
+    from parent_toggle import PLAN as toggle
+    from public_connectivity_controls import PLAN, qualify
+    run = Mock(return_value=0)
+    monkeypatch.setattr(selector, 'smoke', run)
+    assert selector.main() == 0
+    assert run.call_args.kwargs == {'assets': selector.ASSETS, 'provision_credentials': True,
+                                  'parent_toggle': True, 'public_connectivity_controls': True}
+    for options in ({}, {'assets': tmp_path, 'provision_credentials': True},
+                    {'assets': tmp_path, 'provision_credentials': True,
+                     'parent_toggle': True, 'independent_network': True}):
+        with pytest.raises(CommandError, match='public-connectivity-controls-prerequisites'):
+            smoke.main(public_connectivity_controls=True, **options)
+    journey = setup.PublicConnectivityControlsQualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is PLAN
+    assert PLAN.worker_mode == toggle.worker_mode
+    assert PLAN.screen_tags == toggle.screen_tags
+    assert journey.actions == {'offline-parent-controls': qualify}
+    assert setup.PublicConnectivityControlsQualification.prepare_context is setup.ParentToggleQualification.prepare_context
+
+
 @pytest.mark.parametrize('fault', [None, 'offline-reachable', 'online-unreachable', 'restore', 'ui'])
 def test_fixed_sequence_checks_independent_results_and_unwinds_on_failure(rig, monkeypatch, fault):
     lease, connection, transport, _ = rig

@@ -20,8 +20,8 @@ sub run {
     die 'toggle:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'parent-toggle', review => 0);
-    onpc_gdm::reattach_functional();
-    my $observed = $journey->seen('parent-window');
+    my $desktop = onpc_parent::login_functional($journey);
+    my $observed = onpc_parent::launch($journey, $desktop, 'management');
     $journey->consume_observation('parent-window', $observed);
     $observed = onpc_parent::select_child(
         $journey, 'child', $journey->seen('child-picker-opened'),

@@ -3,6 +3,7 @@
 import json
 import copy
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -1793,6 +1794,7 @@ def test_greeter_collection_order_path_is_retired_before_tree_access():
 @pytest.mark.parametrize('fault', [None, 'missing', 'symlink', 'regular',
                                    'wrong-owner', 'runtime-symlink', 'runtime-wrong-owner'])
 def test_public_bus_discovery_is_owned_and_bounded(short_runtime, fault, monkeypatch, capsys):
+    monkeypatch.setattr('accessible_ui.runtime_failure_diagnostic', Mock())
     import os
     import socket
     from pathlib import Path
@@ -1841,6 +1843,45 @@ def test_public_bus_discovery_is_owned_and_bounded(short_runtime, fault, monkeyp
             assert result == {'XDG_RUNTIME_DIR': str(runtime), key: 'unix:path=' + str(bus)}
     finally:
         for connection in sockets: connection.close()
+
+
+@pytest.mark.parametrize('pending', ['runtime', 'session-bus'])
+@pytest.mark.parametrize('diagnostic_fails', [False, True])
+def test_missing_session_retains_original_timeout_and_exact_diagnostic(
+        tmp_path, monkeypatch, pending, diagnostic_fails):
+    import accessible_ui
+    account = SimpleNamespace(pw_uid=12345)
+    if pending == 'session-bus':
+        (tmp_path / '12345').mkdir()
+        original = Path.lstat
+        def owned(path):
+            info = original(path)
+            return SimpleNamespace(st_mode=info.st_mode, st_uid=12345)
+        monkeypatch.setattr(Path, 'lstat', owned)
+    diagnostic = Mock(side_effect=RuntimeError('diagnostic failure') if diagnostic_fails else None)
+    monkeypatch.setattr(accessible_ui, 'runtime_failure_diagnostic', diagnostic)
+    with pytest.raises(UiError, match='ui:timeout:' + pending):
+        session_environment(account, runtime_root=tmp_path, timeout=0)
+    assert diagnostic.call_args.args[:2] == (account, pending)
+    assert diagnostic.call_args.args[2] >= 0
+
+
+def test_runtime_timeout_diagnostic_reads_only_bounded_os_state(monkeypatch, capsys):
+    import accessible_ui
+    replies = ['c7\n', 'Class=user\nType=wayland\nActive=yes\nSeat=seat0\n',
+               'ActiveState=active\nSubState=running\nResult=success\n',
+               'ActiveState=failed\nSubState=failed\nResult=exit-code\n']
+    run = Mock(side_effect=[SimpleNamespace(stdout=value) for value in replies])
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
+    accessible_ui.runtime_failure_diagnostic(SimpleNamespace(pw_uid=12345), 'runtime', 20000)
+    document = json.loads(capsys.readouterr().err)
+    assert document['object'] == 'runtime' and document['elapsed_ms'] == 20000
+    assert document['sessions'] == [{'Class': 'user', 'Type': 'wayland',
+                                     'Active': 'yes', 'Seat': 'seat0'}]
+    assert document['units']['oh-no-parent-control-execution-policy-ready.service']['Result'] == 'exit-code'
+    assert len(run.call_args_list) == 4
+    assert all(call.kwargs['timeout'] == 2 for call in run.call_args_list)
+    assert [call.args[0][1] for call in run.call_args_list] == ['show-user', 'show-session', 'show', 'show']
 
 
 @pytest.mark.parametrize('fault', [None, 'duplicate', 'remote', 'inactive', 'desktop', 'wrong-seat', 'root'])

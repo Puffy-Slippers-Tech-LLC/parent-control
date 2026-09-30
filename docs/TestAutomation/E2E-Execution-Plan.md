@@ -19,14 +19,14 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **193a — [Qualify independent management during guest network loss](E2E-Tasks/193a-independent-network-management.md)**.
+Next task: **193a — [Qualify simple VM Internet isolation](E2E-Tasks/193a-independent-network-management.md)**.
 
-Task 193 remains unchecked. Blocker: the guarded VM envelope permits one NIC,
-and commands and public UI observations share its SSH address; resume when
-193a qualifies independent management and observation during real test-connection
-loss. This is a source-level harness prerequisite, with no live attempt or
-product-behavior failure. The inserted prerequisite supplies no LIFE06 acceptance
-credit and must finish before 193 resumes.
+Task 193 remains unchecked. Blocker: a simple shared VM-level Internet isolation
+operation preserving existing test control and public observations is not yet
+qualified. Task 193a must qualify one distro-independent mechanism, then task 193
+focuses on Parent usability offline. Local network disconnection and a separate
+management connection are not required. No live attempt or product-behavior
+failure has occurred; this prerequisite supplies no LIFE06 acceptance credit.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

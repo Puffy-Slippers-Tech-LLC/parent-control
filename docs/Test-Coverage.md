@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">17207</span>/<span style="color: gray">0</span>/17207 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">17245</span>/<span style="color: gray">0</span>/17245 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">175</span>/<span style="color: gray">0</span>/175 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,7 +15,7 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">103</span>/<span style="color: gray">0</span>/103 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">27</span>/<span style="color: gray">215</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">17912</span>/<span style="color: gray">215</span>/18127** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">17950</span>/<span style="color: gray">215</span>/18165** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -3157,7 +3157,7 @@ Variant: delivery: retry
 **Steps:**
 
 - Compose authorized synthetic feedback and files in Parent and review Privacy and submission contents.
-- Disconnect the declared connection using the shared LIFE06 system-network command, preserving the independent observation channel.
+- Remove Internet access using the shared distro-independent LIFE06 VM helper, preserving existing test control and public observations.
 - Return to feedback, select Send once and read retry progress and unavailable editing/duplicate Send.
 - Reconnect through the same shared system-network helper within the retry period.
 - Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft.
@@ -3778,7 +3778,7 @@ Variant: surface: child overlay
 
 **Steps:**
 
-- Disconnect the declared connection through the shared LIFE06 system-network command. In Parent enable limits and save the allowance and hard/soft app rules.
+- Remove Internet access through the shared distro-independent LIFE06 VM helper, preserving test control. In Parent enable limits and save the allowance and hard/soft app rules.
 - Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt.
 - Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection.
 
@@ -3798,7 +3798,7 @@ Variant: surface: kiosk
 
 **Steps:**
 
-- Disconnect the declared connection through the shared LIFE06 system-network command. In Parent enable limits and save the allowance and hard/soft app rules.
+- Remove Internet access through the shared distro-independent LIFE06 VM helper, preserving test control. In Parent enable limits and save the allowance and hard/soft app rules.
 - Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt.
 - Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection.
 
@@ -4178,7 +4178,7 @@ Variant: flow: no reply
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4198,7 +4198,7 @@ Variant: flow: background
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4218,7 +4218,7 @@ Variant: flow: app exit
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4238,7 +4238,7 @@ Variant: flow: retry expired
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4258,7 +4258,7 @@ Variant: flow: overlay stop
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4278,7 +4278,7 @@ Variant: flow: kiosk stop
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4298,7 +4298,7 @@ Variant: flow: overlay success
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4318,7 +4318,7 @@ Variant: flow: kiosk success
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 
@@ -4338,7 +4338,7 @@ Variant: flow: parent error success
 
 **Steps:**
 
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send.
+- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
 - Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
 - Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
 

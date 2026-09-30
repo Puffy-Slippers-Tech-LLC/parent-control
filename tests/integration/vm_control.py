@@ -204,14 +204,18 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         base.identity(path, private=True, mode=0o600)
     owner = base.parse_json(owner_path.read_bytes())
     state = base.parse_json(lease.journal.read_bytes())
+    prestart = ('validated', 'shutdown-requested', 'restore-requested', 'isolated', 'start-requested')
+    interrupted_off = (stopping and isinstance(state, dict) and
+                       state.get('phase') in (*prestart, 'cleanup-requested') and
+                       state.get('domain_id') is None)
     runner.require(isinstance(state, dict) and set(state) == {
         'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
         'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
         state['phase'] in (('start-requested',) if recovery_instance is not None else
-                          ('running', 'cleanup-requested') if stopping else ('running',)) and isinstance(state['run'], str) and
+                          ('running', 'cleanup-requested', *prestart) if stopping else ('running',)) and isinstance(state['run'], str) and
         re.fullmatch(r'[0-9a-f]{32}', state['run']) and
         ((state['domain_id'] is None) if recovery_instance is not None else
-         (type(state['domain_id']) is int and state['domain_id'] >= 0)) and
+         (interrupted_off or (type(state['domain_id']) is int and state['domain_id'] >= 0))) and
         state['domain_uuid'] == lease.source.uuid and
         state['baseline_sha256'] == hashlib.sha256(base.encode(lease.capture.state)).hexdigest(),
         'vm-control:journal-identity')
@@ -222,20 +226,34 @@ def resume(lease, *, stopping=False, recovery_instance=None):
     current_id = lease.source.domain.ID()
     runner.require(not lease.source.domain.autostart() and
                    (current_id == recovery_instance if recovery_instance is not None else
+                    current_id == -1 if interrupted_off else
                     current_id == state['domain_id'] or (stopping and current_id == -1)),
                    'vm-control:instance-replaced-or-off')
     lease.original_xml = state['original_xml']
     runner.require(base.domain_layout(lease.original_xml, lease.source.uuid) ==
-                   lease.capture.state['source']['layout'], 'vm-control:original-layout')
+                   base.recorded_layout(lease.capture.state['source']['layout']), 'vm-control:original-layout')
     runner.isolated_xml(lease.original_xml, lease.source.uuid, state['run'], graphics_type='vnc')
     lease.state = state
-    lease.view.original_shares = lease.capture.state['source']['layout']['source_shares']
     lease.view.run = state['run']
     lease.view.domain_id = state['domain_id']
     lease.snapshot_xml = lease.source.baseline()
+    if interrupted_off:
+        active = lease.source.domain.XMLDesc(0)
+        runner.require(active == lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE),
+                       'vm-control:off-configuration-changed')
+        if active == lease.original_xml:
+            lease.view.run = None
+        elif ET.fromstring(active).findtext('description') != runner.TAG + state['run']:
+            # An online memory restore can finish before its fresh run tag is
+            # written. Its private saved record and isolation proof still bind
+            # the exact off guest; UUID alone never authorizes recovery.
+            runner.require(state['phase'] in ('start-requested', 'cleanup-requested'),
+                           'vm-control:off-run-identity')
+            from online_snapshot import recover_identity
+            lease.view.run = recover_identity(lease)
     if recovery_instance is not None:
-        # This exceptional operation requires an explicitly selected instance.
-        # Never infer ownership from UUID alone or enable normal start/resume.
+        # Check the caller's observed instance against the private snapshot
+        # proof. UUID alone cannot authorize recovery or normal start/resume.
         from online_snapshot import recover_identity
         run = recover_identity(lease)
         lease.view.run = run
@@ -248,6 +266,21 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         lease.state['domain_id'] = recovery_instance
         save_owner(lease)
         lease.save('running')
+
+
+def recover_preparation(lease):
+    """Use ordinary owned stop, or exact saved-memory interrupted-start proof."""
+    base = runner.baseline
+    base.identity(lease.journal, private=True, mode=0o600)
+    attempt = base.parse_json(lease.journal.read_bytes())
+    instance = lease.source.domain.ID()
+    if (isinstance(attempt, dict) and attempt.get('phase') == 'start-requested'
+            and attempt.get('domain_id') is None and instance >= 0):
+        # resume checks this observed ID again under the lease, together with
+        # the exact owner, baseline, private snapshot record and isolation.
+        operate(lease, 'recover-online', [instance])
+    else:
+        operate(lease, 'stop', [])
 
 
 def operate(lease, action, keys):

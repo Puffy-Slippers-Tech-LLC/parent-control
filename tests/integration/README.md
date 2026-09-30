@@ -32,7 +32,7 @@ recovery requirements are in [Environment.md](Environment.md).
 
 The runner exclusively leases the VM, validates the finalized baseline and
 recorded disk/domain identities, restores only outside a complete attempt,
-detaches writable host shares/transfer channels before boot, and leaves the VM
+detaches transfer channels before boot, and leaves the VM
 off with its prior persistent domain configuration restored after cleanup.
 It reuses a current E2E version snapshot, refreshing missing or stale inputs, and creates no
 new VM, disk copy or overlay. A real reboot within an
@@ -277,7 +277,7 @@ as host pytest or bypass the controller merely to select a test.
 
 After guarded offline bootstrap, the guest verifies its root-private run marker,
 machine identity distinct from the host, DMI domain UUID, supported Ubuntu
-release, absence of host shares, and package/transfer digests. Only then does
+release and package/transfer digests. Only then does
 APT install the exact package. The runner waits for systemd boot completion
 before service assertions; SSH alone is insufficient. A degraded boot does not
 skip the service assertions. Readiness waits never retry installation or a

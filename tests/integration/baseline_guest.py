@@ -211,7 +211,7 @@ def boot_and_wait(capture):
     # Baseline preparation explicitly maintains this guest's configuration.
     # Install the same output-only endpoint used by all later isolated leases;
     # it has no host listener and becomes part of the accepted baseline.
-    from e2e_watch import DisplayAdapter, configuration_digest, display_endpoint, start
+    from e2e_watch import DisplayAdapter, attach_display, configuration_digest, display_endpoint
     root = ET.fromstring(source.domain.XMLDesc(source.api.VIR_DOMAIN_XML_INACTIVE))
     configure_cpu(root)
     configure_snapshot_memory(root)
@@ -221,7 +221,6 @@ def boot_and_wait(capture):
     source.domain.create()
     instance = source.domain.ID()
     require(instance >= 0, 'guest:preparation-start')
-    observer = None
     try:
         xml_digest = configuration_digest(source.domain.XMLDesc(0))
         def guard_display():
@@ -229,7 +228,8 @@ def boot_and_wait(capture):
             require(source.domain.ID() == instance
                     and configuration_digest(source.domain.XMLDesc(0)) == xml_digest,
                     'guest:preparation-display-changed')
-        observer = start(DisplayAdapter(source, instance, guard_display, capture.state['operation']))
+        attach_display(capture, DisplayAdapter(source, instance, guard_display,
+                                              capture.state['operation']))
         deadline = time.monotonic() + 7500
         while not source.snapshot()[1]:
             require(source.domain.ID() == instance, 'guest:preparation-instance-changed')
@@ -240,7 +240,4 @@ def boot_and_wait(capture):
         if not source.snapshot()[1] and source.domain.ID() == instance:
             source.shutdown(capture.revalidate, requested=False)
         raise
-    finally:
-        if observer is not None:
-            observer.close()
     capture.revalidate(off=True)

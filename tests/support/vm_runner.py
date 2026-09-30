@@ -24,7 +24,6 @@ def bootstrap_guest():
             f'Package: {name}\nVersion: {version}\nStatus: install ok installed\n'
             for name, version in VERSIONS.items()).encode(),
         '/etc/apt/sources.list.d/ubuntu.sources': b'URIs: https://archive.ubuntu.com/ubuntu/\n',
-        '/etc/fstab': b'/dev/sda2 / ext4 defaults 0 1\nData /Data virtiofs defaults 0 0\n',
         '/etc/passwd': b'root:x:0:0:root:/root:/bin/bash\n',
         '/etc/machine-id': b'private-guest-identity',
         '/etc/ssh/ssh_host_ed25519_key.pub': b'ssh-ed25519 public-test-key',
@@ -55,7 +54,6 @@ def bootstrap_guest():
 def xml():
     return f'''<domain type="kvm"><name>{runner.baseline.DOMAIN}</name><uuid>{UUID}</uuid><devices>
       <disk type="file" device="disk"><driver type="qcow2"/><source file="/image"/><target dev="vda"/></disk>
-      <filesystem type="mount"><driver type="virtiofs"/><source dir="/Data"/><target dir="Data"/></filesystem>
       <interface type="network"><source network="default"/></interface>
       <channel type="spicevmc"/><redirdev type="spicevmc"/>
       <graphics type="spice"/><console type="pty"/>

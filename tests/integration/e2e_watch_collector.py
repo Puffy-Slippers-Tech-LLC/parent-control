@@ -85,25 +85,43 @@ class Display:
         return False
 
 
-def receive_progress(control, frames):
+def receive_progress(control, frames, attach=None):
     """Controller-only metadata; no viewer or guest command channel."""
-    packet, _, flags, _ = control.recvmsg(3501)
-    if not packet:
-        return False
-    require(not flags & socket.MSG_TRUNC, 'progress-size')
-    if packet in (b'lease-locked', b'lease-unlocked'):
-        frames.publish(lease_locked=packet == b'lease-locked')
+    packet, controls, flags, _ = control.recvmsg(3501, socket.CMSG_SPACE(16), socket.MSG_CMSG_CLOEXEC)
+    descriptors = array.array('i')
+    try:
+        for level, kind, data in controls:
+            if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+                descriptors.frombytes(data[:len(data) - len(data) % descriptors.itemsize])
+        require(not flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC), 'progress-size')
+        if packet == b'display':
+            require(attach is not None and len(descriptors) == 1, 'display-descriptor')
+            peer = socket.socket(fileno=os.dup(descriptors[0]))
+            try:
+                attach(peer)
+            finally:
+                peer.close()
+            return True
+        require(not descriptors, 'unexpected-descriptor')
+        if not packet:
+            return False
+        if packet in (b'lease-locked', b'lease-unlocked'):
+            frames.publish(lease_locked=packet == b'lease-locked')
+            return True
+        value = json.loads(packet)
+        require(progress_packet(value) == packet, 'progress-packet')
+        frames.publish(progress=value)
         return True
-    value = json.loads(packet)
-    require(progress_packet(value) == packet, 'progress-packet')
-    frames.publish(progress=value)
-    return True
+    finally:
+        for fd in descriptors:
+            os.close(fd)
 
 
-def export_listener(connection, display, failed):
+def export_listener(connection, display, failed, *, current=lambda: True):
     from gi.repository import Gio, GLib
     def method(_connection, _sender, _path, _interface, name, parameters, invocation):
         try:
+            require(current(), 'expired-display')
             n = parameters.n_children()
             payload = name in ('Scanout', 'Update', 'CursorDefine')
             values = [parameters.get_child_value(i).unpack() for i in range(n - int(payload))]
@@ -119,6 +137,88 @@ def export_listener(connection, display, failed):
     return connection.register_object_with_closures2('/org/qemu/Display1/Listener',
         Gio.DBusNodeInfo.new_for_xml(XML).interfaces[0], method,
         lambda *_: GLib.Variant('as', []), None)
+
+
+class Attachment:
+    """QEMU connections may end; the lease's frame publication stays alive."""
+
+    def __init__(self, display, acknowledge):
+        self.display, self.acknowledge = display, acknowledge
+        self.connections = []
+        self.generation = 0
+
+    def close(self):
+        self.generation += 1
+        connections, self.connections = self.connections, []
+        for connection in connections:
+            if not connection.is_closed():
+                connection.close(None, None)
+        self.display.update('Disable', [])
+        self.display.publish()
+
+    def open(self, peer, *, listener=None, remote=None):
+        from gi.repository import Gio, GLib
+        self.close()
+        generation = self.generation
+
+        def failed(*_):
+            if self.generation == generation:
+                self.close()
+
+        def connected(_source, result):
+            try:
+                connection = Gio.DBusConnection.new_finish(result)
+                if self.generation != generation:
+                    connection.close(None, None)
+                    return
+                self.connections.append(connection)
+                connection.set_exit_on_close(False)
+                export_listener(connection, self.display, failed,
+                                current=lambda: self.generation == generation)
+                connection.connect('closed', failed)
+                connection.start_message_processing()
+            except Exception as error:
+                print('watch-collector: listener-failed ' + type(error).__name__, flush=True)
+                failed()
+
+        def registered(connection, result):
+            try:
+                connection.call_with_unix_fd_list_finish(result)
+                if self.generation == generation:
+                    self.acknowledge()
+            except Exception as error:
+                print('watch-collector: registration-failed ' + type(error).__name__, flush=True)
+                failed()
+
+        if listener is None:
+            listener, remote = socket.socketpair()
+        try:
+            transport = Gio.Socket.new_from_fd(os.dup(peer.fileno())).connection_factory_create_connection()
+            connection = Gio.DBusConnection.new_sync(transport, None,
+                Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT, None, None)
+            connection.set_exit_on_close(False)
+            self.connections.append(connection)
+            connection.connect('closed', failed)
+            result = connection.call_sync(None, '/org/qemu/Display1/VM',
+                'org.freedesktop.DBus.Properties', 'Get',
+                GLib.Variant('(ss)', ('org.qemu.Display1.VM', 'ConsoleIDs')), None,
+                Gio.DBusCallFlags.NONE, 3000, None)
+            require(0 in result.unpack()[0], 'primary-console-missing')
+            transport = Gio.Socket.new_from_fd(listener.detach()).connection_factory_create_connection()
+            Gio.DBusConnection.new(transport, None,
+                Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.DELAY_MESSAGE_PROCESSING,
+                None, None, connected)
+            fds = Gio.UnixFDList.new()
+            index = fds.append(remote.fileno())
+            connection.call_with_unix_fd_list(None, '/org/qemu/Display1/Console_0',
+                'org.qemu.Display1.Console', 'RegisterListener', GLib.Variant('(h)', (index,)),
+                None, Gio.DBusCallFlags.NONE, 3000, fds, None, registered)
+        except BaseException:
+            failed()
+            raise
+        finally:
+            listener.close()
+            remote.close()
 
 
 def main():
@@ -140,9 +240,10 @@ def main():
     server = socket.socket(fileno=args.server)
     server.setblocking(False)
     frames = Frames(args.run)
+    frames.publish(lease_locked=True)
     display = Display(frames)
     loop = GLib.MainLoop()
-    connections = []
+    attachment = Attachment(display, lambda: control.send(b'attached'))
     counts = {'frames': 0, 'viewers': 0}
     last_beat = 0
 
@@ -150,7 +251,7 @@ def main():
         nonlocal last_beat
         try:
             try:
-                if not receive_progress(control, frames):
+                if not receive_progress(control, frames, attachment.open):
                     loop.quit()
                     return False
             except BlockingIOError:
@@ -187,57 +288,21 @@ def main():
             return False
         return True
 
-    def connected(_source, result):
-        try:
-            listener = Gio.DBusConnection.new_finish(result)
-            connections.append(listener)
-            listener.set_exit_on_close(False)
-            export_listener(listener, display, loop.quit)
-            listener.connect('closed', lambda *_: loop.quit())
-            listener.start_message_processing()
-        except Exception as error:
-            print('watch-collector: listener-failed ' + type(error).__name__, flush=True)
-            loop.quit()
-
-    def registered(connection, result):
-        try:
-            connection.call_with_unix_fd_list_finish(result)
-            # QEMU has completed registration before automation starts input.
-            control.send(b'ready')
-        except Exception as error:
-            print('watch-collector: registration-failed ' + type(error).__name__, flush=True)
-            loop.quit()
-
     try:
-        transport = Gio.Socket.new_from_fd(args.display).connection_factory_create_connection()
-        connection = Gio.DBusConnection.new_sync(transport, None,
-            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT, None, None)
-        connection.set_exit_on_close(False)
-        connections.append(connection)
-        connection.connect('closed', lambda *_: loop.quit())
-        # Exact graphical console exported by the unchanged first video head.
-        result = connection.call_sync(None, '/org/qemu/Display1/VM',
-            'org.freedesktop.DBus.Properties', 'Get',
-            GLib.Variant('(ss)', ('org.qemu.Display1.VM', 'ConsoleIDs')), None,
-            Gio.DBusCallFlags.NONE, 3000, None)
-        console_ids = result.unpack()[0]
-        require(0 in console_ids, 'primary-console-missing')
-        transport = Gio.Socket.new_from_fd(args.listener).connection_factory_create_connection()
-        Gio.DBusConnection.new(transport, None,
-            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.DELAY_MESSAGE_PROCESSING,
-            None, None, connected)
-        fds = Gio.UnixFDList.new()
-        index = fds.append(args.remote)
-        connection.call_with_unix_fd_list(None, '/org/qemu/Display1/Console_0',
-            'org.qemu.Display1.Console', 'RegisterListener', GLib.Variant('(h)', (index,)),
-            None, Gio.DBusCallFlags.NONE, 3000, fds, None, registered)
-        os.close(args.remote)
+        listener, remote = socket.socket(fileno=args.listener), socket.socket(fileno=args.remote)
+        if args.display >= 0:
+            attachment.acknowledge = lambda: control.send(b'ready')
+            with socket.socket(fileno=args.display) as peer:
+                attachment.open(peer, listener=listener, remote=remote)
+        else:
+            listener.close()
+            remote.close()
+            control.send(b'ready')
         GLib.timeout_add(33, tick)
         loop.run()
     finally:
+        attachment.close()
         frames.close()
-        for connection in connections:
-            connection.close(None, None)
         server.close()
         control.close()
         print('watch-collector: frames={frames} viewers={viewers}'.format(**counts), flush=True)

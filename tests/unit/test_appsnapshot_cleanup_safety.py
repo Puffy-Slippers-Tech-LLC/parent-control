@@ -17,6 +17,7 @@ import test_storage
 import prepare_snapshot as controller
 import app_snapshot
 from tests.support.paths import ROOT
+from tests.support.vm_runner import UUID, xml as domain_xml
 
 VM_ARGS = ['--vm', vm_name()]
 
@@ -56,8 +57,9 @@ def test_snapshot_mode_defaults_and_explicit_values(argv, mode):
     ('offline', 'internal', 'running', 100000, 'mode changed'),
     ('offline', 'no', 'shutoff', 1, None)])
 def test_snapshot_mode_and_host_age(mode, memory, state, created, expected):
+    domain = controller.system.isolated_xml(domain_xml(), UUID, 'a' * 32, graphics_type='vnc')
     xml = (f'<domainsnapshot><memory snapshot="{memory}"/><state>{state}</state>'
-           f'<creationTime>{created}</creationTime></domainsnapshot>')
+           f'<creationTime>{created}</creationTime>{domain}</domainsnapshot>')
     reason = app_snapshot.mode_mismatch(xml, mode, now=100000)
     assert reason is None if expected is None else expected in reason
 
@@ -80,7 +82,7 @@ def launch(tmp_path, monkeypatch):
     monkeypatch.setattr(test_storage, 'scratch_directory', lambda: tmp_path)
     monkeypatch.setattr(launcher, '__file__', str(tmp_path / 'tools/prepare_appsnapshot.py'))
     monkeypatch.setattr(launcher.os, 'geteuid', lambda: 1000)
-    monkeypatch.setattr(launcher.test_activity, 'activity', lambda _: nullcontext())
+    monkeypatch.setattr(launcher.test_activity, 'activity', lambda _, **kw: nullcontext())
     monkeypatch.setattr(launcher, 'check', Mock())
     cleanup = Mock(return_value=0)
     monkeypatch.setattr(launcher, 'cleanup', cleanup)
@@ -217,6 +219,25 @@ def test_fresh_online_snapshot_resumes_without_cleanup_or_build(launch):
         '/usr/local/libexec/onpc-test-runner',
         'appsnapshot', '--resume', '--mode', 'online', *VM_ARGS]
     cleanup.assert_not_called()
+    allocation.assert_not_called()
+
+
+@pytest.mark.parametrize('recovered_status', [0, 4, 1])
+def test_unfinished_attempt_recovers_before_reprobe_without_forcing_build(launch, recovered_status):
+    control, cleanup, allocation = launch
+    control.run.side_effect = [6, recovered_status, 0]
+    assert launcher.main([*VM_ARGS, '--y']) == (1 if recovered_status == 1 else 0)
+    cleanup.assert_called_once()
+    assert control.run.call_args_list[0].args == control.run.call_args_list[1].args
+    allocation.assert_not_called()
+
+
+def test_unfinished_attempt_recovery_failure_prevents_reprobe_and_build(launch):
+    control, cleanup, allocation = launch
+    control.run.return_value = 6
+    cleanup.side_effect = ValueError('retention: automatic recovery failed')
+    assert launcher.main([*VM_ARGS, '--y']) == 2
+    control.run.assert_called_once()
     allocation.assert_not_called()
 
 
@@ -377,7 +398,7 @@ def test_memory_restore_reconnects_before_waiting_for_host_dhcp(monkeypatch):
     import e2e_watch
     lease = Mock()
     lease.state = {'run': 'a' * 32, 'baseline_sha256': 'b' * 64}
-    lease.capture.state = {'source': {'layout': {'source_shares': []}}}
+    lease.capture.state = {'source': {'layout': {}}}
     lease.source.uuid = 'fixture-uuid'
     lease.source.api.VIR_DOMAIN_AFFECT_LIVE = 1
     lease.source.api.VIR_DOMAIN_AFFECT_CONFIG = 2
@@ -390,7 +411,7 @@ def test_memory_restore_reconnects_before_waiting_for_host_dhcp(monkeypatch):
     lease.source.domain.ID.return_value = 71
     lease.snapshot_status.return_value = nullcontext()
     monkeypatch.setattr(app_snapshot, 'mode_mismatch', lambda *a: None)
-    monkeypatch.setattr(controller.system.baseline, 'domain_layout', lambda *a: {'source_shares': []})
+    monkeypatch.setattr(controller.system.baseline, 'domain_layout', lambda *a: {})
     monkeypatch.setattr(controller.system, 'validate_private_vnc', Mock())
     monkeypatch.setattr(vm_control, 'check_identity', Mock())
     events = []
@@ -434,7 +455,9 @@ def test_network_disconnected_through_snapshot_and_restored_on_capture_failure(m
 
 
 @pytest.mark.parametrize('running', [False, True])
-def test_resume_keeps_persistent_isolation_until_maintenance_stop(tmp_path, monkeypatch, running):
+@pytest.mark.parametrize('transport_failure', [False, True])
+def test_resume_keeps_persistent_isolation_until_maintenance_stop(
+        tmp_path, monkeypatch, running, transport_failure):
     import online_snapshot
     import vm_control
     from tools import test_retention
@@ -443,7 +466,7 @@ def test_resume_keeps_persistent_isolation_until_maintenance_stop(tmp_path, monk
     lease = Mock()
     lease.__enter__ = Mock()
     lease.state = {'run': 'b' * 32}
-    lease.capture.state = {'source': {'layout': {'source_shares': []}}, 'proof': {}}
+    lease.capture.state = {'source': {'layout': {}}, 'proof': {}}
     lease.capture.verify_snapshot.return_value = {}
     monkeypatch.setattr(test_retention, 'allocate', lambda *a, **kw: str(tmp_path))
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
@@ -457,17 +480,59 @@ def test_resume_keeps_persistent_isolation_until_maintenance_stop(tmp_path, monk
     def restore_running(held, record, *, maintenance):
         assert held.watch_detached is True
         assert maintenance is True
+        held.state['phase'] = 'running'
         return 'fixture-host'
     restore = Mock(side_effect=restore_running)
     monkeypatch.setattr(online_snapshot, 'restore', restore)
-    monkeypatch.setattr(online_snapshot, 'saved_transport', Mock())
-    assert controller.resume('pinned-fixture') == 0
+    monkeypatch.setattr(online_snapshot, 'saved_transport', Mock(
+        side_effect=RuntimeError('clock-not-ready') if transport_failure else None))
+    if transport_failure:
+        with pytest.raises(RuntimeError, match='clock-not-ready'):
+            controller.resume('pinned-fixture')
+        lease.finish.assert_called_once()
+        assert lease.watch_detached is False
+    else:
+        assert controller.resume('pinned-fixture') == 0
+        lease.finish.assert_not_called()
+        assert lease.watch_detached is True
     restore.assert_called_once()
     source.connection.defineXML.assert_not_called()
-    assert lease.watch_detached is True
     lease.release.assert_called_once()
     if running:
         vm_control.resume.assert_called_once_with(lease)
+
+
+@pytest.mark.parametrize('phase,running,owned,status', [
+    ('cleanup-requested', False, False, 6), ('running', False, True, 6),
+    ('running', True, False, 6), ('start-requested', True, True, 6),
+    ('running', True, True, 4), ('complete', False, False, 4)])
+def test_probe_routes_unfinished_attempts_to_recovery_and_keeps_healthy_online_reuse(
+        tmp_path, monkeypatch, phase, running, owned, status):
+    import online_snapshot
+    import json
+    base = controller.system.baseline
+    lock = tmp_path / 'baseline.lock'
+    lock.touch(mode=0o600)
+    monkeypatch.setattr(base, 'BASELINES', tmp_path)
+    monkeypatch.setattr(base, 'identity', Mock())
+    monkeypatch.setattr(base, 'baseline_lock_path', lambda _: lock)
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v1.1')
+    monkeypatch.setattr(controller, 'preparation_format', lambda *_: 'deb')
+    source = Mock()
+    source.domain.ID.return_value = 17 if running else -1
+    source.domain.snapshotListNames.return_value = ['onpc-v1.1']
+    monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
+    monkeypatch.setattr(controller, 'check_identity', Mock())
+    monkeypatch.setattr(controller, 'mode_mismatch', lambda *_: None)
+    monkeypatch.setattr(online_snapshot, 'load', lambda *_: {'run': 'a' * 32})
+    journal = tmp_path / 'system-run.json'
+    raw = json.dumps({'phase': phase, 'run': 'a' * 32}).encode()
+    journal.write_bytes(raw)
+    (tmp_path / 'vm-control.json').write_text(json.dumps({'run': ('a' if owned else 'b') * 32}))
+    assert controller.probe('pinned') == status
+    assert journal.read_bytes() == raw
+    source.domain.create.assert_not_called()
+    source.domain.revertToSnapshot.assert_not_called()
 
 
 def test_baseline_preparation_cpu_is_migratable_and_preserves_other_settings():
@@ -707,9 +772,10 @@ def test_probe_uses_exclusive_vm_lock_and_never_mutates(
             os.close(other)
         return ['onpc-1.1'] if exists else ['onpc-0.9']
     source.domain.snapshotListNames.side_effect = names
+    domain = controller.system.isolated_xml(domain_xml(), UUID, 'a' * 32, graphics_type='vnc')
     source.domain.snapshotLookupByName.return_value.getXMLDesc.return_value = (
         f'<domainsnapshot><memory snapshot="{memory}"/><state>running</state>'
-        f'<creationTime>{int(time.time()) - age}</creationTime></domainsnapshot>')
+        f'<creationTime>{int(time.time()) - age}</creationTime>{domain}</domainsnapshot>')
     monkeypatch.setattr(online_snapshot, 'load', Mock(return_value={'bound': True}))
     assert controller.probe('pinned', mode=mode) == (status if exists else 3)
     source.domain.snapshotListNames.assert_called_once_with(0)

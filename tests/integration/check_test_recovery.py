@@ -22,7 +22,7 @@ def reconcile_vm(root):
         if str(error) != 'retention: VM recovery is unfinished; preserve evidence':
             raise
         print('Recovering the previous recorded VM attempt before starting tests.', flush=True)
-        if check_graphical_recovery.main(graphics_type=None):
+        if check_graphical_recovery.main(graphics_type=None, maintenance=True):
             raise ValueError('retention: recorded VM cleanup failed; evidence preserved')
         guard(root)
 

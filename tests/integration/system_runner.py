@@ -329,12 +329,12 @@ def announce_selection(selection):
 
 
 def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
-    """Use only the fixed guest disk; remove every host-sharing interface."""
+    """Use the fixed guest disk and private test display and transport."""
     baseline.domain_layout(xml, expected_uuid)
     root = ET.fromstring(xml)
     require(not root.findall('{http://libvirt.org/schemas/domain/qemu/1.0}commandline'), 'guard:qemu-override')
     devices = root.find('devices')
-    for name in ('filesystem', 'redirdev', 'channel', 'graphics', 'audio', 'sound', 'rng'):
+    for name in ('redirdev', 'channel', 'graphics', 'audio', 'sound', 'rng'):
         for node in devices.findall(name):
             devices.remove(node)
     require(graphics_type in ('spice', 'vnc'), 'guard:graphics-type')
@@ -404,7 +404,9 @@ def validate_private_spice(display):
     require(display.get('type') == 'spice' and
             set(display.attrib) <= {'type', 'port', 'tlsPort', 'autoport'} and
             display.get('port', '-1') == display.get('tlsPort', '-1') == '-1' and
-            display.get('autoport') == 'yes', 'guard:graphics-endpoint')
+            # libvirt omits autoport when normalizing listen type='none'.
+            # The exact listener and disabled ports remain mandatory below.
+            display.get('autoport', 'yes') == 'yes', 'guard:graphics-endpoint')
     require(len(display) == 3 and
             {child.tag: dict(child.attrib) for child in display} == {
                 'listen': {'type': 'none'}, 'clipboard': {'copypaste': 'no'},
@@ -413,11 +415,10 @@ def validate_private_spice(display):
 
 
 class SourceView:
-    """Retain exact disk checks while allowing our removed file share."""
+    """Retain disk checks and attest the owned running instance."""
 
     def __init__(self, source):
         self.source = source
-        self.original_shares = None
         self.run = None
         self.domain_id = None
         self.graphics_type = 'spice'
@@ -427,17 +428,16 @@ class SourceView:
         if self.run is not None:
             domain = self.source.connection.lookupByName(baseline.DOMAIN)
             root = ET.fromstring(domain.XMLDesc(0))
-            require(root.findtext('description') == TAG + self.run, 'guard:run-identity')
+            require(len(root.findall('description')) == 1 and
+                    root.findtext('description') == TAG + self.run, 'guard:run-identity')
             if self.graphics_type == 'vnc':
                 validate_private_vnc(root)
             else:
                 validate_observer(root.findall('devices/graphics'))
-            require(not layout['source_shares'] and not root.findall('devices/filesystem') and
-                    not root.findall('devices/hostdev') and not root.findall('devices/channel') and
+            require(not root.findall('devices/hostdev') and not root.findall('devices/channel') and
                     not root.findall('devices/redirdev'), 'guard:host-sharing')
             if not off:
                 require(self.domain_id is not None and domain.ID() == self.domain_id, 'guard:domain-replaced')
-            layout['source_shares'] = self.original_shares
         return layout, off
 
     def baseline(self):
@@ -497,6 +497,8 @@ class Lease:
                 raise Error('state:busy-controller') from error
             self.commands.lock_fd = self.fd
             self.commands.compatibility_fd = self.compatibility_fd
+            from e2e_watch import begin
+            begin(self)
             self.capture.state = self.capture.read_state()
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
             self.capture.require_idle_attempt()
@@ -565,7 +567,6 @@ class Lease:
         require(self.inspect(Path(self.capture.state['source']['layout']['disk']),
                              self.capture.state['script_digest']) == self.capture.state['guest'], 'baseline:guest-changed')
         self.source.connection.defineXML(self.test_xml)
-        self.view.original_shares = self.capture.state['source']['layout']['source_shares']
         self.view.run = self.state['run']
         self.guard(off=True)
         self.save('isolated')
@@ -634,7 +635,6 @@ class Lease:
                 self.guard()
                 self.source.domain.destroyFlags(0)
         self.guard(off=True)
-        self.close_watch()
 
     @observed('Stopping the VM by restoring its baseline')
     def stop_by_restore(self):
@@ -656,7 +656,6 @@ class Lease:
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)
-        self.close_watch()
         self.restored_by_callback = True
 
     def close_watch(self):
@@ -674,7 +673,6 @@ class Lease:
             return
         if self.restored_by_callback:
             self.guard(off=True)
-            self.close_watch()
         else:
             self.save('cleanup-requested')
             self.stop()
@@ -707,14 +705,6 @@ class Lease:
 
     def release(self):
         pending = None
-        try:
-            if self.watch_detached and self.watch is not None:
-                self.watch.detach()
-                self.watch = None
-            else:
-                self.close_watch()
-        except BaseException as error:
-            pending = error
         if self.capture.vm_ownership is not None:
             try:
                 self.capture.vm_ownership.close()
@@ -733,8 +723,20 @@ class Lease:
             finally:
                 self.fd = None
         if self.compatibility_fd is not None:
-            os.close(self.compatibility_fd)
-            self.compatibility_fd = None
+            try:
+                os.close(self.compatibility_fd)
+            except BaseException as error:
+                pending = pending if pending is not None else error
+            finally:
+                self.compatibility_fd = None
+        try:
+            if self.watch_detached and self.watch is not None:
+                self.watch.detach()
+                self.watch = None
+            else:
+                self.close_watch()
+        except BaseException as error:
+            pending = pending if pending is not None else error
         if pending is not None:
             raise pending
 
@@ -770,7 +772,9 @@ class Lease:
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
             baseline.identity(self.journal, private=True, mode=0o600)
             state = baseline.parse_json(self.journal.read_bytes())
-            isolated = isinstance(state, dict) and state.get('phase') == 'isolated'
+            isolated = isinstance(state, dict) and (
+                state.get('phase') == 'isolated' or
+                (state.get('phase') == 'cleanup-requested' and state.get('domain_id') is None))
             require(isinstance(state, dict) and set(state) - {'e2e_snapshot', 'internet_isolation'} == {
                 'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
                 'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
@@ -796,10 +800,10 @@ class Lease:
                     (off if isolated else (off or self.source.domain.ID() == state['domain_id'])),
                     'recovery:domain-replaced-or-off')
             active_xml = self.source.domain.XMLDesc(0)
-            restored_off = (off and not isolated and
+            restored_off = (off and state['phase'] != 'isolated' and
                             self.source.domain.XMLDesc(self.source.api.VIR_DOMAIN_XML_INACTIVE) ==
                             state['original_xml'])
-            off_isolated = off and not isolated and not restored_off
+            off_isolated = off and state['phase'] != 'isolated' and not restored_off
             if off_isolated:
                 # The recorded guest is off but still has one isolated configuration.
                 # Cleanup may already have been requested, or the attempt may still
@@ -819,11 +823,10 @@ class Lease:
                             'recovery:graphics-changed')
             self.original_xml = state['original_xml']
             require(baseline.domain_layout(self.original_xml, self.source.uuid) ==
-                    self.capture.state['source']['layout'], 'recovery:original-layout')
+                    baseline.recorded_layout(self.capture.state['source']['layout']), 'recovery:original-layout')
             isolated_xml(self.original_xml, self.source.uuid, state['run'],
                          graphics_type=self.view.graphics_type)
             self.state = state
-            self.view.original_shares = self.capture.state['source']['layout']['source_shares']
             self.view.run = None if restored_off else state['run']
             self.view.domain_id = None if off else state['domain_id']
             self.snapshot_xml = self.source.baseline()
@@ -1110,8 +1113,6 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
                 (row['app2_name'], row['app2_version'])
                 for row in g.inspect_list_applications2(root))
             log('bootstrap:fedora-tools-ready')
-        # Mount configuration belongs to the VM owner. Isolation must not edit
-        # /etc/fstab, including entries for shares absent from this attempt.
         marker = {'purpose': 'onpc-system-test', 'run': lease.state['run'],
                   'domain_uuid': lease.source.uuid,
                   'machine_id': g.read_file('/etc/machine-id').decode().strip(),

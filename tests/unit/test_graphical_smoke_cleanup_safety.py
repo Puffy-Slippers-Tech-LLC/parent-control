@@ -11,6 +11,8 @@ import check_graphical_recovery as recovery
 import check_system_recovery as system_recovery
 import fixture_credentials
 from tests.support.vm_baseline import local_preparation_source
+from tests.support.vm_baseline import rig
+from tests.support.vm_runner import lease_rig
 from tests.support.e2e_evidence import worker_evidence
 
 
@@ -295,7 +297,8 @@ def test_failed_observation_never_releases_graphical_input(tmp_path):
     ({'phase': 'complete'}, 'journal-identity'),
     ({'run': 'invalid'}, 'journal-identity'),
     ({'domain_uuid': 'replacement'}, 'journal-identity'),
-    ({'domain_id': None}, 'journal-identity'),
+    # A null ID is valid before start, but cannot authorize an active guest.
+    ({'domain_id': None}, 'domain-replaced-or-off'),
     ({'domain_id': 18}, 'domain-replaced-or-off'),
     ({'baseline_sha256': '0' * 64}, 'journal-identity'),
     ({'extra': True}, 'journal-identity'),
@@ -315,7 +318,7 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
     lease = runner.Lease(source, Mock(), Mock(), directory=tmp_path, graphics_type=graphics_type)
     recover = (lease.recover_graphical_cleanup if graphics_type == 'vnc'
                else lease.recover_system_cleanup)
-    baseline_state = {'phase': 'finalized', 'source': {'layout': {'source_shares': []}}, 'proof': 'proof'}
+    baseline_state = {'phase': 'finalized', 'source': {'layout': {}}, 'proof': 'proof'}
     state = {'schema_version': 1, 'run': 'a' * 32, 'phase': 'cleanup-requested',
              'domain_uuid': source.uuid, 'domain_id': 17, 'original_xml': '<recorded/>',
              'baseline_sha256': hashlib.sha256(runner.baseline.encode(baseline_state)).hexdigest(), **change}
@@ -343,6 +346,74 @@ def test_recovery_validates_recorded_identity_before_cleanup(tmp_path, change, c
         close.assert_called_once_with(42)
     source.shutdown.assert_not_called()
     source.domain.create.assert_not_called()
+
+
+@pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
+@pytest.mark.parametrize('already_restored', [False, True])
+def test_recovery_closes_never_started_cleanup_without_booting(lease_rig, rig, graphics_type, already_restored):
+    runner = smoke.runner
+    lease, current = lease_rig
+    lease.view.graphics_type = graphics_type
+    lease.__enter__()
+    lease.prepare()
+    lease.save('cleanup-requested')
+    assert lease.state['domain_id'] is None
+    original = lease.original_xml
+    lease.release()
+    if already_restored:
+        lease.source.connection.defineXML(original)
+    restored = lease.source.domain.revertToSnapshot.call_count
+    shutdowns = lease.source.shutdown_calls
+    reopened = runner.Lease(lease.source, rig.commands, rig.inspect,
+        directory=rig.directory, anchor=rig.anchor, graphics_type=graphics_type)
+    if graphics_type == 'vnc':
+        reopened.recover_graphical_cleanup()
+    else:
+        reopened.recover_system_cleanup()
+    assert current == {'xml': original, 'id': -1}
+    assert json.loads(reopened.journal.read_bytes())['phase'] == 'complete'
+    assert lease.source.domain.revertToSnapshot.call_count == restored + (not already_restored)
+    lease.source.domain.create.assert_not_called()
+    assert lease.source.shutdown_calls == shutdowns
+    assert reopened.fd is None
+
+
+@pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])
+@pytest.mark.parametrize('fault', ['running', 'configuration', 'snapshot', 'maintenance-owner'])
+def test_never_started_cleanup_refuses_replaced_or_unproven_state(lease_rig, rig, graphics_type, fault):
+    runner = smoke.runner
+    lease, current = lease_rig
+    lease.view.graphics_type = graphics_type
+    lease.__enter__()
+    lease.prepare()
+    lease.save('cleanup-requested')
+    saved = lease.journal.read_bytes()
+    lease.release()
+    if fault == 'running':
+        current['id'], lease.source.off = 72, False
+    elif fault == 'configuration':
+        xml = current['xml']
+        lease.source.domain.XMLDesc.side_effect = lambda flags: xml + ('\n' if flags else '')
+    elif fault == 'snapshot':
+        rig.commands.snapshots[0]['id'] = 'changed'
+    elif fault == 'maintenance-owner':
+        owner = rig.directory / 'vm-control.json'
+        owner.write_text(json.dumps({'run': lease.state['run']}))
+        owner.chmod(0o600)
+    restored = lease.source.domain.revertToSnapshot.call_count
+    reopened = runner.Lease(lease.source, rig.commands, rig.inspect,
+        directory=rig.directory, anchor=rig.anchor, graphics_type=graphics_type)
+    category = {'running': 'domain-replaced-or-off', 'configuration': 'off-configuration-changed',
+                'snapshot': 'snapshot:changed', 'maintenance-owner': 'maintenance-owned'}[fault]
+    with pytest.raises(runner.Error, match=category):
+        if graphics_type == 'vnc':
+            reopened.recover_graphical_cleanup()
+        else:
+            reopened.recover_system_cleanup()
+    assert lease.journal.read_bytes() == saved
+    assert lease.source.domain.revertToSnapshot.call_count == restored
+    lease.source.domain.create.assert_not_called()
+    assert reopened.fd is None
 
 
 @pytest.mark.parametrize('graphics_type', ['vnc', 'spice'])

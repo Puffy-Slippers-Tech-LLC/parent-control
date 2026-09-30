@@ -59,6 +59,24 @@ def probe(expected_uuid, *, mode='online', overwrite=False):
         source, _ = open_source()
         check_identity(source, expected_uuid)
         package_format = preparation_format(source, commands)
+        journal = base.BASELINES / 'system-run.json'
+        if os.path.lexists(journal):
+            base.identity(journal, private=True, mode=0o600)
+            attempt = base.parse_json(journal.read_bytes())
+            system.require(isinstance(attempt, dict), 'state:invalid-run-journal')
+            if attempt.get('phase') != 'complete':
+                owner_path = base.BASELINES / 'vm-control.json'
+                owner = None
+                if os.path.lexists(owner_path):
+                    base.identity(owner_path, private=True, mode=0o600)
+                    owner = base.parse_json(owner_path.read_bytes())
+                # A healthy online maintenance instance is resumed with full
+                # ownership checks. Other unfinished attempts require shared
+                # recovery before either reuse or installation.
+                if not (mode == 'online' and not overwrite and source.domain.ID() >= 0
+                        and attempt.get('phase') == 'running' and isinstance(owner, dict)
+                        and owner.get('run') == attempt.get('run')):
+                    return 6
         required = 5 if package_format == 'rpm' else 3
         if overwrite:
             return required
@@ -136,6 +154,8 @@ def resume(expected_uuid):
     directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-appsnapshot-resume-'))
     source, guestfs = open_source()
     lease = None
+    restore_origin = None
+    complete = False
     try:
         check_identity(source, expected_uuid)
         commands = Commands()
@@ -155,11 +175,11 @@ def resume(expected_uuid):
         system.require(record is not None, 'online-snapshot:credentials-missing')
         lease.installed_name, lease.installed_xml = name, xml
         lease.snapshot_xml = source.baseline()
-        lease.view.original_shares = lease.capture.state['source']['layout']['source_shares']
         lease.mutated = True
         # Select the maintenance keeper before restore attaches its observer.
         lease.watch_detached = True
         started = time.monotonic()
+        restore_origin = (lease.state.get('run'), lease.state.get('phase'))
         hostname = restore(lease, record, maintenance=True)
         saved_transport(lease, directory, record, hostname)
         preparation(f'Running guest SSH and clock ready in {time.monotonic() - started:.2f}s')
@@ -169,6 +189,7 @@ def resume(expected_uuid):
         # guest. Stop restores the original XML from the ownership journal.
         lease.guard()
         preparation('Running VM ready from snapshot ' + name)
+        complete = True
         return 0
     finally:
         try:
@@ -179,6 +200,13 @@ def resume(expected_uuid):
                     # obligation and must not strand an otherwise idle VM.
                     if lease.state is not None and lease.state.get('phase') == 'validated':
                         lease.save('complete')
+                    elif (restore_origin is not None and not complete
+                          and lease.state.get('phase') == 'running'
+                          and (lease.state.get('run'), lease.state.get('phase')) != restore_origin):
+                        # SSH/clock/readiness failure must not leave the owned
+                        # restored guest behind. Reuse ordinary guarded cleanup.
+                        lease.watch_detached = False
+                        lease.finish()
                 finally:
                     lease.release()
         finally:

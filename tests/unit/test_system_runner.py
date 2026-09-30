@@ -1,6 +1,6 @@
 """Host-safe guard/transport tests; real temporary files, no live VM operations.
 
-Share-isolation variants transform only synthetic XML in memory; no host mounts,
+Isolation variants transform only synthetic XML in memory; no host mounts,
 VM, socket or shared path is accessed. Compatible scheduling remains appropriate.
 """
 from tests.support.vm_registry import vm_name
@@ -120,8 +120,7 @@ Signed-By:
 @pytest.mark.parametrize('failure', [None, 'write', 'readback', 'missing-tools', 'symlink'])
 @pytest.mark.parametrize('observation_only', [False, True])
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-@pytest.mark.parametrize('share_type', ['virtiofs', '9p'])
-def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only, package_format, share_type):
+def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only, package_format):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
                            'guest': {'preparation_record_sha256': 'e' * 64}}
@@ -132,11 +131,6 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
         (tmp_path / ('input/package.' + package_format)).write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     g, files = bootstrap_guest()
-    fstab = (b'# Owner-managed mounts; preserve spacing and final newline state.\n'
-             b'/dev/sda2 / ext4 defaults 0 1\n'
-             b'Data\t/Data\t' + share_type.encode() + b'\tdefaults 0 0\n'
-             b'other /other 9p nofail 0 0')
-    files['/etc/fstab'] = fstab
     if package_format == 'rpm':
         from guest_test_dependencies import FEDORA_VERSIONS
         g.inspect_get_distro.return_value = 'fedora'
@@ -201,22 +195,16 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
             g.command.assert_called_once_with(['/usr/sbin/setfiles', '-m',
                 '/etc/selinux/targeted/contexts/files/file_contexts',
                 '/etc/onpc-system-test.json', '/root/.ssh'])
-    assert files['/etc/fstab'] == fstab
-    for method in (g.read_file, g.write, g.chmod, g.chown, g.selinux_relabel):
-        assert all('/etc/fstab' not in call.args for call in method.call_args_list)
     assert [call.args[0][0] for call in commands.run.call_args_list] == ['ssh-keygen']
 
 
 
 
-@pytest.mark.parametrize('directory,tag', [('/Data', 'Data'), ('/Data/Code/PST', 'pst')])
-def test_isolation_removes_shares_and_spice_transfer_but_preserves_disk(directory, tag):
-    document = xml().replace('dir="/Data"', f'dir="{directory}"').replace(
-        'dir="Data"', f'dir="{tag}"')
-    root = ET.fromstring(runner.isolated_xml(document, UUID, RUN))
+def test_isolation_removes_spice_transfer_but_preserves_disk():
+    root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN))
     assert root.findtext('uuid') == UUID
     assert root.find('devices/disk/source').get('file') == '/image'
-    for name in ('filesystem', 'channel', 'redirdev', 'hostdev'):
+    for name in ('channel', 'redirdev', 'hostdev'):
         assert not root.findall('devices/' + name)
     assert root.find('devices/graphics/clipboard').get('copypaste') == 'no'
     assert root.find('devices/graphics/filetransfer').get('enable') == 'no'
@@ -242,7 +230,7 @@ def test_active_domain_id_is_required_even_with_same_uuid_and_marker():
     domain.XMLDesc.return_value = runner.isolated_xml(xml(), UUID, RUN)
     domain.ID.return_value = 9
     view = runner.SourceView(source)
-    view.run, view.domain_id, view.original_shares = RUN, 8, []
+    view.run, view.domain_id = RUN, 8
     with pytest.raises(runner.Error, match='domain-replaced'):
         view.snapshot()
 
@@ -254,7 +242,7 @@ def test_source_view_preserves_task12_inventory_contract():
     source.snapshot.return_value = (layout, True)
     source.connection.lookupByName.return_value.XMLDesc.return_value = runner.isolated_xml(xml(), UUID, RUN)
     view = runner.SourceView(source)
-    view.run, view.original_shares = RUN, original['source_shares']
+    view.run = RUN
     assert view.snapshot() == (original, True)
 
 
@@ -266,7 +254,7 @@ def marker():
 
 
 def test_guest_guard_accepts_only_matching_isolated_vm():
-    guest.validate_marker(marker(), RUN, 'b' * 32, UUID, ['ext4', 'proc'])
+    guest.validate_marker(marker(), RUN, 'b' * 32, UUID)
 
 
 @pytest.mark.parametrize('field,value', [
@@ -277,13 +265,9 @@ def test_guest_guard_accepts_only_matching_isolated_vm():
 ])
 def test_guest_marker_refuses_host_or_replacement(field, value):
     with pytest.raises(guest.GuestError):
-        guest.validate_marker(marker() | {field: value}, RUN, 'b' * 32, UUID, ['ext4'])
+        guest.validate_marker(marker() | {field: value}, RUN, 'b' * 32, UUID)
 
 
-@pytest.mark.parametrize('filesystem', ['virtiofs', '9p', 'nfs', 'nfs4', 'cifs', 'fuse.sshfs'])
-def test_guest_refuses_host_filesystems(filesystem):
-    with pytest.raises(guest.GuestError, match='host-filesystem-exposed'):
-        guest.validate_marker(marker(), RUN, 'b' * 32, UUID, ['ext4', filesystem])
 
 
 def test_asset_tree_rejects_symlink_and_special_file(tmp_path):
@@ -966,7 +950,6 @@ def test_full_lease_preserves_baseline_and_restores_original_config(lease_rig):
     with lease:
         original = lease.original_xml
         lease.prepare()
-        assert not lease.source.layout['source_shares']
         lease.start()
         assert lease.view.domain_id == 71
     assert lease.state['phase'] == 'complete'

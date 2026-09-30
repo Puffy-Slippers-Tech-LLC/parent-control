@@ -71,7 +71,6 @@ add-apt-repository -y universe
     libvirt-daemon-system \
     qemu-system-x86 \
     qemu-system-modules-opengl \
-    virtiofsd \
     libvirt-clients=12.0.0-1ubuntu5.5 \
     libguestfs-tools=1:1.58.1-3ubuntu3 \
     lintian \

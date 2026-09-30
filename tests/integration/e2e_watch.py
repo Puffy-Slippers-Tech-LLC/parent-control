@@ -1,5 +1,6 @@
 """Lease-owned display collector. It never owns or launches a viewer window."""
 
+import array
 import hashlib
 import json
 import os
@@ -12,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
@@ -252,6 +254,7 @@ class Observer:
         self.control = self.listener = None
         self.stop = threading.Event()
         self.ready = threading.Event()
+        self.display_ready = threading.Event()
         self.finished = threading.Event()
         self.cleanup_error = None
         remote_control = remote_listener = None
@@ -259,13 +262,13 @@ class Observer:
             self.publication = Publication(uid, run)
             self.control, remote_control = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
             self.listener, remote_listener = socket.socketpair()
-            descriptors = [remote_control.fileno(), display.fileno(), self.listener.fileno(),
+            descriptors = [remote_control.fileno(), display.fileno() if display is not None else -1, self.listener.fileno(),
                            remote_listener.fileno(), self.publication.server.fileno()]
             command = ['/usr/bin/python3', '-B', str(Path(__file__).with_name('e2e_watch_collector.py'))]
             for name, fd in zip(('control', 'display', 'listener', 'remote', 'server'), descriptors):
                 command.extend(['--' + name, str(fd)])
             command.extend(['--uid', str(uid), '--run', run])
-            self.child = subprocess.Popen(command, pass_fds=tuple(descriptors),
+            self.child = subprocess.Popen(command, pass_fds=tuple(fd for fd in descriptors if fd >= 0),
                 stdin=subprocess.DEVNULL, env={'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8'})
             self.pidfd = os.pidfd_open(self.child.pid)
             self.control.sendall(b'start')
@@ -296,6 +299,8 @@ class Observer:
                         self.publication.publish()
                         self.ready.set()
                         log('available')
+                elif message == b'attached':
+                    self.display_ready.set()
                 elif message == b'':
                     break
                 if self.lease_locked != last_locked:
@@ -327,6 +332,19 @@ class Observer:
                 log('collector-cleanup-failed')
             finally:
                 self.finished.set()
+
+    def attach_display(self, display):
+        """Replace only the guarded QEMU endpoint, retaining the published feed."""
+        try:
+            require(not self.finished.is_set(), 'collector-unavailable')
+            self.display_ready.clear()
+            self.control.sendmsg([b'display'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
+                                  array.array('i', [display.fileno()]))])
+            require(self.display_ready.wait(6) and not self.finished.is_set(),
+                    'collector-attachment-failed')
+        finally:
+            # The collector owns the received descriptor. Do not shut it down.
+            display.close()
 
     def _reap(self):
         # Shutdown affects all duplicates, including an unresponsive child.
@@ -401,10 +419,54 @@ def start(adapter):
 
 
 def attach(lease):
-    """One display attachment per start, shared by every VM consumer."""
-    lease.close_watch()
+    """Reuse the lease feed across guarded starts and snapshot restores."""
+    adapter = DisplayAdapter(lease.source, lease.view.domain_id,
+                             lease.guard, lease.state['run'], lease=lease)
+    if lease.watch_detached:
+        lease.close_watch()
+        lease.watch = start(adapter)
+    else:
+        attach_display(lease, adapter)
+
+
+def begin(lease):
+    """Publish one connected feed for the entire exclusive VM lease."""
     uid = os.environ.get('PKEXEC_UID', '')
     if os.geteuid() != 0 or not uid.isdecimal() or int(uid) <= 0:
         return
-    lease.watch = start(DisplayAdapter(lease.source, lease.view.domain_id,
-                                     lease.guard, lease.state['run'], lease=lease))
+    observer = None
+    try:
+        observer = Observer(None, int(uid), uuid.uuid4().hex,
+                            progress=getattr(lease, 'watch_progress', None))
+        require(observer.ready.wait(6) and not observer.finished.is_set(), 'collector-unavailable')
+        lease.watch = observer
+    except Exception:
+        if observer is not None:
+            observer.close()
+        log('disabled')
+    except BaseException:
+        if observer is not None:
+            observer.close()
+        raise
+
+
+def attach_display(lease, adapter):
+    observer = getattr(lease, 'watch', None)
+    if observer is not None and observer.finished.is_set():
+        observer.close()
+        lease.watch = None
+    if getattr(lease, 'watch', None) is None:
+        begin(lease)
+    if lease.watch is not None:
+        lease.watch.progress = getattr(lease, 'watch_progress', None)
+        observer = lease.watch
+        try:
+            observer.attach_display(adapter.open_display())
+        except Exception:
+            observer.close()
+            lease.watch = None
+            log('disabled')
+        except BaseException:
+            observer.close()
+            lease.watch = None
+            raise

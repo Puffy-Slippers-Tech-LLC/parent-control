@@ -16,6 +16,207 @@ from e2e_watch_collector import Display
 from e2e_watch_viewer import AsyncFeed, Feed
 
 
+def test_lease_collector_keeps_the_same_live_mapping_without_a_guest(tmp_path):
+    """Run the actual collector on private sockets; no VM or desktop is used."""
+    import subprocess
+    import sys
+    from pathlib import Path
+    worker = tmp_path / 'collector.py'
+    directory = Path(__file__).resolve().parents[1] / 'integration'
+    worker.write_text(f'import sys, os\nsys.path.insert(0, {str(directory)!r})\n'
+                      'import e2e_watch_collector as collector\n'
+                      'collector.os.geteuid = lambda: 0\ncollector.main()\n')
+    qemu_worker = tmp_path / 'display.py'
+    qemu_worker.write_text('''import os, socket, sys
+from gi.repository import Gio, GLib
+loop = GLib.MainLoop()
+connections = []
+XML = ''' + repr('''<node><interface name="org.freedesktop.DBus.Properties">
+<method name="Get"><arg type="s" direction="in"/><arg type="s" direction="in"/>
+<arg type="v" direction="out"/></method></interface>
+<interface name="org.qemu.Display1.Console"><method name="RegisterListener">
+<arg type="h" direction="in"/></method></interface></node>''') + '''
+def listener_ready(_source, result):
+    connection = Gio.DBusConnection.new_finish(result)
+    connections.append(connection)
+    connection.set_exit_on_close(False)
+    connection.start_message_processing()
+    connection.call(None, '/org/qemu/Display1/Listener', 'org.qemu.Display1.Listener',
+        'Scanout', GLib.Variant('(uuuuay)', (1, 1, 4, 0x20020888, sys.argv[2].encode())),
+        None, Gio.DBusCallFlags.NONE, 3000, None, None)
+def method(_connection, _sender, _path, _interface, name, parameters, invocation):
+    if name == 'Get':
+        invocation.return_value(GLib.Variant('(v)', (GLib.Variant('au', [0]),)))
+    else:
+        fd = invocation.get_message().get_unix_fd_list().get(parameters.unpack()[0])
+        transport = Gio.Socket.new_from_fd(fd).connection_factory_create_connection()
+        Gio.DBusConnection.new(transport, Gio.dbus_generate_guid(),
+            Gio.DBusConnectionFlags.AUTHENTICATION_SERVER |
+            Gio.DBusConnectionFlags.AUTHENTICATION_REQUIRE_SAME_USER |
+            Gio.DBusConnectionFlags.DELAY_MESSAGE_PROCESSING,
+            None, None, listener_ready)
+        invocation.return_value(GLib.Variant('()', ()))
+def ready(_source, result):
+    connection = Gio.DBusConnection.new_finish(result)
+    connections.append(connection)
+    connection.set_exit_on_close(False)
+    connection.connect('closed', lambda *_: loop.quit())
+    interfaces = Gio.DBusNodeInfo.new_for_xml(XML).interfaces
+    for path, interface in zip(('/org/qemu/Display1/VM', '/org/qemu/Display1/Console_0'), interfaces):
+        connection.register_object_with_closures2(path, interface, method, None, None)
+    connection.start_message_processing()
+transport = Gio.Socket.new_from_fd(int(sys.argv[1])).connection_factory_create_connection()
+Gio.DBusConnection.new(transport, Gio.dbus_generate_guid(),
+    Gio.DBusConnectionFlags.AUTHENTICATION_SERVER |
+    Gio.DBusConnectionFlags.AUTHENTICATION_REQUIRE_SAME_USER |
+    Gio.DBusConnectionFlags.DELAY_MESSAGE_PROCESSING,
+    None, None, ready)
+GLib.timeout_add_seconds(15, lambda: loop.quit() or False)
+loop.run()
+for connection in connections:
+    if not connection.is_closed(): connection.close_sync(None)
+''')
+    control, remote_control = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    listener, remote_listener = socket.socketpair()
+    from tools.test_storage import runtime_directory
+    with runtime_directory(prefix='onpc-watch-test-') as runtime:
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        server.bind(str(runtime / 'frames.sock'))
+        server.listen(4)
+        descriptors = [remote_control.fileno(), -1, listener.fileno(),
+                       remote_listener.fileno(), server.fileno()]
+        argv = [sys.executable, '-B', str(worker)]
+        for name, fd in zip(('control', 'display', 'listener', 'remote', 'server'), descriptors):
+            argv.extend(['--' + name, str(fd)])
+        argv.extend(['--uid', str(max(1, os.getuid())), '--run', 'a' * 32])
+        with (tmp_path / 'collector.log').open('wb') as log:
+            child = subprocess.Popen(argv, pass_fds=tuple(fd for fd in descriptors if fd >= 0),
+                                     stdout=log, stderr=log)
+        memory = None
+        displays = []
+        try:
+            remote_control.close()
+            listener.close()
+            remote_listener.close()
+            server.close()
+            control.settimeout(5)
+            control.send(b'start')
+            assert control.recv(16) == b'ready'
+            with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
+                peer.settimeout(5)
+                peer.connect(str(runtime / 'frames.sock'))
+                memory = protocol.receive_frames(peer, owner=os.getuid())
+            first = protocol.read_frame(memory)
+            assert first[1]['lease_locked'] is True
+            # Multiple heartbeats must keep the very same mapping current during
+            # offline inspection/restoration and between preparation steps.
+            for _ in range(3):
+                assert control.recv(16) == b'beat'
+            latest = protocol.read_frame(memory, first[0])
+            assert latest is not None and latest[1]['lease_locked'] is True
+            assert latest[1]['state'] == 'waiting'
+            assert time.monotonic_ns() - latest[1]['updated_ns'] < 1_000_000_000
+            for pixels in ('boot', 'next'):
+                display, remote_display = socket.socketpair()
+                with display, remote_display, (tmp_path / (pixels + '.log')).open('wb') as log:
+                    producer = subprocess.Popen([sys.executable, '-B', str(qemu_worker),
+                        str(remote_display.fileno()), pixels], pass_fds=(remote_display.fileno(),),
+                        stdout=log, stderr=log)
+                    displays.append(producer)
+                    remote_display.close()
+                    control.sendmsg([b'display'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
+                                                 array.array('i', [display.fileno()]))])
+                    display.close()
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        frame = protocol.read_frame(memory)
+                        if frame[1]['state'] == 'live' and frame[2] == pixels.encode():
+                            break
+                        time.sleep(.01)
+                    else:
+                        pytest.fail((tmp_path / 'collector.log').read_text() +
+                                    (tmp_path / (pixels + '.log')).read_text())
+                    assert frame[1]['run'] == first[1]['run']
+                    assert frame[1]['lease_locked'] is True
+                    # End only this fake display; the collector must survive it.
+                    producer.terminate()
+                    producer.wait(timeout=5)
+                    deadline = time.monotonic() + 3
+                    while time.monotonic() < deadline:
+                        if protocol.read_frame(memory)[1]['state'] == 'waiting':
+                            break
+                        time.sleep(.01)
+                    assert protocol.read_frame(memory)[1]['state'] == 'waiting'
+                    assert child.poll() is None
+            control.close()
+            assert child.wait(timeout=5) == 0, (tmp_path / 'collector.log').read_text()
+            assert protocol.read_frame(memory)[1]['state'] == 'stopped'
+        finally:
+            control.close()
+            server.close()
+            remote_control.close()
+            listener.close()
+            remote_listener.close()
+            if memory is not None:
+                memory.close()
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+            for producer in displays:
+                if producer.poll() is None:
+                    producer.kill()
+                    producer.wait(timeout=5)
+
+
+def test_display_end_preserves_lease_publication_and_clears_old_pixels(frames):
+    from e2e_watch_collector import Attachment
+    display = Display(frames)
+    frames.publish(lease_locked=True)
+    attachment = Attachment(display, Mock())
+    connection = Mock()
+    connection.is_closed.return_value = False
+    attachment.connections.append(connection)
+    display.update('Scanout', [1, 1, 4, protocol.FORMATS[0]], b'abcd')
+    display.publish()
+    first = receive(frames)
+    try:
+        assert protocol.read_frame(first)[2] == b'abcd'
+        attachment.close()
+        connection.close.assert_called_once()
+        meta = protocol.read_frame(first)[1]
+        assert meta['state'] == 'waiting' and meta['lease_locked'] is True
+        with receive(frames) as reconnected:
+            assert protocol.read_frame(reconnected)[1]['run'] == meta['run']
+        display.update('Scanout', [1, 1, 4, protocol.FORMATS[0]], b'next')
+        display.publish()
+        assert protocol.read_frame(first)[2] == b'next'
+    finally:
+        first.close()
+
+
+def test_controller_replaces_display_through_owned_descriptor(frames):
+    from e2e_watch_collector import receive_progress
+    server, client = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    display, remote = socket.socketpair()
+    with server, client, display, remote:
+        remote.sendall(b'guarded display')
+        client.sendmsg([b'display'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
+                                     array.array('i', [display.fileno()]))])
+        received = []
+        attach = Mock(side_effect=lambda peer: received.append(peer.recv(32)))
+        assert receive_progress(server, frames, attach)
+        assert received == [b'guarded display']
+        assert attach.call_args[0][0].fileno() == -1
+        # Missing/excess descriptors fail closed, with no attachment.
+        for descriptors in ([], [display.fileno(), display.fileno()]):
+            controls = ([(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', descriptors))]
+                        if descriptors else [])
+            client.sendmsg([b'display'], controls)
+            with pytest.raises(ValueError, match='display-descriptor'):
+                receive_progress(server, frames, attach)
+        assert attach.call_count == 1
+
+
 def test_headless_feed_import_needs_no_checkout_or_desktop_environment():
     import subprocess
     import sys

@@ -361,7 +361,7 @@ def test_reconstructed_outer_recovery_removes_canonical_owned_resources(
     recovered = runner.Lease(source, Mock(), Mock(), directory=journal.parent,
                              graphics_type='vnc')
     baseline_state = {'phase': 'finalized', 'source': {
-        'layout': {'source_shares': [], 'disk': str(journal.parent / 'disk')}},
+        'layout': {'disk': str(journal.parent / 'disk')}},
         'proof': 'proof', 'script_digest': 'digest', 'guest': 'guest'}
     state = {**original.state, 'schema_version': 1,
              'baseline_sha256': hashlib.sha256(runner.baseline.encode(baseline_state)).hexdigest()}

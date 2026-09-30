@@ -34,6 +34,7 @@ def preparation(monkeypatch):
     g.ln_s.side_effect = lambda target, p: links.update({p: target})
     g.rm.side_effect = lambda p: (links if p in links else files).pop(p)
     capture = Mock()
+    capture.watch = None
     capture.state = {'operation': 'a' * 32}
     capture.source.domain.XMLDesc.return_value = '<domain><devices><graphics type="spice"/></devices></domain>'
     capture.source.domain.ID.return_value = 15
@@ -75,8 +76,8 @@ def test_preparation_orders_background_apt_jobs_after_its_package_work():
 def test_auto_updates_request_at_most_one_observed_reboot(preparation, monkeypatch, reboot):
     import e2e_watch
     p = preparation
-    start = Mock(return_value=Mock())
-    monkeypatch.setattr(e2e_watch, 'start', start)
+    attach = Mock()
+    monkeypatch.setattr(e2e_watch, 'attach_display', attach)
     boots = []
     def boot():
         boots.append(True)
@@ -93,7 +94,8 @@ def test_auto_updates_request_at_most_one_observed_reboot(preparation, monkeypat
             p.files.pop(guest.STAGE + '/reboot-required')
     p.capture.source.domain.create.side_effect = boot
     guest.prepare(p.capture, Mock(), 'fixture-password', mode='auto')
-    assert len(boots) == start.call_count == 1 + int(reboot)
+    assert len(boots) == attach.call_count == 1 + int(reboot)
+    assert all(call.args[0] is p.capture for call in attach.call_args_list)
     assert guest.UNIT not in p.files
 
 
@@ -213,25 +215,27 @@ def test_baseline_boot_uses_shared_endpoint_and_collector(preparation, monkeypat
     import xml.etree.ElementTree as ET
     p = preparation
     observer = Mock()
-    start = Mock(return_value=observer)
-    monkeypatch.setattr(e2e_watch, 'start', start)
+    p.capture.watch = observer
+    attach = Mock()
+    monkeypatch.setattr(e2e_watch, 'attach_display', attach)
     def boot():
         configured = ET.fromstring(p.capture.source.connection.defineXML.call_args.args[0])
         assert configured.findall('devices/graphics')[0].get('type') == 'spice'
         copied = configured.findall('devices/graphics')[1]
         assert copied.attrib == {'type': 'dbus', 'p2p': 'yes'}
         assert copied.find('gl').get('enable') == 'no'
-        start.assert_not_called()
+        attach.assert_not_called()
         p.boot()
     xml = p.capture.source.domain.XMLDesc.return_value
     p.capture.source.domain.XMLDesc.return_value = xml.replace('<devices>',
         '<cpu mode="host-passthrough" migratable="off"/><devices><memballoon model="virtio"/>')
     p.capture.source.domain.create.side_effect = boot
     guest.prepare(p.capture, Mock(), 'fixture-password')
-    adapter = start.call_args.args[0]
+    assert attach.call_args.args[0] is p.capture
+    adapter = attach.call_args.args[1]
     assert isinstance(adapter, e2e_watch.DisplayAdapter)
     assert adapter.source is p.capture.source and adapter.domain_id == 15
-    observer.close.assert_called_once()
+    observer.close.assert_not_called()  # Capture.run owns final lease cleanup.
     cpu = ET.fromstring(p.capture.source.connection.defineXML.call_args.args[0]).find('cpu')
     assert cpu.get('migratable') == 'on'
     assert cpu.find("feature[@name='invtsc']").get('policy') == 'disable'
@@ -264,7 +268,9 @@ def test_baseline_display_ignores_only_live_memory_report(preparation, monkeypat
     xml = '<domain>' + report + '<devices><graphics type="spice"/></devices></domain>'
     domain.XMLDesc.return_value = xml
     observer = Mock()
-    def start(adapter):
+    preparation.capture.watch = observer
+    def attach(owner, adapter):
+        assert owner is preparation.capture
         adapter.revalidate()
         domain.XMLDesc.return_value = xml.replace(report, changed)
         if accepted:
@@ -272,10 +278,9 @@ def test_baseline_display_ignores_only_live_memory_report(preparation, monkeypat
         else:
             with pytest.raises(host.CaptureError, match='preparation-display-changed'):
                 adapter.revalidate()
-        return observer
-    monkeypatch.setattr(e2e_watch, 'start', start)
+    monkeypatch.setattr(e2e_watch, 'attach_display', attach)
     guest.prepare(preparation.capture, Mock(), 'fixture-password')
-    observer.close.assert_called_once()
+    observer.close.assert_not_called()
 
 
 def test_guest_failure_cannot_reuse_success_from_previous_run(preparation):

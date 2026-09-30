@@ -15,6 +15,7 @@ from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames
 
 WAITING = 'Waiting for VM activity. You can leave this window open.'
 TITLE = 'VM — View only'
+CONNECTED = 'VM operation in progress · Waiting for display'
 APPLICATION_ID = 'org.onpc.E2EWatch'
 
 def duration_text(seconds):
@@ -525,7 +526,8 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
             self.heading.set_label(title)
             self.step.set_label(step)
             self.status.set_label(activity_text(activity, meta.get('progress')) or operation or
-                ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else WAITING))
+                ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else
+                 CONNECTED if meta.get('lease_locked') else WAITING))
 
         def close(self):
             self.feed.close()

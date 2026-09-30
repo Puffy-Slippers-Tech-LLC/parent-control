@@ -35,7 +35,6 @@ def xml(disk):
       <disk type='file' device='disk'><driver type='qcow2'/><source file='{disk}'/>
       <target dev='vda'/></disk>
       <disk type='file' device='cdrom'><target dev='sda'/><readonly/></disk>
-      <filesystem type='mount'><driver type='virtiofs'/><source dir='/Data'/><target dir='Data'/></filesystem>
       </devices></domain>"""
 
 

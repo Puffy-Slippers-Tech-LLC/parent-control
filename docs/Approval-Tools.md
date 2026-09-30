@@ -162,6 +162,12 @@ evidence-retention session, whose entry gate requires an idle VM. The shared
 owned recovery and live VM ownership checks still apply. Offline mode
 retains the previous shutdown/snapshot behavior. Mode mismatches and online
 snapshots older than 24 hours force replacement. Explicit overwrite still rebuilds.
+Standalone app preparation holds a named VM checkout activity lock, so different
+VMs may prepare concurrently while the same VM and aggregate owners remain
+excluded. A read-only snapshot probe sends unfinished attempts through shared
+recovery before probing again. Healthy online maintenance resumes directly;
+replacement recovers its exact recorded owner through the maintained stop path.
+Failed SSH or clock readiness after a successful restore performs owned cleanup.
 There is no product package, service restart, reboot, or saved-data migration.
 Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 `--test-tools-only`. Host package dependencies belong to full setup or
@@ -519,7 +525,7 @@ replacement by name alone.
 | `tools/test-vm --vm NAME exec [--timeout SECONDS] -- COMMAND [ARG ...]` | Execute as guest root in the current owned online app-snapshot maintenance instance; reuse saved private credentials, strict SSH host-key and guest identity checks, shared observation and the exclusive lease; preserve guest state and return its command status |
 | `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
 | `tools/test-vm --vm NAME rename-disk` | Rename the idle pinned guest's single QCOW2 image to `NAME.qcow2` in its existing directory; update domain/internal-snapshot references and provenance, preserving bytes and inode; refuses overlays, shared disks, destination collisions and unfinished controllers |
-| `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, remove host shares, record and boot an isolated maintenance attempt |
+| `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, record and boot an isolated maintenance attempt |
 | `tools/test-vm --vm NAME reboot` | Request an ACPI reboot of that same recorded running instance; preserve guest state |
 | `tools/test-vm --vm NAME send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |
 | `tools/test-vm --vm NAME screenshot` | Capture the owned running guest to a new private `/tmp/onpc-vm-screen-*` artifact |
@@ -539,7 +545,7 @@ rotates its keys nor adjusts its clock. It requires the current online app
 snapshot's private credential record and the existing maintenance ownership
 journal; manually started guests and active test controllers are refused.
 The default command deadline is 120 seconds; `--timeout` accepts 1–86400 seconds.
-This is finite command execution, without an interactive terminal or host shares.
+This is finite command execution, without an interactive terminal.
 Private key copies and command artifacts remain in shared root-private scratch;
 stdout/stderr return to the authenticated caller and the existing filtered watch
 transcript. Setup refresh installs this route and any missing OpenSSH client via

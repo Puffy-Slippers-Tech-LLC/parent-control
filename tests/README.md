@@ -785,8 +785,12 @@ The maintained launchers hold a checkout activity lock for the full command,
 including cleanup. Aggregate children join through an inherited locked file
 descriptor; another terminal's `tools/run-tests` attaches to its session.
 Host-only selections use `artifacts/test-activity/host.lock`; selections with
-VM or privileged integration work and standalone VM preparation keep
+VM or privileged integration work keep
 `artifacts/test-activity/lock`. Competing owners within each scope refuse.
+Standalone app-snapshot preparation uses `vm-NAME.lock` in that same directory,
+with a shared lease on `lock`. Different named VMs may prepare concurrently;
+the same name and existing aggregate owners remain excluded. Child workers
+inherit the exact named lock descriptor, and retention stays separate per VM.
 Host-only tests can therefore run alongside `tools/prepare-appsnapshot`.
 The VM's existing cross-controller lease remains independently authoritative.
 Ordinary pytest caches are disabled. The report labels every output fragment
@@ -1300,6 +1304,10 @@ independent of terminal activity. Locked VM tabs appear normally; unlocked VM ta
 remain selectable, including running guests left idle between maintenance
 commands. The controller publishes that state through the read-only feed;
 the viewer never acquires a VM lease. Neither launcher accepts a VM parameter.
+The lease keeps one authenticated display feed connected through guest shutdown,
+snapshot restoration, offline inspection and gaps between steps. It shows the
+current operation while no guest display exists and attaches each newly guarded
+display to the same feed. The feed ends after the exclusive VM lock is released.
 
 Each VM's transport runs in its own worker with bounded latest-frame queues.
 Socket waits and shared-memory reads stay outside GTK and cannot block another

@@ -9,7 +9,18 @@ from watch_activity import operation
 
 # Two independent public DNS operators, with TCP and actual UDP DNS replies.
 # IP literals avoid conflating a broken resolver with Internet isolation.
-PROBE = '''import json,socket,struct,subprocess
+PROBE = '''import json,socket,struct,subprocess,time
+def read_exact(peer,count,deadline):
+ if not 0<count<=4096: raise OSError("invalid DNS frame size")
+ data=b""
+ while len(data)<count:
+  remaining=deadline-time.monotonic()
+  if remaining<=0: raise TimeoutError("DNS frame deadline")
+  peer.settimeout(remaining)
+  chunk=peer.recv(count-len(data))
+  if not chunk: raise OSError("incomplete DNS frame")
+  data+=chunk
+ return data
 routes=json.loads(subprocess.check_output(["ip","-j","-6","route","show","default"]))
 families=[(socket.AF_INET,["1.1.1.1","8.8.8.8"])]
 if routes: families.append((socket.AF_INET6,["2606:4700:4700::1111","2001:4860:4860::8888"]))
@@ -24,11 +35,11 @@ for family,addresses in families:
     try:
      peer.connect((address,53))
      if protocol=="tcp":
+      deadline=time.monotonic()+3
       peer.sendall(struct.pack("!H",len(query))+query)
-      head=peer.recv(2)
-      if len(head)==2:
-       data=peer.recv(struct.unpack("!H",head)[0])
-       success=len(data)>=12 and data[:2]==query[:2] and bool(data[2]&128)
+      head=read_exact(peer,2,deadline)
+      data=read_exact(peer,struct.unpack("!H",head)[0],deadline)
+      success=len(data)>=12 and data[:2]==query[:2] and bool(data[2]&128)
      else:
       peer.send(query); data=peer.recv(4096)
       success=len(data)>=12 and data[:2]==query[:2] and bool(data[2]&128)

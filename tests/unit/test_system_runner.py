@@ -906,13 +906,21 @@ def test_restore_never_requests_boot_or_deletes_snapshot(local_preparation_sourc
     lease.capture.revalidate = Mock()
     lease.snapshot_xml = 'snapshot'
     lease.source.baseline.return_value = 'snapshot'
+    lease.source.uuid = UUID
+    lease.state = {'domain_uuid': UUID}
+    original = lease.source.domain
+    fresh = Mock(UUIDString=Mock(return_value=UUID))
+    lease.source.connection.lookupByUUIDString.return_value = fresh
     snapshot = lease.source.domain.snapshotLookupByName.return_value
     snapshot.getXMLDesc.return_value = 'snapshot'
     lease.restore()
-    lease.source.domain.snapshotLookupByName.assert_called_once_with(name, 0)
-    lease.source.domain.revertToSnapshot.assert_called_once_with(snapshot, 0)
+    original.snapshotLookupByName.assert_called_once_with(name, 0)
+    original.revertToSnapshot.assert_called_once_with(snapshot, 0)
+    lease.source.connection.lookupByUUIDString.assert_called_once_with(UUID)
+    assert lease.source.domain is fresh
     snapshot.delete.assert_not_called()
     lease.source.domain.create.assert_not_called()
+    original.create.assert_not_called()
 
 
 def test_restore_refuses_changed_snapshot(local_preparation_source):

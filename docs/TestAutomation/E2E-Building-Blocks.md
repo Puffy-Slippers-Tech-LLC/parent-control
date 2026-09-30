@@ -1050,7 +1050,7 @@ routes remain separate consumers.
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
 | LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | `package_install.submit_install` / `observe_install` compose FILE01/02/06 and AUTH03 with verified artifact identity, one submission and independent completion/final notice. `PackageInstallJourney` qualifies the fresh product-free install entry; [qualification](#customer-package-install-composition). No Terminal, sudo-prompt exercise or private product-state assertion. | install ready; update/remove/reinstall/purge pending |
 | LIFE05 | C | Follow the displayed activation requirement for the explicit finite list of affected apps/users: none, process reopen, session renewal, or reboot/login. | None: UI03(notice). Process: LIFE01 for each app. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | pending |
-| LIFE06 | C | Remove and restore the owned VM's Internet access through one shared distro-independent operation; independently observe offline/online state and required product results. Local test-control access remains available. | Simplest supported VM-level isolation through the guarded harness, preserving existing commands, public observations, watch and owned cleanup. No guest distro/network-service dependency, new management transport, Settings navigation or injected product fault. | pending; task 193a qualifies the minimal isolation/recovery mechanism; task 193 composes it with Parent usability. No live attempt. |
+| LIFE06 | C | Remove and restore the owned VM's Internet access through one shared distro-independent operation; independently observe offline/online state and required product results. Local test-control access remains available. | `vm_internet.InternetIsolation.enter(transport)` / `restore(lease)`; [owned VM Internet contract](#owned-vm-internet-isolation). No guest networking service, new transport or injected product fault. | VM Internet helper ready; Parent usability composition remains pending in task 193; no complete-scenario credit |
 
 For LIFE06, `disconnect` and `reconnect` in recipes mean remove and restore
 Internet access, not disable a guest network adapter. Use the same qualified
@@ -1061,6 +1061,40 @@ mechanism and owned cleanup are qualified, consumers focus on app assertions.
 Use that same helper from the current surface for recovery, including a child
 desktop or GDM after a report closes. No Parent visit or login is needed solely
 to restore Internet access.
+
+### Owned VM Internet isolation
+
+`vm_internet.InternetIsolation(lease).enter(transport)` requires the owned
+running domain instance, matching guarded SSH transport and one unchanged NIC
+on the active libvirt `default` network. It creates only a run-owned nwfilter
+and tap binding through public libvirt APIs. The filter permits exact
+controller/guest ARP and controller-initiated SSH, denies IPv4/IPv6 Internet
+traffic and other Ethernet encapsulations, and changes no guest or shared
+network configuration. The implementation is independent of guest distribution.
+
+Use its context manager around the consumer's offline actions;
+`vm_internet.restore(lease)` also runs in outer lease cleanup and recorded
+recovery. Durable intent precedes mutation; wrong transport, uncertain replay,
+changed domain/network/resource identity, foreign references and reused taps
+refuse before cleanup mutation. A restored journal still audits resource absence.
+Snapshot transitions refresh the pinned domain handle because libvirt caches
+its instance ID. Compare network XML exactly except its read-only root
+`connections` count; keep raw journal XML and every configuration check.
+
+`vm_internet_qualification.online_offline_online` owns the finite helper
+qualification; consumers use the isolation helper and
+`vm_internet_qualification.internet_result(transport)` for independent bounded
+TCP/UDP DNS observations. They do not inherit the qualification journey.
+`parent_setup_qualification.IndependentNetworkQualification` passed
+`tools/run-tests integration check_e2e_independent_network_management` in
+`20260930T225447Z-420cdcde` on every enabled VM (`onpc-Ubuntu26.04`). It proved
+online → offline → online, fresh SSH/public desktop reads, watch reconnects,
+wrong-entry/replay refusal and exception-unwind restoration, with collection,
+owned cleanup and baseline restoration. IPv6 had no default route in this run;
+the helper denies it and probes it whenever one is available. Evidence remains
+in `onpc-graphical-smoke-d8q5v0v_` and `onpc-e2e-evidence-oqm37q1r` under
+privileged test allocations. Parent usability and other customer assertions
+remain separate qualifications.
 
 ### About, feedback and customer-selected attachments
 

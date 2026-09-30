@@ -11,10 +11,12 @@ import test_retention
 from dev_privileges import check
 from regression_process import Control
 from test_recovery import cleanup
+from vm_selection import select, arguments as vm_arguments
 
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--vm', required=True, help='exact name in config/test-vm.json')
     parser.add_argument('--mode', choices=('online', 'offline'), default='online',
                         help='snapshot after reboot with memory (online, default), '
                              'or after shutdown (offline)')
@@ -32,6 +34,7 @@ def arguments(argv=None):
 def main(argv=None):
     args = arguments(argv)
     try:
+        select(args.vm)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         root = Path(__file__).resolve().parents[1]
@@ -41,11 +44,11 @@ def main(argv=None):
             environment = test_launcher.environment(root)
             if args.overwrite == 'false':
                 status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                    helper, 'appsnapshot', '--probe', '--mode', args.mode],
+                    helper, 'appsnapshot', '--probe', '--mode', args.mode, *vm_arguments()],
                     cwd=root, env=environment)
                 if status == 4:
                     return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                        helper, 'appsnapshot', '--resume', '--mode', args.mode],
+                        helper, 'appsnapshot', '--resume', '--mode', args.mode, *vm_arguments()],
                         cwd=root, env=environment)
                 # Missing, expired or differently-mode snapshots require a build.
                 if status != 3:
@@ -66,12 +69,12 @@ def main(argv=None):
                 status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                     '--retention-run=' + run, '--unattended', 'appsnapshot',
                     '--overwrite', args.overwrite, '--artifacts', directory,
-                    '--mode', args.mode],
+                    '--mode', args.mode, *vm_arguments()],
                     cwd=root, env=environment, cooperative=True)
             if status or args.mode == 'offline':
                 return status
             return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
-                'appsnapshot', '--resume', '--mode', args.mode], cwd=root, env=environment)
+                'appsnapshot', '--resume', '--mode', args.mode, *vm_arguments()], cwd=root, env=environment)
     except (ValueError, OSError) as error:
         print('prepare-appsnapshot: ' + str(error), file=sys.stderr)
         return 2

@@ -158,13 +158,13 @@ Publish nonsecret operation/progress labels and open `tools/watch` as the
 desktop user for VM work.
 
 Each attempt starts with fresh declared state and its own session/window ledger.
-For post-installation work, run `./tools/prepare-appsnapshot --overwrite false`
+For post-installation work, run `./tools/prepare-appsnapshot --vm NAME --overwrite false`
 under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenarios).
 Use `--overwrite true` when application code changed; documentation-only and
 test-only changes continue to use `false`.
 Wait for completion without monitoring or reporting incremental output; proceed
 only on success. Online preparation leaves a maintenance-owned running VM;
-release it with `tools/test-vm stop` before launching qualification or E2E so
+release it with `tools/test-vm --vm NAME stop` before launching qualification or E2E so
 the guarded attempt can acquire its own lease. The normal dispatcher owns
 preparation/restoration. Package
 lifecycle cases use their declared product-free start and real customer install.
@@ -207,7 +207,7 @@ wrong-entry refusal through the brief's fixed slice qualification in the
 existing guarded envelope. Complete scenarios stay in their separate rows. Planned
 `check_e2e_...` names must be implemented before invocation. New entries are
 argument-free `tests/integration/check_[a-z][a-z0-9_]*.py` files with applicable
-cleanup tests, selected by `tools/run-tests integration <name>`. Reuse shared
+cleanup tests, selected by `tools/run-tests integration --vm NAME <name>`. Reuse shared
 helpers and verified assets (`tools/run-tests artifacts build` when needed);
 no new generic dispatcher or partial registered scenario. Record a passing slice
 as qualified for its exact scope. Other bindings can keep the catalogue row
@@ -223,7 +223,7 @@ can execute it. Keep the task unchecked until acceptance and close-out pass.
 `ready` records registration, not a passing result; `pending` has no executable
 and cannot be used for the acceptance run. Preserve any failed attempt and its
 remaining work on the current task under the failure contract.
-Run each exact `tools/run-tests e2e --id '<case>'` separately. Registration is
+Run each exact `tools/run-tests e2e --vm NAME --id '<case>'` separately. Registration is
 not acceptance. Require public results, reconciliation, collection and cleanup.
 Refresh coverage after **each** successful case, including retained regressions,
 before advancing the task pointer.
@@ -231,7 +231,7 @@ before advancing the task pointer.
 ### System acceptance
 
 For a **system obligation**, use the brief's maintained owner and listed
-`tools/run-tests system` selectors on the guarded VM. Require the exact fault,
+`tools/run-tests system --vm NAME` selectors on the guarded VM. Require the exact fault,
 observed failure, recovery, isolation and cleanup. A mapping, placeholder
 selector or host-only check cannot complete it.
 

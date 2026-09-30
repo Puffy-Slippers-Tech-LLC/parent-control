@@ -217,6 +217,8 @@ def record_usage(run, metadata, usage):
 
 
 def session_prompt(state):
+    from vm_selection import selected
+    vm = selected()
     task = state['task_id']
     phase = 'recover' if state['phase'] == 'blocked' else state['phase']
     model, _ = session_model(phase, state.get('live_attempts', 0))
@@ -246,6 +248,8 @@ unresolved question or review of a risky correction, not repeated routine work.
     common = f"""
 Task {task}: follow AGENTS.md and {PLAN}, using its scoped reading routes.
 This tools/write-e2e session stops at the phase boundary below.
+Every VM command must include --vm {vm.name}; Make VM targets use VM={vm.name}.
+This session is bound to that configured VM. Do not select another VM.
 
 Treat staged code as the baseline. Do not analyze staged diffs or compare it to
 HEAD; read current source as needed. The launcher owns staging. Do not commit,
@@ -773,10 +777,13 @@ def initial_state(root, directory):
 
 
 def select(root, argv):
+    from vm_selection import extract, check_binding, save_binding
+    argv, configured = extract(argv)
     initial_limits = {}
 
     def parse(attaching=False):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+        parser.add_argument('--vm', help='required configured VM name (validated before parsing)')
         kind = int if attaching else positive
         parser.add_argument('--sessions', type=kind,
                             help='new run: maximum sessions (plain invocation defaults to 5); active run: signed adjustment')
@@ -785,7 +792,11 @@ def select(root, argv):
         parser.add_argument('--stop', action='store_true', help='finish the current session and stop before the next')
         return parser.parse_args(argv)
 
+    if any(option in argv for option in ('--help', '-h')):
+        parse()
+
     def attach(run):
+        check_binding(run, configured.name)
         args = parse(attaching=True)
         if args.sessions is None and args.tasks is None:
             return
@@ -814,6 +825,7 @@ def select(root, argv):
             args.tasks = 1
         initial_limits.update(sessions=args.sessions, tasks=args.tasks, started=0)
         state = initial_state(root, run.parent)
+        state['vm'] = configured.name
         # Preflight transport/rendering only; do not spend a model session here.
         from launcher_render import AgentRenderer
         session_command(root, 'implement' if state['phase'] == 'implement' else 'recover',
@@ -823,7 +835,8 @@ def select(root, argv):
                 json.dumps(args.tasks), json.dumps(state)]
     return launcher.select(root, 'write-e2e', command, stop='--stop' in argv, stop_marker='stop',
                            on_attach=attach,
-                           on_start=lambda run: launcher.atomic(run / 'limits.json', initial_limits))
+                           on_start=lambda run: (launcher.atomic(run / 'limits.json', initial_limits),
+                                                 save_binding(run, configured.name)))
 
 
 def main(argv=None):
@@ -877,6 +890,9 @@ if __name__ == '__main__':
                     'task_id': state['task_id'], 'phase': phase, 'model': model,
                     'reasoning_effort': effort, 'service_tier': 'default'}
         command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_WORKFLOW_DIRECTORY=' + json.dumps(str(run))]
+        from vm_selection import selected
+        vm = selected()
+        command[-1:-1] = ['-c', 'shell_environment_policy.set.ONPC_TEST_VM=' + json.dumps(vm.name)]
         sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True,
                                     hide_task_completion=True,
                                     on_usage=lambda usage: record_usage(run, metadata, usage)))

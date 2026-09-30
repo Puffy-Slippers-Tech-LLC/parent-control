@@ -54,7 +54,7 @@ real value in `.envrc.example`.
 Full setup and `--test-tools-only` install the `tools/watch` desktop identity,
 supplied app logo and refreshed icon cache for the viewer's dock icon.
 Run `tools/watch` or `make watch` at any time. Both return after launching;
-subsequent launches present the same window for the pinned VM, across worktrees.
+subsequent launches present the same window for all registered VMs, across worktrees.
 The window retains the former VM viewer's dock and title-bar icons. Its UI feeds
 and runner logs belong to the checkout that opened it; close it and reopen from
 another worktree to follow that worktree instead. Closing it leaves tests running.
@@ -128,15 +128,15 @@ Follow package reboot notices. Log out of the kiosk session before removal; remo
 | Child GJS | `tools/run-tests child-gjs` |
 | Python branch coverage | `tools/run-tests coverage` |
 | Requirement mappings | `tools/run-tests traceability stage` |
-| Complete established regressions | `tools/run-tests` or `tools/run-tests all` |
+| Complete established regressions | `tools/run-tests --vm NAME` or `tools/run-tests all --vm NAME` |
 | All host tests and package qualification, four branches, no VM | `tools/run-tests host` |
-| Sequential installed-system and GUI E2E VM tests | `tools/run-tests system e2e` |
+| Sequential installed-system and GUI E2E VM tests | `tools/run-tests system --vm NAME e2e` |
 | Usage and `all` composition | `tools/run-tests --help` |
 | Available categories | `tools/run-tests --list` |
 
 `host + system + e2e = all`. Any combination is accepted; host runs first,
 then system and E2E sequentially, sharing package inputs and one report.
-`tools/run-tests host system e2e` is equivalent to `all`.
+`tools/run-tests host system e2e --vm NAME` is equivalent to `all`.
 
 Match validation scope to the change: prefer `tools/run-tests ui` for UI-only
 coverage and `tools/run-tests unit` for unit-only coverage, with selectors as
@@ -166,10 +166,10 @@ Reference: [test commands and artifacts](tests/README.md).
 Follow [VM setup](tests/integration/Environment.md). With the source VM off,
 choose one required mode on the host:
 
-- `tools/prepare-baseline --mode auto`: restore an existing accepted baseline,
+- `tools/prepare-baseline --vm NAME --mode auto`: restore an existing accepted baseline,
   boot, run no-app prerequisites, update Ubuntu packages, reboot if required,
   shut down and replace `onpc_baseline`.
-- `tools/prepare-baseline --mode manual`: boot the current guest state, run
+- `tools/prepare-baseline --vm NAME --mode manual`: boot the current guest state, run
   no-app prerequisites, shut down and create or replace `onpc_baseline`.
 
 Both modes show a red confirmation warning and delete all versioned app
@@ -185,7 +185,7 @@ matching the shared password.
 
 For manual maintenance, restore your own snapshot (for example `1 - Clean`),
 make your changes, shut down the VM, and replace your snapshot as usual. Then
-run `tools/prepare-baseline --mode manual`. After confirmation, it accepts the
+run `tools/prepare-baseline --vm NAME --mode manual`. After confirmation, it accepts the
 current disk chain of the same VM, deletes the versioned app snapshots and
 replaces `onpc_baseline`. Other manually managed snapshots are preserved.
 
@@ -196,8 +196,8 @@ retains the old controller record and validates the new guest before capture.
 List available cases and build fresh package/fixture inputs:
 
 ```sh
-tools/run-tests system --list
-tools/run-tests e2e --list
+tools/run-tests system --vm NAME --list
+tools/run-tests e2e --vm NAME --list
 tools/run-tests artifacts build
 ```
 
@@ -206,16 +206,16 @@ Set `ARTIFACT_DIR` to the directory reported by the build, then run the required
 ```sh
 ARTIFACT_DIR='/tmp/onpc-REPLACE-WITH-BUILD-DIRECTORY'
 tools/run-tests artifacts verify "$ARTIFACT_DIR"
-tools/run-tests system --artifacts "$ARTIFACT_DIR"
-tools/run-tests system --artifacts "$ARTIFACT_DIR" --area authorization
-tools/run-tests e2e --artifacts "$ARTIFACT_DIR" --scenario E2E-001
+tools/run-tests system --vm NAME --artifacts "$ARTIFACT_DIR"
+tools/run-tests system --vm NAME --artifacts "$ARTIFACT_DIR" --area authorization
+tools/run-tests e2e --vm NAME --artifacts "$ARTIFACT_DIR" --scenario E2E-001
 ```
 
-Keep the checkout unchanged during artifact builds and test attempts. Stop VM maintenance before starting tests. Use `tools/test-vm status` to inspect the pinned VM.
+Keep the checkout unchanged during artifact builds and test attempts. Stop VM maintenance before starting tests. Use `tools/test-vm --vm NAME status` to inspect the pinned VM.
 
-`make test-all` runs all established tests with metadata-only VM snapshot verification.
+`make test-all VM=NAME` runs all established tests with metadata-only VM snapshot verification.
 
-`make test-all-verify` is a compatibility alias for `make test-all`. All VM operations use metadata checks; none scans whole VM images.
+`make test-all-verify VM=NAME` is a compatibility alias for `make test-all VM=NAME`. All VM operations use metadata checks; none scans whole VM images.
 
 Both commands show a colored progress dashboard and continuously save detailed reports under
 `docs/TestAutomation/Evidence/test-all-runs/`. Ctrl+C cancels the active test
@@ -233,7 +233,7 @@ Prepare application changes and the newest dated release entry in
 `docs/VersionHistory.md` on `main`, then run:
 
 ```sh
-make test-all-verify
+make test-all-verify VM=NAME
 ```
 
 Commit those release inputs, create `releases/vX.Y` from main, and check out

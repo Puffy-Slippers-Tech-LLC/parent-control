@@ -30,9 +30,9 @@ from common.oh_no_parent_control_ui.test_identities import TEST_IDENTITIES
 import guest_test_dependencies as guest_tools
 import vm_config
 
-VM = vm_config.load(CHECKOUT / 'config/test-vm.json')
+VM = vm_config.selected(required=False)
 MARKER = Path("/etc/oh-no-parent-control-test-baseline.json")
-HOSTNAME = VM.hostname
+HOSTNAME = VM.hostname if VM else None
 UBUNTU_VERSION = "26.04"
 MARKER_PURPOSE = "oh-no-parent-control-test-baseline"
 MARKER_VERSION = 2
@@ -740,6 +740,7 @@ def preserve_keyrings(identity, *, lookup_user=pwd.getpwnam, homes=Path('/home')
 
 def main(password=None) -> int:
     try:
+        vm_config.selected()
         from test_account_password import validate
         password = validate(password)
         print("prepare-vm: [stage:guard] validating configured source guest", file=sys.stderr)

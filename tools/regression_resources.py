@@ -89,7 +89,8 @@ def compatible(first, second):
 
 def vm_demand(root):
     """Read only the pinned VM through the validated, already-installed helper."""
-    result = subprocess.run([str(root / 'tools/test-vm'), 'xml'], check=True,
+    from vm_selection import arguments
+    result = subprocess.run([str(root / 'tools/test-vm'), 'xml', *arguments()], check=True,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                             timeout=15, env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin'})
     tree = ElementTree.fromstring(result.stdout)

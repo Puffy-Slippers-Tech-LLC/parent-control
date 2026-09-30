@@ -43,9 +43,9 @@ from baseline_messages import SNAPSHOT, help_message, mode_message
 
 
 URI = guest_contract.vm_config.URI
-DOMAIN = guest_contract.VM.name
-ANCHOR = guest_contract.VM.disk_anchor
-BASELINES = guest_contract.VM.baseline_directory
+DOMAIN = guest_contract.VM.name if guest_contract.VM else None
+ANCHOR = guest_contract.VM.disk_anchor if guest_contract.VM else None
+BASELINES = guest_contract.VM.baseline_directory if guest_contract.VM else None
 # Shared by snapshot creation, validation, VM runners, messages and test fixtures.
 # Retained baselines keep their original internal QCOW2 snapshot identity.
 PREVIOUS_SNAPSHOT = "oh-no-parent-control-baseline"
@@ -233,6 +233,7 @@ def domain_layout(xml, expected_uuid):
 
 class LibvirtSource:
     def __init__(self, libvirt):
+        guest_contract.vm_config.selected()
         self.api = libvirt
         libvirt.virEventRegisterDefaultImpl()
         self.connection = libvirt.open(URI)
@@ -456,11 +457,12 @@ def baseline_lock_path(directory):
 
 
 class Capture:
-    def __init__(self, source, commands, inspect, *, anchor=ANCHOR, directory=BASELINES,
+    def __init__(self, source, commands, inspect, *, anchor=None, directory=None,
                  script_digest=None, prepare_guest=None):
         self.source, self.commands, self.inspect = source, commands, inspect
         self.prepare_guest = prepare_guest
-        self.anchor, self.directory = anchor, directory
+        self.anchor = anchor if anchor is not None else guest_contract.vm_config.selected().disk_anchor
+        self.directory = directory if directory is not None else guest_contract.vm_config.selected().baseline_directory
         self.script_digest = script_digest or guest_contract.preparation_digest()
         self.state = None
         self.directory_identity = None
@@ -947,9 +949,11 @@ def prepare_state_root(directory=guest_contract.vm_config.STATE_ROOT):
 
 
 def main(argv=None):
+    argv, _ = guest_contract.vm_config.extract(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      epilog=help_message())
+    parser.add_argument('--vm', help='required configured VM name (validated before parsing)')
     parser.add_argument("--check-tools", action="store_true", help="check dependencies only; no VM connection or writes")
     parser.add_argument("--replace-missing", action="store_true",
                         help="explicitly retire a deleted baseline and capture the prepared, powered-off guest")

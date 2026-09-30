@@ -111,7 +111,9 @@ class ProgressPublication:
                 require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
                         and stat.S_IMODE(info.st_mode) == 0o755
                         and parent.resolve() == parent, 'registry-owner')
-            self.path = directory / 'progress.json'
+            from vm_config import selected
+            self.vm_name = selected().name
+            self.path = directory / ('progress-' + self.vm_name.encode('ascii').hex() + '.json')
             self.progress.publish_progress = self.publish
             self.thread = threading.Thread(target=self._publish, daemon=True,
                                            name='e2e-watch-progress')
@@ -126,7 +128,7 @@ class ProgressPublication:
         with self.publish_lock:
             temporary = self.path.with_name(uuid.uuid4().hex + '.progress')
             try:
-                value = dict(updated_ns=time.monotonic_ns(),
+                value = dict(updated_ns=time.monotonic_ns(), vm=self.vm_name,
                              progress=json.loads(progress_packet(self.progress.snapshot(display=True))))
                 fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
                 with os.fdopen(fd, 'w') as stream:
@@ -181,9 +183,12 @@ class Publication:
                     and directory.resolve() == directory, 'registry-owner')
         self.path = self.directory / (run + '.sock')
         require(registry in ('current.json', 'activity.json'), 'publication-registry')
+        from vm_config import selected
+        self.vm_name = selected().name
         # Each command publisher retains its own registration. Parallel child
         # transports must never steal or remove another controller's feed.
-        self.current = self.directory / (f'activity-{run}.json' if registry == 'activity.json' else registry)
+        self.current = self.directory / (f'activity-{run}.json' if registry == 'activity.json' else
+                                        'current-' + self.vm_name.encode('ascii').hex() + '.json')
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         try:
             self.server.bind(str(self.path))
@@ -198,7 +203,7 @@ class Publication:
         temporary = self.directory / (self.run + '.json')
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
         with os.fdopen(fd, 'w') as stream:
-            json.dump({'run': self.run}, stream)
+            json.dump({'run': self.run, 'vm': self.vm_name}, stream)
             os.fchmod(stream.fileno(), 0o644)
         temporary.replace(self.current)
 
@@ -210,7 +215,7 @@ class Publication:
         except FileNotFoundError:
             pass
         try:
-            if json.loads(self.current.read_text()) == {'run': self.run}:
+            if json.loads(self.current.read_text()) == {'run': self.run, 'vm': self.vm_name}:
                 self.current.unlink()
         except FileNotFoundError:
             pass

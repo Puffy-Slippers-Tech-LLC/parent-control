@@ -7,6 +7,8 @@ import pytest
 
 from tests.support.paths import ROOT
 
+VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+
 
 @pytest.fixture
 def launcher():
@@ -33,7 +35,7 @@ def test_invalid_options_are_refused_before_any_work(authorized):
 def test_root_invocation_never_requests_authorization(authorized, monkeypatch, capsys):
     monkeypatch.setattr(authorized['os'], 'geteuid', lambda: 0)
     authorized['check'].side_effect = AssertionError('authorization attempted')
-    assert authorized['main'](['--mode', 'manual']) == 2
+    assert authorized['main'](['--mode', 'manual', *VM_ARGS]) == 2
     assert 'unprivileged' in capsys.readouterr().err
     authorized['check'].assert_not_called()
 
@@ -45,7 +47,7 @@ def test_missing_password_fails_before_privilege_dispatch(launcher, tmp_path, mo
     monkeypatch.setitem(launcher, 'check', check)
     run = Mock(side_effect=AssertionError('pkexec attempted'))
     monkeypatch.setattr(launcher['subprocess'], 'run', run)
-    assert launcher['main'](['--mode', 'manual']) == 2
+    assert launcher['main'](['--mode', 'manual', *VM_ARGS]) == 2
     assert 'TEST_ACCOUNT_PASSWORD' in capsys.readouterr().err
     check.assert_not_called()
     run.assert_not_called()
@@ -55,7 +57,7 @@ def test_denied_authorization_never_starts_pkexec(authorized, monkeypatch, capsy
     authorized['check'].side_effect = ValueError('noninteractive authorization unavailable')
     run = Mock(side_effect=AssertionError('pkexec attempted'))
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
-    assert authorized['main'](['--mode', 'manual']) == 2
+    assert authorized['main'](['--mode', 'manual', *VM_ARGS]) == 2
     assert 'noninteractive' in capsys.readouterr().err
     run.assert_not_called()
     authorized['check'].assert_called_once_with(authorized['HELPER'])
@@ -64,10 +66,10 @@ def test_denied_authorization_never_starts_pkexec(authorized, monkeypatch, capsy
 def test_failed_baseline_does_not_refresh_test_tools(authorized, monkeypatch, capsys):
     run = Mock(return_value=SimpleNamespace(returncode=1))
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
-    assert authorized['main'](['--mode', 'manual']) == 1
+    assert authorized['main'](['--mode', 'manual', *VM_ARGS]) == 1
     run.assert_called_once()
     assert run.call_args.args[0] == [
-        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', 'manual']
+        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', 'manual', *VM_ARGS]
     assert run.call_args.kwargs['cwd'] == ROOT
     assert run.call_args.kwargs['env']['PATH'] == '/usr/sbin:/usr/bin:/sbin:/bin'
     output = capsys.readouterr()
@@ -78,10 +80,10 @@ def test_failed_baseline_does_not_refresh_test_tools(authorized, monkeypatch, ca
 def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode):
     run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)])
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
-    assert authorized['main'](['--mode', mode]) == 0
+    assert authorized['main'](['--mode', mode, *VM_ARGS]) == 0
     assert run.call_count == 2
     assert run.call_args_list[0].args[0] == [
-        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', mode]
+        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', mode, *VM_ARGS]
     assert run.call_args_list[1].args[0] == [str(ROOT / 'setup.sh'), '--test-tools-only']
     assert run.call_args_list[1].kwargs['cwd'] == ROOT
 
@@ -89,7 +91,7 @@ def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode)
 def test_tools_refresh_failure_is_returned_after_baseline(authorized, monkeypatch):
     run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=23)])
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
-    assert authorized['main'](['--mode', 'manual']) == 23
+    assert authorized['main'](['--mode', 'manual', *VM_ARGS]) == 23
     assert run.call_count == 2
 
 
@@ -117,5 +119,5 @@ def test_help_reuses_warning_bullets_without_red_color(launcher, capsys):
 def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch):
     run = Mock(return_value=SimpleNamespace(returncode=3))
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
-    assert authorized['main'](['--mode', 'auto']) == 0
+    assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0
     assert run.call_count == 1

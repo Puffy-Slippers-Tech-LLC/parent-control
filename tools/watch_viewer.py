@@ -1,4 +1,4 @@
-"""One desktop watcher for launcher output, host UI workers and the test VM."""
+"""One desktop watcher for launcher output, host UI workers and all test VMs."""
 
 from contextlib import redirect_stderr, redirect_stdout
 import os
@@ -12,7 +12,14 @@ APPLICATION_ID = 'org.onpc.E2EWatch'
 TITLE = 'Test watch'
 
 
-def application(feeds=None, feed=None, output=None):
+def application(feeds=None, feed=None, output=None, vm_feeds=None):
+    from vm_selection import registry
+    from e2e_watch_viewer import AsyncFeed, Feed
+    asynchronous = vm_feeds is None and feed is None
+    if vm_feeds is None:
+        vm_feeds = ({feed.vm_name: feed} if feed is not None else
+                    {name: Feed(name) for name in registry()})
+    application_id = APPLICATION_ID
     import gi
     gi.require_version('Gtk', '4.0')
     try:
@@ -30,19 +37,19 @@ def application(feeds=None, feed=None, output=None):
     for name in ('GIO_LAUNCHED_DESKTOP_FILE', 'GIO_LAUNCHED_DESKTOP_FILE_PID',
                  'DESKTOP_STARTUP_ID', 'XDG_ACTIVATION_TOKEN'):
         os.environ.pop(name, None)
-    GLib.set_prgname(APPLICATION_ID)
+    GLib.set_prgname(application_id)
     GLib.set_application_name(TITLE)
 
     class Viewer(Gtk.Application):
         def __init__(self):
-            # The repository has one pinned VM. Session-bus registration keeps
-            # a single watcher across checkouts and concurrent launches.
-            super().__init__(application_id=APPLICATION_ID,
+            # Repeated launches present the same all-VM watcher.
+            super().__init__(application_id=application_id,
                              flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
             self.window = None
-            self.selected = 'active'
+            self.selected = 'all'
             self.layout = None
             self.next_ui = self.next_discovery = self.next_output = 0
+            self.next_vm = {}
             self.output_active = False
             self.split_initialized = False
 
@@ -52,12 +59,12 @@ def application(feeds=None, feed=None, output=None):
                 return
             self.window = Gtk.ApplicationWindow(application=self, title=TITLE)
             set_automation_id(self.window, 'watch-window')
-            self.window.set_icon_name(APPLICATION_ID)
+            self.window.set_icon_name(application_id)
             self.window.set_default_size(1400, 900)
             header = Gtk.HeaderBar()
             add_identified_window_controls(header, 'watch-window-controls')
             header.pack_start(Gtk.Image(
-                icon_name=APPLICATION_ID, pixel_size=32, valign=Gtk.Align.CENTER))
+                icon_name=application_id, pixel_size=32, valign=Gtk.Align.CENTER))
             close = Gtk.Button(icon_name='window-close-symbolic', tooltip_text='Close viewer')
             close.update_property([Gtk.AccessibleProperty.LABEL], ['Close viewer'])
             set_automation_id(close, 'watch-close')
@@ -119,11 +126,13 @@ def application(feeds=None, feed=None, output=None):
                                    hhomogeneous=False, vhomogeneous=False)
             set_automation_id(self.pages, 'watch-pages')
             self.bodies = {}
-            for name, label in (('active', 'Active'), ('ui', 'UI'), ('vm', 'VM')):
+            self.vm_keys = {name: 'vm-' + name.encode('ascii').hex() for name in vm_feeds}
+            for name, label in (('all', 'All'), ('ui', 'UI'),
+                                *((key, name) for name, key in self.vm_keys.items())):
                 button = Gtk.ToggleButton(label=label)
                 set_automation_id(button, 'watch-tab-' + name)
                 if self.buttons:
-                    button.set_group(self.buttons['active'])
+                    button.set_group(self.buttons['all'])
                 self.buttons[name] = button
                 bar.append(button)
                 body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
@@ -131,7 +140,28 @@ def application(feeds=None, feed=None, output=None):
                 self.pages.add_named(body, name)
                 self.bodies[name] = body
                 button.connect('toggled', self.select, name)
-            self.ui, self.vm = ui_panel(feeds), vm_panel(feed)
+            self.ui = ui_panel(feeds)
+            self.vms = {}
+            for name, source in vm_feeds.items():
+                key = self.vm_keys[name]
+                if asynchronous:
+                    source = AsyncFeed(source)
+                prefix = 'e2e-watch' if feed is not None else 'e2e-watch-' + key
+                view = vm_panel(source, vm_name=name, identity_prefix=prefix)
+                self.vms[key] = view
+                self.next_vm[key] = 0
+                self.buttons[key].set_opacity(.45)
+                click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
+                click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+                click.connect('pressed', self.vm_pressed, key)
+                view.add_controller(click)
+            # A single-feed fixture can exercise the shared panel in isolation.
+            if feed is not None:
+                self.vm = next(iter(self.vms.values()))
+            self.vm_grid = Gtk.Grid(column_spacing=6, row_spacing=6,
+                                    column_homogeneous=True, row_homogeneous=True,
+                                    hexpand=True, vexpand=True)
+            set_automation_id(self.vm_grid, 'watch-vm-grid')
             self.split = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL, wide_handle=True,
                                    hexpand=True, vexpand=True)
             set_automation_id(self.split, 'watch-active-split')
@@ -140,7 +170,7 @@ def application(feeds=None, feed=None, output=None):
             self.waiting = Gtk.Label(label='Waiting for UI or VM activity.', wrap=True,
                                      hexpand=True, vexpand=True)
             set_automation_id(self.waiting, 'watch-waiting')
-            self.buttons['active'].set_active(True)
+            self.buttons['all'].set_active(True)
             self.arrange()
             right.append(bar)
             right.append(self.pages)
@@ -199,30 +229,47 @@ def application(feeds=None, feed=None, output=None):
                 if hasattr(self, 'ui'):
                     self.arrange()
 
+        def vm_pressed(self, gesture, presses, _x, _y, key):
+            if presses == 2:
+                gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+                self.buttons[key].set_active(True)
+
         def arrange(self):
-            shown = ((self.ui.active, self.vm.active) if self.selected == 'active'
-                     else (self.selected == 'ui', self.selected == 'vm'))
-            layout = self.selected, shown
+            vm_keys = tuple(key for key, view in self.vms.items() if view.active)
+            shown = self.ui.active if self.selected == 'all' else self.selected == 'ui'
+            layout = self.selected, shown, vm_keys
             if layout == self.layout:
                 return
             self.layout = layout
             self.split.set_start_child(None)
             self.split.set_end_child(None)
+            while self.vm_grid.get_first_child() is not None:
+                self.vm_grid.remove(self.vm_grid.get_first_child())
             for body in self.bodies.values():
                 while body.get_first_child() is not None:
                     body.remove(body.get_first_child())
             body = self.bodies[self.selected]
-            if all(shown):
+            if self.selected in self.vms:
+                body.append(self.vms[self.selected])
+                return
+            if self.selected == 'all':
+                for index, key in enumerate(vm_keys):
+                    self.vm_grid.attach(self.vms[key], index % 2, index // 2, 1, 1)
+                if len(vm_keys) > 1 and len(vm_keys) % 2:
+                    self.vm_grid.attach(Gtk.Box(hexpand=True, vexpand=True),
+                                        1, len(vm_keys) // 2, 1, 1)
+            vm_shown = self.selected == 'all' and bool(vm_keys)
+            if shown and vm_shown:
                 self.split.set_start_child(self.ui)
-                self.split.set_end_child(self.vm)
+                self.split.set_end_child(self.vm_grid)
                 body.append(self.split)
                 if not self.split_initialized:
                     self.split_initialized = True
                     self.split.add_tick_callback(self.initial_rows)
-            elif shown[0]:
+            elif shown:
                 body.append(self.ui)
-            elif shown[1]:
-                body.append(self.vm)
+            elif vm_shown:
+                body.append(self.vm_grid)
             else:
                 body.append(self.waiting)
 
@@ -233,17 +280,17 @@ def application(feeds=None, feed=None, output=None):
                 self.next_discovery = now + .5
             # Hidden panels only inspect metadata twice a second. They never
             # copy pixels, create textures, redraw widgets or query VM output.
-            ui_visible = self.selected in ('active', 'ui')
-            vm_visible = self.selected in ('active', 'vm')
+            ui_visible = self.selected in ('all', 'ui')
             if (ui_visible and now >= self.next_ui) or (not ui_visible and discover):
                 self.ui.tick(render=ui_visible)
                 self.next_ui = now + .1
-            if vm_visible or discover:
-                self.vm.tick(render=vm_visible)
-            label = ('Active - UI + VM' if self.ui.active and self.vm.active else
-                     'Active - UI' if self.ui.active else 'Active- VM' if self.vm.active else 'Active')
-            if self.buttons['active'].get_label() != label:
-                self.buttons['active'].set_label(label)
+            for key, view in self.vms.items():
+                vm_visible = self.selected in ('all', key)
+                if ((vm_visible and now >= self.next_vm[key]) or
+                        (not vm_visible and discover)):
+                    view.tick(render=vm_visible)
+                    self.next_vm[key] = now + (.1 if self.selected == 'all' else 1 / 30)
+                    self.buttons[key].set_opacity(1 if view.active else .45)
             self.arrange()
             if now >= self.next_output:
                 self.next_output = now + .2
@@ -263,7 +310,8 @@ def application(feeds=None, feed=None, output=None):
             if hasattr(self, 'timer'):
                 GLib.source_remove(self.timer)
                 self.ui.close()
-                self.vm.close()
+                for view in self.vms.values():
+                    view.close()
                 self.menu.unparent()
             Gtk.Application.do_shutdown(self)
 
@@ -313,9 +361,15 @@ def desktop_launch_command():
 def main(argv=None):
     import argparse
     from e2e_watch_protocol import require
-    parser = argparse.ArgumentParser(description='Watch test output, UI tests and VM activity.')
+    parser = argparse.ArgumentParser(description='Watch test output, UI tests and VM activity.',
+                                    epilog='Watches all registered VMs; no VM parameter is accepted.')
     parser.add_argument('--desktop-session', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    from vm_selection import registry
+    try:
+        registry()
+    except ValueError as error:
+        parser.error(str(error))
     require(os.getuid() != 0, 'launch-as-your-desktop-user')
     try:
         snap = Path('/proc/self/attr/current').read_text().startswith('snap.')

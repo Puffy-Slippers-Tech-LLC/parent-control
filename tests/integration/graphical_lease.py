@@ -330,21 +330,26 @@ def lifecycle_variables(path, run):
             all(re.fullmatch(r'/[A-Za-z0-9_./+~-]+', str(item)) for item in (script, path)) and
             re.fullmatch(r'[0-9a-f]{32}', run) is not None,
             'graphics:invalid-command-arguments')
+    import vm_config
+    vm = vm_config.selected()
     variables = {'GENERAL_HW_CMD_DIR': '/usr/bin'}
     for name, action in (('POWERON', 'on'), ('POWEROFF', 'off'), ('IS_SHUTDOWN', 'status')):
         variables[f'GENERAL_HW_{name}_CMD'] = 'python3'
         variables[f'GENERAL_HW_{name}_ARGS'] = (
-            f'-B {script} --socket {path} --run {run} {action}')
+            f'-B {script} --vm {vm.name} --socket {path} --run {run} {action}')
     return variables
 
 
 def main(argv=None):
+    import vm_config
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--vm', required=True)
     parser.add_argument('--socket', type=Path, required=True)
     parser.add_argument('--run', required=True)
     parser.add_argument('action', choices=('on', 'off', 'status'))
     args = parser.parse_args(argv)
     try:
+        vm_config.select(args.vm)
         return callback(args.socket, args.run, args.action)
     except (Exception, KeyboardInterrupt):
         log('callback-failed')

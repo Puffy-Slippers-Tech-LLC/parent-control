@@ -391,14 +391,14 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     run_parser = subparsers.add_parser("run", help="run checks and the real installer in the VM")
-    run_parser.add_argument("--name", required=True)
+    run_parser.add_argument("--vm", dest='name', required=True)
     run_parser.set_defaults(function=run_tests)
     collect_parser = subparsers.add_parser("collect", help="retrieve redacted VM artifacts")
-    collect_parser.add_argument("--name", required=True)
+    collect_parser.add_argument("--vm", dest='name', required=True)
     collect_parser.add_argument("--output")
     collect_parser.set_defaults(function=collect)
     destroy_parser = subparsers.add_parser("destroy", help="destroy only a verified H-50 VM")
-    destroy_parser.add_argument("--name", required=True)
+    destroy_parser.add_argument("--vm", dest='name', required=True)
     destroy_parser.add_argument("--confirm", required=True)
     destroy_parser.set_defaults(function=destroy)
     return parser
@@ -407,8 +407,10 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     try:
         args = _parser().parse_args(argv)
+        import vm_config
+        vm_config.select(args.name)
         args.function(args)
-    except (HarnessError, OSError, subprocess.SubprocessError) as error:
+    except (HarnessError, ValueError, OSError, subprocess.SubprocessError) as error:
         print(f"h50-harness: {error}", file=sys.stderr)
         return 1
     return 0

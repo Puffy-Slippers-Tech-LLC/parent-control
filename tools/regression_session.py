@@ -84,6 +84,12 @@ def select(root, argv):
         for candidate in (directory, directories[int(not host_only)]):
             run, active = sessions[candidate]
             if active:
+                from vm_selection import extract
+                _, requested_vm = extract(requested, required=False)
+                previous_args = json.loads((candidate / 'current.json').read_text())['argv']
+                _, active_vm = extract(previous_args, required=False)
+                if active_vm is not None and (requested_vm is None or requested_vm.name != active_vm.name):
+                    raise ValueError('vm-config: active run requires its original --vm NAME')
                 if '--stop' in argv:
                     (run / 'cancel').touch(mode=0o600)
                 return run, False
@@ -92,12 +98,18 @@ def select(root, argv):
         current = directory / 'current.json'
         run, _ = sessions[directory]
         if run is not None:
+            from vm_selection import extract
+            _, requested_vm = extract(requested, required=False)
+            previous_args = json.loads(current.read_text())['argv']
+            _, previous_vm = extract(previous_args, required=False)
+            same_vm = ((requested_vm.name if requested_vm else None) ==
+                       (previous_vm.name if previous_vm else None))
             result = run / 'result'
             try:
                 broken = not result.exists() or int(result.read_text()) != 0
             except (ValueError, OSError):
                 broken = True
-            if not (run / 'delivered').exists() and (not argv or not broken):
+            if same_vm and not (run / 'delivered').exists() and (not argv or not broken):
                 return run, False
             if broken and not (run / 'delivered').exists():
                 print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',

@@ -30,7 +30,7 @@ def update_system():
 
 
 def main(argv=None):
-    args = sys.argv[1:] if argv is None else argv
+    args, _ = prepare_vm.vm_config.extract(sys.argv[1:] if argv is None else argv)
     root = ROOT
     print('baseline: [stage:entry]', flush=True)
     if os.geteuid() != 0 or prepare_vm.CHECKOUT != root / 'checkout':

@@ -19,6 +19,15 @@ OPERATIONS = {
 
 def command(root, argv):
     mode_args = []
+    vm_args = []
+    if argv and argv[0] in ('prepare-baseline', 'replace-missing-baseline'):
+        sys.path.insert(0, str(root / 'tests/integration'))
+        try:
+            import vm_config
+        finally:
+            sys.path.pop(0)
+        argv, configured = vm_config.extract(argv, path=root / 'config/test-vm.json')
+        vm_args = ['--vm', configured.name]
     if argv and argv[0] == 'prepare-baseline':
         if len(argv) != 3 or argv[1] != '--mode' or argv[2] not in ('auto', 'manual'):
             raise ValueError('setup-helper: prepare-baseline requires --mode auto or --mode manual')
@@ -27,6 +36,7 @@ def command(root, argv):
         raise ValueError('setup-helper: expected one supported setup operation')
     relative, *args = OPERATIONS[argv[0]]
     args.extend(mode_args)
+    args.extend(vm_args)
     target = root / relative
     if not root.is_absolute() or any(path.is_symlink() for path in (target, *target.parents)):
         raise ValueError('setup-helper: unsafe checkout path')

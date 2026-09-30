@@ -271,6 +271,9 @@ def category_run(root, category, argv, *, pipe=True):
     import test_commands
     import test_launcher as host
     commands, _ = test_commands.plan(root, category, argv)
+    if category in ('integration', 'system', 'e2e'):
+        from vm_selection import extract
+        argv, _ = extract(argv, required=False)
     env = host.environment(root)
     env['PYTHONUNBUFFERED'] = '1'
     if category in ('fixture-runtime', 'coverage'):

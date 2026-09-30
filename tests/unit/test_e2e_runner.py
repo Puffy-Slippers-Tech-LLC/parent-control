@@ -18,6 +18,11 @@ import test_commands as commands
 import dev_privileges
 import test_account_password
 REAL_READ_PASSWORD = test_account_password.read_password
+VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+
+
+def select_vm(root, argv):
+    return dispatcher['selection'](root, [*argv, *VM_ARGS])
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +41,8 @@ def test_missing_password_refuses_before_inventory_or_vm(checkout, monkeypatch):
 @pytest.fixture
 def checkout(tmp_path):
     for relative in ('tests/e2e/runner.py', 'tests/e2e/inventory.py',
-                     'tests/integration/test_account_password.py',
+                     'tests/integration/test_account_password.py', 'tests/integration/vm_config.py',
+                     'config/test-vm.json',
                      'tests/e2e/scenarios.json', 'tests/e2e/controller_qualification.py',
                      'tests/e2e/parent_about.py', 'tests/e2e/parent_discovery.py',
                      'tests/e2e/command_help.py',
@@ -93,11 +99,11 @@ def test_transfer_qualification_has_no_scenario_override(tmp_path, option, mode)
         options = [option, '--artifacts=' + directory]
         plan = runner['preflight'](options)
         assert plan == {'mode': mode, 'artifacts': directory}
-        assert dispatcher['selection'](ROOT, ['e2e', *options])[-2:] == options
+        assert select_vm(ROOT, ['e2e', *options])[-2:] == options
         for extra in ('--list', '--ready', '--scenario=E2E-001', '--scenario='):
             with pytest.raises(ValueError, match='qualification-cannot-select-scenarios'):
                 runner['preflight']([*options, extra])
-        command = dispatcher['selection'](ROOT, ['e2e', *options, '--skip-backing-verification'])
+        command = select_vm(ROOT, ['e2e', *options, '--skip-backing-verification'])
         assert runner['preflight'](command[3:]) == plan
     with pytest.raises(ValueError, match='missing-artifact-directory'):
         runner['preflight'](options)
@@ -126,7 +132,7 @@ def test_dispatcher_preserves_execution_verification_policy(skip, checkout):
         options = ['--scenario=E2E-001', '--artifacts=' + directory]
         if skip:
             options.append('--skip-backing-verification')
-        command = dispatcher['selection'](checkout, ['e2e', *options])
+        command = select_vm(checkout, ['e2e', *options])
         plan = runner['preflight'](command[3:], root=checkout)
         assert 'verify_backing_bytes' not in plan
         assert ('--skip-backing-verification' in command) == skip
@@ -158,7 +164,7 @@ def test_refusals_precede_privilege_checks_and_execution(monkeypatch, capsys, op
     monkeypatch.setattr(dev_privileges, 'check', privilege)
     monkeypatch.setattr(commands.os, 'execve', execute)
     monkeypatch.setattr(commands.host, 'prerequisites', safety)
-    assert commands._main(['e2e', *options], detached=True) == 2
+    assert commands._main(['e2e', *options, *VM_ARGS], detached=True) == 2
     error = capsys.readouterr().err
     assert code in error
     assert 'private-value' not in error
@@ -171,7 +177,7 @@ def test_installed_dispatcher_refuses_pending_before_safety_or_root_execution(mo
     execute = Mock(side_effect=AssertionError('must not execute'))
     monkeypatch.setattr(dispatcher['subprocess'], 'run', execute)
     with pytest.raises(ValueError, match='selection:pending'):
-        dispatcher['run'](ROOT, ['e2e', '--scenario=E2E-023/fullscreen', '--artifacts=/tmp/onpc-absent'], None)
+        dispatcher['run'](ROOT, ['e2e', '--scenario=E2E-023/fullscreen', '--artifacts=/tmp/onpc-absent', *VM_ARGS], None)
     execute.assert_not_called()
 
 
@@ -194,7 +200,7 @@ def test_symlinked_entry_or_inventory_is_refused(checkout, relative):
     target.unlink()
     target.symlink_to(ROOT / relative)
     with pytest.raises(ValueError, match='unsafe-input|invalid-test-path'):
-        dispatcher['selection'](checkout, ['e2e', '--list'])
+        select_vm(checkout, ['e2e', '--list'])
 
 
 def test_malformed_inventory_is_refused_without_echoing_contents(checkout):
@@ -228,7 +234,7 @@ def test_ready_declaration_still_requires_valid_artifacts(checkout, artifact, co
     (['LIST=0'], 'LIST-must-be-1'),
     (['LIST=1', 'VM_IMAGE=unused'], 'VM_IMAGE-refused'),
     (['LIST=1', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'listing-does-not-use-artifacts'),
-    (['SCENARIO=E2E-023/fullscreen', 'ARTIFACT_DIR=/tmp/onpc-unused'], 'selection:pending'),
+    (['SCENARIO=E2E-023/fullscreen', 'ARTIFACT_DIR=/tmp/onpc-unused', 'VM=onpc-Ubuntu26.04'], 'selection:pending'),
 ])
 def test_make_target_refusals(cli_checkout, assignments, code):
     result = subprocess.run(['/usr/bin/make', '--no-print-directory', 'check-e2e', *assignments],
@@ -258,7 +264,7 @@ def test_public_ready_listing_and_installed_dispatcher_share_selection(cli_check
     assert all(case['status'] == 'ready' for case in listing['cases'])
     import tempfile
     with tempfile.TemporaryDirectory(prefix='onpc-ready-test-', dir='/tmp') as directory:
-        command = dispatcher['selection'](ROOT, ['e2e', '--ready', '--artifacts=' + directory])
+        command = select_vm(ROOT, ['e2e', '--ready', '--artifacts=' + directory])
         plan = runner['preflight'](command[3:])
         assert plan['cases'] == listing['cases']
         assert plan['excluded_pending_cases'] == listing['excluded_pending_cases']
@@ -271,14 +277,14 @@ def test_default_execution_selects_every_ready_e2e_case():
     assert plan['cases'] == listing['cases']
     assert plan['excluded_pending_cases'] == listing['excluded_pending_cases']
     commands_to_run, safety = commands.plan(ROOT, 'e2e', [])
-    assert commands_to_run == [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', 'e2e']]
+    assert commands_to_run == [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', 'e2e', *VM_ARGS]]
     assert safety is False
 
 
 def test_comma_separated_ids_keep_exact_selection_through_dispatch():
     ids = [1, 3, 4]
     value = ','.join(map(str, ids))
-    command = dispatcher['selection'](ROOT, ['e2e', '--list', '--id', value])
+    command = select_vm(ROOT, ['e2e', '--list', '--id', value])
     plan = runner['preflight'](command[3:])
     assert [case['coverage_id'] for case in plan['cases']] == ids
     assert plan['scope'] == 'partial'
@@ -308,7 +314,7 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
         monkeypatch.setattr(commands.subprocess, 'run', build)
         monkeypatch.setattr(commands.os, 'execve', execute)
         monkeypatch.setattr(dev_privileges, 'check', Mock())
-        result = commands._main(['e2e', '--ready'])
+        result = commands._main(['e2e', '--ready', *VM_ARGS])
         aggregate.assert_not_called()
         assert build.call_count == (1 if status else 2)
         assert build.call_args_list[0].args[0] == [
@@ -320,8 +326,8 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
         else:
             execute.assert_not_called()
             assert build.call_args.args[0] == [
-                '/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
-                'e2e', '--ready', '--artifacts=' + directory]
+                '/usr/bin/pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-runner',
+                'e2e', *VM_ARGS, '--ready', '--artifacts=' + directory]
 
 
 def test_make_selector_never_becomes_recipe_shell_code(tmp_path, cli_checkout):

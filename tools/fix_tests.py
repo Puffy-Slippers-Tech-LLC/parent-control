@@ -92,6 +92,12 @@ def record_usage(run, metadata, usage=None, *, event='turn'):
 
 
 def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summary=None):
+    from vm_selection import selected
+    vm = selected(required=False)
+    if vm is not None:
+        prompt += (f'\nThis run is bound to configured VM {vm.name}. '
+                   f'Every VM command must include --vm {vm.name}; '
+                   f'Make VM targets use VM={vm.name}. Do not select another VM.')
     instructions = (
         'Classify the failure from the evidence as a test issue, an app issue, or '
         'uncertain before editing. If it is a test issue, fix it in this session '
@@ -244,10 +250,13 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
 
 def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     if kind == 'test':
+        from vm_selection import arguments, selected
+        vm_args = arguments() if selected(required=False) is not None else []
         command = [str(root / 'tools/run-tests'), '--stop-on-error', category,
-                   *json.loads(test_args)]
+                   *json.loads(test_args), *vm_args]
     elif kind == 'recovery':
-        command = [str(root / 'tools/cleanup-e2e')]
+        from vm_selection import arguments
+        command = [str(root / 'tools/cleanup-e2e'), *arguments()]
     else:
         command = repair_command(root, model, effort, run)
         metadata = dict(json.loads(test_args), phase=category, model=model,
@@ -438,6 +447,9 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
 
 
 def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()):
+    from vm_selection import selected, check_binding, save_binding
+    vm = selected(required=False)
+    name = vm.name if vm else None
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
         with lock(legacy / 'owner') as owner:
@@ -445,6 +457,7 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
                 run = current_run(legacy)
                 if run is None:
                     raise ValueError('active legacy fix-tests owner has no readable run record')
+                check_binding(run, name)
                 if stop:
                     (run / 'cancel').touch(mode=0o600)
                 return run, False
@@ -455,7 +468,9 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
                 '--worker', str(root), str(run), str(owner), default_model,
                 selected_effort, app_model, json.dumps(categories)]
 
-    return detached_launcher.select(root, 'fix-tests', command, stop=stop)
+    return detached_launcher.select(root, 'fix-tests', command, stop=stop,
+        on_attach=lambda run: check_binding(run, name),
+        on_start=lambda run: save_binding(run, name))
 
 
 def follow(run, stream=None):
@@ -464,6 +479,7 @@ def follow(run, stream=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--vm', help='required for VM categories; exact name in config/test-vm.json')
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
     parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
@@ -484,6 +500,15 @@ def main(argv=None):
 
     previous = signal.signal(signal.SIGINT, cancel)
     try:
+        from vm_selection import select as select_vm
+        inventory = suite_inventory(args.categories)
+        if args.vm is not None:
+            select_vm(args.vm)
+        elif any(name in inventory for name in ('system', 'e2e')):
+            raise ValueError('vm-config: --vm NAME is required for VM categories')
+        else:
+            from vm_selection import VARIABLE
+            os.environ.pop(VARIABLE, None)
         run, started = select(root, stop=requested, model=args.model, effort=args.effort,
                               categories=args.categories)
         if run is None:

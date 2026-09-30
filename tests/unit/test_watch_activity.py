@@ -370,7 +370,7 @@ def test_viewer_validates_activity_packet_and_server_without_frames(tmp_path, mo
     base = tmp_path / 'watch'
     directory = base / str(os.getuid())
     directory.mkdir(parents=True)
-    (directory / 'activity.json').write_text(json.dumps({'run': 'a' * 32}))
+    (directory / 'activity.json').write_text(json.dumps({'run': 'a' * 32, 'vm': 'onpc-Ubuntu26.04'}))
     base.chmod(0o755)
     directory.chmod(0o755)
     (directory / 'activity.json').chmod(0o644)

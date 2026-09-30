@@ -13,7 +13,11 @@ from unittest.mock import Mock, call
 import pytest
 
 runner = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
-select = runner['selection']
+VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+
+
+def select(root, argv):
+    return runner['selection'](root, [*argv, *VM_ARGS])
 
 
 @pytest.fixture
@@ -25,6 +29,9 @@ def checkout(tmp_path):
         shutil.copy2(root / 'tools' / name, tools / name)
     integration = tmp_path / 'tests/integration'
     integration.mkdir(parents=True)
+    shutil.copy2(root / 'tests/integration/vm_config.py', integration / 'vm_config.py')
+    (tmp_path / 'config').mkdir()
+    shutil.copy2(root / 'config/test-vm.json', tmp_path / 'config/test-vm.json')
     (integration / 'check_future_feature.py').touch()
     (integration / 'system_runner.py').touch()
     unit = tmp_path / 'tests/unit'
@@ -68,7 +75,7 @@ def test_system_update_pins_both_artifact_directories(checkout):
     command = select(checkout, ['system', '--artifacts', '/tmp/onpc-current',
                                '--previous-artifacts', '/var/tmp/onpc-previous',
                                '--area', 'session'])
-    assert command[3:] == ['--artifacts', '/tmp/onpc-current',
+    assert command[3:] == [*VM_ARGS, '--artifacts', '/tmp/onpc-current',
                            '--previous-artifacts', '/var/tmp/onpc-previous', '--area=session']
 
 
@@ -103,7 +110,7 @@ def test_dispatch_runs_only_selected_controller_with_retention_guard(checkout, m
     monkeypatch.setattr(runner['subprocess'], 'run', execute)
     monkeypatch.setattr(runner['os'], 'getgrouplist', lambda *args: [1000])
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir='/tmp')
-    assert runner['run'](checkout, ['integration', 'check_future_feature'], caller) == status
+    assert runner['run'](checkout, ['integration', 'check_future_feature', *VM_ARGS], caller) == status
     execute.assert_called_once()
     assert execute.call_args.args[0] == select(checkout, ['integration', 'check_future_feature'])
     assert 'user' not in execute.call_args.kwargs
@@ -128,7 +135,7 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(root / relative, target)
     installer = runpy.run_path(str(root / 'tools/install_test_runner.py'))
-    rendered = installer['render_helper'](checkout, 'onpc-test-runner', None)
+    rendered = installer['render_helper'](checkout, 'onpc-test-runner', {})
     installed = checkout.parent / 'installed-test-runner'
     installed.write_text(rendered)
 
@@ -168,7 +175,8 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
         with patch.object(runpy, 'run_path', load_with_owned_process_stub):
             status = dispatcher['run'](
                 Path(dispatcher['CHECKOUT']),
-                ['--unattended', 'system', '--artifacts', '/tmp/onpc-build-regression'],
+                ['--unattended', 'system', '--artifacts', '/tmp/onpc-build-regression',
+                 '--vm', 'onpc-Ubuntu26.04'],
                 pwd.getpwuid(os.getuid()))
         assert status == safety_status
         assert len(calls) == 1
@@ -229,7 +237,7 @@ def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch
     monkeypatch.setattr(runner['runpy'], 'run_path', lambda path: {
         'Control': lambda: control, 'safety_command': lambda root: ['cleanup-prerequisites']})
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir=str(checkout))
-    arguments = ['integration', name]
+    arguments = ['integration', name, *VM_ARGS]
     assert runner['run'](checkout, (['--unattended'] if unattended else []) + arguments, caller) == 0
     calls = (control.run if unattended else execute).call_args_list
     assert len(calls) == 1

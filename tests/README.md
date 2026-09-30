@@ -57,10 +57,10 @@ then E2E. For example:
 
 ```sh
 tools/run-tests host
-tools/run-tests system e2e
-tools/run-tests e2e
-tools/run-tests host system
-tools/run-tests host system e2e
+tools/run-tests system --vm NAME e2e
+tools/run-tests e2e --vm NAME
+tools/run-tests host system --vm NAME
+tools/run-tests host system e2e --vm NAME
 ```
 
 `host` includes discovery, unit (including cleanup regressions), component, UI,
@@ -157,7 +157,7 @@ option runs publishing/builds after the host join for scheduling comparisons.
 
 Complete categories and aggregates stop at the first reported
 failure by default, with the same cooperative cleanup, final evidence and failure
-investigation prompt as Ctrl+C. Use `tools/run-tests all --continue-on-errors`
+investigation prompt as Ctrl+C. Use `tools/run-tests all --vm NAME --continue-on-errors`
 (or the corresponding aggregate) to continue independent tests after failures.
 Safety and infrastructure refusals still stop the run. Reattachment preserves
 the original options. The flag takes no value and can accompany `--serial-builds`.
@@ -169,7 +169,7 @@ conflicts with `--continue-on-errors`.
 
 ### Scripted repair loop
 
-Run [`tools/fix-tests`](../tools/fix-tests) to start or attach to the scripted
+Run [`tools/fix-tests`](../tools/fix-tests) with `--vm NAME` for its default VM scope to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
 arguments, until each passes. After a failure, a fresh Codex process receives
 that run's generated investigation prompt, applies a repair, exits, and the
@@ -256,8 +256,8 @@ shared question menu described below. The result file still controls repair
 verification. Development activation is `none`; new launcher processes
 use the checkout code without product installation or a service restart.
 
-Closing the terminal detaches; rerun `tools/fix-tests` to attach to the current
-output, with a bounded tail of earlier output. `tools/fix-tests --stop` and
+Closing the terminal detaches; rerun `tools/fix-tests --vm NAME` to attach to the current
+output, with a bounded tail of earlier output. `tools/fix-tests --vm NAME --stop` and
 Ctrl+C request the same immediate cancellation. Tests receive the runner's
 Ctrl+C path and finish guarded cleanup before exit. Agents receive termination,
 with a three-second limit before their recorded process group is killed. If the
@@ -305,7 +305,7 @@ An agent-reported blocker pauses the loop for developer instructions using the
 same [question implementation](../tools/launcher_question.py) as `write-e2e`.
 The menu offers two or three suggestions, selects the first recommendation by
 default, and includes editable Other input. Enter submits the selection; neither
-elapsed time nor disconnection submits an answer. Reattach with `tools/fix-tests`
+elapsed time nor disconnection submits an answer. Reattach with `tools/fix-tests --vm NAME`
 to answer. No tests or repairs start while waiting. After an answer, a fresh
 session receives the failure evidence, latest repair handoff and developer
 instructions, rechecks prerequisites, and continues the same repair phase.
@@ -326,10 +326,10 @@ Run [tools/write-e2e](../tools/write-e2e) to implement the execution plan's firs
 unchecked active task through fresh unattended Codex sessions:
 
 ```sh
-tools/write-e2e --sessions 3 --tasks 1
-tools/write-e2e --tasks 2
-tools/write-e2e
-tools/write-e2e --stop
+tools/write-e2e --vm NAME --sessions 3 --tasks 1
+tools/write-e2e --vm NAME --tasks 2
+tools/write-e2e --vm NAME
+tools/write-e2e --vm NAME --stop
 ```
 
 `--sessions N` limits the total number of new sessions across implementation,
@@ -582,8 +582,8 @@ live test passed. Lifecycle qualification lives in
 
 ### Aggregate execution and reconnection
 
-Run `make test-all` (`tools/run-tests all`, also the default with no arguments)
-for all established regressions. `make test-all-verify` / `tools/run-tests all-verify`
+Run `make test-all VM=NAME` (`tools/run-tests all --vm NAME`, also the default with only `--vm NAME`)
+for all established regressions. `make test-all-verify VM=NAME` / `tools/run-tests all-verify --vm NAME`
 are compatibility aliases for the same work. Every VM entry point uses
 metadata-only snapshot verification, including standalone preparation,
 maintenance, qualification and recovery. No path hashes VM images or runs
@@ -593,16 +593,16 @@ inspection, package/artifact verification and cleanup remain active.
 Reports record `metadata-only` and zero image-content verification bytes.
 Both aggregate targets automatically discover all ready E2E variants, including
 the installed Parent About/license scenario. For E2E-only runs, use
-`tools/run-tests e2e --ready --artifacts '<fresh-artifact-directory>'`; for just
+`tools/run-tests e2e --vm NAME --ready --artifacts '<fresh-artifact-directory>'`; for just
 Parent About, replace `--ready` with `--scenario 'E2E-030/parent'`. The
 [E2E runner guide](e2e/README.md#run-e2e-scenarios) covers building inputs, listing,
 pending scope and prerequisites.
 Every `tools/run-tests` category runs independently of its terminal. Closing the
 terminal detaches the display; tests continue. Ctrl+C requests cancellation and
-waits for owned cleanup. Invoke `tools/run-tests` in a new terminal to attach to
+waits for owned cleanup. Invoke `tools/run-tests --vm NAME` for a VM run in a new terminal to attach to
 the existing progress and final output, including its exit status. While any run
-is active, execution invocations warn and attach to it, ignoring new arguments—even
-another category or invalid options. `tools/run-tests --stop` attaches, requests
+is active, execution invocations warn and attach to it, ignoring new categories or invalid options. VM attachment and cancellation
+require the original configured `--vm NAME`; missing or different names refuse. `tools/run-tests --vm NAME --stop` attaches to a VM run, requests
 cancellation, and waits for owned cleanup; when idle it returns without starting
 tests or consuming saved results. An active host run is found even with no
 arguments or a VM category, and an active VM run is found with host arguments.
@@ -811,9 +811,9 @@ Run from the prepared development host as the normal user. The aggregate never
 installs dependencies or opens an authorization dialog: unavailable tools,
 authorization, baseline or inventory cause failure. After updating the runner,
 refresh through `./setup.sh --test-tools-only`. This installs the maintained
-dispatcher and the `make test-all` Codex rule; restart Codex to load new rules.
+dispatcher and the `make test-all VM=NAME` Codex rule; restart Codex to load new rules.
 Direct terminal use has no Codex approval layer. The equivalent already-approved
-`tools/run-tests all` route remains available in an existing Codex session.
+`tools/run-tests all --vm NAME` route remains available in an existing Codex session.
 This is development/test tooling only; package update activation is **none**.
 
 ### Aggregate output retention
@@ -844,7 +844,7 @@ Scratch initialization publishes a complete owner atomically from a recorded
 staging slot; interrupted initialization and deletion can resume without
 adopting unknown payloads or losing the directory identity.
 
-`make test-all`, `make test-all-verify`, `tools/run-tests host` and
+`make test-all VM=NAME`, `make test-all-verify VM=NAME`, `tools/run-tests host` and
 `tools/run-tests host-builds` share **last-three-runs** retention. The runner
 records each newly allocated report, publishing snapshot (including Lintian scratch), sbuild output,
 package artifact directory, sbuild scratch parent, GJS coverage directory, persistent
@@ -890,11 +890,11 @@ separate from disposable scratch. Recovery diagnostics use their own bounded
 failed or interrupted recovery keeps its logs without rotating or clearing the
 unfinished VM journal. The existing VM lease still controls recovery itself.
 
-For older unregistered qualification directories, `tools/run-tests integration
+For older unregistered qualification directories, `tools/run-tests integration --vm NAME
 check_tmp_storage` prints a read-only inventory with sizes and directory
 identities. After reviewing the inventory, put only explicitly selected records
 (`path`, `device`, `inode`, `mode`) in `artifacts/tmp-storage-cleanup.json`, then
-run `tools/run-tests integration check_tmp_storage_cleanup`. This developer
+run `tools/run-tests integration --vm NAME check_tmp_storage_cleanup`. This developer
 cleanup requires an idle privileged retention owner and completed VM recovery,
 refuses live process references, and validates every identity and mount boundary
 before deleting anything. It never selects deletion targets by prefix or age.
@@ -906,7 +906,7 @@ installed artifact reader for privileged results. Legacy journals with mismatche
 system-root modes require explicit migration; they cannot create an unbounded
 archive outside rotation.
 
-For the storage relocation, `tools/run-tests integration check_storage_migration`
+For the storage relocation, `tools/run-tests integration --vm NAME check_storage_migration`
 prints a read-only legacy inventory when `output/test-runs/storage-migration.json` is
 absent. A reviewed manifest contains exact `path`, `device`, `inode`, `mode` and
 `uid` records. With the manifest present, the same command locks legacy owners,
@@ -1015,12 +1015,12 @@ read-only system diagnostics, and trust boundaries. Stable entry points are:
 tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphical_lease.py -q
 tools/run-tests component 'tests/component/test_*.py' -q
 tools/run-tests ui -q
-tools/run-tests integration check_graphical_worker
-tools/run-tests integration check_package_notice
-tools/run-tests system --artifacts /tmp/onpc-test-artifacts/first --area authorization
-tools/run-tests e2e --list
+tools/run-tests integration --vm NAME check_graphical_worker
+tools/run-tests integration --vm NAME check_package_notice
+tools/run-tests system --vm NAME --artifacts /tmp/onpc-test-artifacts/first --area authorization
+tools/run-tests e2e --vm NAME --list
 tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500
-tools/test-vm status
+tools/test-vm --vm NAME status
 ```
 
 `check_package_notice` runs real APT and dpkg against tiny fixture packages in
@@ -1185,7 +1185,7 @@ development tools, not customer E2E commands.
 ### Watching host UI tests
 
 Open `tools/watch` (or `make watch`) as the desktop user before or during a run.
-Both return after launching and repeated launches present the singleton VM
+Both return after launching and repeated launches present the singleton all-VM
 watcher. The left terminal follows active `fix-tests` output before `run-tests`,
 using VS Code Dark+ colors, wrapping and vertical scrollback. The initial
 horizontal split is 30%/70%, adjustable by dragging. On the right, **Active**

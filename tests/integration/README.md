@@ -102,17 +102,17 @@ cases and their explicit prerequisite closure without artifacts, root access,
 or VM operations:
 
 ```sh
-tools/run-tests system --list --area authorization
-tools/run-tests system --list --area authorization --test 'test_real_selected_parent_authentication[child1]'
+tools/run-tests system --vm NAME --list --area authorization
+tools/run-tests system --vm NAME --list --area authorization --test 'test_real_selected_parent_authentication[child1]'
 ```
 
-Bare `tools/run-tests system` builds its required package input automatically;
+Bare `tools/run-tests system --vm NAME` builds its required package input automatically;
 combinations including `host` reuse host's qualified input.
 
 Installation/reboot package checks start from `onpc_baseline`. Authorization,
 enforcement and session checks restore the retained `onpc-v<release>` app snapshot
 before each area, using the same shared preparation as
-`tools/prepare-appsnapshot --overwrite false` and E2E. A missing version snapshot
+`tools/prepare-appsnapshot --vm NAME --overwrite false` and E2E. A missing version snapshot
 is installed, rebooted and captured once. Existing snapshots are reused only when
 their recorded package digest, baseline identity and installation recipe match;
 otherwise shared preparation refreshes them automatically. Test-only edits do
@@ -158,7 +158,7 @@ probe accepts only maintained fixture variants and uses
 direct `execv` after credential verification. Private rule filenames and public
 property names include the variant to retain both cases in a combined run.
 Inspect its retained-app-snapshot prerequisite with
-`tools/run-tests system --list --area enforcement --test test_native_whitespace_policy_is_uid_scoped`.
+`tools/run-tests system --vm NAME --list --area enforcement --test test_native_whitespace_policy_is_uid_scoped`.
 Host regressions cover the scenario and failure witnesses; the full installed
 run linked above also passed this case.
 
@@ -174,7 +174,7 @@ the fixed `pattern`, `pattern-future`, and `pattern-unrelated` targets, preservi
 the same guest/credential checks and owned one-shot process. Fixture setup
 refuses existing paths; files remain in the guest for outer baseline cleanup.
 Inspect the case and its retained-app-snapshot prerequisite with
-`tools/run-tests system --list --area enforcement --test test_native_future_pattern_is_uid_scoped`.
+`tools/run-tests system --vm NAME --list --area enforcement --test test_native_future_pattern_is_uid_scoped`.
 Host regressions establish scenario behavior, catalog parsing and rule witnesses;
 the full installed run linked above also passed its kernel enforcement checks.
 
@@ -190,7 +190,7 @@ and other-child allowance. The shared transitions continue through soft policy,
 screen-time enablement and policy restoration with the launcher absent. The
 outer baseline cleanup owns remaining fixture files. Inspect its prerequisite
 closure with
-`tools/run-tests system --list --area enforcement --test test_native_missing_launcher_retains_policy`.
+`tools/run-tests system --vm NAME --list --area enforcement --test test_native_missing_launcher_retains_policy`.
 Host regressions use real catalog parsing, broker preference reconciliation and
 rule rendering with substituted OS boundaries. Installed execution passed in
 the full run linked above.

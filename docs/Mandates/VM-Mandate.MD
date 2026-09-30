@@ -6,8 +6,10 @@
   work. Run authorized work unattended through its existing grants and validated
   tools. Reuse session and category-wide authorization; do not broaden libvirt
   grants or bypass a missing prerequisite or grant.
-- Operate the pinned VM only through `tools/test-vm`. Do not bypass ownership,
-  select another guest, or create snapshots, overlays or clones. Stop maintenance
+- Every VM execution, maintenance and recovery operation requires an explicit `--vm NAME` whose exact, case-sensitive
+  name appears in `config/test-vm.json`'s `vms` array. There is no default VM.
+  Operate the selected, individually pinned VM only through `tools/test-vm`.
+  Do not bypass ownership or create snapshots, overlays or clones. Stop maintenance
   before system/E2E tests; reset is not a customer journey step.
 
 ## VM observation mandate
@@ -25,7 +27,8 @@
   or alternate intention channels. A missing integration must be fixed in this
   shared infrastructure before adding its consumer. Preserve private-input
   filtering and the existing VM ownership/identity checks.
-- The VM panels in `tools/watch` must remain read-only, live and interruption-free.
+- `tools/watch` observes all registered VMs without a VM parameter.
+  Its VM panels must remain read-only, live and interruption-free.
   The left runner terminal may request its displayed command's cooperative
   cancellation, including the owned cleanup of a VM test; it never sends direct
   input to the VM. Users can
@@ -40,8 +43,8 @@
   retryable, preserve unrelated configuration and fail on missing prerequisites.
   Tests and builds report missing prerequisites; they do not install them.
 - Baseline preparation is an explicit destructive operation through
-  `tools/prepare-baseline --mode auto` (restore and update) or
-  `tools/prepare-baseline --mode manual` (prepare the current state). Auto-mode
+  `tools/prepare-baseline --vm NAME --mode auto` (restore and update) or
+  `tools/prepare-baseline --vm NAME --mode manual` (prepare the current state). Auto-mode
   refresh is preapproved when needed for authorized development or testing,
   including deletion of all versioned app snapshots and replacement of
   `onpc_baseline`. Do not ask the developer for confirmation; answer the tool's

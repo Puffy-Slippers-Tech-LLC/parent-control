@@ -70,7 +70,9 @@ def preview_applications(session, directory):
         elif name in ("kiosk_preview", "request_component_preview"):
             identity = "com.puffyslippers.OhNoParentControl"
         elif name in ("e2e_watch_window_probe", "ui_watch_window_probe", "watch_window_probe"):
-            identity = "org.onpc.E2EWatch"
+            from vm_config import load, VARIABLE
+            vm = load(environment.get(VARIABLE))
+            identity = "org.onpc.E2EWatch.vm_" + vm.name.encode('ascii').hex()
         else:
             identity = None  # Other launchers need their own explicit contract.
         application_ids[process] = identity

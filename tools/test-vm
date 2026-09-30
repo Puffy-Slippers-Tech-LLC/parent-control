@@ -1,16 +1,23 @@
 #!/usr/bin/python3 -IB
-"""Control only the installed dispatcher's pinned test VM; never accept a domain/URI."""
+"""Control a configured VM through its installed, individually pinned identity."""
 import os
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dev_privileges import launch
+from vm_selection import extract
 
 if __name__ == '__main__':
     if os.geteuid() == 0:
         sys.exit('test-vm: invoke as an unprivileged administrator')
     try:
-        launch('/usr/local/libexec/onpc-test-runner', ['vm', *sys.argv[1:]])
+        args, configured = extract(sys.argv[1:])
+        if configured is None:
+            import runpy
+            runpy.run_path(str(Path(__file__).with_name('onpc-test-runner')))['selection'](
+                Path(__file__).resolve().parents[1], ['vm', *args])
+            sys.exit(0)
+        launch('/usr/local/libexec/onpc-test-runner', ['vm', *args, '--vm', configured.name])
     except (ValueError, OSError) as error:
         sys.exit('test-vm: ' + (str(error) if isinstance(error, ValueError) else 'refresh test tools with setup'))

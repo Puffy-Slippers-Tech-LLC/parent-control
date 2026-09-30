@@ -29,7 +29,8 @@ def cleanup(root):
     def guard():
         print('Automatic recovery: checking the recorded VM and retained evidence.',
               flush=True)
-        status = category_run(root, 'integration', ['check_test_recovery'], pipe=False)
+        from vm_selection import arguments
+        status = category_run(root, 'integration', ['check_test_recovery', *arguments()], pipe=False)
         if status:
             raise ValueError(f'retention: automatic recovery failed (status={status}); '
                              'see diagnostics above; previous evidence preserved')

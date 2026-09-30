@@ -25,10 +25,13 @@ def advance(path, stage):
 
 
 def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
+    import vm_config
+    vm_name = vm_config.selected().name
     output = tmp_path / 'watch.json'
     control = tmp_path / 'watch-control'
     process, log_path = launch_ui('e2e_watch_window_probe', wait_for_application=False,
         environment_overrides={'ONPC_WATCH_EVIDENCE': str(output),
+                               'ONPC_TEST_VM': vm_name,
                                'ONPC_WATCH_CONTROL': str(control),
                                'ONPC_WATCH_LIVE': 'cycle' if cycle else str(int(live))})
     wait(lambda: ui.showing('watch-window'),
@@ -48,6 +51,7 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
             attached, attached_log = launch_ui('e2e_watch_window_probe',
                 wait_for_application=False, environment_overrides={
                     'ONPC_WATCH_EVIDENCE': str(tmp_path / f'attach-{index}.json'),
+                    'ONPC_TEST_VM': vm_name,
                     'ONPC_WATCH_CONTROL': str(control), 'ONPC_WATCH_LIVE': '0'})
             wait(lambda: attached.poll() is not None,
                  'repeat viewer launch attaches and exits')

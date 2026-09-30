@@ -63,10 +63,10 @@ def validated_policy(root):
     return data
 
 
-def pinned_vm_uuid(directory=None, *, owner=0):
+def pinned_vm_uuid(directory=None, *, owner=0, name=None):
     """Pin only accepted root-private provenance; never silently select another VM."""
     if directory is None:
-        directory = vm_config.load().baseline_directory
+        directory = vm_config.load(name).baseline_directory
     path = directory / 'phase.json'
     if not directory.exists():
         return None
@@ -95,8 +95,8 @@ def render_helper(root, name, identity):
     resolver = (root / 'tools/dev_checkout.py').read_text()
     source = source.replace('CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.',
                             resolver + '\nCHECKOUT = str(checkout_root())\n')
-    source = source.replace('VM_UUID = None  # Pinned from finalized baseline state by install_test_runner.py.',
-                            f'VM_UUID = {identity!r}')
+    source = source.replace('VM_UUIDS = {}  # Pinned by name from finalized baseline state by install_test_runner.py.',
+                            f'VM_UUIDS = {identity!r}')
     return source
 
 
@@ -155,6 +155,7 @@ def install_watch_desktop(root, *, data_root=Path('/usr/local/share'),
     executable = str(root / 'tools' / launcher).replace('%', '%%')
     for character in ('\\', '"', '`', '$'):
         executable = executable.replace(character, '\\' + character)
+    theme = data_root / 'icons/hicolor'
     entry = GLib.KeyFile()
     for key, value in {
         'Type': 'Application', 'Name': title,
@@ -163,23 +164,25 @@ def install_watch_desktop(root, *, data_root=Path('/usr/local/share'),
         'Terminal': 'false',
     }.items():
         entry.set_string('Desktop Entry', key, value)
-    theme = data_root / 'icons/hicolor'
     install_file(theme / '48x48/apps' / (application_id + '.png'),
                  (root / 'data/app_logo_titlebar.png').read_bytes(), 0o644)
+    install_file(data_root / 'applications' / (application_id + '.desktop'),
+                 entry.to_data()[0].encode(), 0o644)
     # A pre-existing cache hides new icons in an existing apps directory.
     # Local hicolor additions use the system theme's index.theme; -t supports
     # that layout. Rebuilding also notifies running theme consumers.
     subprocess.run(['/usr/bin/gtk-update-icon-cache', '--force', '--ignore-theme-index',
                     str(theme)], check=True)
-    install_file(data_root / 'applications' / (application_id + '.desktop'),
-                 entry.to_data()[0].encode(), 0o644)
 
 
 def main():
     if len(sys.argv) != 1 or os.geteuid() != 0:
         raise SystemExit('test-runner-install: run as root without arguments')
     root = Path(__file__).resolve().parents[1]
-    identity = pinned_vm_uuid()
+    identity = {name: pinned_vm_uuid(name=name) for name in vm_config.registry()}
+    pins = [value for value in identity.values() if value is not None]
+    if len(pins) != len(set(pins)):
+        raise ValueError('test-runner-install:duplicate-baseline-uuid')
     policy_data = validated_policy(root)
     names = ('onpc-test-runner', 'onpc-export-screenshot', 'onpc-test-artifacts', 'onpc-diagnostics', 'onpc-setup')
     rendered = {name: render_helper(root, name, identity).encode() for name in names}
@@ -206,7 +209,7 @@ def main():
         install_file(destination, (root / 'config' / name).read_bytes(), 0o644)
     repair_checkout_bytecode(root)
     print('test-runner-install: installed root-owned development tools and scoped authorizations')
-    print('test-runner-install: VM identity ' + ('pinned' if identity else 'unavailable; VM operations disabled'))
+    print('test-runner-install: VM identities pinned only for finalized configured baselines')
 
 
 if __name__ == '__main__':

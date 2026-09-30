@@ -36,13 +36,13 @@ def test_pin_from_finalized_provenance_only(baseline):
 def test_default_pin_uses_configured_vm_state_and_never_legacy_record(baseline, monkeypatch):
     import vm_config
     monkeypatch.setattr(vm_config, 'STATE_ROOT', baseline)
-    monkeypatch.setattr(vm_config, 'load', lambda: vm_config.VMConfig('another-vm', Path('/disk')))
-    assert installer['pinned_vm_uuid'](owner=os.getuid()) is None
+    monkeypatch.setattr(vm_config, 'load', lambda name: vm_config.VMConfig('another-vm', Path('/disk')))
+    assert installer['pinned_vm_uuid'](name='another-vm', owner=os.getuid()) is None
     selected = baseline / 'another-vm'
     selected.mkdir(mode=0o700)
     (selected / 'phase.json').write_bytes((baseline / 'phase.json').read_bytes())
     (selected / 'phase.json').chmod(0o600)
-    assert installer['pinned_vm_uuid'](owner=os.getuid()) == UUID
+    assert installer['pinned_vm_uuid'](name='another-vm', owner=os.getuid()) == UUID
 
 
 @pytest.mark.parametrize('kind', ['file-mode', 'directory-mode', 'symlink', 'hardlink', 'uuid'])
@@ -65,12 +65,12 @@ def test_unsafe_baseline_cannot_pin_vm(baseline, kind):
 
 def test_rendered_dispatcher_resolves_checkout_and_pins_uuid(monkeypatch):
     monkeypatch.chdir(ROOT)
-    source = installer['render_helper'](ROOT, 'onpc-test-runner', UUID)
+    source = installer['render_helper'](ROOT, 'onpc-test-runner', {'onpc-Ubuntu26.04': UUID})
     namespace = {}
     exec(compile(source, '<installed-dispatcher-fixture>', 'exec'), namespace)
     assert namespace['CHECKOUT'] == str(ROOT)
-    assert namespace['VM_UUID'] == UUID
-    assert namespace['selection'](ROOT, ['vm', 'reboot'])[-3:] == ['--expected-uuid', UUID, 'reboot']
+    assert namespace['VM_UUIDS'] == {'onpc-Ubuntu26.04': UUID}
+    assert namespace['selection'](ROOT, ['vm', 'reboot', '--vm', 'onpc-Ubuntu26.04'])[-3:] == ['--expected-uuid', UUID, 'reboot']
     assert str(ROOT) not in source
 
 
@@ -164,20 +164,21 @@ def test_viewer_icon_resolves_after_fresh_and_repeated_setup(tmp_path, monkeypat
     monkeypatch.setattr(os, 'fchown', Mock())
     for _ in range(2):
         installer['install_watch_desktop'](ROOT, data_root=data_root)
-        app_id = 'org.onpc.E2EWatch'
-        entry = Gio.DesktopAppInfo.new_from_filename(
-            str(data_root / 'applications' / (app_id + '.desktop')))
-        assert entry is not None
-        parsed, command = GLib.shell_parse_argv(entry.get_commandline())
-        assert parsed and command == [str(ROOT / 'tools' / 'watch')]
-        icon_name = entry.get_icon().to_string()
-        lookup = Gtk.IconTheme.new()
-        lookup.set_search_path([str(data_root / 'icons'), '/usr/share/icons'])
-        lookup.set_theme_name('hicolor')
-        assert lookup.has_icon(icon_name)
-        assert (icons / (icon_name + '.png')).read_bytes() == logo
-        assert lookup.has_icon('unrelated')
-        assert unrelated.read_bytes() == logo
+        for app_id in ('org.onpc.E2EWatch',):
+            entry = Gio.DesktopAppInfo.new_from_filename(
+                str(data_root / 'applications' / (app_id + '.desktop')))
+            assert entry is not None
+            parsed, command = GLib.shell_parse_argv(entry.get_commandline())
+            assert parsed and command == [str(ROOT / 'tools' / 'watch')]
+            assert entry.get_startup_wm_class() == app_id
+            icon_name = entry.get_icon().to_string()
+            lookup = Gtk.IconTheme.new()
+            lookup.set_search_path([str(data_root / 'icons'), '/usr/share/icons'])
+            lookup.set_theme_name('hicolor')
+            assert lookup.has_icon(icon_name)
+            assert (icons / (icon_name + '.png')).read_bytes() == logo
+            assert lookup.has_icon('unrelated')
+            assert unrelated.read_bytes() == logo
 
 
 def test_tools_refresh_repairs_only_root_owned_cache_directory(tmp_path, monkeypatch):
@@ -250,7 +251,7 @@ def test_tools_refresh_installs_fixed_helper_before_cache_repair_and_can_retry(m
     repaired = Mock()
     monkeypatch.setattr(os, 'geteuid', lambda: 0)
     monkeypatch.setattr(installer['sys'], 'argv', ['install_test_runner.py'])
-    monkeypatch.setitem(main.__globals__, 'pinned_vm_uuid', lambda: None)
+    monkeypatch.setitem(main.__globals__, 'pinned_vm_uuid', lambda **kwargs: None)
     monkeypatch.setitem(main.__globals__, 'install_missing_dependencies', Mock())
     monkeypatch.setitem(main.__globals__, 'install_file', installed)
     monkeypatch.setattr(installer['subprocess'], 'run', Mock())

@@ -5,6 +5,20 @@ import warnings
 
 from hypothesis import settings
 import pytest
+import vm_config
+
+# Host-safe VM adapters use an explicit fixture selection; product launchers
+# never infer a default from this fixture or from registry order.
+vm_config.select('onpc-Ubuntu26.04')
+
+
+@pytest.fixture(autouse=True)
+def configured_vm_fixture(monkeypatch):
+    monkeypatch.setenv(vm_config.VARIABLE, 'onpc-Ubuntu26.04')
+    vm_config.select('onpc-Ubuntu26.04')
+    yield
+    monkeypatch.undo()
+    vm_config.select('onpc-Ubuntu26.04')
 
 from tools.regression_events import (pytest_collection_finish, pytest_collectreport,
                                      pytest_runtest_logreport)

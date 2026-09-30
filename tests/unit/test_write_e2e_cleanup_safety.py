@@ -18,6 +18,10 @@ from tests.support.paths import ROOT
 from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
+def select_vm(root, argv):
+    return workflow.select(root, ['--vm', 'onpc-Ubuntu26.04', *argv])
+
+
 def wait_for(path):
     deadline = time.monotonic() + 15
     while not path.exists():
@@ -80,7 +84,7 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
                                  stage_paths=[workflow.PLAN, workflow.QUEUE, 'removed-brief.md']),
                   'close': True, 'usage': {'input_tokens': 100, 'cached_input_tokens': 80,
                                           'output_tokens': 20, 'reasoning_output_tokens': 12}})
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     output = io.StringIO()
     assert launcher.follow(run, output) == 0
     from rich.text import Text
@@ -116,7 +120,7 @@ def test_staging_failure_keeps_accepted_handoff_and_restarts_without_agent(check
                    handoff='Implement task 002 after staging.',
                    stage_paths=[workflow.PLAN, workflow.QUEUE, 'ignored-task.txt'])
     script(root, {'result': result, 'close': True, 'writes': {'ignored-task.txt': 'temporary'}})
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     assert launcher.follow(run, io.StringIO()) == 1
     state = json.loads((run / 'checkpoint.json').read_text())
     assert state['pending_completion'] == result
@@ -145,19 +149,19 @@ def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout,
          'writes': {**repair, 'partial.py': '# consumer work\n'}, 'invalid': interrupted},
         {'result': reply('task_complete', 'passed', task_id='000a'), 'writes': closed},
         {'result': reply('task_complete', 'passed'), 'close': True})
-    first, _ = workflow.select(root, ['--tasks', '2', '--sessions', '3'])
+    first, _ = select_vm(root, ['--tasks', '2', '--sessions', '3'])
     assert launcher.follow(first, io.StringIO()) == (1 if interrupted else 0)
     if interrupted:
         # The old failure remains untouched; the new owner resumes the inserted
         # prerequisite and stops after its genuine completion, not the repair.
         retained = (first / 'checkpoint.json').read_bytes()
-        second, _ = workflow.select(root, ['--tasks', '1'])
+        second, _ = select_vm(root, ['--tasks', '1'])
         assert launcher.follow(second, io.StringIO()) == 0
         assert (first / 'checkpoint.json').read_bytes() == retained
         assert workflow.queue_state(root)[0] == '001'
         staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
         assert 'partial.py' not in staged.stdout
-        final, _ = workflow.select(root, ['--tasks', '1'])
+        final, _ = select_vm(root, ['--tasks', '1'])
         assert launcher.follow(final, io.StringIO()) == 0
     else:
         final = first
@@ -182,11 +186,11 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     root, _ = checkout
     script(root, {'result': reply(handoff='LATEST LIVE HANDOFF')},
            {'result': reply('task_complete', 'passed'), 'close': True})
-    first, _ = workflow.select(root, ['--sessions', '1'])
+    first, _ = select_vm(root, ['--sessions', '1'])
     assert launcher.follow(first, io.StringIO()) == 0
     assert len(calls(root)) == 1
     assert 'LATEST LIVE HANDOFF' in (first / 'handoff.txt').read_text()
-    second, started = workflow.select(root, ['--sessions', '1'])
+    second, started = select_vm(root, ['--sessions', '1'])
     assert started and second != first
     output = io.StringIO()
     assert launcher.follow(second, output) == 0
@@ -232,11 +236,11 @@ def test_repeated_live_attempts_escalate_across_restart_and_reset_for_next_task(
     script(root, {'result': reply()}, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    first, _ = workflow.select(root, ['--sessions', '2'])
+    first, _ = select_vm(root, ['--sessions', '2'])
     assert launcher.follow(first, io.StringIO()) == 0
     assert workflow.queue_state(root)[0] == '001'
     retained = (first / 'checkpoint.json').read_bytes()
-    second, _ = workflow.select(root, ['--sessions', '2', '--tasks', '2'])
+    second, _ = select_vm(root, ['--sessions', '2', '--tasks', '2'])
     assert launcher.follow(second, io.StringIO()) == 0
     assert (first / 'checkpoint.json').read_bytes() == retained
     invocations = calls(root)
@@ -259,7 +263,7 @@ def test_prerequisite_completion_does_not_renew_suspended_consumer_cap(checkout)
         {'result': reply('task_complete', 'passed', task_id='000a'), 'writes': {
             workflow.QUEUE: repair[workflow.QUEUE].replace('| [ ] | 000a |', '| [x] | 000a |'),
             workflow.PLAN: 'Next task: **001 — [First](E2E-Tasks/001.md)**.\n'}})
-    run, _ = workflow.select(root, ['--tasks', '2', '--sessions', '10'])
+    run, _ = select_vm(root, ['--tasks', '2', '--sessions', '10'])
     assert launcher.follow(run, io.StringIO()) == 1
     assert len(calls(root)) == 6
     state = json.loads((run / 'checkpoint.json').read_text())
@@ -278,7 +282,7 @@ def test_cumulative_sessions_restart_only_for_a_new_task(checkout):
            {'result': reply(task_id='002')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
     for sessions, expected in [('2', '2'), ('1', '1'), ('1', '2')]:
-        run, started = workflow.select(root, ['--sessions', sessions])
+        run, started = select_vm(root, ['--sessions', sessions])
         assert started
         assert launcher.follow(run, io.StringIO()) == 0
         line = Text.from_ansi(read_progress(run)[-1]['lines'][-1]).plain
@@ -292,9 +296,9 @@ def test_completion_stages_changes_from_every_session_despite_omitted_stage_path
     script(root, {'result': reply(), 'writes': {'implementation.py': 'first session\n'}},
            {'result': reply('task_complete', 'passed'), 'close': True,
             'writes': {'final-note.md': 'last session\n'}})
-    first, _ = workflow.select(root, ['--sessions', '1'])
+    first, _ = select_vm(root, ['--sessions', '1'])
     assert launcher.follow(first, io.StringIO()) == 0
-    second, _ = workflow.select(root, ['--sessions', '1'])
+    second, _ = select_vm(root, ['--sessions', '1'])
     assert launcher.follow(second, io.StringIO()) == 0
     staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
                             capture_output=True, text=True, check=True).stdout.splitlines()
@@ -309,7 +313,7 @@ def test_each_session_repairs_previous_failure_then_validates_and_hands_off(chec
            {'result': reply(live='failed', handoff='LATEST VM FAILURE')},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002', handoff='NEXT TASK LIVE')})
-    run, _ = workflow.select(root, ['--sessions', '4', '--tasks', '2'])
+    run, _ = select_vm(root, ['--sessions', '4', '--tasks', '2'])
     assert launcher.follow(run, io.StringIO()) == 0
     invocations = calls(root)
     assert len(invocations) == 4
@@ -331,7 +335,7 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
            {'result': reply(task_id='002')},
            {'result': reply(task_id='002', live='failed')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    run, _ = workflow.select(root, ['--sessions', '9', '--tasks', '2'])
+    run, _ = select_vm(root, ['--sessions', '9', '--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(run, output) == 0
     from rich.text import Text
@@ -366,7 +370,7 @@ def test_completed_task_is_compacted_while_next_task_keeps_live_updates(checkout
            {'result': reply(task_id='002')},
            {'result': reply('task_complete', 'passed', task_id='002'),
             'close': True, 'wait': True})
-    run, _ = workflow.select(root, ['--tasks', '2'])
+    run, _ = select_vm(root, ['--tasks', '2'])
     wait_for(root / 'agent-ready-4')
     steps = read_progress(run)
     assert [step['key'] for step in steps] == ['complete-001', '3', '4']
@@ -392,9 +396,9 @@ def test_completion_excludes_sessions_from_previous_completed_launcher(checkout)
            {'result': reply(live='failed')},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    first, _ = workflow.select(root, [])
+    first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 0
-    second, started = workflow.select(root, [])
+    second, started = select_vm(root, [])
     assert started and second != first
     output = io.StringIO()
     assert launcher.follow(second, output) == 0
@@ -419,7 +423,7 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    run, _ = workflow.select(root, args)
+    run, _ = select_vm(root, args)
     assert launcher.follow(run, io.StringIO()) == 0
     assert len(calls(root)) == sessions
     for index, call in enumerate(calls(root)):
@@ -441,7 +445,7 @@ def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     root, _ = checkout
     script(root, {'result': reply()},
            *({'result': reply(live='failed')} for _ in range(9)))
-    run, started = workflow.select(root, args)
+    run, started = select_vm(root, args)
     assert started
     output = io.StringIO()
     assert launcher.follow(run, output) == 1
@@ -458,7 +462,7 @@ def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     style = rendered.get_style_at_offset(Console(), rendered.plain.index(warning))
     assert style.bold and style.color.get_truecolor().hex == '#800000'
     assert workflow.queue_state(root)[0] == '001'
-    restarted, started = workflow.select(root, ['--tasks', '2'])
+    restarted, started = select_vm(root, ['--tasks', '2'])
     assert started
     assert launcher.follow(restarted, io.StringIO()) == 1
     assert len(calls(root)) == 10
@@ -471,9 +475,9 @@ def test_task_cap_renews_without_resetting_task_sessions(checkout):
     root, _ = checkout
     script(root, {'result': reply()},
            *({'result': reply(live='failed')} for _ in range(7)))
-    first, _ = workflow.select(root, ['--sessions', '3'])
+    first, _ = select_vm(root, ['--sessions', '3'])
     assert launcher.follow(first, io.StringIO()) == 0
-    second, _ = workflow.select(root, ['--tasks', '2'])
+    second, _ = select_vm(root, ['--tasks', '2'])
     assert launcher.follow(second, io.StringIO()) == 1
     assert len(calls(root)) == 8
     assert json.loads((second / 'result.json').read_text()) == {
@@ -486,12 +490,12 @@ def test_six_prior_sessions_get_five_more_in_plain_new_launcher(checkout):
     root, _ = checkout
     script(root, {'result': reply()},
            *({'result': reply(live='failed')} for _ in range(10)))
-    first, _ = workflow.select(root, [])
+    first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 1
-    second, _ = workflow.select(root, ['--sessions', '1'])
+    second, _ = select_vm(root, ['--sessions', '1'])
     assert launcher.follow(second, io.StringIO()) == 0
     assert json.loads((second / 'checkpoint.json').read_text())['task_sessions'] == 6
-    third, started = workflow.select(root, [])
+    third, started = select_vm(root, [])
     assert started
     output = io.StringIO()
     assert launcher.follow(third, output) == 1
@@ -510,7 +514,7 @@ def test_completion_on_fifth_session_resets_cap_for_next_task(checkout):
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    run, _ = workflow.select(root, ['--tasks', '2'])
+    run, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(run, output) == 0
     assert len(calls(root)) == 7
@@ -523,7 +527,7 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     root, spawned = checkout
     script(root, {'result': reply(), 'wait': True})
     with ThreadPoolExecutor(max_workers=2) as pool:
-        values = list(pool.map(lambda _: workflow.select(root, []), range(2)))
+        values = list(pool.map(lambda _: select_vm(root, []), range(2)))
     run = values[0][0]
     assert values[1][0] == run and sorted(item[1] for item in values) == [False, True]
     wait_for(root / 'agent-ready-1')
@@ -531,10 +535,10 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     limits = (run / 'limits.json').read_text()
     assert json.loads(limits)['sessions'] == 5
     assert json.loads(limits)['tasks'] == 1
-    assert workflow.select(root, []) == (run, False)
+    assert select_vm(root, []) == (run, False)
     assert (run / 'limits.json').read_text() == limits
     with pytest.raises(SystemExit):
-        workflow.select(root, ['--sessions', 'invalid', '--tasks', 'invalid', '--unknown'])
+        select_vm(root, ['--sessions', 'invalid', '--tasks', 'invalid', '--unknown'])
     assert (run / 'limits.json').read_text() == limits
 
     class Closed(io.StringIO):
@@ -544,7 +548,7 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     with pytest.raises(BrokenPipeError):
         launcher.follow(run, Closed())
     assert spawned[0].poll() is None
-    workflow.select(root, ['--stop'])
+    select_vm(root, ['--stop'])
     (root / 'release').touch()
     assert launcher.follow(run, io.StringIO()) == 0
 
@@ -566,9 +570,9 @@ def test_attached_adjustments_control_next_boundary(checkout, initial, adjustmen
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    run, _ = workflow.select(root, initial)
+    run, _ = select_vm(root, initial)
     wait_for(root / 'agent-ready-1')
-    assert workflow.select(root, adjustment) == (run, False)
+    assert select_vm(root, adjustment) == (run, False)
     assert len(spawned) == 1 and spawned[0].poll() is None
     (root / 'release').touch()
     assert launcher.follow(run, io.StringIO()) == 0
@@ -581,13 +585,13 @@ def test_concurrent_adjustments_accumulate_without_resetting_completed_work(chec
     script(root, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002'), 'wait': True})
-    run, _ = workflow.select(root, ['--tasks', '2', '--sessions', '4'])
+    run, _ = select_vm(root, ['--tasks', '2', '--sessions', '4'])
     wait_for(root / 'agent-ready-3')
     with ThreadPoolExecutor(max_workers=4) as pool:
-        attached = list(pool.map(lambda _: workflow.select(root, ['--tasks', '1', '--sessions', '2']), range(4)))
+        attached = list(pool.map(lambda _: select_vm(root, ['--tasks', '1', '--sessions', '2']), range(4)))
     assert attached == [(run, False)] * 4
     assert json.loads((run / 'limits.json').read_text()) == {'tasks': 6, 'sessions': 12, 'started': 3}
-    workflow.select(root, ['--tasks', '-6', '--sessions', '-12'])
+    select_vm(root, ['--tasks', '-6', '--sessions', '-12'])
     (root / 'release').touch()
     assert launcher.follow(run, io.StringIO()) == 0
     assert json.loads((run / 'result.json').read_text()) == {'status': 0, 'sessions': 3, 'tasks': 1}
@@ -597,9 +601,9 @@ def test_concurrent_adjustments_accumulate_without_resetting_completed_work(chec
 def test_plain_run_stops_at_handoff_without_interrupting_agent(checkout):
     root, spawned = checkout
     script(root, {'result': reply(), 'wait': True})
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     wait_for(root / 'agent-ready-1')
-    assert workflow.select(root, ['--stop']) == (run, False)
+    assert select_vm(root, ['--stop']) == (run, False)
     assert (run / 'stop').exists() and not (run / 'cancel').exists()
     assert spawned[0].poll() is None
     (root / 'release').touch()
@@ -612,7 +616,7 @@ def test_plain_run_stops_at_handoff_without_interrupting_agent(checkout):
 def test_cancellation_awaits_only_registered_test_cleanup(checkout, monkeypatch, action):
     root, spawned = checkout
     script(root, {'result': reply(), 'nested': True, 'wait': True})
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     wait_for(root / 'agent-ready-1')
     unrelated = root / 'unrelated'
     unrelated.mkdir()
@@ -636,7 +640,7 @@ def test_cancellation_awaits_only_registered_test_cleanup(checkout, monkeypatch,
                 return follow(run, io.StringIO())
 
             monkeypatch.setattr(launcher, 'follow', interrupt)
-            assert workflow.main([]) == 130
+            assert workflow.main(['--vm', 'onpc-Ubuntu26.04']) == 130
         assert not (unrelated / 'cancel').exists()
     assert (root / 'nested-cleaned').exists()
     with launcher.lock(run.parent / 'owner') as owner:
@@ -648,7 +652,7 @@ def test_bad_agent_outcome_stops_without_advancing_or_reusing_a_reply(checkout, 
     root, _ = checkout
     step = {'result': reply(), kind: True}
     script(root, step)
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     output = io.StringIO()
     assert launcher.follow(run, output) == 1
     assert len(calls(root)) == 1
@@ -663,14 +667,14 @@ def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, cu
     root, spawned = checkout
     script(root, {'result': reply('blocked', handoff='ENGINEERING DETAILS ONLY IN SAVED HANDOFF')},
            {'result': reply('task_complete', 'passed'), 'close': True, 'wait': True})
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     wait_for(run / 'question.json')
     wait_for(run / 'handoff.txt')
     time.sleep(.3)
     assert len(calls(root)) == 1 and not (run / 'result.json').exists()
     assert json.loads((run / 'checkpoint.json').read_text())['phase'] == 'blocked'
     assert workflow.queue_state(root)[0] == '001'
-    assert workflow.select(root, []) == (run, False)
+    assert select_vm(root, []) == (run, False)
     assert len(calls(root)) == 1
     question = json.loads((run / 'question.json').read_text())
     assert submit(run, question['id'], 3 if custom else 0, 'Keep 0m. Review only the two checks.')
@@ -701,14 +705,14 @@ def test_waiting_can_stop_or_cancel_and_restart_still_requires_an_answer(checkou
     from launcher_question import submit
     root, spawned = checkout
     script(root, {'result': reply('blocked')}, {'result': reply(live='failed')})
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     wait_for(run / 'handoff.txt')
     (run / action).touch()
     output = io.StringIO()
     assert finish_answered_run(run, spawned, output) == (130 if action == 'cancel' else 0)
     assert 'Next session prompt:' not in output.getvalue()
     assert 'Next session prompt:' in (run / 'handoff.txt').read_text()
-    resumed, started = workflow.select(root, ['--sessions', '1'])
+    resumed, started = select_vm(root, ['--sessions', '1'])
     assert started and resumed != run
     wait_for(resumed / 'question.json')
     assert len(calls(root)) == 1
@@ -723,7 +727,7 @@ def test_answer_permits_recovery_when_blocker_used_the_last_session(checkout):
     root, spawned = checkout
     script(root, *[{'result': reply()} for _ in range(4)],
            {'result': reply('blocked')}, {'result': reply(live='failed')})
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     wait_for(run / 'question.json')
     assert len(calls(root)) == 5 and not (run / 'result.json').exists()
     question = json.loads((run / 'question.json').read_text())
@@ -765,14 +769,14 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     script(root, {'result': reply(), 'wait': True},
            {'result': reply('task_complete' if live == 'passed' else 'ready_for_vm',
                             live, handoff='RECOVERED HANDOFF'), 'close': live == 'passed'})
-    run, _ = workflow.select(root, [])
+    run, _ = select_vm(root, [])
     wait_for(root / 'agent-ready-1')
     (run / 'cancel').touch()
     assert launcher.follow(run, io.StringIO()) == 130
     handoff = (run / 'handoff.txt').read_text()
     assert 'Continue with the launcher-selected coordinator and bounded sequential Astra advice' in handoff
     assert 'Continue with GPT-6-Astra High' not in handoff
-    recovered, started = workflow.select(root, ['--sessions', '1'])
+    recovered, started = select_vm(root, ['--sessions', '1'])
     assert started and recovered != run
     assert launcher.follow(recovered, io.StringIO()) == 0
     invocations = calls(root)

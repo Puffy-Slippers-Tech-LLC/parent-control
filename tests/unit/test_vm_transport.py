@@ -108,7 +108,7 @@ def test_nested_ui_stream_keeps_guard_output_out_of_outer_parser():
 def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch, fault):
     configured = Mock(name='configuration')
     configured.name = 'custom-test-vm'
-    monkeypatch.setattr(transport.vm_config, 'load', lambda: configured)
+    monkeypatch.setattr(transport.vm_config, 'selected', lambda: configured)
     domain = Mock()
     domain.ID.return_value = 72 if fault == 'instance' else 71
     domain.name.return_value = 'old-vm' if fault == 'name' else configured.name

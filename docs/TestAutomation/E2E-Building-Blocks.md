@@ -1713,9 +1713,9 @@ before starting the E2E run.
 
 The same preparation is available independently:
 
-- `./tools/cleanup-e2e` reconciles previous recorded run leftovers and preserves
+- `./tools/cleanup-e2e --vm NAME` reconciles previous recorded run leftovers and preserves
   evidence under the existing checkout and VM ownership checks.
-- `./tools/prepare-appsnapshot [--overwrite true|false]` builds and installs the
+- `./tools/prepare-appsnapshot --vm NAME [--overwrite true|false]` builds and installs the
   current Debian version and retains its `onpc-[version]` snapshot. It leaves the
   VM powered off in that installed state after auditing the outer baseline.
   Preparation restores `onpc_baseline`, boots, installs and verifies the package,

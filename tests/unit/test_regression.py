@@ -1033,9 +1033,9 @@ def test_empty_e2e_inventory_refuses_with_reason_without_unused_build(
 
     def execute(command, *, output, **kwargs):
         calls.append(command[1:])
-        if command[1:] == ['e2e', '--unattended', '--list', '--ready']:
+        if command[1:] == ['e2e', '--unattended', '--list', '--ready', '--vm', 'onpc-Ubuntu26.04']:
             output(json.dumps(dict(cases=[], excluded_pending_cases=['E2E-999/pending'])).encode())
-        elif command[1:] == ['system', '--unattended', '--list']:
+        elif command[1:] == ['system', '--unattended', '--list', '--vm', 'onpc-Ubuntu26.04']:
             output(b'expected-executions: 1\n')
         elif command[1] == 'system':
             for event in (dict(kind='collection', total=1, nodeids=['system-case']),
@@ -1059,7 +1059,7 @@ def test_empty_e2e_inventory_refuses_with_reason_without_unused_build(
         assert len(calls) == 3
     else:
         run.run_vm_only()
-        assert calls == [['e2e', '--unattended', '--list', '--ready']]
+        assert calls == [['e2e', '--unattended', '--list', '--ready', '--vm', 'onpc-Ubuntu26.04']]
         assert len(run.categories) == 2
         assert run.categories[0].state == 'Passed'
         graphical = run.categories[-1]

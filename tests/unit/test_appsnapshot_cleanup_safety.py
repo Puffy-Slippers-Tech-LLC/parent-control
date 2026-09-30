@@ -14,6 +14,8 @@ import prepare_snapshot as controller
 import app_snapshot
 from tests.support.paths import ROOT
 
+VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+
 
 @pytest.mark.parametrize('version', ['1.1', '1.1+ppa1~ubuntu26.04.1',
     '1.1-ppa1-ubuntu26.04.1', '1.1+ppa2~ubuntu26.04.1'])
@@ -30,13 +32,13 @@ def test_snapshot_name_preserves_release_components():
     (['--overwrite', 'true'], 'true'), (['--overwrite', 'false'], 'false'),
     (['--overwrite=false'], 'false')])
 def test_overwrite_defaults_and_explicit_values(argv, expected):
-    assert launcher.arguments(argv).overwrite == expected
+    assert launcher.arguments([*argv, *VM_ARGS]).overwrite == expected
 
 
 @pytest.mark.parametrize('argv, mode', [([], 'online'), (['--mode', 'offline'], 'offline'),
                                       (['--mode', 'online'], 'online')])
 def test_snapshot_mode_defaults_and_explicit_values(argv, mode):
-    assert launcher.arguments(argv).mode == mode
+    assert launcher.arguments([*argv, *VM_ARGS]).mode == mode
 
 
 @pytest.mark.parametrize('mode, memory, state, created, expected', [
@@ -63,7 +65,7 @@ def test_invalid_options_refused_before_any_work(argv, monkeypatch):
     check = Mock(side_effect=AssertionError('authorization attempted'))
     monkeypatch.setattr(launcher, 'check', check)
     with pytest.raises(SystemExit) as error:
-        launcher.main(argv)
+        launcher.main([*argv, *VM_ARGS])
     assert error.value.code == 2
     check.assert_not_called()
 
@@ -95,10 +97,10 @@ def launch(tmp_path, monkeypatch):
 def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
     control, cleanup, allocation = launch
     control.run.return_value = status
-    assert launcher.main(['--overwrite', 'false']) == status
+    assert launcher.main(['--overwrite', 'false', *VM_ARGS]) == status
     assert control.run.call_args.args[0] == [
         '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online']
+        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online', *VM_ARGS]
     control.run.assert_called_once()
     cleanup.assert_not_called()
     allocation.assert_not_called()
@@ -107,10 +109,10 @@ def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
 def test_fresh_online_snapshot_resumes_without_cleanup_or_build(launch):
     control, cleanup, allocation = launch
     control.run.side_effect = [4, 0]
-    assert launcher.main(['--mode', 'online']) == 0
-    assert control.run.call_args.args[0][-5:] == [
+    assert launcher.main(['--mode', 'online', *VM_ARGS]) == 0
+    assert control.run.call_args.args[0][-7:] == [
         '/usr/local/libexec/onpc-test-runner',
-        'appsnapshot', '--resume', '--mode', 'online']
+        'appsnapshot', '--resume', '--mode', 'online', *VM_ARGS]
     cleanup.assert_not_called()
     allocation.assert_not_called()
 
@@ -421,7 +423,7 @@ def test_online_guest_rebind_replaces_marker_and_key_and_retires_payload(tmp_pat
 def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, results, calls):
     control, cleanup, allocation = launch
     control.run.side_effect = results
-    assert launcher.main(argv) == 0
+    assert launcher.main([*argv, *VM_ARGS]) == 0
     cleanup.assert_called_once()
     allocation.assert_called_once()
     assert control.run.call_count == calls
@@ -436,15 +438,15 @@ def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, res
     assert command[2] == '--keep-cwd'
     assert command[5:8] == ['--unattended', 'appsnapshot', '--overwrite']
     assert command[8] == 'true'
-    assert command[9:] == ['--artifacts', allocation.return_value, '--mode', 'online']
+    assert command[9:] == ['--artifacts', allocation.return_value, '--mode', 'online', *VM_ARGS]
     assert control.run.call_args_list[-2].kwargs['cooperative'] is True
-    assert control.run.call_args.args[0][-4:] == ['appsnapshot', '--resume', '--mode', 'online']
+    assert control.run.call_args.args[0][-6:] == ['appsnapshot', '--resume', '--mode', 'online', *VM_ARGS]
 
 
 def test_failed_cleanup_does_not_build_or_install(launch):
     control, cleanup, allocation = launch
     cleanup.side_effect = ValueError('cleanup refused')
-    assert launcher.main(['--overwrite']) == 2
+    assert launcher.main(['--overwrite', *VM_ARGS]) == 2
     allocation.assert_not_called()
     control.run.assert_not_called()
 
@@ -453,7 +455,7 @@ def test_failed_cleanup_does_not_build_or_install(launch):
 def test_failed_build_does_not_install(launch, argv):
     control, cleanup, allocation = launch
     control.run.return_value = 17
-    assert launcher.main(argv) == 17
+    assert launcher.main([*argv, *VM_ARGS]) == 17
     control.run.assert_called_once()
     assert control.run.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
 
@@ -461,7 +463,7 @@ def test_failed_build_does_not_install(launch, argv):
 def test_missing_snapshot_failed_build_does_not_install(launch):
     control, cleanup, allocation = launch
     control.run.side_effect = [3, 17]
-    assert launcher.main(['--overwrite', 'false']) == 17
+    assert launcher.main(['--overwrite', 'false', *VM_ARGS]) == 17
     cleanup.assert_called_once()
     assert control.run.call_count == 2
     assert control.run.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
@@ -481,7 +483,7 @@ def test_standalone_cleanup_uses_the_shared_module_under_activity(tmp_path, monk
         assert cleanup_e2e.test_activity.descriptors()
         return 7
     monkeypatch.setattr(cleanup_e2e, 'cleanup', cleanup)
-    assert cleanup_e2e.main([]) == 7
+    assert cleanup_e2e.main(VM_ARGS) == 7
 
 
 @pytest.mark.parametrize('status', [0, 7])
@@ -499,7 +501,7 @@ def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypat
         assert paths == [tmp_path / 'output/test-runs/host/state/retention']
         return status
     monkeypatch.setattr(cleanup_e2e, 'cleanup', cleanup)
-    assert cleanup_e2e.main([]) == status
+    assert cleanup_e2e.main(VM_ARGS) == status
     assert paths == [tmp_path / 'output/test-runs/host/state/retention']
     assert (store.path / 'recovery-required').exists() == bool(status)
     assert (store.path / f'recovered-{run}.json').exists() == (status == 0)
@@ -512,22 +514,22 @@ def test_standalone_cleanup_reconciles_both_retention_scopes(tmp_path, monkeypat
 def dispatch():
     module = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
     select = module['selection']
-    select.__globals__['VM_UUID'] = 'pinned-test-uuid'
+    select.__globals__['VM_UUIDS'] = {'onpc-Ubuntu26.04': 'pinned-test-uuid'}
     return select
 
 
 def test_snapshot_dispatch_pins_vm_and_confines_inputs(dispatch, tmp_path):
-    assert dispatch(ROOT, ['appsnapshot', '--probe'])[-3:] == [
-        '--expected-uuid', 'pinned-test-uuid', '--probe']
+    assert dispatch(ROOT, ['appsnapshot', '--probe', *VM_ARGS])[-5:] == [
+        '--expected-uuid', 'pinned-test-uuid', *VM_ARGS, '--probe']
     with pytest.raises(ValueError):
         dispatch(ROOT, ['appsnapshot', '--artifacts', '/etc'])
     with pytest.raises(ValueError):
         dispatch(ROOT, ['appsnapshot', '--probe', '--artifacts', str(tmp_path)])
     with pytest.raises(ValueError):
         dispatch(ROOT, ['appsnapshot', '--expected-uuid', 'other'])
-    dispatch.__globals__['VM_UUID'] = None
+    dispatch.__globals__['VM_UUIDS'] = {}
     with pytest.raises(ValueError, match='prepare-baseline'):
-        dispatch(ROOT, ['appsnapshot', '--probe'])
+        dispatch(ROOT, ['appsnapshot', '--probe', *VM_ARGS])
 
 
 @pytest.mark.parametrize('exists', [False, True])

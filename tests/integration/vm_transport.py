@@ -49,7 +49,7 @@ def ssh(config, *, attempts=1):
 def guard_host(config):
     import libvirt
     import xml.etree.ElementTree as ET
-    configured = vm_config.load()
+    configured = vm_config.selected()
     connection = libvirt.open(vm_config.URI)
     try:
         domain = connection.lookupByUUIDString(config['domain_uuid'])

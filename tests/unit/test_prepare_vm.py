@@ -54,7 +54,7 @@ def test_exact_fixed_identity_map():
     ]
 
 
-def test_environment_guard_accepts_relocated_checkout_in_product_free_guest(tmp_path):
+def test_environment_guard_accepts_relocated_checkout_in_product_free_guest(tmp_path, monkeypatch):
     root = guest_root(tmp_path)
     checkout = tmp_path / "checkout"
     for relative in prepare.REQUIRED_CHECKOUT_ENTRIES:
@@ -67,7 +67,11 @@ def test_environment_guard_accepts_relocated_checkout_in_product_free_guest(tmp_
     # Load the fixture's actual preparer so its __file__ ownership check stays
     # intact. Do not require Git metadata in the package build's source tree.
     (checkout / 'config/test-vm.json').write_text(
-        '{"name":"another-test-vm","disk_anchor":"/images/base.qcow2"}')
+        '{"vms":[{"name":"another-test-vm","disk_anchor":"/images/base.qcow2"}]}')
+    monkeypatch.setattr(prepare.vm_config, 'CONFIG', checkout / 'config/test-vm.json')
+    native_load = prepare.vm_config.load
+    monkeypatch.setattr(prepare.vm_config, 'load', lambda name: native_load(name, checkout / 'config/test-vm.json'))
+    monkeypatch.setenv(prepare.vm_config.VARIABLE, 'another-test-vm')
     fixture_prepare = load_module(
         'onpc_fixture_prepare_vm', checkout / 'tests/integration/prepare_vm.py',
     )

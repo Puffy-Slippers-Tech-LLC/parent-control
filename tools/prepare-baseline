@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_account_password import read_password
 from dev_privileges import check
 from baseline_messages import help_message
+from vm_selection import select
 
 HELPER = '/usr/local/libexec/onpc-setup'
 
@@ -21,6 +22,7 @@ def arguments(argv=None):
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--mode', required=True, choices=('auto', 'manual'),
                         help='auto: restore baseline and update Ubuntu; manual: prepare current VM state')
+    parser.add_argument('--vm', required=True, help='exact name in config/test-vm.json')
     parser.epilog = help_message()
     # Show the complete, short usage reminder for missing options or values.
     def error(message):
@@ -33,12 +35,14 @@ def arguments(argv=None):
 def main(argv=None):
     args = arguments(argv)
     try:
+        select(args.vm)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         read_password(ROOT)
         check(HELPER)
         status = subprocess.run(
-            ['/usr/bin/pkexec', '--keep-cwd', HELPER, 'prepare-baseline', '--mode', args.mode],
+            ['/usr/bin/pkexec', '--keep-cwd', HELPER, 'prepare-baseline', '--mode', args.mode,
+             '--vm', args.vm],
             cwd=ROOT,
             env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
         ).returncode

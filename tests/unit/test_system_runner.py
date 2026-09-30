@@ -413,7 +413,7 @@ def test_selected_execution_reaches_normal_guarded_prerequisite_checks(monkeypat
     monkeypatch.setattr(runner.shutil, 'which', Mock(return_value=None))
     monkeypatch.setattr(runner.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(runner.os, 'getegid', lambda: 0)
-    assert runner.main(['--area', 'authorization']) == 1
+    assert runner.main(['--vm', 'onpc-Ubuntu26.04', '--area', 'authorization']) == 1
     output = capsys.readouterr().err
     assert 'selection:scope=partial phases=1 executions=2' in output
     assert 'tools:missing' in output
@@ -428,7 +428,7 @@ def test_check_tools_rejects_missing_package_inspection_tool(monkeypatch, capsys
                         lambda name: None if name == missing else '/usr/bin/' + name)
     with patch.object(runner.tempfile, 'mkdtemp') as mkdir, \
             patch.object(runner, 'Lease') as lease:
-        assert runner.main(['--check-tools']) == 1
+        assert runner.main(['--vm', 'onpc-Ubuntu26.04', '--check-tools']) == 1
     assert f'tools:missing:{missing}; run ./setup.sh' in capsys.readouterr().err
     mkdir.assert_not_called()
     lease.assert_not_called()
@@ -450,7 +450,7 @@ def test_unavailable_artifacts_fail_before_storage_or_vm_access(
     with patch.object(runner, 'check_tree', side_effect=failure), \
             patch.object(runner.tempfile, 'mkdtemp') as mkdir, \
             patch.object(runner, 'Lease') as lease:
-        assert runner.main(['--artifacts', str(runner.ROOT)]) == 1
+        assert runner.main(['--vm', 'onpc-Ubuntu26.04', '--artifacts', str(runner.ROOT)]) == 1
     output = capsys.readouterr().err
     assert category in output
     assert 'private input path' not in output

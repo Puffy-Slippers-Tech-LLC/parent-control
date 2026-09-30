@@ -63,7 +63,8 @@ def test_detached_categories_use_the_shared_report(monkeypatch, category):
                         Mock(side_effect=AssertionError('raw output route')))
     monkeypatch.setattr(regression_process, 'host_run',
                         Mock(side_effect=AssertionError('raw output route')))
-    assert test_commands._main([category, 'selection'], detached=True) == 7
+    vm_args = ['--vm', 'onpc-Ubuntu26.04'] if category in ('integration', 'system', 'e2e', 'fast') else []
+    assert test_commands._main([category, 'selection', *vm_args], detached=True) == 7
     run.assert_called_once_with(ROOT, selections=[(category, ['selection'])])
 
 
@@ -277,7 +278,8 @@ def test_later_vm_selection_still_requires_startup_recovery(tmp_path, monkeypatc
     recovery = Mock(return_value=0)
     monkeypatch.setattr(regression_process, 'category_run', recovery)
     assert test_recovery.before_run(tmp_path, ['unit', 'e2e'], categories=['unit', 'e2e']) == 0
-    recovery.assert_called_once_with(tmp_path, 'integration', ['check_test_recovery'], pipe=False)
+    recovery.assert_called_once_with(tmp_path, 'integration',
+        ['check_test_recovery', '--vm', 'onpc-Ubuntu26.04'], pipe=False)
 
 
 @pytest.mark.parametrize('categories, host_only', [

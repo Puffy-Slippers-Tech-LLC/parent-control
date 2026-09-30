@@ -9,8 +9,107 @@ from unittest import mock
 from common.oh_no_parent_control_ui.diagnostic_events import decode
 
 from oh_no_parent_control.extension_manager import (
-    DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ExtensionManager,
+    DISABLE_ALL_KEY, DISABLED_KEY, ENABLED_KEY, UUID, ExtensionManager, _load_error_fields,
 )
+
+
+class LoadDiagnosticsTests(unittest.TestCase):
+    def test_shell_import_projection_excludes_private_details_and_unknown_assets(self):
+        prefix = f"file:///usr/share/gnome-shell/extensions/{UUID}/"
+        secret = "private@example.test /home/private-child"
+        message = "ImportError: Unable to load file from: " + prefix + "indicatorLogic.mjs (" + secret
+        self.assertEqual(_load_error_fields({"state": 3.0, "error": message + ": Operation not permitted)"}), {
+            "state": "error", "asset": "indicator-logic", "reason": "import-operation-not-permitted"})
+        self.assertEqual(_load_error_fields({"state": 3, "error": message.replace(prefix, "/home/private/")}), {
+            "state": "error", "asset": "other", "reason": "other"})
+        self.assertEqual(_load_error_fields({"state": 123456, "error": secret}), {
+            "state": "other", "asset": "other", "reason": "other"})
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_policy_observation_preserves_trust_filter_cause_without_inventory(self, run):
+        secret = "private@example.test /home/private-child"
+        run.side_effect = [subprocess.CompletedProcess([], 0, stdout=s, stderr=secret) for s in (
+            "application/javascript\n",
+            "rpmdb /home/private-child/private app.js 42 " + "a" * 64 + "\n",
+            "allow *.js no match\ndecision exclude\n",
+            "-> %languages=application/javascript,text/javascript\n"
+            "11. allow perm=open all : ftype=%languages trust=1\n"
+            "12. deny_audit perm=any all : ftype=%languages\n" + secret)]
+        with self.assertLogs("onpc", "INFO") as logs:
+            ExtensionManager()._payload_diagnostics("indicator-logic", float("inf"))
+        event = decode(logs.records[-1].onpc_payload)
+        self.assertEqual(event["event"], "extension-manager.payload-policy")
+        self.assertEqual(event["fields"], {"asset": "indicator-logic", "file_type": "javascript",
+            "trust": "absent", "filter": "excluded", "language_policy": "trusted-only-rule-present"})
+        self.assertNotIn("private", "\n".join(logs.output))
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_unavailable_policy_tools_do_not_claim_absent_trust(self, run):
+        run.side_effect = FileNotFoundError("/home/private-child")
+        with self.assertLogs("onpc", "INFO") as logs:
+            ExtensionManager()._payload_diagnostics("indicator-logic", float("inf"))
+        self.assertEqual(decode(logs.records[-1].onpc_payload)["fields"]["trust"], "unknown")
+        self.assertNotIn("private", "\n".join(logs.output))
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_malformed_trust_output_is_unknown_rather_than_absent(self, run):
+        run.return_value = subprocess.CompletedProcess([], 0, stdout="private@example.test", stderr="")
+        with self.assertLogs("onpc", "INFO") as logs:
+            ExtensionManager()._payload_diagnostics("indicator-logic", float("inf"))
+        self.assertEqual(decode(logs.records[-1].onpc_payload)["fields"]["trust"], "unknown")
+        self.assertNotIn("private", "\n".join(logs.output))
+
+    def test_live_collection_observes_import_failure_without_settings_writes(self):
+        from gi.repository import GLib
+        secret = "private@example.test /home/private-child"
+        message = (f"ImportError: Unable to load file from: file:///usr/share/gnome-shell/extensions/{UUID}/"
+                   "indicatorLogic.mjs (" + secret + ": Operation not permitted)")
+        reply = GLib.Variant("(a{sv})", ({"state": GLib.Variant("d", 3),
+                                       "error": GLib.Variant("s", message)},)).print_(True)
+        manager = ExtensionManager()
+        account = SimpleNamespace(pw_uid=123456)
+        with (mock.patch.object(manager, "_account", return_value=(account, None)),
+              mock.patch.object(manager, "_session_transport", return_value="live-session"),
+              mock.patch.object(manager, "_run_command", side_effect=[
+                  SimpleNamespace(stdout="(true,)"), SimpleNamespace(stdout=reply)]) as run,
+              mock.patch.object(manager, "_payload_diagnostics") as policy,
+              self.assertLogs("onpc", "INFO") as logs):
+            manager.collect_diagnostics([123456])
+        self.assertEqual(len(run.call_args_list), 2)
+        self.assertTrue(all(call.args[1][:2] == ("gdbus", "call") for call in run.call_args_list))
+        event = decode(logs.records[-1].onpc_payload)
+        self.assertEqual(event["fields"]["reason"], "import-operation-not-permitted")
+        policy.assert_called_once()
+        self.assertNotIn("private", "\n".join(logs.output))
+        self.assertNotIn("123456", "\n".join(logs.output))
+
+    def test_no_shell_or_offline_session_never_activates_extension_service(self):
+        manager = ExtensionManager()
+        with (mock.patch.object(manager, "_account", return_value=(object(), None)),
+              mock.patch.object(manager, "_session_transport", side_effect=["offline", "live-session"]),
+              mock.patch.object(manager, "_run_command", return_value=SimpleNamespace(stdout="(false,)")) as run):
+            manager.collect_diagnostics([1, 2])
+        self.assertEqual(len(run.call_args_list), 1)
+        self.assertIn("org.freedesktop.DBus.NameHasOwner", run.call_args.args[1])
+
+    def test_budget_exhaustion_refuses_commands_and_malformed_reply_is_safe(self):
+        manager = ExtensionManager()
+        with (mock.patch.object(manager, "_account", return_value=(object(), None)),
+              mock.patch.object(manager, "_session_transport", return_value="live-session"),
+              mock.patch("oh_no_parent_control.extension_manager.time.monotonic", side_effect=[0, 9]),
+              mock.patch.object(manager, "_run_command") as run,
+              self.assertLogs("onpc", "WARNING") as logs):
+            manager.collect_diagnostics([123456])
+        run.assert_not_called()
+        self.assertEqual(decode(logs.records[-1].onpc_payload)["fields"]["outcome"], "budget-exhausted")
+        with (mock.patch.object(manager, "_account", return_value=(object(), None)),
+              mock.patch.object(manager, "_session_transport", return_value="live-session"),
+              mock.patch.object(manager, "_run_command", side_effect=[SimpleNamespace(stdout="(true,)"),
+                  SimpleNamespace(stdout="/home/private-child private@example.test")]),
+              self.assertLogs("onpc", "WARNING") as logs):
+            manager.collect_diagnostics([123456])
+        self.assertEqual(decode(logs.records[-1].onpc_payload)["fields"]["outcome"], "unavailable")
+        self.assertNotIn("private", "\n".join(logs.output))
 
 
 class GnomeRecoveryState:
@@ -404,6 +503,8 @@ class ExtensionManagerTests(unittest.TestCase):
                     side_effect=[(False, False), (True, False), (False, False)],
                 ),
                 mock.patch.object(manager, "_run_command"),
+                mock.patch.object(manager, "collect_diagnostics", side_effect=RuntimeError(
+                    "private diagnostic failure")) as collect,
                 mock.patch.object(manager, "_set_list") as set_list,
             ):
                 with self.assertRaisesRegex(
@@ -414,6 +515,7 @@ class ExtensionManagerTests(unittest.TestCase):
             mock.call(account, ENABLED_KEY, []),
             mock.call(account, DISABLED_KEY, []),
         ])
+        collect.assert_called_once_with((account.pw_uid,))
 
     @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
     def test_runtime_state_uses_cli_configured_and_active_filters(self, run):

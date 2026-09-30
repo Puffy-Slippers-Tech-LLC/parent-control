@@ -55,7 +55,7 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
     # Replace only this fixture's comparison stub with the shipped helper.
     helper = root / "usr/libexec/oh-no-parent-control-package-activation"
     helper.unlink()
-    source = (ROOT / "debian/package_activation.py").read_text()
+    source = (ROOT / "packaging/package_activation.py").read_text()
     helper.write_text(f"#!{sys.executable}\n" + source.split("\n", 1)[1])
     helper.chmod(0o755)
 

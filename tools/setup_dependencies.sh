@@ -4,7 +4,7 @@ set -euo pipefail
 # Host package module; setup.sh supplies the scoped privilege authorization.
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly apt_lock_timeout_seconds=300
-if (( EUID != 0 || $# > 1 )) || { (( $# == 1 )) && [[ "$1" != '--ppa-build-tools' ]]; }; then
+if (( EUID != 0 || $# > 1 )) || { (( $# == 1 )) && [[ "$1" != '--ppa-build-tools' && "$1" != '--rpm-build-tools' ]]; }; then
     echo 'setup-dependencies: use ./setup.sh with installed setup authorization' >&2
     exit 2
 fi
@@ -20,9 +20,17 @@ install_ppa_build_tools() {
     "${apt_get[@]}" install -y --no-install-recommends sbuild mmdebstrap uidmap ubuntu-keyring
 }
 
+install_rpm_build_tools() {
+    "${apt_get[@]}" install -y --no-install-recommends rpm podman uidmap passt slirp4netns fuse-overlayfs
+}
+
 "${apt_get[@]}" update
 if [[ "${1-}" == '--ppa-build-tools' ]]; then
     install_ppa_build_tools
+    exit 0
+fi
+if [[ "${1-}" == '--rpm-build-tools' ]]; then
+    install_rpm_build_tools
     exit 0
 fi
 "${apt_get[@]}" install -y software-properties-common
@@ -105,3 +113,4 @@ add-apt-repository -y universe
 
 "${apt_get[@]}" build-dep -y "$script_dir"
 install_ppa_build_tools
+install_rpm_build_tools

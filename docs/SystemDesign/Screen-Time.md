@@ -205,7 +205,7 @@ signals processes itself.
 Session preparation is asynchronous: it is not a compositor admission barrier.
 Failures are reported and preparation is retried while the desktop is usable.
 
-The [package classifier](../../debian/package_activation.py) gives PAM profile
+The [package classifier](../../packaging/package_activation.py) gives PAM profile
 and login-routing changes `reboot` activation. A replacement
 `pam_oh_no_parent_control.so` alone requires `session-renewal`; the external
 session-limit helper loads on each invocation (`none`). Extension-manager

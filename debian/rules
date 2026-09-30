@@ -27,6 +27,9 @@ override_dh_auto_install:
 execute_before_dh_md5sums:
 	$(MAKE) _generate-package-activation-manifest DESTDIR=$(PACKAGE_STAGING_ROOT) PREFIX=/usr SYSCONFDIR=/etc
 
+execute_after_dh_installdeb:
+	/usr/bin/python3 -B packaging/render_lifecycle.py debian --staging $(PACKAGE_STAGING_ROOT)
+
 override_dh_installsystemd:
 	# Maintainer scripts own the migration stop and manifest-selected activation.
 	dh_installsystemd --no-start --no-stop-on-upgrade

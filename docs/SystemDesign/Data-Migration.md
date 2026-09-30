@@ -7,7 +7,7 @@ package configuration ordering, and migration safety and retries.
 
 Implementation: [data_migration.py](../../broker/oh_no_parent_control/data_migration.py), [preferences.py](../../broker/oh_no_parent_control/preferences.py), [preinst](../../debian/preinst), [postinst](../../debian/postinst), [broker launcher](../../broker/oh-no-parent-control-broker), [broker unit](../../data/systemd/oh-no-parent-control-broker.service).
 
-Oh No! Parent Control migrates application-owned persistent data automatically during package configuration. Data schema versions are independent of Debian package versions: package releases may leave a schema unchanged, and one release may migrate more than one saved-data family.
+Oh No! Parent Control migrates application-owned persistent data automatically during package configuration. Data schema versions are independent of distribution package versions: package releases may leave a schema unchanged, and one release may migrate more than one saved-data family.
 
 The current framework migrates the per-child records in `/var/lib/oh-no-parent-control/preferences/`. Machine configuration, transient markers, logs, AccountsService, Malcontent, and files managed as Debian conffiles are not preference data and must not be added to that migration chain. If another application-owned data family later needs versioning, give it its own current-version constant, migration registry, validation, and migration pass in `migrate_all_state()`.
 
@@ -18,6 +18,13 @@ The current framework migrates the per-child records in `/var/lib/oh-no-parent-c
 After unpacking, `debian/postinst` runs the newly installed `/usr/libexec/oh-no-parent-control-migrate-state`. It removes the marker only after all migrations and current-schema validation succeed, then continues with provisioning and package-update activation.
 
 The maintainer script deliberately fails if migration fails. The marker then keeps the broker unavailable and APT leaves the package unconfigured. Fixing the underlying record or migration and running `dpkg --configure -a` retries the operation. A successfully migrated record is skipped on retry, so an interruption between records is safe.
+
+The Fedora RPM embeds the same lifecycle templates. Its `%pre` creates the
+exclusion marker and stops the broker, and `%posttrans` invokes migration before
+provisioning/activation. RPM can record an installed package despite a failed
+post-transaction script; the marker continues to exclude the broker. Use the
+[installed configuration retry](../Fedora-Packaging.md#fedora-lifecycle) after
+resolving the cause. Fedora installed lifecycle qualification remains pending.
 
 ## Adding a preference migration
 

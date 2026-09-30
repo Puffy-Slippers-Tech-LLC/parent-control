@@ -63,7 +63,7 @@ command cannot upload it. The target invokes `tools/publish.py --status`.
 [`tools/publish.py`](../tools/publish.py) is the single publishing entry point.
 Its supporting source-verification and signing modules live in
 [`tools/publishing/`](../tools/publishing/). The Debian installation helper
-[`debian/package_activation.py`](../debian/package_activation.py) determines
+[`packaging/package_activation.py`](../packaging/package_activation.py) determines
 restart/reboot requirements for installed files; it is not a publishing command.
 
 ## Release history and source inputs
@@ -151,7 +151,7 @@ still allocates the unused revision from remote history.
 It builds unsigned source, verifies upload manifests and archive contents against
 the snapshot, runs source Lintian, builds that DSC in clean resolute/amd64 `sbuild`
 with package checks enabled and build network disabled, then runs binary Lintian.
-`debian/check_package.py` validates the selected source formats and release
+`packaging/check_package.py` validates the selected source formats and release
 metadata without requiring development files. The full unit/component suite
 runs separately through `make check` and `make test-all`.
 The package-input regression builds real source and binary archives with internal
@@ -494,7 +494,7 @@ Existing-user upgrades follow the activation contract below.
 
 ## Package update activation
 
-Each Debian package contains `/usr/share/oh-no-parent-control/package-activation.json`. The file lists each activation-relevant installed file, its SHA-256 digest, and the action needed when that file changes. It is generated from the staged package by `debian/package_activation.py`; it must never be edited by hand.
+Each Debian package contains `/usr/share/oh-no-parent-control/package-activation.json`. The file lists each activation-relevant installed file, its SHA-256 digest, and the action needed when that file changes. It is generated from the staged package by `packaging/package_activation.py`; it must never be edited by hand.
 
 The install-stage manifest is provisional: `debian/rules` regenerates it through
 the [debhelper hook](https://manpages.debian.org/unstable/debhelper/dh.1.en.html#OVERRIDE_AND_HOOK_TARGETS)
@@ -672,7 +672,7 @@ execution bounds. The production install map includes its final-byte digest;
 `test_probe_queue_timeout_add_change_remove_uses_boot_boundary` cover delivery
 and activation changes, including removal.
 
-`activation_for()` in `debian/package_activation.py` is the complete, reviewed mapping from installed path to activation level. `ACTIVATION_MANIFEST_PATHS` in the `Makefile` selects the corresponding installed files for hashing. When adding, moving, or removing a packaged integration file, update both and add a focused unit test in `tests/unit/test_package_activation.py`. Classify by the installed path, not its source directory.
+`activation_for()` in `packaging/package_activation.py` is the complete, reviewed mapping from installed path to activation level. `ACTIVATION_MANIFEST_PATHS` in the `Makefile` selects the corresponding installed files for hashing. When adding, moving, or removing a packaged integration file, update both and add a focused unit test in `tests/unit/test_package_activation.py`. Classify by the installed path, not its source directory.
 
 For a normal UI or broker update, do not assign `reboot` merely for caution: the manifest comparison must be able to avoid a reboot prompt. New PAM stack configuration, GDM, or pre-session integration must be classified as `reboot` before it ships. Distinguish those integration changes from replacing a module or short-lived helper that already has a supported activation boundary.
 

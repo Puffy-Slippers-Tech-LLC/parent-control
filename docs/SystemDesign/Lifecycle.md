@@ -5,7 +5,7 @@
 Read this for broker readiness, boot/login ordering, installed paths,
 provisioning, and package activation. Removal has its own focused document.
 
-Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [Makefile](../../Makefile), [preinst](../../debian/preinst), [postinst](../../debian/postinst), [provision.py](../../tools/provision.py), [package_activation.py](../../debian/package_activation.py), [execution_policy_ready.py](../../tools/execution_policy_ready.py).
+Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [Makefile](../../Makefile), [preinst](../../packaging/lifecycle/preinst.in), [postinst](../../packaging/lifecycle/postinst.in), [provision.py](../../tools/provision.py), [package_activation.py](../../packaging/package_activation.py), [execution_policy_ready.py](../../tools/execution_policy_ready.py).
 
 ## Startup, login, and update lifecycle
 
@@ -104,6 +104,11 @@ terminal or `TERM` is dumb. The packaged dpkg hook defers that output until
 configuration and triggers finish so later APT/dpkg lines cannot follow it.
 
 ## Installed layout
+
+The [Fedora packaging adapter](../Fedora-Packaging.md#fedora-lifecycle) supplies
+`wheel`, `/etc/gdm`, native x86_64 PAM paths and authselect integration for local
+Workstation 44 testing. The lifecycle templates and installation map below are
+shared; Fedora live acceptance remains pending.
 
 ```text
 /usr/bin/oh-no-parent-control                         kiosk/overlay launcher

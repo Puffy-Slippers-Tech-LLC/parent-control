@@ -1,0 +1,377 @@
+"""Shared RPM source/payload contracts; no package install, VM or publication."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import runpy
+import shutil
+import subprocess
+import tarfile
+
+import pytest
+
+from tests.support.paths import ROOT
+from tests.support.package_scripts import machine, package_machine
+from tools import build_rpm, package_inputs, rpm_builder
+
+
+@pytest.fixture(scope='module')
+def fedora_payload(tmp_path_factory):
+    destination = tmp_path_factory.mktemp('fedora-payload')
+    result = subprocess.run([
+        'make', '--no-print-directory', '_install-product-files',
+        f'DESTDIR={destination}', 'PACKAGE_DISTRIBUTION=fedora',
+        'PAM_MODULE_DIR=/usr/lib64/security',
+    ], cwd=ROOT, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    return destination
+
+
+def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payload):
+    payload = fedora_payload
+    assert not (payload / 'etc/apt').exists()
+    assert not (payload / 'usr/share/pam-configs').exists()
+    assert (payload / 'usr/lib64/security/pam_oh_no_parent_control.so').is_file()
+    assert (payload / 'usr/libexec/oh-no-parent-control-fedora-pam').is_file()
+    assert (payload / 'usr/lib/oh-no-parent-control/parent/oh_no_parent_control_parent/main.py').is_file()
+    broker = (payload / 'usr/lib/systemd/system/oh-no-parent-control-broker.service').read_text()
+    assert 'Group=wheel\n' in broker and 'Group=sudo' not in broker
+    agent = (payload / 'usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service').read_text()
+    assert 'Type=simple\n' in agent
+    assert 'ExecStart=/usr/libexec/polkit-mate-authentication-agent-1\n' in agent
+    stack = (payload / 'usr/share/oh-no-parent-control/pam/managed-stack').read_text()
+    assert 'ingroup wheel' in stack and 'ingroup sudo' not in stack
+    assert stack.index('pam_malcontent.so') < stack.rindex('pam_oh_no_parent_control.so')
+    assert stack.index('oh-no-parent-control-login-check') < stack.index('pam_malcontent.so')
+    manifest = json.loads((payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
+    files = {entry['path']: entry for entry in manifest['files']}
+    assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'session-renewal'
+    assert files['usr/share/oh-no-parent-control/pam/managed-stack']['activation'] == 'reboot'
+    for relative, entry in files.items():
+        assert entry['sha256'] == hashlib.sha256((payload / relative).read_bytes()).hexdigest()
+    manuals = payload / 'usr/share/man/man1'
+    for name in ('oh-no-parent-control.1', 'oh-no-parent-control-parent.1'):
+        assert (manuals / name).read_bytes() == (ROOT / 'packaging/man' / name).read_bytes()
+    assert (manuals / 'oh-no-parent-control-child.1').is_symlink()
+    assert (manuals / 'oh-no-parent-control-child.1').readlink() == Path('oh-no-parent-control.1')
+
+
+def test_fedora_pam_policy_tracks_both_shared_profiles(tmp_path):
+    stage = runpy.run_path(str(ROOT / 'packaging/stage_distribution.py'))
+    profiles = tmp_path / 'data/pam-configs'
+    profiles.mkdir(parents=True)
+    for name in ('oh-no-parent-control-kiosk-only', 'oh-no-parent-control-session-limits'):
+        shutil.copy2(ROOT / 'data/pam-configs' / name, profiles / name)
+    gate = profiles / 'oh-no-parent-control-kiosk-only'
+    gate.write_text(gate.read_text().replace(' quiet ', ' quiet debug '))
+    stack = stage['pam_stack'](tmp_path)
+    assert stack.startswith('account required pam_exec.so quiet debug ')
+    assert stack.index('oh-no-parent-control-login-check') < stack.index('success=5')
+    assert 'ingroup wheel' in stack and 'ingroup sudo' not in stack
+    gate.write_text('Name: empty profile\nAccount:\n')
+    with pytest.raises(ValueError, match='empty managed PAM profile'):
+        stage['pam_stack'](tmp_path)
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+def test_shared_source_check_rejects_broken_lifecycle_adapters(tmp_path, monkeypatch, distribution):
+    monkeypatch.syspath_prepend(str(ROOT / 'packaging'))
+    check = runpy.run_path(str(ROOT / 'packaging/check_package.py'))['check_lifecycle']
+    shutil.copytree(ROOT / 'packaging', tmp_path / 'packaging')
+    check(tmp_path)
+    adapter = tmp_path / 'packaging' / f'{distribution}.inc'
+    adapter.write_text(adapter.read_text().replace('# @pam_enable@\n', '# @pam_enable@\nif then\n'))
+    with pytest.raises(ValueError, match=f'{distribution} postinst:'):
+        check(tmp_path)
+
+
+def test_reproducible_rpm_sources_use_the_same_allowlist_as_ppa(tmp_path):
+    outputs = []
+    for name in ('first', 'second'):
+        workspace = tmp_path / name
+        workspace.mkdir()
+        top, spec, archive, identity = build_rpm.sources(ROOT, workspace, '0.1.dev')
+        outputs.append((spec.read_bytes(), archive.read_bytes(), identity.read_bytes()))
+        with tarfile.open(archive) as contents:
+            selected = {Path(*Path(member.name).parts[1:]) for member in contents if member.isfile()}
+            assert selected == set(package_inputs.paths(ROOT))
+            assert all(member.uid == member.gid == 0 for member in contents)
+        assert 'Release:        0.1.dev%{?dist}' in spec.read_text()
+        assert not any(top.glob('RPMS/*/*.rpm'))
+    assert outputs[0] == outputs[1]
+
+
+@pytest.mark.parametrize('release', ['../bad', '1;touch bad', '1%{evil}', '1-2', '', 'dev'])
+def test_invalid_rpm_release_is_refused(release):
+    with pytest.raises(ValueError, match='RPM release'):
+        build_rpm.metadata(ROOT, release)
+
+
+def test_missing_rpm_builder_preserves_sources_and_reports_failure(tmp_path, monkeypatch):
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+    output = tmp_path / 'output/rpm'
+    monkeypatch.setattr(build_rpm, 'scratch_directory', lambda: scratch)
+    monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: None)
+    with pytest.raises(ValueError, match='builder is missing'):
+        build_rpm.build(ROOT, output)
+    assert (output / 'oh-no-parent-control.spec').is_file()
+    assert len(list(output.glob('*.tar.xz'))) == 1
+    assert not list(output.glob('*.rpm'))
+    assert list(scratch.iterdir()) == []
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_rpm_binary_build_uses_fedora_mock_and_retains_failure_evidence(tmp_path, monkeypatch, failed):
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+    output = tmp_path / 'output/rpm'
+    monkeypatch.setattr(build_rpm, 'scratch_directory', lambda: scratch)
+    monkeypatch.setattr(build_rpm, 'scratch_descriptors', lambda: ())
+    monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: '/fixture/' + name)
+    commands = []
+    original_run = subprocess.run
+
+    def run(arguments, **kwargs):
+        if arguments[0] not in ('mock', 'rpmbuild'):
+            return original_run(arguments, **kwargs)
+        commands.append(arguments)
+        if arguments[0] == 'rpmbuild':
+            assert '-bs' in arguments and '-ba' not in arguments
+            (kwargs['cwd'] / 'SRPMS/package.src.rpm').write_bytes(b'fixture srpm')
+        else:
+            assert arguments[1:3] == ['--root', 'fedora-44-x86_64']
+            result = Path(arguments[-1])
+            result.mkdir()
+            (result / 'build.log').write_text('retained mock log')
+            if failed:
+                raise subprocess.CalledProcessError(7, arguments)
+            (result / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm').write_bytes(b'fixture fedora rpm')
+        return subprocess.CompletedProcess(arguments, 0)
+
+    monkeypatch.setattr(build_rpm.subprocess, 'run', run)
+    if failed:
+        with pytest.raises(subprocess.CalledProcessError):
+            build_rpm.build(ROOT, output)
+    else:
+        build_rpm.build(ROOT, output)
+    assert [command[0] for command in commands] == ['rpmbuild', 'mock']
+    assert (output / 'package.src.rpm').read_bytes() == b'fixture srpm'
+    assert (output / 'build.log').read_text() == 'retained mock log'
+    assert (output / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm').exists() != failed
+    assert list(scratch.iterdir()) == []
+
+
+def test_rpm_export_preserves_substituted_artifact(tmp_path):
+    source = tmp_path / 'source/package.rpm'
+    source.parent.mkdir()
+    source.write_bytes(b'new')
+    output = tmp_path / 'output'
+    output.mkdir()
+    foreign = tmp_path / 'foreign'
+    foreign.write_bytes(b'preserved')
+    (output / 'package.rpm').symlink_to(foreign)
+    with pytest.raises(ValueError, match='substituted RPM artifact'):
+        build_rpm.export(source, output)
+    assert foreign.read_bytes() == b'preserved'
+
+
+def test_rpm_scriptlets_are_standalone_and_upgrade_removal_is_inert(tmp_path):
+    renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
+    renderer['rpm_scripts'](ROOT, tmp_path)
+    for script in tmp_path.iterdir():
+        result = subprocess.run(['/bin/sh', '-n', str(script)], capture_output=True, text=True, timeout=10)
+        assert result.returncode == 0, (script.name, result.stderr)
+        assert '#ONPC-LIFECYCLE' not in script.read_text()
+    for name in ('rpm-preun', 'rpm-postun'):
+        result = subprocess.run(['/bin/sh', str(tmp_path / name), '1'],
+                                capture_output=True, text=True, timeout=10, env={})
+        assert result.returncode == 0
+        assert result.stdout == result.stderr == ''
+
+
+@pytest.mark.parametrize('version,variant,accepted', [
+    ('44', 'workstation', True), ('43', 'workstation', False),
+    ('45', 'workstation', False), ('44', 'server', False), ('44', '', False),
+])
+def test_fedora_os_gate_precedes_package_effects(machine, version, variant, accepted):
+    machine.write('etc/os-release', f'ID=fedora\nVERSION_ID={version}\nVARIANT_ID={variant}\n')
+    machine.write('test-bin/authselect', '#!/bin/sh\ncase "$1" in current) echo local;; esac\n').chmod(0o755)
+    result = machine.run('preinst', 'install', distribution='fedora')
+    assert (result.returncode == 0) == accepted, result.stderr
+    if not accepted:
+        assert machine.commands == ''
+        assert not (machine.root / 'var/lib/oh-no-parent-control/migration-in-progress').exists()
+
+
+@pytest.mark.parametrize('package_machine', ['fedora'], indirect=True)
+def test_fedora_configuration_uses_shared_migration_and_activation(package_machine):
+    root, state, run = package_machine
+    result = run(IMPACTS='process-restart\nreboot')
+    assert result.returncode == 0, result.stderr
+    commands = (root / 'commands').read_text().splitlines()
+    assert commands.index('oh-no-parent-control-migrate-state ') < commands.index('oh-no-parent-control-fedora-pam install')
+    assert 'systemctl --system restart oh-no-parent-control-broker.service' in commands
+    assert (root / 'etc/gdm/PreSession/Default').read_bytes() == (state / 'installed-gdm-presession').read_bytes()
+    assert not any('pam-auth-update' in command or 'deb-systemd-invoke' in command for command in commands)
+    assert not (state / 'package-activation-pending').exists()
+    assert (root / 'run/oh-no-parent-control-reboot-required').is_file()
+    assert 'REBOOT REQUIRED' in result.stderr
+    assert 'oh-no-parent-control: broker activation: restart' in result.stderr
+
+
+def test_debian_wrapper_inlining_preserves_debhelper_boundary(tmp_path):
+    renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
+    staging = tmp_path / 'DEBIAN'
+    staging.mkdir()
+    for phase in renderer['PHASES']:
+        source = (ROOT / 'debian' / phase).read_text().replace('#DEBHELPER#', 'echo debhelper-boundary')
+        (staging / phase).write_text(source)
+    renderer['expand_debian'](ROOT, tmp_path)
+    script = (staging / 'postinst').read_text()
+    assert script.index('echo debhelper-boundary') < script.index('oh-no-parent-control-package-notice --configured')
+    assert '#ONPC-LIFECYCLE' not in script
+    for phase in renderer['PHASES']:
+        assert subprocess.run(['/bin/sh', '-n', str(staging / phase)], timeout=10).returncode == 0
+
+
+def test_spec_hashes_final_payload_and_copr_does_not_publish():
+    spec = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
+    assert '%global onpc_spec_install_post %{macrobody:__spec_install_post}' in spec
+    assert '%define __spec_install_post %{onpc_spec_install_post}' in spec
+    assert '_generate-package-activation-manifest' in spec
+    assert 'GENERATE_ACTIVATION_MANIFEST=0' in spec
+    assert 'Requires(postun): fapolicyd' in spec
+    assert 'BuildRequires:  systemd-rpm-macros' in spec
+    copr = (ROOT / '.copr/Makefile').read_text()
+    assert '--srpm --output "$(outdir)"' in copr
+    assert 'copr-cli' not in copr
+
+
+@pytest.mark.parametrize('prerequisite_status', [0, 7])
+def test_copr_make_entrypoint_exports_srpm_without_host_setup(tmp_path, prerequisite_status):
+    checkout = tmp_path / 'checkout'
+    checkout.mkdir()
+    package_inputs.copy(ROOT, checkout)
+    # COPR checks out the repository, including the source-preparation tools;
+    # these development helpers must remain absent from the product tarball.
+    for name in ('build_rpm.py', 'rpm_builder.py', 'package_inputs.py',
+                 'test_storage.py', 'test_retention.py'):
+        shutil.copy2(ROOT / 'tools' / name, checkout / 'tools' / name)
+    (checkout / '.copr').mkdir()
+    shutil.copy2(ROOT / '.copr/Makefile', checkout / '.copr/Makefile')
+    commands = tmp_path / 'commands'
+    commands.mkdir()
+    (commands / 'dnf').write_text(
+        '#!/bin/sh\n[ "$*" = "-y install python3 rpm-build" ] || exit 99\n'
+        f'exit {prerequisite_status}\n')
+    (commands / 'rpmbuild').write_text('''#!/usr/bin/python3
+import pathlib, sys
+args = sys.argv[1:]
+assert '-bs' in args and '-ba' not in args
+top = pathlib.Path(args[args.index('--define') + 1].removeprefix('_topdir '))
+assert list((top / 'SOURCES').glob('*.tar.xz'))
+assert (top / 'SPECS/oh-no-parent-control.spec').is_file()
+(top / 'SRPMS/oh-no-parent-control.src.rpm').write_bytes(b'fixture srpm')
+''')
+    for command in commands.iterdir():
+        command.chmod(0o755)
+    output = tmp_path / 'copr output'
+    result = subprocess.run(
+        ['make', '-f', '.copr/Makefile', 'srpm', f'outdir={output}',
+         'spec=rpm/oh-no-parent-control.spec.in'], cwd=checkout,
+        env=os.environ | {'PATH': f'{commands}:/usr/bin:/bin'},
+        capture_output=True, text=True, timeout=60)
+    if prerequisite_status:
+        assert result.returncode != 0
+        assert not output.exists()
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (output / 'oh-no-parent-control.src.rpm').read_bytes() == b'fixture srpm'
+        archive, = output.glob('*.tar.xz')
+        with tarfile.open(archive) as contents:
+            assert not any(member.name.endswith('/tools/test_storage.py') for member in contents)
+
+
+def test_container_recipe_tracks_build_dependencies_without_freezing_runtime_edits(tmp_path):
+    (tmp_path / 'rpm').mkdir()
+    recipe = tmp_path / 'rpm/Containerfile'
+    spec = tmp_path / 'rpm/oh-no-parent-control.spec.in'
+    recipe.write_bytes((ROOT / 'rpm/Containerfile').read_bytes())
+    original = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
+    spec.write_text(original)
+    first = rpm_builder.inputs(tmp_path)
+    assert '@VERSION@' not in first[1] and '@RELEASE@' not in first[1]
+    spec.write_text(original.replace('Requires:       accountsservice', 'Requires:       accountsservice >= 1'))
+    assert rpm_builder.inputs(tmp_path)[2] == first[2]
+    spec.write_text(original + '\nBuildRequires: extra-devel\n')
+    assert rpm_builder.inputs(tmp_path)[2] != first[2]
+
+
+def test_setup_prepares_a_private_container_context_and_propagates_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(rpm_builder, 'scratch_directory', lambda: tmp_path)
+    monkeypatch.setattr(rpm_builder, 'scratch_descriptors', lambda: ())
+    monkeypatch.setattr(rpm_builder.shutil, 'which', lambda name: '/fixture/' + name)
+    commands = []
+
+    def run(arguments, **kwargs):
+        commands.append(arguments)
+        if arguments[1] == 'build':
+            context = Path(arguments[-1])
+            assert {p.name for p in context.iterdir()} == {'Containerfile', 'oh-no-parent-control.spec'}
+            assert 'dnf -y builddep' in (context / 'Containerfile').read_text()
+            assert 'BuildRequires:  systemd-rpm-macros' in (context / 'oh-no-parent-control.spec').read_text()
+        return subprocess.CompletedProcess(arguments, 0)
+
+    monkeypatch.setattr(rpm_builder.subprocess, 'run', run)
+    rpm_builder.setup(ROOT)
+    assert [command[1] for command in commands] == ['build', 'image']
+    assert list(tmp_path.iterdir()) == []
+
+    def fail(arguments, **kwargs):
+        raise subprocess.CalledProcessError(9, arguments)
+
+    monkeypatch.setattr(rpm_builder.subprocess, 'run', fail)
+    with pytest.raises(subprocess.CalledProcessError):
+        rpm_builder.setup(ROOT)
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('empty', [False, True])
+def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, monkeypatch, empty):
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+    output = tmp_path / 'output'
+    monkeypatch.setattr(build_rpm, 'scratch_directory', lambda: scratch)
+    monkeypatch.setattr(build_rpm, 'scratch_descriptors', lambda: ())
+    monkeypatch.setattr(build_rpm, 'native_fedora44', lambda: False)
+    monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: None if name == 'mock' else '/fixture/' + name)
+    monkeypatch.setattr(rpm_builder, 'require_image', lambda root: 'localhost/fixture:fc44')
+    original_run = subprocess.run
+    commands = []
+
+    def run(arguments, **kwargs):
+        if arguments[0] != 'podman':
+            return original_run(arguments, **kwargs)
+        commands.append(arguments)
+        assert '--network=none' in arguments and '--pull=never' in arguments
+        assert '--userns=keep-id' in arguments and '--cap-drop=all' in arguments
+        assert '--privileged' not in arguments
+        top = kwargs['cwd']
+        (top / 'SRPMS/package.src.rpm').write_bytes(b'fixture srpm')
+        if not empty:
+            binaries = top / 'RPMS/x86_64'
+            binaries.mkdir()
+            (binaries / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm').write_bytes(b'fixture rpm')
+        return subprocess.CompletedProcess(arguments, 0)
+
+    monkeypatch.setattr(build_rpm.subprocess, 'run', run)
+    if empty:
+        with pytest.raises(ValueError, match='no product binary RPM'):
+            build_rpm.build(ROOT, output)
+    else:
+        build_rpm.build(ROOT, output)
+        assert (output / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm').read_bytes() == b'fixture rpm'
+    assert len(commands) == 1
+    assert (output / 'build.log').is_file()
+    assert list(scratch.iterdir()) == []

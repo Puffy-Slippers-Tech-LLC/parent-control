@@ -1,0 +1,135 @@
+# Rendered by tools/build_rpm.py from the shared product version and source map.
+Name:           oh-no-parent-control
+Version:        @VERSION@
+Release:        @RELEASE@%{?dist}
+Summary:        Administrator controls and a child request station for GNOME
+License:        GPL-3.0-only AND BSD-3-Clause AND OFL-1.1
+URL:            https://github.com/Puffy-Slippers-Tech-LLC/parent-control
+Source0:        %{name}-%{version}.tar.xz
+ExclusiveArch:  x86_64
+
+BuildRequires:  gcc
+BuildRequires:  make
+BuildRequires:  pam-devel
+BuildRequires:  glib2
+BuildRequires:  nodejs
+BuildRequires:  python3
+BuildRequires:  redhat-rpm-config
+BuildRequires:  systemd-rpm-macros
+
+Requires:       accountsservice
+Requires:       authselect
+Requires:       dbus
+Requires:       fapolicyd
+Requires:       gdm >= 50
+Requires:       gnome-kiosk >= 50
+Requires:       gnome-session
+Requires:       gnome-shell >= 50
+Requires:       gnome-shell < 51
+Requires:       gstreamer1
+Requires:       gstreamer1-plugins-base
+Requires:       gstreamer1-plugins-good
+Requires:       gtk4
+Requires:       hicolor-icon-theme
+Requires:       libadwaita
+Requires:       malcontent >= 0.14.0
+Requires:       malcontent-libs >= 0.14.0
+Requires:       malcontent-pam >= 0.14.0
+Requires:       mate-polkit
+Requires:       polkit
+Requires:       python3-gobject
+Requires:       python3-cairo
+Requires:       python3-requests
+Requires:       policycoreutils
+Requires:       shadow-utils
+Requires:       systemd
+Requires:       util-linux
+Requires:       webkitgtk6.0
+Requires(pre):  authselect
+Requires(pre):  coreutils
+Requires(pre):  glibc-common
+Requires(pre):  systemd
+Requires(preun): authselect
+Requires(preun): coreutils
+Requires(preun): findutils
+Requires(preun): python3
+Requires(preun): systemd
+Requires(preun): util-linux
+Requires(postun): coreutils
+Requires(postun): fapolicyd
+Requires(postun): findutils
+Requires(postun): glibc-common
+Requires(postun): shadow-utils
+Requires(postun): systemd
+Requires(postun): util-linux
+
+# Private Python modules are loaded by our fixed launchers, not site-packages.
+# Hash shipped bytes only after RPM's strip/shebang/other post-install passes.
+%global __brp_python_bytecompile %{nil}
+# Preserve late expansion of RPM's debug-package conditional. Eager expansion
+# here suppresses find-debuginfo before RPM enables its generated debug packages.
+%global onpc_spec_install_post %{macrobody:__spec_install_post}
+%define __spec_install_post %{onpc_spec_install_post} \
+    make --no-print-directory -C "%{_builddir}/%{buildsubdir}" _generate-package-activation-manifest DESTDIR="%{buildroot}" PACKAGE_DISTRIBUTION=fedora PAM_MODULE_DIR="%{_libdir}/security" \
+%{nil}
+
+%description
+Oh No! Parent Control provides an administrator app, a per-child GNOME Shell
+extension and a kiosk request station backed by shared per-account settings.
+This development package targets Fedora Workstation 44 for local VM testing.
+
+%prep
+%autosetup
+
+%build
+%make_build check-release-version
+%{__python3} -B packaging/render_lifecycle.py rpm --output rpm-lifecycle
+
+%install
+%set_build_flags
+%{__make} --no-print-directory _install-product-files DESTDIR="%{buildroot}" \
+    PACKAGE_DISTRIBUTION=fedora PAM_MODULE_DIR="%{_libdir}/security" \
+    GENERATE_ACTIVATION_MANIFEST=0
+install -d "%{buildroot}%{_datadir}/oh-no-parent-control/lifecycle"
+install -m 0644 rpm-lifecycle/postinst "%{buildroot}%{_datadir}/oh-no-parent-control/lifecycle/"
+
+%check
+%{__python3} -B packaging/check_package.py
+for script in rpm-lifecycle/rpm-*; do /bin/sh -n "$script"; done
+
+%pre -f rpm-lifecycle/rpm-pre
+%posttrans -f rpm-lifecycle/rpm-posttrans
+%preun -f rpm-lifecycle/rpm-preun
+%postun -f rpm-lifecycle/rpm-postun
+
+%files
+%license LICENSE COPYRIGHT NOTICE
+%{_bindir}/oh-no-parent-control
+%{_bindir}/oh-no-parent-control-child
+%{_bindir}/oh-no-parent-control-parent
+%{_libexecdir}/oh-no-parent-control-*
+%{_libdir}/security/pam_oh_no_parent_control.so
+/usr/lib/oh-no-parent-control/
+%{_datadir}/oh-no-parent-control/
+%{_datadir}/doc/oh-no-parent-control/
+%{_datadir}/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/
+%{_datadir}/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service
+%{_datadir}/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml
+%{_datadir}/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.*.policy
+%{_datadir}/polkit-1/rules.d/00-oh-no-parent-control-session.rules
+%{_datadir}/gnome-session/sessions/oh-no-parent-control.session
+%{_datadir}/wayland-sessions/oh-no-parent-control.desktop
+%{_datadir}/applications/com.puffyslippers.OhNoParentControl.desktop
+%attr(0640,root,wheel) %{_datadir}/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
+%{_datadir}/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png
+%{_unitdir}/oh-no-parent-control-broker.service
+%{_unitdir}/fapolicyd.service.d/oh-no-parent-control-readiness.conf
+%{_unitdir}/display-manager.service.d/oh-no-parent-control.conf
+%{_unitdir}/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf
+%{_userunitdir}/oh-no-parent-control-*.service
+%{_userunitdir}/gnome-session@oh-no-parent-control.target.d/session.conf
+%{_mandir}/man1/oh-no-parent-control*.1*
+
+%changelog
+* Tue Sep 29 2026 Puffy Slippers <support@puffyslippers.com>
+- Prepare Fedora Workstation 44 development builds and future COPR sources.

@@ -4,10 +4,14 @@ Oh No! Parent Control has three unprivileged front ends around one privileged
 system D-Bus broker. The broker owns runtime product policy and cross-account
 writes. Operating-system services provide enforcement behind that boundary.
 
-The installed product targets Ubuntu GNOME Desktop. Package installation accepts
+The installed acceptance baseline targets Ubuntu GNOME Desktop. Debian installation accepts
 Ubuntu 26.04 or newer; the functional acceptance baseline is Ubuntu 26.04 with
 GNOME Shell 50, the version declared by the packaged child extension. The
 installer's OS lower bound does not qualify every later GNOME version.
+The [Fedora Workstation 44 packaging target](Fedora-Packaging.md) is prepared
+for local VM qualification and future COPR use; it is not release-qualified.
+The RPM admits only Fedora Workstation 44/GNOME 50. Both wrappers share the
+payload map, lifecycle templates and activation classifier.
 The [functional specification](Specification.md) describes customer actions and
 results. This design describes the current implementation and its limits;
 explicitly deferred designs and security targets are not implemented guarantees.

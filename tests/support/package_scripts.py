@@ -5,6 +5,7 @@ Their differing command models stay explicit; they share path relocation.
 """
 
 import os
+import runpy
 from pathlib import Path
 import subprocess
 
@@ -13,6 +14,11 @@ from tests.support.paths import ROOT
 from tests.support.shell import relocate_system_paths
 
 REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
+
+
+def script_source(phase, distribution='ubuntu'):
+    render = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))['render']
+    return render(ROOT, distribution, phase)
 
 
 class Machine:
@@ -68,8 +74,8 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
         self.write("account")
         self.write("home/oh-no-parent-control/.cache/residue", "left behind")
 
-    def run(self, script, action, **env):
-        source = (ROOT / "debian" / script).read_text()
+    def run(self, script, action, *, distribution='ubuntu', **env):
+        source = script_source(script, distribution)
         # Redirect every absolute system prefix, including executable paths.
         source = relocate_system_paths(source, self.root)
         for command in ("deb-systemd-invoke", "invoke-rc.d", "pam-auth-update"):
@@ -137,7 +143,8 @@ def machine(tmp_path):
 
 
 @pytest.fixture
-def package_machine(tmp_path):
+def package_machine(tmp_path, request):
+    distribution = getattr(request, 'param', 'ubuntu')
     state = tmp_path / "var/lib/oh-no-parent-control"
     state.mkdir(parents=True)
     (tmp_path / "run/systemd/system").mkdir(parents=True)
@@ -215,7 +222,8 @@ case "$name" in
                 ;;
         esac
         ;;
-    chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|runuser|\
+    restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|runuser|\
+    oh-no-parent-control-fedora-pam|\
     oh-no-parent-control-provision) ;;
     *) exit 99 ;;
 esac
@@ -223,11 +231,11 @@ esac
     stub.chmod(0o755)
     for name in ("getent", "id", "systemctl", "deb-systemd-invoke", "install",
                  "chown", "chmod", "systemd-sysusers", "invoke-rc.d", "pam-auth-update",
-                 "stat", "debconf-communicate", "usermod", "passwd", "runuser"):
+                 "stat", "debconf-communicate", "usermod", "passwd", "runuser", "restorecon"):
         (bin_dir / name).symlink_to(stub)
     for name in ("rm", "touch", "grep", "cut", "cat", "cmp"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)
-    for name in ("migrate-state", "provision", "package-activation"):
+    for name in ("migrate-state", "provision", "package-activation", "fedora-pam"):
         target = tmp_path / f"usr/libexec/oh-no-parent-control-{name}"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.symlink_to(stub)
@@ -243,7 +251,7 @@ esac
     notifier.parent.mkdir(parents=True)
     notifier.symlink_to(stub)
 
-    source = (ROOT / "debian/postinst").read_text()
+    source = script_source('postinst', distribution)
     source = relocate_system_paths(source, tmp_path)
     script = tmp_path / "postinst"
     script.write_text(source)

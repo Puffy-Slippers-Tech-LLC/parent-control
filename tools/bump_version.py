@@ -47,9 +47,12 @@ def read_metadata() -> tuple[dict, tuple[int, int]]:
 
 
 def debian_version() -> str:
-    return subprocess.check_output(
-        ["dpkg-parsechangelog", "-S", "Version"], cwd=ROOT, text=True
-    ).strip()
+    # The shared source check also runs in RPM builders without dpkg.
+    first = (ROOT / "debian/changelog").read_text(encoding="utf-8").splitlines()[0]
+    match = re.fullmatch(r"oh-no-parent-control \(([^)]+)\) .*", first)
+    if match is None:
+        raise VersionError("invalid Debian changelog header")
+    return match.group(1)
 
 
 def check_repository() -> None:

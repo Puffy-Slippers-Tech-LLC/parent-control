@@ -24,7 +24,12 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Bind the supported DING provider entry, exact icon and ordinary placement/trust route using verified assets and qualified file operations. Reuse owned fixture result readers.
+Prepare the exact desktop entry from verified fixture assets through shared
+per-user filesystem commands and supported permission/trust metadata APIs.
+Reuse the bound user's desktop directory and refuse conflicting files. Keep
+copying, permissions and trust setup out of DING/Files UI automation. Then bind
+the exact DING icon and its actual activation; reuse the owned fixture result
+readers. Qualify only this finite preparation and launch route.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,
@@ -33,7 +38,11 @@ observer and worker; add no independent runner or fixture framework.
 
 ## Live VM acceptance
 
-On the VM, place/trust the declared entry if needed, activate it from the desktop and observe a real usability action. Qualify independent desktop entry and wrong-icon/ambiguous-owner refusal.
+On the VM, prepare and independently verify the declared entry through the
+shared command helper, activate it from the desktop and observe one real
+usability action. Qualify independent desktop entry and wrong-icon/ambiguous-owner
+refusal. A missing supported preparation API is a concrete prerequisite, not a
+reason to add a file-manager setup tour.
 
 Use a fresh guarded VM attempt through shared watch intent, display and
 command transport. Pass affected cleanup/ownership regressions in isolation

@@ -28,7 +28,7 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Compose only the overlay app-close branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use the supported normal requesting-app close action, then reopen through the panel. Cancel on the agent is not this route. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
+Compose only the overlay app-close branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use the supported normal requesting-app close action, then reopen through REQUEST02's direct child command. Cancel on the agent is not this route. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
 
 ## Live VM acceptance
 

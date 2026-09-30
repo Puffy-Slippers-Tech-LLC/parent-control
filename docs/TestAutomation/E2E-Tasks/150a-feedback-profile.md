@@ -21,6 +21,11 @@ synthetic drafts/attachments and redacted Privacy projections required by the
 [feedback recipes](../E2E-Scenario-Recipes.md#sending-background-completion-and-report-exits).
 Enumerate the exact capability qualifications and numeric scenario submissions
 that the authorization will cover, with bounded counts and the stop/retry cases.
+Reuse an existing supported service/recipient configuration. This task does not
+provision mailboxes, set up SMTP/DNS, build a test portal or qualify service
+administration. If that profile is unavailable, record the exact prerequisite.
+Later acceptance stops at the app's real response and declared exit; delivery
+receipts and inbox contents are not E2E prerequisites.
 Record only private profile references and nonsecret scope in maintained fixture
 metadata; never create a parallel evidence document or edit the portal.
 

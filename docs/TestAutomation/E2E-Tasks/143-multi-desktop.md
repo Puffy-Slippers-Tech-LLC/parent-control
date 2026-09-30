@@ -30,6 +30,12 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 Demonstrate a supported customer route to distinct same-child desktops and extend FLOW14 only if it exists. Repeated GDM selection may resume one desktop. Otherwise keep the precise obligation blocked for explicit system/customer ownership reconciliation.
 
+Limit preparation to a route already supported by the declared VM desktop and
+the shared session helpers. Do not add seats, nested compositors, display
+servers or remote-desktop infrastructure to manufacture this prerequisite.
+Record an unavailable route and its return condition; preserve the multi-session
+product obligation without substituting two windows on one desktop.
+
 ## Live VM acceptance
 
 Live UI actions must create two separately identifiable public activities for the same child, revisit both, and preserve an unrelated user's activity. No backend session creation/probes. A failed applicability check is not a completed scenario.

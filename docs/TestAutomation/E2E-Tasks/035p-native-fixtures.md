@@ -24,7 +24,13 @@ Use maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
-Bind the finite A/H/S/N native fixture manifest to maintained public apps and verified package assets. Reuse FIX04 for powered-off transfer and LIFE04 for any required installation through the shared administrator SSH package helper. Staging a package does not install it. Register only the fixed fixture install profile and the identities needed by the public catalogue; app launching and usability belong to a separate slice.
+Bind A/H/S/N to the existing repository-built native fixture payloads and verified
+manifest. Reuse the maintained builder/artifact cache, FIX04 for transfer and
+LIFE04's shared administrator SSH helper for required local installation. Add
+only a missing finite fixture identity needed by the recipe; do not select,
+download or automate unrelated third-party apps. Staging does not install the
+payload. Stop at the declared catalogue identities/default rules; launch and
+usability belong to their following slices.
 
 ## Live VM acceptance
 

@@ -37,9 +37,16 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Bind the supported desktop entry and its public activation, then independently observe usable or blocked results. Use the existing verified assets and normal file operations for any required placement/trust action. Missing desktop support blocks this route only.
+Reuse 036g's verified entry and shared command/API placement and trust
+preparation. Bind its public desktop activation and independently observe usable
+or blocked results. Missing desktop support blocks this route; do not install
+another desktop extension or substitute a different launcher.
 
-The installed desktop icon is owned by DING. Add its provider-specific icon/selection/activation binding with wrong-icon and ambiguous-owner refusal. Reuse the declared native fixture and qualified public placement/trust operations. Independently observe the owned fixture's usable result; search, terminal or file-manager activation cannot replace the desktop route.
+The installed desktop icon is owned by DING. Reuse 036g/036h's qualified
+icon/activation and separate-window bindings with wrong-icon and ambiguous-owner
+refusal. This task adds only the policy-result observations; it does not repeat
+launcher preparation or add selection/menu permutations. Search, command or
+file-manager activation cannot replace the tested desktop route.
 
 ## Live VM acceptance
 

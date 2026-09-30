@@ -15,7 +15,8 @@ their task briefs. Do not load the full queue, catalogue, recipe book or invento
 Deliver **FEED09 Parent retry/recovery over qualified LIFE06**. First scheduled consumer: [E2E-033, case 157](../E2E-Scenario-Recipes.md#e2e-033).
 Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-customer-selected-attachments), [related block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) and only the selected consumer's recipe.
 
-**Gate:** Authorized sending and a public connectivity route that preserves the guarded observation channel.
+**Gate:** Authorization for the reviewed submission and the qualified LIFE06
+VM Internet-isolation helper.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
@@ -26,11 +27,20 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Reuse LIFE06's shared system disconnect/reconnect commands. Extend FEED09 only for real retry and recovery during one authorized submission, preserving the normal retry window and safe observation transport. No transport fault injection or forged response.
+Reuse LIFE06's qualified enter-offline/restore-online operations unchanged.
+Extend FEED09 only for real retry and recovery during one authorized submission,
+preserving the normal retry window and observation transport. Network setup is
+already owned by 193a/193; do not choose another guest connection, networking
+backend or management path here. No transport fault injection or forged response.
 
 ## Live VM acceptance
 
-In the authorized live retry attempt, disconnect through the shared system helper, submit once, observe retry, reconnect before its deadline and observe automatic success for that same submission. If the selected connection change also severs required harness access with no supported route, retain the blocker.
+In the authorized live retry attempt, remove Internet access through LIFE06,
+submit once, observe retry, restore Internet access before its deadline and
+observe automatic success for that same submission. Run both supporting
+operations from the existing test-control channel while keeping the current
+app/session surface. If the qualified helper loses control or observation,
+report that infrastructure failure; do not improvise another network route.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

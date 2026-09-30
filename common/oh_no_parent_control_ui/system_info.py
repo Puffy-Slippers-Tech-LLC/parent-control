@@ -107,16 +107,17 @@ def _dependency_row(name, raw_version, architecture, status="installed"):
             "architecture": category(architecture, ARCHITECTURES), "status": status}
 
 
-def dependency_info(cache=None, *, deadline=None, os_id=None):
-    """Read fixed runtime versions from APT, or RPM on Fedora only."""
-    if os_id == "fedora":
-        return _rpm_dependency_info(deadline=deadline)
+def dependency_info(cache=None, *, deadline=None):
+    """Select the available package backend, independently of OS branding."""
     rows = [_dependency_row("quill", "2.0.3", "all", "bundled")]
     status = "complete"
     deadline = time.monotonic() + 10 if deadline is None else deadline
     try:
         if cache is None:
-            import apt
+            try:
+                import apt
+            except ImportError:
+                return _rpm_dependency_info(deadline=deadline)
             cache = apt.Cache(memonly=True)
         for name in DIAGNOSTIC_PACKAGES:
             if time.monotonic() >= deadline:
@@ -262,7 +263,7 @@ def collect_system_info(connection):
         "architecture": category(platform.machine(), ("x86_64", "aarch64", "armv7l", "i686", "ppc64le", "s390x", "riscv64")),
         "timezone": timezone_info(),
         "session_type": category(os.environ.get("XDG_SESSION_TYPE"), ("wayland", "x11", "tty")),
-        "accounts": account_info(connection), "dependencies": dependency_info(os_id=os_info["id"]),
+        "accounts": account_info(connection), "dependencies": dependency_info(),
     })
 
 

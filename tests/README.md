@@ -1291,10 +1291,14 @@ The left terminal follows active `fix-tests` output before `run-tests`,
 using VS Code Light+ colors, wrapping and vertical scrollback. The initial
 horizontal split is 25%/75%, adjustable by dragging. The right viewer has one
 flat tab row: **All**, **UI - category** for each active UI worker category,
-and each registered VM's name. In the bottom **All** scope, category and VM
-tabs are prefixed with **[branch]:**. Its viewer **All** tab puts active viewers
-in one flat grid ordered by bottom branch, UI category name, then registered VM
-order. One cell fills the space; additional cells use two columns with as many
+and each registered VM's name. In the bottom **All** scope, category
+tabs are prefixed with **[branch]:**. Each VM has one tab in the bottom
+**All** scope, using the checkout with its current controller or running display.
+Its viewer **All** tab puts active viewers in one flat grid ordered by bottom
+branch and UI category name, followed by VMs in ascending numeric configured ID
+order. Legacy VMs without IDs follow in registration order. VM tabs use that
+same order, and each tile title exactly matches its tab header.
+One cell fills the space; additional cells use two columns with as many
 rows as needed, leaving the right cell blank on an odd final row. Cell titles
 match their top tabs. Large grids scroll vertically at their minimum cell size.
 Double-click a cell to open its individual top tab while

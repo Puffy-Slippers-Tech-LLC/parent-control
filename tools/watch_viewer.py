@@ -12,13 +12,35 @@ APPLICATION_ID = 'org.onpc.E2EWatch'
 TITLE = 'Test watch'
 
 
+def viewer_entries(entries, *, scope='all', vm_ids=None):
+    """Keep checkout UI workers, followed by one source per VM in ID order."""
+    result, vms = {}, {}
+    for entry, value in entries.items():
+        if scope != 'all' and entry[0] != scope:
+            continue
+        if entry[1].startswith('ui-'):
+            result[entry] = value
+            continue
+        previous = vms.get(entry[1])
+        # Prefer the current controller, then a running unlocked display, over
+        # an idle registration from another checkout. Ties keep discovery order.
+        if previous is None or (value[3], value[2]) > (previous[1][3], previous[1][2]):
+            vms[entry[1]] = entry, value
+    ids = vm_ids or {}
+    for entry, value in sorted(vms.values(), key=lambda item: (
+            ids.get(item[0]) is None, int(ids.get(item[0]) or 0))):
+        result[entry] = value
+    return result
+
+
 def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix=''):
     from vm_selection import registry
     from e2e_watch_viewer import AsyncFeed, Feed
     asynchronous = vm_feeds is None and feed is None
+    configured = registry(root / 'config/test-vm.json') if asynchronous else {}
     if vm_feeds is None:
         vm_feeds = ({feed.vm_name: feed} if feed is not None else
-                    {name: Feed(name, root=root) for name in registry(root / 'config/test-vm.json')})
+                    {name: Feed(name, root=root) for name in configured})
     application_id = APPLICATION_ID
     import gi
     gi.require_version('Gtk', '4.0')
@@ -92,6 +114,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
             self.append(self.output_status)
             self.append(self.output_scroll)
             self.vm_keys = {name: 'vm-' + name.encode('ascii').hex() for name in vm_feeds}
+            self.vm_ids = {self.vm_keys[name]: vm.id for name, vm in configured.items()}
             from ui_watch_transport import Feeds
             self.ui = ui_panel(feeds if feeds is not None else Feeds(root=root), prefix=prefix, flat=True)
             self.vms = {}
@@ -386,7 +409,13 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
 
         def entry_key(self, scope_name, entry):
             name, local = entry
-            return identity(Path(name)) + '-' + local if scope_name == 'all' else local
+            return (identity(Path(name)) + '-' + local
+                    if scope_name == 'all' and local.startswith('ui-') else local)
+
+        def scoped_entries(self, scope_name, entries):
+            ids = {(name, key): identifier for name, view in self.checkouts.items()
+                   for key, identifier in view.vm_ids.items()}
+            return viewer_entries(entries, scope=scope_name, vm_ids=ids)
 
         def entries(self):
             result = {}
@@ -427,8 +456,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                     cell.add_controller(click)
                     self.cells[entry] = cell, title
             for scope_name, scope in self.scopes.items():
-                scoped = {entry: value for entry, value in entries.items()
-                          if scope_name == 'all' or entry[0] == scope_name}
+                scoped = self.scoped_entries(scope_name, entries)
                 wanted = {self.entry_key(scope_name, entry) for entry in scoped}
                 for key in tuple(scope['bodies']):
                     if key not in wanted:
@@ -439,7 +467,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 previous = scope['buttons']['all']
                 for entry, (_content, label, _active, locked) in scoped.items():
                     key = self.entry_key(scope_name, entry)
-                    if scope_name == 'all':
+                    if scope_name == 'all' and entry[1].startswith('ui-'):
                         label = '[' + self.checkout_buttons[entry[0]].get_label() + ']: ' + label
                     if key not in scope['buttons']:
                         button = Gtk.ToggleButton()
@@ -482,9 +510,9 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             scope = self.scopes[scope_name]
             selected = scope['selected']
             scope['pages'].set_visible_child_name(selected)
-            shown = tuple(entry for entry, value in entries.items()
-                          if (scope_name == 'all' or entry[0] == scope_name)
-                          and (value[2] if selected == 'all' else
+            scoped = self.scoped_entries(scope_name, entries)
+            shown = tuple(entry for entry, value in scoped.items()
+                          if (value[2] if selected == 'all' else
                                self.entry_key(scope_name, entry) == selected))
             for entry in shown:
                 self.cells[entry][1].set_label(
@@ -521,9 +549,13 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 selected = scope['selected']
                 visible = self.selected_checkout in ('all', name)
                 if selected != 'all' and self.selected_checkout == 'all':
-                    own_prefix = identity(Path(name)) + '-'
-                    visible = selected.startswith(own_prefix)
-                    selected = selected[len(own_prefix):] if visible else 'all'
+                    if selected.startswith('vm-'):
+                        scoped = self.scoped_entries('all', self.entries())
+                        visible = (name, selected) in scoped
+                    else:
+                        own_prefix = identity(Path(name)) + '-'
+                        visible = selected.startswith(own_prefix)
+                        selected = selected[len(own_prefix):] if visible else 'all'
                 view.selected = selected
                 view.tick(render=visible)
                 if was_active and not view.output_active:

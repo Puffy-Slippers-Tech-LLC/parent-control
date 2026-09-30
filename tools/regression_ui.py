@@ -61,6 +61,8 @@ GROUPS = (
 # four private UI sockets and three synthetic VM memfds. Tile double clicks
 # and branch/tab changes stay on GTK's main thread on this private display.
 # They retain the same spectator reservation and compatible scheduling.
+# VM ID ordering adds only a tiny config in the same tmp_path; duplicate-tab
+# handoff uses the existing synthetic feeds and starts no additional process.
 # The singleton check adds
 # plus one waited singleton peer on that same private display/bus. No real Git
 # checkout, controller, desktop service or VM is started by the fixture.

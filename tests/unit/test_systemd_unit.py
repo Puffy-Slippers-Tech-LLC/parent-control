@@ -1,3 +1,4 @@
+import configparser
 import unittest
 
 
@@ -13,6 +14,25 @@ FAPOLICYD_FALLBACK = ROOT / "data/fapolicyd/99-oh-no-parent-control-allow.rules"
 
 
 class BrokerServiceUnitTests(unittest.TestCase):
+    def test_offline_session_bus_can_monitor_selinux_without_internet_sockets(self):
+        unit = configparser.ConfigParser(strict=False, interpolation=None)
+        unit.read(BROKER_UNIT, encoding="utf-8")
+        service = unit["Service"]
+        self.assertEqual(
+            set(service["RestrictAddressFamilies"].split()),
+            {"AF_UNIX", "AF_NETLINK"},
+        )
+        for key, value in {
+            "NoNewPrivileges": "yes", "PrivateDevices": "yes",
+            "PrivateTmp": "yes", "ProtectSystem": "strict",
+            "ProtectKernelTunables": "yes", "ProtectKernelModules": "yes",
+            "ProtectControlGroups": "yes", "RestrictNamespaces": "yes",
+            "LockPersonality": "yes", "MemoryDenyWriteExecute": "yes",
+            "SystemCallArchitectures": "native",
+        }.items():
+            with self.subTest(key=key):
+                self.assertEqual(service[key], value)
+
     def test_child_identity_capabilities_survive_broker_exec(self):
         settings = {}
         for raw_line in BROKER_UNIT.read_text(encoding="utf-8").splitlines():

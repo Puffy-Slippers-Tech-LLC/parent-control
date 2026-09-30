@@ -25,7 +25,7 @@ def selected_options(root, args):
     args = list(args) if args[:1] == ['--timeout'] else [*TIMEOUT_ARGS, *args]
     command = pytest_command(root, args, 'ui')
     options = command[command.index('no:cacheprovider') + 1:command.index('--')]
-    return args, ['--timeout', command[2], *options]
+    return args, ['--timeout', args[1], *options]
 
 
 def serial_options(options):
@@ -55,6 +55,9 @@ GROUPS = (
 # locks/logs, on this same private display/bus; it starts no real runner or VM.
 # The multi-VM grid uses up to five private synthetic memfds in this fixture;
 # cells share only its private display/bus and add no libvirt or host resources.
+# Checkout tab/grid checks add three tiny private log/lock trees and UI sockets
+# plus one waited singleton peer on that same private display/bus. No real Git
+# checkout, controller, desktop service or VM is started by the fixture.
 # Automation identity uses the standard private preview session. Fixture GUI
 # builds its payload and Flatpak installation below its private pytest root;
 # both use the worker's private compositor, accessibility bus and runtime.
@@ -94,6 +97,13 @@ GROUPS = (
 # additional display or heavy fixture build; retain both compatible buckets.
 # Chooser delivery acknowledgements use tiny files beside that same private
 # manifest, with no new process, bus, display or scheduling resource.
+# Capture children inherit their private worker's owned group so emergency
+# worker retirement cannot strand private PipeWire services. Each bucket still
+# owns a separate group, compositor, bus and runtime; no host service is joined.
+# Nested Shell additionally owns one small guardian subprocess per scenario.
+# Its lifetime pipe and kernel subreaper scope contain only that private Shell
+# launch and services; its socket runtime and scratch locks outlive forced pytest
+# exit. It introduces no shared resource; keep the existing ui-shell reservation.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')
 

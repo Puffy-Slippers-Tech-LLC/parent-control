@@ -9,6 +9,8 @@ import signal
 import subprocess
 import sys
 import threading
+import time
+import math
 
 
 # Only the detached test owner installs this event. Its nested storage and
@@ -91,6 +93,8 @@ class Control:
 
     Privileged dispatchers receive STOP/EOF on inherited stdin. Their parent
     waits until the child finishes its guarded cleanup, including VM restore.
+    UI timeouts additionally retire the child's private process group, keeping
+    its leader unreaped until output draining and bounded cleanup finish.
     """
 
     def __init__(self):
@@ -124,10 +128,18 @@ class Control:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
 
-    def run(self, command, *, cwd, env, output=None, cooperative=False, tick=None, **kwargs):
+    def run(self, command, *, cwd, env, output=None, cooperative=False, tick=None,
+            timeout=None, kill_after=30.0, cancel_signal=signal.SIGINT,
+            stderr_output=None, **kwargs):
         # The installed dispatcher loads this file before adding the validated
         # checkout tools directory for its deferred imports.
         import test_activity
+        bounded_group = timeout is not None
+        if bounded_group and (cooperative or not math.isfinite(timeout) or timeout <= 0
+                              or not math.isfinite(kill_after) or kill_after <= 0):
+            raise ValueError('invalid owned UI timeout')
+        if cancel_signal not in (signal.SIGINT, signal.SIGTERM):
+            raise ValueError('invalid owned cancellation signal')
         if self.stopped.is_set():
             return 130
         frames = None
@@ -144,7 +156,8 @@ class Control:
         kwargs.setdefault('pass_fds', (*test_activity.descriptors(), *scratch_descriptors()))
         child = subprocess.Popen(command, cwd=cwd, env=env,
                                  stdin=subprocess.PIPE if cooperative else subprocess.DEVNULL,
-                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE if stderr_output is not None else subprocess.STDOUT,
                                  start_new_session=True, **kwargs)
         try:
             descriptor = os.pidfd_open(child.pid)
@@ -158,15 +171,63 @@ class Control:
                 except BrokenPipeError:
                     pass
             else:
-                child.send_signal(signal.SIGINT)
-            child.communicate()
+                if bounded_group:
+                    os.killpg(child.pid, signal.SIGTERM)
+                else:
+                    child.send_signal(signal.SIGINT)
+            if bounded_group:
+                limit = time.monotonic() + kill_after
+                while time.monotonic() < limit:
+                    if os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None:
+                        break
+                    time.sleep(.01)
+                # Keep the Popen child unreaped until its whole private group
+                # is retired, even when pidfd allocation itself failed.
+                os.killpg(child.pid, signal.SIGKILL)
+                # A pipe holder outside that group need not exit with it.
+                # No pidfd is available to drive draining; close our reader
+                # and wait only for the explicitly spawned, killed child.
+                child.stdout.close()
+                if child.stderr is not None:
+                    child.stderr.close()
+                child.wait()
+            else:
+                child.communicate()
             raise
         sent = False
         output_error = None
+        deadline = time.monotonic() + timeout if bounded_group else None
+        retirement = None
+        timed_out = forced = child_exited = False
+        reaped = False
+
+        def signal_group(sig):
+            # start_new_session made this explicitly spawned child its group
+            # leader. Keep it unreaped until pipes and group cleanup finish:
+            # the zombie/pidfd receipt prevents leader/PID reuse throughout.
+            try:
+                os.killpg(child.pid, sig)
+            except ProcessLookupError:
+                pass
+
+        def emit(data, sink=None):
+            nonlocal output_error
+            if output_error is None:
+                try:
+                    (output if sink is None else sink)(data)
+                except BaseException as error:
+                    output_error = error
+                    self.stop()
+
         try:
             with selectors.DefaultSelector() as poller:
                 poller.register(child.stdout, selectors.EVENT_READ)
-                while poller.get_map() or child.poll() is None:
+                if child.stderr is not None:
+                    poller.register(child.stderr, selectors.EVENT_READ)
+                if bounded_group:
+                    poller.register(descriptor, selectors.EVENT_READ)
+                while poller.get_map() or (not bounded_group and child.poll() is None):
+                    now = time.monotonic()
                     if self.stopped.is_set() and not sent:
                         sent = True
                         if cooperative:
@@ -176,35 +237,89 @@ class Control:
                             except BrokenPipeError:
                                 pass
                         else:
-                            try:
-                                signal.pidfd_send_signal(descriptor, signal.SIGINT)
-                            except ProcessLookupError:
-                                pass
+                            if bounded_group:
+                                # Keep fixture services alive while pytest
+                                # runs its ordinary KeyboardInterrupt cleanup.
+                                try:
+                                    signal.pidfd_send_signal(descriptor, cancel_signal)
+                                except ProcessLookupError:
+                                    pass
+                                retirement = now + kill_after
+                            else:
+                                try:
+                                    signal.pidfd_send_signal(descriptor, cancel_signal)
+                                except ProcessLookupError:
+                                    pass
+                    if bounded_group and not sent and now >= deadline:
+                        sent = timed_out = True
+                        retirement = now + kill_after
+                        emit(b'UI worker deadline reached; terminating its owned process group.\n')
+                        signal_group(signal.SIGTERM)
+                    if retirement is not None and not forced and now >= retirement:
+                        forced = True
+                        emit(b'UI worker cleanup deadline reached; killing its owned process group.\n')
+                        signal_group(signal.SIGKILL)
                     for key, _ in poller.select(0.1):
+                        if bounded_group and key.fd == descriptor:
+                            child_exited = True
+                            poller.unregister(descriptor)
+                            continue
                         data = os.read(key.fd, 65536)
                         if not data:
                             poller.unregister(key.fileobj)
-                        elif output_error is None:
-                            try:
-                                output(data)
-                            except BaseException as error:
-                                output_error = error
-                                self.stop()
+                        else:
+                            emit(data, stderr_output if key.fileobj is child.stderr else None)
+                    if bounded_group and forced and child_exited and poller.get_map():
+                        # The killed leader has exited, but EOF is not a death
+                        # receipt: another session may still hold the writer.
+                        # Finish the bounded drain without signalling that
+                        # unowned session, and retain the leader until the
+                        # final group signal below has completed.
+                        emit(b'UI output pipe remained open after cleanup; closing its reader.\n')
+                        for key in list(poller.get_map().values()):
+                            poller.unregister(key.fileobj)
+                            key.fileobj.close()
+                    if bounded_group and child_exited and poller.get_map() and retirement is None:
+                        # A descendant can retain stdout after pytest dies.
+                        # Retire its still-pinned group, never wait forever for
+                        # pipe EOF or reap the leader before signalling it.
+                        retirement = time.monotonic() + kill_after
+                        signal_group(signal.SIGTERM)
                     if tick is not None and output_error is None:
                         try:
                             tick()
                         except BaseException as error:
                             output_error = error
                             self.stop()
+                if bounded_group:
+                    # Worker exit and pipe EOF are confirmed, but a service
+                    # with redirected output could still outlive it. Retire
+                    # this private session before releasing the leader receipt.
+                    signal_group(signal.SIGKILL)
                 status = child.wait()
+                reaped = True
             if output_error is not None:
                 raise output_error
             if frames is not None:
                 frames.finish()
-            return 130 if self.stopped.is_set() else status if status >= 0 else 128 - status
+            return (130 if self.stopped.is_set() else
+                    137 if timed_out and forced else 124 if timed_out else
+                    125 if forced else status if status >= 0 else 128 - status)
+        except BaseException:
+            if bounded_group and not reaped and child.returncode is None:
+                # Selector/read failures must not abandon the owned child.
+                # Never use its numeric group after wait() released the leader.
+                signal_group(signal.SIGKILL)
+                child.stdout.close()
+                if child.stderr is not None:
+                    child.stderr.close()
+                child.wait()
+            raise
         finally:
             os.close(descriptor)
             child.stdout.close()
+            if child.stderr is not None:
+                child.stderr.close()
             if child.stdin is not None:
                 child.stdin.close()
 
@@ -262,7 +377,9 @@ def host_run(root, category, argv, *, pipe=True):
         if category == 'ui':
             import test_retention
             env.update(test_retention.environment())
-        return control.run(command, cwd=root, env=env)
+        bounded = (dict(timeout=host.ui_timeout(argv), kill_after=host.UI_KILL_AFTER)
+                   if category == 'ui' else {})
+        return control.run(command, cwd=root, env=env, **bounded)
 
 
 def category_run(root, category, argv, *, pipe=True):

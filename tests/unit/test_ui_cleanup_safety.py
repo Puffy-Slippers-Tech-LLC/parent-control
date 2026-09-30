@@ -2,11 +2,313 @@
 
 import subprocess
 import signal
+import os
+import sys
+import io
+import re
+import select
+import threading
+from contextlib import redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 from tests.support import preview
+
+
+@pytest.mark.parametrize('cause', ['cancel', 'deadline', 'leader-exits', 'pidfd-refused'])
+@pytest.mark.parametrize('stream', ['stdout', 'stderr'])
+def test_ui_pipe_retirement_does_not_depend_on_another_session_exiting(
+        tmp_path, monkeypatch, cause, stream):
+    from regression_process import Control
+    code = '''import os,signal,subprocess,sys,time
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+subprocess.Popen([sys.executable, '-c',
+    "import os,sys,time; print('holder=' + str(os.getpid()), file=sys.STREAM, flush=True); time.sleep(30)"],
+    start_new_session=True)
+END
+'''.replace('STREAM', stream).replace('END', 'os._exit(0)' if cause == 'leader-exits'
+                                     else 'time.sleep(30)')
+    control, observed = Control(), bytearray()
+    done, rescued = threading.Event(), threading.Event()
+    pins, rescuers, children = [], [], []
+    pin, popen = os.pidfd_open, subprocess.Popen
+
+    def record(*args, **kwargs):
+        child = popen(*args, **kwargs)
+        children.append(child)
+        return child
+    monkeypatch.setattr(subprocess, 'Popen', record)
+
+    def receive(data):
+        observed.extend(data)
+        match = re.search(rb'holder=(\d+)\n', observed)
+        if match and not pins:
+            pins.append(pin(int(match[1])))
+            def rescue():
+                if not done.wait(2):
+                    rescued.set()
+                    signal.pidfd_send_signal(pins[0], signal.SIGKILL)
+            rescuers.append(threading.Thread(target=rescue))
+            rescuers[0].start()
+            if cause == 'cancel':
+                control.stop()
+
+    if cause == 'pidfd-refused':
+        def refuse(pid):
+            assert pid == children[0].pid
+            # Readiness pins the holder before faulting the leader receipt.
+            pipe = children[0].stdout if stream == 'stdout' else children[0].stderr
+            while not pins:
+                receive(os.read(pipe.fileno(), 65536))
+            raise OSError('receipt refused')
+        monkeypatch.setattr(os, 'pidfd_open', refuse)
+    try:
+        options = dict(output=receive, stderr_output=receive, timeout=.2 if cause == 'deadline' else 5,
+                       kill_after=.1)
+        if cause == 'pidfd-refused':
+            with pytest.raises(OSError, match='receipt refused'):
+                control.run([sys.executable, '-c', code], cwd=tmp_path, env=os.environ.copy(), **options)
+        else:
+            status = control.run([sys.executable, '-c', code], cwd=tmp_path,
+                                 env=os.environ.copy(), **options)
+            assert status == {'cancel': 130, 'deadline': 137, 'leader-exits': 125}[cause]
+            assert b'closing its reader' in observed
+        assert pins and not rescued.is_set(), 'controller required rescue to finish pipe draining'
+        assert children[0].returncode is not None
+        poller = select.poll()
+        poller.register(pins[0], select.POLLIN)
+        assert not poller.poll(0), 'controller signalled the outside-group pipe holder'
+    finally:
+        done.set()
+        for rescuer in rescuers:
+            rescuer.join(3)
+        for descriptor in pins:
+            try:
+                signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            os.close(descriptor)
+
+
+def test_ui_selector_failure_still_retires_and_reaps_its_leader(tmp_path, monkeypatch):
+    import regression_process
+    children = []
+    popen = subprocess.Popen
+    def record(*args, **kwargs):
+        child = popen(*args, **kwargs)
+        children.append(child)
+        return child
+    monkeypatch.setattr(subprocess, 'Popen', record)
+    selector = Mock()
+    selector.__enter__ = Mock(return_value=selector)
+    selector.__exit__ = Mock(return_value=False)
+    selector.register.side_effect = OSError('selector refused')
+    monkeypatch.setattr(regression_process.selectors, 'DefaultSelector', lambda: selector)
+    with pytest.raises(OSError, match='selector refused'):
+        regression_process.Control().run([sys.executable, '-c', 'import time; time.sleep(30)'],
+            cwd=tmp_path, env=os.environ.copy(), output=lambda data: None, timeout=1, kill_after=.1)
+    assert len(children) == 1 and children[0].returncode is not None
+
+
+@pytest.mark.parametrize('fault', ['finish', 'wait'])
+def test_ui_output_finalization_never_signals_an_already_reaped_group(tmp_path, monkeypatch, fault):
+    import regression_process
+    frames = Mock(finish=Mock(side_effect=OSError('finalization refused') if fault == 'finish' else None))
+    monkeypatch.setattr(regression_process, 'PipeFrameReader', lambda output: frames)
+    children = []
+    popen, killpg = subprocess.Popen, os.killpg
+    def record(*args, **kwargs):
+        child = popen(*args, **kwargs)
+        if fault == 'wait':
+            wait = child.wait
+            def failed_wait(*args, **kwargs):
+                wait(*args, **kwargs)
+                raise OSError('finalization refused')
+            child.wait = failed_wait
+        children.append(child)
+        return child
+    def signal_group(pid, sig):
+        assert pid == children[0].pid and children[0].returncode is None
+        killpg(pid, sig)
+    monkeypatch.setattr(subprocess, 'Popen', record)
+    monkeypatch.setattr(os, 'killpg', signal_group)
+    with pytest.raises(OSError, match='finalization refused'):
+        regression_process.Control().run([sys.executable, '-c', 'pass'],
+            cwd=tmp_path, env=os.environ.copy(), timeout=1, kill_after=.1)
+    assert children[0].returncode == 0
+
+
+@pytest.mark.parametrize('cause', ['deadline', 'cancel', 'leader-exits', 'quiet-descendant',
+                                  'pidfd-refused'])
+def test_ui_timeout_reaps_an_unresponsive_worker_and_preserves_foreign_child(
+        tmp_path, monkeypatch, cause):
+    import test_launcher
+    from regression_process import Control
+    ui = tmp_path / 'tests/ui/test_stalled.py'
+    ui.parent.mkdir(parents=True)
+    script = '''import signal,subprocess,sys,time
+def test_stalled():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    child = subprocess.Popen([sys.executable, '-c',
+        "import os,signal,time; signal.signal(signal.SIGINT, signal.SIG_IGN); "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "print('owned child ready ' + str(os.getpid()), flush=True); time.sleep(30)"],
+        stdout=subprocess.PIPE, text=True)
+    print(child.stdout.readline(), end='', flush=True)
+    print('worker ready', flush=True)
+    while True:
+        time.sleep(.01)
+'''
+    if cause in ('leader-exits', 'quiet-descendant'):
+        script = script.replace('while True:\n        time.sleep(.01)', 'import os; os._exit(0)')
+    if cause == 'quiet-descendant':
+        script = script.replace('stdout=subprocess.PIPE, text=True',
+                                'stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True')
+    ui.write_text(script)
+    python = tmp_path / '.venv/onpc-ui-tests/bin/python'
+    python.parent.mkdir(parents=True)
+    python.symlink_to(sys.executable)
+    monkeypatch.setattr(test_launcher, 'UI_KILL_AFTER', .2)
+    command = test_launcher.pytest_command(tmp_path,
+        ['--timeout', '2s' if cause == 'deadline' else '20s', '-s', str(ui.relative_to(tmp_path))], 'ui')
+    sentinel = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+    descriptor = os.pidfd_open(sentinel.pid)
+    spawned = []
+    popen = subprocess.Popen
+    def record(*args, **kwargs):
+        child = popen(*args, **kwargs)
+        spawned.append(child)
+        return child
+    monkeypatch.setattr(subprocess, 'Popen', record)
+    control = Control()
+    observed = bytearray()
+    descendant = None
+    pin = os.pidfd_open
+    def receive(data):
+        nonlocal descendant
+        observed.extend(data)
+        ready = re.search(rb'owned child ready ([0-9]+)\n', observed)
+        if ready and descendant is None:
+            descendant = pin(int(ready[1]))
+        if cause == 'cancel' and descendant is not None:
+            control.stop()
+    try:
+        def run():
+            return control.run(command, cwd=tmp_path, env=os.environ.copy(), output=receive,
+                               timeout=2 if cause == 'deadline' else 20, kill_after=.2)
+        if cause == 'pidfd-refused':
+            def refuse(pid):
+                assert pid == spawned[0].pid
+                # Establish the synthetic descendant's receipt before making
+                # the controller's own pidfd acquisition fail.
+                while descendant is None:
+                    receive(os.read(spawned[0].stdout.fileno(), 65536))
+                raise OSError('receipt unavailable')
+            monkeypatch.setattr(os, 'pidfd_open', refuse)
+            with pytest.raises(OSError, match='receipt unavailable'):
+                run()
+            status = 'refused'
+        else:
+            status = run()
+        assert status == {'deadline': 137, 'cancel': 130, 'leader-exits': 125,
+                          'quiet-descendant': 0, 'pidfd-refused': 'refused'}[cause], observed.decode()
+        assert b'worker ready' in observed
+        assert len(spawned) == 1 and spawned[0].returncode is not None
+        assert sentinel.poll() is None
+        assert descendant is not None
+        poller = select.poll()
+        poller.register(descendant, select.POLLIN)
+        assert poller.poll(2000), 'owned UI descendant survived timeout group cleanup'
+    finally:
+        if descendant is not None:
+            try:
+                signal.pidfd_send_signal(descendant, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            os.close(descendant)
+        try:
+            signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        sentinel.wait(timeout=5)
+        os.close(descriptor)
+
+
+def test_ui_timeout_handoff_enters_repair_and_completes_three_rounds(tmp_path, monkeypatch):
+    import fix_tests
+    import regression
+    import test_launcher
+    import test_retention
+    ui = tmp_path / 'tests/ui/test_timeout.py'
+    ui.parent.mkdir(parents=True)
+    ui.write_text('''import json,signal,time
+def test_timeout():
+    print('ONPC-TEST-EVENT ' + json.dumps({'kind': 'collection', 'total': 1,
+        'nodeids': ['tests/ui/test_timeout.py::test_timeout']}), flush=True)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    while True:
+        time.sleep(.01)
+''')
+    python = tmp_path / '.venv/onpc-ui-tests/bin/python'
+    python.parent.mkdir(parents=True)
+    python.symlink_to(sys.executable)
+    monkeypatch.setattr(test_launcher, 'UI_KILL_AFTER', .2)
+    preserved = Mock()
+    monkeypatch.setattr(test_retention, 'preserve_for_recovery', preserved)
+    attempts, repairs, rounds, reports = [], [], [], []
+    output = io.StringIO()
+
+    def execute(run):
+        reports.append(run.report.directory)
+        item = regression.Category('UI timeout', 1, retry_category='ui')
+        run.categories[:] = [item]
+        run.dashboard.stream = output
+        execution = regression.Execution(run, item, events=True)
+        try:
+            command = test_launcher.pytest_command(tmp_path,
+                ['--timeout', '2s', '-s', 'tests/ui/test_timeout.py'], 'ui')
+            status = run.control.run(command, cwd=tmp_path, env=os.environ.copy(),
+                                     output=execution.output, timeout=2, kill_after=.2)
+            execution.finish(status)
+        finally:
+            execution.close()
+    monkeypatch.setattr(regression.Run, 'run', execute)
+
+    def test(category):
+        assert category == 'ui'
+        attempts.append(category)
+        output.seek(0)
+        output.truncate()
+        with redirect_stdout(output):
+            status = regression.retained_main(tmp_path, host_only=True)
+        if not status:
+            return None
+        (tmp_path / 'last-test.log').write_text(output.getvalue())
+        value = fix_tests.handoff(tmp_path)
+        assert value['categories'] == ['ui']
+        assert 'test infrastructure failed' in (reports[-1] / 'report.md').read_text()
+        return value
+
+    def repair(prompt, **kwargs):
+        repairs.append(prompt)
+        ui.write_text('''import json
+def test_timeout():
+    for event in ({'kind': 'collection', 'total': 1,
+                   'nodeids': ['tests/ui/test_timeout.py::test_timeout']},
+                  {'kind': 'finished', 'nodeid': 'tests/ui/test_timeout.py::test_timeout'}):
+        print('ONPC-TEST-EVENT ' + json.dumps(event), flush=True)
+''')
+        return {'summary': 'repaired synthetic worker'}
+
+    fix_tests.run_loop(['ui'], test, repair, lambda: None, selected=True, rounds=3,
+                       round_changed=rounds.append)
+    assert len(attempts) == 4 and len(repairs) == 1
+    assert rounds == [1, 2, 3]
+    preserved.assert_called_once()
 
 
 def test_native_preview_crash_retains_traceback_after_owned_cleanup(tmp_path, monkeypatch):

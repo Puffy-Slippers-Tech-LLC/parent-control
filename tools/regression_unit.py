@@ -22,6 +22,19 @@ Native fixture cleanup probes compile in tmp_path and change signal masks only
 inside their explicitly spawned synthetic GUI child, never in the test worker.
 The UI cleanup crash probe owns one small Python child and tmp_path log/script;
 the child disables core files and aborts only itself, with no display or bus.
+UI timeout/cancellation probes run small synthetic pytest children in private
+owned process groups, with tmp_path inputs and disabled caches. Each directly
+spawned worker and foreign sentinel is pinned/waited; no GUI, bus or shared
+process group is touched. Both unit and cleanup classifications stay compatible.
+Timeout handoff qualification writes reports through shared storage beneath
+its private checkout and drives finite repair/verification callbacks, no real
+Codex agent. Descendant-exit receipts use private pidfds, never process scans.
+Outside-group pipe probes add only recorded private children and bounded rescue
+threads. Shell guardian probes use synthetic tmp_path runners and isolated
+subreaper subprocesses; pytest itself never becomes a subreaper. Their private
+short runtimes, inherited scratch locks and adopted children finish ownership
+cleanup without a GUI, bus, host service or shared cache. Both cleanup modules
+remain compatible in unit and cleanup scheduling.
 Allowance qualification tests reuse bounded, synchronously reaped Perl children
 with captured pipes and synthetic UI values. Fresh-thirty recorder cases use
 only the existing private tmp_path collector; no additional shared resource.
@@ -172,6 +185,8 @@ write_e2e write_e2e_cleanup_safety
 # Combined watcher output tests use private storage/locks and mocked launches;
 # they never start a runner, desktop service or VM, and need no exclusive resource.
 # Its Make alias check waits for one harmless shell fixture in a private checkout.
+# Checkout discovery adds tiny private Git worktrees and a joined background
+# thread; it has no shared Git state, runtime socket, cache, desktop or VM.
 # Multi-VM transport isolation uses bounded, joined private threads/queues and
 # process-local API doubles; registry tests use tmp_path, with no live VM/socket.
 # Both launchers' blocker decisions use checkout-private question locks/files and bounded threads;

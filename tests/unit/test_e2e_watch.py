@@ -144,6 +144,77 @@ def test_each_vm_discovers_only_its_own_display_and_progress_registrations(tmp_p
         assert feeds[1].registration_path(kind) == paths[1]
 
 
+def test_vm_feed_is_scoped_to_checkout_and_legacy_primary_only(tmp_path):
+    from pathlib import Path
+    import e2e_watch_viewer as viewer
+    primary = Path(viewer.__file__).resolve().parents[1]
+    other = tmp_path / 'other checkout'
+    first, second = Feed('First-VM', root=primary), Feed('First-VM', root=other)
+    assert first.matches_checkout({}) and not second.matches_checkout({})
+    assert first.matches_checkout({'checkout': str(primary)})
+    assert not first.matches_checkout({'checkout': str(other)})
+    assert second.matches_checkout({'checkout': str(other)})
+    assert not second.matches_checkout({'checkout': str(other / '..')})
+    assert Feed('First-VM').matches_checkout({'checkout': str(other)})
+
+
+def test_same_vm_frames_and_progress_follow_only_the_owning_checkout(tmp_path, monkeypatch):
+    import json
+    from pathlib import Path
+    import e2e_watch_viewer as viewer
+    base = tmp_path / 'registry'
+    directory = base / str(os.getuid())
+    directory.mkdir(parents=True)
+    base.chmod(0o755)
+    directory.chmod(0o755)
+    monkeypatch.setattr(viewer, 'BASE', base)
+    original_lstat, original_fstat = Path.lstat, os.fstat
+    def root_owned(info):
+        fields = list(info)
+        fields[4] = 0
+        return os.stat_result(fields)
+    monkeypatch.setattr(Path, 'lstat', lambda path: root_owned(original_lstat(path)))
+    monkeypatch.setattr(os, 'fstat', lambda fd: root_owned(original_fstat(fd)))
+    first = Feed('First-VM', root=tmp_path / 'main')
+    second = Feed('First-VM', root=tmp_path / 'worktree')
+    current, progress_path = (first.registration_path(kind) for kind in ('current', 'progress'))
+    progress = dict(current=1, total=1, case_id='1', title='Owned test', step='Owned step', operation='')
+    def publish(root):
+        current.write_text(json.dumps(dict(vm=first.vm_name, run='a' * 32, checkout=str(root))))
+        progress_path.write_text(json.dumps(dict(vm=first.vm_name, updated_ns=time.monotonic_ns(),
+                                                checkout=str(root), progress=progress)))
+        current.chmod(0o644)
+        progress_path.chmod(0o644)
+    peer = Mock()
+    peer.__enter__ = Mock(return_value=peer)
+    peer.__exit__ = Mock(return_value=False)
+    monkeypatch.setattr(viewer.socket, 'socket', Mock(return_value=peer))
+    source = protocol.Frames('a' * 32)
+    monkeypatch.setattr(viewer, 'receive_frames', lambda _peer: mmap.mmap(source.read_fd, protocol.SIZE,
+                                                                       access=mmap.ACCESS_READ))
+    try:
+        source.publish(b'\0' * 16, state='live', width=2, height=2, stride=8, format=0x20020888)
+        publish(first.root)
+        first.connect()
+        assert first.current_checkout('a' * 32)
+        assert first.poll()[1]['run'] == 'a' * 32
+        assert first.progress() == progress
+        assert second.poll() == 'waiting' and second.progress() is None
+        # Replacing the per-VM registration revokes the earlier checkout's
+        # readable mapping even before its producer's heartbeat expires.
+        publish(second.root)
+        source.publish()
+        assert first.poll() == 'waiting' and first.memory is None
+        assert first.progress() is None
+        second.next_connect = 0
+        assert second.poll()[1]['run'] == 'a' * 32
+        assert second.progress() == progress
+    finally:
+        first.close()
+        second.close()
+        source.close()
+
+
 def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
     from watch_viewer import desktop_launch_command
     monkeypatch.setenv('WAYLAND_DISPLAY', 'wayland-test')

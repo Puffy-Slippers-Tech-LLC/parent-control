@@ -9,6 +9,76 @@ from tests.support.automation_ids import audit_owned_controls
 pytestmark = pytest.mark.ui
 
 
+def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
+        launch_ui, tmp_path, automation, wait_for_accessible_state):
+    ui, wait = automation, wait_for_accessible_state
+    process, log = launch_ui('watch_window_probe', wait_for_application=False,
+        environment_overrides={'ONPC_WATCH_FIXTURE': str(tmp_path), 'ONPC_WATCH_CHECKOUTS': '1'})
+    control = tmp_path / 'control'
+
+    def evidence():
+        try:
+            return json.loads((tmp_path / 'evidence.json').read_text())
+        except (OSError, ValueError):
+            return {}
+
+    wait(lambda: ui.showing('watch-window') and bool(evidence().get('keys')), 'checkout viewer opens')
+    keys = evidence()['keys']
+    for name, key in keys.items():
+        assert ui.text('watch-checkout-tab-' + key) == name
+    assert ui.showing('watch-checkout-tab-all')
+    for count in (1, 2, 3):
+        control.write_text('count-' + str(count))
+        names = ['main', 'worktree', 'third'][:count]
+        expected = {name: [index % 2, index // 2, 1, 1] for index, name in enumerate(names)}
+        wait(lambda: evidence().get('cells') == expected and evidence().get('active') == names,
+             'active checkout cells expand by pairs')
+        assert evidence()['blank'] == (count == 3)
+        for name in names:
+            prefix = 'watch-checkout-' + keys[name] + '-'
+            wait(lambda: name + ' OUTPUT' in ui.content(prefix + 'watch-output', maximum=10000),
+                 'each checkout shows its own runner transcript')
+            assert ui.text('watch-checkout-heading-' + keys[name]) == name
+    audit_owned_controls(ui, 'watch-window')
+    control.write_text('remote')
+    wait(lambda: evidence().get('remote_exited') and evidence().get('remote_received'),
+         'another checkout forwards to the same desktop-session singleton')
+    assert process.poll() is None and evidence()['cells'] == expected
+    ui.activate('watch-checkout-heading-' + keys['third'])
+    wait(lambda: evidence().get('selected') == 'third', 'one click opens the checkout tab')
+    assert ui.showing('watch-checkout-page-' + keys['third'])
+    prefix = 'watch-checkout-' + keys['third'] + '-'
+    assert 'third OUTPUT' in ui.content(prefix + 'watch-output', maximum=10000)
+    ui.activate('watch-checkout-tab-all')
+    wait(lambda: evidence().get('cells') == expected, 'All restores the checkout grid')
+    control.write_text('count-1')
+    wait(lambda: evidence().get('cells') == {'main': [0, 0, 1, 1]}, 'one active checkout fills All')
+    assert not evidence()['blank']
+    control.write_text('count-0')
+    wait(lambda: evidence().get('active') == [] and evidence().get('cells') == {'main': [0, 0, 1, 1]},
+         'last finished checkout remains visible when all are idle')
+    assert 'main OUTPUT' in ui.content('watch-checkout-' + keys['main'] + '-watch-output', maximum=10000)
+    # A different checkout finishing last replaces the idle fallback.
+    control.write_text('count-3')
+    wait(lambda: len(evidence().get('active', [])) == 3, 'finished checkouts reconnect')
+    control.write_text('count-1')
+    wait(lambda: evidence().get('active') == ['main'], 'other checkout activity ends')
+    control.write_text('count-3')
+    wait(lambda: len(evidence().get('active', [])) == 3, 'third checkout restarts')
+    control.write_text('finish-main')
+    wait(lambda: 'main' not in evidence().get('active', ['main']), 'main becomes inactive')
+    control.write_text('count-0')
+    wait(lambda: evidence().get('active') == [] and len(evidence().get('cells', {})) == 1,
+         'last finishing checkout fills the idle grid')
+    assert 'main' not in evidence()['cells']
+    ui.activate('watch-checkout-tab-' + keys['worktree'])
+    wait(lambda: ui.showing('watch-checkout-page-' + keys['worktree']), 'finished tab remains selectable')
+    assert 'worktree OUTPUT' in ui.content('watch-checkout-' + keys['worktree'] + '-watch-output', maximum=10000)
+    ui.activate('watch-close')
+    wait(lambda: process.poll() is not None, 'viewer closes without controlling tests')
+    assert process.returncode == 0, log.read_text()
+
+
 @pytest.mark.parametrize('vm_name', ['onpc-Ubuntu26.04', 'onpc-Fedora-Workstation-44'])
 def test_combined_tabs_output_dividers_and_hidden_viewers(
         launch_ui, tmp_path, automation, wait_for_accessible_state, vm_name):

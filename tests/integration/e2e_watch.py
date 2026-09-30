@@ -17,6 +17,8 @@ import xml.etree.ElementTree as ET
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import BASE, require
 
+ROOT = Path(__file__).resolve().parents[2]
+
 
 def configuration_digest(xml):
     """Bind live configuration without mistaking runtime reports for edits.
@@ -129,6 +131,7 @@ class ProgressPublication:
             temporary = self.path.with_name(uuid.uuid4().hex + '.progress')
             try:
                 value = dict(updated_ns=time.monotonic_ns(), vm=self.vm_name,
+                             checkout=str(ROOT),
                              progress=json.loads(progress_packet(self.progress.snapshot(display=True))))
                 fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
                 with os.fdopen(fd, 'w') as stream:
@@ -203,7 +206,7 @@ class Publication:
         temporary = self.directory / (self.run + '.json')
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
         with os.fdopen(fd, 'w') as stream:
-            json.dump({'run': self.run, 'vm': self.vm_name}, stream)
+            json.dump({'run': self.run, 'vm': self.vm_name, 'checkout': str(ROOT)}, stream)
             os.fchmod(stream.fileno(), 0o644)
         temporary.replace(self.current)
 
@@ -215,7 +218,8 @@ class Publication:
         except FileNotFoundError:
             pass
         try:
-            if json.loads(self.current.read_text()) == {'run': self.run, 'vm': self.vm_name}:
+            if json.loads(self.current.read_text()) == {'run': self.run, 'vm': self.vm_name,
+                                                       'checkout': str(ROOT)}:
                 self.current.unlink()
         except FileNotFoundError:
             pass

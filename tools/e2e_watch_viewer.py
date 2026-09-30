@@ -140,9 +140,10 @@ class AsyncFeed:
 class Feed:
     """Reconnect to subsequent attempts without any dependency on window life."""
 
-    def __init__(self, vm_name=None):
+    def __init__(self, vm_name=None, *, root=None):
         from vm_selection import selected
         self.vm_name = selected().name if vm_name is None else vm_name
+        self.root = root
         self.memory = None
         self.sequence = 0
         self.next_connect = 0
@@ -217,9 +218,9 @@ class Feed:
                 info = entry.lstat()
                 require(info.st_uid == 0 and not info.st_mode & 0o022
                         and not stat.S_ISLNK(info.st_mode), 'registry-owner')
-            require(stat.S_ISREG(info.st_mode) and info.st_size < 128, 'activity-registry-size')
+            require(stat.S_ISREG(info.st_mode) and info.st_size <= 8192, 'activity-registry-size')
             registration = json.loads(path.read_text())
-            if registration.get('vm') != self.vm_name:
+            if registration.get('vm') != self.vm_name or not self.matches_checkout(registration):
                 return None
             run = registration['run']
             require(type(run) is str and re.fullmatch('[0-9a-f]{32}', run), 'run-identity')
@@ -259,9 +260,10 @@ class Feed:
             info = path.lstat()
             require(info.st_uid == 0 and not info.st_mode & 0o022
                     and not stat.S_ISLNK(info.st_mode), 'registry-owner')
-        require(stat.S_ISREG(info.st_mode) and info.st_size <= 256, 'registry-size')
+        require(stat.S_ISREG(info.st_mode) and info.st_size <= 8192, 'registry-size')
         registration = json.loads(current.read_text())
         require(registration.get('vm') == self.vm_name, 'registry-vm')
+        require(self.matches_checkout(registration), 'registry-checkout')
         run = registration['run']
         require(isinstance(run, str) and re.fullmatch('[0-9a-f]{32}', run), 'run-identity')
         with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
@@ -270,6 +272,27 @@ class Feed:
             self.memory = receive_frames(peer)
         self.sequence = 0
         self.last_frame = time.monotonic()
+
+    def matches_checkout(self, registration):
+        # Unscoped feeds remain available to standalone transport probes.
+        # Old controllers without checkout metadata finish in the primary root.
+        return (self.root is None or registration.get('checkout', str(Path(__file__).resolve().parents[1]))
+                == str(self.root))
+
+    def current_checkout(self, run):
+        path = self.registration_path('current')
+        for parent in (BASE, path.parent):
+            info = parent.lstat()
+            require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+                    and not info.st_mode & 0o022 and parent.resolve() == parent, 'registry-owner')
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
+                    and not info.st_mode & 0o022 and info.st_size <= 8192, 'registry-owner')
+            registration = json.loads(stream.read(8193))
+        return (registration.get('vm') == self.vm_name and self.matches_checkout(registration)
+                and registration.get('run') == run)
 
     def registration_path(self, kind):
         directory = BASE / str(os.getuid())
@@ -294,9 +317,9 @@ class Feed:
             with os.fdopen(fd, 'rb') as stream:
                 info = os.fstat(stream.fileno())
                 require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
-                        and not info.st_mode & 0o022 and info.st_size <= 4096, 'progress-owner')
-                value = json.loads(stream.read(4097))
-            if value.get('vm') != self.vm_name:
+                        and not info.st_mode & 0o022 and info.st_size <= 8192, 'progress-owner')
+                value = json.loads(stream.read(8193))
+            if value.get('vm') != self.vm_name or not self.matches_checkout(value):
                 return None
             age = time.monotonic_ns() - value['updated_ns']
             require(0 <= age < 3_000_000_000, 'progress-expired')
@@ -322,6 +345,10 @@ class Feed:
                 return None
             self._pixels = pixels
             sequence, meta, *_ = frame
+            if self.root is not None:
+                # A live controller can replace the global per-VM registration
+                # while an earlier mapping is still readable.
+                require(self.current_checkout(meta['run']), 'registry-checkout')
             if meta['state'] == 'stopped' or time.monotonic_ns() - meta['updated_ns'] > 3_000_000_000:
                 self.close()
                 return 'waiting'

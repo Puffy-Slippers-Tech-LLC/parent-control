@@ -1,12 +1,14 @@
 """Embeddable, read-only host UI worker viewer for tools/watch."""
 
-from common.oh_no_parent_control_ui.gtk_automation import set_automation_id
+from common.oh_no_parent_control_ui.gtk_automation import set_automation_id as identify
 from ui_watch_transport import Feeds, label
 
 WAITING = 'Waiting for UI tests. You can leave this window open.'
 
 
-def panel(feeds=None):
+def panel(feeds=None, *, prefix=''):
+    def set_automation_id(widget, name):
+        identify(widget, prefix + name)
     import gi
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')

@@ -58,7 +58,7 @@ class Observer:
                 raise ValueError('Refusing an unowned capture service')
             self.services.append(subprocess.Popen(
                 ['pipewire'], env=environment, stdin=subprocess.DEVNULL,
-                stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True))
+                stdout=self.log, stderr=subprocess.STDOUT))
             deadline = time.monotonic() + 3
             while not (runtime / 'pipewire-0').is_socket():
                 if self.services[0].poll() is not None or time.monotonic() >= deadline:
@@ -66,12 +66,11 @@ class Observer:
                 time.sleep(.02)
             self.services.append(subprocess.Popen(
                 ['wireplumber', '--profile=policy'], env=environment, stdin=subprocess.DEVNULL,
-                stdout=self.log, stderr=subprocess.STDOUT, start_new_session=True))
+                stdout=self.log, stderr=subprocess.STDOUT))
             self.child = subprocess.Popen(
                 [sys.executable, '-B', str(root / 'tools/ui_watch_capture.py'),
                  str(remote.fileno())], env=environment, pass_fds=(remote.fileno(),),
                 stdin=subprocess.DEVNULL, stdout=self.log, stderr=subprocess.STDOUT,
-                start_new_session=True,
             )
         except BaseException:
             self.close()

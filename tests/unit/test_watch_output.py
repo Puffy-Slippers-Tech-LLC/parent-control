@@ -36,6 +36,71 @@ def test_idle_observer_does_not_create_storage(tmp_path):
     assert not list(tmp_path.iterdir())
 
 
+def test_checkout_discovery_reads_branches_spaces_and_detached_worktrees(tmp_path):
+    from watch_checkouts import worktrees, checkout, identity
+    root = tmp_path / 'main checkout'
+    other = tmp_path / 'worktree checkout'
+    for path in (root, other):
+        (path / 'tools').mkdir(parents=True)
+        (path / 'tools/watch').touch()
+    environment = {**os.environ, 'GIT_CONFIG_GLOBAL': '/dev/null',
+                   'GIT_CONFIG_SYSTEM': '/dev/null'}
+    def git(*arguments):
+        return subprocess.run(['git', '-C', str(root), *arguments], env=environment,
+                              check=True, capture_output=True, timeout=5)
+    git('init', '-b', 'main')
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+        'commit', '--allow-empty', '-m', 'Fixture')
+    # The other fixture marker exists outside Git's tracked payload.
+    other.rename(tmp_path / 'markers')
+    git('worktree', 'add', '-b', 'worktree', str(other))
+    (other / 'tools').mkdir()
+    (other / 'tools/watch').touch()
+    assert worktrees(root) == {root: 'main', other: 'worktree'}
+    git('-C', str(other), 'checkout', '--detach')
+    discovered = worktrees(other)
+    assert discovered[root] == 'main' and discovered[other].startswith('detached ')
+    link = tmp_path / 'alias'
+    link.symlink_to(root, target_is_directory=True)
+    with pytest.raises(ValueError, match='invalid checkout'):
+        checkout(link)
+    assert identity(root) != identity(other)
+
+
+def test_checkout_discovery_is_bounded_off_the_renderer_and_stops(tmp_path, monkeypatch):
+    import threading
+    import time
+    import watch_checkouts as watcher
+    root = tmp_path / 'checkout'
+    (root / 'tools').mkdir(parents=True)
+    (root / 'tools/watch').touch()
+    (root / '.git').mkdir()
+    entered, release = threading.Event(), threading.Event()
+    def inspect(path):
+        assert path == root
+        entered.set()
+        assert release.wait(2)
+        return {root: 'main'}
+    monkeypatch.setattr(watcher, 'worktrees', inspect)
+    discovery = watcher.Discovery(root)
+    try:
+        assert entered.wait(2)
+        assert discovery.poll() is None
+        release.set()
+        deadline = time.monotonic() + 2
+        result = None
+        while result is None and time.monotonic() < deadline:
+            result = discovery.poll()
+            time.sleep(.005)
+        assert result == {root: 'main'}
+        assert discovery.updates.maxsize == 1
+    finally:
+        release.set()
+        discovery.close()
+        discovery.thread.join(3)
+    assert not discovery.thread.is_alive()
+
+
 @pytest.mark.parametrize('kind', ['sessions', 'sessions-host'])
 def test_follows_live_output_then_drains_and_retains_completion(tmp_path, kind):
     observer = Output(tmp_path)

@@ -99,8 +99,9 @@ class Publication:
 class Feeds:
     """Discover concurrent workers; stale/crashed publications never show pixels."""
 
-    def __init__(self, directory=None):
+    def __init__(self, directory=None, *, root=ROOT):
         self.directory = directory
+        self.root = root
         self.connections = {}
         self.pending = {}
         self.next_scan = 0
@@ -110,7 +111,7 @@ class Feeds:
         if now >= self.next_scan:
             self.next_scan = now + .5
             try:
-                directory = private_directory(self.directory) if self.directory else registry()
+                directory = private_directory(self.directory) if self.directory else registry(self.root)
                 # Only our fixed random socket names, never metadata-supplied paths.
                 paths = sorted(directory.iterdir())
                 for path in paths:

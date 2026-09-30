@@ -385,7 +385,9 @@ def test_ui_globs_environment_timeout_and_exclusions(checkout):
     python.symlink_to('/usr/bin/python3')
     command = host.pytest_command(checkout, ['--timeout', '360s', 'tests/ui/test_*.py',
                                            '--ignore=tests/ui/test_future.py', '-q'], 'ui')
-    assert command[:4] == ['/usr/bin/timeout', '--foreground', '360s', str(python)]
+    assert command[:4] == [str(python), '-B', '-m', 'pytest']
+    assert host.ui_timeout(['--timeout', '360s']) == 360
+    assert '/usr/bin/timeout' not in command
     assert '-m=not live_e2e' in command
     assert '--ignore=tests/ui/test_future.py' in command
     assert command[-2:] == ['--', 'tests/ui/test_future.py']
@@ -457,6 +459,10 @@ def test_collect_only_never_starts_cleanup(checkout, monkeypatch, category):
     execute = Mock(return_value=subprocess.CompletedProcess([], 0))
     monkeypatch.setattr(host, 'prerequisites', prerequisite)
     monkeypatch.setattr(host.subprocess, 'run', execute)
+    if category == 'ui':
+        import regression_process
+        monkeypatch.setattr(regression_process.Control, 'run',
+                            lambda *args, **kwargs: execute().returncode)
     monkeypatch.chdir(checkout)
     host.run_host(checkout, category, ['--collect-only'])
     prerequisite.assert_not_called()

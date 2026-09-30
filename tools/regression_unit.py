@@ -85,6 +85,10 @@ compatible baseline, setup and launcher classifications remain appropriate.
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
 # bounded in-memory archives and mocked SSH. Feedback composition retains private
 # waited Perl children and memory doubles. Both existing compatible buckets apply.
+# GNOME warning/privacy and Fedora system-info checks use process-local command
+# doubles, existing private tmp_path logs and bounded in-memory archives. They
+# launch no RPM/GNOME process and access no host package DB, bus or display;
+# extension_manager, diagnostic_privacy and system_info remain compatible.
 
 from pathlib import PurePosixPath
 

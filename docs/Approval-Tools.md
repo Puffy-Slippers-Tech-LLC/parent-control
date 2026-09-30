@@ -28,7 +28,7 @@ test defects may be fixed automatically while preserving the intended checks.
 | Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
 | Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-baseline` and `tools/test-vm` within their existing grants and authorized scope |
-| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot --vm NAME [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
+| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot --vm NAME --y [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
 Invoke approved commands directly. Correct quoting and command shape before
@@ -147,6 +147,11 @@ The standalone app-snapshot route requires the current installed test dispatcher
 refresh it with `./setup.sh --test-tools-only` when adding these tools. It shares
 the existing test-runner Polkit action, owned recovery and fixed VM UUID, without
 adding general snapshot or libvirt permissions.
+Automation and agent sessions always include both `--vm NAME` and `--y`.
+Manual work omits `--y` to confirm before preparation; when `--vm` is also
+omitted, the shared baseline VM picker runs first. `--y` without `--vm` fails
+before selection or preparation. The flag preserves all authorization, lease,
+ownership and validation checks.
 Online mode is the default and reuses fresh matching snapshots without building;
 it leaves the restored running guest in the existing VM-maintenance ownership
 journal. Its restore-only dispatch uses maintenance scratch rather than an

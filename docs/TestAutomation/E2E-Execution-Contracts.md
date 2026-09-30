@@ -158,7 +158,7 @@ Publish nonsecret operation/progress labels and open `tools/watch` as the
 desktop user for VM work.
 
 Each attempt starts with fresh declared state and its own session/window ledger.
-For post-installation work, run `./tools/prepare-appsnapshot --vm NAME --overwrite false`
+For post-installation work, run `./tools/prepare-appsnapshot --vm NAME --y --overwrite false`
 under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenarios).
 Use `--overwrite true` when application code changed; documentation-only and
 test-only changes continue to use `false`.

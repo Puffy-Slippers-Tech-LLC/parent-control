@@ -455,7 +455,11 @@ tools/run-tests e2e --vm NAME --id '4'
 tools/run-tests e2e --vm NAME --id '5'
 ```
 
-Standalone `tools/prepare-appsnapshot --vm NAME --mode online|offline` defaults to online.
+Standalone `tools/prepare-appsnapshot --vm NAME --y --mode online|offline` defaults to online.
+Automation and agent sessions always include `--vm NAME` and `--y`. Manual
+work omits `--y` to retain confirmation before preparation; without `--vm`,
+the shared baseline VM picker runs first. `--y` without `--vm` fails before
+any work. All VM, lease, ownership and validation checks still apply.
 Online preparation installs the app, reboots, verifies the new boot and captures
 disk plus memory. A fresh matching online snapshot is restored without building
 or booting, leaving a running isolated guest under the shared VM-maintenance

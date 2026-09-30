@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+import vm_selection
 
 from tests.support.paths import ROOT
 
@@ -131,8 +132,9 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, 
 
 
 def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypatch, capsys):
-    names = list(authorized['registry']())
-    ids = [vm.id for vm in authorized['registry']().values()]
+    assert authorized['choose_vm'] is vm_selection.choose_vm
+    names = list(vm_selection.registry())
+    ids = [vm.id for vm in vm_selection.registry().values()]
     def answer(prompt):
         output = capsys.readouterr().out
         for identifier, name in zip(ids, names):
@@ -140,7 +142,7 @@ def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypa
         assert output.index(names[0]) < output.index(names[1])
         authorized['check'].assert_not_called()
         return ids[1]
-    monkeypatch.setitem(authorized, 'input', answer)
+    monkeypatch.setattr(vm_selection, 'input', answer, raising=False)
     def dispatch(command, **kwargs):
         assert command[-2:] == ['--vm', names[1]]
         print('baseline warnings')
@@ -152,10 +154,10 @@ def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypa
 
 
 def test_vm_prompt_retries_invalid_numbers(launcher, monkeypatch, capsys):
-    monkeypatch.setitem(launcher, 'registry', lambda: {
+    monkeypatch.setattr(vm_selection, 'registry', lambda: {
         'first-vm': SimpleNamespace(id='83'), 'second-vm': SimpleNamespace(id='17')})
     answers = iter(['', 'unknown-vm', '0', '3', '-1', '1.5', ' 17 '])
-    monkeypatch.setitem(launcher, 'input', lambda prompt: next(answers))
+    monkeypatch.setattr(vm_selection, 'input', lambda prompt: next(answers), raising=False)
     assert launcher['choose_vm']() == 'second-vm'
     output = capsys.readouterr().out
     assert output.count('Please enter a configured VM ID or name') == 6
@@ -164,7 +166,7 @@ def test_vm_prompt_retries_invalid_numbers(launcher, monkeypatch, capsys):
 
 @pytest.mark.parametrize('exception', [EOFError, KeyboardInterrupt])
 def test_cancelled_vm_selection_never_dispatches(authorized, monkeypatch, capsys, exception):
-    monkeypatch.setitem(authorized, 'input', Mock(side_effect=exception))
+    monkeypatch.setattr(vm_selection, 'input', Mock(side_effect=exception), raising=False)
     run = Mock()
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', 'auto']) == 2
@@ -174,7 +176,7 @@ def test_cancelled_vm_selection_never_dispatches(authorized, monkeypatch, capsys
 
 
 def test_explicit_vm_never_prompts(authorized, monkeypatch):
-    monkeypatch.setitem(authorized, 'input', Mock(side_effect=AssertionError('unexpected prompt')))
+    monkeypatch.setitem(authorized, 'choose_vm', Mock(side_effect=AssertionError('unexpected prompt')))
     monkeypatch.setattr(authorized['subprocess'], 'run', Mock(return_value=SimpleNamespace(returncode=3)))
     assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0
 
@@ -221,10 +223,10 @@ def test_tty_chooser_uses_interactive_selection(launcher, monkeypatch):
     monkeypatch.setattr(launcher['sys'].stdout, 'isatty', lambda: True)
     monkeypatch.setenv('TERM', 'xterm-256color')
     chooser = Mock(return_value=1)
-    monkeypatch.setitem(launcher, 'interactive_choice', chooser)
-    names = list(launcher['registry']())
+    monkeypatch.setattr(vm_selection, 'interactive_choice', chooser)
+    names = list(vm_selection.registry())
     assert launcher['choose_vm']() == names[1]
-    chooser.assert_called_once_with(names, [vm.id for vm in launcher['registry']().values()])
+    chooser.assert_called_once_with(names, [vm.id for vm in vm_selection.registry().values()])
 
 
 def test_terminal_chooser_uses_configured_ids_instead_of_row_numbers(monkeypatch):

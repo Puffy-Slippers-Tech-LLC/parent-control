@@ -11,8 +11,13 @@
   participate, and its positive integer `concurrency` caps simultaneous guests.
   They drain that finite queue, including after an individual VM fails. Tests
   within each VM remain ordered. `--vm NAME` narrows tests to one enabled entry.
-  VM maintenance and preparation still require an explicit `--vm NAME` whose
-  exact, case-sensitive name or ID appears in the registry. All `--vm` and Make
+  VM maintenance and automated preparation require an explicit `--vm NAME` whose
+  exact, case-sensitive name or ID appears in the registry. Manual baseline and
+  app-snapshot preparation may omit it to use their shared VM picker.
+  Automation and agent sessions always invoke app-snapshot preparation with
+  `tools/prepare-appsnapshot --vm NAME --y`; manual work omits `--y` to retain
+  confirmation. `--y` without `--vm` is refused by app-snapshot preparation.
+  All `--vm` and Make
   `VM=` selectors resolve names and IDs from the current JSON on invocation.
   IDs are unique positive decimal strings or integers; renumbering them requires
   no tools refresh or baseline replacement. Controllers retain canonical names

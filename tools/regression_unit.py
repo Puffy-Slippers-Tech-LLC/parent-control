@@ -85,6 +85,9 @@ Baseline --y regressions use process-local input, privilege and VM doubles;
 launcher prompt checks read strings and private report files. No real VM,
 privileged helper, terminal, socket or shared storage is accessed, so existing
 compatible baseline, setup and launcher classifications remain appropriate.
+Shared preparation-picker and app-snapshot confirmation checks likewise use
+process-local input/TTY doubles and the existing private launcher fixtures;
+baseline, app-snapshot, VM-config and session modules remain compatible.
 """
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,

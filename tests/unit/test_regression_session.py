@@ -247,7 +247,7 @@ def test_snapshot_probe_can_overlap_only_host_session(tmp_path, workers, monkeyp
     control.stopped.is_set.return_value = False
     control.run.return_value = 0
     monkeypatch.setattr(prepare_appsnapshot, 'Control', lambda: control)
-    assert prepare_appsnapshot.main(['--overwrite', 'false', '--vm', vm_name()]) == expected
+    assert prepare_appsnapshot.main(['--overwrite', 'false', '--vm', vm_name(), '--y']) == expected
     cleanup.assert_not_called()
     assert control.run.call_count == int(expected == 0)
     assert check.call_count == int(expected == 0)

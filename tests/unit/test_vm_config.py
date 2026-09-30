@@ -664,10 +664,13 @@ def test_both_agent_launchers_bind_the_enabled_queue_and_request_shared_tests(mo
     assert command[1:] == ['--stop-on-error', 'system']
     prompt = fix_tests.repair_prompt('Failure evidence')
     assert 'guest-2' in prompt and 'at most 2 simultaneously' in prompt
+    assert 'tools/prepare-appsnapshot --vm NAME --y' in prompt
     monkeypatch.setattr(write_e2e.launcher, 'select', Mock(return_value=(None, False)))
     assert write_e2e.select(ROOT, ['--tasks', '1']) == (None, False)
     arguments = write_e2e.launcher.select.call_args
     assert arguments.kwargs['on_start']
+    assert 'tools/prepare-appsnapshot --vm NAME --y' in write_e2e.session_prompt(
+        {'task_id': 'TEST', 'phase': 'implement'})
     atomic(tmp_path / 'vm.json', {'vm': binding})
     # Reattachment checks the entire selection, not only the first guest.
     vm_selection.check_binding(tmp_path, binding)

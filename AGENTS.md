@@ -45,6 +45,10 @@
   `tools/prepare-baseline --vm NAME --mode auto|manual --y` to suppress y/n
   confirmation. Manual work omits `--y`. The flag preserves every safety check
   and does not grant authorization; follow the [VM mandate](docs/Mandates/VM-Mandate.MD).
+- App-snapshot preparation in any automation or agent session always includes
+  `tools/prepare-appsnapshot --vm NAME --y`. Manual work omits `--y` to retain
+  confirmation; omitting `--vm` also opens the shared baseline VM picker.
+  `--y` without `--vm` is refused before any work.
 - Preserve all pre-existing work. Do not reset, discard, unstage or overwrite
   unrelated changes.
 

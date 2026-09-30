@@ -183,6 +183,12 @@ sub run {
         onpc_license_viewer_provider::run(\&exchange, 'privacy');
         return;
     }
+    if ($ready->{parent_support}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_license_viewer_provider::run(\&exchange, 'support');
+        return;
+    }
     if ($ready->{command_help}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

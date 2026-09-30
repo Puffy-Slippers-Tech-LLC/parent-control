@@ -47,3 +47,15 @@ PRIVACY_PLAN = replace(
 class ParentPrivacyJourney(InstalledJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, PRIVACY_PLAN)
+
+
+SUPPORT_PLAN = replace(
+    PLAN, prefix='parent-support', worker_mode='parent_support',
+    screen_tags={**PLAN.screen_tags, 'license': 'ui:support-clickable',
+                 'license-provider-refusals': 'ui:support-clickable'},
+)
+
+
+class ParentSupportJourney(InstalledJourney):
+    def __init__(self, context, progress):
+        super().__init__(context, progress, SUPPORT_PLAN)

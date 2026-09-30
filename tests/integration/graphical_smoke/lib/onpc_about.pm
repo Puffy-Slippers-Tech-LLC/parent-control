@@ -26,7 +26,7 @@ sub check_link {
     my ($journey, $about, $link, $stage) = @_;
     $stage //= 'about';
     die 'about:link-binding' unless (@_ == 3 || @_ == 4)
-        && ($link eq 'website' || $link eq 'license' || $link eq 'privacy')
+        && ($link eq 'website' || $link eq 'license' || $link eq 'privacy' || $link eq 'support')
         && ($stage eq 'about' || $stage eq 'about-rechecked');
     $journey->consume_observation($stage, $about);
     return $journey->seen('license');

@@ -13,7 +13,7 @@ sub run {
     $link //= 'license';
     die 'license-provider:binding' unless (@_ == 1 || @_ == 2)
         && ref($exchange) eq 'CODE'
-        && ($link eq 'license' || $link eq 'website' || $link eq 'privacy');
+        && ($link eq 'license' || $link eq 'website' || $link eq 'privacy' || $link eq 'support');
     my $prefix = $link eq 'license' ? 'license-provider' : 'parent-' . $link;
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => $prefix, review => 0);

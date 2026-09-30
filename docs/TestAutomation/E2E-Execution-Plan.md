@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **185s — [Check the Parent support link](E2E-Tasks/185s-support-destination.md)**.
+Next task: **185p — [Check Parent Help/About information links](E2E-Tasks/185p-read-parent-information-links.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

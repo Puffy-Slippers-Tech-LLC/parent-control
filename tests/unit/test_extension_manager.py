@@ -122,6 +122,45 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["env"]["LC_MESSAGES"], "C")
 
     @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_successful_exit_preserves_offline_bus_root_cause_and_commit_failure(self, run):
+        secret = "/home/private-child/private-file private@example.test"
+        run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr=(
+            "avc: could not open netlink socket: 97 (Address family not supported by protocol)\n"
+            "dbus-daemon[987654]: Failed to start message bus: Cannot acquire AVC netlink fd: "
+            "Address family not supported by protocol\n"
+            "dbus-run-session: dbus-daemon exited with code 1\n"
+            "dconf-WARNING: failed to commit changes to dconf: Could not connect: "
+            "No such file or directory " + secret))
+        with self.assertLogs("onpc", "INFO") as logs:
+            result = self.manager._run_as(
+                self.account, "gsettings", "set", "org.gnome.shell", ENABLED_KEY, repr([secret]))
+        self.assertEqual(result.returncode, 0)
+        payloads = [decode(record.onpc_payload) for record in logs.records]
+        failure = next(item for item in payloads if item["event"] == "extension-manager.session-bus-failure")
+        self.assertEqual(failure["fields"], {
+            "tool": "gsettings", "operation": "set", "key": ENABLED_KEY,
+            "transport": "offline", "reason": "selinux-netlink-family-unavailable"})
+        warning = next(item for item in payloads if item["event"] == "extension-manager.command-warning")
+        self.assertEqual(warning["fields"]["reason"], "dconf-commit-failed")
+        self.assertEqual(next(record.levelname for record in logs.records
+                              if decode(record.onpc_payload)["event"] == failure["event"]), "ERROR")
+        self.assertNotIn(secret, "\n".join(logs.output))
+        self.assertNotIn("987654", "\n".join(logs.output))
+        self.assertNotIn("diagnostic.rejected", [item["event"] for item in payloads])
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_failed_exit_preserves_bus_failure_without_inventing_netlink_cause(self, run):
+        run.side_effect = subprocess.CalledProcessError(
+            1, [], stderr="dbus-run-session: dbus-daemon exited with code 1 private@example.test")
+        with self.assertLogs("onpc", "INFO") as logs:
+            with self.assertRaisesRegex(RuntimeError, "interface is unavailable"):
+                self.manager._run_as(self.account, "gsettings", "get", "org.gnome.shell", ENABLED_KEY)
+        payloads = [decode(record.onpc_payload) for record in logs.records]
+        failure = next(item for item in payloads if item["event"] == "extension-manager.session-bus-failure")
+        self.assertEqual(failure["fields"]["reason"], "startup-failed")
+        self.assertNotIn("private@example.test", "\n".join(logs.output))
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
     def test_failed_exit_retains_warning_category(self, run):
         run.side_effect = subprocess.CalledProcessError(
             1, [], stderr="No such schema private@example.test")

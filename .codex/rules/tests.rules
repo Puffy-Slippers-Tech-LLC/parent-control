@@ -51,6 +51,9 @@ prefix_rule(
 # Prefix rules have no filename glob; new executables need a rules refresh.
 # This trusts the tools and their future edits. It does not validate arguments
 # or grant unrelated task scope, general interpreters, shells or root wrappers.
+# VM exec arguments after -- run only inside the configured, pinned guest.
+# Guest shells/interpreters are covered by this same direct launcher allowance;
+# they are not host commands and need no additional interpreter or shell grant.
 prefix_rule(
     pattern = [[
         "tools/cleanup-e2e",
@@ -108,6 +111,9 @@ prefix_rule(
         "tools/run-ui-tests --timeout 360s 'tests/ui/test_*.py' -q",
         "tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500",
         "tools/test-vm send-key 28",
+        "tools/test-vm --vm 2 exec -- python3 -c 'print(1)'",
+        "./tools/test-vm --vm onpc-Fedora-Workstation-44 exec -- sh -c 'printf probe'",
+        "tools/test-vm --vm 1 exec --timeout 30 -- journalctl --no-pager -n 100",
         "tools/read-only search --fixed-strings test_runner tests tools",
         "tools/read-only links docs/TestAutomation/E2E-Building-Blocks.md tests/e2e/README.md",
         "tools/read-only words --after '## Ordered building-block catalogue' docs/TestAutomation/E2E-Building-Blocks.md",

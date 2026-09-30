@@ -144,6 +144,15 @@ class ExtensionManager:
 
     @staticmethod
     def _log_stderr(value, operation, transport, context):
+        # dbus-run-session can return the child's successful status even when
+        # its daemon failed. Preserve that independent cause alongside dconf's
+        # commit warning. Match fixed C-locale markers, never export raw stderr.
+        if isinstance(value, str) and "dbus-run-session: dbus-daemon exited with code" in value:
+            reason = "startup-failed"
+            if "Cannot acquire AVC netlink fd: Address family not supported by protocol" in value:
+                reason = "selinux-netlink-family-unavailable"
+            LOG.error("extension-manager.session-bus-failure", operation=operation,
+                      transport=transport, reason=reason, tool=context["tool"], key=context["key"])
         reason = _stderr_reason(value)
         if reason is not None:
             LOG.warning("extension-manager.command-warning", operation=operation,

@@ -81,6 +81,21 @@ category and source line before conversion to the public broker error. This
 preserves the original failure location as well as any separate rollback
 failure, without recording exception text or traceback details.
 
+Offline `dbus-run-session` daemon failures also emit
+`extension-manager.session-bus-failure`, independently of the dconf warning and
+subprocess exit status. The closed `selinux-netlink-family-unavailable` reason
+identifies SELinux AVC monitoring's unsupported netlink address family and
+directs investigation to the command's address-family sandbox; other recognized
+daemon exits use `startup-failed`. A successful settings-command exit does not
+establish that its bus started or its write committed. The existing commit
+warning, setting verification and rollback records remain separate evidence.
+Only fixed C-locale stderr markers and reviewed command/key/transport categories
+enter the event; daemon PIDs, raw stderr and account information are excluded.
+This diagnosis is generic across distributions with SELinux-enabled D-Bus;
+it does not change the broker sandbox, commands, verification or rollback.
+Ship the additive catalogue with all validators; the broker loads this logging
+on process restart, and new frontend processes load the updated catalogue.
+
 Allowed sources include operation outcomes, duration calculation operands,
 counts, packaged app version, elapsed operation timings, and fixed dependency
 states. Random request references correlate a single approval across components;

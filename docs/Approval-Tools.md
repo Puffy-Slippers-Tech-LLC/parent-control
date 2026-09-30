@@ -546,7 +546,12 @@ transcript. Setup refresh installs this route and any missing OpenSSH client via
 `./setup.sh --test-tools-only`, without new Polkit actions or general SSH grants.
 The direct `tools/test-vm` and `./tools/test-vm` prefixes already approve every
 guest command after `exec --`, including guest shells and interpreters, for
-current configured IDs and names. Do not add selector-specific or host-shell
+current configured IDs and names. Probing any entry in `config/test-vm.json`
+has standing user authorization, including entries disabled for test scheduling;
+do not request command approval or developer confirmation. The installed
+test-runner Polkit rule grants the active local administrator automatically,
+and unavailable authorization fails noninteractively without a dialog.
+Do not add selector-specific or host-shell
 grants. Keep the host invocation a simple literal command: complex embedded
 quoting can prevent Codex's shell parser from extracting the launcher prefix.
 For large guest scripts or text payloads, pass a shell-quoted literal encoded

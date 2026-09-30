@@ -33,6 +33,13 @@
   the existing private SSH identity, guarded transport, exclusive lease and
   observation; it must never restore the guest to inspect it or adopt another
   controller's running instance.
+  Probing every registered VM has standing authorization, including entries
+  disabled for test scheduling. Direct `tools/test-vm` guest commands, including
+  guest shells and interpreters, require no additional command approval or
+  developer confirmation. The installed helper's Polkit grant is automatic for
+  the active local administrator; unavailable authorization fails without an
+  authentication dialog. Reuse that grant and retain all identity, ownership,
+  lease and observation checks.
   Each VM has an exclusive preparation/execution lease and separate evidence
   journals. New controllers also hold a shared legacy root lease,
   excluding older controllers that still require it exclusively. Existing

@@ -41,6 +41,13 @@
 - Executable project `tools/` launchers are preapproved only within the requested
   task. Invoke them directly. Use their scoped out-of-sandbox routes when sockets,
   Polkit or real ownership metadata require them.
+- Probing any VM registered in `config/test-vm.json` has standing authorization,
+  including entries disabled for test scheduling. Use direct
+  `tools/test-vm --vm NAME_OR_ID exec -- COMMAND [ARG ...]` for guest commands;
+  guest shells and interpreters share the existing launcher grant. Do not ask
+  for command approval, developer confirmation or Polkit authentication.
+  Preserve the pinned identity, ownership, lease and observation checks; a
+  missing grant fails noninteractively through the existing approval contract.
 - Authorized baseline preparation from launchers or sessions uses
   `tools/prepare-baseline --vm NAME --mode auto|manual --y` to suppress y/n
   confirmation. Manual work omits `--y`. The flag preserves every safety check

@@ -57,10 +57,11 @@ def display_endpoint(root):
     devices = root.find('devices')
     require(devices is not None, 'display-devices')
     displays = devices.findall('graphics')
-    require(len(displays) in (1, 2) and displays[0].get('type') in ('vnc', 'spice'),
-            'display-layout')
-    if len(displays) == 2:
-        observer = displays[1]
+    types = [display.get('type') for display in displays]
+    consoles = types[:-1] if types and types[-1] == 'dbus' else types
+    require(consoles in (['vnc'], ['spice'], ['spice', 'vnc']), 'display-layout')
+    if types[-1] == 'dbus':
+        observer = displays[-1]
         require(observer.attrib == {'type': 'dbus', 'p2p': 'yes'}
                 and len(observer) == 1 and observer[0].tag == 'gl'
                 and observer[0].attrib == {'enable': 'no'}, 'display-endpoint')
@@ -77,6 +78,14 @@ def display_endpoint(root):
         acceleration.set('accel3d', 'no')
 
 
+def graphics_index(source, kind):
+    """Resolve one protocol in the already guarded domain, never a fixed index."""
+    displays = ET.fromstring(source.domain.XMLDesc(0)).findall('devices/graphics')
+    matches = [index for index, display in enumerate(displays) if display.get('type') == kind]
+    require(len(matches) == 1, 'display-protocol')
+    return matches[0]
+
+
 class DisplayAdapter:
     """An attested display owner, with no VM input or lifecycle methods."""
 
@@ -84,8 +93,10 @@ class DisplayAdapter:
         self.source, self.domain_id, self.revalidate = source, domain_id, revalidate
         self.run, self.lease = run, lease
 
-    def open_display(self, *, index=1):
+    def open_display(self):
         from graphical_lease import open_display
+        self.revalidate()
+        index = graphics_index(self.source, 'dbus')
         return open_display(self.source, self.domain_id, self.revalidate, index=index)
 
 
@@ -371,7 +382,7 @@ def start(adapter):
         if getattr(adapter.lease, 'watch_detached', False) is True:
             from vm_watch_session import Session
             return Session(adapter, int(uid))
-        observer = Observer(adapter.open_display(index=1), int(uid), adapter.run,
+        observer = Observer(adapter.open_display(), int(uid), adapter.run,
                             progress=getattr(adapter.lease, 'watch_progress', None))
         if not observer.ready.wait(6) or observer.finished.is_set():
             observer.close()

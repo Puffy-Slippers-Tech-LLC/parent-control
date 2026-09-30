@@ -51,7 +51,7 @@ def open_display(source, domain_id, revalidate, *, index=0):
         log('display-attach-requested')
         # Let libvirt create/label the pair for its confined QEMU process.
         # flags=0 retains authentication. No direct QEMU socket access.
-        require(index in (0, 1), 'graphics:display-index')
+        require(index in (0, 1, 2), 'graphics:display-index')
         descriptor = domain.openGraphicsFD(index, 0)
         try:
             display = socket.socket(fileno=descriptor)
@@ -147,7 +147,10 @@ class Adapter:
     def close_observer(self):
         self.lease.close_watch()
 
-    def open_display(self, *, index=0):
+    def open_display(self):
+        from e2e_watch import graphics_index
+        self.revalidate()
+        index = graphics_index(self.lease.source, 'vnc')
         return open_display(self.lease.source, self.lease.view.domain_id, self.revalidate, index=index)
 
     def request(self, action, run):

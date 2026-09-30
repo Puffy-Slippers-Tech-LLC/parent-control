@@ -108,7 +108,98 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
         assert not staged_copy.exists()
 
 
+@pytest.mark.parametrize('installed', [None, 'older', 'equal', 'newer'])
+@pytest.mark.parametrize('failure', [None, 'identity', 'dnf', 'package'])
+def test_rpm_installer_resolves_dependencies_and_reinstalls_local_build(
+    tmp_path, installed, failure,
+):
+    bin_dir = tmp_path / 'bin'
+    bin_dir.mkdir()
+    identity = 'oh-no-parent-control-0:1.2-0.1.dev.fc44.x86_64'
+    installed_identity = {
+        None: '', 'older': identity.replace('1.2-', '1.1-'),
+        'equal': identity, 'newer': identity.replace('1.2-', '1.3-'),
+    }[installed]
+    for name, source in {
+        'rpm': (
+            '#!/bin/sh\n'
+            'case "$1" in\n'
+            '  -qp) [ "$INSTALL_FAILURE" != identity ] || { echo "RPM identity diagnostic" >&2; exit 7; }; '
+            'printf "%s" "$RPM_IDENTITY";;\n'
+            '  -q) [ "$2" = --quiet ] && [ "$3" = "$INSTALLED_IDENTITY" ];;\n'
+            '  *) echo "unexpected RPM mutation" >&2; exit 99;;\n'
+            'esac\n'
+        ),
+        'dnf': (
+            '#!/bin/sh\n'
+            'printf "%s\\n" "$@" > "$DNF_ARGUMENTS"\n'
+            '[ "$INSTALL_FAILURE" != dnf ] || { echo "DNF dependency diagnostic" >&2; exit 8; }\n'
+            'echo "DNF transaction complete"\n'
+        ),
+    }.items():
+        command = bin_dir / name
+        command.write_text(source)
+        command.chmod(0o755)
+    output = tmp_path / 'output/rpm'
+    output.mkdir(parents=True)
+    package = output / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm'
+    if failure != 'package':
+        older = output / 'oh-no-parent-control-1.1-0.1.dev.fc44.x86_64.rpm'
+        older.write_bytes(b'older build')
+        os.utime(older, (1, 1))
+        package.write_bytes(b'local build')
+    # Source/debug packages must never be selected, even when newer.
+    for suffix in ('src', 'nosrc'):
+        ignored = output / f'oh-no-parent-control-1.2-0.1.dev.fc44.{suffix}.rpm'
+        ignored.write_bytes(b'source')
+        os.utime(ignored, (2000000000, 2000000000))
+    (output / 'oh-no-parent-control-debuginfo-1.2-0.1.dev.fc44.x86_64.rpm').write_bytes(b'debug')
+    arguments = tmp_path / 'dnf-arguments'
+    result = subprocess.run(
+        ['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
+         'installrpm', f'CURDIR={tmp_path}', f'RPM={bin_dir / "rpm"}',
+         f'DNF={bin_dir / "dnf"}'],
+        env={**os.environ, 'RPM_IDENTITY': identity,
+             'INSTALLED_IDENTITY': installed_identity,
+             'INSTALL_FAILURE': failure or '', 'DNF_ARGUMENTS': str(arguments)},
+        capture_output=True, text=True, timeout=10,
+    )
+    output_text = result.stdout + result.stderr
+    if failure in ('package', 'identity'):
+        assert not arguments.exists()
+    else:
+        assert arguments.read_text().splitlines() == [
+            'reinstall' if installed == 'equal' else 'install', str(package),
+        ]
+    if failure is None:
+        assert result.returncode == 0, output_text
+        assert 'DNF transaction complete' in output_text
+        assert 'FAIL:' not in output_text
+    else:
+        assert result.returncode != 0
+        step, status = {
+            'package': ('locating built package', 1),
+            'identity': ('reading RPM package identity', 7),
+            'dnf': ('installing package with DNF', 8),
+        }[failure]
+        assert f'FAIL: installrpm: {step} (exit {status})' in output_text
+        if failure == 'dnf':
+            assert 'DNF dependency diagnostic' in output_text
+        if failure == 'identity':
+            assert 'RPM identity diagnostic' in output_text
+
+
 class PackageDeploymentTests(unittest.TestCase):
+    def test_make_rpm_target_delegates_product_setup_to_the_package(self):
+        makefile = (ROOT / 'Makefile').read_text(encoding='utf-8')
+        recipe = makefile.split('installrpm:\n', 1)[1].split('\n\n', 1)[0]
+        self.assertTrue(recipe.rstrip().endswith('$(DNF) "$$action" "$$rpm_file"'))
+        for product_setup in ('oh-no-parent-control-provision', 'postinst',
+                              'systemctl', 'systemd-sysusers', 'authselect',
+                              'restorecon', '$(LIBEXECDIR)', 'REBOOT REQUIRED',
+                              '--force', '--nodeps'):
+            self.assertNotIn(product_setup, recipe)
+
     def test_make_package_targets_delegate_all_product_behavior_to_apt(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]

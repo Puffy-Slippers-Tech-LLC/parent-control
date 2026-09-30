@@ -7,6 +7,10 @@ shared pytest/Hypothesis caches and aggregate retention in every unit worker.
 Unknown modules fail closed to exclusive execution; new modules must receive an
 isolation/resource review and classification before their work is complete.
 
+Fresh-desktop, Shell-search and GDM recipient release bindings use tiny tmp_path
+metadata and a restored process-local ROOT patch; no VM, shared file, socket or
+display is accessed.
+
 Regression session tests keep both session gates and cancellation records in
 private pytest trees; recorded harmless children are released and reaped by
 their fixture. Cross-scope reconnect tests remain safe for compatible overlap.
@@ -50,6 +54,10 @@ display or shared controller state is accessed; compatible overlap remains.
 VM queue checks join bounded in-process thread pools and mocked controllers,
 with private retained logs and journals. Lease/legacy-journal tests hold only
 tmp_path flock files; existing compatible VM, launcher and storage buckets apply.
+Publishing Make-entrypoint checks copy the dispatcher and configuration into
+tmp_path and synchronously reap Make/Python/stub-runner children. The configured
+disk is never opened; no real tests, VM, shared cache or build is started, so
+publishing_tests retains its compatible unit classification.
 """
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
@@ -188,6 +196,18 @@ write_e2e write_e2e_cleanup_safety
 # COPR recipe checks use a private source checkout and bounded, waited children
 # with DNF/RPM command doubles. Shared storage owns scratch beneath that checkout;
 # no real dependency install, container cache, network or host package DB is used.
+# Installer RPM coverage uses tmp_path package/command doubles and bounded,
+# waited Make children. It adds no real RPM database, DNF transaction, network,
+# privileged process or shared cache; installer remains compatible in unit.
+# RPM post-transaction parity checks execute rendered shell in the existing
+# private package machine with account/service doubles and bounded, waited
+# children. No installed product or shared resources; rpm_packaging stays unit.
+# Fedora readiness regressions reuse those command doubles and existing staged
+# Fedora/Ubuntu payload fixtures. Unit parsing and activation comparisons add
+# only private files; no real systemd, SELinux policy, VM or extra build fixture.
+# The packaging modules retain their compatible unit classifications.
+# Readiness removal/retry tests use the same private shell machine and bounded
+# command doubles, including ActiveState; they do not contact host systemd.
 # Parent privacy link coverage extends the existing in-memory accessibility
 # matrix and bounded, waited Perl doubles. Launcher and recorder checks retain
 # private tmp_path files and mocked VM/transport; no shared resource is added.

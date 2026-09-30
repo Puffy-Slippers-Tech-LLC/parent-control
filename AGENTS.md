@@ -51,10 +51,11 @@
   diagnostics without PII; role labels such as `[Child user]` are acceptable.
 - Read [Do-Not-Touch-Portal-Mandate](docs/Mandates/Do-Not-Touch-Portal-Mandate.md) only when touching
   feedback API-related application code.
-- Choose the implementation model by the current slice: Sol for settled work;
-  Astra for unresolved security, concurrency, ownership, difficult diagnosis or
-  broad correctness review. Never use Sol High; use Astra Low whenever Sol High
-  would otherwise be considered. Prefer quality, then weekly allowance.
+- Choose the implementation model by the current slice: GPT-6.1 Sol Medium for
+  settled work; GPT-6.1 Sol High for unresolved security, concurrency, ownership,
+  difficult diagnosis or broad correctness review. Prefer GPT-6.1 Sol High over
+  Astra Low. Use bounded Astra High advice where an applicable workflow requires
+  it. Prefer quality, then weekly allowance.
 
 ## Test and customer acceptance
 

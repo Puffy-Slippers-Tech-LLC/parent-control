@@ -119,6 +119,15 @@ def test_configure_activates_static_broker_after_migration(package_machine, impa
     assert "PASS: Oh No! Parent Control package configuration completed successfully." in result.stdout
 
 
+def test_ubuntu_does_not_start_fedora_readiness_unit(package_machine):
+    root, _, run = package_machine
+    result = run(READINESS_STATUS='9')
+    assert result.returncode == 0, result.stderr
+    assert 'oh-no-parent-control-execution-policy-ready.service' not in (root / 'commands').read_text()
+    assert 'fagenrules' not in (root / 'commands').read_text()
+    assert 'fapolicyd-cli' not in (root / 'commands').read_text()
+
+
 @pytest.mark.parametrize("impacts", ["", "process-restart", "session-renewal", None],
                          ids=["reinstall", "broker-update", "session-update", "reconfigure"])
 def test_reboot_marker_repeats_package_notice_until_reboot(package_machine, impacts):

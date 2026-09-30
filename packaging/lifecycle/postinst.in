@@ -121,6 +121,7 @@ if [ "$1" = configure ]; then
         /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback 0644
 
+@readiness_install@
 @initial_setup@
 @pam_enable@
     chown root:@admin_group@ \
@@ -164,7 +165,7 @@ if [ "$1" = configure ]; then
         fapolicyd.service \
         malcontent-timerd.service \
         malcontent-timer-extension-agent.service >/dev/null
-
+@readiness_start@
     # Migration stops the broker even on an unchanged reinstall. Ensure it is
     # running after every configure, without restarting an already-active
     # broker unless the changed payload requires reconciliation.

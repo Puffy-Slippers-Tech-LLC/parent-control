@@ -21,12 +21,19 @@ from tests.support.perl import run_perl
     ('parent', FreshParentDesktopQualification, 'ui:fresh-parent-desktop'),
     ('standard', FreshStandardDesktopQualification, 'ui:fresh-standard-desktop'),
 ])
-def test_each_role_has_a_distinct_installed_login_and_desktop(role, qualification, desktop):
+def test_each_role_has_a_distinct_installed_login_and_desktop(
+    role, qualification, desktop, tmp_path, monkeypatch,
+):
+    # Bind the release input, so checkout version bumps cannot change this
+    # exact snapshot assertion. A distinct version also catches stale literals.
+    (tmp_path / 'data').mkdir()
+    (tmp_path / 'data/app.json').write_text('{"version": "9.7"}')
+    monkeypatch.setattr(smoke, 'ROOT', tmp_path)
     assert issubclass(qualification, KioskEntryQualification)
     context = SimpleNamespace()
     journey = qualification.journey(qualification.__new__(qualification),
                                     context, lambda *_: None)
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.7'
     assert journey.plan.worker_mode == 'fresh_' + role + '_desktop'
     assert journey.plan.screen_tags['desktop'] == desktop
     assert list(journey.plan.screen_tags)[-3:] == [

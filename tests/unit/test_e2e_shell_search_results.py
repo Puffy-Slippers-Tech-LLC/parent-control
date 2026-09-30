@@ -14,12 +14,17 @@ from shell_search_results import PLAN, ShellSearchResultsJourney
 from tests.support.perl import run_perl
 
 
-def test_plan_binds_fresh_parent_entry_and_all_search_observations():
+def test_plan_binds_fresh_parent_entry_and_all_search_observations(tmp_path, monkeypatch):
+    # Control the release input independently of checkout version bumps, while
+    # retaining an exact assertion that rejects stale snapshot literals.
+    (tmp_path / 'data').mkdir()
+    (tmp_path / 'data/app.json').write_text(json.dumps({'version': '9.7'}))
+    monkeypatch.setattr(smoke, 'ROOT', tmp_path)
     context = SimpleNamespace()
     assert issubclass(ShellSearchResultsQualification, KioskEntryQualification)
     journey = ShellSearchResultsQualification.journey(context, Mock())
     assert isinstance(journey, ShellSearchResultsJourney)
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.7'
     assert PLAN.worker_mode == 'shell_search_results'
     assert list(PLAN.screen_tags)[-9:] == [
         'system-prompt', 'app-grid', 'search-focused', 'search-started',

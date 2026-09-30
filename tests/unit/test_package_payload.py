@@ -140,6 +140,27 @@ def test_packaged_broker_preserves_private_probe_runtime(production_payload):
     assert not (production_payload / "run").exists()
 
 
+def test_ubuntu_retains_fapolicyd_execstartpost_readiness(production_payload):
+    system = production_payload / 'usr/lib/systemd/system'
+    for relative in (
+        'fapolicyd.service.d/oh-no-parent-control-readiness.conf',
+        'display-manager.service.d/oh-no-parent-control.conf',
+    ):
+        assert (system / relative).read_bytes() == (ROOT / 'data/systemd' / relative).read_bytes()
+    assert not (system / 'oh-no-parent-control-execution-policy-ready.service').exists()
+    assert not (production_payload / 'usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules').exists()
+    daemon = configparser.ConfigParser(interpolation=None)
+    daemon.read(system / 'fapolicyd.service.d/oh-no-parent-control-readiness.conf')
+    assert daemon['Service']['ExecStartPost'] == '/usr/libexec/oh-no-parent-control-execution-policy-ready'
+    display = configparser.ConfigParser(interpolation=None)
+    display.read(system / 'display-manager.service.d/oh-no-parent-control.conf')
+    assert display['Unit']['Requires'] == 'fapolicyd.service'
+    assert display['Unit']['After'] == 'fapolicyd.service'
+    manifest = json.loads((production_payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
+    assert not any(entry['path'].endswith('/oh-no-parent-control-execution-policy-ready.service')
+                   for entry in manifest['files'])
+
+
 def test_packaged_probe_dropin_bounds_queued_jobs(production_payload):
     path = ("usr/lib/systemd/system/onpc-execution-probe-.service.d/"
             "oh-no-parent-control-timeout.conf")

@@ -151,6 +151,18 @@ prepare_package_notice() {
 # @configuration_notice@
     /usr/libexec/oh-no-parent-control-package-notice --configured
 
+# @readiness_start@
+
+# @readiness_remove@
+
+# @readiness_preflight@
+
+# @readiness_install@
+
+# @readiness_check_remove@
+
+# @readiness_remove_rule@
+
 # @pam_remove@
     pam_choice=--disable
     pam_baseline=/var/lib/oh-no-parent-control/malcontent-pam-before-install

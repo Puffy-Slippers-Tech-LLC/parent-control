@@ -77,14 +77,20 @@ def test_worker_rejects_replayed_or_wrong_prompt_proofs_before_later_input(fault
         assert keys == ['ret', 'esc', 'ret']
 
 
-def test_gdm_recipient_qualification_reuses_the_prepared_app_snapshot():
+def test_gdm_recipient_qualification_reuses_the_prepared_app_snapshot(tmp_path, monkeypatch):
     import check_e2e_gdm_recipient as check
+    import check_graphical_smoke as smoke
     from parent_setup_qualification import GdmRecipientQualification
 
+    # Supply a private release input so checkout version bumps cannot change
+    # this exact check that qualification selects the current release snapshot.
+    (tmp_path / 'data').mkdir()
+    (tmp_path / 'data/app.json').write_text(json.dumps({'version': '9.7'}))
+    monkeypatch.setattr(smoke, 'ROOT', tmp_path)
     assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     context = type('Context', (), {})()
     journey = GdmRecipientQualification.journey(context, lambda *_: None)
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.7'
     assert list(journey.plan.screen_tags) == [
         'wrong-list', 'wrong-focused', 'wrong-recipient-refused', 'wrong-returned',
         'intended-list', 'intended-focused', 'recipient-qualified', 'recipient-rechecked',

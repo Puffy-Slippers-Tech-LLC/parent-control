@@ -14,6 +14,7 @@ from fresh_desktop import KeyringDesktopJourney, prepare_keyring
 from owned_commands import CommandError
 from parent_setup_qualification import KeyringStandardDesktopQualification
 from private_artifacts import EvidenceError
+from tests.support.paths import ROOT
 from tests.support.perl import run_perl
 
 
@@ -28,7 +29,8 @@ def test_keyring_plan_keeps_gdm_safety_and_distinct_prompt_observation():
         KeyringStandardDesktopQualification.__new__(KeyringStandardDesktopQualification),
         context, Mock())
     assert isinstance(journey, KeyringDesktopJourney)
-    assert context.installed_snapshot == 'onpc-v1.1'
+    version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == 'onpc-v' + version
     assert 'wrong-recipient-refused' not in journey.plan.screen_tags
     assert journey.plan.screen_tags['installed-greeter'] == 'ui:gdm-standard-list'
     assert list(journey.plan.screen_tags)[-4:] == [

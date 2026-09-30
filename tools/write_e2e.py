@@ -23,7 +23,7 @@ QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
 SESSION_MODELS = {'implement': ('gpt-6.1-sol', 'medium'),
                   'live': ('gpt-6.1-sol', 'medium'),
                   'recover': ('gpt-6.1-sol', 'medium')}
-ASTRA_AFTER_LIVE_ATTEMPTS = 2
+HIGH_AFTER_LIVE_ATTEMPTS = 2
 ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
 INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
@@ -181,10 +181,10 @@ def task_progress(run, steps):
 
 def session_model(phase, live_attempts=0):
     model = SESSION_MODELS[phase]
-    # Retain the stronger coordinator for a stalled task, including after a
+    # Retain higher reasoning effort for a stalled task, including after a
     # restart. Preparation failures and session count alone do not escalate.
-    if phase != 'implement' and live_attempts >= ASTRA_AFTER_LIVE_ATTEMPTS:
-        return 'gpt-6-astra', 'low'
+    if phase != 'implement' and live_attempts >= HIGH_AFTER_LIVE_ATTEMPTS:
+        return 'gpt-6.1-sol', 'high'
     return model
 
 
@@ -221,14 +221,13 @@ def session_prompt(state):
     vm_instructions = execution_instructions()
     task = state['task_id']
     phase = 'recover' if state['phase'] == 'blocked' else state['phase']
-    model, _ = session_model(phase, state.get('live_attempts', 0))
-    label = 'GPT-6.1-Sol Medium' if model == 'gpt-6.1-sol' else 'GPT-6-Astra Low'
+    _, effort = session_model(phase, state.get('live_attempts', 0))
+    label = f'GPT-6.1-Sol {effort.title()}'
     model_policy = f"""You are the {label} coordinator and implementer for this session.
 Own implementation, mechanical repairs, test execution and close-out.
 For unresolved root cause, security, concurrency, ownership or risky correctness
 questions, delegate one bounded diagnosis or review to the e2e_adviser agent
-using GPT-6-Astra High. Use that same adviser with explicit low reasoning for
-the Astra Low substitution. Consult before implementing an unresolved risky
+using GPT-6-Astra High. Consult before implementing an unresolved risky
 design, including in the first session. Do not delegate routine work or the whole task.
 Give it the exact question, relevant file/evidence paths, applicable contracts,
 user decisions and expected deliverable; use a fresh context rather than a full
@@ -242,9 +241,9 @@ update the queue and return the structured result. Check advice against source
 and contracts; advice is not acceptance evidence. Escalate again only for a new
 unresolved question or review of a risky correction, not repeated routine work.
 """
-    if model == 'gpt-6-astra':
+    if effort == 'high':
         model_policy += ('This unfinished task has already used at least two live attempts. '
-                         'Astra Low now owns recovery; resolve the cause before another attempt.\n')
+                         'GPT-6.1-Sol High now owns recovery; resolve the cause before another attempt.\n')
     common = f"""
 Task {task}: follow AGENTS.md and {PLAN}, using its scoped reading routes.
 This tools/write-e2e session stops at the phase boundary below.
@@ -259,10 +258,10 @@ ONPC_WORKFLOW_DIRECTORY. Use maintained launchers/viewers for background work
 and wait for tests and owned cleanup before returning.
 
 {model_policy}
-Never use Sol High; use GPT-6-Astra Low whenever you would otherwise consider
-Sol High. Ignore model recommendations in older handoffs that conflict with
-this policy. The launcher selects GPT-6.1-Sol Medium normally and Astra Low
-after two live attempts on an unfinished task. Both have bounded Astra advice.
+Prefer GPT-6.1-Sol High over Astra Low.
+Ignore model recommendations in older handoffs that conflict with this policy.
+The launcher selects GPT-6.1-Sol Medium normally and GPT-6.1-Sol High after two
+live attempts on an unfinished task. Both have bounded Astra advice.
 Keep context focused: locate headings and symbols, then read complete relevant
 sections/functions and dependencies. Reuse unchanged context; avoid whole-file
 dumps and repeated broad scans. Use bounded diagnostic output and evidence paths.

@@ -235,6 +235,25 @@ class PackageActivationTests(unittest.TestCase):
             "none",
         )
 
+    def test_fedora_readiness_unit_add_change_remove_requires_reboot(self):
+        self.assertEqual(activation_for(
+            'usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules'), 'reboot')
+        path = 'usr/lib/systemd/system/oh-no-parent-control-execution-policy-ready.service'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            before = self._manifest(root, 'old.json')
+            unit = root / path
+            unit.parent.mkdir(parents=True)
+            unit.write_text('[Service]\nType=oneshot\n')
+            added = self._manifest(root, 'added.json')
+            self.assertEqual(changed_impacts(before, added), ['reboot'])
+            unit.write_text('[Service]\nType=oneshot\nTimeoutStartSec=90s\n')
+            changed = self._manifest(root, 'changed.json')
+            self.assertEqual(changed_impacts(added, changed), ['reboot'])
+            unit.unlink()
+            removed = self._manifest(root, 'removed.json')
+            self.assertEqual(changed_impacts(changed, removed), ['reboot'])
+
     def test_execution_canary_contract_requires_reboot(self):
         self.assertEqual(
             activation_for("usr/libexec/oh-no-parent-control-execution-policy-probe"),

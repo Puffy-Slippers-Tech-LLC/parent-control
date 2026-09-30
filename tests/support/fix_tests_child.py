@@ -17,7 +17,8 @@ def main():
             {'slug': 'gpt-6-astra', 'visibility': 'list', 'priority': 1,
              'supported_reasoning_levels': [{'effort': 'low'}, {'effort': 'high'}]},
             {'slug': 'gpt-6.1-sol', 'visibility': 'list', 'priority': 2,
-             'supported_reasoning_levels': [{'effort': 'medium'}]},
+             'supported_reasoning_levels': [{'effort': 'medium'}, {'effort': 'high'},
+                                            {'effort': 'xhigh'}]},
         ]}))
         return 0
     if kind == 'test' and args == ['--list']:

@@ -54,6 +54,8 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/oh-no-parent-control/gdm-presession
 ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/pam/managed-stack
+ACTIVATION_MANIFEST_PATHS += $(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-execution-policy-ready.service
+ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/00-oh-no-parent-control-canary.rules
 endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
@@ -99,9 +101,12 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	data/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	data/pam-configs/oh-no-parent-control-session-limits data/pam-configs/oh-no-parent-control-kiosk-only \
 	data/gdm3/PreSession/Default data/fapolicyd/99-oh-no-parent-control-allow.rules \
+	data/fapolicyd/00-oh-no-parent-control-canary.rules \
 	data/systemd/oh-no-parent-control-broker.service \
 	data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf \
 	data/systemd/display-manager.service.d/oh-no-parent-control.conf \
+	data/systemd/fedora/oh-no-parent-control-execution-policy-ready.service \
+	data/systemd/fedora/display-manager.service.d/oh-no-parent-control.conf \
 	data/systemd/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf \
 	$(addprefix data/systemd/user/,$(PRODUCT_USER_SERVICES)) \
 	data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf \
@@ -142,11 +147,12 @@ publish-status:
 
 ifeq ($(shell id -u),0)
 APT := apt
-RPM := rpm
+DNF := dnf
 else
 APT := sudo apt
-RPM := sudo rpm
+DNF := sudo dnf
 endif
+RPM := rpm
 
 build: export DEB_BUILD_OPTIONS := $(DEB_BUILD_OPTIONS)
 build: check-release-version
@@ -224,7 +230,9 @@ installdeb:
 	$(APT) install --reinstall "$$staged_deb"
 
 # Latest means the most recently modified binary product RPM, not the SRPM
-# or a debug subpackage. --force permits reinstall, downgrade and file replacement.
+# or a debug subpackage. DNF resolves dependencies; equal versions are reinstalled.
+# Product setup belongs entirely to RPM dependencies and scriptlets, including
+# when the package is installed directly from COPR without this checkout.
 installrpm:
 	@set -e; \
 	step='locating built package'; \
@@ -236,9 +244,13 @@ installrpm:
 		if [ -z "$$rpm_file" ] || [ "$$candidate" -nt "$$rpm_file" ]; then rpm_file="$$candidate"; fi; \
 	done; \
 	test -n "$$rpm_file" || (echo 'No binary product RPM in ./output/rpm; run make build-rpm first' >&2; exit 1); \
+	step='reading RPM package identity'; \
+	rpm_identity="$$( $(RPM) -qp --queryformat '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' "$$rpm_file")"; \
+	action=install; \
+	if $(RPM) -q --quiet "$$rpm_identity"; then action=reinstall; fi; \
 	echo "Installing $$rpm_file"; \
-	step='installing package with RPM'; \
-	$(RPM) -Uvh --force "$$rpm_file"
+	step='installing package with DNF'; \
+	$(DNF) "$$action" "$$rpm_file"
 
 uninstalldeb:
 	$(APT) remove oh-no-parent-control
@@ -456,9 +468,17 @@ endif
 	install -m 0755 data/gdm3/PreSession/Default "$(DESTDIR)$(DATADIR)/oh-no-parent-control/gdm-presession"
 	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
-	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d" "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d"
+	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d"
+ifeq ($(PACKAGE_DISTRIBUTION),fedora)
+	# Keep the probe outside Fedora's SELinux-confined fapolicyd runtime setup.
+	install -m 0644 data/fapolicyd/00-oh-no-parent-control-canary.rules "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
+	install -m 0644 data/systemd/fedora/oh-no-parent-control-execution-policy-ready.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
+	install -m 0644 data/systemd/fedora/display-manager.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/"
+else
+	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d"
 	install -m 0644 data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/"
 	install -m 0644 data/systemd/display-manager.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/"
+endif
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/onpc-execution-probe-.service.d"
 	install -m 0644 data/systemd/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/onpc-execution-probe-.service.d/"
 	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d"

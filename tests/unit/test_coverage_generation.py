@@ -126,10 +126,11 @@ def test_pending_number_refuses_execution_before_artifact_or_privilege_checks(fi
 def test_numeric_execution_forwards_exact_case_to_existing_installed_dispatcher(fixture_password):
     with tempfile.TemporaryDirectory(prefix='onpc-coverage-selector-', dir='/tmp') as directory:
         commands, safety = coverage.test_commands.plan(
-            ROOT, 'e2e', ['--id', '1', '--artifacts', directory])
+            ROOT, 'e2e', ['--vm', 'onpc-Ubuntu26.04', '--id', '1',
+                          '--artifacts', directory])
     assert safety is False
     assert commands == [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner',
-                         'e2e', '--artifacts=' + directory,
+                         'e2e', '--vm', 'onpc-Ubuntu26.04', '--artifacts=' + directory,
                          '--scenario=E2E-001/gdm-observation']]
 
 

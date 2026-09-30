@@ -1,6 +1,7 @@
 """Disabled availability must follow saved preparation and fresh public reads."""
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -80,7 +81,10 @@ def test_qualification_reuses_guarded_snapshot(tmp_path):
     from request_choices import PLAN
     context = SimpleNamespace(directory=tmp_path)
     assert RequestChoicesQualification.journey(context, Mock()).plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    # The prepared snapshot follows the release, not the version at test creation.
+    root = Path(__file__).resolve().parents[2]
+    version = json.loads((root / 'data/app.json').read_bytes())['version']
+    assert context.installed_snapshot == 'onpc-v' + version
     assert RequestChoicesQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
 
 

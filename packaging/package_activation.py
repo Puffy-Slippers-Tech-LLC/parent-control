@@ -55,6 +55,8 @@ def activation_for(path: str) -> str:
         "usr/lib/systemd/system/fapolicyd.service.d/",
         "usr/lib/systemd/system/onpc-execution-probe-.service.d/",
     )) or path in {
+        "usr/lib/systemd/system/oh-no-parent-control-execution-policy-ready.service",
+        "usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules",
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
         "usr/libexec/oh-no-parent-control-login-check",
         "usr/share/oh-no-parent-control/gdm-presession",

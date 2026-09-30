@@ -28,6 +28,7 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         echo 'oh-no-parent-control: execution-policy path already exists; preserving it' >&2
         exit 1
     fi
+@readiness_preflight@
     install -d -o root -g root -m 0700 /var/lib/oh-no-parent-control
     if [ "$1" = install ] && [ -z "${2:-}" ]; then
         touch /var/lib/oh-no-parent-control/first-install-in-progress

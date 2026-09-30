@@ -1,0 +1,3 @@
+# Fedora's default trusted-file allow precedes the shared fallback. Deny only
+# the fixed root canary before those rules, preserving all other policy.
+deny perm=execute uid=0 : path=/usr/libexec/oh-no-parent-control-execution-policy-probe

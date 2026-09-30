@@ -67,6 +67,53 @@ prepare_package_notice() { :; }
         echo '*** REBOOT REQUIRED: reboot before using the kiosk session. ***' >&2
     fi
 
+# @readiness_start@
+    # Fedora checks the canary in a separate unit so its setup does not touch
+    # fapolicyd's SELinux-labelled runtime files. Configuration must fail if the
+    # same readiness gate used by the display manager cannot complete.
+    echo 'oh-no-parent-control: checking execution-policy readiness' >&2
+    # start is a no-op for an already-running daemon. Load the newly installed
+    # canary before waiting for it; broker reconciliation happens afterward.
+    /usr/sbin/fagenrules
+    /usr/sbin/fapolicyd-cli --reload-rules
+    systemctl start oh-no-parent-control-execution-policy-ready.service
+
+# @readiness_preflight@
+    if { [ -e /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules ] ||
+         [ -L /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules ]; } &&
+       [ ! -f "$state/installed-fapolicyd-canary" ]; then
+        echo 'oh-no-parent-control: execution-policy canary path already exists; preserving it' >&2
+        exit 1
+    fi
+
+# @readiness_install@
+    install_integration /usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules \
+        /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules \
+        /var/lib/oh-no-parent-control/installed-fapolicyd-canary 0644
+
+# @readiness_check_remove@
+    check_integration /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules \
+        /var/lib/oh-no-parent-control/installed-fapolicyd-canary
+
+# @readiness_remove_rule@
+    remove_integration /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules \
+        /var/lib/oh-no-parent-control/installed-fapolicyd-canary
+
+# @readiness_remove@
+        # RemainAfterExit survives payload deletion and daemon-reload. Clear
+        # the cached success only after GDM's dependency has been removed.
+        readiness_state=$(systemctl show --property=ActiveState --value \
+            oh-no-parent-control-execution-policy-ready.service)
+        case "$readiness_state" in
+            inactive) ;;
+            failed)
+                systemctl reset-failed oh-no-parent-control-execution-policy-ready.service
+                ;;
+            *)
+                systemctl stop oh-no-parent-control-execution-policy-ready.service
+                ;;
+        esac
+
 # @pam_remove@
     /usr/libexec/oh-no-parent-control-fedora-pam remove
 

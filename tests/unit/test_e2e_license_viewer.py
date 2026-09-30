@@ -9,14 +9,15 @@ import pytest
 import check_e2e_license_viewer as check
 import check_e2e_parent_website as website_check
 import check_e2e_parent_privacy as privacy_check
+import check_e2e_parent_support as support_check
 import check_graphical_smoke as smoke
 from license_viewer_provider import (
-    PLAN, WEBSITE_PLAN, PRIVACY_PLAN, LicenseViewerProviderJourney,
-    ParentWebsiteJourney, ParentPrivacyJourney)
+    PLAN, WEBSITE_PLAN, PRIVACY_PLAN, SUPPORT_PLAN, LicenseViewerProviderJourney,
+    ParentWebsiteJourney, ParentPrivacyJourney, ParentSupportJourney)
 from owned_commands import CommandError
 from parent_setup_qualification import (
     KioskEntryQualification, LicenseViewerProviderQualification, ParentWebsiteQualification,
-    ParentPrivacyQualification)
+    ParentPrivacyQualification, ParentSupportQualification)
 from tests.support.perl import run_perl
 
 
@@ -46,6 +47,7 @@ def test_selector_uses_owned_snapshot_and_refuses_conflicting_routes(monkeypatch
 @pytest.mark.parametrize('link,qualification,journey_class,plan,check_module', [
     ('website', ParentWebsiteQualification, ParentWebsiteJourney, WEBSITE_PLAN, website_check),
     ('privacy', ParentPrivacyQualification, ParentPrivacyJourney, PRIVACY_PLAN, privacy_check),
+    ('support', ParentSupportQualification, ParentSupportJourney, SUPPORT_PLAN, support_check),
 ])
 def test_link_binding_reaches_shared_plan_and_owned_snapshot(
         monkeypatch, link, qualification, journey_class, plan, check_module):
@@ -66,12 +68,12 @@ def test_link_binding_reaches_shared_plan_and_owned_snapshot(
     with pytest.raises(CommandError, match='smoke:information-link-binding'):
         smoke.main(information_link=link)
     with pytest.raises(CommandError, match='smoke:information-link-binding'):
-        smoke.main(information_link='support')
+        smoke.main(information_link='legal')
 
 
 @pytest.mark.parametrize('fault', ['', 'license', 'refusals',
                                    'close-input', 'return'])
-@pytest.mark.parametrize('link', ['license', 'website', 'privacy'])
+@pytest.mark.parametrize('link', ['license', 'website', 'privacy', 'support'])
 def test_worker_checks_link_and_closes_only_owned_about(fault, link):
     result = json.loads(run_perl(r'''
 use strict;

@@ -2639,7 +2639,7 @@ def test_license_link_clickability_has_no_external_handler_dependency(fault):
                                  'no-action', 'ambiguous-action', 'focus-only',
                                  'wrong-owner', 'duplicate', 'clipped'])
 @pytest.mark.parametrize('identity', ['about-license-value', 'about-website-value',
-                                    'about-privacy-value'])
+                                    'about-privacy-value', 'about-support-value'])
 def test_clickable_link_requires_owned_usable_control_without_following_it(fault, identity):
     link = Node(identity=identity, role='link')
     about = Node(identity='about-dialog', children=[link])
@@ -2659,14 +2659,14 @@ def test_clickable_link_requires_owned_usable_control_without_following_it(fault
         about.children[-1].parent = about
     if fault in ('', 'clipped'):
         assert ui.clickable_link(identity, root=about)
-        if identity in ('about-website-value', 'about-privacy-value'):
+        if identity in ('about-website-value', 'about-privacy-value', 'about-support-value'):
             operation = identity.split('-')[1] + '-clickable'
             assert ui.run(operation, '1.1') == {
                 'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
     else:
         with pytest.raises(UiError):
             ui.clickable_link(identity, root=about)
-        if identity in ('about-website-value', 'about-privacy-value'):
+        if identity in ('about-website-value', 'about-privacy-value', 'about-support-value'):
             with pytest.raises(UiError):
                 ui.run(identity.split('-')[1] + '-clickable', '1.1')
     link.action.do_action.assert_not_called()

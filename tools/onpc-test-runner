@@ -110,7 +110,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     for category in (integration, system, e2e, appsnapshot, vm):
         category.add_argument('--vm', help='required configured VM name; optional for declaration listing')
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
-                                      'reset', 'screenshot', 'send-key', 'recover-online', 'rename'))
+                                      'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk'))
     vm.add_argument('keys', nargs='*', type=int)
     vm.add_argument('--new-name')
     args = parser.parse_args(argv)

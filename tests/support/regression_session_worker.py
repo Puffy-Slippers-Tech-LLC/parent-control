@@ -14,8 +14,9 @@ import test_commands
 import test_recovery
 
 # This process exercises session ownership against a temporary checkout. Its
-# recovery behavior is covered separately; never dispatch host/VM work here.
-test_recovery.before_run = lambda root, argv, **kwargs: 0
+# host recovery may be enabled explicitly; never dispatch tests or VM work here.
+if not (Path(sys.argv[1]) / 'recover-host').exists():
+    test_recovery.before_run = lambda root, argv, **kwargs: 0
 test_commands.selections = lambda root, argv: [(argv[0], argv[1:])]
 
 dispatch = test_commands._main

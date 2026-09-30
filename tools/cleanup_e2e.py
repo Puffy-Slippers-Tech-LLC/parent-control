@@ -5,20 +5,23 @@ from pathlib import Path
 import sys
 
 import test_activity
-import test_retention
-from test_recovery import cleanup
-from vm_selection import select, vm_config, VARIABLE, BATCH
+from test_recovery import cleanup, cleanup_host
+from vm_selection import select, vm_config, BATCH
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--vm', help='one configured VM; omitted: all enabled VMs')
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument('--vm', help='one configured VM; omitted: all enabled VMs')
+    scope.add_argument('--host-only', action='store_true', help='host retention only; no VM access')
     args = parser.parse_args(argv)
     try:
-        _, vms = vm_config.execution(args.vm)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         root = Path(__file__).resolve().parents[1]
+        if args.host_only:
+            return cleanup_host(root)
+        _, vms = vm_config.execution(args.vm)
         os.environ.pop(BATCH, None)
         for vm in vms:
             select(vm.name)
@@ -26,12 +29,7 @@ def main(argv=None):
                 status = cleanup(root)
             if status:
                 return status
-        with test_activity.activity(root, host_only=True):
-            if test_activity.retention_path(root).exists():
-                # VM recovery finished above. Reconcile the host journal
-                # serially under its own ownership lock as well.
-                test_retention.Store(test_activity.retention_path(root)).reconcile(lambda: None)
-        return 0
+        return cleanup_host(root)
     except (ValueError, OSError) as error:
         print('cleanup-e2e: ' + str(error), file=sys.stderr)
         return 2

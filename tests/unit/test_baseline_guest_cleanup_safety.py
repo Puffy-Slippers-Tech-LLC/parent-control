@@ -367,14 +367,41 @@ def test_missing_password_precedes_any_host_dependency_or_vm_access(monkeypatch)
     source.assert_not_called()
 
 
-def test_fedora_staging_labels_owned_paths_without_weakening_selinux(preparation):
+@pytest.mark.parametrize('appliance_support', [False, True])
+def test_fedora_staging_labels_owned_paths_without_weakening_selinux(preparation, appliance_support):
     p = preparation
     p.files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
     p.files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+    p.g.feature_available.return_value = appliance_support
+    p.g.is_file.return_value = True
     guest.prepare(p.capture, Mock(), 'fixture-password')
-    p.g.setfiles.assert_called_once_with('/etc/selinux/targeted/contexts/files/file_contexts',
-                                        [guest.STAGE, guest.UNIT, guest.LINK])
+    p.g.feature_available.assert_called_once_with(['selinuxrelabel'])
+    if appliance_support:
+        p.g.setfiles.assert_called_once_with('/etc/selinux/targeted/contexts/files/file_contexts',
+                                            [guest.STAGE, guest.UNIT, guest.LINK])
+        p.g.command.assert_not_called()
+    else:
+        p.g.command.assert_called_once_with(['/usr/sbin/setfiles', '-m',
+            '/etc/selinux/targeted/contexts/files/file_contexts', guest.STAGE, guest.UNIT, guest.LINK])
+        p.g.setfiles.assert_not_called()
     assert p.files['/etc/selinux/config'] == b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+
+
+@pytest.mark.parametrize('missing_tool', [False, True])
+def test_fedora_relabel_failure_prevents_boot_and_hides_guest_data(preparation, missing_tool):
+    p = preparation
+    p.files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+    p.files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+    p.g.feature_available.return_value = False
+    p.g.is_file.return_value = not missing_tool
+    p.g.command.side_effect = RuntimeError('private guest data fixture-password')
+    code = 'selinux-setfiles-missing' if missing_tool else 'selinux-relabel-failed'
+    with pytest.raises(host.CaptureError, match=code) as error:
+        guest.prepare(p.capture, Mock(), 'fixture-password')
+    assert 'private guest data' not in str(error.value)
+    assert 'fixture-password' not in str(error.value)
+    assert p.g.command.call_count == int(not missing_tool)
+    p.capture.source.domain.create.assert_not_called()
 
 
 def test_fedora_manual_entry_does_not_update_and_auto_requires_a_new_boot(guest_entry, monkeypatch):

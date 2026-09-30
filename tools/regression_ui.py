@@ -92,6 +92,8 @@ GROUPS = (
 # The attachment matrix uses pytest disk scratch (bounded 5 MiB files), a fake
 # external chooser and the real frontend worker. No shared path/cache/service,
 # additional display or heavy fixture build; retain both compatible buckets.
+# Chooser delivery acknowledgements use tiny files beside that same private
+# manifest, with no new process, bus, display or scheduling resource.
 KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')
 

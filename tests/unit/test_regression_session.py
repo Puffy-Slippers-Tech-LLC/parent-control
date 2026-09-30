@@ -19,6 +19,7 @@ import test_retention
 import regression
 import regression_process
 import test_commands
+import test_storage
 
 
 def test_supervised_progress_is_forwarded_without_log_frames(tmp_path, monkeypatch):
@@ -491,6 +492,64 @@ def test_explicit_selection_replaces_idle_failed_owner_without_erasing_output(tm
     assert (old / 'output').read_text() == 'failed evidence'
     (tmp_path / 'release').touch()
     assert session.follow(run, io.StringIO()) == 7
+
+
+@pytest.mark.parametrize('batch', [False, True])
+def test_host_restart_recovers_interrupted_session_and_test_retention(tmp_path, workers, batch):
+    from vm_selection import execution_selection
+    if batch:
+        execution_selection()
+    (tmp_path / 'recover-host').touch()
+    directory = session.prepare(tmp_path, host_only=True)
+    stores = [test_retention.Store(directory / 'retention'),
+              test_retention.Store(test_storage.directory('state', root=tmp_path) / 'retention-host')]
+    evidence = []
+    receipts = []
+    for index, store in enumerate(stores):
+        with store.session() as token:
+            path = tmp_path / f'evidence-{index}'
+            path.mkdir(mode=0o700)
+            test_retention.retain(path)
+            (path / 'output').write_text('interrupted output')
+            test_retention.preserve_for_recovery()
+        evidence.append(path)
+        receipts.append(store.path / f'recovered-{token}.json')
+    run, started = session.select(tmp_path, ['unit'])
+    assert started
+    wait_for(tmp_path / 'started')
+    (tmp_path / 'release').touch()
+    output = io.StringIO()
+    assert session.follow(run, output) == 7
+    assert 'Traceback' not in output.getvalue()
+    assert all(receipt.exists() for receipt in receipts)
+    assert all((path / 'output').read_text() == 'interrupted output' for path in evidence)
+    assert all(not (store.path / 'recovery-required').exists() for store in stores)
+
+
+@pytest.mark.parametrize('fault', ['active', 'replaced'])
+def test_session_recovery_refuses_unsafe_evidence_before_allocating_or_spawning(tmp_path, workers, fault):
+    directory = session.prepare(tmp_path, host_only=True)
+    store = test_retention.Store(directory / 'retention')
+    with store.session():
+        evidence = tmp_path / 'evidence'
+        evidence.mkdir(mode=0o700)
+        test_retention.retain(evidence)
+        test_retention.preserve_for_recovery()
+    original = (store.path / 'current.json').read_bytes()
+    entries = set(directory.iterdir())
+    if fault == 'active':
+        with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+            with pytest.raises(ValueError, match='another owner'):
+                session.select(tmp_path, ['unit'])
+    else:
+        evidence.rename(tmp_path / 'original')
+        evidence.mkdir(mode=0o700)
+        with pytest.raises(ValueError, match='replaced'):
+            session.select(tmp_path, ['unit'])
+    assert workers == []
+    assert (store.path / 'current.json').read_bytes() == original
+    assert (store.path / 'recovery-required').exists()
+    assert set(directory.iterdir()) - entries == {directory / 'gate'}
 
 
 def test_legacy_activity_refuses_duplicate_without_starting_worker(tmp_path, workers):

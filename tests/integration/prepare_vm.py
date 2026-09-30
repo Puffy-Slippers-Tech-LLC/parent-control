@@ -454,6 +454,25 @@ def _set_accounts_property(runner: Runner, path: str, method: str, signature: st
     ])
 
 
+def account_icon_file(identity, *, runner: Runner, os_id: str) -> str:
+    if os_id != 'fedora':
+        return identity.icon_file
+    # accountsd is SELinux-confined and cannot ingest assets from the private
+    # preparation checkout. Publish only the fixed, nonsecret avatar under the
+    # normal system pixmap policy, then retain SetIconFile and byte verification.
+    destination = f'/usr/share/pixmaps/onpc-baseline-{identity.username}.png'
+    path = Path(destination)
+    if path.exists() or path.is_symlink():
+        info = path.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+                or info.st_nlink != 1 or info.st_mode & 0o022):
+            raise PreparationError('account:icon-path', 'unsafe baseline avatar destination')
+    runner.run(['install', '-o', '0', '-g', '0', '-m', '0644', '-T', '--',
+                identity.icon_file, destination])
+    runner.run(['restorecon', destination])
+    return destination
+
+
 def _get_property(runner: Runner, path: str, name: str, signature: str) -> str:
     result = runner.run([
         "busctl", "--system", "get-property", "org.freedesktop.Accounts", path,
@@ -486,6 +505,16 @@ def suppress_initial_setup(username: str, *, runner: Runner, os_id='ubuntu') -> 
     runner.run([*prefix, "touch", "--", *(str(path) for path in markers)])
     for path in markers:
         runner.run([*prefix, "test", "-f", str(path)])
+    # Shell's welcome/tour dialog is independent of initial setup. GNOME's
+    # schema documents a future version as the supported suppression value.
+    # Use the account's private bus so dconf owns its persistent database.
+    settings = [*prefix, "dbus-run-session", "--", "gsettings"]
+    key = ["org.gnome.shell", "welcome-dialog-last-shown-version"]
+    disabled = "'4294967295'"
+    if runner.run([*settings, "get", *key]).stdout.strip() != disabled:
+        runner.run([*settings, "set", *key, disabled])
+        if runner.run([*settings, "get", *key]).stdout.strip() != disabled:
+            raise PreparationError("verify:welcome-dialog", "Shell welcome dialog remains enabled")
 
 
 def disable_screensaver(username: str, *, runner: Runner) -> None:
@@ -545,7 +574,8 @@ def reconcile_accounts(
         entry = lookup_user(identity.username)
         path = _accounts_path(runner, identity.username)
         _set_accounts_property(runner, path, "SetRealName", "s", identity.display_name)
-        _set_accounts_property(runner, path, "SetIconFile", "s", identity.icon_file)
+        icon_source = account_icon_file(identity, runner=runner, os_id=os_id)
+        _set_accounts_property(runner, path, "SetIconFile", "s", icon_source)
         icon_file = _get_property(runner, path, "IconFile", "s")
         try:
             icon_matches = Path(icon_file).read_bytes() == Path(identity.icon_file).read_bytes()
@@ -841,6 +871,18 @@ def main(password=None) -> int:
             detail = str(error)
         elif isinstance(error, subprocess.SubprocessError):
             detail = "[command:failed] a supported system command failed"
+            # Fixed operation tokens aid offline recovery without copying
+            # command arguments, stderr, account data or password input.
+            command = getattr(error, 'cmd', None)
+            operations = {'useradd', 'usermod', 'gpasswd', 'id', 'install',
+                          'chpasswd', 'runuser', 'hostnamectl', 'busctl'}
+            if isinstance(command, (list, tuple)) and command and command[0] in operations:
+                operation = command[0]
+                if operation == 'busctl' and len(command) > 6 and command[6] in {
+                        'CacheUser', 'SetRealName', 'SetIconFile', 'SetShell',
+                        'SetAccountType', 'SetLocked'}:
+                    operation += '-' + command[6].lower()
+                detail = f"[command:failed:{operation}] a supported system command failed"
         elif isinstance(error, KeyError):
             detail = "[verify:account] a fixed test identity was unavailable"
         else:

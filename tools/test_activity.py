@@ -20,7 +20,7 @@ _host_only = False
 def retention_path(root):
     from test_storage import directory, legacy_retention_guard
     from vm_selection import BATCH, selected
-    vm = selected(required=False)
+    vm = selected(required=False) if not _host_only else None
     suffix = ('-host' if _host_only else '-batch' if BATCH in os.environ else
               '-' + vm.name if vm else '')
     legacy = directory('state', root=root) / 'retention'

@@ -18,7 +18,14 @@ import subprocess
 import sys
 import time
 import warnings
-from download_destination import download_directory
+try:
+    from download_destination import download_directory
+except ModuleNotFoundError as error:
+    if error.name != 'download_destination':
+        raise
+    # Host Shell probes import this reader as a package without the standalone
+    # guest's module directory on sys.path.
+    from tests.e2e.download_destination import download_directory
 
 # Isolated guest Python receives this file on guarded stdin after the controller
 # installs public_atspi.py as the public_atspi module. Keep finite public-input

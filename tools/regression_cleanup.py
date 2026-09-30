@@ -81,6 +81,10 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Both launchers' paused-question tests keep decisions and observer locks in that checkout,
 # and fixture teardown cancels/reaps only those recorded workflow children.
 # They do not share mutable state across workers.
+# Host recovery/restart additions keep retention/activity locks and evidence in
+# tmp_path, with recorded, waited repair children and process-local VM doubles.
+# Both unit and cleanup classifications remain compatible; no live VM,
+# display, bus, shared cache or heavy construction is introduced.
 # Suite package-identity fixtures also use tiny private Debian archives and
 # bounded, read-only dpkg-deb children; no compiler, package install or VM.
 # Challenge/repeated-operation contracts use isolated Perl API doubles. Clean

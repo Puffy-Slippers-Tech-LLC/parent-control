@@ -649,6 +649,17 @@ class Capture:
         root = ET.fromstring(xml)
         if root.findtext('domain/name') == DOMAIN:
             return xml
+        for path in self.directory.glob('disk-rename-*.json'):
+            identity(path, private=True, mode=0o600)
+            record = parse_json(path.read_bytes())
+            if (record.get('phase') not in ('references-updated', 'complete') or
+                    record.get('domain_uuid') != self.state['source']['layout']['uuid']):
+                continue
+            for (name, renamed), (validated_name, validated) in zip(
+                    record['renamed_snapshots'], record['validated_snapshots'], strict=True):
+                if name == validated_name == root.findtext('name') and ET.canonicalize(
+                        renamed, strip_text=True) == ET.canonicalize(xml, strip_text=True):
+                    return validated
         for path in self.directory.glob('rename-*.json'):
             identity(path, private=True, mode=0o600)
             record = parse_json(path.read_bytes())
@@ -679,6 +690,11 @@ class Capture:
         require(self.source.baseline() is None and self.disk_snapshot() is None, "snapshot:already-exists")
 
     def require_idle_attempt(self):
+        for record in self.directory.glob('disk-rename-*.json'):
+            identity(record, private=True, mode=0o600)
+            rename = parse_json(record.read_bytes())
+            require(isinstance(rename, dict) and rename.get('phase') in ('complete', 'rolled-back'),
+                    'state:interrupted-disk-rename; preserve state for recovery')
         for record in self.directory.glob('rename-*.json'):
             identity(record, private=True, mode=0o600)
             rename = parse_json(record.read_bytes())
@@ -1065,6 +1081,11 @@ def main(argv=None):
             log(f'unexpected:{type(error).__name__}; locations:{locations}')
         phase = capture.state["phase"] if capture and capture.state else "before-validation"
         log(f"{category}; recovery-phase:{phase}")
+        if category.startswith("guard:source-running"):
+            print('\033[31mprepare-baseline: the selected VM is running. '
+                  'Shut down the VM completely, then rerun tools/prepare-baseline. '
+                  'Both auto and manual modes require the VM to be powered off before starting.'
+                  '\033[0m', file=sys.stderr)
         if category == "snapshot:metadata-missing":
             print("prepare-baseline: the recorded baseline has no matching libvirt snapshot metadata; "
                   "retain the disk and controller state; recover verified metadata or "

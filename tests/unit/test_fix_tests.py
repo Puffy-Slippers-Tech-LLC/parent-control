@@ -63,17 +63,38 @@ def test_selected_rounds_reverify_earlier_leaves_after_repairs():
 
     rounds = []
     fix_tests.run_loop(['unit', 'ui'], test, prompts.append, lambda: None, selected=True,
-                       round_changed=rounds.append)
+                       round_changed=rounds.append, rounds=2)
     assert rounds == [1, 2]
     assert list(pending) == []
     assert prompts == ['first ui', 'unit regression']
 
 
-def test_cli_forwards_category_arguments(monkeypatch):
+@pytest.mark.parametrize('selected', [False, True])
+@pytest.mark.parametrize('count', [1, 2, 3, 4])
+def test_requested_round_count_and_progress(selected, count):
+    test = Mock(return_value=None)
+    numbers = []
+    fix_tests.run_loop(['unit', 'ui'], test, Mock(), lambda: None,
+                       selected=selected, rounds=count, round_changed=numbers.append)
+    assert numbers == list(range(1, count + 1))
+    assert [call.args[0] for call in test.call_args_list] == (
+        ['unit', 'ui'] + (['unit', 'ui'] if selected else ['all']) * (count - 1))
+
+
+@pytest.mark.parametrize('value', ['0', '-1', 'abc', '1.5'])
+def test_invalid_round_count_is_refused(value):
+    with pytest.raises(SystemExit) as error:
+        fix_tests.main(['unit', '--rounds', value])
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize('options, expected', [([], 1), (['--rounds', '3'], 3)])
+def test_cli_forwards_category_arguments(monkeypatch, options, expected):
     select = Mock(return_value=(None, False))
     monkeypatch.setattr(fix_tests, 'select', select)
-    assert fix_tests.main(['unit', 'ui']) == 0
+    assert fix_tests.main(['unit', 'ui', *options]) == 0
     assert select.call_args.kwargs['categories'] == ['unit', 'ui']
+    assert select.call_args.kwargs['rounds'] == expected
 
 
 def test_rounds_repair_only_failed_categories_with_latest_prompt(capsys):
@@ -92,7 +113,7 @@ def test_rounds_repair_only_failed_categories_with_latest_prompt(capsys):
         calls.append(category)
         return result
 
-    fix_tests.run_loop(['unit', 'ui', 'system', 'e2e'], test, prompts.append, lambda: None)
+    fix_tests.run_loop(['unit', 'ui', 'system', 'e2e'], test, prompts.append, lambda: None, rounds=2)
     assert list(pending) == []
     assert calls.count('system') == calls.count('e2e') == 1
     assert prompts == ['unit first', 'unit second', 'aggregate ui', 'ui only']
@@ -107,7 +128,7 @@ def test_multiple_aggregate_failures_recheck_companions_before_repair():
         calls.append(category)
         return next(pending)
 
-    fix_tests.run_loop(['unit', 'ui'], test, prompts.append, lambda: None)
+    fix_tests.run_loop(['unit', 'ui'], test, prompts.append, lambda: None, rounds=2)
     assert calls == ['unit', 'ui', 'all', 'unit', 'ui', 'all']
     assert prompts == ['both']
 
@@ -125,7 +146,7 @@ def test_unmapped_aggregate_failure_is_not_a_fabricated_category_pass():
     test = Mock(side_effect=[None, failure('infrastructure')])
     repair = Mock()
     with pytest.raises(ValueError, match='no runnable retry category'):
-        fix_tests.run_loop(['unit'], test, repair, lambda: None)
+        fix_tests.run_loop(['unit'], test, repair, lambda: None, rounds=2)
     repair.assert_not_called()
 
 

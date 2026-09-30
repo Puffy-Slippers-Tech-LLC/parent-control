@@ -180,7 +180,9 @@ or with `--vm NAME` for one enabled VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
 arguments, until each passes. After a failure, a fresh Codex process receives
 that run's generated investigation prompt, applies a repair, exits, and the
-script reruns that category. Round 2 runs `run-tests all`; failures trigger
+script reruns that category. `--rounds X` defaults to 1, running only round 1.
+With X >= 2, it repeats verification X-1 times, labeled rounds 2 through X
+in the top frame. Each verification round runs `run-tests all`; failures trigger
 repair/category retries before another complete `all` run. Only a passing
 complete run finishes the loop. Concurrently reported failures are handled by
 category; interrupted companion categories are not falsely marked passed.
@@ -197,8 +199,8 @@ Expansion uses the same `suite_inventory` utility as the `run-tests` host coordi
 are deduplicated in inventory order, and unknown categories or diagnostic helpers
 are rejected. With explicit categories, round 2 repeats only those leaves until
 a complete selected pass needs no repairs; it never invokes the `all` aggregate.
-Without categories the existing two-round full-regression behavior is unchanged.
-Categories and model options apply to new runs; attaching keeps the active run's scope.
+Without categories verification uses the full regression aggregate.
+Categories, rounds and model options apply to new runs; attaching keeps the active run's options.
 
 The launcher itself is Python scripting. New runs validate the selected model
 and effort against the Codex CLI catalog before testing. Classification and
@@ -273,11 +275,10 @@ Completed or dead owners never block a fresh run: file locks determine liveness,
 old cancel markers are isolated by run, and normal `run-tests` startup performs
 its existing retention/VM recovery. An attached predecessor's result is consumed
 before starting the requested category; it never counts as that category passing.
-On stale ownership, `fix-tests` invokes `tools/cleanup-e2e` to reconcile both
-host and VM retention under their respective locks before retrying the category.
-If automatic recovery's cleanup-safety run produces a normal failure handoff,
-`fix-tests` repairs that failure and retries recovery before starting the requested
-category. Recovery still fails closed when no actionable handoff is available.
+On stale ownership, `fix-tests` invokes `tools/cleanup-e2e --host-only` when no
+VM is selected, or the selected VM/queue recovery route otherwise, before
+retrying the category. Host recovery requires no VM configuration or privilege.
+Recovery still fails closed when no actionable handoff is available.
 
 Logs and small control files are private under `output/test-runs/host/fix-tests/`. They are
 not agent conversation history. Existing test evidence remains under the runner's
@@ -510,7 +511,7 @@ The shared [session renderer](../tools/launcher_render.py) applies these display
 rules to every supervised agent; launchers do not format agent events themselves.
 All three launchers use its two-pane terminal display and the same output-following
 loop. The upper pane pins the controller journey: `run-tests` shows the selected
-category and position with overall progress; `fix-tests` adds round 1 or 2 and
+category and position with overall progress; `fix-tests` adds the current round number and
 the running-tests/fixing-errors status; `write-e2e` shows the task ID/title and
 the session's implementation, recovery or numbered live-test phase. Category and
 session transitions update immediately. Routine overall counts refresh at most
@@ -931,8 +932,11 @@ and pinned descriptors, refusing replacements, symlink ancestors and mounts.
 No `/tmp/onpc-*` or `/var/tmp/onpc-*` prefix sweep is used. An unfinished retention
 journal on the VM side after abrupt termination triggers automatic recovery
 before selected VM checks start. Host-only runs never inspect or recover that
-journal. Unfinished host retention still refuses a new retained host run;
-`tools/cleanup-e2e` reconciles both scopes under their respective locks.
+journal. Host startup automatically reconciles unfinished host retention under
+the host activity and storage owner locks. Reconnect registration journals are
+also reconciled under the startup gates and activity lock before registration.
+`tools/cleanup-e2e --host-only` exposes the same host recovery without VM access;
+plain `tools/cleanup-e2e` reconciles enabled VMs followed by host retention.
 The launcher must hold checkout activity ownership
 and acquire the storage owner locks; a live owner is never killed or displaced.
 The installed `check_test_recovery` route reconciles the VM through the existing

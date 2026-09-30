@@ -239,6 +239,51 @@ def test_disappearing_node_retries_complete_read_before_input():
     target.action.do_action.assert_called_once_with(0)
 
 
+@pytest.mark.parametrize('replacement', ['showing', 'hidden', 'removed', 'duplicate'])
+def test_visibility_reacquires_retired_object_without_accepting_failed_read(replacement):
+    identity = 'watch-vm-grid'
+    stale = Node(identity)
+    window = Node('watch-window', [stale])
+    ui = adapter(window, query_errors=(LookupError,))
+    # Structure was readable during lookup, but GTK retires the accessible
+    # before the separate live state query, as when a panel is reparented.
+    stale.snapshot_state_set = stale.get_state_set
+    failure = LookupError('public object was retired')
+
+    def retire():
+        states = ('visible',) if replacement == 'hidden' else ('showing', 'visible')
+        window.children = ([] if replacement == 'removed' else
+                           [Node(identity, states=states)])
+        if replacement == 'duplicate':
+            window.children.append(Node(identity))
+        raise failure
+
+    stale.get_state_set = Mock(side_effect=retire)
+    with pytest.raises(AutomationError, match='^automation:incomplete-tree$') as caught:
+        ui.showing(identity)
+    assert caught.value.__cause__ is failure
+    stale.get_state_set.assert_called_once_with()
+    # The wait retries the whole predicate. Only a new complete ID resolution
+    # can establish shown/hidden/absent; duplicate replacement IDs still refuse.
+    if replacement == 'duplicate':
+        with pytest.raises(AutomationError, match='ambiguous-id'):
+            ui.showing(identity)
+    else:
+        assert ui.showing(identity) is (replacement == 'showing')
+    stale.action.do_action.assert_not_called()
+    for node in window.children:
+        node.action.do_action.assert_not_called()
+
+
+def test_visibility_does_not_translate_unconfigured_errors_into_read_retries():
+    target = Node('watch-vm-grid')
+    ui = adapter(Node('watch-window', [target]), query_errors=(LookupError,))
+    target.snapshot_state_set = target.get_state_set
+    target.get_state_set = Mock(side_effect=ValueError('invalid state response'))
+    with pytest.raises(ValueError, match='invalid state response'):
+        ui.showing('watch-vm-grid')
+
+
 def test_disabled_control_and_ambiguous_action_refuse_input():
     target = Node("submit", states=("showing", "visible"))
     with pytest.raises(AutomationError, match="disabled"):

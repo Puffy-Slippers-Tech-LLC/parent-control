@@ -99,7 +99,7 @@ def test_environment_guard_accepts_relocated_checkout_in_product_free_guest(tmp_
 
 
 @pytest.mark.parametrize("hostname_fails", [False, True])
-def test_main_sets_hostname_before_recording_baseline(monkeypatch, hostname_fails):
+def test_main_sets_hostname_before_recording_baseline(monkeypatch, capsys, hostname_fails):
     commands = []
     records = []
 
@@ -107,7 +107,7 @@ def test_main_sets_hostname_before_recording_baseline(monkeypatch, hostname_fail
         def run(self, command):
             commands.append(command)
             if hostname_fails:
-                raise subprocess.CalledProcessError(1, command)
+                raise subprocess.CalledProcessError(1, command, stderr='private guest data test-password')
 
     monkeypatch.setattr(prepare, "Runner", HostnameRunner)
     monkeypatch.setattr(prepare, "validate_environment", lambda **kwargs:
@@ -121,6 +121,11 @@ def test_main_sets_hostname_before_recording_baseline(monkeypatch, hostname_fail
 
     assert prepare.main('test-password') == (1 if hostname_fails else 0)
     assert commands == [["hostnamectl", "set-hostname", prepare.HOSTNAME]]
+    if hostname_fails:
+        diagnostics = capsys.readouterr().err
+        assert '[command:failed:hostnamectl]' in diagnostics
+        assert 'private guest data' not in diagnostics
+        assert 'test-password' not in diagnostics
     if hostname_fails:
         assert records == []
     else:
@@ -240,6 +245,8 @@ class AccountRunner:
         if command[0] == "gpasswd":
             return subprocess.CompletedProcess(command, 3, "", "not a member")
         if "gsettings" in command and "get" in command:
+            if 'welcome-dialog-last-shown-version' in command:
+                return subprocess.CompletedProcess(command, 0, "'4294967295'\n", "")
             return subprocess.CompletedProcess(command, 0, "uint32 0\n", "")
         if command[0] in {"useradd", "usermod", "install", "chpasswd", "runuser"}:
             return subprocess.CompletedProcess(command, 0, "", "")
@@ -322,6 +329,42 @@ def test_reconciliation_verifies_roles_and_passes_one_shared_secret_only_on_stdi
             existing, secret, runner=AccountRunner(entries, bad_child=True),
             lookup_user=entries.__getitem__, list_users=lambda: list(entries.values()),
         )
+
+
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('writable', [True, False])
+def test_first_login_suppression_preserves_markers_and_disables_shell_tour(os_id, writable):
+    commands = []
+    class WelcomeRunner:
+        value = "''"
+
+        def run(self, command):
+            commands.append(command)
+            assert command[:4] == ['runuser', '--user', 'test-child', '--']
+            if 'gsettings' in command:
+                assert command[4:7] == ['dbus-run-session', '--', 'gsettings']
+                assert command[8:10] == ['org.gnome.shell', 'welcome-dialog-last-shown-version']
+                if command[7] == 'set' and writable:
+                    self.value = command[10]
+                return subprocess.CompletedProcess(command, 0, self.value + '\n', '')
+            return subprocess.CompletedProcess(command, 0, '', '')
+
+    runner = WelcomeRunner()
+    if not writable:
+        with pytest.raises(prepare.PreparationError, match='verify:welcome-dialog'):
+            prepare.suppress_initial_setup('test-child', runner=runner, os_id=os_id)
+    else:
+        prepare.suppress_initial_setup('test-child', runner=runner, os_id=os_id)
+        assert runner.value == "'4294967295'"
+        prepare.suppress_initial_setup('test-child', runner=runner, os_id=os_id)
+    markers = ['/home/test-child/.config/gnome-initial-setup-done']
+    if os_id == 'ubuntu':
+        markers.append('/home/test-child/.config/gnome-initial-setup/upgrade-26.04-done')
+    assert ['runuser', '--user', 'test-child', '--', 'touch', '--', *markers] in commands
+    for marker in markers:
+        assert ['runuser', '--user', 'test-child', '--', 'test', '-f', marker] in commands
+    writes = [command for command in commands if 'gsettings' in command and command[7] == 'set']
+    assert len(writes) == 1
 
 
 @pytest.mark.parametrize("writable", [True, False])
@@ -591,6 +634,41 @@ def test_fedora_account_roles_use_wheel_and_remove_all_child_admin_memberships()
             assert not any('adm,sudo' in command for command in owned)
         else:
             assert {command[-1] for command in owned if command[0] == 'gpasswd'} == {'adm', 'sudo', 'wheel'}
+
+
+@pytest.mark.parametrize('failure', [None, 'install', 'restorecon'])
+def test_fedora_avatar_is_public_and_labelled_before_accountsservice(monkeypatch, failure):
+    monkeypatch.setattr(Path, 'exists', lambda _path: False)
+    monkeypatch.setattr(Path, 'is_symlink', lambda _path: False)
+    identity = prepare.IDENTITIES[0]
+    commands = []
+    class IconRunner:
+        def run(self, command):
+            commands.append(command)
+            if command[0] == failure:
+                raise subprocess.CalledProcessError(1, command)
+    destination = f'/usr/share/pixmaps/onpc-baseline-{identity.username}.png'
+    if failure:
+        with pytest.raises(subprocess.CalledProcessError):
+            prepare.account_icon_file(identity, runner=IconRunner(), os_id='fedora')
+    else:
+        assert prepare.account_icon_file(identity, runner=IconRunner(), os_id='fedora') == destination
+    assert commands[0] == ['install', '-o', '0', '-g', '0', '-m', '0644', '-T', '--',
+                           identity.icon_file, destination]
+    assert commands[1:] == ([] if failure == 'install' else [['restorecon', destination]])
+
+
+@pytest.mark.parametrize('mode,uid,links', [(0o120777, 0, 1), (0o100644, 1000, 1),
+                                         (0o100644, 0, 2), (0o100666, 0, 1)])
+def test_fedora_avatar_refuses_unsafe_existing_destination(monkeypatch, mode, uid, links):
+    monkeypatch.setattr(Path, 'exists', lambda _path: True)
+    monkeypatch.setattr(Path, 'lstat', lambda _path:
+                        SimpleNamespace(st_mode=mode, st_uid=uid, st_nlink=links))
+    class RefusingRunner:
+        def run(self, _command):
+            pytest.fail('unsafe destination must be refused before installation')
+    with pytest.raises(prepare.PreparationError, match='account:icon-path'):
+        prepare.account_icon_file(prepare.IDENTITIES[0], runner=RefusingRunner(), os_id='fedora')
 
 
 def test_fedora_marker_is_distinct_and_cannot_pass_as_ubuntu():

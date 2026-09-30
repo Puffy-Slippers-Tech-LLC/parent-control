@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build digest-identified Debian and application-fixture test artifacts.
+"""Build digest-identified Debian/Fedora and application-fixture test artifacts.
 
 The output is an input to the guarded installed-system runner. This builder
 never installs the product: package construction happens in a private source
@@ -159,12 +159,17 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
     }
 
 
-def build(output: Path, *, reuse: dict[str, Path] | None = None) -> Path:
+def build(output: Path, *, reuse: dict[str, Path] | None = None, package_format='deb') -> Path:
+    if package_format not in ('deb', 'rpm'):
+        raise ArtifactError('unsupported package format')
     output = _require_empty_output(output)
     reuse = reuse or {}
     source_paths = package_inputs.paths(REPOSITORY)
     source_digest = package_inputs.digest(REPOSITORY, source_paths)
     metadata = _metadata(source_paths, source_digest)
+    if package_format == 'rpm':
+        metadata['build_inputs'].update(package_format='rpm', architecture='x86_64',
+                                       package_command=['tools/build_rpm.py'])
     _log("build", "started", revision=metadata["source"]["revision"][:12])
     from tools.test_storage import scratch_directory
     with tempfile.TemporaryDirectory(prefix="onpc-package-build-", dir=scratch_directory()) as temporary_name:
@@ -180,7 +185,8 @@ def build(output: Path, *, reuse: dict[str, Path] | None = None) -> Path:
         package_output = output / "package"
         if 'package' in reuse:
             shutil.copytree(reuse['package'], package_output)
-            packages = sorted(package_output.glob('oh-no-parent-control_*.deb'))
+            packages = sorted(package_output.glob('oh-no-parent-control_*.deb' if
+                package_format == 'deb' else 'oh-no-parent-control-[0-9]*.x86_64.rpm'))
         else:
             source_copy = temporary / "source"
             source_copy.mkdir()
@@ -189,9 +195,16 @@ def build(output: Path, *, reuse: dict[str, Path] | None = None) -> Path:
                     or package_inputs.digest(REPOSITORY, source_paths) != source_digest
                     or package_inputs.digest(source_copy, source_paths) != source_digest):
                 raise ArtifactError('package source inputs changed while copying')
-            _run(metadata["build_inputs"]["package_command"], cwd=source_copy, environment=environment)
-            packages = sorted(temporary.glob("oh-no-parent-control_*.deb"))
-            package_output.mkdir()
+            if package_format == 'rpm':
+                # Keep the caller's rootless build image/storage identity. The
+                # maintained builder freezes inputs and disables networking.
+                from tools.build_rpm import build as build_rpm
+                build_rpm(source_copy, package_output)
+                packages = sorted(package_output.glob('oh-no-parent-control-[0-9]*.x86_64.rpm'))
+            else:
+                _run(metadata["build_inputs"]["package_command"], cwd=source_copy, environment=environment)
+                packages = sorted(temporary.glob("oh-no-parent-control_*.deb"))
+                package_output.mkdir()
         if len(packages) != 1:
             raise ArtifactError("package build did not produce exactly one binary package")
         destination = package_output / packages[0].name
@@ -243,10 +256,14 @@ def compare(first: Path, second: Path) -> None:
     first_package = first_manifest["artifacts"]["package"]
     second_package = second_manifest["artifacts"]["package"]
     if first_package["path"] != second_package["path"] or first_package["sha256"] != second_package["sha256"]:
-        raise ArtifactError("repeated build changed the Debian package")
+        raise ArtifactError("repeated build changed the package")
     for path in (first / first_package["path"], second / second_package["path"]):
-        _run(["dpkg-deb", "--info", str(path)])
-        _run(["dpkg-deb", "--contents", str(path)])
+        if path.suffix == '.rpm':
+            _run(['rpm', '-qpi', str(path)])
+            _run(['rpm', '-qpl', str(path)])
+        else:
+            _run(["dpkg-deb", "--info", str(path)])
+            _run(["dpkg-deb", "--contents", str(path)])
     if first_manifest["artifacts"]["fixtures"] != second_manifest["artifacts"]["fixtures"]:
         raise ArtifactError("repeated build changed the fixture payload")
     _log("reproducibility", "passed")
@@ -257,10 +274,13 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="an empty output directory outside the checkout")
     parser.add_argument("--verify", action="store_true", help="verify an existing artifact manifest")
     parser.add_argument("--reuse", action="store_true", help="prepare verified matching inputs, building on a cache miss")
+    parser.add_argument('--package-format', choices=('deb', 'rpm'), default='deb')
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"), help="compare two built artifact directories")
     arguments = parser.parse_args()
     try:
         if arguments.reuse:
+            if arguments.package_format != 'deb':
+                raise ArtifactError('--reuse currently requires Debian artifacts')
             if arguments.output is None or arguments.verify or arguments.compare:
                 raise ArtifactError('--reuse requires only --output')
             # Import by the same tools path used by the maintained launchers.
@@ -273,7 +293,7 @@ def main() -> int:
                 raise ArtifactError("--verify requires --output")
             verify(arguments.output.resolve(strict=True))
         elif arguments.output is not None:
-            build(arguments.output)
+            build(arguments.output, package_format=arguments.package_format)
         else:
             raise ArtifactError("--output is required when building")
     except (ArtifactError, ValueError, OSError, subprocess.SubprocessError) as error:

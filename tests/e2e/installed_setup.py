@@ -55,7 +55,8 @@ class InstalledSetup:
                               for p in sorted(payload.rglob('*'))
                               if p.is_file() and p.name != 'transfer-sha256.json'},
                 'setup:payload-changed')
-        require(inventory['package.deb'] == self.verified.inputs['package_sha256'],
+        package = 'package.' + system.package_format(self.verified.lease.capture.state['guest'])
+        require(inventory[package] == self.verified.inputs['package_sha256'],
                 'setup:package-changed')
         selection = json.loads((payload / 'selected-inputs.json').read_bytes())
         for target, entry in selection['files'].items():

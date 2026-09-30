@@ -64,6 +64,11 @@ def archive_digest(raw):
 
 def digest(package, commands):
     """Use the guarded command transport; parse each archive only once."""
+    if package.suffix == '.rpm':
+        # Conservatively require the exact RPM. Its signed header and payload
+        # are both covered; no RPM delivery metadata is normalized yet.
+        with package.open('rb') as stream:
+            return hashlib.file_digest(stream, 'sha256').hexdigest()
     parts = [archive_digest(commands.run(['dpkg-deb', option, str(package)],
                                         merge_stderr=False))
              for option in ('--ctrl-tarfile', '--fsys-tarfile')]

@@ -88,6 +88,10 @@ compatible baseline, setup and launcher classifications remain appropriate.
 Shared preparation-picker and app-snapshot confirmation checks likewise use
 process-local input/TTY doubles and the existing private launcher fixtures;
 baseline, app-snapshot, VM-config and session modules remain compatible.
+Fedora snapshot regressions use private tmp_path archives/locks and process-local
+RPM builder, guestfs, package-manager and transport doubles. They run no actual
+RPM build, VM, host package mutation, bus or display; artifact, system-runner,
+system-guest, provenance, package-content and snapshot modules stay compatible.
 """
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,

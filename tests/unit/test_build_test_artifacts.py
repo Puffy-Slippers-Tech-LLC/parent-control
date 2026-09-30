@@ -157,3 +157,36 @@ def test_partial_build_runs_only_the_changed_component(tmp_path, monkeypatch, re
     assert len(calls) == 1
     assert (calls[0] == ['dpkg-buildpackage']) == (reused == 'fixtures')
     assert artifacts.verify(output)['artifacts'] == artifacts.verify(prior)['artifacts']
+
+
+def test_rpm_build_uses_frozen_source_and_records_exact_artifact(tmp_path, monkeypatch):
+    from tools import build_rpm
+    metadata = {'source': {'revision': 'a' * 40},
+                'build_inputs': {'source_date_epoch': 1, 'deb_build_options': 'nocheck'}, 'tools': {}}
+    monkeypatch.setattr(artifacts.package_inputs, 'paths', lambda _: [Path('README.md')])
+    monkeypatch.setattr(artifacts.package_inputs, 'digest', lambda *_: 'digest')
+    monkeypatch.setattr(artifacts, '_metadata', lambda *_: metadata)
+    calls = []
+    def rpm(source, output):
+        assert source != ROOT and (source / 'README.md').read_bytes() == (ROOT / 'README.md').read_bytes()
+        calls.append(source)
+        output.mkdir()
+        (output / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm').write_bytes(b'rpm package')
+        (output / 'oh-no-parent-control-debuginfo-1.2-0.1.dev.fc44.x86_64.rpm').write_bytes(b'debug')
+    def fixture(command, **kwargs):
+        assert str(artifacts.FIXTURE_BUILDER) in command
+        output = Path(command[-1])
+        output.mkdir()
+        (output / 'SHA256SUMS.json').write_text(json.dumps({'algorithm': 'sha256', 'files': {}}))
+    monkeypatch.setattr(build_rpm, 'build', rpm)
+    monkeypatch.setattr(artifacts, '_run', fixture)
+    output = tmp_path / 'output'
+    artifacts.build(output, package_format='rpm')
+    record = artifacts.verify(output)
+    assert len(calls) == 1
+    assert record['build_inputs']['package_format'] == 'rpm'
+    package = output / record['artifacts']['package']['path']
+    assert package.read_bytes() == b'rpm package'
+    package.write_bytes(b'tampered rpm')
+    with pytest.raises(artifacts.ArtifactError, match='package artifact digest'):
+        artifacts.verify(output)

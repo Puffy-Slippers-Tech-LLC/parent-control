@@ -326,7 +326,8 @@ def current_xml(owner, directory):
     ET.SubElement(root, 'name').text = 'onpc-v1.1'
     ET.SubElement(root, 'memory', snapshot='no')
     ET.SubElement(root, 'description').text = app_snapshot.input_identity(
-        Mock(state=state), directory, owner._input_bundle, owner.commands)
+        Mock(state=state, capture=Mock(state=owner.lease.capture.read_state())),
+        directory, owner._input_bundle, owner.commands)
     return ET.tostring(root, encoding='unicode')
 
 

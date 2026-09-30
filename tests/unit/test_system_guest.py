@@ -9,6 +9,71 @@ import pytest
 import system_guest as guest
 
 
+@pytest.mark.parametrize('fault', [None, 'version', 'files', 'selinux', 'configuration', 'broker', 'boot-gate'])
+def test_fedora_snapshot_requires_exact_rpm_and_completed_configuration(tmp_path, monkeypatch, fault):
+    (tmp_path / 'package.rpm').write_bytes(b'package')
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    original_path = guest.Path
+    config = Mock(st_uid=0, st_mode=0o644 if fault == 'configuration' else 0o600)
+    monkeypatch.setattr(guest, 'Path', lambda value: Mock(stat=Mock(return_value=config))
+                        if value == '/etc/oh-no-parent-control/config.json' else original_path(value))
+    guard, boot = Mock(), Mock()
+    monkeypatch.setattr(guest, 'guard', guard)
+    monkeypatch.setattr(guest, 'wait_for_boot', boot)
+    calls = []
+    def run(command):
+        calls.append(command)
+        if command[:2] == ['rpm', '-q']:
+            return 'old' if fault == 'version' else 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64'
+        if command[:2] == ['rpm', '-qp']:
+            assert command[-1] == str(tmp_path / 'package.rpm')
+            return 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64'
+        if command[:2] == ['rpm', '--verify']:
+            return 'changed packaged file' if fault == 'files' else ''
+        if command == ['getenforce']:
+            return 'Permissive' if fault == 'selinux' else 'Enforcing'
+        if command[0] == 'busctl':
+            assert command[-1] == 'ListManagedUsers'
+            return ''
+        assert command[:2] == ['systemctl', 'is-active']
+        failed = guest.BROKER if fault == 'broker' else 'oh-no-parent-control-execution-policy-ready.service'
+        return 'failed' if fault in ('broker', 'boot-gate') and command[-1] == failed else 'active'
+    monkeypatch.setattr(guest, 'run', run)
+    if fault:
+        with pytest.raises(guest.GuestError):
+            guest.verify_snapshot()
+    else:
+        guest.verify_snapshot()
+    guard.assert_called_once()
+    boot.assert_called_once()
+    assert not any(command[0] in ('dnf', 'apt-get', 'dpkg', 'dpkg-query') for command in calls)
+
+
+def test_fedora_installs_only_the_transferred_rpm_after_guard(tmp_path, monkeypatch):
+    (tmp_path / 'package.rpm').write_bytes(b'package')
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    for name in ('before_install', 'enable_diagnostics', 'guard'):
+        monkeypatch.setattr(guest, name, Mock())
+    run = Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    guest.install()
+    guest.guard.assert_called_once()
+    run.assert_called_once_with(['dnf', 'install', '-y', str(tmp_path / 'package.rpm')], timeout=1800)
+
+
+def test_fedora_guard_refusal_prevents_dnf(tmp_path, monkeypatch):
+    (tmp_path / 'package.rpm').write_bytes(b'package')
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    monkeypatch.setattr(guest, 'before_install', Mock())
+    monkeypatch.setattr(guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(guest, 'guard', Mock(side_effect=guest.GuestError('identity-replaced')))
+    run = Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    with pytest.raises(guest.GuestError, match='identity-replaced'):
+        guest.install()
+    run.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'guard', 'boot', 'status', 'version', 'files'])
 def test_snapshot_publication_requires_verified_installation(monkeypatch, fault):
     guard = Mock(side_effect=guest.GuestError('guard') if fault == 'guard' else None)

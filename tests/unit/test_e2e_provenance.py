@@ -319,6 +319,21 @@ def test_baseline_and_lease_changes_are_rejected(source, lease, change):
     assert 'private fixture' not in str(error.value)
 
 
+@pytest.mark.parametrize('version', ['44', '43', '45'])
+def test_fedora_provenance_accepts_only_verified_supported_baseline(lease, version):
+    lease.capture.state['guest'] = {'os_id': 'fedora', 'version': version,
+                                    'accounts': 'private-fixture-account'}
+    lease.state['baseline_sha256'] = provenance.digest(lease.capture.state)
+    if version != '44':
+        with pytest.raises(provenance.EvidenceError, match='provenance:environment'):
+            provenance.baseline_inputs(lease)
+    else:
+        inputs = provenance.baseline_inputs(lease)
+        assert inputs['environment_id'] == 'fedora44-' + provenance.digest(lease.capture.state['guest'])
+        assert inputs['baseline_sha256'] == lease.state['baseline_sha256']
+        assert 'private-fixture-account' not in json.dumps(inputs)
+
+
 def test_edit_during_verification_does_not_interrupt_capture(source, assets, lease, monkeypatch):
     original = provenance.build_test_artifacts.verify
     def changing_verify(path):

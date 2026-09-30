@@ -5,6 +5,8 @@ import copy
 import hashlib
 import json
 import os
+import stat
+import sys
 from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 
@@ -15,6 +17,44 @@ from tests.support.vm_runner import UUID, RUN, INVENTORIES, xml, write_junit_res
 import system_runner as runner
 import system_guest as guest
 from guest_test_dependencies import ubuntu_archive_sources
+
+
+@pytest.mark.parametrize('fault', [None, 'name', 'relative', 'traversal', 'special', 'empty'])
+def test_rpm_staging_preserves_file_inventory_and_exact_transfer_digests(tmp_path, monkeypatch, fault):
+    source = tmp_path / 'source'
+    (source / 'fixtures').mkdir(parents=True)
+    (source / 'fixtures/onpc-test-application.flatpak').write_bytes(b'fixture')
+    (source / 'product.rpm').write_bytes(b'RPM archive')
+    manifest = {'artifacts': {'package': {'path': 'product.rpm'},
+                              'fixtures': {'path': 'fixtures'}}}
+    monkeypatch.setitem(sys.modules, 'build_test_artifacts', Mock(verify=Mock(return_value=manifest)))
+    monkeypatch.setitem(sys.modules, 'build_test_applications', Mock(verify=Mock()))
+    path = {'relative': 'usr/bin/app', 'traversal': '/usr/../app'}.get(fault, '/usr/bin/app')
+    mode = stat.S_IFIFO | 0o644 if fault == 'special' else stat.S_IFREG | 0o755
+    rows = (f'{path}\t{mode}\t\n/usr/bin/link\t{stat.S_IFLNK | 0o777}\tapp\n'
+            f'/usr/share/app\t{stat.S_IFDIR | 0o755}\t\n').encode()
+    commands = Mock()
+    commands.run.side_effect = [b'other' if fault == 'name' else b'oh-no-parent-control',
+                                b'' if fault == 'empty' else rows]
+    destination = tmp_path / 'staged'
+    if fault:
+        category = {'name': 'name', 'relative': 'path', 'traversal': 'path',
+                    'special': 'special-file', 'empty': 'empty-package'}[fault]
+        with pytest.raises(runner.Error, match='assets:' +
+                ('package-' + category if category != 'empty-package' else category)):
+            runner.stage_assets(source, destination, commands)
+    else:
+        assert runner.stage_assets(source, destination, commands) == manifest
+        assert not (destination / 'package.deb').exists()
+        assert json.loads((destination / 'installed-files.json').read_bytes()) == [
+            {'path': '/usr/bin/app', 'kind': 'file', 'mode': 0o755, 'target': ''},
+            {'path': '/usr/bin/link', 'kind': 'symlink', 'mode': 0o777, 'target': 'app'}]
+        inventory = json.loads((destination / 'transfer-sha256.json').read_bytes())
+        assert inventory == {str(p.relative_to(destination)): runner.baseline.digest(p)
+                             for p in destination.rglob('*')
+                             if p.is_file() and p.name != 'transfer-sha256.json'}
+        assert inventory['package.rpm'] == hashlib.sha256(b'RPM archive').hexdigest()
+    assert all(call.args[0][0] == 'rpm' for call in commands.run.call_args_list)
 
 
 
@@ -75,7 +115,8 @@ Signed-By:
 
 @pytest.mark.parametrize('failure', [None, 'write', 'readback', 'missing-tools', 'symlink'])
 @pytest.mark.parametrize('observation_only', [False, True])
-def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only):
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only, package_format):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
                            'guest': {'preparation_record_sha256': 'e' * 64}}
@@ -83,16 +124,32 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
     lease.source.uuid = UUID
     (tmp_path / 'input').mkdir()
     if not observation_only:
-        (tmp_path / 'input/package.deb').write_bytes(b'package')
+        (tmp_path / ('input/package.' + package_format)).write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     g, files = bootstrap_guest()
+    if package_format == 'rpm':
+        from guest_test_dependencies import FEDORA_VERSIONS
+        g.inspect_get_distro.return_value = 'fedora'
+        g.inspect_get_major_version.return_value = 44
+        g.inspect_get_minor_version.return_value = 0
+        files.pop('/var/lib/dpkg/status')
+        files.pop('/etc/apt/sources.list.d/ubuntu.sources')
+        files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+        files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+        g.inspect_list_applications2.return_value = [
+            {'app2_name': name, 'app2_version': version} for name, version in FEDORA_VERSIONS.items()]
+        g.feature_available.return_value = False
+        g.is_file.return_value = True
     retire = Mock()
     guestfs.GuestFS.return_value = g
     authorized = '/root/.ssh/authorized_keys'
     prior = b'ssh-ed25519 QkJC prior-key\n'
     files[authorized] = prior
     if failure == 'missing-tools':
-        files['/var/lib/dpkg/status'] = b''
+        if package_format == 'deb':
+            files['/var/lib/dpkg/status'] = b''
+        else:
+            g.inspect_list_applications2.return_value = []
     if failure == 'symlink':
         g.is_symlink.side_effect = lambda path: path == authorized
     def write(path, data):
@@ -126,7 +183,14 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
         g.add_drive_opts.assert_any_call('/guarded-image', format='qcow2', readonly=True)
         g.mount_ro.assert_called_once_with('/dev/sda2', '/')
         assert g.close.call_count == guestfs.GuestFS.call_count == 2
+        # inspect_os unmounts filesystems. Never invoke it again after mounting
+        # just to recover the root device for OS/package inspection.
+        assert g.inspect_os.call_count == guestfs.GuestFS.call_count
         g.sync.assert_called_once()
+        if package_format == 'rpm':
+            g.command.assert_called_once_with(['/usr/sbin/setfiles', '-m',
+                '/etc/selinux/targeted/contexts/files/file_contexts',
+                '/etc/fstab', '/etc/onpc-system-test.json', '/root/.ssh'])
     assert [call.args[0][0] for call in commands.run.call_args_list] == ['ssh-keygen']
 
 

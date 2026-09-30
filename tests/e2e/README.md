@@ -460,6 +460,12 @@ Automation and agent sessions always include `--vm NAME` and `--y`. Manual
 work omits `--y` to retain confirmation before preparation; without `--vm`,
 the shared baseline VM picker runs first. `--y` without `--vm` fails before
 any work. All VM, lease, ownership and validation checks still apply.
+The pinned baseline's verified OS metadata selects Ubuntu 26.04 DEB/APT or
+Fedora Workstation 44 RPM/DNF. Preparation builds only that format from frozen
+package sources through the existing artifact builder. Fedora SSH bootstrap
+restores SELinux labels, and verification requires enforcing SELinux, exact RPM
+identity and file verification, configured broker and execution-policy boot gate.
+This prepares a development VM; it does not qualify Fedora customer scenarios.
 Online preparation installs the app, reboots, verifies the new boot and captures
 disk plus memory. A fresh matching online snapshot is restored without building
 or booting, leaving a running isolated guest under the shared VM-maintenance
@@ -499,6 +505,8 @@ Archive timestamps, compression and member ordering are ignored. Rebuilding
 identical contents with `make build` or committing already-built changes therefore
 does not require reinstalling. Exact `.deb` SHA-256 checks still protect artifact
 provenance and transfers; they are separate from installed-content equivalence.
+RPM snapshots conservatively use the exact archive digest as their content
+fingerprint; a changed RPM requires refreshing the snapshot.
 Legacy snapshot metadata is upgraded without installation when its exact archive,
 baseline and recipe hashes match. Otherwise a missing fingerprint cannot prove
 equivalence and requires one refresh. Missing or changed snapshots are installed,

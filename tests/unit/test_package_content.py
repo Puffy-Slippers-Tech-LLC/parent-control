@@ -3,12 +3,24 @@
 import hashlib
 import tarfile
 import time
+from unittest.mock import Mock
 
 import pytest
 
 import package_content
 from owned_commands import Commands
 from tests.support.deb_archive import tar_bytes, write_package
+
+
+def test_rpm_reuse_requires_exact_archive_bytes(tmp_path):
+    package = tmp_path / 'product.rpm'
+    package.write_bytes(b'RPM header and payload')
+    commands = Mock()
+    original = package_content.digest(package, commands)
+    assert original == hashlib.sha256(package.read_bytes()).hexdigest()
+    package.write_bytes(b'changed RPM header and payload')
+    assert package_content.digest(package, commands) != original
+    commands.run.assert_not_called()
 
 
 def test_rebuilt_archives_ignore_container_timestamp_compression_and_order(tmp_path):

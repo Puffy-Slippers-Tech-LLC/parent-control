@@ -14,6 +14,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Root guest probes reuse those private lease/scratch trees and mocked transport
 # streams; snapshot connection checks mock SSH and the clock. Both existing
 # VM-control and app-snapshot cleanup buckets remain compatible.
+# Fedora snapshot backend/proof checks retain private tmp_path locks and mocked
+# builders, guestfs and VM transport. App-snapshot, system-runner and suite
+# cleanup classifications stay compatible; no real build, VM or shared resource.
 # VM rename refusal/rollback coverage uses private pytest records and mocked
 # libvirt calls; the existing compatible vm_control classification still applies.
 # Per-VM leases, moved lease identity and legacy-journal refusal checks retain

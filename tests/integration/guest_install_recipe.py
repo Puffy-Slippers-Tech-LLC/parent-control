@@ -7,6 +7,10 @@ import os
 
 
 def install(run, guard, package):
+    if package.suffix == '.rpm':
+        guard()
+        run(['dnf', 'install', '-y', str(package)], timeout=1800)
+        return
     os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
     run(['apt-get', 'update'], timeout=600)
     guard()

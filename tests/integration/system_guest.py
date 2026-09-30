@@ -36,7 +36,7 @@ def require(condition, category):
 
 
 def run(argv, timeout=120):
-    if argv[0] != 'apt-get':
+    if argv[0] not in ('apt-get', 'dnf'):
         return commands.run(argv, timeout=timeout, merge_stderr=False).decode('utf-8').strip()
     # Only package operations expose text. Identity/account probes and their
     # replies remain in private artifacts. Flush both APT streams over SSH while
@@ -101,9 +101,16 @@ def guard():
     check_prepared_hostname(marker['preparation_sha256'], Path('/etc/hostname').read_text().strip())
     release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines()
                    if '=' in line)
-    require(release.get('ID', '').strip('"') == 'ubuntu' and
-            release.get('VERSION_ID', '').strip('"') == '26.04', 'release')
-    package = PAYLOAD / 'package.deb'
+    ubuntu = (release.get('ID', '').strip('"') == 'ubuntu' and
+              release.get('VERSION_ID', '').strip('"') == '26.04')
+    fedora = (release.get('ID', '').strip('"') == 'fedora' and
+              release.get('VERSION_ID', '').strip('"') == '44' and
+              release.get('VARIANT_ID', '').strip('"') == 'workstation')
+    require(ubuntu or fedora, 'release')
+    package = PAYLOAD / ('package.rpm' if fedora else 'package.deb')
+    require(package == package_path(), 'package-platform')
+    if fedora:
+        require(run(['getenforce']) == 'Enforcing', 'selinux-enforcing')
     require(sha(package) == marker['package_sha256'], 'package-digest')
     inventory = json.loads((PAYLOAD / 'transfer-sha256.json').read_text())
     for relative, expected in inventory.items():
@@ -113,9 +120,44 @@ def guard():
     return marker
 
 
+def package_path():
+    require(not ((PAYLOAD / 'package.rpm').exists() and (PAYLOAD / 'package.deb').exists()),
+            'ambiguous-package-format')
+    return PAYLOAD / ('package.rpm' if (PAYLOAD / 'package.rpm').exists() else 'package.deb')
+
+
+def verify_package():
+    package = package_path()
+    if package.suffix == '.rpm':
+        identity = '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}'
+        installed = run(['rpm', '-q', '--queryformat', identity, 'oh-no-parent-control'])
+        expected = run(['rpm', '-qp', '--queryformat', identity, str(package)])
+        require(installed == expected, 'package-version')
+        require(not run(['rpm', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+        require(run(['getenforce']) == 'Enforcing', 'selinux-enforcing')
+        # RPM can commit its database despite a failed post-transaction
+        # scriptlet. Require the configured app and its independent boot gate.
+        config = Path('/etc/oh-no-parent-control/config.json').stat()
+        require(config.st_uid == 0 and stat.S_IMODE(config.st_mode) == 0o600,
+                'configuration-permissions')
+        # The broker is a static Type=dbus service. A public read exercises
+        # normal activation after reboot, without restarting a service.
+        run(['busctl', '--system', '--quiet', 'call', BUS,
+             '/com/puffyslippers/OhNoParentControl1', BUS, 'ListManagedUsers'])
+        for unit in (BROKER, 'oh-no-parent-control-execution-policy-ready.service'):
+            require(run(['systemctl', 'is-active', unit]) == 'active', 'service-ready')
+    else:
+        require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
+                'install ok installed', 'package-status')
+        require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) ==
+                run(['dpkg-deb', '-f', str(package), 'Version']), 'package-version')
+        require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+
+
 def before_install():
     marker = guard()
-    status = run(['dpkg-query', '-W', '-f=${Package}\t${db:Status-Abbrev}\n'])
+    status = run(['rpm', '-qa', '--queryformat', '%{NAME}\n'] if package_path().suffix == '.rpm'
+                 else ['dpkg-query', '-W', '-f=${Package}\t${db:Status-Abbrev}\n'])
     require(not any(line.split('\t')[0] == 'oh-no-parent-control' for line in status.splitlines()),
             'baseline-product-present')
     require(not Path('/etc/oh-no-parent-control').exists() and
@@ -135,7 +177,7 @@ def install():
 def install_package():
     from guest_install_recipe import install as install_recipe
     enable_diagnostics()
-    install_recipe(run, guard, PAYLOAD / 'package.deb')
+    install_recipe(run, guard, package_path())
     print('onpc-system: stage=package-install outcome=passed', flush=True)
 
 
@@ -379,11 +421,7 @@ def verify_setup():
     require(sha(PAYLOAD / 'selected-inputs.json') == marker['selected_inputs_sha256'],
             'selected-inputs-digest')
     wait_for_boot()
-    require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
-            'install ok installed', 'package-status')
-    require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) ==
-            run(['dpkg-deb', '-f', str(PAYLOAD / 'package.deb'), 'Version']), 'package-version')
-    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+    verify_package()
     before = json.loads((PAYLOAD / 'before.json').read_text())
     require(before['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
             'setup-reboot-required')
@@ -394,11 +432,7 @@ def verify_snapshot():
     """Verify installation before publishing a reusable snapshot."""
     guard()
     wait_for_boot()
-    require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
-            'install ok installed', 'package-status')
-    require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) ==
-            run(['dpkg-deb', '-f', str(PAYLOAD / 'package.deb'), 'Version']), 'package-version')
-    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+    verify_package()
 
 
 def verify_installed():

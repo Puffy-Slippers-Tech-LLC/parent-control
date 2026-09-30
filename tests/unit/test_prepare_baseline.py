@@ -1012,7 +1012,7 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
     monkeypatch.setattr(host.shutil, "which", lambda _name: None)
     connect = Mock()
     monkeypatch.setattr(host, "LibvirtSource", connect)
-    assert host.main(["--check-tools"]) == 1
+    assert host.main(["--vm", "onpc-Ubuntu26.04", "--check-tools"]) == 1
     assert "run ./setup.sh" in capsys.readouterr().err
     connect.assert_not_called()
 
@@ -1043,7 +1043,7 @@ def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
 
     mode = 'auto' if missing_baseline else 'manual'
-    assert host.main(['--mode', mode]) == (1 if missing_baseline else 0)
+    assert host.main(['--vm', 'onpc-Ubuntu26.04', '--mode', mode]) == (1 if missing_baseline else 0)
     if missing_baseline:
         output = capsys.readouterr()
         assert output.out == ''
@@ -1100,7 +1100,7 @@ def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
     capture.run.side_effect = blocked_capture
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
     try:
-        assert host.main(['--mode', 'manual']) == 0
+        assert host.main(['--vm', 'onpc-Ubuntu26.04', '--mode', 'manual']) == 0
     finally:
         finished.set()
         for thread in threads:
@@ -1110,7 +1110,7 @@ def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
 
 def test_resource_arguments_are_not_operator_overrides():
     with pytest.raises(SystemExit):
-        host.main(["--anchor", "/tmp/another"])
+        host.main(["--vm", "onpc-Ubuntu26.04", "--anchor", "/tmp/another"])
 
 
 def test_preparation_and_reuse_never_hash_or_structurally_scan_images(rig, monkeypatch):

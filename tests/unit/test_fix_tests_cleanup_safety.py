@@ -110,7 +110,7 @@ def test_cancellation_waits_for_runner_cleanup_then_fresh_start(checkout, monkey
                 return follow(run, io.StringIO())
 
             monkeypatch.setattr(fix_tests, 'follow', interrupt)
-        assert fix_tests.main(['--stop'] if action == 'stop' else []) == 130
+        assert fix_tests.main(['--vm', 'onpc-Ubuntu26.04', *(['--stop'] if action == 'stop' else [])]) == 130
     assert (root / 'test-cleaned').exists()
     (root / 'mode').write_text('pass')
     # Remove the main-only hook; this is a new caller after ownership is idle.
@@ -283,10 +283,10 @@ def test_stale_runner_uses_existing_recovery_route_then_retries_category(checkou
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['args'] for call in calls] == [
-        ['--stop-on-error', 'unit'],
-        [],
-        ['--stop-on-error', 'unit'],
-        ['--stop-on-error', 'unit'],
+        ['--stop-on-error', 'unit', '--vm', 'onpc-Ubuntu26.04'],
+        ['--vm', 'onpc-Ubuntu26.04'],
+        ['--stop-on-error', 'unit', '--vm', 'onpc-Ubuntu26.04'],
+        ['--stop-on-error', 'unit', '--vm', 'onpc-Ubuntu26.04'],
     ]
     assert calls[1]['kind'] == 'recovery'
     assert 'recovering both retention scopes' in output.getvalue()
@@ -426,9 +426,10 @@ def test_discovered_arguments_reach_each_test_without_reconstruction(checkout):
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['args'] for call in calls] == [
-        ['--stop-on-error', 'unit', '--future-option'],
-        ['--stop-on-error', 'future-suite', '--case', 'two words'],
-        ['--stop-on-error', 'e2e'], ['--stop-on-error', 'all']]
+        ['--stop-on-error', 'unit', '--future-option', '--vm', 'onpc-Ubuntu26.04'],
+        ['--stop-on-error', 'future-suite', '--case', 'two words', '--vm', 'onpc-Ubuntu26.04'],
+        ['--stop-on-error', 'e2e', '--vm', 'onpc-Ubuntu26.04'],
+        ['--stop-on-error', 'all', '--vm', 'onpc-Ubuntu26.04']]
     marker = '\033[1;36mRunning category [future-suite] (2/3)\033[0m'
     text = output.getvalue()
     assert marker in text

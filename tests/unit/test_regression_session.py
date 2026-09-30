@@ -139,6 +139,20 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     assert session.follow(run, io.StringIO()) == 7
 
 
+def test_active_vm_session_refuses_missing_or_other_vm_before_cancellation(tmp_path, workers):
+    vm_args = ['--vm', 'onpc-Fedora-Workstation-44']
+    run, started = session.select(tmp_path, ['e2e', *vm_args])
+    assert started
+    for argv in (['--stop'], ['--stop', '--vm', 'onpc-Ubuntu26.04']):
+        with pytest.raises(ValueError, match='original --vm NAME'):
+            session.select(tmp_path, argv)
+        assert not (run / 'cancel').exists()
+    assert session.select(tmp_path, ['e2e', *vm_args]) == (run, False)
+    assert len(workers) == 1
+    (tmp_path / 'release').touch()
+    assert session.follow(run, io.StringIO()) == 7
+
+
 @pytest.mark.parametrize('category', ['ui', 'e2e'])
 def test_active_session_wins_across_scopes_before_validation(tmp_path, workers, monkeypatch, category):
     monkeypatch.setattr(test_commands, 'validate',
@@ -209,7 +223,7 @@ def test_snapshot_probe_can_overlap_only_host_session(tmp_path, workers, monkeyp
     control.stopped.is_set.return_value = False
     control.run.return_value = 0
     monkeypatch.setattr(prepare_appsnapshot, 'Control', lambda: control)
-    assert prepare_appsnapshot.main(['--overwrite', 'false']) == expected
+    assert prepare_appsnapshot.main(['--overwrite', 'false', '--vm', 'onpc-Ubuntu26.04']) == expected
     cleanup.assert_not_called()
     assert control.run.call_count == int(expected == 0)
     assert check.call_count == int(expected == 0)

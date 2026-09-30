@@ -88,6 +88,23 @@ def test_spectator_ids_are_scoped_to_the_owned_window_and_application():
     assert ui.find("e2e-watch-progress") is progress
 
 
+@pytest.mark.parametrize('name', ['onpc-Ubuntu26.04', 'onpc-Fedora-Workstation-44'])
+def test_vm_viewer_accepts_only_its_declared_application_and_process(name):
+    progress = Node('e2e-watch-progress')
+    ui = adapter(Node('watch-window', [progress]))
+    application = ui.root()
+    identity = WATCH_APPLICATION + '.vm_' + name.encode('ascii').hex()
+    application.identity = identity
+    ui.application_ids = lambda: {identity}
+    ui.application_owners = lambda: {identity: {100}}
+    assert ui.find('e2e-watch-progress') is progress
+    ui.application_owners = lambda: {identity: {101}}
+    with pytest.raises(AutomationError, match='wrong-application-owner'):
+        ui.find('e2e-watch-progress')
+    ui.application_ids = lambda: {WATCH_APPLICATION + '.vm_' + 'another'.encode('ascii').hex()}
+    assert ui.find('e2e-watch-progress') is None
+
+
 def test_missing_and_duplicate_ids_refuse_input():
     ui = adapter(Node("", [Node("submit"), Node("submit")]))
     with pytest.raises(AutomationError, match="ambiguous-id"):

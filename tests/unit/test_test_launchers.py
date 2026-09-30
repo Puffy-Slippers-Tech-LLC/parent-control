@@ -13,6 +13,8 @@ from tests.support.paths import ROOT
 import test_launcher as host
 import test_commands as commands
 
+VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+
 
 def named_qualification_inputs():
     """Discover consumers independently of the launcher's preparation list."""
@@ -58,7 +60,7 @@ def test_every_named_input_consumer_prepares_before_dispatch(
         authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
         assert execute.call_args.args[0] == [
             '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-            '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector]
+            '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector, *VM_ARGS]
 
 
 def test_named_artifact_build_uses_existing_builder_without_creating_output(monkeypatch):
@@ -276,7 +278,7 @@ def test_retention_permission_failure_identifies_allocation_without_starting_tes
     monkeypatch.setattr(regression, 'retained_main',
                         lambda *args, **kwargs: pytest.fail('tests started despite inaccessible storage'))
     try:
-        assert commands._main(['all']) == 2
+        assert commands._main(['all', *VM_ARGS]) == 2
         diagnostic = capsys.readouterr().err
         assert 'PermissionError' in diagnostic
         assert 'retention: cannot inspect registered allocation' in diagnostic
@@ -299,8 +301,8 @@ def test_external_invocation_reaches_session_before_argument_validation(monkeypa
     attach = Mock(return_value=7)
     monkeypatch.setattr(regression_session, 'main', attach)
     monkeypatch.setattr(commands, 'validate', Mock(side_effect=AssertionError('premature validation')))
-    assert commands.main(argv) == 7
-    attach.assert_called_once_with(ROOT, argv)
+    assert commands.main([*argv, *VM_ARGS]) == 7
+    attach.assert_called_once_with(ROOT, [*argv, *VM_ARGS])
 
 
 def test_internal_worker_uses_verified_activity_instead_of_attaching(tmp_path, monkeypatch):
@@ -586,7 +588,7 @@ def test_empty_argv_dispatches_the_all_aggregate(monkeypatch):
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    assert commands._main([]) == 7
+    assert commands._main(VM_ARGS) == 7
     execute.assert_called_once_with(ROOT)
 
 
@@ -596,10 +598,10 @@ def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, ca
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    assert commands._main([category]) == 7
+    assert commands._main([category, *VM_ARGS]) == 7
     execute.assert_called_once_with(ROOT)
     execute.reset_mock()
-    assert commands._main([category, '--skip-backing-verification']) == 2
+    assert commands._main([category, '--skip-backing-verification', *VM_ARGS]) == 2
     execute.assert_not_called()
 
 
@@ -609,18 +611,18 @@ def test_continue_on_errors_is_a_valueless_aggregate_flag(monkeypatch, category)
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    assert commands._main([category, '--continue-on-errors']) == 7
+    assert commands._main([category, '--continue-on-errors', *VM_ARGS]) == 7
     assert execute.call_args.kwargs['continue_on_errors'] is True
     if category == 'host-builds':
         assert execute.call_args.kwargs['serial_builds'] is False
         for args in (['--serial-builds', '--continue-on-errors'],
                      ['--continue-on-errors', '--serial-builds']):
-            assert commands._main([category, *args]) == 7
+            assert commands._main([category, *args, *VM_ARGS]) == 7
             assert execute.call_args.kwargs['serial_builds'] is True
     execute.reset_mock()
     for args in (['--continue-on-errors=true'], ['--continue-on-errors', 'true'],
                  ['--continue-on-errors', '--continue-on-errors']):
-        assert commands._main([category, *args]) == 2
+        assert commands._main([category, *args, *VM_ARGS]) == 2
     execute.assert_not_called()
 
 
@@ -666,9 +668,9 @@ def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, deta
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
     phases = tuple(kind for kind in ('host', 'system', 'e2e') if kind in argv)
     for flag in ([], ['--continue-on-errors']):
-        commands.validate(ROOT, [*argv, *flag])
+        commands.validate(ROOT, [*argv, *flag, *VM_ARGS])
         assert commands.selections(ROOT, [*argv, *flag]) == [(kind, []) for kind in phases]
-        assert commands._main([*argv, *flag], detached=detached) == 7
+        assert commands._main([*argv, *flag, *VM_ARGS], detached=detached) == 7
         options = {'continue_on_errors': True} if flag else {}
         execute.assert_called_with(ROOT, phases=phases,
                                    **options)

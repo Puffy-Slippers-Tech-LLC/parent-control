@@ -14,7 +14,7 @@ from tests.support.paths import ROOT
 @pytest.fixture
 def checkout(tmp_path):
     root = tmp_path / 'checkout with spaces'
-    for name in ('tools', 'child', 'tests/integration', 'bin'):
+    for name in ('tools', 'child', 'tests/integration', 'bin', 'config'):
         (root / name).mkdir(parents=True)
     master = (ROOT / 'setup.sh').read_text().replace('/usr/local/libexec/onpc-setup', str(root / 'installed-setup'))
     (root / 'setup.sh').write_text(master)
@@ -37,6 +37,8 @@ sys.exit(7 if os.environ.get('ONPC_SETUP_FAIL') == name else 0)
     (root / '.envrc').write_text("export TEST_ACCOUNT_PASSWORD='fixture-password'\n")
     (root / '.envrc').chmod(0o600)
     shutil.copy2(ROOT / 'tools/onpc-setup', root / 'tools/onpc-setup')
+    shutil.copy2(ROOT / 'tests/integration/vm_config.py', root / 'tests/integration/vm_config.py')
+    shutil.copy2(ROOT / 'config/test-vm.json', root / 'config/test-vm.json')
     (root / 'tools/setup_privileges.py').write_text('''import os, pathlib, runpy, sys
 if os.environ.get('ONPC_SETUP_DENIED'):
     sys.exit(23)
@@ -92,7 +94,8 @@ DEPS = [('setup_dependencies.sh.py', []), ('setup_checkout.sh.py', [])]
     (['--ppa-build-tools'], [('setup_dependencies.sh.py', ['--ppa-build-tools'])]),
     (['--test-tools-only'], TOOLS),
     (['--codex-rules-only'], RULES),
-    (['--replace-missing-baseline'], [('prepare_baseline.py', ['--replace-missing']), *TOOLS]),
+    (['--replace-missing-baseline', '--vm', 'onpc-Ubuntu26.04'],
+     [('prepare_baseline.py', ['--replace-missing', '--vm', 'onpc-Ubuntu26.04']), *TOOLS]),
     (['--bootstrap-tools'], [('install_test_runner.py', []), *RULES]),
     (['--install-extension'], [('make', ['--no-print-directory', '_install-development-extension'])]),
 ])
@@ -105,7 +108,8 @@ def test_modes_repeat_complete_scope_from_any_working_directory(checkout, mode, 
 
 
 @pytest.mark.parametrize('mode,failure,expected', [
-    (['--replace-missing-baseline'], 'prepare_baseline.py', [('prepare_baseline.py', ['--replace-missing'])]),
+    (['--replace-missing-baseline', '--vm', 'onpc-Ubuntu26.04'], 'prepare_baseline.py',
+     [('prepare_baseline.py', ['--replace-missing', '--vm', 'onpc-Ubuntu26.04'])]),
     ([], 'setup_dependencies.sh.py', DEPS[:1]),
     ([], 'setup_checkout.sh.py', DEPS),
     (['--dependencies-only'], 'setup_dependencies.sh.py', DEPS[:1]),
@@ -141,7 +145,8 @@ def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, c
 @pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only',
                                   '--replace-missing-baseline', '--dependencies-only', '--ppa-build-tools', '--bootstrap-tools'])
 def test_denied_routine_setup_never_falls_back_to_authentication(checkout, mode):
-    result, events = run_setup(checkout, mode, denied=True)
+    vm_args = ['--vm', 'onpc-Ubuntu26.04'] if mode == '--replace-missing-baseline' else []
+    result, events = run_setup(checkout, mode, *vm_args, denied=True)
     assert result.returncode == 23
     assert not events
     assert not (checkout / 'authentication.log').exists()
@@ -193,7 +198,7 @@ def test_make_setup_aliases_only_delegate_to_master(checkout):
 
 def test_missing_password_fails_before_privilege_dispatch_or_any_setup(checkout):
     (checkout / '.envrc').unlink()
-    result, events = run_setup(checkout, '--replace-missing-baseline', denied=True)
+    result, events = run_setup(checkout, '--replace-missing-baseline', '--vm', 'onpc-Ubuntu26.04', denied=True)
     assert result.returncode == 1
     assert 'TEST_ACCOUNT_PASSWORD' in result.stderr
     assert not events

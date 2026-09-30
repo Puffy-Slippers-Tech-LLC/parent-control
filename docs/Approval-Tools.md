@@ -28,7 +28,7 @@ test defects may be fixed automatically while preserving the intended checks.
 | Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
 | Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-baseline` and `tools/test-vm` within their existing grants and authorized scope |
-| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
+| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot --vm NAME [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
 Invoke approved commands directly. Correct quoting and command shape before
@@ -87,7 +87,7 @@ changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
 checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
 dependencies and host policies. Explicit baseline preparation is
-`tools/prepare-baseline --mode auto|manual`; see
+`tools/prepare-baseline --vm NAME --mode auto|manual`; see
 [VM prerequisites](../tests/integration/Environment.md).
 The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
 plugin and GTK 4 VTE viewer packages without requesting package upgrades; ordinary test commands
@@ -172,7 +172,7 @@ Its supporting modules are under `tools/publishing/`; they are not separate
 release commands.
 
 Local publishing checks run through the aggregate's `tools/run-tests publish` category
-and the same module in `make test-all`. They create a private unsigned source
+and the same module in `make test-all VM=NAME`. They create a private unsigned source
 snapshot, run source integrity and Lintian checks, and build/test it in clean
 sbuild. They require no publisher credentials and never push or upload.
 
@@ -241,7 +241,7 @@ dedicated Polkit action defaults to denial and grants only active local members
 of `sudo`. `setup.sh` and `tools/prepare-baseline` check this authorization without
 requesting interaction before invoking the helper, and never fall back to generic
 `pkexec` on denial. The public baseline-replacement entry is
-`tools/prepare-baseline --mode auto|manual`. Auto mode is preapproved when needed
+`tools/prepare-baseline --vm NAME --mode auto|manual`. Auto mode is preapproved when needed
 for authorized development or testing, including deletion of all versioned app
 snapshots and replacement of the baseline. Do not request developer confirmation;
 answer the tool's existing confirmation prompt with `y`. Manual mode requires
@@ -314,16 +314,16 @@ the checkout activity lock.
 | Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
 | Reusable package/fixture preparation | `tools/run-tests artifacts prepare` | Content-qualified reuse or a fresh build; new private output registered in bounded run retention. No VM or installed product changes. |
 | Named qualification inputs | `tools/run-tests artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-parent-setup-input'` | Replace `/REPO` with this checkout's absolute path. Same unprivileged builder and retention; a new direct managed `onpc-*` allocation only, exclusive creation, no overwrite. Integration qualifications using `named_input()` prepare absent inputs automatically before privileged dispatch; launcher regression coverage checks every consumer. |
-| Privileged harness/graphical checks | `tools/run-tests integration check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
-| Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
-| Graphical journeys and harness scenarios | `tools/run-tests e2e` / `tools/run-tests e2e --id 1,3,4` / `tools/run-tests e2e --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Serial owned recovery remains mandatory; no prerequisite test suite runs. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
-| Asset-transfer runner qualification | `tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with live ownership checks; no scenario/list selector or product installation; pending customer dispatch stays closed |
-| Authenticated installation qualification | `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and owned recovery. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
-| Established regressions | `make test-all` / `tools/run-tests all` / `tools/run-tests` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. No arguments starts `all` when idle; an active or unread session still attaches. |
-| Scripted test repair | `tools/fix-tests [CATEGORY ...] [--model MODEL] [--effort medium]` / `tools/fix-tests --stop` | Granular pass then complete regression retries by default; explicit categories restrict repair and verification to those leaves; detached owner, GPT-6.1 Sol Medium classification/mechanical repair and Astra Low app/uncertain/failed-verification repair in fresh Standard-speed ephemeral sessions; developer blockers pause in the shared write-e2e question menu; existing sandbox/rules and scripted test-runner cleanup, no automatic setup or authority expansion |
-| Scripted E2E implementation | `tools/write-e2e [--sessions N] [--tasks N]` / `tools/write-e2e --stop` | Fresh Astra Low implementation and Astra High live/repair sessions; a parameterless new run defaults to 5 sessions and 1 completed task, while a new run with `--tasks` alone retains unlimited total sessions; each new launcher permits 5 more sessions for its current task while retaining cumulative task numbering, and the next task begins with its own 5-session cap; stop at either limit; plain invocation attaches unchanged, explicit live limits are signed adjustments applied at session boundaries (minimum zero; unlimited sessions become sessions already started plus N); safe stop at the next session boundary, Ctrl+C owned cancellation; staging of explicit paths and task-session worktree changes without commits, excluding prior work and output artifacts; existing grants and guarded test cleanup |
+| Privileged harness/graphical checks | `tools/run-tests integration --vm NAME check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
+| Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --vm NAME --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
+| Graphical journeys and harness scenarios | `tools/run-tests e2e --vm NAME` / `tools/run-tests e2e --vm NAME --id 1,3,4` / `tools/run-tests e2e --vm NAME --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Serial owned recovery remains mandatory; no prerequisite test suite runs. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
+| Asset-transfer runner qualification | `tools/run-tests e2e --vm NAME --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with live ownership checks; no scenario/list selector or product installation; pending customer dispatch stays closed |
+| Authenticated installation qualification | `tools/run-tests e2e --vm NAME --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and owned recovery. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
+| Established regressions | `make test-all VM=NAME` / `tools/run-tests all --vm NAME` / `tools/run-tests --vm NAME` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. With only `--vm NAME`, starts `all` when idle; VM attachment requires the same explicit name. |
+| Scripted test repair | `tools/fix-tests [--vm NAME] [CATEGORY ...] [--model MODEL] [--effort medium]` / `tools/fix-tests --vm NAME --stop` | Granular pass then complete regression retries by default; explicit categories restrict repair and verification to those leaves; detached owner, GPT-6.1 Sol Medium classification/mechanical repair and Astra Low app/uncertain/failed-verification repair in fresh Standard-speed ephemeral sessions; developer blockers pause in the shared write-e2e question menu; existing sandbox/rules and scripted test-runner cleanup, no automatic setup or authority expansion |
+| Scripted E2E implementation | `tools/write-e2e --vm NAME [--sessions N] [--tasks N]` / `tools/write-e2e --vm NAME --stop` | Fresh Astra Low implementation and Astra High live/repair sessions; a new run with only `--vm NAME` defaults to 5 sessions and 1 completed task, while a new run with `--tasks` alone retains unlimited total sessions; each new launcher permits 5 more sessions for its current task while retaining cumulative task numbering, and the next task begins with its own 5-session cap; stop at either limit; plain invocation attaches unchanged, explicit live limits are signed adjustments applied at session boundaries (minimum zero; unlimited sessions become sessions already started plus N); safe stop at the next session boundary, Ctrl+C owned cancellation; staging of explicit paths and task-session worktree changes without commits, excluding prior work and output artifacts; existing grants and guarded test cleanup |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
-| Combined complete categories | `tools/run-tests host system e2e` | Equals `all`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; VM-only selections build their required input automatically |
+| Combined complete categories | `tools/run-tests host system e2e --vm NAME` | Equals `all`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; VM-only selections build their required input automatically |
 | Host compatibility alias | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same scope as `host`; `--serial-builds` retains publishing/builds after the host join for a scheduling comparison |
 | Local publishing checks | `tools/run-tests publish` | Shared source/sbuild/Lintian module included in `test-all` and `test-all-verify`; no selectors or publication |
 | Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |
@@ -376,8 +376,9 @@ When idle, an unread successful result is replayed in the requested scope. After
 the result is delivered, the next invocation validates and starts fresh work.
 An explicit selection can replace an idle failed/incomplete session immediately,
 preserving its output and reconciling residual state before starting tests.
-An invocation without arguments still replays an unread VM-side result. When idle, no
-arguments starts the `all` aggregate. `--help` and `-h` always print usage
+VM attachment, cancellation and unread-result replay require the original
+configured `--vm NAME`. A different or missing name refuses attachment. When idle,
+`--vm NAME` without categories starts the `all` aggregate. `--help` and `-h` always print usage
 immediately, before activity/session locks or attachment, without consuming an
 unread result.
 
@@ -401,7 +402,7 @@ Legacy `/tmp/onpc-*` paths remain readable inputs, not new bulk output targets.
 The [storage contract](../tests/README.md#aggregate-output-retention) defines
 three-run/4-GiB per-journal rotation, owner-locked scratch reclamation, short
 runtime-socket exceptions and explicit identity-audited legacy migration through
-`tools/run-tests integration check_storage_migration`.
+`tools/run-tests integration --vm NAME check_storage_migration`.
 
 When starting a new run, system and E2E listings run as the ordinary user without safety tests, privilege
 or VM mutation. `fast --list` forwards `LIST=1` once its target exists. `all`
@@ -440,7 +441,7 @@ cleanup implementation still requires its corresponding regression. No runtime
 passing-test receipt substitutes for live ownership checks.
 Collection/listing does not run cleanup or claim passing test coverage.
 
-## The one test VM
+## The configured test VMs
 
 All VM consumers inherit the [VM observation mandate](Mandates/VM-Mandate.MD#vm-observation-mandate).
 `tools/watch` observes the shared lease and guarded command transport during
@@ -453,24 +454,37 @@ read-only for VM activity and may attach or detach at any time without controlli
 the VM. In the left runner terminal, selection and Copy are available; Ctrl+C
 requests the displayed runner's cooperative cancellation and cleanup.
 
-`tools/test-vm` has no domain selector, URI, disk, XML, snapshot-name or arbitrary-command
-argument. It uses `qemu:///system`, the name in
-[config/test-vm.json](../config/test-vm.json), and the UUID pinned
-from that name's root-private finalized baseline provenance during setup. A missing baseline
+All VM execution, maintenance and recovery commands require
+`--vm NAME`, matching an entry in [config/test-vm.json](../config/test-vm.json)'s
+`vms` array exactly. `tools/run-tests` requires it for `system`, `e2e`,
+`integration`, `all` and combinations containing VM work. Host-only tests,
+help and declaration listing do not require a VM. `tools/write-e2e`,
+VM-scoped `tools/fix-tests`, baseline and app-snapshot preparation,
+and `tools/cleanup-e2e` carry the same explicit selection. Make VM targets
+require `VM=NAME`; replacement setup requires `--vm NAME`. Public commands
+never use an ambient environment value or registry order as a default.
+`tools/watch` and `make watch` observe all registered VMs without a VM parameter.
+Reattachment and cancellation of a VM run require its original selected name.
+
+`tools/test-vm` accepts this configured-name selector and no URI, disk, XML,
+snapshot-name or arbitrary-command input. It uses `qemu:///system` and the UUID
+pinned separately for that name from its root-private finalized baseline
+provenance during setup. Setup refreshes pins for all configured entries.
+A missing baseline
 disables this route until preparation and a tools refresh; it never selects a
 replacement by name alone.
 
 | Command | Effect |
 | --- | --- |
-| `tools/test-vm status` / `xml` | Inspect only the pinned guest using a read-only connection |
-| `tools/test-vm rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
-| `tools/test-vm start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, remove host shares, record and boot an isolated maintenance attempt |
-| `tools/test-vm reboot` | Request an ACPI reboot of that same recorded running instance; preserve guest state |
-| `tools/test-vm send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |
-| `tools/test-vm screenshot` | Capture the owned running guest to a new private `/tmp/onpc-vm-screen-*` artifact |
-| `tools/test-vm stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off |
-| `tools/test-vm reset` | Restore the accepted outer baseline while idle, leaving the VM off |
-| `tools/test-vm recover-online ID` | After explicit authorization of the inspected instance, recover an interrupted online start with matching maintenance, snapshot and isolation proofs; restore the baseline and leave it off |
+| `tools/test-vm --vm NAME status` / `xml` | Inspect only the pinned guest using a read-only connection |
+| `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
+| `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, remove host shares, record and boot an isolated maintenance attempt |
+| `tools/test-vm --vm NAME reboot` | Request an ACPI reboot of that same recorded running instance; preserve guest state |
+| `tools/test-vm --vm NAME send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |
+| `tools/test-vm --vm NAME screenshot` | Capture the owned running guest to a new private `/tmp/onpc-vm-screen-*` artifact |
+| `tools/test-vm --vm NAME stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off |
+| `tools/test-vm --vm NAME reset` | Restore the accepted outer baseline while idle, leaving the VM off |
+| `tools/test-vm --vm NAME recover-online ID` | After explicit authorization of the inspected instance, recover an interrupted online start with matching maintenance, snapshot and isolation proofs; restore the baseline and leave it off |
 
 Every mutation shares the runner's nonblocking exclusive lock. Reopened
 maintenance operations require a matching root-private ownership record,

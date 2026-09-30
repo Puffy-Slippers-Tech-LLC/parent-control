@@ -61,13 +61,16 @@ def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
     assert command[-3] == '--'
     assert command[-2].endswith('/tools/watch')
     assert command[-1] == '--desktop-session'
+    assert '--vm' not in command
 
 
 def test_snap_launch_propagates_service_failure_without_opening_editor_owned_window(monkeypatch):
     import watch_viewer as viewer
     monkeypatch.setattr('sys.argv', ['watch'])
     monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
-    monkeypatch.setattr(viewer.Path, 'read_text', lambda self: 'snap.code.code (complain)\n')
+    original_read = viewer.Path.read_text
+    monkeypatch.setattr(viewer.Path, 'read_text', lambda self, *a, **kw:
+        'snap.code.code (complain)\n' if str(self) == '/proc/self/attr/current' else original_read(self, *a, **kw))
     launch = Mock(return_value=Mock(returncode=7))
     window = Mock(side_effect=AssertionError('Viewer must start from the user manager'))
     monkeypatch.setattr(viewer.subprocess, 'run', launch)
@@ -81,7 +84,9 @@ def test_snap_identity_after_delegation_refuses_instead_of_launching_forever(mon
     import watch_viewer as viewer
     monkeypatch.setattr('sys.argv', ['watch', '--desktop-session'])
     monkeypatch.setattr(viewer.os, 'getuid', lambda: 1000)
-    monkeypatch.setattr(viewer.Path, 'read_text', lambda self: 'snap.code.code (complain)\n')
+    original_read = viewer.Path.read_text
+    monkeypatch.setattr(viewer.Path, 'read_text', lambda self, *a, **kw:
+        'snap.code.code (complain)\n' if str(self) == '/proc/self/attr/current' else original_read(self, *a, **kw))
     launch = Mock(side_effect=AssertionError('Do not retry delegation'))
     monkeypatch.setattr(viewer.subprocess, 'run', launch)
     with pytest.raises(ValueError, match='desktop-session-still-has-snap-identity'):

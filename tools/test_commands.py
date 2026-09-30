@@ -102,6 +102,15 @@ def execution_arguments(argv):
     return args, stop
 
 
+def vm_request(argv):
+    from vm_selection import extract
+    args, configured = extract(argv, required=False)
+    if not is_inspection(args) and args != ['--stop'] and not host_only_request(args):
+        if configured is None:
+            raise ValueError('vm-config: --vm NAME is required for VM categories')
+    return args, configured
+
+
 def usage():
     """Human-readable launcher help. ``--list`` remains the JSON inventory."""
     width = max(map(len, CATEGORIES))
@@ -109,16 +118,18 @@ def usage():
     listing = '\n'.join(f'  {name:<{width}}  {CATEGORIES[name].description}' for name in inventory)
     helpers = '\n'.join(f'  {name:<{width}}  {spec.description}'
                         for name, spec in CATEGORIES.items() if name not in inventory)
-    return f'''Usage: tools/run-tests [--stop-on-error] [category [args ...]] ...
+    return f'''Usage: tools/run-tests [--vm NAME] [--stop-on-error] [category [args ...]] ...
        tools/run-tests --help
        tools/run-tests --list
        tools/run-tests --stop
 
-With no arguments, start the all aggregate unless a previous run is still
-active or has an unread result; then this invocation attaches to that run.
-Any active run takes precedence over new execution arguments, across categories.
+With --vm NAME and no categories, start the all aggregate. An active run or
+unread result takes precedence over new execution categories. Attaching to a
+VM run requires its original --vm NAME; another VM is refused.
 Help, listing and collection return immediately without attaching.
 --stop requests cancellation of the active run and waits for owned cleanup.
+VM categories (system, e2e, integration, all) require --vm NAME, matching
+config/test-vm.json. Host-only tests and declaration listing need no VM.
 
 Inspection
   --help, -h   this usage, including how all breaks down into pieces
@@ -136,10 +147,10 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   all = host + system + e2e
 
   tools/run-tests host
-  tools/run-tests system e2e
-  tools/run-tests e2e
-  tools/run-tests host system
-  tools/run-tests host system e2e    (same as all)
+  tools/run-tests system e2e --vm NAME
+  tools/run-tests e2e --vm NAME
+  tools/run-tests host system --vm NAME
+  tools/run-tests host system e2e --vm NAME    (same as all)
 
   Combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).
@@ -218,6 +229,8 @@ def selections(root, argv):
     component``). Only split at another category when the complete group is
     invalid, and validate every group before starting any work.
     """
+    from vm_selection import extract
+    argv, _ = extract(argv, required=False)
     argv, _ = execution_arguments(argv)
     phases = phase_arguments(argv)
     if phases is not None:
@@ -406,6 +419,9 @@ def make_command(root, target, assignments=()):
 
 def plan(root, category, argv):
     """Validate everything before prerequisites, output creation or execution."""
+    if category in ('integration', 'system', 'e2e'):
+        from vm_selection import extract
+        argv, _ = extract(argv, required=False)
     if category == 'publish':
         if argv:
             raise ValueError('publishing tests accept no arguments')
@@ -432,12 +448,14 @@ def plan(root, category, argv):
         # repeats it after pkexec. Loading this checkout copy confers no privilege.
         import runpy
         dispatcher = runpy.run_path(host.confined_file(root, 'tools/onpc-test-runner'))
-        command = dispatcher['selection'](root, [category, *argv],
+        from vm_selection import arguments
+        vm_args = arguments() if '--list' not in argv else []
+        command = dispatcher['selection'](root, [category, *argv, *vm_args],
                                           allow_missing_artifacts=category == 'e2e')
         if '--list' in argv and category != 'integration':
             return [command], False
         # Forward the validated E2E options, preserving a multi-case selection.
-        forwarded = command[3:] if category == 'e2e' else argv
+        forwarded = command[3:] if category == 'e2e' else [*argv, *vm_args]
         return [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', category, *forwarded]], False
     if category in ('child-node', 'child-gjs'):
         defaults = [path.relative_to(root).as_posix() for path in sorted((root / 'tests/child').rglob('*'))
@@ -518,6 +536,11 @@ def plan(root, category, argv):
 
 def _main(argv=None, *, detached=False):
     argv = list(sys.argv[1:] if argv is None else argv)
+    try:
+        argv, _ = vm_request(argv)
+    except ValueError as error:
+        print('run-tests: ' + str(error), file=sys.stderr)
+        return 2
     if argv in HELP_ARGV:
         print(usage())
         return 0
@@ -655,6 +678,7 @@ def validate_one(root, argv):
 
 
 def validate(root, argv):
+    argv, _ = vm_request(argv)
     if not argv or argv in HELP_ARGV or argv == ['--list']:
         return
     selected = selections(root, argv)
@@ -678,7 +702,9 @@ def host_only_request(argv):
     phase combinations can contain more than one category; focused category
     arguments must not be mistaken for category names (for example ``-m e2e``).
     """
-    args = list(argv) or ['all']
+    from vm_selection import extract
+    args, _ = extract(argv, required=False)
+    args = args or ['all']
     if args[:1] == ['--stop-on-error']:
         args = args[1:] or ['all']
     category = args[0]
@@ -696,6 +722,11 @@ def is_inspection(argv):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    try:
+        vm_request(argv)
+    except ValueError as error:
+        print('run-tests: ' + str(error), file=sys.stderr)
+        return 2
     # Inspection must never wait for, attach to, or even inspect execution
     # ownership. Its underlying command still validates its own arguments.
     if is_inspection(argv):

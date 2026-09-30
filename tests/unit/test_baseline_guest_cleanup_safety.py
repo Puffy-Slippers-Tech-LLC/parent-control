@@ -132,7 +132,7 @@ def test_guest_entry_updates_only_after_successful_auto_setup(guest_entry, monke
     # Fixed reboot path is only a read; fixture chooses whether it is present.
     exists = Path.exists
     monkeypatch.setattr(Path, 'exists', lambda p: False if str(p) == '/run/reboot-required' else exists(p))
-    assert entry.main([]) == setup_status
+    assert entry.main(['--vm', 'onpc-Ubuntu26.04']) == setup_status
     assert update.call_count == int(mode == 'auto' and setup_status == 0)
     assert (root / 'success').exists() == (setup_status == 0)
     assert not (root / 'password').exists()
@@ -143,7 +143,7 @@ def test_guest_update_failure_never_marks_success(guest_entry, monkeypatch):
     (root / 'mode').write_text('auto')
     monkeypatch.setattr(entry, 'update_system', Mock(side_effect=RuntimeError('update failed')))
     with pytest.raises(RuntimeError, match='update failed'):
-        entry.main([])
+        entry.main(['--vm', 'onpc-Ubuntu26.04'])
     assert not (root / 'success').exists()
 
 
@@ -153,7 +153,7 @@ def test_auto_guest_records_reboot_before_success(guest_entry, monkeypatch):
     monkeypatch.setattr(entry, 'update_system', Mock())
     exists = Path.exists
     monkeypatch.setattr(Path, 'exists', lambda p: True if str(p) == '/run/reboot-required' else exists(p))
-    assert entry.main([]) == 0
+    assert entry.main(['--vm', 'onpc-Ubuntu26.04']) == 0
     assert (root / 'reboot-required').read_text() == 'new-boot-id'
     assert not (root / 'success').exists()
 
@@ -161,13 +161,13 @@ def test_auto_guest_records_reboot_before_success(guest_entry, monkeypatch):
 def test_guest_requires_a_different_boot_before_success(guest_entry, monkeypatch):
     entry, root = guest_entry
     (root / 'reboot-required').write_text('new-boot-id')
-    assert entry.main(['--verify-reboot']) == 1
+    assert entry.main(['--verify-reboot', '--vm', 'onpc-Ubuntu26.04']) == 1
     assert not (root / 'success').exists()
     (root / 'reboot-required').write_text('old-boot-id')
     read = Path.read_text
     monkeypatch.setattr(Path, 'read_text', lambda p, *a, **k:
                         '' if str(p) == '/var/lib/dpkg/status' else read(p, *a, **k))
-    assert entry.main(['--verify-reboot']) == 0
+    assert entry.main(['--verify-reboot', '--vm', 'onpc-Ubuntu26.04']) == 0
     assert (root / 'success').read_text() == 'success\n'
     assert not (root / 'reboot-required').exists()
 
@@ -360,6 +360,6 @@ def test_missing_password_precedes_any_host_dependency_or_vm_access(monkeypatch)
     tools, source = Mock(), Mock()
     monkeypatch.setattr(host.shutil, 'which', tools)
     monkeypatch.setattr(host, 'LibvirtSource', source)
-    assert host.main(['--mode', 'manual']) == 1
+    assert host.main(['--mode', 'manual', '--vm', 'onpc-Ubuntu26.04']) == 1
     tools.assert_not_called()
     source.assert_not_called()

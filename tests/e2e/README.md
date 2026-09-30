@@ -182,10 +182,10 @@ remain host-safe; a listing is never an execution pass.
 ### Optional live viewing
 
 Run `tools/watch` or `make watch` from your desktop terminal whenever you want to watch the
-guarded test VM, during E2E or any other VM work. Tests remain headless by default: the runner never launches a
+registered test VMs, during E2E or any other VM work. Tests remain headless by default: the runner never launches a
 window. You can open, close or reopen the viewer during an attempt. Another
 `tools/watch` launch reuses and presents the existing window;
-the pinned VM has one viewer per desktop session, including concurrent launches.
+the registered VMs share one viewer per desktop session, including concurrent launches.
 Launch commands return after service startup without holding the terminal.
 Select **VM** to keep the VM viewer visible, or **Active** to share the right
 panel with concurrent host UI tests. Hidden viewers stop rendering and reading
@@ -279,7 +279,7 @@ it installs no product service, changes no guest saved data and requires no host
 session renewal. Direct virt-manager/VNC viewing is outside this contract: its
 connection and input behavior do not enforce these boundaries.
 
-Qualification uses `tools/run-tests integration check_e2e_watch` for repeated
+Qualification uses `tools/run-tests integration --vm NAME check_e2e_watch` for repeated
 client connections, premature closes, rejected input and collector stalls while
 the automation VNC endpoint remains responsive. It also starts a lease without
 an E2E recorder, hands off the maintenance collector, checks live screen/SSH and
@@ -303,8 +303,8 @@ the runtime inventory. No Codex, network service or VM is needed; use the
 development dependencies installed by `./setup.sh`.
 
 Each documented number is one exact variant's persistent `coverage_id`:
-`tools/run-tests e2e --list --id '1'` inspects it, and
-`tools/run-tests e2e --id '1'` executes it with automatically prepared verified
+`tools/run-tests e2e --vm NAME --list --id '1'` inspects it, and
+`tools/run-tests e2e --vm NAME --id '1'` executes it with automatically prepared verified
 package artifacts. Pending
 cases still refuse execution. `--id 1,3,4` selects a comma-separated list of
 one or more numeric IDs. Empty entries, malformed IDs and unknown IDs refuse
@@ -312,7 +312,7 @@ the entire selection; repeated IDs run once. `--id`, `--scenario` and `--ready`
 are mutually exclusive. Refresh installed dispatchers with
 `./setup.sh --test-tools-only` to support multiple IDs.
 
-`tools/run-tests e2e` runs every runnable E2E case and reports pending exclusions.
+`tools/run-tests e2e --vm NAME` runs every runnable E2E case and reports pending exclusions.
 It does not dispatch other test categories. Execution without `--artifacts`
 prepares the required package artifacts automatically, reusing matching verified
 inputs or building on a miss; an explicit artifact directory uses the supplied
@@ -324,10 +324,10 @@ From the checkout, these commands only read declarations and print JSON. They
 need no root, package artifacts, installed product, graphical tools or VM:
 
 ```sh
-tools/run-tests e2e --list
-tools/run-tests e2e --list --ready
-tools/run-tests e2e --list --scenario E2E-023
-tools/run-tests e2e --list --scenario E2E-023/fullscreen
+tools/run-tests e2e --vm NAME --list
+tools/run-tests e2e --vm NAME --list --ready
+tools/run-tests e2e --vm NAME --list --scenario E2E-023
+tools/run-tests e2e --vm NAME --list --scenario E2E-023/fullscreen
 make check-e2e LIST=1 SCENARIO=E2E-023/fullscreen
 ```
 
@@ -346,7 +346,7 @@ scope and every omitted ID in `excluded_pending_cases`; `pending_cases` describe
 the selected cases only. A list operation may report an empty ready selection;
 execution refuses it before artifacts, privileges or VM access. Newly registered
 ready cases are discovered automatically on the next invocation. The current
-ready set is reported by `tools/run-tests e2e --list --ready`; external-provider
+ready set is reported by `tools/run-tests e2e --vm NAME --list --ready`; external-provider
 qualification gaps do not imply that the set is empty.
 
 An explicit selector containing a pending variant fails with `selection:pending`
@@ -429,7 +429,7 @@ shared qualification for foreground VM commands. No product update is required.
 
 ## Run E2E scenarios
 
-`tools/run-tests e2e` prepares verified package/fixture inputs automatically,
+`tools/run-tests e2e --vm NAME` prepares verified package/fixture inputs automatically,
 using the [startup cache](#reusable-startup-preparation). Fixed qualifications
 such as `check_e2e_toggle` similarly prepare their managed named input when
 absent. For explicit input preparation, use `tools/run-tests artifacts prepare`
@@ -440,26 +440,26 @@ legacy `/tmp` locations. These test-only changes activate on invocation.
 
 ```sh
 # All currently implemented E2E variants:
-tools/run-tests e2e
+tools/run-tests e2e --vm NAME
 
 # Only the installed Parent About/license customer journey:
-tools/run-tests e2e --id '151'
+tools/run-tests e2e --vm NAME --id '151'
 
 # Only dynamic Parent child discovery and selection:
-tools/run-tests e2e --id '3'
+tools/run-tests e2e --vm NAME --id '3'
 
 # Only Parent's no-eligible-children explanation:
-tools/run-tests e2e --id '4'
+tools/run-tests e2e --vm NAME --id '4'
 
 # Only standard-user denial through the normal app grid:
-tools/run-tests e2e --id '5'
+tools/run-tests e2e --vm NAME --id '5'
 ```
 
-Standalone `tools/prepare-appsnapshot --mode online|offline` defaults to online.
+Standalone `tools/prepare-appsnapshot --vm NAME --mode online|offline` defaults to online.
 Online preparation installs the app, reboots, verifies the new boot and captures
 disk plus memory. A fresh matching online snapshot is restored without building
 or booting, leaving a running isolated guest under the shared VM-maintenance
-ownership record. `tools/test-vm stop` stops that recorded guest. Offline mode
+ownership record. `tools/test-vm --vm NAME stop` stops that recorded guest. Offline mode
 keeps the installation, verification, shutdown and disk-only snapshot sequence.
 Online snapshot creation disconnects the owned guest's live network interface
 before saving memory. Host DHCP leases are not restored with guest memory.
@@ -524,7 +524,7 @@ The invocation stops after the first failed attempt, including evidence or clean
 failure, and retains the expected case list and pending exclusions in its report.
 An interrupted online restore with no recorded instance ID refuses ordinary
 resume and stop. After inspection and explicit authorization of the observed
-instance, `tools/test-vm recover-online ID` validates the maintenance journal,
+instance, `tools/test-vm --vm NAME recover-online ID` validates the maintenance journal,
 baseline, saved snapshot credential binding, live run tag and isolation before
 restoring the baseline. A changed instance or missing proof refuses recovery.
 Validation refusals before restoration leave an idle VM available and preserve
@@ -536,7 +536,7 @@ for exactly one active local graphical greeter, then retains the owned session-b
 and accessibility checks. Ambiguous identities and failed reads stop immediately.
 The controller allows 390 seconds for that observation, within the worker's
 420-second checkpoint deadline; no input is replayed or product probe substituted.
-The current ready set comes from `tools/run-tests e2e --list` and
+The current ready set comes from `tools/run-tests e2e --vm NAME --list` and
 `scenarios.json`, with totals in [generated coverage](../../docs/Test-Coverage.md);
 do not maintain a second list here. Retained bindings do not
 qualify their provider routes or certify a current installed pass. Implement
@@ -587,10 +587,10 @@ both installed `--help` commands and both manuals through the guarded VM SSH
 transport. It checks the public desktop after each read and requires no product
 window. This stream route passed complete case 193, including collection and
 cleanup, in run `20260922T225544Z-f49bdf46` (subject to runner retention).
-The public `tools/run-tests e2e` route selects the ready set; a ready-suite pass
+The public `tools/run-tests e2e --vm NAME` route selects the ready set; a ready-suite pass
 is partial coverage while variants remain pending.
 
-`make test-all` and `make test-all-verify` both discover every ready E2E variant
+`make test-all VM=NAME` and `make test-all-verify VM=NAME` both discover every ready E2E variant
 through the same selector, after required host/package and installed-system
 prerequisites. No Makefile entry is needed for a newly ready scenario. Both stop
 the VM sequence on a failed installed-system/E2E attempt. All VM entry points use
@@ -616,7 +616,7 @@ reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-recon
 Completed inventory-test compatibility work is recorded as task 192 in the
 [canonical queue](../../docs/TestAutomation/E2E-Task-Queue.md#ordered-task-queue).
 
-Run the canonical smoke with `tools/run-tests e2e --id '1'` using verified
+Run the canonical smoke with `tools/run-tests e2e --vm NAME --id '1'` using verified
 build artifacts. Its callback reuses the qualified serial worker and
 records nine acknowledgments before the next guest action: readiness, initial
 GDM, selected empty prompt, Escape return, serial password boundary,
@@ -850,7 +850,7 @@ preparation/reuse, installed-system and E2E tests, graphical qualifications,
 maintenance and interrupted-run recovery. Whole-image hashes and
 `qemu-img check` structural scans are not used. `qemu-img info` reads format,
 chain and internal-snapshot metadata. There is no full-scan mode or fallback.
-`make test-all-verify` / `tools/run-tests all-verify` are compatibility aliases
+`make test-all-verify VM=NAME` / `tools/run-tests all-verify --vm NAME` are compatibility aliases
 for `all`; `--skip-backing-verification` is accepted as a compatibility no-op.
 
 [VMOwnership](../integration/vm_ownership.py) checks the exact held controller-lock
@@ -900,7 +900,7 @@ listed above.
 
 ### Asset transfer qualification
 
-The separate `tools/run-tests e2e --qualify-install --artifacts /tmp/onpc-<verified-build>`
+The separate `tools/run-tests e2e --vm NAME --qualify-install --artifacts /tmp/onpc-<verified-build>`
 route qualifies the fixed authenticated installation boundary. It provisions
 verified assets and fixture credentials, then uses real serial login, fresh
 sudo authentication, package-result verification, customer reboot and graphical return.
@@ -932,7 +932,7 @@ retains ANSI bytes; no control stripping or arbitrary intervening output is
 accepted. Only fixed text/color/final-position flags enter public evidence.
 This proves emitted terminal output, not a graphical rendering or reboot.
 
-The sibling `tools/run-tests e2e --qualify-install-refusal --artifacts
+The sibling `tools/run-tests e2e --vm NAME --qualify-install-refusal --artifacts
 /tmp/onpc-<verified-build>` route deliberately submits one fixed non-secret,
 incorrect password after the same recipient proof, choosing between two fixed
 values so it cannot equal the configured shared password. It requires the first re-prompt,
@@ -948,7 +948,7 @@ the product selection remains pending. Refresh the installed dispatcher through
 `./setup.sh --test-tools-only` when adding this option. Test-tool activation is
 `none` (next invocation); no product data migration is involved.
 
-`tools/run-tests e2e --qualify-transfer --artifacts /tmp/onpc-<verified-build>`
+`tools/run-tests e2e --vm NAME --qualify-transfer --artifacts /tmp/onpc-<verified-build>`
 runs the existing guarded credential-free graphical worker with package/fixture
 delivery. Build current inputs with `tools/run-tests artifacts build` first.
 The qualification rejects scenario/list selectors; all pending customer cases
@@ -1223,7 +1223,7 @@ Sudo/notice pixels remain unqualified; no new prompt collection is needed for
 the corrected worker deadline.
 
 The existing credential-free collection route is
-`tools/run-tests integration check_graphical_vt6_prompt`. It reuses
+`tools/run-tests integration --vm NAME check_graphical_vt6_prompt`. It reuses
 `onpc_vt6::inspect_prompt`, `Smoke.VT6_PROMPT_STAGES` and `VT6_GETTY`; it cannot
 provision/read passwords or combine with authentication/installation. Boot and
 independent recipient checks bracket the two private captures; capture seals
@@ -1351,7 +1351,7 @@ still the qualified smoke; the graphical runner owns screen matching and scenari
 
 `e2e_worker.run_distribution` now runs the qualified, fixed credential-free
 distribution for `tests/integration/check_graphical_smoke.py`. Invoke the smoke
-through `tools/run-tests integration check_graphical_smoke`; the dispatcher invokes
+through `tools/run-tests integration --vm NAME check_graphical_smoke`; the dispatcher invokes
 the selected controller with the existing VM lease and ownership checks. This is
 worker integration evidence, not an executed E2E-001 variant. The distribution's
 Perl sources still live in `tests/integration/graphical_smoke`; this extraction
@@ -1471,8 +1471,8 @@ On the exclusively held offline disk, credential verification checks the
 fixture UIDs, homes and shells against accepted baseline records and verifies
 the existing password hashes through libcrypt. This step opens the disk read-only:
 it changes no account passwords, keyrings or other guest data. A mismatch
-requires rerunning `tools/prepare-baseline --mode auto` on the host, or
-`tools/prepare-baseline --mode manual` to prepare the current guest state.
+requires rerunning `tools/prepare-baseline --vm NAME --mode auto` on the host, or
+`tools/prepare-baseline --vm NAME --mode manual` to prepare the current guest state.
 Both require the VM off and confirmation before deleting all versioned app
 snapshots and replacing the baseline; auto also restores the baseline and
 updates Ubuntu. See [VM preparation modes](../integration/Environment.md).
@@ -1526,7 +1526,7 @@ unchanged. `setup.sh` installs the pinned OpenSSL dependency on clean hosts.
 
 ### Public serial console qualification
 
-Run `tools/run-tests integration check_graphical_serial` through the existing
+Run `tools/run-tests integration --vm NAME check_graphical_serial` through the existing
 guarded dispatcher. This fixed qualification takes no arguments. It reuses
 fixture credentials and GDM checks, then performs serial login, a harmless
 `printf`, real logout and public graphical-console selection. It never opens

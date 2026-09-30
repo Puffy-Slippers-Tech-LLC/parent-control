@@ -7,11 +7,15 @@ import sys
 import test_activity
 import test_retention
 from test_recovery import cleanup
+from vm_selection import select
 
 
 def main(argv=None):
-    argparse.ArgumentParser(description=__doc__, allow_abbrev=False).parse_args(argv)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--vm', required=True, help='exact name in config/test-vm.json')
+    args = parser.parse_args(argv)
     try:
+        select(args.vm)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         root = Path(__file__).resolve().parents[1]

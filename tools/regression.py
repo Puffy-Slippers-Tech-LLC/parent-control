@@ -617,7 +617,9 @@ class Run:
     def command(self, category, *args):
         if category == 'ui':
             return [str(self.root / 'tools/run-ui-tests'), '--unattended', *args]
-        return [str(self.root / 'tools/run-tests'), category, '--unattended', *args]
+        from vm_selection import arguments
+        vm_args = arguments() if category in ('system', 'e2e', 'integration') else []
+        return [str(self.root / 'tools/run-tests'), category, '--unattended', *args, *vm_args]
 
     def execute(self, item, command, *, collect=False, events=False, units=None):
         if self.control.stopped.is_set():

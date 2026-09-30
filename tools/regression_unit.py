@@ -136,6 +136,11 @@ write_e2e write_e2e_cleanup_safety
 # Restored-network checks also mock link updates, carrier waits and ownership
 # replacement; they use no real network, VM or timer resource.
 # Maintenance viewer carrier/identity checks use only in-memory XML and API doubles.
+# Explicit VM selection adds registry reads and private launcher-binding records.
+# Public command refusals own short-lived, waited children with captured pipes;
+# they stop before authorization, session allocation, sockets or live VM access.
+# Installer desktop-entry checks keep each VM's icon/entry in tmp_path. Existing
+# unit and cleanup classifications remain compatible; no build admission needed.
 # Snapshot/suite/maintenance cleanup tests use private VM doubles;
 # qualification storage uses private retention trees. Repair
 # loop and write-E2E tests use private checkouts and recorded child identities;

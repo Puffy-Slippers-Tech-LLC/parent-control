@@ -52,6 +52,8 @@ class Session:
                     '--control', str(remote.fileno()), '--display', str(display.fileno()),
                     '--uid', str(uid), '--run', adapter.run, '--uuid', source.uuid,
                     '--domain-id', str(adapter.lease.view.domain_id), '--xml-sha256', digest]
+            from vm_config import arguments
+            argv.extend(arguments())
             log = adapter.lease.commands.directory / ('watch-' + adapter.run + '.log')
             with log.open('xb') as output:
                 os.fchmod(output.fileno(), 0o600)
@@ -126,12 +128,16 @@ def follow(control, observer, guard):
 
 
 def main():
+    import sys
+    from vm_config import extract
+    argv, _ = extract(sys.argv[1:])
     parser = argparse.ArgumentParser(allow_abbrev=False)
+    parser.add_argument('--vm', help='required configured VM name (validated before parsing)')
     for name in ('control', 'display', 'uid', 'domain-id'):
         parser.add_argument('--' + name, type=int, required=True)
     for name in ('run', 'uuid', 'xml-sha256'):
         parser.add_argument('--' + name, required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     require(os.geteuid() == 0 and args.uid > 0 and args.domain_id >= 0, 'session-context')
     connection = observer = None
     display = socket.socket(fileno=args.display)
@@ -144,6 +150,8 @@ def main():
             from vm_config import URI
             connection = libvirt.openReadOnly(URI)
             expected_xml = connection.lookupByUUIDString(args.uuid).XMLDesc(0)
+            from vm_config import selected
+            require(connection.lookupByUUIDString(args.uuid).name() == selected().name, 'session-vm')
             def guard():
                 return matches(connection, args.uuid, args.domain_id, args.xml_sha256,
                                expected_xml=expected_xml)

@@ -6,6 +6,8 @@ and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
 
+# Explicit VM-name forwarding retains private journals and process-local API
+# doubles; cleanup checks add no real guest, desktop, socket or shared cache.
 # VM rename refusal/rollback coverage uses private pytest records and mocked
 # libvirt calls; the existing compatible vm_control classification still applies.
 

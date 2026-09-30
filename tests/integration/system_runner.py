@@ -408,14 +408,14 @@ class SourceView:
 class Lease:
     """Serializes prepare-baseline/system runners; durable state refuses interrupted ownership."""
 
-    def __init__(self, source, commands, inspect, *, directory=baseline.BASELINES,
-                 anchor=baseline.ANCHOR, ledger=None, graphics_type='spice', finalize=None):
+    def __init__(self, source, commands, inspect, *, directory=None,
+                 anchor=None, ledger=None, graphics_type='spice', finalize=None):
         self.source, self.commands, self.inspect = source, commands, inspect
         self.view = SourceView(source)
         self.view.graphics_type = graphics_type
         self.capture = baseline.Capture(self.view, commands, inspect, directory=directory, anchor=anchor)
-        self.directory = directory
-        self.journal = directory / 'system-run.json'
+        self.directory = self.capture.directory
+        self.journal = self.directory / 'system-run.json'
         self.fd = None
         self.state = None
         self.original_xml = None
@@ -1475,7 +1475,10 @@ def evidence(directory, manifest, lease, passed, category, selection,
 
 
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    argv, _ = baseline.guest_contract.vm_config.extract(argv, required='--list' not in argv)
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--vm', help='required configured VM name; optional for --list')
     parser.add_argument('--artifacts', type=Path, help='Verified package and fixture artifact directory')
     parser.add_argument('--previous-artifacts', type=Path,
                         help='verified prior package to install and reboot before upgrading')
@@ -1488,6 +1491,8 @@ def main(argv=None):
                         help='inject the fixed harness fault after the allowlisted case succeeds')
     parser.add_argument('--check-tools', action='store_true')
     args = parser.parse_args(argv)
+    if not args.list:
+        baseline.guest_contract.vm_config.selected()
     source = None
     lease = None
     suite = None

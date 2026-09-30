@@ -163,7 +163,7 @@ Read the [VM mandate](docs/Mandates/VM-Mandate.MD) only when doing VM operations
   build or missing build prerequisite as unresolved validation. Changes confined
   to documentation or tests that cannot affect the build do not need this check.
 - Use `tools/run-tests host` only when all host coverage is justified, and
-  `tools/run-tests all` only when the entire established regression set is
+  `tools/run-tests all --vm NAME` only when the entire established regression set is
   justified. Combine complete categories when each is required, sharing their
   report and package inputs. Use plain approved Make targets only as documented in
   the [approval contract](docs/Approval-Tools.md). Do not replace the launcher

@@ -670,7 +670,7 @@ def test_granular_inventory_order_excludes_every_duplicate_helper():
     assert set(inventory) | helpers == set(test_commands.CATEGORIES)
     assert inventory['ui']['args'] == ['--timeout', '1800s', '-m', 'not live_e2e']
     for category, spec in inventory.items():
-        test_commands.validate(ROOT, ['--stop-on-error', category, *spec['args']])
+        test_commands.validate(ROOT, ['--stop-on-error', category, *spec['args'], '--vm', 'onpc-Ubuntu26.04'])
 
 
 def test_future_categories_follow_readiness_without_a_second_allowlist(monkeypatch):

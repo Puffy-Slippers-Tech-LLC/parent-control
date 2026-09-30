@@ -39,7 +39,7 @@ def retention_guard(root):
         os.close(fd)
 
 CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
-VM_UUID = None  # Pinned from finalized baseline state by install_test_runner.py.
+VM_UUIDS = {}  # Pinned by name from finalized baseline state by install_test_runner.py.
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -61,6 +61,15 @@ def confined_file(root, relative):
 
 
 def selection(root, argv, *, allow_missing_artifacts=False):
+    sys.path.insert(0, str(root / 'tests/integration'))
+    try:
+        import vm_config
+    finally:
+        sys.path.pop(0)
+    argv, configured = vm_config.extract(argv, required='--list' not in argv,
+                                          path=root / 'config/test-vm.json')
+    identity = VM_UUIDS.get(configured.name) if configured is not None else None
+    vm_args = ['--vm', configured.name] if configured is not None else []
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     categories = parser.add_subparsers(dest='category', required=True)
     integration = categories.add_parser('integration', allow_abbrev=False)
@@ -93,17 +102,19 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     appsnapshot.add_argument('--overwrite', choices=('true', 'false'), default='true',
                             nargs='?', const='true')
     vm = categories.add_parser('vm', allow_abbrev=False)
+    for category in (integration, system, e2e, appsnapshot, vm):
+        category.add_argument('--vm', help='required configured VM name; optional for declaration listing')
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename'))
     vm.add_argument('keys', nargs='*', type=int)
     vm.add_argument('--new-name')
     args = parser.parse_args(argv)
     if args.category == 'appsnapshot':
-        if VM_UUID is None:
+        if identity is None:
             raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
         target = confined_file(root, 'tests/e2e/prepare_snapshot.py')
         command = ['/usr/bin/python3', '-B', str(target), '--mode', args.mode,
-                   '--expected-uuid', VM_UUID]
+                   '--expected-uuid', identity, *vm_args]
         if args.probe or args.resume:
             if args.artifacts is not None:
                 raise ValueError('test-runner:probe-does-not-use-artifacts')
@@ -128,10 +139,10 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 (args.action == 'recover-online' and len(args.keys) == 1 and args.keys[0] > 0) or
                 (args.action not in ('send-key', 'recover-online') and not args.keys)):
             raise ValueError('test-runner:invalid-vm-keycodes')
-        if VM_UUID is None:
+        if identity is None:
             raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
         target = confined_file(root, 'tests/integration/vm_control.py')
-        return ['/usr/bin/python3', '-B', str(target), '--expected-uuid', VM_UUID,
+        return ['/usr/bin/python3', '-B', str(target), *vm_args, '--expected-uuid', identity,
                 args.action, *map(str, args.keys),
                 *(['--new-name', args.new_name] if args.new_name is not None else [])]
     if args.category == 'integration':
@@ -142,7 +153,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         return ['/usr/bin/python3', '-B', str(target)]
     if args.category == 'e2e':
         target = confined_file(root, 'tests/e2e/runner.py')
-        options = ['--list'] if args.list else []
+        options = [*vm_args, *(['--list'] if args.list else [])]
         if args.ready:
             options.append('--ready')
         if args.skip_backing_verification:
@@ -162,14 +173,14 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         # Validate inventory before caller privilege checks or execution.
         # The installed dispatcher repeats this checkout preflight.
         plan = runpy.run_path(str(target))['preflight'](
-            options, root=root, allow_missing_artifacts=allow_missing_artifacts)
+            options[len(vm_args):], root=root, allow_missing_artifacts=allow_missing_artifacts)
         if args.id is not None and len(plan['cases']) == 1:
             options.remove('--id=' + str(args.id))
             options.append('--scenario=' + plan['selector'])
         return ['/usr/bin/python3', '-B', str(target), *options]
     else:
         target = confined_file(root, 'tests/integration/system_runner.py')
-    command = ['/usr/bin/python3', '-B', str(target)]
+    command = ['/usr/bin/python3', '-B', str(target), *vm_args]
     if not args.list and args.artifacts is None:
         parser.error('system requires --artifacts unless --list is supplied')
     for option in ('artifacts', 'previous_artifacts'):
@@ -216,6 +227,8 @@ def run(root, argv, caller):
         # cancellation channel, never a command or privileged path source.
         argv = argv[1:]
         command = selection(root, argv)
+        import vm_config
+        argv, configured = vm_config.extract(argv, path=root / 'config/test-vm.json')
         if argv[0] not in ('integration', 'system', 'e2e', 'appsnapshot') or '--list' in argv or '--probe' in argv:
             raise ValueError('test-runner:invalid-unattended-category')
         if retention_run and argv[0] == 'integration':
@@ -225,6 +238,7 @@ def run(root, argv, caller):
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                        'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1',
                        'PYTHONUNBUFFERED': '1'}
+        environment[vm_config.VARIABLE] = configured.name
         with module['Control']().installed(pipe=True) as control:
             environment.update(PKEXEC_UID=str(caller.pw_uid), HOME='/root')
             import test_retention
@@ -241,8 +255,13 @@ def run(root, argv, caller):
                 environment.update(test_retention.environment())
                 return control.run(command, cwd=root, env=environment)
     command = selection(root, argv)
+    import vm_config
+    argv, configured = vm_config.extract(argv, required='--list' not in argv,
+                                          path=root / 'config/test-vm.json')
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                    'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1'}
+    if configured is not None:
+        environment[vm_config.VARIABLE] = configured.name
     if argv[0] in ('system', 'e2e') and '--list' in argv:
         return subprocess.run(command, cwd=root, env=environment, user=caller.pw_uid,
                               group=caller.pw_gid,

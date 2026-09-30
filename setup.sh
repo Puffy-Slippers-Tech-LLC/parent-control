@@ -7,7 +7,7 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
     cat <<'USAGE'
-Usage: ./setup.sh [MODE]
+Usage: ./setup.sh [MODE] [--vm NAME]
   (no mode)             Set up/refresh the development machine and VM host
   --dependencies-only   Install development, build, UI/GUI-fixture and VM host dependencies
   --ppa-build-tools     Install clean local PPA build prerequisites
@@ -16,6 +16,7 @@ Usage: ./setup.sh [MODE]
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
   --replace-missing-baseline  Replace an explicitly deleted baseline from a prepared, off VM
+                             Requires --vm NAME from config/test-vm.json
   --install-extension   Install the development extension for the current user
   -h, --help            Show this help
 
@@ -24,11 +25,12 @@ replacement is tools/prepare-baseline. See tests/integration/Environment.md.
 USAGE
 }
 
-if (( $# > 1 )); then
+if (( $# > 1 )) && [[ ${1-} != --replace-missing-baseline || $# != 3 || ${2-} != --vm || -z ${3-} ]]; then
     usage >&2
     exit 2
 fi
 readonly mode="${1-}"
+readonly vm_name="${3-}"
 case "$mode" in
     ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--ui-tests-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
@@ -49,7 +51,11 @@ run_root() {
         shift
         "$@"
     else
-        /usr/bin/python3 -IB "$script_dir/tools/setup_privileges.py" "$1"
+        if [[ $1 == replace-missing-baseline ]]; then
+            /usr/bin/python3 -IB "$script_dir/tools/setup_privileges.py" "$1" --vm "$vm_name"
+        else
+            /usr/bin/python3 -IB "$script_dir/tools/setup_privileges.py" "$1"
+        fi
     fi
 }
 
@@ -99,12 +105,16 @@ case "$mode" in
         make --no-print-directory _install-development-extension
         ;;
     --replace-missing-baseline)
+        if [[ -z $vm_name ]]; then
+            usage >&2
+            exit 2
+        fi
         # Validate before privilege dispatch, tools refresh or any VM access.
         /usr/bin/python3 -B "$script_dir/tests/integration/test_account_password.py"
         # Explicit recovery recaptures a deleted baseline without restoring it.
         # The controller rejects running, concurrent or replaced resources.
         echo 'setup: [stage:prepare-baseline]'
-        run_root replace-missing-baseline /usr/bin/python3 -B "$script_dir/tests/integration/prepare_baseline.py" --replace-missing
+        run_root replace-missing-baseline /usr/bin/python3 -B "$script_dir/tests/integration/prepare_baseline.py" --replace-missing --vm "$vm_name"
         # Pin the accepted UUID only after successful baseline reconciliation.
         install_test_tools
         ;;

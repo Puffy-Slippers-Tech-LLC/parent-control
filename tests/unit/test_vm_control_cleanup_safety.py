@@ -16,6 +16,8 @@ from tests.support.vm_runner import lease_rig, UUID
 
 import vm_control as control
 
+VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+
 
 def reopened(lease):
     result = runner.Lease(lease.source, lease.commands, lease.inspect,
@@ -125,7 +127,7 @@ def test_dispatcher_refuses_arbitrary_vm_selection_and_actions(argv):
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     with pytest.raises(ValueError):
-        dispatcher['selection'](root, argv)
+        dispatcher['selection'](root, [*argv, *VM_ARGS])
 
 
 def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
@@ -133,10 +135,10 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     select = dispatcher['selection']
     with pytest.raises(ValueError, match='refresh'):
-        select(root, ['vm', 'start'])
-    select.__globals__['VM_UUID'] = UUID
-    command = select(root, ['vm', 'send-key', '28'])
-    assert command[3:] == ['--expected-uuid', UUID, 'send-key', '28']
+        select(root, ['vm', 'start', *VM_ARGS])
+    select.__globals__['VM_UUIDS'] = {'onpc-Ubuntu26.04': UUID}
+    command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
+    assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
 
 
 @pytest.mark.parametrize('argv', [
@@ -147,17 +149,17 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
 ])
 def test_dispatcher_refuses_invalid_rename_destinations(argv):
     dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
-    dispatcher['selection'].__globals__['VM_UUID'] = UUID
+    dispatcher['selection'].__globals__['VM_UUIDS'] = {'onpc-Ubuntu26.04': UUID}
     with pytest.raises(ValueError):
-        dispatcher['selection'](Path(__file__).resolve().parents[2], argv)
+        dispatcher['selection'](Path(__file__).resolve().parents[2], [*argv, *VM_ARGS])
 
 
 def test_dispatcher_rename_keeps_uuid_pin_and_only_accepts_destination_label():
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
-    dispatcher['selection'].__globals__['VM_UUID'] = UUID
-    assert dispatcher['selection'](root, ['vm', 'rename', '--new-name', 'custom-Ubuntu26.04'])[3:] == [
-        '--expected-uuid', UUID, 'rename', '--new-name', 'custom-Ubuntu26.04']
+    dispatcher['selection'].__globals__['VM_UUIDS'] = {'onpc-Ubuntu26.04': UUID}
+    assert dispatcher['selection'](root, ['vm', 'rename', '--new-name', 'custom-Ubuntu26.04', *VM_ARGS])[3:] == [
+        *VM_ARGS, '--expected-uuid', UUID, 'rename', '--new-name', 'custom-Ubuntu26.04']
 
 
 def rename_rig(lease, current, monkeypatch):
@@ -351,7 +353,7 @@ def test_foreground_dispatch_runs_only_owned_operation_without_test_gate(tmp_pat
         assert 'user' not in kwargs
         return SimpleNamespace(returncode=status)
     monkeypatch.setattr(dispatcher['subprocess'], 'run', execute)
-    assert dispatcher['run'](root, argv, caller) == status
+    assert dispatcher['run'](root, [*argv, *VM_ARGS], caller) == status
     assert len(calls) == 1
 
 

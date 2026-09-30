@@ -19,9 +19,10 @@ helper = runpy.run_path(str(ROOT / 'tools/onpc-setup'))
     ('replace-missing-baseline', 'tests/integration/prepare_baseline.py', ['--replace-missing']),
 ])
 def test_only_fixed_modules_and_arguments_are_selected(operation, relative, options):
-    selected = helper['command'](ROOT, [operation, *(options if operation == 'prepare-baseline' else [])])
+    vm_args = ['--vm', 'onpc-Ubuntu26.04'] if operation in ('prepare-baseline', 'replace-missing-baseline') else []
+    selected = helper['command'](ROOT, [operation, *(options if operation == 'prepare-baseline' else []), *vm_args])
     assert selected == ['/usr/bin/python3', '-B' if operation in ('prepare-baseline', 'replace-missing-baseline') else '-IB',
-                        str(ROOT / relative), *options]
+                        str(ROOT / relative), *options, *vm_args]
 
 
 def test_host_dependencies_use_only_the_fixed_package_module():
@@ -38,8 +39,9 @@ def test_host_dependencies_use_only_the_fixed_package_module():
                                   ['test-tools', '--command', 'arbitrary'], ['prepare-baseline', '--reset'],
                                   ['dependencies', '/tmp/install.sh'], ['ppa-build-tools', '--command', 'id'], ['checkout']])
 def test_arbitrary_operations_and_trailing_arguments_are_refused(args):
+    vm_args = ['--vm', 'onpc-Ubuntu26.04'] if args and args[0] == 'prepare-baseline' else []
     with pytest.raises(ValueError):
-        helper['command'](ROOT, args)
+        helper['command'](ROOT, [*args, *vm_args])
 
 
 def test_missing_or_symlinked_module_is_refused(tmp_path):
@@ -55,12 +57,13 @@ def test_missing_or_symlinked_module_is_refused(tmp_path):
     ('codex-rules', []), ('prepare-baseline', ['--mode', 'auto']),
 ])
 def test_root_execution_uses_pinned_checkout_and_sanitized_environment(monkeypatch, capsys, operation, options):
+    vm_args = ['--vm', 'onpc-Ubuntu26.04'] if operation == 'prepare-baseline' else []
     namespace = helper['main'].__globals__
     monkeypatch.setitem(namespace, 'CHECKOUT', str(ROOT))
     monkeypatch.setattr(os, 'geteuid', lambda: 0)
     monkeypatch.setenv('PKEXEC_UID', '1000')
     monkeypatch.setenv('PYTHONPATH', '/tmp/untrusted')
-    monkeypatch.setattr(helper['sys'], 'argv', ['onpc-setup', operation, *options])
+    monkeypatch.setattr(helper['sys'], 'argv', ['onpc-setup', operation, *options, *vm_args])
     run = Mock(return_value=SimpleNamespace(returncode=7))
     monkeypatch.setattr(helper['subprocess'], 'run', run)
     assert helper['main']() == 7
@@ -68,7 +71,7 @@ def test_root_execution_uses_pinned_checkout_and_sanitized_environment(monkeypat
     assert 'PYTHONPATH' not in run.call_args.kwargs['env']
     assert run.call_args.kwargs['env']['DEBIAN_FRONTEND'] == 'noninteractive'
     assert run.call_args.kwargs['env']['PKEXEC_UID'] == '1000'
-    assert run.call_args.args[0][-1] == ('auto' if options else '--system')
+    assert run.call_args.args[0][-1] == ('onpc-Ubuntu26.04' if options else '--system')
     output = capsys.readouterr()
     assert output.err == ''
     if operation == 'prepare-baseline':

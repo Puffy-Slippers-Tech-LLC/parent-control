@@ -298,7 +298,9 @@ def _operate(lease, action, keys):
 
 
 def main(argv=None):
+    argv, _ = runner.baseline.guest_contract.vm_config.extract(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--vm', help='required configured VM name (validated before parsing)')
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reset',
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename'))

@@ -9,16 +9,20 @@ another baseline, download a new image, or create a replacement domain.
 
 [config/test-vm.json](../../config/test-vm.json) is the single configuration for
 guest preparation, host capture, installed-system/E2E runners and VM maintenance.
-Set `name` to the existing libvirt domain name and `disk_anchor` to its absolute
-base QCOW2 image path. The configured name also becomes the guest's static
-hostname, so use a lowercase hostname (letters, digits, hyphens and dots, at most
-63 characters). The active image can be a backing-chain member; capture still
-verifies that the chain ends at the configured anchor. VM selection has no
-environment-variable or command-line override. The E2E inventory's `ubuntu26.04`
-environment label describes the supported OS, independently of the VM name.
+Its `vms` array contains one object per existing VM, each with a unique `name`
+and absolute base QCOW2 `disk_anchor`. Every VM operation requires `--vm NAME`,
+matching a configured name exactly, including case. There is no default or
+environment override for public commands. Workers inherit only the explicitly
+validated selection. The guest hostname is the lowercase form of that name
+(hostname labels, at most 63 characters). The active image can be a backing-chain
+member; capture still verifies that its chain ends at the selected anchor.
+Each entry has separate baseline provenance and an individually pinned UUID.
+The E2E inventory's `ubuntu26.04` environment label describes the currently
+supported guest OS independently of the VM name; adding an entry does not
+qualify its OS for Ubuntu-specific baseline preparation or installed tests.
 
 Set a literal `TEST_ACCOUNT_PASSWORD` in the host checkout's private mode-0600
-`.envrc`, then run `tools/prepare-baseline --mode manual` on the development host with the
+`.envrc`, then run `tools/prepare-baseline --vm NAME --mode manual` on the development host with the
 product-free Ubuntu 26.04 VM off. Missing, empty, placeholder or unsafe
 credentials fail before privilege dispatch or VM access. The old `make prepare-vm`
 target, `make prepare-baseline` alias and `./setup.sh --prepare-baseline` mode
@@ -40,12 +44,12 @@ existing prompt with `y` without asking the developer again. Manual mode still
 requires explicit developer authorization. This standing authorization does not
 bypass any VM, ownership, lease or validation check.
 
-- `tools/prepare-baseline --mode auto` requires an existing accepted baseline,
+- `tools/prepare-baseline --vm NAME --mode auto` requires an existing accepted baseline,
   restores it, boots, runs no-app prerequisites, and updates Ubuntu packages.
   If a reboot is required, a second controlled boot verifies a changed boot ID
   before shutdown. The old baseline is replaced only after successful guest
   preparation and independent offline inspection.
-- `tools/prepare-baseline --mode manual` boots the current guest disk state,
+- `tools/prepare-baseline --vm NAME --mode manual` boots the current guest disk state,
   runs no-app prerequisites, shuts down and creates `onpc_baseline`, replacing
   an existing baseline if present. It does not run the system update step.
 
@@ -116,7 +120,7 @@ pinning is refreshed by host preparation); no product activation or data migrati
 | Guest preparation record | Root-owned mode-0600 `/etc/oh-no-parent-control-test-baseline.json` |
 
 The shared config is the sole definition of the VM name. To rename the same
-pinned guest, use `tools/test-vm rename --new-name LABEL` while it is off and
+pinned guest, use `tools/test-vm --vm NAME rename --new-name LABEL` while it is off and
 idle, then update the config's `name`, refresh test tools, and run auto-mode
 baseline preparation. The guarded rename keeps disk paths and snapshot contents,
 attests historical snapshot domain names, and moves the existing private provenance tree.
@@ -191,7 +195,7 @@ never invokes baseline preparation. Tests continue to reuse the accepted baselin
 
 **Manual snapshot maintenance:** restore any snapshot you manage (such as
 `1 - Clean`), perform maintenance, shut down, and delete/retake your snapshot.
-Then run `tools/prepare-baseline --mode manual`. The command uses the current guest disk state
+Then run `tools/prepare-baseline --vm NAME --mode manual`. The command uses the current guest disk state
 without choosing or restoring any snapshot. A changed active image or backing
 chain on the same recorded VM is accepted automatically, provided the chain
 still ends at the configured anchor. The automation baseline and all versioned
@@ -216,8 +220,8 @@ data migration.
 ## Reset boundary and host preservation
 
 For explicitly authorized maintenance, use the
-[pinned VM commands](../../docs/Approval-Tools.md#the-one-test-vm)
-(`tools/test-vm status`, `start`, `reboot`, `send-key`, `screenshot`, `stop`,
+[pinned VM commands](../../docs/Approval-Tools.md#the-configured-test-vms)
+(`tools/test-vm --vm NAME status`, `start`, `reboot`, `send-key`, `screenshot`, `stop`,
 `reset`). They share this controller's lock and provenance and never accept
 another domain, URI, disk, XML or snapshot. A maintenance attempt must be stopped
 before starting a system/E2E run. Routine test runs continue through their
@@ -261,7 +265,7 @@ with the saved disk proof, or explicit baseline replacement. An
 unrelated snapshot is not a substitute for the recorded baseline.
 
 To replace a baseline, prepare and shut down the guest, then run
-`tools/prepare-baseline --mode manual`; manual deletion is unnecessary. Refresh an older
+`tools/prepare-baseline --vm NAME --mode manual`; manual deletion is unnecessary. Refresh an older
 installed setup dispatcher first with `./setup.sh --test-tools-only`.
 The retained `./setup.sh --replace-missing-baseline` recovery mode handles an
 already deleted baseline without replacing an existing one. It requires unchanged
@@ -295,7 +299,7 @@ on an already-off/replaced instance. Recovery evidence is retained separately
 under `/tmp/onpc-graphical-recovery-*`; original failure evidence is unchanged.
 
 For the same `cleanup-requested` interruption in an installed-system attempt,
-use `tools/run-tests integration check_system_recovery`. It uses the same
+use `tools/run-tests integration --vm NAME check_system_recovery`. It uses the same
 exclusive lock and journal/domain/baseline checks, requires the recorded running
 SPICE instance, and performs only ordinary lease cleanup. Neither recovery route
 can adopt the other display kind. Evidence is retained separately under

@@ -4,10 +4,12 @@ import json
 import os
 from pathlib import Path
 import re
+import queue
 import socket
 import stat
 import struct
 import time
+import threading
 
 from e2e_watch_protocol import BASE, progress_packet, read_frame, receive_frames, require
 
@@ -59,10 +61,82 @@ def activity_text(activity, progress=None, *, now_ns=None):
     return activity['operation'] + f' - ({elapsed})'
 
 
+class AsyncFeed:
+    """One transport owner per VM; GTK only consumes its latest snapshot.
+
+    Every queue is cell-local and bounded. Slow sockets or a busy producer
+    never block rendering, and discarded snapshots cannot accumulate pixels.
+    The worker alone opens, reads and closes its underlying frame mapping.
+    """
+
+    def __init__(self, feed):
+        self.vm_name = feed.vm_name
+        self.feed = feed
+        self.requests = queue.Queue(maxsize=1)
+        self.updates = queue.Queue(maxsize=1)
+        self.stop = threading.Event()
+        self.progress_value = self.activity_value = None
+        self.thread = threading.Thread(target=self.run, daemon=True,
+                                       name='watch-' + self.vm_name)
+        self.thread.start()
+
+    @staticmethod
+    def replace(target, value):
+        try:
+            target.get_nowait()
+        except queue.Empty:
+            pass
+        target.put_nowait(value)
+
+    def run(self):
+        try:
+            while not self.stop.is_set():
+                try:
+                    pixels = self.requests.get(timeout=.1)
+                except queue.Empty:
+                    continue
+                frame = self.feed.poll(pixels=pixels)
+                progress, activity = self.feed.progress(), self.feed.activity()
+                # Keep an unread changed frame when the next poll has no update.
+                try:
+                    previous = self.updates.get_nowait()
+                except queue.Empty:
+                    previous = None
+                if frame is None and previous is not None:
+                    frame = previous[0]
+                self.updates.put_nowait((frame, progress, activity, pixels))
+        finally:
+            self.feed.close()
+
+    def poll(self, *, pixels=True):
+        self.replace(self.requests, pixels)
+        try:
+            frame, self.progress_value, self.activity_value, rendered = self.updates.get_nowait()
+        except queue.Empty:
+            return None
+        # Never deliver header-only frames to a renderer when a tab reopens.
+        if pixels and not rendered and frame not in (None, 'waiting'):
+            return None
+        return frame
+
+    def progress(self):
+        return self.progress_value
+
+    def activity(self):
+        return self.activity_value
+
+    def close(self):
+        self.stop.set()
+        # The transport owner releases mappings after its bounded socket work.
+        # Do not make GTK wait for another cell's connection or shutdown.
+
+
 class Feed:
     """Reconnect to subsequent attempts without any dependency on window life."""
 
-    def __init__(self):
+    def __init__(self, vm_name=None):
+        from vm_selection import selected
+        self.vm_name = selected().name if vm_name is None else vm_name
         self.memory = None
         self.sequence = 0
         self.next_connect = 0
@@ -138,7 +212,10 @@ class Feed:
                 require(info.st_uid == 0 and not info.st_mode & 0o022
                         and not stat.S_ISLNK(info.st_mode), 'registry-owner')
             require(stat.S_ISREG(info.st_mode) and info.st_size < 128, 'activity-registry-size')
-            run = json.loads(path.read_text())['run']
+            registration = json.loads(path.read_text())
+            if registration.get('vm') != self.vm_name:
+                return None
+            run = registration['run']
             require(type(run) is str and re.fullmatch('[0-9a-f]{32}', run), 'run-identity')
             with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
                 peer.settimeout(.05)
@@ -171,11 +248,15 @@ class Feed:
 
     def connect(self):
         directory = BASE / str(os.getuid())
-        for path in (BASE, directory, directory / 'current.json'):
+        current = self.registration_path('current')
+        for path in (BASE, directory, current):
             info = path.lstat()
             require(info.st_uid == 0 and not info.st_mode & 0o022
                     and not stat.S_ISLNK(info.st_mode), 'registry-owner')
-        run = json.loads((directory / 'current.json').read_text())['run']
+        require(stat.S_ISREG(info.st_mode) and info.st_size <= 256, 'registry-size')
+        registration = json.loads(current.read_text())
+        require(registration.get('vm') == self.vm_name, 'registry-vm')
+        run = registration['run']
         require(isinstance(run, str) and re.fullmatch('[0-9a-f]{32}', run), 'run-identity')
         with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
             peer.settimeout(.2)
@@ -183,6 +264,12 @@ class Feed:
             self.memory = receive_frames(peer)
         self.sequence = 0
         self.last_frame = time.monotonic()
+
+    def registration_path(self, kind):
+        directory = BASE / str(os.getuid())
+        scoped = directory / (kind + '-' + self.vm_name.encode('ascii').hex() + '.json')
+        # Existing controllers can finish publishing through their old registry.
+        return scoped if scoped.exists() else directory / (kind + '.json')
 
     def close(self):
         if self.memory is not None:
@@ -197,12 +284,14 @@ class Feed:
                 info = path.lstat()
                 require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
                         and not info.st_mode & 0o022 and path.resolve() == path, 'registry-owner')
-            fd = os.open(directory / 'progress.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            fd = os.open(self.registration_path('progress'), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
             with os.fdopen(fd, 'rb') as stream:
                 info = os.fstat(stream.fileno())
                 require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
                         and not info.st_mode & 0o022 and info.st_size <= 4096, 'progress-owner')
                 value = json.loads(stream.read(4097))
+            if value.get('vm') != self.vm_name:
+                return None
             age = time.monotonic_ns() - value['updated_ns']
             require(0 <= age < 3_000_000_000, 'progress-expired')
             return json.loads(progress_packet(value['progress']))
@@ -238,7 +327,7 @@ class Feed:
             return 'waiting'
 
 
-def panel(feed=None):
+def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
     # Importing transport helpers never connects to the host desktop.
     from common.oh_no_parent_control_ui.gtk_automation import set_automation_id
     from watch_output import terminal, TerminalWriter
@@ -300,34 +389,39 @@ def panel(feed=None):
             self.feed = feed if feed is not None else Feed()
             self.metadata = {}
             self.active = False
+            self.title = Gtk.Label(label=vm_name or self.feed.vm_name, xalign=0,
+                                   ellipsize=Pango.EllipsizeMode.END)
+            self.title.add_css_class('heading')
+            set_automation_id(self.title, identity_prefix + '-title')
             self.heading = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
-            set_automation_id(self.heading, 'e2e-watch-heading')
+            set_automation_id(self.heading, identity_prefix + '-heading')
             self.screen = Screen()
-            set_automation_id(self.screen, 'e2e-watch-display')
+            set_automation_id(self.screen, identity_prefix + '-display')
             self.screen.update_property([Gtk.AccessibleProperty.LABEL], ['VM display'])
             self.step = Gtk.Label(xalign=0, yalign=0, wrap=True,
                                   wrap_mode=Pango.WrapMode.WORD_CHAR,
                                   ellipsize=Pango.EllipsizeMode.END, lines=3)
-            set_automation_id(self.step, 'e2e-watch-progress')
+            set_automation_id(self.step, identity_prefix + '-progress')
             metrics = self.step.get_pango_context().get_metrics(None, None)
             line_height = (metrics.get_ascent() + metrics.get_descent()) / Pango.SCALE
             self.step.set_size_request(-1, int(line_height * 3 + .999))
             self.status = Gtk.Label(label=WAITING, xalign=0,
                                     ellipsize=Pango.EllipsizeMode.END, single_line_mode=True)
-            set_automation_id(self.status, 'e2e-watch-status')
-            for widget in (self.heading, self.step, self.status):
+            set_automation_id(self.status, identity_prefix + '-status')
+            for widget in (self.title, self.heading, self.step, self.status):
                 widget.set_margin_start(8)
                 widget.set_margin_end(8)
                 widget.set_margin_top(4)
                 widget.set_margin_bottom(4)
+            self.append(self.title)
             self.append(self.heading)
             self.append(self.step)
             pane = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
-            set_automation_id(pane, 'e2e-watch-split')
+            set_automation_id(pane, identity_prefix + '-split')
             pane.set_start_child(self.screen)
             pane.set_resize_start_child(True)
             pane.set_shrink_start_child(True)
-            self.terminal, scroll = terminal('e2e-watch-output', 'VM command input and output')
+            self.terminal, scroll = terminal(identity_prefix + '-output', 'VM command input and output')
             self.writer = TerminalWriter(self.terminal)
             pane.set_end_child(scroll)
             pane.set_resize_end_child(False)
@@ -367,11 +461,10 @@ def panel(feed=None):
             elif frame is not None:
                 self.metadata = frame[1]
             progress = self.feed.progress()
-            self.active = bool(self.metadata or progress)
+            activity = self.feed.activity()
+            self.active = bool(self.metadata or progress or (activity and activity.get('operation_active')))
             if not render:
                 return
-            activity = self.feed.activity()
-            self.active = self.active or bool(activity and activity.get('operation_active'))
             if activity is not None:
                 identity = (activity['run'], activity['sequence'])
                 if identity != self.activity_identity:

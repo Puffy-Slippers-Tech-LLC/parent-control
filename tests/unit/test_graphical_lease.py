@@ -363,7 +363,7 @@ def test_server_refuses_unprivileged_use_before_opening_socket(tmp_path):
 
 def test_callback_failure_does_not_export_paths_or_exceptions(capsys):
     with patch.object(graphical, 'callback', side_effect=RuntimeError('sensitive backend text')):
-        assert graphical.main(['--socket', '/private/path', '--run', RUN, 'off']) == 2
+        assert graphical.main(['--vm', 'onpc-Ubuntu26.04', '--socket', '/private/path', '--run', RUN, 'off']) == 2
     captured = capsys.readouterr()
     assert captured.out == ''
     assert captured.err == 'graphical-lease: [callback-failed]\n'
@@ -507,4 +507,4 @@ def test_public_command_variables_use_only_lifecycle_callback_cli(root, monkeypa
         assert variables[f'GENERAL_HW_{command}_CMD'] == 'python3'
         arguments = variables[f'GENERAL_HW_{command}_ARGS'].split(' ')
         assert arguments[:2] == ['-B', str(Path(graphical.__file__).resolve())]
-        assert arguments[2:] == ['--socket', socket_path, '--run', RUN, action]
+        assert arguments[2:] == ['--vm', 'onpc-Ubuntu26.04', '--socket', socket_path, '--run', RUN, action]

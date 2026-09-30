@@ -112,7 +112,7 @@ bump-version:
 .PHONY: package-source-files
 .PHONY: watch
 watch:
-	@tools/watch
+	@/usr/bin/python3 -IB tools/vm_selection.py --from-make watch
 
 package-source-files:
 	@printf '%s\n' $(sort $(PACKAGE_SOURCE_FILES))
@@ -191,22 +191,20 @@ uninstalldeb:
 
 # Prepare the current app version's snapshot through the guarded helper.
 .PHONY: prepare-appsnapshot
+watch prepare-appsnapshot check-system test-all test-all-verify: export ONPC_MAKE_VM := $(value VM)
 prepare-appsnapshot:
-	@tools/prepare-appsnapshot
+	@/usr/bin/python3 -IB tools/vm_selection.py --from-make appsnapshot
 
 # Host controller only. The package is installed and checked with pytest inside the
 # fixed snapshot-backed VM. Run from a root shell on the development/VM host.
+check-system: export ONPC_SYSTEM_VM_IMAGE := $(value VM_IMAGE)
+check-system: export ONPC_SYSTEM_LIST := $(value LIST)
+check-system: export ONPC_SYSTEM_QUALIFICATION_FAILURE := $(value QUALIFICATION_FAILURE)
+check-system: export ONPC_SYSTEM_ARTIFACT_DIR := $(value ARTIFACT_DIR)
+check-system: export ONPC_SYSTEM_AREA := $(value AREA)
+check-system: export ONPC_SYSTEM_TEST := $(value TEST)
 check-system:
-	@test -z "$(VM_IMAGE)" || (echo 'VM_IMAGE is obsolete: check-system uses the fixed ubuntu26.04 baseline snapshot' >&2; exit 2)
-	@test -z "$(LIST)" -o "$(LIST)" = "1" || (echo 'LIST must be 1 when supplied' >&2; exit 2)
-	@test -z "$(QUALIFICATION_FAILURE)" -o "$(QUALIFICATION_FAILURE)" = "1" || (echo 'QUALIFICATION_FAILURE must be 1 when supplied' >&2; exit 2)
-	@test "$(LIST)" = "1" -o -n "$(ARTIFACT_DIR)" || (echo 'Usage: make check-system ARTIFACT_DIR=/tmp/onpc-test-artifacts/first' >&2; exit 2)
-	@/usr/bin/python3 -B tests/integration/system_runner.py \
-		$(if $(ARTIFACT_DIR),--artifacts "$(ARTIFACT_DIR)") \
-		$(if $(AREA),--area "$(AREA)") \
-		$(if $(TEST),--test "$(TEST)") \
-		$(if $(LIST),--list) \
-		$(if $(QUALIFICATION_FAILURE),--qualification-failure)
+	@/usr/bin/python3 -IB tools/vm_selection.py --from-make system
 
 .PHONY: check-system
 
@@ -216,6 +214,7 @@ check-e2e: export ONPC_E2E_LIST := $(value LIST)
 check-e2e: export ONPC_E2E_SCENARIO := $(value SCENARIO)
 check-e2e: export ONPC_E2E_ARTIFACT_DIR := $(value ARTIFACT_DIR)
 check-e2e: export ONPC_E2E_VM_IMAGE := $(value VM_IMAGE)
+check-e2e: export ONPC_E2E_VM := $(value VM)
 check-e2e:
 	@/usr/bin/python3 -B tests/e2e/runner.py --from-make
 
@@ -279,10 +278,10 @@ check-gjs:
 check-static: check-shell check-gjs
 
 test-all:
-	@tools/run-tests all
+	@/usr/bin/python3 -IB tools/vm_selection.py --from-make all
 
 test-all-verify:
-	@tools/run-tests all-verify
+	@/usr/bin/python3 -IB tools/vm_selection.py --from-make all-verify
 
 .PHONY: test-all test-all-verify check-source
 

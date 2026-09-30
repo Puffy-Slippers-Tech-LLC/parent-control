@@ -16,6 +16,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 import test_account_password as password_config
+import vm_config
 sys.path.pop(0)
 
 
@@ -35,7 +36,9 @@ def confined_file(root, relative):
 
 def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     """Read declarations only. Never import worker/VM code or create artifacts."""
+    argv, _ = vm_config.extract(argv, required=False, path=root / 'config/test-vm.json')
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--vm', help='required configured VM name; optional for --list')
     parser.add_argument('--list', action='store_true')
     selectors = parser.add_mutually_exclusive_group()
     selectors.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')
@@ -107,6 +110,10 @@ def make_arguments(environment):
     if listing not in ('', '1'):
         raise ValueError('e2e:LIST-must-be-1')
     argv = ['--list'] if listing else []
+    name = environment.get('ONPC_E2E_VM') or None
+    configured = vm_config.load(name) if name is not None or not listing else None
+    if configured is not None:
+        argv.extend(('--vm', configured.name))
     for variable, option in (('ARTIFACT_DIR', 'artifacts'), ('SCENARIO', 'scenario')):
         value = environment.get('ONPC_E2E_' + variable, '')
         if value:
@@ -124,6 +131,7 @@ def main(argv=None):
             launcher = confined_file(ROOT, 'tools/run-tests')
             os.execv(str(launcher), [str(launcher), 'e2e', *arguments])
             return 0
+        argv, _ = vm_config.extract(argv, required='--list' not in argv)
         plan = preflight(argv)
         if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification',
                             'deliberate-installation-refusal-qualification'):

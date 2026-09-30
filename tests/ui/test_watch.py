@@ -9,11 +9,13 @@ from tests.support.automation_ids import audit_owned_controls
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.parametrize('vm_name', ['onpc-Ubuntu26.04', 'onpc-Fedora-Workstation-44'])
 def test_combined_tabs_output_dividers_and_hidden_viewers(
-        launch_ui, tmp_path, automation, wait_for_accessible_state):
+        launch_ui, tmp_path, automation, wait_for_accessible_state, vm_name):
     ui, wait = automation, wait_for_accessible_state
     process, log = launch_ui('watch_window_probe', wait_for_application=False,
-                            environment_overrides={'ONPC_WATCH_FIXTURE': str(tmp_path)})
+                            environment_overrides={'ONPC_WATCH_FIXTURE': str(tmp_path),
+                                                   'ONPC_TEST_VM': vm_name})
     control = tmp_path / 'control'
     def evidence():
         try:
@@ -39,7 +41,7 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
     layout = evidence()
     assert .27 < layout['columns_ratio'] < .33
     assert .47 < layout['rows_ratio'] < .53
-    assert layout['icon'] == 'org.onpc.E2EWatch'
+    assert layout['icon'] == 'org.onpc.E2EWatch.vm_' + vm_name.encode('ascii').hex()
     assert (layout['no_horizontal_scroll'] and layout['terminal_readonly']
             and layout['terminal_colored'] and layout['terminal_selectable'])
     assert layout['terminal_columns'] < 60

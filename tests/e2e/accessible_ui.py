@@ -1368,12 +1368,25 @@ class AccessibleUI:
             return None
         return matches[0]
 
+    def owned_applications(self, identity):
+        applications = owned_applications(identity)
+        if applications == (WATCH_APPLICATION,):
+            requested = (self.application_ids() if callable(self.application_ids)
+                         else self.application_ids)
+            if requested is not None:
+                # Host launchers declare exact, configuration-validated VM IDs.
+                # Never discover a watcher owner from a name or window title.
+                applications = tuple(value for value in requested
+                    if value == WATCH_APPLICATION or re.fullmatch(
+                        re.escape(WATCH_APPLICATION) + r'\.vm_(?:[0-9a-f]{2}){1,63}', value))
+        return applications
+
     def snapshot_owned_target(self, identity, *, root=None, showing=True,
                               check_prompt=False, observation=None,
                               allow_unmapped_surface=False):
         """Resolve one repository-owned ID from one complete public snapshot."""
         require(type(identity) is str and identity, 'ui:automation-id')
-        applications = owned_applications(identity)
+        applications = self.owned_applications(identity)
         shell_owned = identity.startswith('child-')
         require(applications or shell_owned, 'ui:unowned-automation-id')
         if observation is None:
@@ -1512,7 +1525,7 @@ class AccessibleUI:
         app_id = identify(application)
         primary = ((f'onpc-fixture-{"-".join(app_id.split(".")[-2:])}',)
                    if app_id.startswith('com.puffyslippers.ONPCFixture.') else
-                   ('watch-window',) if app_id == WATCH_APPLICATION else
+                   ('watch-window',) if app_id in self.owned_applications('watch-window') else
                    ('parent-window', 'parent-access-denied-window', 'startup-error-window')
                    if app_id == PARENT_APPLICATION else
                    ('kiosk-request-window', 'startup-error-window')
@@ -1599,7 +1612,7 @@ class AccessibleUI:
                     # owner. Retry until a fresh complete tree drops it.
                     history = (self.application_owner_history()
                                if self.application_owner_history is not None else {})
-                    expected = owned_applications(identity)
+                    expected = self.owned_applications(identity)
                     known_pids = {
                         pid for application in expected
                         for pid in history.get(application, ())
@@ -7201,7 +7214,7 @@ class AccessibleUI:
             application_kind = self._prompt_application_kind(facts[application]['name'])
             owned = bool(identities[application] in (
                 PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION,
-                WATCH_APPLICATION))
+                *self.owned_applications('watch-window')))
             for surface in application_nodes:
                 if surface is application or not facts[surface]['showing']:
                     continue

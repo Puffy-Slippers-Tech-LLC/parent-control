@@ -107,7 +107,9 @@ def prepare(capture, guestfs, password, *, mode='manual'):
                 write(g, STAGE + '/' + name, b'')
         write(g, STAGE + '/password', password.encode('ascii'))
         write(g, STAGE + '/mode', mode.encode('ascii'))
-        write(g, UNIT, SERVICE.encode('ascii'))
+        service = SERVICE.replace('baseline_guest_entry.py\n',
+            'baseline_guest_entry.py --vm ' + prepare_vm.vm_config.selected().name + '\n')
+        write(g, UNIT, service.encode('ascii'))
         directory(g, str(Path(LINK).parent))
         if g.exists(LINK) or g.is_symlink(LINK):
             require(g.is_symlink(LINK) and g.readlink(LINK) == UNIT,
@@ -124,8 +126,8 @@ def prepare(capture, guestfs, password, *, mode='manual'):
             require(mode == 'auto', 'guest:unexpected-reboot')
             # A full power cycle provides a fresh kernel and boot identity. The
             # second one-shot validates that identity before powering off again.
-            service = SERVICE.replace('/password', '/reboot-required').replace(
-                'baseline_guest_entry.py\n', 'baseline_guest_entry.py --verify-reboot\n')
+            service = service.replace('/password', '/reboot-required').replace(
+                '\nTimeoutStartSec=', ' --verify-reboot\nTimeoutStartSec=')
             write(g, UNIT, service.encode('ascii'))
     if reboot:
         with operation('Rebooting updated Ubuntu and verifying the new boot'):

@@ -86,7 +86,11 @@ an administrator-authorized root session; it never falls back after denial. For 
 changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
 checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
-dependencies and host policies. Explicit baseline preparation is
+dependencies and host policies. Full setup and `--dependencies-only` also prepare
+the caller-owned Fedora 44 RPM build image. `--rpm-build-tools` installs only its
+RPM/Podman host prerequisites and prepares that image; refresh an older installed
+setup helper with `--test-tools-only` first. Builds never install prerequisites.
+Explicit baseline preparation is
 `tools/prepare-baseline --vm NAME --mode auto|manual`; see
 [VM prerequisites](../tests/integration/Environment.md).
 The tools-only refresh also fills missing `curl`, `ripgrep`, Python coverage
@@ -187,8 +191,8 @@ See [unattended publishing](Publishing.md#unattended-operation-and-approvals).
 
 No setup, privilege-policy change or general interpreter/shell allowance is
 needed for this refactoring. Development activation is `none`: it changes no
-installed services or saved data. The Debian activation helper moved to
-`debian/package_activation.py`; its installed command and behavior are unchanged.
+installed services or saved data. The shared package activation helper lives in
+`packaging/package_activation.py`; its installed command and behavior are unchanged.
 
 ## Launcher inspection and workspace edits
 
@@ -233,7 +237,7 @@ matches literal argument prefixes; the strictest decision wins.
 
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
-`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`,
+`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`,
 `replace-missing-baseline` or `prepare-baseline`. Only `prepare-baseline`
 requires the fixed arguments `--mode auto` or `--mode manual`; arbitrary paths
 and other arguments are refused. Its

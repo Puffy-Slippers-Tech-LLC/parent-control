@@ -102,7 +102,12 @@ make check-release-version
 make build
 ```
 
-Output: `output/`. Run tests separately; `make build` skips them.
+`make build` builds Debian and Fedora RPM packages in parallel from one frozen
+source snapshot. Outputs are under `output/deb/` and `output/rpm/`. Both backend
+prerequisites are required; failure in either makes the command fail while
+retaining successful artifacts. Run tests separately. See
+[Fedora packaging](docs/Fedora-Packaging.md) for prerequisites, focused commands,
+local VM qualification and the future COPR recipe.
 
 | Task | Command |
 | --- | --- |

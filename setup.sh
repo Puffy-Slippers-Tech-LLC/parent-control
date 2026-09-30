@@ -11,6 +11,7 @@ Usage: ./setup.sh [MODE] [--vm NAME]
   (no mode)             Set up/refresh the development machine and VM host
   --dependencies-only   Install development, build, UI/GUI-fixture and VM host dependencies
   --ppa-build-tools     Install clean local PPA build prerequisites
+  --rpm-build-tools     Install RPM/container tools and prepare the Fedora 44 builder
   --test-tools-only     Refresh test helpers/policies/rules, viewer icon and old bytecode ownership
   --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
   --codex-rules-only    Refresh machine-wide and checkout Codex rules
@@ -32,7 +33,7 @@ fi
 readonly mode="${1-}"
 readonly vm_name="${3-}"
 case "$mode" in
-    ''|--dependencies-only|--ppa-build-tools|--test-tools-only|--ui-tests-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
+    ''|--dependencies-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -95,6 +96,11 @@ case "$mode" in
         echo 'setup: [stage:ppa-build-tools]'
         run_root ppa-build-tools /bin/bash "$script_dir/tools/setup_dependencies.sh" --ppa-build-tools
         ;;
+    --rpm-build-tools)
+        echo 'setup: [stage:rpm-build-tools]'
+        run_root rpm-build-tools /bin/bash "$script_dir/tools/setup_dependencies.sh" --rpm-build-tools
+        /usr/bin/python3 -B "$script_dir/tools/rpm_builder.py"
+        ;;
     --codex-rules-only) install_codex_rules ;;
     --test-tools-only) install_test_tools ;;
     --bootstrap-tools)
@@ -126,6 +132,7 @@ case "$mode" in
         fi
         echo 'setup: [stage:dependencies]'
         run_root dependencies /bin/bash "$script_dir/tools/setup_dependencies.sh"
+        /usr/bin/python3 -B "$script_dir/tools/rpm_builder.py"
         echo 'setup: [stage:checkout]'
         /bin/bash "$script_dir/tools/setup_checkout.sh"
         if [[ -z "$mode" ]]; then

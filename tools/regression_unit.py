@@ -89,7 +89,7 @@ e2e_terminal e2e_terminal_provider e2e_toggle e2e_vt6_authentication e2e_vt6_com
 e2e_vt6_diagnostic e2e_vt6_pixels e2e_vt6_prompt e2e_vt6_recipient e2e_vt6_shell e2e_watch
 e2e_watch_cleanup_safety e2e_worker_cleanup_safety error_reporting execution_policy
 execution_policy_ready execution_probe_cleanup_safety extension_manager feedback_collection
-feedback_transport fix_tests fix_tests_cleanup_safety fixture_cleanup_safety fixture_gui_adapter floating_islands
+feedback_transport fedora_pam fix_tests fix_tests_cleanup_safety fixture_cleanup_safety fixture_gui_adapter floating_islands
 graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical_host_policy
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs
@@ -105,7 +105,7 @@ preview_screen privileged_test_runner probe_bus_client_cleanup_safety
 probe_channel_cleanup_safety probe_generation_cleanup_safety product_free_entry_cleanup_safety provision publish
 publish_source_integrity publishing_tests public_atspi qualification_storage_cleanup_safety read_only_launcher regression regression_cleanup
 regression_cleanup_safety regression_inputs regression_resources regression_schedule
-regression_selection regression_session regression_ui regression_ui_selection regression_unit
+regression_selection regression_session regression_ui regression_ui_selection regression_unit rpm_packaging
 regression_unit_selection release_signing repeated_operations_cleanup_safety request_selections request_time_estimate
 screen_preview_cleanup_safety screenshot_cleanup_safety screenshot_export_policy
 screenshot_export_safety service_contract session_expiry session_expiry_cleanup_safety
@@ -171,6 +171,18 @@ write_e2e write_e2e_cleanup_safety
 # captured pipes in tmp_path; invalid arguments stop before UI/account access.
 # It needs no display, bus, shared cache, process cleanup or build admission.
 # Their existing compatible unit classifications remain applicable.
+# Fedora packaging compiles only the same three small native helpers as the
+# existing package-payload fixture, in a module-private tmp_path tree. Source
+# archives, authselect models and concurrent-build tests use private outputs,
+# waited children or bounded joined threads; no host account, package database,
+# VM, network, bus, display, shared cache or package install is touched. These
+# modules and the changed package support fixtures remain compatible in unit.
+# RPM builder checks add private recipe/spec contexts and process-local Podman
+# doubles only. They neither pull images nor use real container storage/network;
+# setup entrypoint children keep their trace and VM registry in private trees.
+# COPR recipe checks use a private source checkout and bounded, waited children
+# with DNF/RPM command doubles. Shared storage owns scratch beneath that checkout;
+# no real dependency install, container cache, network or host package DB is used.
 # Parent privacy link coverage extends the existing in-memory accessibility
 # matrix and bounded, waited Perl doubles. Launcher and recorder checks retain
 # private tmp_path files and mocked VM/transport; no shared resource is added.

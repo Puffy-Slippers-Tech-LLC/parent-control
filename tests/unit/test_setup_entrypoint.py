@@ -30,7 +30,7 @@ if name == 'install_test_runner.py' and os.environ.get('ONPC_SETUP_FAIL') != nam
     pathlib.Path('installed-setup').touch()
 sys.exit(7 if os.environ.get('ONPC_SETUP_FAIL') == name else 0)
 '''
-    for name in ('install_test_runner.py', 'install_graphical_test_policy.py', 'install_codex_rules.py'):
+    for name in ('install_test_runner.py', 'install_graphical_test_policy.py', 'install_codex_rules.py', 'rpm_builder.py'):
         (root / 'tools' / name).write_text(stub)
     (root / 'tests/integration/prepare_baseline.py').write_text(stub)
     shutil.copy2(ROOT / 'tests/integration/test_account_password.py', root / 'tests/integration/test_account_password.py')
@@ -84,7 +84,7 @@ def run_setup(root, *args, failure='', denied=False):
 
 RULES = [('install_codex_rules.py', ['--system']), ('install_codex_rules.py', [])]
 TOOLS = [('install_test_runner.py', []), ('install_graphical_test_policy.py', []), *RULES]
-DEPS = [('setup_dependencies.sh.py', []), ('setup_checkout.sh.py', [])]
+DEPS = [('setup_dependencies.sh.py', []), ('rpm_builder.py', []), ('setup_checkout.sh.py', [])]
 
 
 @pytest.mark.parametrize('mode,expected', [
@@ -92,6 +92,7 @@ DEPS = [('setup_dependencies.sh.py', []), ('setup_checkout.sh.py', [])]
     (['--dependencies-only'], DEPS),
     (['--ui-tests-only'], [('setup_checkout.sh.py', ['--ui-tests-only'])]),
     (['--ppa-build-tools'], [('setup_dependencies.sh.py', ['--ppa-build-tools'])]),
+    (['--rpm-build-tools'], [('setup_dependencies.sh.py', ['--rpm-build-tools']), ('rpm_builder.py', [])]),
     (['--test-tools-only'], TOOLS),
     (['--codex-rules-only'], RULES),
     (['--replace-missing-baseline', '--vm', 'onpc-Ubuntu26.04'],
@@ -111,10 +112,13 @@ def test_modes_repeat_complete_scope_from_any_working_directory(checkout, mode, 
     (['--replace-missing-baseline', '--vm', 'onpc-Ubuntu26.04'], 'prepare_baseline.py',
      [('prepare_baseline.py', ['--replace-missing', '--vm', 'onpc-Ubuntu26.04'])]),
     ([], 'setup_dependencies.sh.py', DEPS[:1]),
+    ([], 'rpm_builder.py', DEPS[:2]),
     ([], 'setup_checkout.sh.py', DEPS),
     (['--dependencies-only'], 'setup_dependencies.sh.py', DEPS[:1]),
     (['--ui-tests-only'], 'setup_checkout.sh.py', [('setup_checkout.sh.py', ['--ui-tests-only'])]),
     (['--ppa-build-tools'], 'setup_dependencies.sh.py', [('setup_dependencies.sh.py', ['--ppa-build-tools'])]),
+    (['--rpm-build-tools'], 'setup_dependencies.sh.py', [('setup_dependencies.sh.py', ['--rpm-build-tools'])]),
+    (['--rpm-build-tools'], 'rpm_builder.py', [('setup_dependencies.sh.py', ['--rpm-build-tools']), ('rpm_builder.py', [])]),
     (['--test-tools-only'], 'install_test_runner.py', [('install_test_runner.py', [])]),
     (['--test-tools-only'], 'install_graphical_test_policy.py', TOOLS[:2]),
     (['--codex-rules-only'], 'install_codex_rules.py', RULES[:1]),
@@ -143,7 +147,7 @@ def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, c
 
 @pytest.mark.skipif(os.geteuid() == 0, reason='authorization gate applies to unprivileged callers')
 @pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only',
-                                  '--replace-missing-baseline', '--dependencies-only', '--ppa-build-tools', '--bootstrap-tools'])
+                                  '--replace-missing-baseline', '--dependencies-only', '--ppa-build-tools', '--rpm-build-tools', '--bootstrap-tools'])
 def test_denied_routine_setup_never_falls_back_to_authentication(checkout, mode):
     vm_args = ['--vm', 'onpc-Ubuntu26.04'] if mode == '--replace-missing-baseline' else []
     result, events = run_setup(checkout, mode, *vm_args, denied=True)

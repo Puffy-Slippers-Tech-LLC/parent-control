@@ -1,0 +1,7 @@
+FROM registry.fedoraproject.org/fedora:44
+# Setup supplies only the rendered spec, never the developer checkout.
+COPY oh-no-parent-control.spec /build-prerequisites.spec
+RUN dnf -y install rpm-build dnf5-plugins findutils tar xz \
+    && dnf -y builddep /build-prerequisites.spec \
+    && dnf clean all
+WORKDIR /build

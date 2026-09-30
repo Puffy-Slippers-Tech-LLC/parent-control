@@ -12,7 +12,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ADMIN_GROUPS = {"sudo", "adm"}
+ADMIN_GROUPS = {"sudo", "adm", "wheel"}
 # Dedicated 128-pixel artwork leaves room for the login screen's circular crop.
 KIOSK_ICON_FILE = "/usr/share/oh-no-parent-control/kiosk_account_icon.png"
 

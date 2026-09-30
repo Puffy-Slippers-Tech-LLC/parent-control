@@ -12,6 +12,7 @@ from tools.render_polkit_policy import render
 
 
 from tests.support.paths import ROOT
+from tests.support.package_scripts import script_source
 
 
 @pytest.mark.parametrize("failure, status, step", [
@@ -49,8 +50,8 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
             )
         command.write_text(source)
         command.chmod(0o755)
-    output = tmp_path / "output"
-    output.mkdir()
+    output = tmp_path / "output/deb"
+    output.mkdir(parents=True)
     package = output / "oh-no-parent-control_1.0_amd64.deb"
     if failure != "package":
         package.write_bytes(b"package payload")
@@ -130,7 +131,7 @@ class PackageDeploymentTests(unittest.TestCase):
         self.assertNotIn("dpkg --install", recipe)
 
     def test_reboot_notice_is_owned_by_the_debian_package(self):
-        postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        postinst = script_source('postinst')
         helper = (ROOT / "tools/package_notice").read_text(encoding="utf-8")
         notice = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
         self.assertNotIn(notice, postinst)
@@ -195,7 +196,7 @@ class PackageDeploymentTests(unittest.TestCase):
             self.assertIn(dependency, dependencies)
 
     def test_postinst_reasserts_kiosk_identity_and_enforcement_services(self):
-        postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        postinst = script_source('postinst')
         provision = postinst.index('    /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"\n')
         enable = postinst.index("systemctl enable")
         start = postinst.index("deb-systemd-invoke start", enable)
@@ -212,8 +213,8 @@ class PackageDeploymentTests(unittest.TestCase):
             self.assertIn(account, postinst)
 
     def test_package_migrates_before_broker_can_run_and_activates_updates(self):
-        preinst = (ROOT / "debian/preinst").read_text(encoding="utf-8")
-        postinst = (ROOT / "debian/postinst").read_text(encoding="utf-8")
+        preinst = script_source('preinst')
+        postinst = script_source('postinst')
         marker = "/var/lib/oh-no-parent-control/migration-in-progress"
         command = "/usr/libexec/oh-no-parent-control-migrate-state"
         self.assertLess(preinst.index(marker), preinst.index("deb-systemd-invoke stop"))
@@ -222,8 +223,8 @@ class PackageDeploymentTests(unittest.TestCase):
         self.assertIn("/run/reboot-required.pkgs", postinst)
 
     def test_package_removal_clears_generated_enforcement_and_only_its_account(self):
-        prerm = (ROOT / "debian/prerm").read_text(encoding="utf-8")
-        postrm = (ROOT / "debian/postrm").read_text(encoding="utf-8")
+        prerm = script_source('prerm')
+        postrm = script_source('postrm')
         self.assertLess(prerm.index("deb-systemd-invoke stop"), prerm.index("--remove"))
         for path in ("/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules", "/etc/oh-no-parent-control/config.json"):
             self.assertIn(path, postrm)

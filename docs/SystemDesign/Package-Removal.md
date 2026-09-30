@@ -5,7 +5,7 @@
 Read this for APT removal/purge, rollback, package-owned accounts and files,
 PAM restoration, execution-policy baselines, and retry behavior.
 
-Implementation: [prerm](../../debian/prerm), [postrm](../../debian/postrm), [postinst](../../debian/postinst), [uninstall.py](../../broker/oh_no_parent_control/uninstall.py), [package_activation.py](../../debian/package_activation.py).
+Implementation: [prerm](../../packaging/lifecycle/prerm.in), [postrm](../../packaging/lifecycle/postrm.in), [postinst](../../packaging/lifecycle/postinst.in), [uninstall.py](../../broker/oh_no_parent_control/uninstall.py), [package_activation.py](../../packaging/package_activation.py).
 
 `make installdeb` installs the built Debian package through APT.
 `make uninstalldeb` runs `sudo apt remove oh-no-parent-control` (plain `apt`

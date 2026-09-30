@@ -21,9 +21,9 @@ def test_build_isolates_cleanup_and_preserves_checkout(tmp_path, monkeypatch, fa
         '_build-package:\n'
         '\tdh_clean\n'
         + ('\texit 7\n' if fail else
-           '\tmkdir output\n'
-           '\tprintf package > output/example.deb\n'
-           '\tprintf metadata > output/example.changes\n'))
+           '\tmkdir -p output/deb\n'
+           '\tprintf package > output/deb/example.deb\n'
+           '\tprintf metadata > output/deb/example.changes\n'))
     protected = checkout / 'output' / 'private'
     protected.mkdir(parents=True)
     evidence = protected / 'evidence.bak'
@@ -41,14 +41,57 @@ def test_build_isolates_cleanup_and_preserves_checkout(tmp_path, monkeypatch, fa
         if fail:
             with pytest.raises(subprocess.CalledProcessError):
                 build_package.build(checkout, 'amd64')
-            assert not (checkout / 'output/example.deb').exists()
+            assert not (checkout / 'output/deb/example.deb').exists()
         else:
             build_package.build(checkout, 'amd64')
-            assert (checkout / 'output/example.deb').read_text() == 'package'
-            assert (checkout / 'output/example.changes').read_text() == 'metadata'
+            assert (checkout / 'output/deb/example.deb').read_text() == 'package'
+            assert (checkout / 'output/deb/example.changes').read_text() == 'metadata'
         assert bytecode.read_bytes() == b'preserved'
         assert list(scratch.iterdir()) == []
     finally:
         protected.chmod(0o700)
         cache.chmod(0o755)
     assert evidence.read_text() == 'preserved'
+
+
+@pytest.mark.parametrize('failure', [None, 'deb', 'rpm'])
+def test_both_formats_overlap_and_share_one_frozen_generation(tmp_path, monkeypatch, failure):
+    from threading import Barrier
+    from tools import build_rpm
+
+    checkout = tmp_path / 'checkout'
+    checkout.mkdir()
+    (checkout / 'Makefile').write_text('package-source-files:\n\t@printf "%s\\n" Makefile product\n')
+    (checkout / 'product').write_text('one source generation')
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+    monkeypatch.setattr(build_package, 'scratch_directory', lambda: scratch)
+    overlap = Barrier(2, timeout=5)
+    seen = {}
+
+    def backend(name, root, output):
+        overlap.wait()
+        # A checkout edit during the build must not alter either input copy.
+        (checkout / 'product').write_text('later checkout edit')
+        seen[name] = ((root / 'product').read_text(), output)
+        if failure == name:
+            raise ValueError('injected backend failure')
+        output.mkdir(parents=True, exist_ok=True)
+        (output / f'package.{name}').write_text(name)
+
+    monkeypatch.setattr(build_package, 'build',
+                        lambda root, architecture, destination: backend('deb', root, destination))
+    monkeypatch.setattr(build_rpm, 'build',
+                        lambda root, output, release: backend('rpm', root, output))
+    if failure:
+        with pytest.raises(ValueError, match=f'{failure}: injected backend failure'):
+            build_package.build_both(checkout, 'amd64', '0.1.dev')
+    else:
+        build_package.build_both(checkout, 'amd64', '0.1.dev')
+    assert seen == {
+        name: ('one source generation', checkout / 'output' / name)
+        for name in ('deb', 'rpm')
+    }
+    for name in ('deb', 'rpm'):
+        assert (checkout / 'output' / name / f'package.{name}').exists() == (name != failure)
+    assert list(scratch.iterdir()) == []

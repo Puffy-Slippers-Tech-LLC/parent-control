@@ -9,6 +9,7 @@ CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 OPERATIONS = {
     'dependencies': ('tools/setup_dependencies.sh',),
     'ppa-build-tools': ('tools/setup_dependencies.sh', '--ppa-build-tools'),
+    'rpm-build-tools': ('tools/setup_dependencies.sh', '--rpm-build-tools'),
     'codex-rules': ('tools/install_codex_rules.py', '--system'),
     'test-tools': ('tools/install_test_runner.py',),
     'graphical-policy': ('tools/install_graphical_test_policy.py',),
@@ -42,7 +43,7 @@ def command(root, argv):
         raise ValueError('setup-helper: unsafe checkout path')
     if not target.is_file():
         raise ValueError('setup-helper: missing setup module')
-    if argv[0] in ('dependencies', 'ppa-build-tools'):
+    if argv[0] in ('dependencies', 'ppa-build-tools', 'rpm-build-tools'):
         return ['/bin/bash', str(target), *args]
     # prepare_baseline imports its sibling guest contract; the other installers use
     # only the standard library and can run with Python's isolated mode.

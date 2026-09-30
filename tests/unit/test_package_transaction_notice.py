@@ -50,7 +50,8 @@ def notice_machine(tmp_path):
     helper.chmod(0o755)
     # Exercise the exact preinst bootstrap without its account/service work;
     # the complete maintainer script has separate filesystem/service tests.
-    bootstrap = (ROOT / "debian/preinst").read_text().split(
+    from tests.support.package_scripts import script_source
+    bootstrap = script_source('preinst').split(
         '\nif [ "$1" = install ]', 1
     )[0] + "\nprepare_package_notice\n"
     bootstrap = relocate_system_paths(bootstrap, tmp_path, ("/etc/", "/run/", "/usr/"))

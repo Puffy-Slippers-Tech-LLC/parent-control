@@ -9,6 +9,9 @@ SYSTEMD_USER_DIR ?= $(PREFIX)/lib/systemd/user
 PRODUCT_LIBDIR ?= $(PREFIX)/lib/oh-no-parent-control
 MULTIARCH ?= $(shell $(CC) -print-multiarch)
 PAM_MODULE_DIR ?= $(PREFIX)/lib/$(MULTIARCH)/security
+PACKAGE_DISTRIBUTION ?= ubuntu
+PACKAGE_FORMAT ?= both
+RPM_RELEASE ?= 0.1.dev
 UUID := oh-no-parent-control@tech.puffyslippers.com
 # Resolve packaging paths only when used; preparation does not need a compiler.
 ACTIVATION_MANIFEST_PATHS = \
@@ -49,6 +52,9 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/pam-configs/oh-no-parent-control-kiosk-only \
 	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	$(DATADIR)/oh-no-parent-control/gdm-presession
+ifeq ($(PACKAGE_DISTRIBUTION),fedora)
+ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/pam/managed-stack
+endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 # Explicit production modules prevent preview/test helpers from entering the package.
@@ -69,12 +75,13 @@ EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../common
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
+MANPAGES := oh-no-parent-control.1 oh-no-parent-control-parent.1
 
 # Source uploads and isolated binary builds share this product/build allowlist.
 # Development docs, tests, previews and operator tools are not package inputs.
 PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
-	debian/oh-no-parent-control-child.1 \
-	$(addprefix debian/,changelog control copyright rules preinst postinst prerm postrm package_activation.py check_package.py oh-no-parent-control.1 oh-no-parent-control-parent.1 oh-no-parent-control.manpages oh-no-parent-control.lintian-overrides source/format source/options) \
+	$(addprefix packaging/man/,$(MANPAGES)) \
+	$(addprefix debian/,changelog control copyright rules preinst postinst prerm postrm package_activation.py check_package.py oh-no-parent-control.lintian-overrides source/format source/options) \
 	$(addprefix tools/,bump_version.py render_polkit_policy.py package_notice oh-no-parent-control-login-check execution_policy_ready.py execution_policy_probe execution_probe_gate.c execution_probe_witness.c execution_probe_protocol.h session_limit_check.py pam_oh_no_parent_control.c provision.py) \
 	$(addprefix broker/,oh-no-parent-control-broker oh-no-parent-control-migrate-state oh-no-parent-control-uninstall oh-no-parent-control-query-usage) \
 	$(addprefix broker/oh_no_parent_control/,$(BROKER_SOURCES)) \
@@ -100,8 +107,13 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf \
 	data/gnome-session/sessions/oh-no-parent-control.session data/wayland-sessions/oh-no-parent-control.desktop \
 	data/applications/com.puffyslippers.OhNoParentControl.desktop data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
+PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.py \
+	packaging/render_lifecycle.py packaging/stage_distribution.py packaging/fedora_pam.py \
+	packaging/ubuntu.inc packaging/fedora.inc \
+	$(addprefix packaging/lifecycle/,preinst.in postinst.in prerm.in postrm.in) \
+	rpm/oh-no-parent-control.spec.in rpm/Containerfile
 
-.PHONY: publish bump-version build installdeb uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: publish bump-version build install installdeb installrpm uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -129,13 +141,25 @@ publish-status:
 
 ifeq ($(shell id -u),0)
 APT := apt
+RPM := rpm
 else
 APT := sudo apt
+RPM := sudo rpm
 endif
 
 build: export DEB_BUILD_OPTIONS := $(DEB_BUILD_OPTIONS)
 build: check-release-version
-	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)"
+	@$(PYTHON) -B tools/build_package.py --architecture "$(DEB_HOST_ARCH)" --format "$(PACKAGE_FORMAT)" --rpm-release "$(RPM_RELEASE)"
+
+.PHONY: build-rpm srpm rpm-source
+build-rpm:
+	@$(PYTHON) -B tools/build_rpm.py --release "$(RPM_RELEASE)"
+
+srpm:
+	@$(PYTHON) -B tools/build_rpm.py --srpm --release "$(RPM_RELEASE)"
+
+rpm-source:
+	@$(PYTHON) -B tools/build_rpm.py --sources-only --release "$(RPM_RELEASE)"
 
 # Called in a private manifest-selected source copy by build_package.py.
 .PHONY: _build-package
@@ -151,7 +175,7 @@ _build-package:
 	step='reading package architecture'; \
 	architecture=$$(dpkg-architecture -qDEB_HOST_ARCH); \
 	step='collecting build artifacts'; \
-	output_dir="$(CURDIR)/output"; \
+	output_dir="$(CURDIR)/output/deb"; \
 	mkdir -p "$$output_dir"; \
 	mv "../oh-no-parent-control_$${version}_$${architecture}.deb" "$$output_dir/"; \
 	ddeb_file="../oh-no-parent-control-dbgsym_$${version}_$${architecture}.ddeb"; \
@@ -159,6 +183,18 @@ _build-package:
 	mv "../oh-no-parent-control_$${version}_$${architecture}.changes" "$$output_dir/"; \
 	mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo" "$$output_dir/"; \
 	printf '\033[32mSUCCESS: build completed. Artifacts are in %s\033[0m\n' "$$output_dir"
+
+install:
+	@set -e; \
+	if [ -r /etc/os-release ]; then . /etc/os-release; \
+	elif [ -r /usr/lib/os-release ]; then . /usr/lib/os-release; \
+	else echo 'Cannot detect distribution: os-release is missing' >&2; exit 1; fi; \
+	case " $${ID:-} $${ID_LIKE:-} " in \
+		*' debian '*|*' ubuntu '*) target=installdeb ;; \
+		*' fedora '*|*' rhel '*|*' centos '*|*' suse '*|*' opensuse '*) target=installrpm ;; \
+		*) echo "Unsupported distribution: $${ID:-unknown}" >&2; exit 1 ;; \
+	esac; \
+	$(MAKE) --no-print-directory "$$target"
 
 installdeb:
 	@set -e; \
@@ -174,7 +210,7 @@ installdeb:
 	step='reading package architecture'; \
 	architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
 	step='locating built package'; \
-	deb_file="$(CURDIR)/output/oh-no-parent-control_$${version}_$${architecture}.deb"; \
+	deb_file="$(CURDIR)/output/deb/oh-no-parent-control_$${version}_$${architecture}.deb"; \
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
 	step='refreshing APT package indexes'; \
@@ -185,6 +221,23 @@ installdeb:
 	chmod 644 "$$staged_deb"; \
 	step='installing package with APT'; \
 	$(APT) install --reinstall "$$staged_deb"
+
+# Latest means the most recently modified binary product RPM, not the SRPM
+# or a debug subpackage. --force permits reinstall, downgrade and file replacement.
+installrpm:
+	@set -e; \
+	step='locating built package'; \
+	trap 'status=$$?; if [ "$$status" -ne 0 ]; then printf "FAIL: installrpm: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
+	rpm_file=''; \
+	for candidate in "$(CURDIR)/output/rpm/"oh-no-parent-control-[0-9]*.rpm; do \
+		case "$$candidate" in *.src.rpm|*.nosrc.rpm) continue ;; esac; \
+		test -f "$$candidate" || continue; \
+		if [ -z "$$rpm_file" ] || [ "$$candidate" -nt "$$rpm_file" ]; then rpm_file="$$candidate"; fi; \
+	done; \
+	test -n "$$rpm_file" || (echo 'No binary product RPM in ./output/rpm; run make build-rpm first' >&2; exit 1); \
+	echo "Installing $$rpm_file"; \
+	step='installing package with RPM'; \
+	$(RPM) -Uvh --force "$$rpm_file"
 
 uninstalldeb:
 	$(APT) remove oh-no-parent-control
@@ -332,7 +385,7 @@ _install-development-extension:
 	glib-compile-schemas "$(EXTENSION_DIR)/schemas"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
 
-# Internal target used by Debian package staging. Keep product-file
+# Internal target used by both distribution package wrappers. Keep product-file
 # installation declarative so the package has one authoritative payload map.
 _install-product-files:
 	install -d "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(LIBEXECDIR)" "$(DESTDIR)$(PAM_MODULE_DIR)"
@@ -342,9 +395,14 @@ _install-product-files:
 	install -m 0755 broker/oh-no-parent-control-broker "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-migrate-state "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-uninstall "$(DESTDIR)$(LIBEXECDIR)/"
+ifeq ($(PACKAGE_DISTRIBUTION),ubuntu)
 	install -m 0755 tools/package_notice "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-notice"
 	install -d "$(DESTDIR)$(SYSCONFDIR)/apt/apt.conf.d"
 	install -m 0644 data/apt/99zz-oh-no-parent-control-reboot-notice "$(DESTDIR)$(SYSCONFDIR)/apt/apt.conf.d/"
+endif
+ifeq ($(PACKAGE_DISTRIBUTION),fedora)
+	install -m 0755 packaging/fedora_pam.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-fedora-pam"
+endif
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"
 	install -m 0755 tools/execution_policy_probe "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe"
@@ -360,7 +418,7 @@ _install-product-files:
 		-o "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so" \
 		tools/pam_oh_no_parent_control.c -lpam
 	chmod 0644 "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so"
-	install -m 0755 debian/package_activation.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation"
+	install -m 0755 packaging/package_activation.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui"
 	install -m 0644 common/__init__.py "$(DESTDIR)$(PRODUCT_LIBDIR)/common/"
 	install -m 0644 $(addprefix common/oh_no_parent_control_ui/,$(COMMON_SOURCES)) "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
@@ -389,8 +447,11 @@ _install-product-files:
 	$(PYTHON) tools/render_polkit_policy.py --template data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in --branding data/brand.json --output "$(DESTDIR)$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy"
 	install -d "$(DESTDIR)$(DATADIR)/polkit-1/rules.d"
 	install -m 0644 data/polkit-1/rules.d/00-oh-no-parent-control-session.rules "$(DESTDIR)$(DATADIR)/polkit-1/rules.d/"
-	install -d "$(DESTDIR)$(DATADIR)/pam-configs" "$(DESTDIR)$(DATADIR)/oh-no-parent-control"
+	install -d "$(DESTDIR)$(DATADIR)/oh-no-parent-control"
+ifeq ($(PACKAGE_DISTRIBUTION),ubuntu)
+	install -d "$(DESTDIR)$(DATADIR)/pam-configs"
 	install -m 0644 data/pam-configs/oh-no-parent-control-session-limits data/pam-configs/oh-no-parent-control-kiosk-only "$(DESTDIR)$(DATADIR)/pam-configs/"
+endif
 	install -m 0755 data/gdm3/PreSession/Default "$(DESTDIR)$(DATADIR)/oh-no-parent-control/gdm-presession"
 	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
@@ -415,12 +476,16 @@ _install-product-files:
 	install -m 0644 data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0755 tools/provision.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-provision"
 	install -m 0644 LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(DATADIR)/doc/oh-no-parent-control/"
+	install -d "$(DESTDIR)$(DATADIR)/man/man1"
+	install -m 0644 $(addprefix packaging/man/,$(MANPAGES)) "$(DESTDIR)$(DATADIR)/man/man1/"
+	ln -sf oh-no-parent-control.1 "$(DESTDIR)$(DATADIR)/man/man1/oh-no-parent-control-child.1"
+	$(PYTHON) -B packaging/stage_distribution.py --distribution "$(PACKAGE_DISTRIBUTION)" --root "$(DESTDIR)"
 ifneq ($(GENERATE_ACTIVATION_MANIFEST),0)
-	$(MAKE) --no-print-directory _generate-package-activation-manifest DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)" SYSCONFDIR="$(SYSCONFDIR)" LIBEXECDIR="$(LIBEXECDIR)" DATADIR="$(DATADIR)" SYSTEMD_SYSTEM_DIR="$(SYSTEMD_SYSTEM_DIR)" SYSTEMD_USER_DIR="$(SYSTEMD_USER_DIR)" PRODUCT_LIBDIR="$(PRODUCT_LIBDIR)"
+	$(MAKE) --no-print-directory _generate-package-activation-manifest DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)" SYSCONFDIR="$(SYSCONFDIR)" LIBEXECDIR="$(LIBEXECDIR)" DATADIR="$(DATADIR)" SYSTEMD_SYSTEM_DIR="$(SYSTEMD_SYSTEM_DIR)" SYSTEMD_USER_DIR="$(SYSTEMD_USER_DIR)" PRODUCT_LIBDIR="$(PRODUCT_LIBDIR)" PAM_MODULE_DIR="$(PAM_MODULE_DIR)" PACKAGE_DISTRIBUTION="$(PACKAGE_DISTRIBUTION)"
 endif
 
 _generate-package-activation-manifest:
-	$(PYTHON) debian/package_activation.py generate --root "$(if $(strip $(DESTDIR)),$(DESTDIR),/)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json" $(foreach path,$(ACTIVATION_MANIFEST_PATHS),--include "$(patsubst /%,%,$(path))")
+	$(PYTHON) packaging/package_activation.py generate --root "$(if $(strip $(DESTDIR)),$(DESTDIR),/)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/package-activation.json" $(foreach path,$(ACTIVATION_MANIFEST_PATHS),--include "$(patsubst /%,%,$(path))")
 
 check-child-node:
 	@tools/run-tests child-node

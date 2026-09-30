@@ -27,7 +27,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
         gi.require_version('Vte', '3.91')
     except ValueError as error:
         raise RuntimeError('watch needs GTK 4 VTE; run ./setup.sh --test-tools-only') from error
-    from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte
+    from gi.repository import Gdk, GLib, Gtk, Pango, Vte
     from common.oh_no_parent_control_ui.gtk_automation import (
         set_automation_id as identify,
     )
@@ -50,17 +50,9 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
             self.root = root
             self.active = False
             self.selected = 'all'
-            self.layout = None
-            self.grid_layout = None
             self.next_ui = self.next_discovery = self.next_output = 0
             self.next_vm = {}
             self.output_active = False
-            self.split_initialized = False
-            self.pane = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL, wide_handle=True)
-            set_automation_id(self.pane, 'watch-columns')
-            self.pane.set_shrink_start_child(True)
-            self.pane.set_shrink_end_child(True)
-            left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             self.output_status = Gtk.Label(label='Terminal Outputs — Waiting for tests',
                 xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
                 margin_start=8, margin_end=8, margin_top=8, margin_bottom=8)
@@ -97,36 +89,11 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
                 button.connect('clicked', lambda _button, callback=action: (callback(), self.menu.popdown()))
                 menu_items.append(button)
             self.menu.set_child(menu_items)
-            left.append(self.output_status)
-            left.append(self.output_scroll)
-            self.pane.set_start_child(left)
-
-            right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            bar = Gtk.Box(spacing=2)
-            self.tab_bar = bar
-            set_automation_id(bar, 'watch-tabs')
-            bar.add_css_class('linked')
-            self.buttons = {}
-            self.pages = Gtk.Stack(hexpand=True, vexpand=True,
-                                   hhomogeneous=False, vhomogeneous=False)
-            set_automation_id(self.pages, 'watch-pages')
-            self.bodies = {}
+            self.append(self.output_status)
+            self.append(self.output_scroll)
             self.vm_keys = {name: 'vm-' + name.encode('ascii').hex() for name in vm_feeds}
-            for name, label in (('all', 'All'), ('ui', 'UI'),
-                                *((key, name) for name, key in self.vm_keys.items())):
-                button = Gtk.ToggleButton(label=label)
-                set_automation_id(button, 'watch-tab-' + name)
-                if self.buttons:
-                    button.set_group(self.buttons['all'])
-                self.buttons[name] = button
-                bar.append(button)
-                body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
-                set_automation_id(body, 'watch-page-' + name)
-                self.pages.add_named(body, name)
-                self.bodies[name] = body
-                button.connect('toggled', self.select, name)
             from ui_watch_transport import Feeds
-            self.ui = ui_panel(feeds if feeds is not None else Feeds(root=root), prefix=prefix)
+            self.ui = ui_panel(feeds if feeds is not None else Feeds(root=root), prefix=prefix, flat=True)
             self.vms = {}
             for name, source in vm_feeds.items():
                 key = self.vm_keys[name]
@@ -136,41 +103,9 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
                 view = vm_panel(source, vm_name=name, identity_prefix=vm_prefix)
                 self.vms[key] = view
                 self.next_vm[key] = 0
-                self.buttons[key].set_opacity(.45)
-                click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-                click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-                click.connect('pressed', self.vm_pressed, key)
-                view.add_controller(click)
             # A single-feed fixture can exercise the shared panel in isolation.
             if feed is not None:
                 self.vm = next(iter(self.vms.values()))
-            self.vm_grid = Gtk.Grid(column_spacing=6, row_spacing=6,
-                                    column_homogeneous=True, row_homogeneous=True,
-                                    hexpand=True, vexpand=True)
-            set_automation_id(self.vm_grid, 'watch-vm-grid')
-            self.vm_blank = Gtk.Box(hexpand=True, vexpand=True)
-            set_automation_id(self.vm_blank, 'watch-vm-empty-cell')
-            self.split = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL, wide_handle=True,
-                                   hexpand=True, vexpand=True)
-            set_automation_id(self.split, 'watch-active-split')
-            self.split.set_shrink_start_child(True)
-            self.split.set_shrink_end_child(True)
-            self.waiting = Gtk.Label(label='Waiting for UI or VM activity.', wrap=True,
-                                     hexpand=True, vexpand=True)
-            set_automation_id(self.waiting, 'watch-waiting')
-            self.buttons['all'].set_active(True)
-            self.arrange()
-            right.append(bar)
-            right.append(self.pages)
-            self.pane.set_end_child(right)
-            self.append(self.pane)
-            self.pane.add_tick_callback(self.initial_columns)
-
-        def initial_columns(self, widget, _clock):
-            if widget.get_width() <= 1:
-                return True
-            widget.set_position(round(widget.get_width() * .3))
-            return False
 
         def copy_selection(self):
             if self.terminal.get_has_selection():
@@ -201,85 +136,6 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
             self.menu.set_pointing_to(rectangle)
             self.menu.popup()
 
-        def initial_rows(self, widget, _clock):
-            if widget.get_height() <= 1:
-                return True
-            widget.set_position(round(widget.get_height() * .5))
-            return False
-
-        def select(self, button, name):
-            if button.get_active():
-                self.selected = name
-                self.next_ui = self.next_discovery = 0
-                self.pages.set_visible_child_name(name)
-                if hasattr(self, 'ui'):
-                    self.arrange()
-
-        def vm_pressed(self, gesture, presses, _x, _y, key):
-            if presses == 2:
-                gesture.set_state(Gtk.EventSequenceState.CLAIMED)
-                self.buttons[key].set_active(True)
-
-        def arrange(self):
-            vm_keys = tuple(key for key, view in self.vms.items() if view.active)
-            shown = self.ui.active if self.selected == 'all' else self.selected == 'ui'
-            vm_shown = self.selected == 'all' and bool(vm_keys)
-            layout = self.selected, shown, vm_shown
-            if self.selected == 'all' and layout == self.layout:
-                self.arrange_grid(vm_keys)
-            if layout == self.layout:
-                return
-            self.layout = layout
-            self.split.set_start_child(None)
-            self.split.set_end_child(None)
-            while self.vm_grid.get_first_child() is not None:
-                self.vm_grid.remove(self.vm_grid.get_first_child())
-            self.grid_layout = None
-            for body in self.bodies.values():
-                while body.get_first_child() is not None:
-                    body.remove(body.get_first_child())
-            body = self.bodies[self.selected]
-            if self.selected in self.vms:
-                body.append(self.vms[self.selected])
-                return
-            if self.selected == 'all':
-                self.arrange_grid(vm_keys)
-            if shown and vm_shown:
-                self.split.set_start_child(self.ui)
-                self.split.set_end_child(self.vm_grid)
-                body.append(self.split)
-                if not self.split_initialized:
-                    self.split_initialized = True
-                    self.split.add_tick_callback(self.initial_rows)
-            elif shown:
-                body.append(self.ui)
-            elif vm_shown:
-                body.append(self.vm_grid)
-            else:
-                body.append(self.waiting)
-
-        def arrange_grid(self, vm_keys):
-            if vm_keys == self.grid_layout:
-                return
-            self.grid_layout = vm_keys
-            desired = {self.vms[key]: (index % 2, index // 2)
-                       for index, key in enumerate(vm_keys)}
-            if len(vm_keys) > 1 and len(vm_keys) % 2:
-                desired[self.vm_blank] = (1, len(vm_keys) // 2)
-            child = self.vm_grid.get_first_child()
-            while child is not None:
-                following = child.get_next_sibling()
-                if child not in desired:
-                    self.vm_grid.remove(child)
-                child = following
-            for child, (column, row) in desired.items():
-                if child.get_parent() != self.vm_grid:
-                    self.vm_grid.attach(child, column, row, 1, 1)
-                else:
-                    placement = self.vm_grid.get_layout_manager().get_layout_child(child)
-                    placement.set_column(column)
-                    placement.set_row(row)
-
         def tick(self, *, render=True):
             now = time.monotonic()
             discover = now >= self.next_discovery
@@ -287,7 +143,8 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
                 self.next_discovery = now + .5
             # Hidden panels only inspect metadata twice a second. They never
             # copy pixels, create textures or redraw their widgets.
-            ui_visible = render and self.selected in ('all', 'ui')
+            ui_visible = render and (self.selected == 'all' or self.selected.startswith('ui-'))
+            self.ui.selected_run = self.selected[3:] if self.selected.startswith('ui-') else None
             if (ui_visible and now >= self.next_ui) or (not ui_visible and discover):
                 self.ui.tick(render=ui_visible)
                 self.next_ui = now + .1
@@ -297,8 +154,6 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
                         (not vm_visible and discover)):
                     view.tick(render=vm_visible)
                     self.next_vm[key] = now + (.1 if self.selected == 'all' else 1 / 30)
-                    self.buttons[key].set_opacity(1 if view.locked else .45)
-            self.arrange()
             if now >= self.next_output:
                 self.next_output = now + .2
                 if not self.terminal.get_has_selection():
@@ -330,7 +185,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
     import gi
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')
-    from gi.repository import Gdk, Gio, GLib, Gtk
+    from gi.repository import Gdk, Gio, GLib, Gtk, Pango
     from common.oh_no_parent_control_ui.gtk_automation import (
         add_identified_window_controls, set_automation_id,
     )
@@ -345,7 +200,10 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.checkouts = {}
             self.checkout_buttons = {}
             self.checkout_bodies = {}
-            self.checkout_layout = None
+            self.scopes = {}
+            self.cells = {}
+            self.viewer_layout = None
+            self.terminal_layout = None
             self.last_checkout = None
             self.discovery = discovery
 
@@ -380,16 +238,19 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.checkout_pages = Gtk.Stack(hexpand=True, vexpand=True,
                                            hhomogeneous=False, vhomogeneous=False)
             set_automation_id(self.checkout_pages, 'watch-checkout-pages')
-            self.checkout_grid = Gtk.Grid(column_homogeneous=True, row_homogeneous=True,
-                                          column_spacing=6, row_spacing=6,
-                                          hexpand=True, vexpand=True)
-            set_automation_id(self.checkout_grid, 'watch-checkout-grid')
-            self.checkout_pages.add_named(self.checkout_grid, 'all')
-            self.checkout_blank = Gtk.Box(hexpand=True, vexpand=True)
-            set_automation_id(self.checkout_blank, 'watch-checkout-empty-cell')
-            self.checkout_waiting = Gtk.Label(label='Waiting for checkout activity.',
+            self.pane = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL, wide_handle=True)
+            set_automation_id(self.pane, 'watch-columns')
+            self.pane.set_shrink_start_child(True)
+            self.pane.set_shrink_end_child(True)
+            self.terminal_grid = Gtk.Grid(row_homogeneous=True, hexpand=True, vexpand=True)
+            set_automation_id(self.terminal_grid, 'watch-terminal-grid')
+            self.terminal_waiting = Gtk.Label(label='Waiting for terminal activity.',
                                              hexpand=True, vexpand=True)
-            set_automation_id(self.checkout_waiting, 'watch-checkout-waiting')
+            set_automation_id(self.terminal_waiting, 'watch-terminal-waiting')
+            self.pane.set_start_child(self.terminal_grid)
+            self.pane.set_end_child(self.checkout_pages)
+            self.pane.add_tick_callback(self.initial_columns)
+            self.add_scope('all', 'watch-all-')
             self.checkout_bar = Gtk.Box(spacing=2)
             self.checkout_bar.add_css_class('linked')
             set_automation_id(self.checkout_bar, 'watch-checkout-tabs')
@@ -398,7 +259,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.checkout_buttons['all'] = all_tab
             all_tab.connect('toggled', self.select_checkout, 'all')
             self.checkout_bar.append(all_tab)
-            body.append(self.checkout_pages)
+            body.append(self.pane)
             body.append(self.checkout_bar)
             self.window.set_child(body)
             initial = checkouts if checkouts is not None else {ROOT: ROOT.name}
@@ -416,6 +277,48 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.window.present()
             self.timer = GLib.timeout_add(33, self.tick)
 
+        def initial_columns(self, widget, _clock):
+            if widget.get_width() <= 1:
+                return True
+            widget.set_position(round(widget.get_width() * .25))
+            return False
+
+        def add_scope(self, name, prefix):
+            page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
+            if name != 'all':
+                set_automation_id(page, 'watch-checkout-page-' + identity(Path(name)))
+            bar = Gtk.Box(spacing=2)
+            bar.add_css_class('linked')
+            set_automation_id(bar, prefix + 'watch-tabs')
+            scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+                                       vscrollbar_policy=Gtk.PolicyType.NEVER)
+            set_automation_id(scroll, prefix + 'watch-tabs-scroll')
+            scroll.set_child(bar)
+            pages = Gtk.Stack(hexpand=True, vexpand=True, hhomogeneous=False, vhomogeneous=False)
+            set_automation_id(pages, prefix + 'watch-pages')
+            grid = Gtk.Grid(column_homogeneous=True, row_homogeneous=True,
+                            column_spacing=6, row_spacing=6, hexpand=True, vexpand=True)
+            set_automation_id(grid, prefix + 'watch-viewer-grid')
+            pages.add_named(grid, 'all')
+            blank = Gtk.Box(hexpand=True, vexpand=True)
+            set_automation_id(blank, prefix + 'watch-empty-cell')
+            waiting = Gtk.Label(label='Waiting for UI or VM activity.', wrap=True,
+                                hexpand=True, vexpand=True)
+            set_automation_id(waiting, prefix + 'watch-waiting')
+            button = Gtk.ToggleButton(label='All')
+            set_automation_id(button, prefix + 'watch-tab-all')
+            bar.append(button)
+            scope = dict(prefix=prefix, bar=bar, pages=pages, grid=grid, blank=blank,
+                         waiting=waiting, buttons={'all': button}, bodies={}, selected='all')
+            self.scopes[name] = scope
+            button.connect('toggled', self.select_viewer, name, 'all')
+            button.set_active(True)
+            page.append(scroll)
+            page.append(pages)
+            self.checkout_pages.add_named(page, name)
+            self.checkout_bodies[name] = page
+            return scope
+
         def add_checkout(self, root, label, options=None, prefix=None):
             name = str(root)
             if name in self.checkouts:
@@ -430,17 +333,18 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 return
             view.heading = Gtk.Button(label=label)
             view.heading.add_css_class('flat')
+            weight = Pango.AttrList()
+            weight.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
+            view.heading.get_child().set_attributes(weight)
             view.heading.connect('clicked', lambda *_: self.checkout_buttons[name].set_active(True))
             set_automation_id(view.heading, 'watch-checkout-heading-' + key)
-            view.tab_bar.prepend(view.heading)
+            view.prepend(view.heading)
             set_automation_id(view, 'watch-checkout-cell-' + key)
-            click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-            click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-            click.connect('released', self.checkout_pressed, name)
-            view.add_controller(click)
-            page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
-            set_automation_id(page, 'watch-checkout-page-' + key)
-            self.checkout_pages.add_named(page, name)
+            scope = self.add_scope(name, prefix)
+            view.buttons = scope['buttons']
+            view.pages = scope['pages']
+            view.vm_grid = scope['grid']
+            view.pane = self.pane
             button = Gtk.ToggleButton(label=label, tooltip_text=name)
             set_automation_id(button, 'watch-checkout-tab-' + key)
             button.set_group(self.checkout_buttons['all'])
@@ -448,7 +352,6 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.checkout_bar.append(button)
             self.checkouts[name] = view
             self.checkout_buttons[name] = button
-            self.checkout_bodies[name] = page
             if len(self.checkouts) == 1:
                 self.primary = view
                 self.last_checkout = name
@@ -459,9 +362,90 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 self.checkout_pages.set_visible_child_name(name)
                 self.arrange_checkouts()
 
-        def checkout_pressed(self, _gesture, _presses, _x, _y, name):
-            if self.selected_checkout == 'all':
-                self.checkout_buttons[name].set_active(True)
+        def select_viewer(self, button, scope_name, key):
+            if button.get_active():
+                self.scopes[scope_name]['selected'] = key
+                for view in self.checkouts.values():
+                    view.next_ui = view.next_discovery = 0
+                    view.next_vm = dict.fromkeys(view.next_vm, 0)
+                if self.checkout_buttons:
+                    self.arrange_checkouts()
+
+        def cell_pressed(self, gesture, presses, _x, _y, entry):
+            if presses == 2:
+                scope_name = self.selected_checkout
+                key = self.entry_key(scope_name, entry)
+                self.scopes[scope_name]['buttons'][key].set_active(True)
+                gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+
+        def entry_key(self, scope_name, entry):
+            name, local = entry
+            return identity(Path(name)) + '-' + local if scope_name == 'all' else local
+
+        def entries(self):
+            result = {}
+            for name, view in self.checkouts.items():
+                for run, (content, _detail, tab) in view.ui.views.items():
+                    result[name, 'ui-' + run] = (content, 'UI - ' + tab.get_label(), True, True)
+                for vm, key in view.vm_keys.items():
+                    content = view.vms[key]
+                    result[name, key] = (content, vm, content.active, content.locked)
+            return result
+
+        def sync_viewers(self, entries):
+            for entry in tuple(self.cells):
+                if entry not in entries:
+                    cell, _title = self.cells.pop(entry)
+                    if cell.get_parent() is not None:
+                        cell.get_parent().remove(cell)
+            for entry, (content, _label, _active, _locked) in entries.items():
+                if entry not in self.cells:
+                    name, local = entry
+                    prefix = self.scopes[name]['prefix']
+                    cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
+                    set_automation_id(cell, prefix + 'watch-cell-' + local)
+                    title = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END,
+                                      margin_start=8, margin_top=6, margin_bottom=6)
+                    title.add_css_class('heading')
+                    set_automation_id(title, prefix + 'watch-cell-title-' + local)
+                    cell.append(title)
+                    cell.append(content)
+                    click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
+                    click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+                    click.connect('pressed', self.cell_pressed, entry)
+                    cell.add_controller(click)
+                    self.cells[entry] = cell, title
+            for scope_name, scope in self.scopes.items():
+                scoped = {entry: value for entry, value in entries.items()
+                          if scope_name == 'all' or entry[0] == scope_name}
+                wanted = {self.entry_key(scope_name, entry) for entry in scoped}
+                for key in tuple(scope['bodies']):
+                    if key not in wanted:
+                        if scope['selected'] == key:
+                            scope['buttons']['all'].set_active(True)
+                        scope['bar'].remove(scope['buttons'].pop(key))
+                        scope['pages'].remove(scope['bodies'].pop(key))
+                previous = scope['buttons']['all']
+                for entry, (_content, label, _active, locked) in scoped.items():
+                    key = self.entry_key(scope_name, entry)
+                    if scope_name == 'all':
+                        label = '[' + self.checkout_buttons[entry[0]].get_label() + ']: ' + label
+                    if key not in scope['buttons']:
+                        button = Gtk.ToggleButton()
+                        set_automation_id(button, scope['prefix'] + 'watch-tab-' + key)
+                        button.set_group(scope['buttons']['all'])
+                        scope['buttons'][key] = button
+                        scope['bar'].append(button)
+                        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
+                        set_automation_id(body, scope['prefix'] + 'watch-page-' + key)
+                        scope['pages'].add_named(body, key)
+                        scope['bodies'][key] = body
+                        button.connect('toggled', self.select_viewer, scope_name, key)
+                    button = scope['buttons'][key]
+                    button.set_label(label)
+                    button.set_opacity(1 if locked else .45)
+                    scope['bar'].reorder_child_after(button, previous)
+                    previous = button
 
         def arrange_checkouts(self):
             for name, view in self.checkouts.items():

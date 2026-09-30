@@ -642,7 +642,12 @@ def test_parent_functional_adapter_at_display_scales(
         disabled = ui.settings()
         assert not disabled['limit_enabled']
         assert disabled['allowance'] == selected['settings']['allowance']
-        ui.run('about', version)
+        # INFO01 Parent composes the same ID-owned readers used by installed
+        # qualification. This private preview adds no processes or shared state.
+        ui.run('parent-help-clickable', version)
+        ui.run('parent-information-about', version)
+        for _ in range(2):
+            ui.run('parent-information-clickable', version)
         if ui.incomplete_observations:
             _record_parent_public_state(ui, module, _log)
         ui.about_footer()

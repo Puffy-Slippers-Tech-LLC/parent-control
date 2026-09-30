@@ -13,7 +13,8 @@ sub run {
     $link //= 'license';
     die 'license-provider:binding' unless (@_ == 1 || @_ == 2)
         && ref($exchange) eq 'CODE'
-        && ($link eq 'license' || $link eq 'website' || $link eq 'privacy' || $link eq 'support');
+        && ($link eq 'license' || $link eq 'website' || $link eq 'privacy'
+            || $link eq 'support' || $link eq 'information');
     my $prefix = $link eq 'license' ? 'license-provider' : 'parent-' . $link;
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => $prefix, review => 0);
@@ -25,7 +26,9 @@ sub run {
     my $accepted = eval { onpc_about::check_link($wrong, $selected, $link); 1 };
     die 'license-provider:wrong-entry-accepted' if $accepted;
     die 'license-provider:wrong-entry-refusal' unless $@ =~ /journey:stale-observation/;
-    my $about = onpc_about::open_about($journey, $selected);
+    my $about = $link eq 'information'
+        ? onpc_about::open_from_help($journey, onpc_about::read_help($journey, $selected))
+        : onpc_about::open_about($journey, $selected);
     onpc_about::check_link($journey, $about, $link);
     my $qualified = $journey->seen('license-provider-refusals');
     onpc_about::return_to_parent(

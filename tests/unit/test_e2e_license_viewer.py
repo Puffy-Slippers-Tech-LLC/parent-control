@@ -10,14 +10,16 @@ import check_e2e_license_viewer as check
 import check_e2e_parent_website as website_check
 import check_e2e_parent_privacy as privacy_check
 import check_e2e_parent_support as support_check
+import check_e2e_read_parent_information_links as information_check
 import check_graphical_smoke as smoke
 from license_viewer_provider import (
     PLAN, WEBSITE_PLAN, PRIVACY_PLAN, SUPPORT_PLAN, LicenseViewerProviderJourney,
-    ParentWebsiteJourney, ParentPrivacyJourney, ParentSupportJourney)
+    ParentWebsiteJourney, ParentPrivacyJourney, ParentSupportJourney,
+    INFORMATION_PLAN, ParentInformationJourney)
 from owned_commands import CommandError
 from parent_setup_qualification import (
     KioskEntryQualification, LicenseViewerProviderQualification, ParentWebsiteQualification,
-    ParentPrivacyQualification, ParentSupportQualification)
+    ParentPrivacyQualification, ParentSupportQualification, ParentInformationQualification)
 from tests.support.perl import run_perl
 
 
@@ -48,6 +50,8 @@ def test_selector_uses_owned_snapshot_and_refuses_conflicting_routes(monkeypatch
     ('website', ParentWebsiteQualification, ParentWebsiteJourney, WEBSITE_PLAN, website_check),
     ('privacy', ParentPrivacyQualification, ParentPrivacyJourney, PRIVACY_PLAN, privacy_check),
     ('support', ParentSupportQualification, ParentSupportJourney, SUPPORT_PLAN, support_check),
+    ('information', ParentInformationQualification, ParentInformationJourney,
+     INFORMATION_PLAN, information_check),
 ])
 def test_link_binding_reaches_shared_plan_and_owned_snapshot(
         monkeypatch, link, qualification, journey_class, plan, check_module):
@@ -57,9 +61,13 @@ def test_link_binding_reaches_shared_plan_and_owned_snapshot(
     assert journey.plan is plan
     assert context.installed_snapshot.startswith('onpc-v')
     assert plan.worker_mode == 'parent_' + link
-    assert plan.screen_tags['license'] == f'ui:{link}-clickable'
-    assert plan.screen_tags['license-provider-refusals'] == f'ui:{link}-clickable'
+    operation = 'parent-information-clickable' if link == 'information' else f'{link}-clickable'
+    assert plan.screen_tags['license'] == 'ui:' + operation
+    assert plan.screen_tags['license-provider-refusals'] == 'ui:' + operation
     assert plan.settings_checks == PLAN.settings_checks
+    if link == 'information':
+        assert list(plan.screen_tags).index('parent-selected') < list(
+            plan.screen_tags).index('help') < list(plan.screen_tags).index('about')
     calls = []
     monkeypatch.setattr(check_module, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
     assert check_module.main() == 0
@@ -71,9 +79,12 @@ def test_link_binding_reaches_shared_plan_and_owned_snapshot(
         smoke.main(information_link='legal')
 
 
-@pytest.mark.parametrize('fault', ['', 'license', 'refusals',
-                                   'close-input', 'return'])
-@pytest.mark.parametrize('link', ['license', 'website', 'privacy', 'support'])
+@pytest.mark.parametrize('link,fault', [
+    (link, fault)
+    for link in ('license', 'website', 'privacy', 'support', 'information')
+    for fault in ('', 'help', 'about', 'license', 'refusals', 'close-input', 'return')
+    if fault != 'help' or link == 'information'
+])
 def test_worker_checks_link_and_closes_only_owned_about(fault, link):
     result = json.loads(run_perl(r'''
 use strict;
@@ -100,6 +111,8 @@ my $ok = eval {
     onpc_license_viewer_provider::run(sub {
         my ($stage) = @_;
         push @events, ['seen', $stage];
+        die 'missing help' if $fault eq 'help' && $stage eq 'help';
+        die 'missing about' if $fault eq 'about' && $stage eq 'about';
         die 'missing license' if $fault eq 'license' && $stage eq 'license';
         die 'missing refusals' if $fault eq 'refusals' && $stage eq 'license-provider-refusals';
         die 'missing return' if $fault eq 'return' && $stage eq 'license-closed';
@@ -115,13 +128,17 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events,
     assert result['labels'] and all(label.startswith(prefix + '-')
                                    for label in result['labels'])
     assert bool(result['ok']) == (not fault), result['error']
-    assert events.count(['seen', 'license']) == 1
+    assert events.count(['seen', 'license']) == (0 if fault in ('help', 'about') else 1)
     assert events.count(['seen', 'license-provider-refusals']) == (
-        0 if fault == 'license' else 1)
+        0 if fault in ('help', 'about', 'license') else 1)
     assert events.count(['key', 'alt-f4']) == {
-        '': 1, 'license': 0, 'refusals': 0, 'close-input': 1, 'return': 0,
+        '': 1, 'help': 0, 'about': 0, 'license': 0, 'refusals': 0, 'close-input': 1, 'return': 0,
     }[fault]
     if fault:
         assert ['finish'] not in events
     else:
+        assert [event[1] for event in events if event[0] == 'seen'] == [
+            'parent-selected', *(['help'] if link == 'information' else []),
+            'about', 'license', 'license-provider-refusals', 'license-closed',
+            'about-returned', 'parent-returned']
         assert events[-1] == ['finish']

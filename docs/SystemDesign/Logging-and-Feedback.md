@@ -63,7 +63,8 @@ Foreign Python log records become a fixed suppressed-event marker without
 formatting their arguments or exceptions.
 
 Child-extension diagnostics identify the fixed command tool, settings key and
-live-session/offline transport. Activation records include Shell availability
+live-session/offline transport on every distribution; no Fedora or OS-identity
+gate controls these events. Activation records include Shell availability
 and global-switch recovery context. Settings read-back and rollback record the
 key, verification stage and match result; runtime verification records only
 configured/active booleans. Command stderr is inspected transiently for reviewed
@@ -75,6 +76,10 @@ UIDs, paths or exception messages are logged. Commands keep the existing locale
 but use C message translations so classification is stable. These observations
 do not change activation or rollback acceptance. The broker loads them after
 `process-restart`; ship the additive catalogue with all frontend validators.
+Activation and rollback exceptions also record their reviewed shipped-module
+category and source line before conversion to the public broker error. This
+preserves the original failure location as well as any separate rollback
+failure, without recording exception text or traceback details.
 
 Allowed sources include operation outcomes, duration calculation operands,
 counts, packaged app version, elapsed operation timings, and fixed dependency

@@ -85,6 +85,34 @@ destination and the app's required public result. System commands cannot inject
 product state, grants, usage or outcomes, replace natural expiry with a lock,
 or replace graphical PAM denial/retained unlock with an SSH login.
 
+### Keep supporting work bounded
+
+For every remaining task, name the product assertion first, then choose one
+supported way to establish each unrelated prerequisite. Reuse the qualified
+helper and stop preparation as soon as that prerequisite is independently
+observed. Qualify ownership, reversal and the result needed by the consumer;
+do not turn a dependency into another feature matrix or framework.
+
+The existing [fixture builder](../../tests/fixtures/build_test_applications.py)
+and [GUI fixture](../../tests/fixtures/gui_application.py) are the starting point
+for app/game assets. Reuse them and add only a missing finite identity or action
+required by the recipe; their existence does not qualify an unimplemented route.
+
+| Supporting work | Minimal route and stopping point |
+| --- | --- |
+| App and game assets | Reuse the maintained fixture builder, verified manifests and artifact cache for native, Snap, Flatpak, versioned-path and offline-game inputs. Install only the declared local payload/runtime through the shared package helper. Bind the required public identity and one ordinary usable action. No store browsing, vendor account creation, third-party repository setup, updater exercise or new packaging framework. Real package format, confinement, enforcement and retained activity assertions still apply. Lunar's explicitly real-app profile uses FIX05 instead. |
+| Files and desktop entries | Use shared exact-path copy/rename and supported per-user commands/APIs for launcher placement, permissions and trust metadata. Open Files directly at the prepared directory only when its launch route is tested; the actual Files/DING activation remains graphical. No folder tours, Properties-dialog preparation or alternate launch after failure. Product downloads use the bound user's `~/Downloads` and the existing destination helper. |
+| Sessions and power | Reuse direct entry, logout, lock/greeter and reboot helpers. Suspend uses one supported guest command and one supported owned-VM wake operation, followed by the actual public return/unlock result. Do not add power-settings, screensaver, RTC, hardware or wake-method matrices. Ordinary overlay reopening uses REQUEST02. |
+| Offline and recovery | Every consumer uses LIFE06's same VM Internet-isolation/recovery helper, including from a child desktop or GDM. Restoring Internet access needs no visit to Parent, network settings or another session. Preserve the current product surface and independently observe the app's retry, stop or local-operation result. |
+| Feedback and information | Reuse one supported real feedback-service/recipient profile and the reviewed sending scope. Stop at the app's acceptance/retry/error and exit behavior; mailbox provisioning, portal administration, receipt polling and delivery internals are separate work. Check offered links under the link-only mandate and open/read/close the owned Privacy disclosure. No external page/content or handler validation. |
+| Unavailable prerequisites | Check the declared route and report the exact missing prerequisite. Same-child desktops, real collection failures, prepared Lunar assets and natural calendar windows retain their gates. Do not build virtual seats/display servers, fault frameworks, vendor setup automation or a new calendar scheduler to manufacture eligibility. Preserve the product assertion and its pending status. |
+
+Preparation never writes the product policy, grants, usage, private state or
+outcome under test. An explicitly tested dependency boundary still runs: package
+changes during an open match draft, real graphical authentication, launch-route
+enforcement, real gameplay, natural expiry and calendar transitions are product
+integration assertions. Simplify their setup without replacing their results.
+
 ### Block contracts
 
 - **A — atomic:** one input operation or one public observation. Its local
@@ -1030,6 +1058,9 @@ VM-level implementation for Ubuntu, Fedora and other distributions. Establish
 real Internet unavailability without losing controller access or allowing an
 alternate Internet route. Networking is supporting test setup: once this fixed
 mechanism and owned cleanup are qualified, consumers focus on app assertions.
+Use that same helper from the current surface for recovery, including a child
+desktop or GDM after a report closes. No Parent visit or login is needed solely
+to restore Internet access.
 
 ### About, feedback and customer-selected attachments
 

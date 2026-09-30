@@ -14,11 +14,13 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Bind the maintained offline game's verified asset, package profile and finite
-level data through the [fixture contract](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope).
-Repository-owned fixture controls require public automation IDs; this is not an
-external-provider exemption. Stage through FIX04 and install with the qualified
-LIFE04 shared administrator SSH command route. Leave game input, mode changes and expiry to later tasks.
+Reuse the repository's existing offline game fixture, builder/artifact cache,
+verified package profile and one fixed level through the
+[fixture contract](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope).
+Its controls require public automation IDs. Stage through FIX04 and install
+through LIFE04's shared local package route. No game selection, vendor launcher,
+account, asset download or graphics-settings qualification is needed. Leave
+actual gameplay, windowed/fullscreen behavior and expiry to the following tasks.
 
 ## Live VM acceptance
 

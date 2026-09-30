@@ -23,6 +23,16 @@ choreography. Explicit enforcement launch routes, offered previews, information
 links, retained app activity and unavoidable graphical authentication keep their
 own GUI assertions. These route corrections do not complete or qualify a task.
 
+Every remaining brief and case also follows the
+[bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded).
+Use existing local fixture assets and shared preparation helpers; qualify only
+the dependency operation the app assertion needs. In particular, prepare desktop
+entries without file-manager choreography, reopen ordinary overlays directly,
+and restore Internet access through LIFE06 from the current surface without a
+Parent visit. Feedback stops at the app's result; real-app and calendar
+prerequisites retain explicit gates instead of expanding into dependency projects.
+The product assertions, task order and acceptance requirements remain in force.
+
 The system-operation audit removed unnecessary menu/dialog tasks 003ca/003da,
 Terminal-help task 001ta (INFO02 already reads SSH stdout), Users-wizard tasks
 184d/184a/184e, and Shell-calendar task 191a. File-preparation slices 036e/036c/036d

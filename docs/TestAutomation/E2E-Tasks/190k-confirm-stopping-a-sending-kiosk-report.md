@@ -38,11 +38,11 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Bind retry on the kiosk report after normal public disconnection, then implement FEED17 before FEED18. Declare stay-open and Stop sending and close responses and their exact destinations; stopping cannot recall an already accepted request.
+Bind retry on the kiosk report after LIFE06 removes the VM's Internet access, then implement FEED17 before FEED18. Declare stay-open and Stop sending and close responses and their exact destinations; stopping cannot recall an already accepted request.
 
 ## Live VM acceptance
 
-On the VM with an authorized synthetic report, disconnect normally, Send once and observe retry. Attempt Close, read the warning and choose stay; require the report still open. Close again and explicitly Stop; require report disappearance and GDM. Restore connectivity through Parent.
+On the VM with an authorized synthetic report, use LIFE06 to remove Internet access, Send once and observe retry. Attempt Close, read the warning and choose stay; require the report still open. Close again and explicitly Stop; require report disappearance and GDM. Restore Internet access through the same LIFE06 VM helper from the observed GDM surface; no Parent login is needed.
 
 Run affected safety/adapter checks, then implement and register the fixed slice
 qualification below in the existing guarded envelope. Run this slice here;

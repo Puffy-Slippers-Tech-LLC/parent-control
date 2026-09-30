@@ -14,10 +14,12 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Bind the maintained repository-owned A/H/S Flatpak bundles and pinned runtime
-manifest. FIX04 transfers bytes only. Extend the shared administrator SSH package helper for the fixed installation commands and declared
-installation scope. No arbitrary remote, installer or new fixture framework.
-Launching and public app activity remain in the following capability tasks.
+Reuse the maintained repository-owned A/H/S Flatpak bundles, pinned runtime and
+fixture builder/artifact cache. FIX04 transfers bytes only. Bind their local
+installation commands and one declared installation scope in the shared
+administrator SSH package helper. No Flathub browsing, third-party remote setup, online
+runtime search or installation-scope matrix is needed. Preserve real Flatpak
+installation and confinement; launching and activity remain in following tasks.
 
 ## Live VM acceptance
 

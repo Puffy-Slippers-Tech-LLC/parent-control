@@ -23,7 +23,11 @@ Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
-Bind Files activation for the declared native fixture and a supported separate-window action. Reuse owned app observations and normal usability input.
+Open Files directly at the prepared fixture directory through FILE04, then bind
+only the exact fixture's activation and supported separate-window action. Reuse
+the existing location adapter if needed; no folder browsing, copy operation,
+Properties dialog or view customization belongs to this launch check. Reuse
+owned app observations and one normal usability input.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,

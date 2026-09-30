@@ -27,7 +27,7 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Compose only the overlay sign-out branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use normal sign-out and confirmation, then a fresh child login. Do not claim old-window continuity. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
+Compose only the overlay sign-out branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use DESK04's shared `gnome-session-quit --logout --no-prompt` command, independently observe ended-session/GDM entry, then perform a fresh child login. Do not claim old-window continuity. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
 
 ## Live VM acceptance
 

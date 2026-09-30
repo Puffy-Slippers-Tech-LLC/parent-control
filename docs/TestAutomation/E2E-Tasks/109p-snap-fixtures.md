@@ -14,11 +14,14 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Bind the maintained repository-owned A/H/S Snap payloads and their pinned asset
-manifest. FIX04 transfers bytes only. Extend the shared administrator SSH package helper for the fixed Snap installation command; no
-arbitrary installer or new fixture framework. Preserve the package signatures,
-confinement and ordinary package-manager outcome checks. This task owns setup;
-command and app-grid launch behavior belong to their following tasks.
+Reuse the maintained repository-owned Snap payloads, fixture builder/artifact
+cache and pinned A/H/S manifest. FIX04 transfers bytes only. Bind the supported
+local installation command in the shared administrator SSH package helper,
+preserving manifest/digest verification, any supplied signatures, the fixture's
+declared trust, confinement and package-manager checks.
+No Snap Store account, publishing/signing service, channel matrix or online
+refresh is required. Stop at installed fixture/catalogue identity; command and
+app-grid behavior belong to their following tasks.
 
 ## Live VM acceptance
 

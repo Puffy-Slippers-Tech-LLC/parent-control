@@ -26,7 +26,12 @@ Use the catalogue's maintained callables and a fresh attempt, never prior task/V
 
 ## Implementation
 
-Bind the current/next matching AppImage versions and existing/new nonmatches for case 189. Reuse public file copying, saved same-directory wildcard rules and command-result projections. Register the finite read-only refresh wait without retrying launch input.
+Bind the current/next matching versions and existing/new nonmatches from the
+maintained deterministic AppImage-path fixture assets for case 189. Prepare
+copies through FILE05; no vendor download, updater or AppImageLauncher setup is
+needed for this pattern test. Reuse saved same-directory wildcard rules and
+command-result projections. Register the finite read-only refresh wait without
+retrying launch input. Case 253 separately owns the real Lunar integration.
 
 ## Live VM acceptance
 

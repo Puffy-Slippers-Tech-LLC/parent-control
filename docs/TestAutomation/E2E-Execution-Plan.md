@@ -93,6 +93,9 @@ obligations under their maintained owners.
    GDM preparation and other supporting work. GUI adapters are for tested product
    features and unavoidable graphical authentication; qualify those remaining
    routes and fix missing owned IDs before their consumers.
+   Apply the [bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded):
+   establish each non-product prerequisite with one shared supported route, then
+   proceed to the app assertion. Dependency setup is not another coverage matrix.
 5. Finish live verification, cleanup and close-out. Report the task ID, result
    and next task. The next identical prompt repeats this workflow.
 

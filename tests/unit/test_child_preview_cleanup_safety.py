@@ -3,10 +3,14 @@ import os
 import pathlib
 import shlex
 import signal
+import select
+import sys
+import json
 import subprocess
 import tempfile
 import time
 import unittest
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -19,7 +23,8 @@ LIFECYCLE_RUNNER = ROOT / "tests" / "ui" / "run-child-shell-lifecycle"
 @pytest.mark.parametrize('failed', [False, True])
 def test_shell_socket_runtime_is_short_and_outlives_owned_cleanup(tmp_path, monkeypatch, failed):
     import socket
-    from tests.support import child_shell
+    from tests.support import child_shell_owner
+    from types import SimpleNamespace
 
     artifact = tmp_path / ('long-checkout-path-' * 8) / 'retained-artifacts'
     artifact.mkdir(parents=True)
@@ -29,7 +34,8 @@ def test_shell_socket_runtime_is_short_and_outlives_owned_cleanup(tmp_path, monk
                    'ONPC_CHILD_SHELL_RUNTIME_DIR': str(artifact / 'untrusted-runtime')}
     runtimes = []
 
-    def execute(actual, timeout):
+    def execute(_command, *, env, timeout, **kwargs):
+        actual = env
         runtime = pathlib.Path(actual['ONPC_CHILD_SHELL_RUNTIME_DIR'])
         runtimes.append(runtime)
         assert actual['ONPC_CHILD_SHELL_ARTIFACT_DIR'] == str(artifact)
@@ -44,15 +50,221 @@ def test_shell_socket_runtime_is_short_and_outlives_owned_cleanup(tmp_path, monk
             raise RuntimeError('owned cleanup finished after failure')
         return 'finished'
 
-    monkeypatch.setattr(child_shell, '_run_child_shell', execute)
+    @contextlib.contextmanager
+    def installed(self, **kwargs):
+        yield SimpleNamespace(run=execute)
+    monkeypatch.setattr(child_shell_owner.Control, 'installed', installed)
+    monkeypatch.setattr(child_shell_owner, 'reap_owned_descendants', lambda: None)
     if failed:
         with pytest.raises(RuntimeError, match='owned cleanup finished'):
-            child_shell.run_child_shell(environment, timeout=17)
+            child_shell_owner.run_owned(ROOT, environment, timeout=17, kill_after=1)
     else:
-        assert child_shell.run_child_shell(environment, timeout=17) == 'finished'
+        assert child_shell_owner.run_owned(ROOT, environment, timeout=17, kill_after=1) == 'finished'
     assert len(runtimes) == 1 and not runtimes[0].exists()
     assert evidence.read_text() == 'retain failure evidence'
     assert environment['ONPC_CHILD_SHELL_RUNTIME_DIR'] == str(artifact / 'untrusted-runtime')
+
+
+@pytest.mark.parametrize('cause', ['cancel', 'worker-killed', 'deadline', 'quiet-exit'])
+def test_shell_guardian_reaps_detached_services_even_after_worker_death(tmp_path, monkeypatch, cause):
+    from regression_process import Control
+
+    ready, descendant_ready = tmp_path / 'ready.json', tmp_path / 'descendant-ready'
+    fixture = tmp_path / 'runner.py'
+    fixture.write_text(f'''import json,os,signal,subprocess,sys,time
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+child = subprocess.Popen([sys.executable, '-c',
+    "import pathlib,signal,time; signal.signal(signal.SIGINT, signal.SIG_IGN); "
+    "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+    "pathlib.Path({str(descendant_ready)!r}).touch(); time.sleep(30)"],
+    start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+while not os.path.exists({str(descendant_ready)!r}):
+    time.sleep(.01)
+with open({str(ready)!r}, 'w') as output:
+    json.dump({{'runner': os.getpid(), 'descendant': child.pid,
+        'runtime': os.environ['ONPC_CHILD_SHELL_RUNTIME_DIR']}}, output)
+print('owned stdout', flush=True)
+print('owned stderr', file=sys.stderr, flush=True)
+{'os._exit(0)' if cause == 'quiet-exit' else 'time.sleep(30)'}
+''')
+    runner = tmp_path / 'tests/ui/run-child-shell-lifecycle'
+    runner.parent.mkdir(parents=True)
+    runner.write_text('exec ' + shlex.quote(sys.executable) + ' ' + shlex.quote(str(fixture)) + '\n')
+    code = f'''import os,sys
+sys.path.insert(0, {str(ROOT)!r})
+from pathlib import Path
+from tests.support import child_shell
+child_shell.ROOT = Path({str(tmp_path)!r})
+child_shell.KILL_AFTER = .2
+result = child_shell.run_child_shell(os.environ.copy(), timeout={.2 if cause == 'deadline' else 5})
+assert 'owned stdout' in result.stdout and 'owned stderr' not in result.stdout, result
+assert 'owned stderr' in result.stderr and 'owned stdout' not in result.stderr, result
+sys.exit(result.returncode)
+'''
+    sentinel = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+    sentinel_fd = os.pidfd_open(sentinel.pid)
+    children, receipts, observations = [], {}, bytearray()
+    popen = subprocess.Popen
+    def record(*args, **kwargs):
+        child = popen(*args, **kwargs)
+        children.append(child)
+        return child
+    monkeypatch.setattr(subprocess, 'Popen', record)
+    control = Control()
+    captured = None
+    def tick():
+        nonlocal captured
+        if captured is None and ready.exists():
+            try:
+                captured = json.loads(ready.read_text())
+            except json.JSONDecodeError:
+                return
+            for role in ('runner', 'descendant'):
+                try:
+                    receipts[role] = os.pidfd_open(captured[role])
+                except ProcessLookupError:
+                    pass  # Already reaped after a successful, fast exit.
+            if cause == 'cancel':
+                control.stop()
+            elif cause == 'worker-killed':
+                descriptor = os.pidfd_open(children[0].pid)
+                try:
+                    signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+                finally:
+                    os.close(descriptor)
+    try:
+        status = control.run([sys.executable, '-c', code], cwd=ROOT, env=os.environ.copy(),
+                             output=observations.extend, tick=tick, timeout=10, kill_after=1)
+        assert status == {'cancel': 130, 'worker-killed': 137, 'deadline': 137, 'quiet-exit': 0}[cause], observations.decode()
+        assert captured is not None and sentinel.poll() is None
+        for role, descriptor in receipts.items():
+            poller = select.poll()
+            poller.register(descriptor, select.POLLIN)
+            assert poller.poll(3000), f'{role} survived guarded Shell cleanup'
+        # The independent owner keeps this allocation until its entire tree
+        # is reaped, even when the pytest worker has already disappeared.
+        deadline = time.monotonic() + 3
+        while pathlib.Path(captured['runtime']).exists() and time.monotonic() < deadline:
+            time.sleep(.01)
+        assert not pathlib.Path(captured['runtime']).exists()
+    finally:
+        for descriptor in receipts.values():
+            try:
+                signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            os.close(descriptor)
+        signal.pidfd_send_signal(sentinel_fd, signal.SIGKILL)
+        sentinel.wait(timeout=5)
+        os.close(sentinel_fd)
+
+
+@pytest.mark.parametrize('fault', ['foreign-child', 'pidfd-refused'])
+def test_shell_adoption_requires_kernel_parenthood_before_any_signal(monkeypatch, fault):
+    from tests.support import child_shell_owner
+    children = Mock(read_text=Mock(side_effect=['101', '']))
+    monkeypatch.setattr(child_shell_owner, 'Path', lambda path: children)
+    wait = Mock(return_value=None,
+                side_effect=ChildProcessError('foreign child') if fault == 'foreign-child' else None)
+    pin, kill, reap = Mock(side_effect=OSError('descriptor pressure')), Mock(), Mock()
+    monkeypatch.setattr(child_shell_owner.os, 'waitid', wait)
+    monkeypatch.setattr(child_shell_owner.os, 'pidfd_open', pin)
+    monkeypatch.setattr(child_shell_owner.os, 'kill', kill)
+    monkeypatch.setattr(child_shell_owner.os, 'waitpid', reap)
+    order = Mock()
+    for name, mocked in [('wait', wait), ('pin', pin), ('kill', kill), ('reap', reap)]:
+        order.attach_mock(mocked, name)
+    if fault == 'foreign-child':
+        with pytest.raises(ChildProcessError, match='foreign child'):
+            child_shell_owner.reap_owned_descendants()
+        pin.assert_not_called()
+        kill.assert_not_called()
+        reap.assert_not_called()
+    else:
+        child_shell_owner.reap_owned_descendants()
+        assert order.mock_calls == [
+            call.wait(os.P_PID, 101, os.WEXITED | os.WNOHANG | os.WNOWAIT),
+            call.pin(101), call.kill(101, signal.SIGKILL), call.reap(101, 0)]
+
+
+@pytest.mark.parametrize('state', ['exited', 'exit-during-signal', 'live-refusal'])
+@pytest.mark.parametrize('pidfd_available', [False, True])
+def test_shell_adoption_reaps_exited_children_without_overriding_live_signal_refusal(
+        monkeypatch, state, pidfd_available):
+    from tests.support import child_shell_owner
+    children = Mock(read_text=Mock(side_effect=['101', '']))
+    monkeypatch.setattr(child_shell_owner, 'Path', lambda path: children)
+    receipt = object()
+    wait = Mock(side_effect=[receipt] if state == 'exited' else
+                [None, receipt if state == 'exit-during-signal' else None])
+    monkeypatch.setattr(child_shell_owner.os, 'waitid', wait)
+    pin = Mock(return_value=17, side_effect=None if pidfd_available else OSError('FD pressure'))
+    monkeypatch.setattr(child_shell_owner.os, 'pidfd_open', pin)
+    direct, pinned = Mock(side_effect=PermissionError('signal refused')), Mock(side_effect=PermissionError('signal refused'))
+    monkeypatch.setattr(child_shell_owner.os, 'kill', direct)
+    monkeypatch.setattr(child_shell_owner.signal, 'pidfd_send_signal', pinned)
+    close, reap = Mock(), Mock()
+    monkeypatch.setattr(child_shell_owner.os, 'close', close)
+    monkeypatch.setattr(child_shell_owner.os, 'waitpid', reap)
+    if state == 'live-refusal':
+        with pytest.raises(PermissionError, match='signal refused'):
+            child_shell_owner.reap_owned_descendants()
+        reap.assert_not_called()
+    else:
+        child_shell_owner.reap_owned_descendants()
+        reap.assert_called_once_with(101, 0)
+    if state == 'exited':
+        pin.assert_not_called()
+        direct.assert_not_called()
+        pinned.assert_not_called()
+        close.assert_not_called()
+    elif pidfd_available:
+        pinned.assert_called_once_with(17, signal.SIGKILL)
+        close.assert_called_once_with(17)
+        direct.assert_not_called()
+    else:
+        direct.assert_called_once_with(101, signal.SIGKILL)
+        pinned.assert_not_called()
+        close.assert_not_called()
+
+
+def test_shell_runtime_is_preserved_when_descendant_cleanup_refuses(tmp_path, monkeypatch):
+    from tests.support import child_shell_owner
+    from types import SimpleNamespace
+    runtime = tmp_path / 'runtime'
+    runtime.mkdir(mode=0o700)
+    monkeypatch.setattr(child_shell_owner, 'runtime_allocation', lambda *args, **kwargs: runtime)
+    @contextlib.contextmanager
+    def installed(self, **kwargs):
+        yield SimpleNamespace(run=lambda *args, **kwargs: 0)
+    monkeypatch.setattr(child_shell_owner.Control, 'installed', installed)
+    monkeypatch.setattr(child_shell_owner, 'reap_owned_descendants',
+                        Mock(side_effect=OSError('cleanup refused')))
+    remove = Mock()
+    monkeypatch.setattr(child_shell_owner, 'remove', remove)
+    with pytest.raises(OSError, match='cleanup refused'):
+        child_shell_owner.run_owned(ROOT, {}, timeout=1, kill_after=1)
+    assert runtime.is_dir()
+    remove.assert_not_called()
+
+
+def test_shell_guardian_launch_failure_closes_both_lifetime_pipe_ends(monkeypatch):
+    from tests.support import child_shell
+    pipes = []
+    pipe = os.pipe
+    def record():
+        descriptors = pipe()
+        pipes.append(descriptors)
+        return descriptors
+    monkeypatch.setattr(child_shell.os, 'pipe', record)
+    monkeypatch.setattr(child_shell.subprocess, 'Popen', Mock(side_effect=OSError('launch refused')))
+    with pytest.raises(OSError, match='launch refused'):
+        child_shell.run_child_shell(os.environ.copy(), timeout=1)
+    assert len(pipes) == 1
+    for descriptor in pipes[0]:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
 
 
 class ChildPreviewCleanupSafetyTests(unittest.TestCase):

@@ -11,6 +11,8 @@ import sys
 
 import test_activity
 
+UI_KILL_AFTER = 30.0
+
 
 class ArgumentParser(argparse.ArgumentParser):
     def error(self, message):
@@ -197,12 +199,16 @@ def duration(value):
     return value
 
 
+def ui_timeout(argv):
+    value = duration(argv[1]) if argv[:1] == ['--timeout'] and len(argv) > 1 else '60s'
+    return float(value.rstrip('smhd')) * {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}.get(value[-1], 1)
+
+
 def pytest_command(root, argv, category):
-    timeout = '60s'
     if category == 'ui' and argv[:1] == ['--timeout']:
         if len(argv) < 2:
             raise ValueError('timeout value required')
-        timeout = duration(argv[1])
+        duration(argv[1])
         argv = argv[2:]
     ignores = [arg.removeprefix('--ignore=') for arg in argv if arg.startswith('--ignore=')]
     argv = [arg for arg in argv if not arg.startswith('--ignore=')]
@@ -222,14 +228,12 @@ def pytest_command(root, argv, category):
             raise ValueError('ignore expects file paths')
         options.extend('--ignore=' + path for path in selection(root, [ignored], category))
     python = '/usr/bin/python3'
-    prefix = []
     if category == 'ui':
         python = str(root / '.venv/onpc-ui-tests/bin/python')
         # A venv Python is intentionally a symlink to the system interpreter.
         if not os.access(python, os.X_OK):
             raise ValueError('UI test environment missing; run ./setup.sh')
-        prefix = ['/usr/bin/timeout', '--foreground', timeout]
-    return [*prefix, python, '-B', '-m', 'pytest', '-p', 'no:cacheprovider', *options, '--', *targets]
+    return [python, '-B', '-m', 'pytest', '-p', 'no:cacheprovider', *options, '--', *targets]
 
 
 def run_host(root, category, argv):
@@ -238,6 +242,11 @@ def run_host(root, category, argv):
     count = len(command) - command.index('--') - 1
     print(f'run-{category}-tests: starting pytest with {count} validated selection(s)',
           file=sys.stderr, flush=True)
+    if category == 'ui':
+        from regression_process import Control
+        with Control().installed() as control:
+            return control.run(command, cwd=root, env=test_environment(root),
+                               timeout=ui_timeout(argv), kill_after=UI_KILL_AFTER)
     from test_storage import scratch_descriptors
     return subprocess.run(command, env=test_environment(root),
                           pass_fds=scratch_descriptors(), check=False).returncode

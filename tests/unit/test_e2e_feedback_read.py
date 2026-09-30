@@ -3506,6 +3506,59 @@ def boundary_ui(state_name):
     return ui, dialog, rows
 
 
+@pytest.mark.parametrize('fault', ['', 'persistent', 'attachment'])
+def test_exclude_logs_retries_transition_without_rereading_the_old_state(monkeypatch, fault):
+    ui, dialog, _ = boundary_ui('cleared')
+    logs = next(node for node in dialog.children if node.identity == 'feedback-logs-row')
+    download = next(node for node in dialog.children if node.identity == 'feedback-download-logs')
+    snapshot = ui.feedback_snapshot
+    def read(*args, **kwargs):
+        try:
+            return snapshot(*args, **kwargs)
+        finally:
+            if not kwargs['attachment_state'][2] and fault != 'persistent':
+                logs.name = 'No logs attached'
+    reads = Mock(side_effect=read)
+    monkeypatch.setattr(ui, 'feedback_snapshot', reads)
+
+    def activate(identity):
+        assert identity == 'feedback-toggle-logs'
+        download.states.remove('visible')
+        if fault == 'attachment':
+            dialog.children.append(Node('Unknown', identity='feedback-attachment-unknown'))
+    clicked = Mock(side_effect=activate)
+    monkeypatch.setattr(ui, 'activate_id', clicked)
+
+    def wait(predicate, code, **kwargs):
+        assert code == 'boundary-exclude-logs'
+        assert predicate() is None  # Old name, new download visibility.
+        if fault == 'persistent':
+            raise accessible_ui.UiError('ui:timeout:' + code)
+        return predicate()
+    monkeypatch.setattr(ui, 'wait', wait)
+    if fault:
+        with pytest.raises(accessible_ui.UiError, match='timeout|attachment-set'):
+            ui.boundary_operation('boundary-exclude-logs')
+        assert ui.input_uncertain
+    else:
+        assert ui.boundary_operation('boundary-exclude-logs') == accessible_ui.boundary_expected(
+            'boundary-exclude-logs')
+        assert [call.kwargs['attachment_state'] for call in reads.call_args_list] == [
+            accessible_ui.BOUNDARY_STATES[state] for state in ('cleared', 'no-logs', 'no-logs')]
+    clicked.assert_called_once_with('feedback-toggle-logs')
+
+
+@pytest.mark.parametrize('name', ['No logs attached', 'private-name@example.invalid'])
+def test_feedback_logs_diagnostics_include_only_closed_public_names(name):
+    ui, dialog, _ = boundary_ui('cleared')
+    next(node for node in dialog.children if node.identity == 'feedback-logs-row').name = name
+    with pytest.raises(accessible_ui.UiError, match='ui:feedback-logs') as raised:
+        ui.feedback_snapshot(attachment_state=accessible_ui.BOUNDARY_STATES['cleared'])
+    notes = '\n'.join(raised.value.__notes__)
+    assert 'diagnostic-logs.zip' in notes
+    assert (name in notes) == (name == 'No logs attached')
+
+
 @pytest.mark.parametrize('fault', ['', 'not-delivered', 'callback', 'result', 'preserved'])
 def test_component_chooser_waits_for_new_delivery_before_identical_rejection(tmp_path, fault):
     from tests.support.feedback import install_component_chooser, add_component_attachments

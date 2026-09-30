@@ -233,7 +233,7 @@ def launch_ui(hermetic_ui_session):
 
 @pytest.fixture
 def wait_for_accessible_state():
-    """Wait for an AT-SPI state transition without host-time sleeps."""
+    """Wait for an AT-SPI transition with a Python-owned deadline."""
 
     from gi.repository import GLib
     from tests.e2e.accessible_ui import UiError
@@ -252,13 +252,13 @@ def wait_for_accessible_state():
                 ready = False
             if ready:
                 return
-            loop = GLib.MainLoop()
-            timeout_id = GLib.timeout_add(50, loop.quit)
-            loop.run()
-            try:
-                GLib.source_remove(timeout_id)
-            except SystemError:
-                pass
+            # A nested MainLoop installs GI's SIGINT fallback and can swallow
+            # cancellation in a dispatched callback. Keep the wait/deadline in
+            # Python and dispatch only bounded, nonblocking event work.
+            for _ in range(32):
+                if not GLib.MainContext.default().iteration(False):
+                    break
+            time.sleep(.05)
         raise AssertionError(f"Timed out waiting for accessibility state: {description}")
 
     return wait

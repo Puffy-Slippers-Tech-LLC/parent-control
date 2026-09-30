@@ -18,6 +18,9 @@ from watch_viewer import application
 from test_storage import directory, runtime_directory
 
 root = Path(os.environ['ONPC_WATCH_FIXTURE'])
+if os.environ.get('ONPC_WATCH_CHECKOUTS') == '1':
+    from watch_checkout_fixture import run
+    raise SystemExit(run(root))
 control, evidence = root / 'control', root / 'evidence.json'
 stack = ExitStack()
 runtime = stack.enter_context(runtime_directory(prefix='onpc-watch-test-'))
@@ -65,6 +68,8 @@ vm_names = [os.environ['ONPC_TEST_VM'], 'Fixture-VM-2', 'Fixture-VM-3',
 vm_feeds = {name: AsyncFeed(VM(name)) for name in vm_names}
 app = application(feeds=Feeds(runtime), vm_feeds=vm_feeds,
                   output=Output(root))
+import gi
+gi.require_version('Vte', '3.91')
 from gi.repository import GLib, Gtk, Vte
 
 
@@ -168,6 +173,9 @@ def tick():
         result['vm_tabs'] = {name: app.buttons[key].get_opacity()
                              for name, key in app.vm_keys.items()}
         result['selected'] = app.selected
+        result['output_active'] = app.output_active
+        result['output_status'] = app.output_status.get_label()
+        result['terminal_text'] = app.terminal.get_text_format(Vte.Format.TEXT)
         evidence.write_text(json.dumps(result))
         return True
     except BaseException as error:

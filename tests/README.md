@@ -94,6 +94,31 @@ bucket; an explicit `--timeout` replaces that default. `-x`/`--exitfirst` and
 positive `--maxfail` retain one serial invocation with the original failure
 limit. Help and collection-only requests do not schedule test execution.
 
+Every UI invocation owns a private process group. Cancellation first
+interrupts pytest for normal fixture cleanup; a deadline sends termination.
+If it remains unresponsive, the controller kills only that owned group after 30 seconds.
+Private preview/capture services remain in the group. The coordinator records
+the failure or interruption and finishes its handoff, allowing `fix-tests` to
+repair and retry a failed category instead of waiting indefinitely for a worker.
+It also bounds pipe draining if pytest exits while a descendant retains stdout;
+the group leader remains unreaped until cleanup finishes, preventing PID reuse.
+After forced termination and confirmed leader exit, any remaining pipe readers
+are closed; a writer in another session cannot extend the cleanup deadline.
+Failed pidfd acquisition likewise closes readers before waiting for the killed
+owned leader. These paths never signal an outside pipe holder.
+This uses the shared controller rather than the host's `timeout` implementation.
+Nested Shell runs use a separate [guardian](support/child_shell_owner.py), whose
+stdin lifetime pipe detects cancellation or death of its pytest worker. The
+guardian owns the short socket runtime and forwards scratch owner descriptors.
+It requests the runner's trapped cleanup with SIGTERM, then retires unresponsive
+work through the same bounded controller. Only this isolated guardian enables
+Linux [child subreaping](https://man7.org/linux/man-pages/man2/PR_SET_CHILD_SUBREAPER.2const.html):
+kernel-adopted descendants of its sole explicit launch are recorded and reaped,
+signalling only live children, even when private services create separate sessions.
+No host process scan, environment match or executable-name match establishes ownership.
+The runtime remains allocated until this entire tree has finished cleanup.
+VM restoration keeps its separate guarded cooperative cleanup contract.
+
 UI is a host-only category. Its shared launcher always excludes VM-dependent
 `live_e2e` checks, including for focused marker or file selections. Direct
 `tools/run-ui-tests` applies the same boundary and remains the serial narrow-check route. This development
@@ -1214,8 +1239,18 @@ development tools, not customer E2E commands.
 ### Watching host UI tests
 
 Open `tools/watch` (or `make watch`) as the desktop user before or during a run.
-Both return after launching and repeated launches present the singleton all-VM
-watcher. The left terminal follows active `fix-tests` output before `run-tests`,
+Both return after launching and repeated launches present one watcher for the
+desktop user session, including launches from other checkouts. Bottom tabs show
+**All** and each checkout's current Git branch name. Each checkout retains the
+whole terminal/UI/VM viewer described below. The bottom **All** tab puts active
+checkouts in two-column rows, leaving the right cell blank on an odd final row;
+one active checkout fills the space. Click a checkout cell or its heading to
+open its branch tab. Finished tabs retain their output and remain selectable.
+When every checkout is idle, **All** keeps the last finished checkout visible.
+Related Git worktrees are discovered automatically; launch `tools/watch` from an
+unrelated checkout to add it to the same window. Branch names update after Git
+branch switches; checkout paths identify separate tabs even when labels match.
+The left terminal follows active `fix-tests` output before `run-tests`,
 using VS Code Dark+ colors, wrapping and vertical scrollback. The initial
 horizontal split is 30%/70%, adjustable by dragging. On the right, **All**
 shows active UI workers and VMs, with an adjustable 50%/50% vertical split
@@ -1235,7 +1270,7 @@ up to 30 fps. Hidden panels inspect metadata twice per second and do not copy
 frame pixels or update widgets. Display and progress registrations are separate
 for each VM, and old controllers retain a compatible single-registry fallback.
 The viewer discovers
-private UI workers from this checkout for both `tools/run-ui-tests` and all
+private UI workers from each checkout for both `tools/run-ui-tests` and all
 aggregate paths (`tools/run-tests ui`, `host`, `all`, and mixed selections).
 **All branches** lays out up to four workers in a 2×2 grid, with a separate tab
 for each worker. Both views show the current pytest node ID and phase. Workers
@@ -1246,9 +1281,12 @@ before this feature was loaded need to finish and start again to publish frames.
 The detached service records Python and native GTK output in a retained
 `onpc-watch-viewer-*/viewer.log` allocation under this checkout's test storage.
 Its location is printed in the service journal. Close and reopen the viewer to
-load source changes or to follow a different worktree's UI feeds and runner logs.
-The VM feed remains shared across worktrees. The viewer does not create runner
-state, consume results, send cancellation or change test ownership.
+load source changes. VM display, progress and command publications carry their
+checkout identity, so activity appears in the checkout that started it. Already
+running controllers without that metadata remain visible in the watcher's
+initial checkout until they finish. The viewer does not create runner state,
+consume results or change test ownership. Ctrl+C and **Stop command** retain
+the displayed runner's cooperative cancellation route.
 
 The shared [fixture](ui/conftest.py) owns an optional
 [collector](../tools/ui_watch_capture.py) and private PipeWire/WirePlumber

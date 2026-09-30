@@ -390,6 +390,17 @@ def test_viewer_validates_activity_packet_and_server_without_frames(tmp_path, mo
     monkeypatch.setattr('e2e_watch_viewer.socket.socket', Mock(return_value=peer))
     feed = Feed()
     assert feed.activity()['text'] == packet['text'] and feed.memory is None
+    # Two checkouts using the same VM must not borrow each other's commands.
+    registration = directory / 'activity.json'
+    registration.write_text(json.dumps({'run': 'a' * 32, 'vm': feed.vm_name,
+                                       'checkout': str(tmp_path / 'other')}))
+    scoped = Feed(feed.vm_name, root=tmp_path / 'mine')
+    peer.connect.reset_mock()
+    assert scoped.activity() is None
+    peer.connect.assert_not_called()
+    scoped = Feed(feed.vm_name, root=tmp_path / 'other')
+    assert scoped.activity()['text'] == packet['text']
+    registration.write_text(json.dumps({'run': 'a' * 32, 'vm': feed.vm_name}))
     peer.send.assert_not_called()
     peer.sendall.assert_not_called()
     packet.update(offset=0, operation='Inspecting the VM', operation_started_ns=1,

@@ -27,7 +27,7 @@ def test_viewer_logs_native_output_and_restores_terminal(tmp_path, monkeypatch, 
                         lambda **kwargs: allocate(prefix=kwargs['prefix'], dir=tmp_path))
 
     def run(arguments):
-        assert arguments == ['watch']
+        assert arguments == ['watch', str(Path(viewer.__file__).resolve().parents[1])]
         print('Python viewer output')
         os.write(1, b'native stdout\n')
         os.write(2, b'Gtk-WARNING: viewer measurement\n')

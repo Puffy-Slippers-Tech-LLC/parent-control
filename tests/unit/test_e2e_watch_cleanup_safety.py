@@ -34,15 +34,27 @@ def test_closing_one_vm_publication_preserves_other_vm_and_replacement(tmp_path)
     other.publish()
     replacement.publish()
     first.close()
-    assert json.loads(other.current.read_text()) == {'run': other.run, 'vm': other.vm_name}
+    assert json.loads(other.current.read_text()) == {
+        'run': other.run, 'vm': other.vm_name, 'checkout': str(watch.ROOT)}
     assert json.loads(replacement.current.read_text()) == {
-        'run': replacement.run, 'vm': replacement.vm_name}
+        'run': replacement.run, 'vm': replacement.vm_name, 'checkout': str(watch.ROOT)}
     assert other.path.exists() and replacement.path.exists()
     other.close()
     assert not other.current.exists() and not other.path.exists()
     assert replacement.current.exists()
     replacement.close()
     assert not replacement.current.exists() and not replacement.path.exists()
+
+
+def test_old_checkout_cannot_remove_another_checkouts_vm_registration(tmp_path, monkeypatch):
+    original = publication(tmp_path, 'First-VM', 'a' * 32)
+    original.publish()
+    registration = json.loads(original.current.read_text())
+    registration['checkout'] = str(tmp_path / 'different checkout')
+    original.current.write_text(json.dumps(registration))
+    original.close()
+    assert json.loads(original.current.read_text()) == registration
+    assert not original.path.exists()
 
 
 def test_publication_keeps_its_bound_vm_when_ambient_selection_changes(tmp_path, monkeypatch):

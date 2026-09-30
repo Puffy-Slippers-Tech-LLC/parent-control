@@ -365,12 +365,12 @@ def test_breadth_batches_preserve_traversal_order_and_never_query_protected_chil
         [ROOT], ['/button', '/protected', '/sibling'], ['/leaf1', '/leaf2']]
 
 
-def test_bulk_facts_are_fresh_each_traversal_but_action_states_are_always_live():
+def test_bulk_structure_is_scoped_but_result_names_and_action_states_are_live():
     api, items, rpc, app, button = fixture_bus()
     with api.snapshot():
         assert button.snapshot_state_set().contains(24)
         assert not button.get_state_set().contains(24)
-        assert button.get_name() == 'Button'
+        assert button.get_name() == 'Live'
         assert app.get_child_count() == 1  # GTK's bulk root count is zero.
         assert app.get_child_at_index(0) is button
         assert button.get_child_count() == 0
@@ -379,8 +379,40 @@ def test_bulk_facts_are_fresh_each_traversal_but_action_states_are_always_live()
     assert button.get_name() == 'Live'
     items[1][6] = 'Changed'
     with api.snapshot():
-        assert button.get_name() == 'Changed'
+        assert button.get_name() == 'Live'
     assert sum(call.args[3] == 'GetItems' for call in rpc.call_args_list) == 2
+
+
+@pytest.mark.parametrize('fault', ['lost-callback', 'callback-interrupt'])
+def test_async_batch_cannot_lose_cancellation_or_wait_forever(monkeypatch, fault):
+    # Private GLib context and connection double; no real bus, display or
+    # subprocess. The deadline is advanced locally rather than sleeping.
+    from gi.repository import GLib
+    from tests.e2e import public_atspi
+    api = PublicAtspi(SimpleNamespace())
+    cancelled = []
+
+    class Connection:
+        def call(self, bus, path, interface, method, parameters, reply_type,
+                 flags, timeout, cancellable, callback, index):
+            cancelled.append(cancellable)
+            if fault == 'callback-interrupt':
+                source = GLib.idle_source_new()
+                source.set_callback(lambda *_: callback(self, index, index) or False)
+                source.attach(GLib.MainContext.get_thread_default())
+
+        def call_finish(self, result):
+            raise KeyboardInterrupt('interrupt inside GI callback')
+
+    api._connection = Connection()
+    previous = GLib.MainContext.get_thread_default()
+    now = iter([0, 1, 4])
+    monkeypatch.setattr(public_atspi.time, 'monotonic', lambda: next(now))
+    expected = KeyboardInterrupt if fault == 'callback-interrupt' else IncompleteTree
+    with pytest.raises(expected, match='interrupt inside|batch-timeout'):
+        api.read_many([(':1.1', '/node', PREFIX + 'Accessible', 'GetAttributes', '', ())])
+    assert GLib.MainContext.get_thread_default() == previous
+    assert cancelled[0].is_cancelled()
 
 
 @pytest.mark.parametrize('fault', ['missing', 'negative', 'duplicate-index', 'extra'])
@@ -477,7 +509,7 @@ def test_embedded_alias_is_pinned_to_unique_owner_and_application_is_live():
     rpc.side_effect = call
     assert api.node(('org.example.Embedded', ROOT)) is app
     with api.snapshot():
-        assert button.get_name() == 'Button'
+        assert button.get_name() == 'Live'
         assert app.get_child_at_index(0) is button
     assert sum(call.args[3] == 'GetApplication' for call in rpc.call_args_list) == 1
     # Changing the alias never retargets an already selected wrapper.
@@ -546,16 +578,16 @@ def test_nested_snapshots_restore_edges_but_never_restore_invalidated_facts():
         assert app.get_child_at_index(0) is button
         outer = api._records, api._children
         with api.snapshot():
-            assert button.get_name() == 'Button'
+            assert button.get_name() == 'Live'
         assert (api._records, api._children) == outer
         with api.snapshot():
-            assert button.get_name() == 'Button'
+            assert button.get_name() == 'Live'
             api.invalidate_snapshot()
             assert button.get_name() == 'Live'
         assert button.get_name() == 'Live'
     items[1][6] = 'Changed'
     with api.snapshot():
-        assert button.get_name() == 'Changed'
+        assert button.get_name() == 'Live'
 
 
 def test_object_identity_is_stable_while_referenced_without_retaining_dead_nodes():

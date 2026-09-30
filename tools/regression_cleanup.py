@@ -95,6 +95,17 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # trees. Their unit classification applies to the cleanup phase too.
 # UI crash logging owns one small Python child and private tmp_path script/log.
 # It disables core files before self-abort; no global crash files, bus or display.
+# UI timeout/cancellation uses tmp_path pytest inputs and small private owned
+# groups; recorded children/sentinels are pinned and reaped, with no shared
+# process group, GUI, bus or cache. Compatible in cleanup and unit scheduling.
+# Failure handoffs use shared report storage beneath the private checkout,
+# followed by finite repair callbacks; descendants use recorded private pidfds.
+# Pipe-holder probes own separate private sessions and bounded rescue threads;
+# only their recorded pidfds are cleaned. Shell guardian probes use tmp_path
+# synthetic runners, isolated subreaper subprocesses and private socket roots;
+# kernel-adopted descendants are reaped before those roots are released. No
+# pytest signal mask/subreaper setting, host service, GUI or shared cache changes.
+# Both ui and child-preview cleanup modules remain compatible with unit work.
 # Native fixture ownership checks compile only into tmp_path. Their synthetic
 # child blocks/waits for SIGTERM locally; no worker signal mask is changed.
 

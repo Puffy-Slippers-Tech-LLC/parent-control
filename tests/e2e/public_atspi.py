@@ -7,6 +7,7 @@ The small facade covers the interfaces used by the shared automation engine.
 
 from contextlib import contextmanager
 import os
+import time
 from types import SimpleNamespace
 from weakref import WeakValueDictionary
 
@@ -288,11 +289,13 @@ class PublicAtspi:
                 self._records, self._children, self._prepared = None, {}, None
 
     def read_many(self, queries):
-        """Pipeline at most 64 read-only RPCs, draining every reply before return.
+        """Pipeline at most 64 read-only RPCs under one bounded deadline.
 
         A private main context avoids dispatching application callbacks (and
         hence input) during a traversal. Errors remain attached to their query;
         consuming an incomplete node still fails through the normal reader.
+        Normal return drains every reply; exceptional exit cancels outstanding
+        calls without waiting indefinitely for a missing completion callback.
         """
         if len(queries) > 64:
             raise ValueError('public-atspi:batch-bound')
@@ -310,14 +313,21 @@ class PublicAtspi:
         context = GLib.MainContext.new()
         results = [None] * len(queries)
         remaining = len(queries)
+        cancellable = Gio.Cancellable.new()
+        deadline = time.monotonic() + 3
+        interrupted = None
 
         def finished(connection, result, index):
-            nonlocal remaining
+            nonlocal remaining, interrupted
             try:
                 value = connection.call_finish(result).unpack()
                 results[index] = value[0] if len(value) == 1 else value
             except Exception as error:
                 results[index] = error
+            except BaseException as error:
+                # GI prints and swallows exceptions raised in callbacks. Carry
+                # cancellation back to the Python owner instead of losing it.
+                interrupted = error
             finally:
                 remaining -= 1
 
@@ -328,13 +338,24 @@ class PublicAtspi:
                     self._connection.call(
                         bus, path, interface, method,
                         GLib.Variant('(' + signature + ')', args) if signature else None,
-                        None, Gio.DBusCallFlags.NONE, 2000, None, finished, index)
+                        None, Gio.DBusCallFlags.NONE, 2000, cancellable, finished, index)
                 except Exception as error:
                     results[index] = error
                     remaining -= 1
             while remaining:
-                context.iteration(True)
+                if interrupted is not None:
+                    raise interrupted
+                if time.monotonic() >= deadline:
+                    raise IncompleteTree('public-atspi:batch-timeout')
+                # Never block inside GI after the last callback has been lost
+                # to a signal. Python owns the deadline and signal delivery.
+                context.iteration(False)
+                if remaining:
+                    time.sleep(.001)
+            if interrupted is not None:
+                raise interrupted
         finally:
+            cancellable.cancel()
             context.pop_thread_default()
         return results
 
@@ -515,8 +536,11 @@ class BusNode:
         return self.api.prepared(self, 1, lambda: self.property('AccessibleId'))
 
     def get_name(self):
-        record = self.api.record(self)
-        return record[1] if record is not None else self.property('Name')
+        # Cache.GetItems is useful for structural traversal, but providers can
+        # retain an earlier name after a label changes. Results require the
+        # current public property, just like state and description reads.
+        self.api.record(self)  # Preserve snapshot bounds and provider ownership validation.
+        return self.property('Name')
 
     def get_description(self):
         return self.property('Description')

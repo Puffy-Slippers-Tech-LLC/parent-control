@@ -2490,18 +2490,28 @@ class AccessibleUI:
         elif operation == 'boundary-exclude-logs':
             self.feedback_snapshot(attachment_state=BOUNDARY_STATES['cleared'])
             self.activate_id('feedback-toggle-logs')
+            pending = None
             def excluded():
+                nonlocal pending
                 try:
                     return self.feedback_snapshot(attachment_state=BOUNDARY_STATES['no-logs'])
                 except UiError as error:
                     if str(error) != 'ui:feedback-logs':
                         raise
-                    self.feedback_snapshot(attachment_state=BOUNDARY_STATES['cleared'])
+                    # Name and visibility are separate public reads during the
+                    # transition. A second read of the old state can race with
+                    # the completed new state. Retry this result comparison;
+                    # only a complete no-logs snapshot can finish the wait.
+                    pending = error
                     return None
             try:
                 value = self.wait(excluded, operation, prompt_in_predicate=True)
-            except BaseException:
+            except BaseException as error:
                 self.input_uncertain = True
+                if pending is not None:
+                    error.add_note(str(pending))
+                    for note in getattr(pending, '__notes__', ()):
+                        error.add_note(note)
                 raise
         else:
             _, batch, step = operation.split('-')
@@ -2667,8 +2677,14 @@ class AccessibleUI:
             expected_items = [[name, attachment_size(data)] for name, data in inputs]
             require(items == expected_items, 'ui:attachment-details')
         logs = target('feedback-logs-row')
-        require(logs.get_name() == ('diagnostic-logs.zip' if include_logs else 'No logs attached'),
-                'ui:feedback-logs')
+        expected_logs_name = 'diagnostic-logs.zip' if include_logs else 'No logs attached'
+        logs_name = logs.get_name()
+        if logs_name != expected_logs_name:
+            error = UiError('ui:feedback-logs')
+            observed_name = (logs_name if logs_name in ('diagnostic-logs.zip', 'No logs attached')
+                             else '[unrecognized name]')
+            error.add_note(f'Expected logs row: {expected_logs_name!r}; observed: {observed_name!r}')
+            raise error
         for identity in ('feedback-collection-status', 'feedback-retry-logs',
                          'feedback-send-without-logs'):
             node = self.snapshot_owned_target(identity, root=root, showing=False,

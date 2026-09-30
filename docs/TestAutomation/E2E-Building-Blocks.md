@@ -1227,7 +1227,7 @@ binding does not extend an existing callable's qualified scope.
 | PANEL01 | C | Open the child's countdown context menu and read the named animation choice. | DESK12(countdown) → UI01 → UI28 → UI01(menu) → UI02(choice). E2E-037. | pending |
 | PANEL02 | C | Set the animation choice in an already open menu, then close the menu and verify return to the desktop. | UI17(choice) → UI05(Escape) → UI11(menu) → DESK01. E2E-037. | pending |
 | PANEL03 | C | Reveal and read the countdown's hover explanation. | DESK12(countdown) → UI01 → UI27 → UI03(tooltip). E2E-011/037. | pending |
-| INFO01 | C | Check one declared Help/About external link is clickable, then stop. Never invoke it or inspect its URI/destination. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. Parent website/privacy/support: `WEBSITE_PLAN` / `ParentWebsiteJourney`, `PRIVACY_PLAN` / `ParentPrivacyJourney` and `SUPPORT_PLAN` / `ParentSupportJourney` in `license_viewer_provider.py`, `onpc_about::check_link` and shared `onpc_license_viewer_provider::run(exchange, link)` for the finite `website`/`privacy`/`support` bindings; `check_e2e_parent_website` / `check_e2e_parent_privacy` / `check_e2e_parent_support`. Fresh repeated read, wrong-entry proof refusal, owned About close and unchanged Parent selection/settings. No browser/mail/document adapter, destination content, handler availability or external close/return gate. Kiosk UI11 on recognized About. E2E-042. | Parent website qualified in `20260929T221436Z-ffd7ea02`; privacy in `20260929T222934Z-b9b0786d`; support in `20260930T184923Z-b99a34a9` on Ubuntu 26.04, with website/privacy/license regressions in `20260930T185117Z-84119637` / `20260930T185313Z-66db2268` / `20260930T185506Z-ba92b80b`; other links/surfaces pending |
+| INFO01 | C | Check declared Help/About external links are clickable, then stop. Never invoke them or inspect their URIs/destinations. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. Parent: `check_parent_help` opens the owned menu; `open_about(menu_open=True)` enters About; `check_parent_information` composes website/privacy/support/license/legal-notices readers. Shared worker calls: `onpc_about::read_help`, `open_from_help`, `check_link`, `return_to_parent`. `INFORMATION_PLAN` / `ParentInformationJourney` in `license_viewer_provider.py` and `check_e2e_read_parent_information_links` qualify the fixed composite through `onpc_license_viewer_provider::run(exchange, 'information')`. Existing `WEBSITE_PLAN`, `PRIVACY_PLAN`, `SUPPORT_PLAN` and individual qualification selectors retain their scopes. Fresh repeated read, wrong-entry proof refusal, owned About close and unchanged Parent selection/settings. No external handler dependency. Kiosk UI11 on recognized About. E2E-042. | Parent Help and all five About links qualified in `20260930T192004Z-89316fef` on Ubuntu 26.04; website/privacy/support/license regressions passed in `20260930T192205Z-9e64048b` / `20260930T192406Z-1fb5aa6f` / `20260930T192605Z-cd5921c0` / `20260930T192803Z-ded12aaf`; other surfaces and complete case 190 pending |
 | INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account; check the public desktop afterward. | `onpc_documentation::read(journey, binding)` composes `command_documentation.observe` and the registered public desktop-clear observation. The stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. All four bindings and independent desktop returns passed complete case 193 in run `20260923T194553Z-e2f16f7e`, with collection and owned cleanup. | ready |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: UI01 → FEED03; decline UI11(report) → UI01(destination). E2E-045. | pending |
 | FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Without-logs submission reuses FEED11; it is not hidden inside retry. E2E-046. | pending |
@@ -2297,7 +2297,25 @@ license regressions passed in `20260930T185117Z-84119637`,
 `20260930T185313Z-66db2268` and `20260930T185506Z-ba92b80b`.
 All passed collection, owned cleanup and baseline restoration. Mail handlers,
 URI/recipient/subject inspection and sending mail are outside this scope.
-Help/legal notices and the complete Parent information case remain pending.
+The complete Parent information case remains pending.
+
+Parent INFO01 Help and all five About links passed
+`check_e2e_read_parent_information_links` in `20260930T192004Z-89316fef`
+on Ubuntu 26.04. `INFORMATION_PLAN` / `ParentInformationJourney` bind Help menu
+reading, About entry from that still-open owned menu and two fresh all-link
+reads to the same shared `clickable_link` reader. `check_parent_information`
+checks website, privacy, support, license and legal notices in that order,
+stopping on the first refusal. `onpc_about::read_help` and `open_from_help`
+preserve consumed-entry proofs; `check_link` and `return_to_parent` preserve
+wrong-entry refusal and unchanged Parent child/settings. The Parent GUI matrix
+passed at display scales 1.0 and 1.25; host checks cover missing, disabled,
+hidden, nonactionable, ambiguous and wrong-owner Help/legal controls without
+activation. Website/privacy/support/license regressions passed in
+`20260930T192205Z-9e64048b`, `20260930T192406Z-1fb5aa6f`,
+`20260930T192605Z-cd5921c0` and `20260930T192803Z-ded12aaf`.
+Collection, owned cleanup and baseline restoration passed. This qualifies the
+Parent INFO01 binding only; case 190 must compose its own recipe from shared
+operations and comparisons, without reusing qualification fixture mechanics.
 
 ABOUT03 consumes the link observation, confirms About remains open, reads
 ABOUT04's owned footer and closes only About through UI18. The legacy

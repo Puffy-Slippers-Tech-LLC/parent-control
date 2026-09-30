@@ -48,7 +48,9 @@ OPERATIONS = frozenset({
     'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'parent-window', 'parent-window-count', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'about-interval-read', 'about-interval-refused', 'about-rechecked', 'license',
-    'license-provider-refusals', 'website-clickable', 'privacy-clickable', 'support-clickable', 'license-closed', 'about-returned', 'parent-returned',
+    'license-provider-refusals', 'website-clickable', 'privacy-clickable', 'support-clickable',
+    'parent-help-clickable', 'parent-information-about', 'parent-information-clickable',
+    'license-closed', 'about-returned', 'parent-returned',
     'discovery-ready', 'new-child-picker-opened', 'new-child-choice-highlighted',
     'new-child-selected', 'existing-child-picker-opened', 'existing-child-choice-highlighted',
     'existing-returned', 'existing-apps', 'new-child-apps', 'new-child-screen',
@@ -3518,9 +3520,26 @@ class AccessibleUI:
             return value
         return None
 
-    def open_about(self, version):
-        """ABOUT01: independent Parent entry; menu, About, text and license link."""
+    def check_parent_help(self):
+        """INFO01: open the owned menu and read Help without invoking it."""
+        self.parent()
         self.activate_id('parent-menu-button', action_name='menu.popup')
+        return self.clickable_link('parent-menu-help', root=self.parent())
+
+    def check_parent_information(self):
+        """Compose all offered About link readers, without activation or URI reads."""
+        root = self.about()
+        for identity in ('about-website-value', 'about-privacy-value',
+                         'about-support-value', 'about-license-value',
+                         'about-legal-notices-value'):
+            self.clickable_link(identity, root=root)
+
+    def open_about(self, version, *, menu_open=False):
+        """ABOUT01: independent Parent entry; menu, About, text and license link."""
+        if menu_open:
+            self.clickable_link('parent-menu-help', root=self.parent())
+        else:
+            self.activate_id('parent-menu-button', action_name='menu.popup')
         self.activate_id('parent-menu-about')
         root = self.about()
         self.read_label(root, 'about-product', maximum=80)
@@ -7581,6 +7600,12 @@ class AccessibleUI:
             self.window_closed('about', 'kiosk')
         elif operation == 'about':
             self.open_about(version)
+        elif operation == 'parent-help-clickable':
+            self.check_parent_help()
+        elif operation == 'parent-information-about':
+            self.open_about(version, menu_open=True)
+        elif operation == 'parent-information-clickable':
+            self.check_parent_information()
         elif operation == 'about-interval-read':
             result['about_interval'] = self.read_about_interval(version)
         elif operation == 'about-interval-refused':

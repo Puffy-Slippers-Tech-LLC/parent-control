@@ -337,6 +337,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_parent_website'], ['check_e2e_parent_website.py'],
             ['check_e2e_parent_privacy'], ['check_e2e_parent_privacy.py'],
             ['check_e2e_parent_support'], ['check_e2e_parent_support.py'],
+            ['check_e2e_read_parent_information_links'], ['check_e2e_read_parent_information_links.py'],
             ['check_e2e_give_repeated_public_operations_distinct_stages'],
             ['check_e2e_give_repeated_public_operations_distinct_stages.py'],
             ['check_e2e_gdm_product_free'], ['check_e2e_gdm_product_free.py'],

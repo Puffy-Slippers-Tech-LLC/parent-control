@@ -6,7 +6,7 @@ from ui_watch_transport import Feeds, label
 WAITING = 'Waiting for UI tests. You can leave this window open.'
 
 
-def panel(feeds=None, *, prefix=''):
+def panel(feeds=None, *, prefix='', flat=False):
     def set_automation_id(widget, name):
         identify(widget, prefix + name)
     import gi
@@ -53,6 +53,7 @@ def panel(feeds=None, *, prefix=''):
             super().__init__(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
             self.feeds = feeds if feeds is not None else Feeds()
             self.views = {}
+            self.selected_run = None
             self.active = False
             self.tab_bar = Gtk.Box(spacing=2)
             self.tab_bar.add_css_class('linked')
@@ -70,9 +71,10 @@ def panel(feeds=None, *, prefix=''):
             self.status = Gtk.Label(label=WAITING, xalign=0, margin_start=8,
                 margin_top=6, margin_bottom=6, ellipsize=Pango.EllipsizeMode.END)
             set_automation_id(self.status, 'ui-watch-status')
-            self.append(self.tab_bar)
-            self.append(self.tabs)
-            self.append(self.status)
+            if not flat:
+                self.append(self.tab_bar)
+                self.append(self.tabs)
+                self.append(self.status)
 
         def select(self, button, page):
             if button.get_active():
@@ -83,11 +85,11 @@ def panel(feeds=None, *, prefix=''):
                 tab.set_active(True)
 
         def tick(self, *, render=True):
-            selected = self.tabs.get_visible_child_name()
+            selected = (self.selected_run or 'all') if flat else self.tabs.get_visible_child_name()
             frames = self.feeds.poll(pixels=render,
                                      selected=None if selected == 'all' else selected)
             self.active = bool(frames)
-            if not render:
+            if not render and not flat:
                 return
             changed = False
             for run in tuple(self.views):
@@ -95,32 +97,34 @@ def panel(feeds=None, *, prefix=''):
                     overview, detail, tab = self.views.pop(run)
                     if tab.get_active():
                         self.all_tab.set_active(True)
-                    self.grid.remove(overview)
-                    self.tabs.remove(detail)
-                    self.tab_bar.remove(tab)
+                    if not flat:
+                        self.grid.remove(overview)
+                        self.tabs.remove(detail)
+                        self.tab_bar.remove(tab)
                     changed = True
             for run, frame in frames.items():
                 if run not in self.views:
                     overview = View('ui-watch-grid-' + run)
-                    detail = View('ui-watch-branch-' + run)
+                    detail = overview if flat else View('ui-watch-branch-' + run)
                     name = label(frame[1].get('branch', ''), 120)
                     tab = Gtk.ToggleButton(label=name or f"Worker {frame[1].get('worker', run[:6])}")
                     set_automation_id(tab, 'ui-watch-tab-' + run)
                     tab.set_group(self.all_tab)
-                    self.tabs.add_named(detail, run)
-                    tab.connect('toggled', self.select, detail)
-                    double_click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
-                    double_click.connect('pressed', self.select_on_double_click, tab)
-                    overview.add_controller(double_click)
-                    self.tab_bar.append(tab)
+                    if not flat:
+                        self.tabs.add_named(detail, run)
+                        tab.connect('toggled', self.select, detail)
+                        double_click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
+                        double_click.connect('pressed', self.select_on_double_click, tab)
+                        overview.add_controller(double_click)
+                        self.tab_bar.append(tab)
                     self.views[run] = [overview, detail, tab]
                     changed = True
                 overview, detail, _tab = self.views[run]
-                if selected == 'all':
+                if render and selected == 'all':
                     overview.update(frame)
-                elif selected == run:
+                elif render and selected == run:
                     detail.update(frame)
-            if changed:
+            if changed and not flat:
                 for index, (overview, *_rest) in enumerate(self.views.values()):
                     if overview.get_parent() is not None:
                         self.grid.remove(overview)

@@ -837,7 +837,13 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 
 ### E2E-042
 
-Implementation context: Case 192 uses `kiosk_about.PLAN`,
+Implementation context: Parent uses shared `AccessibleUI.check_parent_help`,
+`open_about(menu_open=True)` and `check_parent_information`, with
+`onpc_about::read_help`, `open_from_help`, `check_link` and `return_to_parent`.
+`INFORMATION_PLAN` in `license_viewer_provider.py` qualifies these operations;
+case 190 must declare its own finite plan and compose the shared operations,
+without importing the qualification's fixture lifecycle.
+Case 192 uses `kiosk_about.PLAN`,
 `request_composition.KioskRequestJourney` and `onpc_kiosk_about::run`; case 193 uses
 `command_help.PLAN`. Current executable status belongs in the inventory.
 

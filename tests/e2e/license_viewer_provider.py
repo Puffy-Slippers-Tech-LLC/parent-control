@@ -59,3 +59,24 @@ SUPPORT_PLAN = replace(
 class ParentSupportJourney(InstalledJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, SUPPORT_PLAN)
+
+
+INFORMATION_TAGS = {}
+for stage, tag in PLAN.screen_tags.items():
+    if stage == 'about':
+        INFORMATION_TAGS['help'] = 'ui:parent-help-clickable'
+        tag = 'ui:parent-information-about'
+    elif stage in ('license', 'license-provider-refusals'):
+        tag = 'ui:parent-information-clickable'
+    INFORMATION_TAGS[stage] = tag
+
+INFORMATION_PLAN = replace(
+    PLAN, prefix='parent-information', worker_mode='parent_information',
+    screen_tags=INFORMATION_TAGS,
+    phases={**PLAN.phases, 'help': 'step-1'},
+)
+
+
+class ParentInformationJourney(InstalledJourney):
+    def __init__(self, context, progress):
+        super().__init__(context, progress, INFORMATION_PLAN)

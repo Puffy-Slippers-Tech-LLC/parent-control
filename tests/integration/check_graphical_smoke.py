@@ -1012,7 +1012,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          shell_search_results, parent_search_launch, shell_search,
                          parent_terminal_provider, license_viewer_provider)))),
             'smoke:kiosk-eligible-choices-prerequisites')
-    require(information_link in ('license', 'website', 'privacy', 'support')
+    require(information_link in ('license', 'website', 'privacy', 'support', 'information')
             and (information_link == 'license' or license_viewer_provider),
             'smoke:information-link-binding')
     require(type(license_viewer_provider) is bool and (not license_viewer_provider or (
@@ -1455,12 +1455,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if license_viewer_provider:
                     from parent_setup_qualification import (
                         LicenseViewerProviderQualification, ParentWebsiteQualification,
-                        ParentPrivacyQualification, ParentSupportQualification)
+                        ParentPrivacyQualification, ParentSupportQualification,
+                        ParentInformationQualification)
                     qualification_class = {
                         'license': LicenseViewerProviderQualification,
                         'website': ParentWebsiteQualification,
                         'privacy': ParentPrivacyQualification,
                         'support': ParentSupportQualification,
+                        'information': ParentInformationQualification,
                     }[information_link]
                 if repeated_operations:
                     from parent_setup_qualification import RepeatedOperationsQualification

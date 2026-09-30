@@ -12,6 +12,20 @@ sub open_about {
     return $journey->seen('about');
 }
 
+sub read_help {
+    onpc_progress::operation('Checking Parent Help clickability');
+    my ($journey, $selected) = @_;
+    $journey->consume_observation('parent-selected', $selected);
+    return $journey->seen('help');
+}
+
+sub open_from_help {
+    onpc_progress::operation('Opening About from the owned menu');
+    my ($journey, $help) = @_;
+    $journey->consume_observation('help', $help);
+    return $journey->seen('about');
+}
+
 sub open_license {
     onpc_progress::operation('Checking the license link is clickable');
     my ($journey, $about, $stage) = @_;
@@ -26,7 +40,8 @@ sub check_link {
     my ($journey, $about, $link, $stage) = @_;
     $stage //= 'about';
     die 'about:link-binding' unless (@_ == 3 || @_ == 4)
-        && ($link eq 'website' || $link eq 'license' || $link eq 'privacy' || $link eq 'support')
+        && ($link eq 'website' || $link eq 'license' || $link eq 'privacy'
+            || $link eq 'support' || $link eq 'information')
         && ($stage eq 'about' || $stage eq 'about-rechecked');
     $journey->consume_observation($stage, $about);
     return $journey->seen('license');

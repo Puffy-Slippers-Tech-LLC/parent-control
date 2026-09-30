@@ -2639,9 +2639,10 @@ def test_license_link_clickability_has_no_external_handler_dependency(fault):
                                  'no-action', 'ambiguous-action', 'focus-only',
                                  'wrong-owner', 'duplicate', 'clipped'])
 @pytest.mark.parametrize('identity', ['about-license-value', 'about-website-value',
-                                    'about-privacy-value', 'about-support-value'])
+                                    'about-privacy-value', 'about-support-value',
+                                    'about-legal-notices-value', 'parent-menu-help'])
 def test_clickable_link_requires_owned_usable_control_without_following_it(fault, identity):
-    link = Node(identity=identity, role='link')
+    link = Node(identity=identity, role='menu item' if identity == 'parent-menu-help' else 'link')
     about = Node(identity='about-dialog', children=[link])
     ui = ui_for(Node(identity='parent-window', children=[about]))
     if fault == 'missing': link.identity = ''
@@ -2670,6 +2671,29 @@ def test_clickable_link_requires_owned_usable_control_without_following_it(fault
             with pytest.raises(UiError):
                 ui.run(identity.split('-')[1] + '-clickable', '1.1')
     link.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'website', 'privacy', 'support', 'license', 'legal-notices'])
+def test_parent_information_composes_readers_and_stops_at_first_refusal(fault):
+    identities = ['about-' + field + '-value' for field in
+                  ('website', 'privacy', 'support', 'license', 'legal-notices')]
+    links = [Node(identity=identity, role='link') for identity in identities]
+    about = Node(identity='about-dialog', children=links)
+    ui = ui_for(Node(identity='parent-window', children=[about]))
+    if fault:
+        links[identities.index('about-' + fault + '-value')].states.remove('sensitive')
+    reader = ui.clickable_link
+    ui.clickable_link = Mock(wraps=reader)
+    if fault:
+        with pytest.raises(UiError):
+            ui.run('parent-information-clickable', '1.1')
+        expected = identities[:identities.index('about-' + fault + '-value') + 1]
+    else:
+        assert ui.run('parent-information-clickable', '1.1')['outcome'] == 'passed'
+        expected = identities
+    assert [call.args[0] for call in ui.clickable_link.call_args_list] == expected
+    for link in links:
+        link.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'still-open', 'missing-about', 'inactive-about', 'incomplete'])

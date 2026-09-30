@@ -1188,10 +1188,23 @@ Open `tools/watch` (or `make watch`) as the desktop user before or during a run.
 Both return after launching and repeated launches present the singleton all-VM
 watcher. The left terminal follows active `fix-tests` output before `run-tests`,
 using VS Code Dark+ colors, wrapping and vertical scrollback. The initial
-horizontal split is 30%/70%, adjustable by dragging. On the right, **Active**
-shows UI, VM, or both with an adjustable 50%/50% vertical split. **UI** and **VM**
-select a single viewer. Hidden panels inspect only small activity metadata;
-they do not copy frame pixels, query VM transcripts or update widgets.
+horizontal split is 30%/70%, adjustable by dragging. On the right, **All**
+shows active UI workers and VMs, with an adjustable 50%/50% vertical split
+when both are present. Its VM area uses two columns, adding rows as needed;
+an odd final row leaves the right cell blank. Each cell has its VM name as a
+title. **UI** selects the host viewer, and every registered VM has a tab named
+for that VM. Locked VM tabs appear normally; unlocked VM tabs are gray and
+remain selectable, including running guests left idle between maintenance
+commands. The controller publishes that state through the read-only feed;
+the viewer never acquires a VM lease. Double-click a VM
+viewer to open its tab. Neither launcher accepts a VM parameter.
+
+Each VM's transport runs in its own worker with bounded latest-frame queues.
+Socket waits and shared-memory reads stay outside GTK and cannot block another
+cell. The grid renders at up to 10 fps per VM; an individual VM tab renders at
+up to 30 fps. Hidden panels inspect metadata twice per second and do not copy
+frame pixels or update widgets. Display and progress registrations are separate
+for each VM, and old controllers retain a compatible single-registry fallback.
 The viewer discovers
 private UI workers from this checkout for both `tools/run-ui-tests` and all
 aggregate paths (`tools/run-tests ui`, `host`, `all`, and mixed selections).

@@ -91,6 +91,9 @@ def receive_progress(control, frames):
     if not packet:
         return False
     require(not flags & socket.MSG_TRUNC, 'progress-size')
+    if packet in (b'lease-locked', b'lease-unlocked'):
+        frames.publish(lease_locked=packet == b'lease-locked')
+        return True
     value = json.loads(packet)
     require(progress_packet(value) == packet, 'progress-packet')
     frames.publish(progress=value)

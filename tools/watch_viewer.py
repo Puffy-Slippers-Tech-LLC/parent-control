@@ -22,6 +22,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None):
     application_id = APPLICATION_ID
     import gi
     gi.require_version('Gtk', '4.0')
+    gi.require_version('Gdk', '4.0')
     try:
         gi.require_version('Vte', '3.91')
     except ValueError as error:
@@ -48,6 +49,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None):
             self.window = None
             self.selected = 'all'
             self.layout = None
+            self.grid_layout = None
             self.next_ui = self.next_discovery = self.next_output = 0
             self.next_vm = {}
             self.output_active = False
@@ -162,6 +164,8 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None):
                                     column_homogeneous=True, row_homogeneous=True,
                                     hexpand=True, vexpand=True)
             set_automation_id(self.vm_grid, 'watch-vm-grid')
+            self.vm_blank = Gtk.Box(hexpand=True, vexpand=True)
+            set_automation_id(self.vm_blank, 'watch-vm-empty-cell')
             self.split = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL, wide_handle=True,
                                    hexpand=True, vexpand=True)
             set_automation_id(self.split, 'watch-active-split')
@@ -237,7 +241,10 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None):
         def arrange(self):
             vm_keys = tuple(key for key, view in self.vms.items() if view.active)
             shown = self.ui.active if self.selected == 'all' else self.selected == 'ui'
-            layout = self.selected, shown, vm_keys
+            vm_shown = self.selected == 'all' and bool(vm_keys)
+            layout = self.selected, shown, vm_shown
+            if self.selected == 'all' and layout == self.layout:
+                self.arrange_grid(vm_keys)
             if layout == self.layout:
                 return
             self.layout = layout
@@ -245,6 +252,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None):
             self.split.set_end_child(None)
             while self.vm_grid.get_first_child() is not None:
                 self.vm_grid.remove(self.vm_grid.get_first_child())
+            self.grid_layout = None
             for body in self.bodies.values():
                 while body.get_first_child() is not None:
                     body.remove(body.get_first_child())
@@ -253,12 +261,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None):
                 body.append(self.vms[self.selected])
                 return
             if self.selected == 'all':
-                for index, key in enumerate(vm_keys):
-                    self.vm_grid.attach(self.vms[key], index % 2, index // 2, 1, 1)
-                if len(vm_keys) > 1 and len(vm_keys) % 2:
-                    self.vm_grid.attach(Gtk.Box(hexpand=True, vexpand=True),
-                                        1, len(vm_keys) // 2, 1, 1)
-            vm_shown = self.selected == 'all' and bool(vm_keys)
+                self.arrange_grid(vm_keys)
             if shown and vm_shown:
                 self.split.set_start_child(self.ui)
                 self.split.set_end_child(self.vm_grid)
@@ -273,13 +276,35 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None):
             else:
                 body.append(self.waiting)
 
+        def arrange_grid(self, vm_keys):
+            if vm_keys == self.grid_layout:
+                return
+            self.grid_layout = vm_keys
+            desired = {self.vms[key]: (index % 2, index // 2)
+                       for index, key in enumerate(vm_keys)}
+            if len(vm_keys) > 1 and len(vm_keys) % 2:
+                desired[self.vm_blank] = (1, len(vm_keys) // 2)
+            child = self.vm_grid.get_first_child()
+            while child is not None:
+                following = child.get_next_sibling()
+                if child not in desired:
+                    self.vm_grid.remove(child)
+                child = following
+            for child, (column, row) in desired.items():
+                if child.get_parent() != self.vm_grid:
+                    self.vm_grid.attach(child, column, row, 1, 1)
+                else:
+                    placement = self.vm_grid.get_layout_manager().get_layout_child(child)
+                    placement.set_column(column)
+                    placement.set_row(row)
+
         def tick(self):
             now = time.monotonic()
             discover = now >= self.next_discovery
             if discover:
                 self.next_discovery = now + .5
             # Hidden panels only inspect metadata twice a second. They never
-            # copy pixels, create textures, redraw widgets or query VM output.
+            # copy pixels, create textures or redraw their widgets.
             ui_visible = self.selected in ('all', 'ui')
             if (ui_visible and now >= self.next_ui) or (not ui_visible and discover):
                 self.ui.tick(render=ui_visible)
@@ -290,7 +315,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None):
                         (not vm_visible and discover)):
                     view.tick(render=vm_visible)
                     self.next_vm[key] = now + (.1 if self.selected == 'all' else 1 / 30)
-                    self.buttons[key].set_opacity(1 if view.active else .45)
+                    self.buttons[key].set_opacity(1 if view.locked else .45)
             self.arrange()
             if now >= self.next_output:
                 self.next_output = now + .2

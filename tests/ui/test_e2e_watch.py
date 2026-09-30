@@ -130,7 +130,10 @@ def test_window_survives_stop_reconnect_and_resize(
 def active_attempt():
     # Explicit live acceptance selection runs alongside a real E2E attempt.
     # Ordinary UI suites do not require or start a VM.
-    if not (Path('/run/onpc-e2e-watch') / str(os.getuid()) / 'current.json').exists():
+    import vm_config
+    name = vm_config.selected().name
+    if not (Path('/run/onpc-e2e-watch') / str(os.getuid()) /
+            ('current-' + name.encode('ascii').hex() + '.json')).exists():
         pytest.skip('Select during an active E2E attempt for live acceptance')
 
 

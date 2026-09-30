@@ -15,7 +15,7 @@ directory = Path(os.environ['ONPC_UI_WATCH_REGISTRY'])
 control = Path(os.environ['ONPC_UI_WATCH_CONTROL'])
 evidence = Path(os.environ['ONPC_UI_WATCH_EVIDENCE'])
 sources = []
-app = application(feeds=Feeds(directory))
+app = application(feeds=Feeds(directory), vm_feeds={})
 app.connect_after('activate', lambda *_: app.buttons['ui'].set_active(True))
 stage = ''
 

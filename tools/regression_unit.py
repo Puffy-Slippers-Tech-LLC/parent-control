@@ -152,6 +152,8 @@ write_e2e write_e2e_cleanup_safety
 # Combined watcher output tests use private storage/locks and mocked launches;
 # they never start a runner, desktop service or VM, and need no exclusive resource.
 # Its Make alias check waits for one harmless shell fixture in a private checkout.
+# Multi-VM transport isolation uses bounded, joined private threads/queues and
+# process-local API doubles; registry tests use tmp_path, with no live VM/socket.
 # Both launchers' blocker decisions use checkout-private question locks/files and bounded threads;
 # pause/reconnect tests own all fake agent children. No live Codex/VM is used.
 # Challenge, install, reboot and package-authority contracts mock host/guest

@@ -232,6 +232,7 @@ class Observer:
     def __init__(self, display, uid, run, *, progress=None):
         self.display = display
         self.progress = progress
+        self.lease_locked = True
         self.child = self.pidfd = self.publication = self.thread = None
         self.control = self.listener = None
         self.stop = threading.Event()
@@ -267,6 +268,7 @@ class Observer:
     def _monitor(self):
         deadline = time.monotonic() + 5
         last_progress = None
+        last_locked = None
         try:
             while not self.stop.is_set():
                 try:
@@ -281,6 +283,13 @@ class Observer:
                         log('available')
                 elif message == b'':
                     break
+                if self.lease_locked != last_locked:
+                    try:
+                        self.control.send(b'lease-locked' if self.lease_locked else b'lease-unlocked',
+                                          socket.MSG_DONTWAIT)
+                        last_locked = self.lease_locked
+                    except BlockingIOError:
+                        pass
                 if self.progress is not None:
                     progress = self.progress.snapshot()
                     if progress != last_progress:

@@ -1,6 +1,7 @@
 """Collector cleanup can signal only its pinned child, never user viewers."""
 
 import signal
+import json
 import subprocess
 import threading
 import xml.etree.ElementTree as ET
@@ -12,6 +13,49 @@ import pytest
 import e2e_watch as watch
 from tests.support.vm_baseline import rig
 from tests.support.vm_runner import lease_rig
+
+
+def publication(tmp_path, name, run):
+    item = watch.Publication.__new__(watch.Publication)
+    item.run, item.vm_name, item.directory = run, name, tmp_path
+    item.server = Mock()
+    item.path = tmp_path / (run + '.sock')
+    item.path.touch()
+    item.identity = item.path.stat().st_ino
+    item.current = tmp_path / ('current-' + name.encode('ascii').hex() + '.json')
+    return item
+
+
+def test_closing_one_vm_publication_preserves_other_vm_and_replacement(tmp_path):
+    first = publication(tmp_path, 'First-VM', 'a' * 32)
+    other = publication(tmp_path, 'Second-VM', 'b' * 32)
+    replacement = publication(tmp_path, 'First-VM', 'c' * 32)
+    first.publish()
+    other.publish()
+    replacement.publish()
+    first.close()
+    assert json.loads(other.current.read_text()) == {'run': other.run, 'vm': other.vm_name}
+    assert json.loads(replacement.current.read_text()) == {
+        'run': replacement.run, 'vm': replacement.vm_name}
+    assert other.path.exists() and replacement.path.exists()
+    other.close()
+    assert not other.current.exists() and not other.path.exists()
+    assert replacement.current.exists()
+    replacement.close()
+    assert not replacement.current.exists() and not replacement.path.exists()
+
+
+def test_publication_keeps_its_bound_vm_when_ambient_selection_changes(tmp_path, monkeypatch):
+    import vm_config
+    selected = Mock(side_effect=AssertionError('Publisher must retain its own VM binding'))
+    item = publication(tmp_path, 'Original-VM', 'a' * 32)
+    monkeypatch.setattr(vm_config, 'selected', selected)
+    try:
+        item.publish()
+        assert json.loads(item.current.read_text())['vm'] == 'Original-VM'
+    finally:
+        item.close()
+    selected.assert_not_called()
 
 
 def test_shared_display_disables_incompatible_gl_and_is_repeatable():

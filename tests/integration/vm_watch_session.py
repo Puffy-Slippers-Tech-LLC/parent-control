@@ -121,6 +121,9 @@ def follow(control, observer, guard):
             message = control.recv(16)
             if message == b'detach':
                 detached = True
+                # This keeper owns observation only; the controller releases
+                # its VM lease. Continue displaying the guest as an idle VM.
+                observer.lease_locked = False
                 print('vm-watch: maintenance controller detached', flush=True)
             else:
                 print('vm-watch: controller closed the session', flush=True)

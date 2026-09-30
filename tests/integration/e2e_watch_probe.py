@@ -34,11 +34,12 @@ def main():
     os.setuid(uid)
     from e2e_watch_viewer import Feed
     feed = Feed()
+    current_path = BASE / str(uid) / ('current-' + feed.vm_name.encode('ascii').hex() + '.json')
     if mode == ['--stopped']:
         deadline = time.monotonic() + 10
-        while (BASE / str(uid) / 'current.json').exists() and time.monotonic() < deadline:
+        while current_path.exists() and time.monotonic() < deadline:
             time.sleep(.05)
-        require(not (BASE / str(uid) / 'current.json').exists(), 'probe-keeper-not-stopped')
+        require(not current_path.exists(), 'probe-keeper-not-stopped')
         print(json.dumps({'keeper_stopped_with_vm': True}))
         return
     activity = feed.activity()
@@ -63,7 +64,7 @@ def main():
         time.sleep(.03)
     if first is None:
         print(json.dumps({'frame_states': sorted(states),
-            'registry_present': (BASE / str(uid) / 'current.json').exists(),
+            'registry_present': current_path.exists(),
             'last_frame_age_ms': ((time.monotonic_ns() - last['updated_ns']) / 1e6
                                   if last else None)}), file=sys.stderr, flush=True)
     require(first is not None, 'probe-no-live-frame')

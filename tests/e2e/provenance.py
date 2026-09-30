@@ -167,11 +167,14 @@ def baseline_inputs(lease):
     baseline_sha256 = digest(state)
     require(baseline_sha256 == lease.state['baseline_sha256'],
             'provenance:baseline-identity-changed')
-    require(state['guest']['ubuntu_version'] == '26.04', 'provenance:environment')
+    guest = state['guest']
+    ubuntu = guest.get('ubuntu_version') == '26.04'
+    fedora = guest.get('os_id') == 'fedora' and guest.get('version') == '44'
+    require(ubuntu or fedora, 'provenance:environment')
     # A safe content identity of the verified guest preparation, including its
     # account contract. Never export raw baseline/account records.
     return {'baseline_sha256': baseline_sha256,
-            'environment_id': 'ubuntu26-04-' + digest(state['guest'])}
+            'environment_id': ('ubuntu26-04-' if ubuntu else 'fedora44-') + digest(guest)}
 
 
 def preflight_source(assets, *, root=ROOT):

@@ -69,27 +69,34 @@ def main(argv=None):
         with test_activity.activity(root), Control().installed() as control:
             check(helper)
             environment = test_launcher.environment(root)
-            if args.overwrite == 'false':
-                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                    helper, 'appsnapshot', '--probe', '--mode', args.mode, *vm_arguments()],
+            if args.overwrite == 'true':
+                cleanup(root)
+                if control.stopped.is_set():
+                    return 130
+            status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                helper, 'appsnapshot', '--probe', '--mode', args.mode,
+                '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
+            if status == 4:
+                return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                    helper, 'appsnapshot', '--resume', '--mode', args.mode, *vm_arguments()],
                     cwd=root, env=environment)
-                if status == 4:
-                    return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                        helper, 'appsnapshot', '--resume', '--mode', args.mode, *vm_arguments()],
-                        cwd=root, env=environment)
-                # Missing, expired or differently-mode snapshots require a build.
-                if status != 3:
-                    return status
-                args.overwrite = 'true'
-            cleanup(root)
-            if control.stopped.is_set():
-                return 130
+            # Missing, expired, differently-mode or explicitly overwritten
+            # snapshots select their package backend from baseline provenance.
+            if status not in (3, 5):
+                return status
+            package_format = 'rpm' if status == 5 else 'deb'
+            if args.overwrite == 'false':
+                cleanup(root)
+                if control.stopped.is_set():
+                    return 130
+            args.overwrite = 'true'
             with test_retention.Store(test_activity.retention_path(root)).session() as run:
                 directory = test_retention.allocate(tempfile.mkdtemp,
                     prefix='onpc-test-artifacts-', dir='/tmp')
                 print('prepare-appsnapshot: artifacts=' + directory, flush=True)
                 status = control.run(['/usr/bin/python3', '-B',
-                    str(root / 'tools/build_test_artifacts.py'), '--output', directory],
+                    str(root / 'tools/build_test_artifacts.py'), '--output', directory,
+                    '--package-format', package_format],
                     cwd=root, env=environment)
                 if status:
                     return status

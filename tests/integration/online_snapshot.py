@@ -335,7 +335,8 @@ def start(lease):
     data = dict(run=lease.state['run'], baseline_sha256=lease.state['baseline_sha256'],
         preparation_sha256=lease.capture.state['guest']['preparation_record_sha256'],
         selected_inputs_sha256=system.baseline.digest(directory / 'input/selected-inputs.json'),
-        package_sha256=system.baseline.digest(directory / 'input/package.deb'),
+        package_sha256=system.baseline.digest(directory / 'input' /
+            ('package.' + system.package_format(lease.capture.state['guest']))),
         public_key=(directory / 'ssh-key.pub').read_text(), old_public_key=record['public_key'])
     transport.call(['/usr/bin/python3', '-c', REBIND], input=system.baseline.encode(data))
     (directory / 'known-hosts').write_text(f"{hostname} {record['host_key']}\n")

@@ -33,6 +33,9 @@ def bootstrap_guest():
     modes = {}
     g = Mock()
     g.inspect_os.return_value = ['/dev/sda2']
+    g.inspect_get_distro.return_value = 'ubuntu'
+    g.inspect_get_major_version.return_value = 26
+    g.inspect_get_minor_version.return_value = 4
     g.inspect_get_mountpoints.return_value = {'/': '/dev/sda2'}
     g.read_file.side_effect = files.__getitem__
     g.write.side_effect = files.__setitem__

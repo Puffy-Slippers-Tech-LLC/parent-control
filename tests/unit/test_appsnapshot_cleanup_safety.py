@@ -202,7 +202,8 @@ def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
     assert launcher.main(['--overwrite', 'false', *VM_ARGS, '--y']) == status
     assert control.run.call_args.args[0] == [
         '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online', *VM_ARGS]
+        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online',
+        '--overwrite', 'false', *VM_ARGS]
     control.run.assert_called_once()
     cleanup.assert_not_called()
     allocation.assert_not_called()
@@ -538,7 +539,7 @@ def test_online_guest_rebind_replaces_marker_and_key_and_retires_payload(tmp_pat
 
 
 @pytest.mark.parametrize('argv, results, calls', [([], [3, 0, 0, 0], 4),
-    (['--overwrite'], [0, 0, 0], 3), (['--overwrite', 'true'], [0, 0, 0], 3),
+    (['--overwrite'], [3, 0, 0, 0], 4), (['--overwrite', 'true'], [3, 0, 0, 0], 4),
     (['--overwrite', 'false'], [3, 0, 0, 0], 4)])
 def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, results, calls):
     control, cleanup, allocation = launch
@@ -551,7 +552,7 @@ def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, res
     assert build == ['/usr/bin/python3', '-B',
                      str(control.run.call_args_list[-3].kwargs['cwd'] /
                          'tools/build_test_artifacts.py'),
-                     '--output', allocation.return_value]
+                     '--output', allocation.return_value, '--package-format', 'deb']
     command = control.run.call_args_list[-2].args[0]
     assert command[1] == '--disable-internal-agent'
     assert '--retention-run=' + 'a' * 32 in command
@@ -574,9 +575,9 @@ def test_failed_cleanup_does_not_build_or_install(launch):
 @pytest.mark.parametrize('argv', [['--mode', 'offline'], ['--overwrite'], ['--overwrite', 'true']])
 def test_failed_build_does_not_install(launch, argv):
     control, cleanup, allocation = launch
-    control.run.return_value = 17
+    control.run.side_effect = [3, 17]
     assert launcher.main([*argv, *VM_ARGS, '--y']) == 17
-    control.run.assert_called_once()
+    assert control.run.call_count == 2
     assert control.run.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
 
 
@@ -662,8 +663,8 @@ def dispatch():
 
 
 def test_snapshot_dispatch_pins_vm_and_confines_inputs(dispatch, tmp_path):
-    assert dispatch(ROOT, ['appsnapshot', '--probe', *VM_ARGS])[-5:] == [
-        '--expected-uuid', 'pinned-test-uuid', *VM_ARGS, '--probe']
+    assert dispatch(ROOT, ['appsnapshot', '--probe', '--overwrite', 'false', *VM_ARGS])[-7:] == [
+        '--expected-uuid', 'pinned-test-uuid', *VM_ARGS, '--probe', '--overwrite', 'false']
     with pytest.raises(ValueError):
         dispatch(ROOT, ['appsnapshot', '--artifacts', '/etc'])
     with pytest.raises(ValueError):
@@ -693,6 +694,7 @@ def test_probe_uses_exclusive_vm_lock_and_never_mutates(
     monkeypatch.setattr(base, 'identity', Mock())
     monkeypatch.setattr(base, 'baseline_lock_path', lambda _: lock)
     monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-1.1')
+    monkeypatch.setattr(controller, 'preparation_format', lambda *_: 'deb')
     source = Mock()
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
     monkeypatch.setattr(controller, 'check_identity', Mock())
@@ -734,3 +736,55 @@ def test_probe_rejects_foreign_vm_before_reading_snapshots(tmp_path, monkeypatch
         controller.probe('pinned')
     source.domain.snapshotListNames.assert_not_called()
     source.close.assert_called_once()
+
+
+@pytest.mark.parametrize('overwrite', ['true', 'false'])
+def test_fedora_preparation_selects_rpm_builder_from_probe(launch, overwrite):
+    control, cleanup, allocation = launch
+    control.run.side_effect = [5, 0, 0, 0]
+    assert launcher.main([*VM_ARGS, '--y', '--overwrite', overwrite]) == 0
+    assert control.run.call_args_list[0].args[0][-4:] == ['--overwrite', overwrite, *VM_ARGS]
+    assert control.run.call_args_list[1].args[0][-2:] == ['--package-format', 'rpm']
+    cleanup.assert_called_once()
+    allocation.assert_called_once()
+
+
+@pytest.mark.parametrize('format,expected', [('deb', 3), ('rpm', 5)])
+def test_forced_probe_selects_backend_without_snapshot_mutation(tmp_path, monkeypatch, format, expected):
+    base = controller.system.baseline
+    lock = tmp_path / 'baseline.lock'
+    lock.touch(mode=0o600)
+    for name in ('canonical', 'identity'):
+        monkeypatch.setattr(base, name, Mock())
+    monkeypatch.setattr(base, 'BASELINES', tmp_path)
+    monkeypatch.setattr(base, 'baseline_lock_path', lambda _: lock)
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v1.2')
+    monkeypatch.setattr(controller, 'preparation_format', lambda *_: format)
+    source = Mock()
+    monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
+    monkeypatch.setattr(controller, 'check_identity', Mock())
+    assert controller.probe('pinned', overwrite=True) == expected
+    assert source.domain.mock_calls == []
+    source.close.assert_called_once()
+
+
+@pytest.mark.parametrize('guest,expected', [({'ubuntu_version': '26.04'}, 'deb'),
+    ({'os_id': 'fedora', 'version': '44'}, 'rpm')])
+@pytest.mark.parametrize('fault', [None, 'uuid', 'script', 'phase', 'proof'])
+def test_package_backend_uses_bound_baseline_metadata(monkeypatch, guest, expected, fault):
+    source = Mock(uuid='pinned')
+    capture = Mock(script_digest='current')
+    proof = {'name': 'onpc_baseline', 'creation_time': 123, 'storage': 'internal', 'state': 'shutoff'}
+    capture.read_state.return_value = {'phase': 'other' if fault == 'phase' else 'finalized',
+        'source': {'layout': {'uuid': 'foreign' if fault == 'uuid' else 'pinned'}},
+        'script_digest': 'old' if fault == 'script' else 'current', 'guest': guest,
+        'proof': dict(proof, disk={'id': '2'}, creation_time=456 if fault == 'proof' else 123)}
+    monkeypatch.setattr(controller.system.baseline, 'Capture', Mock(return_value=capture))
+    monkeypatch.setattr(controller.system.baseline, 'snapshot_proof', Mock(return_value=proof))
+    if fault:
+        with pytest.raises(controller.system.Error):
+            controller.preparation_format(source, Mock())
+    else:
+        assert controller.preparation_format(source, Mock()) == expected
+    source.shutdown.assert_not_called()
+    assert source.domain.mock_calls == []

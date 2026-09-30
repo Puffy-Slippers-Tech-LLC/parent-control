@@ -308,8 +308,8 @@ class Suite:
                                             overwrite=False, mode=self.snapshot_mode)
             if not created:
                 from app_snapshot import snapshot_name
-                version = self.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
-                                             'Version']).decode().strip()
+                package = assets / ('package.' + system.package_format(self.lease.capture.state['guest']))
+                version = system.package_version(self.commands, package)
                 self.lease.installed_name = snapshot_name(version)
                 self.lease.installed_xml = self.lease.source.domain.snapshotLookupByName(
                     self.lease.installed_name, 0).getXMLDesc(0)

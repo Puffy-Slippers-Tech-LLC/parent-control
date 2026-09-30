@@ -33,9 +33,10 @@ def mode_mismatch(xml, mode, *, now=None):
 
 def input_identity(lease, assets, bundle, commands):
     """Only installed state invalidates the cache; test payload is replaceable."""
+    package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
     return json.dumps({'schema_version': 2,
-        'package_sha256': system.baseline.digest(assets / 'package.deb'),
-        'package_content_sha256': package_content.digest(assets / 'package.deb', commands),
+        'package_sha256': system.baseline.digest(package),
+        'package_content_sha256': package_content.digest(package, commands),
         'baseline_sha256': lease.state['baseline_sha256'],
         'recipe_sha256': bundle.digest('guest_install_recipe.py')},
         sort_keys=True, separators=(',', ':'))
@@ -96,8 +97,9 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     system.require(type(overwrite) is bool, 'suite:invalid-overwrite')
     system.require(mode in ('online', 'offline'), 'suite:invalid-snapshot-mode')
     lease = suite.lease
-    version = suite.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
-                                  'Version']).decode().strip()
+    package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
+    system.require(package.is_file(), 'suite:package-platform-mismatch')
+    version = system.package_version(suite.commands, package)
     name = snapshot_name(version)
     bundle = suite.input_bundle(root)
     with system.operation('Comparing app package contents'):

@@ -153,7 +153,10 @@ omitted, the shared baseline VM picker runs first. `--y` without `--vm` fails
 before selection or preparation. The flag preserves all authorization, lease,
 ownership and validation checks.
 Online mode is the default and reuses fresh matching snapshots without building;
-it leaves the restored running guest in the existing VM-maintenance ownership
+the verified baseline selects Ubuntu 26.04 DEB/APT or Fedora Workstation 44
+RPM/DNF preparation. Fedora uses the maintained native/Mock/rootless container
+builder and preserves enforcing SELinux during offline SSH bootstrap and installation.
+Online mode leaves the restored running guest in the existing VM-maintenance ownership
 journal. Its restore-only dispatch uses maintenance scratch rather than an
 evidence-retention session, whose entry gate requires an idle VM. The shared
 owned recovery and live VM ownership checks still apply. Offline mode

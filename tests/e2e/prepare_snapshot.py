@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import time
+import traceback
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
@@ -27,7 +28,23 @@ def current_name(commands, root=ROOT):
     return snapshot_name(current_version(commands, root))
 
 
-def probe(expected_uuid, *, mode='online'):
+def preparation_format(source, commands):
+    base = system.baseline
+    capture = base.Capture(source, commands, None)
+    capture.directory_identity = capture.private_directory()
+    capture.state = capture.read_state()
+    system.require(capture.state['phase'] == 'finalized' and
+                   capture.state['source']['layout']['uuid'] == source.uuid and
+                   capture.state['script_digest'] == capture.script_digest,
+                   'baseline:preparation-outdated')
+    proof = base.snapshot_proof(capture.proven_snapshot_xml(source.baseline()),
+        capture.state['source']['layout'], capture.description())
+    system.require(all(capture.state['proof'].get(key) == value for key, value in proof.items()),
+                   'baseline:changed')
+    return system.package_format(capture.state['guest'])
+
+
+def probe(expected_uuid, *, mode='online', overwrite=False):
     """Read only, under the shared VM lock; no journal writes or cleanup."""
     commands = Commands()
     name = current_name(commands)
@@ -41,23 +58,27 @@ def probe(expected_uuid, *, mode='online'):
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         source, _ = open_source()
         check_identity(source, expected_uuid)
+        package_format = preparation_format(source, commands)
+        required = 5 if package_format == 'rpm' else 3
+        if overwrite:
+            return required
         if name in source.domain.snapshotListNames(0):
             xml = source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
             reason = mode_mismatch(xml, mode)
             if reason is not None:
                 preparation('Refreshing snapshot ' + name + ': ' + reason +
                             '; forcing overwrite=true')
-                return 3
+                return required
             if mode == 'online':
                 from online_snapshot import load
                 if load(source, name, xml) is None:
                     preparation('Online snapshot credentials missing; preparation required')
-                    return 3
+                    return required
                 return 4
             preparation('Keeping existing snapshot ' + name + ' (overwrite=false); no changes')
             return 0
         preparation('No existing snapshot ' + name + '; preparation required')
-        return 3
+        return required
     finally:
         try:
             if source is not None:
@@ -81,9 +102,11 @@ def prepare(artifacts, expected_uuid, *, overwrite=True, mode='online'):
         source_inputs = preflight_source(assets)
         expected_version = current_version(suite.commands)
         name = snapshot_name(expected_version)
-        version = suite.commands.run(['dpkg-deb', '-f', str(assets / 'package.deb'),
-                                     'Version']).decode().strip()
-        system.require(version == expected_version, 'suite:package-version-changed')
+        package = assets / ('package.rpm' if (assets / 'package.rpm').is_file() else 'package.deb')
+        version = system.package_version(suite.commands, package)
+        system.require(snapshot_name(version) == name, 'suite:package-version-changed')
+        if package.suffix == '.deb':
+            system.require(version == expected_version, 'suite:package-version-changed')
         source, _, lease = suite.acquire(system.RunLedger())
         check_identity(source, expected_uuid)
         with lease:
@@ -92,6 +115,11 @@ def prepare(artifacts, expected_uuid, *, overwrite=True, mode='online'):
                  'source_sha256': source_inputs['source_sha256']},
                 root=ROOT, overwrite=overwrite, mode=mode)
         complete = True
+    except Exception:
+        # Keep the underlying host/guestfs failure in this existing private
+        # allocation; the public output contains fixed categories only.
+        (private / 'controller-error.txt').write_text(traceback.format_exc())
+        raise
     finally:
         # Online snapshots retain their memory image; cleanup restores the
         # outer baseline without reviving an unowned preparation guest.
@@ -178,12 +206,14 @@ def main(argv=None):
             return resume(args.expected_uuid)
         if args.probe:
             system.require(args.artifacts is None, 'appsnapshot:invalid-arguments')
-            return probe(args.expected_uuid, mode=args.mode)
+            return probe(args.expected_uuid, mode=args.mode, overwrite=args.overwrite == 'true')
         from runner import validate_artifact_path
         validate_artifact_path(args.artifacts)
         return prepare(args.artifacts, args.expected_uuid,
                        overwrite=args.overwrite == 'true', mode=args.mode)
     except (ValueError, RuntimeError, OSError) as error:
+        if system.error_category(error) == 'unexpected-failure-or-interruption':
+            system.log('exception-type=' + type(error).__name__)
         print('prepare-appsnapshot: ' + system.error_category(error), file=sys.stderr)
         return 1
 

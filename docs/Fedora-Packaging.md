@@ -179,11 +179,13 @@ executables can therefore bypass those later native denies. The early root-canar
 rule fixes boot readiness only; Fedora application-policy ordering still needs
 repair and installed enforcement qualification before Fedora acceptance.
 
-Use the actual binary RPM in a separate Fedora Workstation 44 VM. This phase
-does not mutate VMs or replace the repository runner's pinned Ubuntu acceptance
-baseline. Install a transferred RPM with DNF inside the intended guest, for
-example `sudo dnf install './oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm'`,
-using the filename actually built, then follow the reboot notice.
+Use `tools/prepare-appsnapshot --vm NAME --y` for a configured, pinned Fedora
+Workstation 44 VM with a finalized baseline. The shared preparation path builds
+the actual RPM, installs it with DNF, reboots and verifies the exact package and
+configured services before capturing the app snapshot. SELinux remains enforcing.
+Online mode leaves an owned running guest for `tools/test-vm --vm NAME exec -- COMMAND`;
+`tools/test-vm --vm NAME stop` restores its outer baseline. This preparation does
+not replace the Ubuntu acceptance baseline or establish Fedora release qualification.
 
 Qualify fresh install; kiosk ownership and confinement; administrator discovery
 and authentication; time/app enforcement; both request surfaces; boot readiness;

@@ -136,7 +136,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 raise ValueError('test-runner:probe-does-not-use-artifacts')
             if args.probe and args.resume or args.resume and args.mode != 'online':
                 raise ValueError('test-runner:invalid-snapshot-operation')
-            return [*command, '--probe' if args.probe else '--resume']
+            return ([*command, '--probe', '--overwrite', args.overwrite]
+                    if args.probe else [*command, '--resume'])
         runner = runpy.run_path(str(confined_file(root, 'tests/e2e/runner.py')))
         runner['validate_artifact_path'](args.artifacts)
         if not args.artifacts.is_dir():

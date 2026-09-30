@@ -104,6 +104,21 @@ def error_category(error):
     return 'unexpected-failure-or-interruption'
 
 
+def package_format(guest):
+    """Select from the verified baseline, never the VM's display name."""
+    if guest.get('ubuntu_version') == '26.04':
+        return 'deb'
+    if guest.get('os_id') == 'fedora' and guest.get('version') == '44':
+        return 'rpm'
+    raise Error('guest:unsupported-package-platform')
+
+
+def package_version(commands, package):
+    argv = (['rpm', '-qp', '--queryformat', '%{VERSION}', str(package)]
+            if package.suffix == '.rpm' else ['dpkg-deb', '-f', str(package), 'Version'])
+    return commands.run(argv, merge_stderr=False).decode().strip()
+
+
 class RunLedger:
     """Accumulate monotonic stage timings and independent first-failure results."""
 
@@ -909,7 +924,30 @@ def stage_assets(source, destination, commands):
     fixtures = destination / manifest['artifacts']['fixtures']['path']
     verify_fixtures(fixtures)
     require((fixtures / 'onpc-test-application.flatpak').is_file(), 'assets:fixture-bundle-missing')
-    shutil.copyfile(package, destination / 'package.deb')
+    require(package.suffix in ('.deb', '.rpm'), 'assets:package-format')
+    shutil.copyfile(package, destination / ('package' + package.suffix))
+    if package.suffix == '.rpm':
+        require(commands.run(['rpm', '-qp', '--queryformat', '%{NAME}', str(package)],
+                             merge_stderr=False).decode().strip() ==
+                'oh-no-parent-control', 'assets:package-name')
+        raw = commands.run(['rpm', '-qp', '--queryformat',
+            '[%{FILENAMES}\t%{FILEMODES}\t%{FILELINKTOS}\n]', str(package)], merge_stderr=False)
+        entries = []
+        for row in raw.decode().splitlines():
+            path, mode, target = row.split('\t')
+            require(path.startswith('/') and '..' not in Path(path).parts, 'assets:package-path')
+            mode = int(mode)
+            if stat.S_ISREG(mode) or stat.S_ISLNK(mode):
+                entries.append({'path': path, 'kind': 'symlink' if stat.S_ISLNK(mode) else 'file',
+                                'mode': stat.S_IMODE(mode), 'target': target})
+            else:
+                require(stat.S_ISDIR(mode), 'assets:package-special-file')
+        require(entries, 'assets:empty-package')
+        (destination / 'installed-files.json').write_bytes(baseline.encode(entries))
+        inventory = {str(p.relative_to(destination)): baseline.digest(p)
+                     for p in sorted(destination.rglob('*')) if p.is_file()}
+        (destination / 'transfer-sha256.json').write_bytes(baseline.encode(inventory))
+        return manifest
     require(commands.run(['dpkg-deb', '-f', str(package), 'Package']).decode().strip() ==
             'oh-no-parent-control', 'assets:package-name')
     archive = commands.run(['dpkg-deb', '--fsys-tarfile', str(package)])
@@ -975,7 +1013,7 @@ def stage_selected_inputs(selection, destination):
 
 
 @contextmanager
-def mounted_guest(guestfs, lease, *, readonly=False):
+def mounted_guest(guestfs, lease, *, readonly=False, with_root=False):
     """Open the guarded offline disk; always close it before another writer."""
     lease.guard(off=True)
     disk = Path(lease.capture.state['source']['layout']['disk'])
@@ -990,7 +1028,7 @@ def mounted_guest(guestfs, lease, *, readonly=False):
         mounts = g.inspect_get_mountpoints(roots[0])
         for point in sorted(mounts, key=lambda v: (len(v), v)):
             (g.mount_ro if readonly else g.mount)(mounts[point], point)
-        yield g
+        yield (g, roots[0]) if with_root else g
         if not readonly:
             g.sync()
     finally:
@@ -1027,13 +1065,21 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
     key = directory / 'ssh-key'
     commands.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'onpc-system-test', '-f', str(key)])
     lease.save('ssh-bootstrap')
-    with mounted_guest(guestfs, lease) as g:
-        baseline.guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
-        sources_path = '/etc/apt/sources.list.d/ubuntu.sources'
-        sources = g.read_file(sources_path).decode()
-        require(baseline.guest_contract.guest_tools.ubuntu_archive_sources(sources) == sources,
-                'bootstrap:archive-not-prepared')
-        log('bootstrap:ubuntu-archive-https-ready')
+    with mounted_guest(guestfs, lease, with_root=True) as (g, root):
+        os_id, version = baseline.guest_contract.inspected_release(g, root)
+        if os_id == 'ubuntu':
+            baseline.guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
+            sources_path = '/etc/apt/sources.list.d/ubuntu.sources'
+            sources = g.read_file(sources_path).decode()
+            require(baseline.guest_contract.guest_tools.ubuntu_archive_sources(sources) == sources,
+                    'bootstrap:archive-not-prepared')
+            log('bootstrap:ubuntu-archive-https-ready')
+        else:
+            baseline.guest_contract.selinux_policy(g.read_file('/etc/selinux/config').decode())
+            baseline.guest_contract.guest_tools.verify_fedora_packages(
+                (row['app2_name'], row['app2_version'])
+                for row in g.inspect_list_applications2(root))
+            log('bootstrap:fedora-tools-ready')
         # The removed preparation-only share must not prevent boot via fstab.
         fstab = g.read_file('/etc/fstab').decode()
         lines = []
@@ -1055,7 +1101,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
         if observation_only:
             marker['scope'] = 'graphical-observation-only'
         else:
-            marker['package_sha256'] = baseline.digest(directory / 'input/package.deb')
+            marker['package_sha256'] = baseline.digest(directory / 'input' /
+                ('package.rpm' if os_id == 'fedora' else 'package.deb'))
             # A restored installation snapshot may contain helpers, bytecode
             # and assets removed from the new input manifest. Start fresh;
             # overwriting just the files still declared would retain them.
@@ -1096,6 +1143,17 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
         g.write(authorized, authorized_contents)
         g.chown(0, 0, authorized)
         g.chmod(0o600, authorized)
+        if os_id == 'fedora':
+            policy = baseline.guest_contract.selinux_policy(g.read_file('/etc/selinux/config').decode())
+            paths = ['/etc/fstab', '/etc/onpc-system-test.json', ssh_directory]
+            # Match baseline preparation's supported mounted-guest setfiles
+            # route when the host appliance lacks SELinux relabel support.
+            if not g.feature_available(['selinuxrelabel']):
+                require(g.is_file('/usr/sbin/setfiles'), 'bootstrap:selinux-setfiles-missing')
+                g.command(['/usr/sbin/setfiles', '-m', policy, *paths])
+            else:
+                for path in paths:
+                    g.selinux_relabel(policy, path)
     # Keep independent readback after sync/close; eliminate only the intervening
     # package-install appliance, not the post-write or host-key verification.
     with mounted_guest(guestfs, lease, readonly=True) as g:

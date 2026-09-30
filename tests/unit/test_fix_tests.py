@@ -37,7 +37,7 @@ def test_category_status_uses_the_discovered_inventory_position():
 def test_selected_inventory_expands_and_deduplicates(requested, expected):
     inventory = {name: {'args': ['--case', 'two words']} for name in
                  ('unit', 'ui', 'future-suite', 'system', 'e2e')}
-    selected = test_commands.suite_inventory(requested, inventory=inventory)
+    selected = fix_tests.requested_inventory(ROOT, requested, inventory=inventory)
     assert list(selected) == expected
     assert all(selected[name] is inventory[name] for name in expected)
 
@@ -45,7 +45,7 @@ def test_selected_inventory_expands_and_deduplicates(requested, expected):
 @pytest.mark.parametrize('requested', [['typo'], ['unit', 'coverage'], [' ']])
 def test_invalid_selection_is_refused(requested):
     with pytest.raises(ValueError):
-        test_commands.suite_inventory(requested, inventory={'unit': {'args': []}})
+        fix_tests.requested_inventory(ROOT, requested, inventory={'unit': {'args': []}})
 
 
 def test_selected_rounds_reverify_earlier_leaves_after_repairs():
@@ -95,6 +95,93 @@ def test_cli_forwards_category_arguments(monkeypatch, options, expected):
     assert fix_tests.main(['unit', 'ui', *options]) == 0
     assert select.call_args.kwargs['categories'] == ['unit', 'ui']
     assert select.call_args.kwargs['rounds'] == expected
+
+
+@pytest.mark.parametrize('requested', [
+    ['e2e', '--id', '6'],
+    ['e2e', '--id', '5,6'],
+    ['e2e', '--id=6'],
+    ['e2e', '--scenario', 'E2E-004/terminal'],
+    ['unit', 'tests/unit/test_fix_tests.py', '-q'],
+    ['unit', '-k', 'component'],
+    ['unit', '-k', 'unit or component', '--durations', '3', '--tb=short'],
+    ['ui', '--timeout', '300s', '-m', 'not live_e2e'],
+    ['static', 'all'],
+])
+def test_repair_selectors_match_runner_and_survive_cli(monkeypatch, requested):
+    import vm_selection
+    monkeypatch.setattr(vm_selection, 'execution_selection', Mock())
+    select = Mock(return_value=(None, False))
+    monkeypatch.setattr(fix_tests, 'select', select)
+    assert fix_tests.main([*requested, '--rounds', '2']) == 0
+    assert select.call_args.kwargs['categories'] == requested
+    inventory = fix_tests.requested_inventory(ROOT, requested)
+    assert list(inventory) == [requested[0]]
+    assert inventory[requested[0]]['args'] == requested[1:]
+
+
+@pytest.mark.parametrize('requested', [
+    ['e2e', '--bogus'], ['e2e', '--id'], ['unit', '--collect-only'],
+    ['host', '--continue-on-errors'],
+])
+def test_invalid_repair_selectors_do_not_start_launcher(monkeypatch, requested):
+    select = Mock()
+    monkeypatch.setattr(fix_tests, 'select', select)
+    assert fix_tests.main(requested) == 2
+    select.assert_not_called()
+
+
+def test_multiple_focused_repair_categories_preserve_each_scope():
+    requested = ['unit', 'tests/unit/test_fix_tests.py', '-q', 'e2e', '--id', '6']
+    inventory = fix_tests.requested_inventory(ROOT, requested)
+    assert list(inventory) == ['unit', 'e2e']
+    assert inventory['unit']['args'] == requested[1:3]
+    assert inventory['e2e']['args'] == ['--id', '6']
+
+
+@pytest.mark.parametrize('argv', [
+    ['--rounds', '3', '--model', 'gpt-6.1-sol', '--effort', 'high', 'unit', '-q'],
+    ['unit', '-q', '--rounds', '3', '--model', 'gpt-6.1-sol', '--effort', 'high'],
+    ['unit', '--rounds', '3', '-q', '--effort', 'high', '--model', 'gpt-6.1-sol'],
+])
+def test_launcher_options_are_removed_from_forwarded_arguments(monkeypatch, argv):
+    select = Mock(return_value=(None, False))
+    monkeypatch.setattr(fix_tests, 'select', select)
+    assert fix_tests.main(argv) == 0
+    assert select.call_args.kwargs == dict(stop=False, model='gpt-6.1-sol', effort='high',
+                                          categories=['unit', '-q'], rounds=3)
+
+
+def test_runner_owns_validation_of_new_category_arguments(monkeypatch):
+    options = ['--future-option', 'two words', '--future-flag']
+    parse = Mock(return_value=[('unit', options)])
+    monkeypatch.setattr(test_commands, 'selections', parse)
+    inventory = fix_tests.requested_inventory(ROOT, ['unit', *options])
+    parse.assert_called_once_with(ROOT, ['unit', *options])
+    assert inventory['unit']['args'] == options
+
+
+@pytest.mark.parametrize('vm_args', [[], ['--vm', 'onpc-Ubuntu26.04']])
+def test_vm_selection_precedes_runner_argument_validation(monkeypatch, vm_args):
+    import vm_selection
+    monkeypatch.delenv(vm_selection.VARIABLE, raising=False)
+    selection = Mock(wraps=vm_selection.execution_selection)
+    monkeypatch.setattr(vm_selection, 'execution_selection', selection)
+    launcher = Mock(return_value=(None, False))
+    monkeypatch.setattr(fix_tests, 'select', launcher)
+    assert fix_tests.main(['e2e', '--id', '6', *vm_args]) == 0
+    selection.assert_called_once_with(*vm_args[1:])
+    assert launcher.call_args.kwargs['categories'] == ['e2e', '--id', '6']
+
+
+@pytest.mark.parametrize('categories', [['static', 'all'], ['unit ui']])
+def test_host_selection_does_not_discover_vms(monkeypatch, categories):
+    import vm_selection
+    selection = Mock(side_effect=AssertionError('host-only request discovered VMs'))
+    monkeypatch.setattr(vm_selection, 'execution_selection', selection)
+    monkeypatch.setattr(fix_tests, 'select', Mock(return_value=(None, False)))
+    assert fix_tests.main(categories) == 0
+    selection.assert_not_called()
 
 
 def test_rounds_repair_only_failed_categories_with_latest_prompt(capsys):

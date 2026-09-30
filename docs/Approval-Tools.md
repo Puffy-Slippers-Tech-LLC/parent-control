@@ -367,6 +367,12 @@ The leading `tools/run-tests --stop-on-error CATEGORY` option applies this
 policy to selected categories while preserving their qualified parallelism.
 The repair loop uses it, and reads the generated `failure.json` handoff after
 cleanup. It never treats an attached predecessor's result as a new category run.
+Category arguments pass through unchanged for repair retries and selected
+verification rounds. The repair launcher's own options (`--vm`, `--model`,
+`--effort`, `--rounds`, `--stop`) are recognized anywhere and removed before
+forwarding; `tools/fix-tests e2e --id 6 --rounds 3` forwards `e2e --id 6`.
+The runner owns category argument validation; inspection flags and aggregate
+coordinator options do not select repair work.
 Its [`tests/README.md` contract](../tests/README.md#scripted-repair-loop) describes
 detachment, stop/restart behavior and agent isolation. Development activation is
 `none`: these are checkout tools; no product installation, service restart or

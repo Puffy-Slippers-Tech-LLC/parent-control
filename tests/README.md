@@ -200,6 +200,14 @@ The exact argument arrays from that inventory are forwarded to the test runner.
 
 Optional categories restrict both repair and verification: `tools/fix-tests host`,
 `tools/fix-tests unit ui` and `tools/fix-tests "unit ui"` are supported.
+Category arguments pass through to the runner, for example `tools/fix-tests e2e --id 6`
+or `tools/fix-tests unit 'tests/unit/test_fix_tests.py' -q`. The exact selectors
+are retained for repairs and every verification round. Launcher options such as
+`--vm`, `--model`, `--effort`, `--rounds` and `--stop` remain launcher-owned,
+are recognized before or after categories, and are removed from the forwarded
+arguments. For example, `tools/fix-tests e2e --id 6 --rounds 3` forwards
+`e2e --id 6` for each of three rounds. Inspection
+flags are not repair selections; use `run-tests` for listing or collection.
 Expansion uses the same `suite_inventory` utility as the `run-tests` host coordinator.
 `host` (also `host-builds`) expands to all implemented host leaves, excluding
 `system` and `e2e`; `all` expands to every implemented leaf. Overlapping selections

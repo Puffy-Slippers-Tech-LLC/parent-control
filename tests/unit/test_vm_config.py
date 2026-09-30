@@ -290,6 +290,19 @@ def test_vm_queue_refills_to_limit_and_executes_every_vm_after_failure(concurren
     assert results == {vm.name: (1 if vm.name == 'guest-0' else 0) for vm in vms}
 
 
+def test_isolated_vm_queue_worker_imports_then_refuses_nonprivate_entry(tmp_path):
+    from tools.test_storage import scratch_descriptors
+    # Owned short-lived process, private cwd, no VM or shared resource access.
+    result = subprocess.run(
+        ['/usr/bin/python3', '-IBu', str(ROOT / 'tools/vm_test_queue.py'),
+         '--invalid', 'unused-vm'],
+        cwd=tmp_path, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+        timeout=15, pass_fds=scratch_descriptors())
+    assert result.returncode != 0
+    assert 'private VM queue entry only' in result.stderr
+    assert 'ModuleNotFoundError' not in result.stderr
+
+
 def test_cancelled_vm_queue_never_starts_another_guest():
     import threading
     from vm_test_queue import dispatch

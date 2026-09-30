@@ -607,6 +607,8 @@ def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, c
         assert str(run.report.directory / 'report.md') in prompt
         assert 'progress.json' in prompt
         assert 'rerun the relevant checks' in prompt
+        assert 'tools/prepare-baseline --vm NAME --mode auto --y' in prompt
+        assert 'omit it for manual work' in prompt
         assert 'Detailed failure evidence' not in prompt
         assert output.index(marker) > output.rindex('Overall - ')
         assert '## Final result' in (run.report.directory / 'report.md').read_text()

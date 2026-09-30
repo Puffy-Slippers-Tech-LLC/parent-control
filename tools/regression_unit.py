@@ -60,6 +60,10 @@ Publishing Make-entrypoint checks copy the dispatcher and configuration into
 tmp_path and synchronously reap Make/Python/stub-runner children. The configured
 disk is never opened; no real tests, VM, shared cache or build is started, so
 publishing_tests retains its compatible unit classification.
+Baseline --y regressions use process-local input, privilege and VM doubles;
+launcher prompt checks read strings and private report files. No real VM,
+privileged helper, terminal, socket or shared storage is accessed, so existing
+compatible baseline, setup and launcher classifications remain appropriate.
 """
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,

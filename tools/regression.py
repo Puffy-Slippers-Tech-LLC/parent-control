@@ -1109,6 +1109,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
         print(f'Report: {report.directory / "report.md"}', flush=True)
     if report is not None and (status == 1 or (run is not None and any(
             item.failures or item.state == 'Failed' for item in run.categories))):
+        from vm_selection import BASELINE_INSTRUCTIONS
         print('\nCopy this prompt into a new Codex session:\n')
         prompt = ('Investigate and fix the failures in '
               f'{(report.directory / "report.md").resolve()}. '
@@ -1118,7 +1119,8 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
               'Obtain developer confirmation before accepting the change or altering expectations unless that exact behavior change '
               'is already authorized. Never weaken, skip or delete a check to match the app. '
               'ONLY rerun the relevant checks, do NOT run more tests than necessary to validate the fixes, and report anything still unresolved. '
-              'If the run was manually interrupted, ignore the interruption, and just fix the recorded failures. ')
+              'If the run was manually interrupted, ignore the interruption, and just fix the recorded failures. '
+              + BASELINE_INSTRUCTIONS)
         print(prompt)
         retries = list(dict.fromkeys(item.retry_category for item in run.categories
                                      if (item.failures or item.state == 'Failed')

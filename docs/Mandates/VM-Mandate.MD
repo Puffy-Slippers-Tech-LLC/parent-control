@@ -58,10 +58,12 @@
   `tools/prepare-baseline --vm NAME --mode manual` (prepare the current state). Auto-mode
   refresh is preapproved when needed for authorized development or testing,
   including deletion of all versioned app snapshots and replacement of
-  `onpc_baseline`. Do not ask the developer for confirmation; answer the tool's
-  existing confirmation prompt with `y`. Manual mode still requires explicit
-  developer authorization. Both modes require the VM off and retain all tool
-  safety checks; see
+  `onpc_baseline`. Do not ask the developer for confirmation; launcher/session
+  work uses `tools/prepare-baseline --vm NAME --mode auto --y` to suppress the
+  y/n prompt. Manual mode still requires explicit developer authorization;
+  authorized launcher/session work uses `--mode manual --y`. Manual work omits
+  `--y` to retain confirmation. Both modes still show the warning, require the
+  VM off and retain all tool safety checks; see
   [VM prerequisites](../../tests/integration/Environment.md).
   Ordinary setup and E2E runners never prepare or replace it implicitly; invoke
   the preapproved auto-mode preparation separately when needed.

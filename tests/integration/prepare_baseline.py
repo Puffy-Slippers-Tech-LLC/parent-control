@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+from functools import partial
 import hashlib
 import importlib
 import json
@@ -72,9 +73,11 @@ def log(stage):
     print(f"prepare-baseline: [{stage}]", file=sys.stderr, flush=True)
 
 
-def confirm_preparation(mode, existing):
+def confirm_preparation(mode, existing, *, assume_yes=False):
     detected = ' Existing baseline detected.' if existing else ''
     print('\033[31mWARNING:' + detected + '\n' + mode_message(mode) + '\033[0m', flush=True)
+    if assume_yes:
+        return True
     while True:
         try:
             answer = input('Proceed (y/n)? ').strip().lower()
@@ -1013,11 +1016,14 @@ def main(argv=None):
     parser.add_argument("--replace-missing", action="store_true",
                         help="explicitly retire a deleted baseline and capture the prepared, powered-off guest")
     parser.add_argument('--mode', choices=('auto', 'manual'))
+    parser.add_argument('--y', action='store_true', help='proceed without y/n confirmation')
     args = parser.parse_args(argv)
     if not (args.check_tools or args.replace_missing or args.mode):
         parser.error('please choose --mode auto or --mode manual')
     if sum((args.check_tools, args.replace_missing, args.mode is not None)) != 1:
         parser.error('choose exactly one operation')
+    if args.y and args.mode is None:
+        parser.error('--y requires --mode auto or --mode manual')
     source = None
     capture = None
     try:
@@ -1062,7 +1068,8 @@ def main(argv=None):
         if args.replace_missing:
             capture.run(replace_missing=True)
         else:
-            if not capture.run(mode=args.mode):
+            if not capture.run(mode=args.mode,
+                               confirm=partial(confirm_preparation, assume_yes=args.y)):
                 return 3
         return 0
     except MissingAutoBaseline:

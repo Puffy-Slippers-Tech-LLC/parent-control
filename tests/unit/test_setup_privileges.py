@@ -16,6 +16,8 @@ helper = runpy.run_path(str(ROOT / 'tools/onpc-setup'))
     ('graphical-policy', 'tools/install_graphical_test_policy.py', []),
     ('prepare-baseline', 'tests/integration/prepare_baseline.py', ['--mode', 'auto']),
     ('prepare-baseline', 'tests/integration/prepare_baseline.py', ['--mode', 'manual']),
+    ('prepare-baseline', 'tests/integration/prepare_baseline.py', ['--mode', 'auto', '--y']),
+    ('prepare-baseline', 'tests/integration/prepare_baseline.py', ['--mode', 'manual', '--y']),
     ('replace-missing-baseline', 'tests/integration/prepare_baseline.py', ['--replace-missing']),
 ])
 def test_only_fixed_modules_and_arguments_are_selected(operation, relative, options):
@@ -38,11 +40,15 @@ def test_host_dependencies_use_only_the_fixed_package_module():
                                   ['prepare-baseline'], ['prepare-baseline', '--mode'],
                                   ['prepare-baseline', '--mode', 'invalid'],
                                   ['prepare-baseline', '--mode', 'auto', '--yes'],
+                                  ['prepare-baseline', '--mode', 'auto', '--y', '--y'],
+                                  ['prepare-baseline', '--mode', 'auto', '--y', 'true'],
+                                  ['replace-missing-baseline', '--y'], ['test-tools', '--y'],
                                   ['test-tools', '--command', 'arbitrary'], ['prepare-baseline', '--reset'],
                                   ['dependencies', '/tmp/install.sh'], ['ppa-build-tools', '--command', 'id'],
                                   ['rpm-build-tools', '--command', 'id'], ['checkout']])
 def test_arbitrary_operations_and_trailing_arguments_are_refused(args):
-    vm_args = ['--vm', 'onpc-Ubuntu26.04'] if args and args[0] == 'prepare-baseline' else []
+    vm_args = (['--vm', 'onpc-Ubuntu26.04']
+               if args and args[0] in ('prepare-baseline', 'replace-missing-baseline') else [])
     with pytest.raises(ValueError):
         helper['command'](ROOT, [*args, *vm_args])
 

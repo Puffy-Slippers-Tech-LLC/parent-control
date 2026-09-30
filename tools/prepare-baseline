@@ -23,6 +23,8 @@ def arguments(argv=None):
     parser.add_argument('--mode', required=True, choices=('auto', 'manual'),
                         help='auto: restore baseline and update guest; manual: prepare current VM state')
     parser.add_argument('--vm', help='exact name in config/test-vm.json; prompts when omitted')
+    parser.add_argument('--y', action='store_true',
+                        help='proceed without y/n confirmation; use for authorized launcher/session work')
     parser.epilog = help_message()
     # Show the complete, short usage reminder for missing options or values.
     def error(message):
@@ -63,7 +65,7 @@ def main(argv=None):
         check(HELPER)
         status = subprocess.run(
             ['/usr/bin/pkexec', '--keep-cwd', HELPER, 'prepare-baseline', '--mode', args.mode,
-             '--vm', args.vm],
+             *(['--y'] if args.y else []), '--vm', args.vm],
             cwd=ROOT,
             env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
         ).returncode

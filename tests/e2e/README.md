@@ -1471,9 +1471,11 @@ On the exclusively held offline disk, credential verification checks the
 fixture UIDs, homes and shells against accepted baseline records and verifies
 the existing password hashes through libcrypt. This step opens the disk read-only:
 it changes no account passwords, keyrings or other guest data. A mismatch
-requires rerunning `tools/prepare-baseline --vm NAME --mode auto` on the host, or
-`tools/prepare-baseline --vm NAME --mode manual` to prepare the current guest state.
-Both require the VM off and confirmation before deleting all versioned app
+requires rerunning `tools/prepare-baseline --vm NAME --mode auto --y` on the host
+from launcher/session work, or `tools/prepare-baseline --vm NAME --mode manual --y`
+to prepare the current guest state with explicit developer authorization.
+Manual work omits `--y` to retain the y/n confirmation; all safety checks still apply.
+Both require the VM off and confirmation or `--y` before deleting all versioned app
 snapshots and replacing the baseline; auto also restores the baseline and
 updates Ubuntu. See [VM preparation modes](../integration/Environment.md).
 Baseline preparation

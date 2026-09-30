@@ -175,6 +175,13 @@ conflicts with `--continue-on-errors`.
 
 ### Scripted repair loop
 
+Launcher agents and sessions use `tools/prepare-baseline --vm NAME --mode auto --y`
+when an authorized baseline refresh is needed. Explicitly authorized manual-mode
+preparation uses `--mode manual --y`. The flag suppresses the y/n prompt; manual
+work omits it to retain confirmation. Warnings and all safety checks still apply.
+The shared launcher prompts carry this instruction; runners never prepare a
+baseline implicitly. See [VM preparation](integration/Environment.md).
+
 Run [`tools/fix-tests`](../tools/fix-tests) for the configured enabled VM queue,
 or with `--vm NAME` for one enabled VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit

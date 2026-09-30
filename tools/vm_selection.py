@@ -16,6 +16,11 @@ selected = vm_config.selected
 registry = vm_config.registry
 VARIABLE = vm_config.VARIABLE
 BATCH = 'ONPC_TEST_VM_BATCH'
+BASELINE_INSTRUCTIONS = (
+    'When authorized baseline preparation is needed in launcher/session work, use '
+    'tools/prepare-baseline --vm NAME --mode auto --y (or --mode manual --y only '
+    'with explicit developer authorization). --y suppresses y/n confirmation; '
+    'omit it for manual work. All VM, ownership, lease and validation checks still apply.')
 
 
 def execution_selection(name=None):
@@ -45,10 +50,12 @@ def execution_instructions():
         return (f"Run VM tests through tools/run-tests without --vm: it executes all enabled VMs "
                 f"({', '.join(queue['vms'])}), at most {queue['concurrency']} simultaneously. "
                 "Use an explicit --vm NAME only for scoped diagnosis, maintenance or preparation. "
-                "Complete required live validation on every enabled VM before closing the task.")
+                "Complete required live validation on every enabled VM before closing the task. "
+                + BASELINE_INSTRUCTIONS)
     vm = selected(required=False)
-    return (f'Every VM command must include --vm {vm.name}; Make VM targets use VM={vm.name}. '
-            'Do not select another VM.') if vm else ''
+    selection = (f'Every VM command must include --vm {vm.name}; Make VM targets use VM={vm.name}. '
+                 'Do not select another VM. ') if vm else ''
+    return selection + BASELINE_INSTRUCTIONS
 
 
 def choice_screen(screen, names):

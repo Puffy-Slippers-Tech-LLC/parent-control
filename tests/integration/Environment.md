@@ -38,15 +38,21 @@ options or values print help and examples. Help and the red warnings reuse the
 same bullet lists of steps. Both modes immediately refuse a VM
 that is not off. Under the shared lease, a red warning describes the selected
 workflow and deletion of **all versioned app snapshots**, including both
-`onpc-v1.2` and legacy `onpc-1.2` names. Only an explicit `y` proceeds; `n` or
-end of input exits without guest or snapshot changes. After confirmation, those
-app snapshots are deleted without recursively deleting their children.
+`onpc-v1.2` and legacy `onpc-1.2` names. By default, only an explicit `y` proceeds;
+`n` or end of input exits without guest or snapshot changes. `--y` suppresses
+the y/n prompt while retaining the warning and every safety check. Include an
+explicit `--vm NAME` for unattended work; `--y` does not select a VM. After
+confirmation or `--y`, those app snapshots are deleted without recursively
+deleting their children.
 
 Under the [VM mandate](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline),
 auto-mode refresh needed for authorized development or testing is preapproved,
-including app-snapshot deletion and baseline replacement. Assistants answer the
-existing prompt with `y` without asking the developer again. Manual mode still
-requires explicit developer authorization. This standing authorization does not
+including app-snapshot deletion and baseline replacement. Launchers and sessions
+use `tools/prepare-baseline --vm NAME --mode auto --y` without asking the developer
+again. Manual mode still requires explicit developer authorization; authorized
+launcher/session work uses `--mode manual --y`. Manual work omits `--y` to keep
+confirmation. Refresh the installed dispatcher with `./setup.sh --test-tools-only`
+after adding support for this flag. This standing authorization does not
 bypass any VM, ownership, lease or validation check.
 
 - `tools/prepare-baseline --vm NAME --mode auto` requires an existing accepted baseline,

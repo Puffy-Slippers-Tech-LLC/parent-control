@@ -77,13 +77,16 @@ def test_failed_baseline_does_not_refresh_test_tools(authorized, monkeypatch, ca
 
 
 @pytest.mark.parametrize('mode', ['auto', 'manual'])
-def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode, capsys):
+@pytest.mark.parametrize('assume_yes', [False, True])
+def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode, assume_yes, capsys):
+    confirmation_args = ['--y'] if assume_yes else []
     run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)])
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
-    assert authorized['main'](['--mode', mode, *VM_ARGS]) == 0
+    assert authorized['main'](['--mode', mode, *VM_ARGS, *confirmation_args]) == 0
     assert run.call_count == 2
     assert run.call_args_list[0].args[0] == [
-        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', mode, *VM_ARGS]
+        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', mode,
+        *confirmation_args, *VM_ARGS]
     assert run.call_args_list[1].args[0] == [str(ROOT / 'setup.sh'), '--test-tools-only']
     assert run.call_args_list[1].kwargs['cwd'] == ROOT
     assert 'onpc_baseline prepared and accepted for onpc-Ubuntu26.04' in capsys.readouterr().out
@@ -96,7 +99,7 @@ def test_tools_refresh_failure_is_returned_after_baseline(authorized, monkeypatc
     assert run.call_count == 2
 
 
-@pytest.mark.parametrize('args', [[], ['--mode'], ['--mode', 'invalid'], ['--mode', '']])
+@pytest.mark.parametrize('args', [[], ['--mode'], ['--mode', 'invalid'], ['--mode', ''], ['--y']])
 def test_mode_is_required_with_friendly_help(authorized, capsys, args):
     with pytest.raises(SystemExit) as error:
         authorized['main'](args)
@@ -114,6 +117,7 @@ def test_help_reuses_warning_bullets_without_red_color(launcher, capsys):
     output = capsys.readouterr().out
     assert mode_message('auto') in output
     assert mode_message('manual') in output
+    assert '--y' in output and 'Manual work: omit --y' in output
     assert '\033[' not in output
 
 

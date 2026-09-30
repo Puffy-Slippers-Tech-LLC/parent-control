@@ -41,6 +41,10 @@
 - Executable project `tools/` launchers are preapproved only within the requested
   task. Invoke them directly. Use their scoped out-of-sandbox routes when sockets,
   Polkit or real ownership metadata require them.
+- Authorized baseline preparation from launchers or sessions uses
+  `tools/prepare-baseline --vm NAME --mode auto|manual --y` to suppress y/n
+  confirmation. Manual work omits `--y`. The flag preserves every safety check
+  and does not grant authorization; follow the [VM mandate](docs/Mandates/VM-Mandate.MD).
 - Preserve all pre-existing work. Do not reset, discard, unstage or overwrite
   unrelated changes.
 

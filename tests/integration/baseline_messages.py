@@ -1,7 +1,7 @@
 """Shared operator descriptions for baseline help and confirmation warnings."""
 
 SNAPSHOT = 'onpc_baseline'
-APP_SNAPSHOT_STEP = 'Delete all onpc-[version] app snapshots, including onpc-v[version], after confirmation.'
+APP_SNAPSHOT_STEP = 'Delete all onpc-[version] app snapshots, including onpc-v[version], after confirmation or --y.'
 MODE_STEPS = {
     'auto': (
         'Require the VM to be off and an existing accepted onpc_baseline.',
@@ -29,4 +29,6 @@ def mode_message(mode):
 
 def help_message():
     return ('Choose tools/prepare-baseline --mode auto or tools/prepare-baseline --mode manual.\n\n'
+            'Launcher/session work: include --vm NAME and --y to suppress y/n confirmation.\n'
+            'Manual work: omit --y to keep confirmation. All safety checks still apply.\n\n'
             + '\n\n'.join(mode_message(mode) for mode in MODE_STEPS))

@@ -180,6 +180,19 @@ def test_warning_is_red_and_requires_y_or_n(monkeypatch, capsys, mode):
     assert host.confirm_preparation(mode, True)
 
 
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+@pytest.mark.parametrize('existing', [False, True])
+def test_assume_yes_keeps_warning_without_reading_input(monkeypatch, capsys, mode, existing):
+    prompt = Mock(side_effect=AssertionError('unexpected confirmation prompt'))
+    monkeypatch.setattr('builtins.input', prompt)
+    assert host.confirm_preparation(mode, existing, assume_yes=True)
+    output = capsys.readouterr().out
+    assert '\033[31mWARNING:' in output
+    assert host.mode_message(mode) in output
+    assert ('Existing baseline detected.' in output) == existing
+    prompt.assert_not_called()
+
+
 def test_simulated_baseline_hashes_source_archive_without_pinned_checkout(rig, monkeypatch):
     read_bytes = Path.read_bytes
 
@@ -1058,7 +1071,8 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
 
 
 @pytest.mark.parametrize('missing_baseline', [False, True])
-def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_baseline):
+@pytest.mark.parametrize('assume_yes', [False, True])
+def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_baseline, assume_yes):
     monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
     monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     monkeypatch.setattr(host, 'prepare_state_root', Mock())
@@ -1083,14 +1097,21 @@ def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
 
     mode = 'auto' if missing_baseline else 'manual'
-    assert host.main(['--vm', 'onpc-Ubuntu26.04', '--mode', mode]) == (1 if missing_baseline else 0)
+    assert host.main(['--vm', 'onpc-Ubuntu26.04', '--mode', mode,
+                      *(['--y'] if assume_yes else [])]) == (1 if missing_baseline else 0)
     if missing_baseline:
         output = capsys.readouterr()
         assert output.out == ''
         assert output.err == ('\033[31maudo mode requires onpc_baseline snapshot. '
                               'You may use manual mode to create it if this is a new VM\033[0m\n')
     residue.assert_not_called()
-    capture.run.assert_called_once_with(mode=mode)
+    capture.run.assert_called_once()
+    assert capture.run.call_args.kwargs['mode'] == mode
+    confirm = capture.run.call_args.kwargs['confirm']
+    prompt = Mock(return_value='n')
+    monkeypatch.setattr('builtins.input', prompt)
+    assert confirm(mode, True) is assume_yes
+    assert prompt.call_count == (0 if assume_yes else 1)
     source.close.assert_called_once_with()
 
 
@@ -1151,6 +1172,16 @@ def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
 def test_resource_arguments_are_not_operator_overrides():
     with pytest.raises(SystemExit):
         host.main(["--vm", "onpc-Ubuntu26.04", "--anchor", "/tmp/another"])
+
+
+@pytest.mark.parametrize('operation', ['--check-tools', '--replace-missing'])
+def test_assume_yes_requires_explicit_preparation_mode(monkeypatch, operation):
+    read_password = Mock(side_effect=AssertionError('unexpected prerequisite access'))
+    monkeypatch.setattr('test_account_password.read_password', read_password)
+    with pytest.raises(SystemExit) as error:
+        host.main(['--vm', 'onpc-Ubuntu26.04', operation, '--y'])
+    assert error.value.code == 2
+    read_password.assert_not_called()
 
 
 def test_preparation_and_reuse_never_hash_or_structurally_scan_images(rig, monkeypatch):

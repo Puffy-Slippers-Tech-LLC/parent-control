@@ -272,6 +272,8 @@ def test_implementation_prompt_preserves_requested_boundary():
 @pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
 def test_missing_qualification_inputs_are_repaired_without_a_developer_question(phase):
     prompt = workflow.session_prompt(dict(workflow.fresh_state('030a'), phase=phase))
+    assert 'tools/prepare-baseline --vm NAME --mode auto --y' in prompt
+    assert 'omit it for manual work' in prompt
     assert 'prepare missing named inputs, then resume validation' in prompt
     assert 'in this session without asking the developer' in prompt
     assert 'A preparation failure before VM access is not a failed live VM attempt' in prompt

@@ -81,7 +81,8 @@ def prerequisite_repair(root, state, before=None):
         row = rows.get(key)
         if row is None:
             return False
-        dependencies = [] if row[4] in ('', '—', '-') else row[4].split(',')
+        # The canonical queue uses Baseline for tasks with no task prerequisites.
+        dependencies = [] if row[4] in ('Baseline', '', '—', '-') else row[4].split(',')
         for dependency in map(str.strip, dependencies):
             if dependency not in after or order.index(dependency) >= order.index(key):
                 return False

@@ -8,6 +8,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.
+# App-snapshot --y/VM-picker/confirmation regressions use process-local input
+# and TTY doubles with the existing private launcher fixture; appsnapshot stays
+# compatible, without real VM operations, privilege, shared locks or storage.
 # Root guest probes reuse those private lease/scratch trees and mocked transport
 # streams; snapshot connection checks mock SSH and the clock. Both existing
 # VM-control and app-snapshot cleanup buckets remain compatible.

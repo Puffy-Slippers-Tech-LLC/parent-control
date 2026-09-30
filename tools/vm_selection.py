@@ -21,6 +21,11 @@ BASELINE_INSTRUCTIONS = (
     'tools/prepare-baseline --vm NAME --mode auto --y (or --mode manual --y only '
     'with explicit developer authorization). --y suppresses y/n confirmation; '
     'omit it for manual work. All VM, ownership, lease and validation checks still apply.')
+APPSNAPSHOT_INSTRUCTIONS = (
+    'For authorized app-snapshot preparation in automation or agent sessions, always use '
+    'tools/prepare-appsnapshot --vm NAME --y. --y requires --vm and suppresses confirmation; '
+    'manual work omits --y and prompts for VM selection when --vm is missing.')
+PREPARATION_INSTRUCTIONS = BASELINE_INSTRUCTIONS + ' ' + APPSNAPSHOT_INSTRUCTIONS
 
 
 def execution_selection(name=None):
@@ -51,11 +56,33 @@ def execution_instructions():
                 f"({', '.join(queue['vms'])}), at most {queue['concurrency']} simultaneously. "
                 "Use an explicit --vm NAME only for scoped diagnosis, maintenance or preparation. "
                 "Complete required live validation on every enabled VM before closing the task. "
-                + BASELINE_INSTRUCTIONS)
+                + PREPARATION_INSTRUCTIONS)
     vm = selected(required=False)
     selection = (f'Every VM command must include --vm {vm.name}; Make VM targets use VM={vm.name}. '
                  'Do not select another VM. ') if vm else ''
-    return selection + BASELINE_INSTRUCTIONS
+    return selection + PREPARATION_INSTRUCTIONS
+
+
+def choose_vm():
+    """Prompt manual preparation callers using current configured names and IDs."""
+    configured = registry()
+    names = list(configured)
+    ids = [vm.id or vm.name for vm in configured.values()]
+    if sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get('TERM', '') not in ('', 'dumb'):
+        return names[interactive_choice(names, ids)]
+    print('Choose a VM from config/test-vm.json:')
+    for identifier, name in zip(ids, names):
+        print(f'  {identifier}. {name}')
+    while True:
+        try:
+            answer = input('Select VM ID or name: ').strip()
+        except (EOFError, KeyboardInterrupt) as error:
+            raise ValueError('VM selection cancelled; supply --vm NAME to proceed') from error
+        if answer in names:
+            return answer
+        if answer in ids:
+            return names[ids.index(answer)]
+        print('Please enter a configured VM ID or name.')
 
 
 def choice_screen(screen, names, ids):

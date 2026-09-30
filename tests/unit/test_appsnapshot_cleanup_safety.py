@@ -7,6 +7,7 @@ from unittest.mock import Mock
 import xml.etree.ElementTree as ET
 
 import pytest
+import vm_selection
 
 import cleanup_e2e
 import prepare_appsnapshot as launcher
@@ -96,11 +97,109 @@ def launch(tmp_path, monkeypatch):
     return controller, cleanup, allocation
 
 
+def test_assume_yes_requires_vm_before_selection_or_work(launch, monkeypatch, capsys):
+    control, cleanup, allocation = launch
+    chooser = Mock(side_effect=AssertionError('VM prompt attempted'))
+    monkeypatch.setattr(launcher, 'choose_vm', chooser)
+    with pytest.raises(SystemExit) as error:
+        launcher.main(['--y'])
+    assert error.value.code == 2
+    assert '--y requires an explicit --vm' in capsys.readouterr().err
+    chooser.assert_not_called()
+    launcher.check.assert_not_called()
+    control.run.assert_not_called()
+    cleanup.assert_not_called()
+    allocation.assert_not_called()
+
+
+@pytest.mark.parametrize('mode', ['online', 'offline'])
+def test_assume_yes_with_vm_never_prompts(launch, monkeypatch, mode, capsys):
+    control, cleanup, allocation = launch
+    control.run.return_value = 0
+    monkeypatch.setattr(launcher, 'choose_vm', Mock(side_effect=AssertionError('VM prompt attempted')))
+    monkeypatch.setattr(launcher, 'input', Mock(side_effect=AssertionError('confirmation attempted')),
+                        raising=False)
+    assert launcher.main([*VM_ARGS, '--y', '--mode', mode, '--overwrite', 'false']) == 0
+    control.run.assert_called_once()
+    assert f'mode={mode}' in capsys.readouterr().out
+
+
+def test_assume_yes_resolves_vm_id_before_dispatch(launch, monkeypatch):
+    control, cleanup, allocation = launch
+    control.run.return_value = 0
+    configured = list(vm_selection.registry().values())[1]
+    monkeypatch.setattr(launcher, 'input', Mock(side_effect=AssertionError('confirmation attempted')),
+                        raising=False)
+    assert launcher.main(['--vm', configured.id, '--y']) == 0
+    assert control.run.call_args.args[0][-2:] == ['--vm', configured.name]
+
+
+@pytest.mark.parametrize('answer', ['n', EOFError, KeyboardInterrupt])
+def test_manual_decline_or_cancel_never_starts_work(launch, monkeypatch, capsys, answer):
+    control, cleanup, allocation = launch
+    prompt = Mock(return_value=answer) if isinstance(answer, str) else Mock(side_effect=answer)
+    monkeypatch.setattr(launcher, 'input', prompt, raising=False)
+    activity = Mock(side_effect=AssertionError('activity attempted'))
+    monkeypatch.setattr(launcher.test_activity, 'activity', activity)
+    assert launcher.main(VM_ARGS) == 0
+    prompt.assert_called_once_with('Proceed (y/n)? ')
+    assert 'cancelled; no app snapshot was prepared' in capsys.readouterr().out
+    activity.assert_not_called()
+    launcher.check.assert_not_called()
+    control.run.assert_not_called()
+    cleanup.assert_not_called()
+    allocation.assert_not_called()
+
+
+@pytest.mark.parametrize('selector_kind', ['name', 'id'])
+def test_manual_missing_vm_uses_shared_picker_then_confirms(launch, monkeypatch, capsys, selector_kind):
+    control, cleanup, allocation = launch
+    control.run.return_value = 0
+    configured = list(vm_selection.registry().values())[1]
+    assert launcher.choose_vm is vm_selection.choose_vm
+    monkeypatch.setattr(vm_selection.sys.stdin, 'isatty', lambda: False)
+    def select_vm(prompt):
+        assert prompt == 'Select VM ID or name: '
+        assert 'Choose a VM from config/test-vm.json:' in capsys.readouterr().out
+        launcher.check.assert_not_called()
+        return configured.name if selector_kind == 'name' else configured.id
+    monkeypatch.setattr(vm_selection, 'input', select_vm, raising=False)
+    answers = iter(['invalid', ' Y '])
+    def confirm(prompt):
+        assert prompt == 'Proceed (y/n)? '
+        assert vm_selection.selected().name == configured.name
+        launcher.check.assert_not_called()
+        return next(answers)
+    monkeypatch.setattr(launcher, 'input', confirm, raising=False)
+    assert launcher.main([]) == 0
+    control.run.assert_called_once()
+    assert control.run.call_args.args[0][-2:] == ['--vm', configured.name]
+    output = capsys.readouterr().out
+    assert f'on {configured.name}' in output
+    assert 'Please enter y to proceed or n to exit.' in output
+
+
+@pytest.mark.parametrize('exception', [EOFError, KeyboardInterrupt])
+def test_cancelled_manual_vm_selection_never_confirms_or_dispatches(launch, monkeypatch, capsys, exception):
+    control, cleanup, allocation = launch
+    monkeypatch.setattr(vm_selection.sys.stdin, 'isatty', lambda: False)
+    monkeypatch.setattr(vm_selection, 'input', Mock(side_effect=exception), raising=False)
+    prompt = Mock(side_effect=AssertionError('confirmation attempted'))
+    monkeypatch.setattr(launcher, 'input', prompt, raising=False)
+    assert launcher.main([]) == 2
+    assert 'VM selection cancelled' in capsys.readouterr().err
+    prompt.assert_not_called()
+    launcher.check.assert_not_called()
+    control.run.assert_not_called()
+    cleanup.assert_not_called()
+    allocation.assert_not_called()
+
+
 @pytest.mark.parametrize('status', [0, 1, 2, 130])
 def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
     control, cleanup, allocation = launch
     control.run.return_value = status
-    assert launcher.main(['--overwrite', 'false', *VM_ARGS]) == status
+    assert launcher.main(['--overwrite', 'false', *VM_ARGS, '--y']) == status
     assert control.run.call_args.args[0] == [
         '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
         '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online', *VM_ARGS]
@@ -112,7 +211,7 @@ def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
 def test_fresh_online_snapshot_resumes_without_cleanup_or_build(launch):
     control, cleanup, allocation = launch
     control.run.side_effect = [4, 0]
-    assert launcher.main(['--mode', 'online', *VM_ARGS]) == 0
+    assert launcher.main(['--mode', 'online', *VM_ARGS, '--y']) == 0
     assert control.run.call_args.args[0][-7:] == [
         '/usr/local/libexec/onpc-test-runner',
         'appsnapshot', '--resume', '--mode', 'online', *VM_ARGS]
@@ -444,7 +543,7 @@ def test_online_guest_rebind_replaces_marker_and_key_and_retires_payload(tmp_pat
 def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, results, calls):
     control, cleanup, allocation = launch
     control.run.side_effect = results
-    assert launcher.main([*argv, *VM_ARGS]) == 0
+    assert launcher.main([*argv, *VM_ARGS, '--y']) == 0
     cleanup.assert_called_once()
     allocation.assert_called_once()
     assert control.run.call_count == calls
@@ -467,7 +566,7 @@ def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, res
 def test_failed_cleanup_does_not_build_or_install(launch):
     control, cleanup, allocation = launch
     cleanup.side_effect = ValueError('cleanup refused')
-    assert launcher.main(['--overwrite', *VM_ARGS]) == 2
+    assert launcher.main(['--overwrite', *VM_ARGS, '--y']) == 2
     allocation.assert_not_called()
     control.run.assert_not_called()
 
@@ -476,7 +575,7 @@ def test_failed_cleanup_does_not_build_or_install(launch):
 def test_failed_build_does_not_install(launch, argv):
     control, cleanup, allocation = launch
     control.run.return_value = 17
-    assert launcher.main([*argv, *VM_ARGS]) == 17
+    assert launcher.main([*argv, *VM_ARGS, '--y']) == 17
     control.run.assert_called_once()
     assert control.run.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
 
@@ -484,7 +583,7 @@ def test_failed_build_does_not_install(launch, argv):
 def test_missing_snapshot_failed_build_does_not_install(launch):
     control, cleanup, allocation = launch
     control.run.side_effect = [3, 17]
-    assert launcher.main(['--overwrite', 'false', *VM_ARGS]) == 17
+    assert launcher.main(['--overwrite', 'false', *VM_ARGS, '--y']) == 17
     cleanup.assert_called_once()
     assert control.run.call_count == 2
     assert control.run.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')

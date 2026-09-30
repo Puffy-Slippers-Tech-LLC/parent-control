@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_account_password import read_password
 from dev_privileges import check
 from baseline_messages import help_message
-from vm_selection import registry, select, interactive_choice
+from vm_selection import select, choose_vm
 
 HELPER = '/usr/local/libexec/onpc-setup'
 
@@ -32,27 +32,6 @@ def arguments(argv=None):
         parser.exit(2, '\nPlease choose --mode auto or --mode manual. ' + message + '\n')
     parser.error = error
     return parser.parse_args(argv)
-
-
-def choose_vm():
-    configured = registry()
-    names = list(configured)
-    ids = [vm.id or vm.name for vm in configured.values()]
-    if sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get('TERM', '') not in ('', 'dumb'):
-        return names[interactive_choice(names, ids)]
-    print('Choose a VM from config/test-vm.json:')
-    for identifier, name in zip(ids, names):
-        print(f'  {identifier}. {name}')
-    while True:
-        try:
-            answer = input('Select VM ID or name: ').strip()
-        except (EOFError, KeyboardInterrupt) as error:
-            raise ValueError('VM selection cancelled; supply --vm NAME to proceed') from error
-        if answer in names:
-            return answer
-        if answer in ids:
-            return names[ids.index(answer)]
-        print('Please enter a configured VM ID or name.')
 
 
 def main(argv=None):

@@ -112,7 +112,7 @@ combinations including `host` reuse host's qualified input.
 Installation/reboot package checks start from `onpc_baseline`. Authorization,
 enforcement and session checks restore the retained `onpc-v<release>` app snapshot
 before each area, using the same shared preparation as
-`tools/prepare-appsnapshot --vm NAME --overwrite false` and E2E. A missing version snapshot
+`tools/prepare-appsnapshot --vm NAME --y --overwrite false` and E2E. A missing version snapshot
 is installed, rebooted and captured once. Existing snapshots are reused only when
 their recorded package digest, baseline identity and installation recipe match;
 otherwise shared preparation refreshes them automatically. Test-only edits do

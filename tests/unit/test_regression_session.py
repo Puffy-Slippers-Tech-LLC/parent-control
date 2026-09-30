@@ -1,4 +1,5 @@
 """Terminal loss must not restart an aggregate or lose its final status."""
+from tests.support.vm_registry import vm_name
 
 from concurrent.futures import ThreadPoolExecutor
 import io
@@ -141,10 +142,10 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
 
 
 def test_active_vm_session_refuses_missing_or_other_vm_before_cancellation(tmp_path, workers):
-    vm_args = ['--vm', 'onpc-Fedora-Workstation-44']
+    vm_args = ['--vm', vm_name(1)]
     run, started = session.select(tmp_path, ['e2e', *vm_args])
     assert started
-    for argv in (['--stop'], ['--stop', '--vm', 'onpc-Ubuntu26.04']):
+    for argv in (['--stop'], ['--stop', '--vm', vm_name()]):
         with pytest.raises(ValueError, match='original --vm NAME'):
             session.select(tmp_path, argv)
         assert not (run / 'cancel').exists()
@@ -152,6 +153,28 @@ def test_active_vm_session_refuses_missing_or_other_vm_before_cancellation(tmp_p
     assert len(workers) == 1
     (tmp_path / 'release').touch()
     assert session.follow(run, io.StringIO()) == 7
+
+
+def test_active_vm_session_keeps_its_guest_when_configured_ids_swap(tmp_path, workers, monkeypatch):
+    import vm_config
+    config = tmp_path / 'test-vm.json'
+    entries = [
+        {'id': '17', 'name': 'first-guest', 'disk_anchor': '/first', 'enabled': 'true'},
+        {'id': '83', 'name': 'second-guest', 'disk_anchor': '/second', 'enabled': 'true'}]
+    config.write_text(json.dumps({'vms': entries}))
+    monkeypatch.setattr(vm_config, 'CONFIG', config)
+    run, started = session.select(tmp_path, ['e2e', '--vm', '17'])
+    assert started
+    current = json.loads((run.parent / 'current.json').read_text())
+    assert current['argv'] == ['e2e', '--vm', 'first-guest']
+    entries[0]['id'], entries[1]['id'] = entries[1]['id'], entries[0]['id']
+    config.write_text(json.dumps({'vms': entries}))
+    with pytest.raises(ValueError, match='original --vm NAME'):
+        session.select(tmp_path, ['--stop', '--vm', '17'])
+    assert not (run / 'cancel').exists()
+    for selector in ('83', 'first-guest'):
+        assert session.select(tmp_path, ['e2e', '--vm', selector]) == (run, False)
+    assert len(workers) == 1
 
 
 @pytest.mark.parametrize('category', ['ui', 'e2e'])
@@ -224,7 +247,7 @@ def test_snapshot_probe_can_overlap_only_host_session(tmp_path, workers, monkeyp
     control.stopped.is_set.return_value = False
     control.run.return_value = 0
     monkeypatch.setattr(prepare_appsnapshot, 'Control', lambda: control)
-    assert prepare_appsnapshot.main(['--overwrite', 'false', '--vm', 'onpc-Ubuntu26.04']) == expected
+    assert prepare_appsnapshot.main(['--overwrite', 'false', '--vm', vm_name()]) == expected
     cleanup.assert_not_called()
     assert control.run.call_count == int(expected == 0)
     assert check.call_count == int(expected == 0)

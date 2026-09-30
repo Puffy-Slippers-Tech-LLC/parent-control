@@ -18,6 +18,7 @@ if __name__ == '__main__':
             runpy.run_path(str(Path(__file__).with_name('onpc-test-runner')))['selection'](
                 Path(__file__).resolve().parents[1], ['vm', *args])
             sys.exit(0)
-        launch('/usr/local/libexec/onpc-test-runner', ['vm', *args, '--vm', configured.name])
+        # Keep the host selector before an exec command's -- boundary.
+        launch('/usr/local/libexec/onpc-test-runner', ['vm', '--vm', configured.name, *args])
     except (ValueError, OSError) as error:
         sys.exit('test-vm: ' + (str(error) if isinstance(error, ValueError) else 'refresh test tools with setup'))

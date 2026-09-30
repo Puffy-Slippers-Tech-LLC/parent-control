@@ -1,4 +1,5 @@
 """ID lookup must not silently degrade into geometry or label targeting."""
+from tests.support.vm_registry import vm_name
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -88,7 +89,7 @@ def test_spectator_ids_are_scoped_to_the_owned_window_and_application():
     assert ui.find("e2e-watch-progress") is progress
 
 
-@pytest.mark.parametrize('name', ['onpc-Ubuntu26.04', 'onpc-Fedora-Workstation-44'])
+@pytest.mark.parametrize('name', [vm_name(), vm_name(1)])
 def test_vm_viewer_accepts_only_its_declared_application_and_process(name):
     progress = Node('e2e-watch-progress')
     ui = adapter(Node('watch-window', [progress]))

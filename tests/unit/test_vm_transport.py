@@ -5,7 +5,7 @@ from contextlib import nullcontext
 import shlex
 import sys
 import tarfile
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -187,6 +187,32 @@ def test_ssh_uses_only_run_key_and_pinned_host_key():
                    'GlobalKnownHostsFile=/dev/null'):
         assert option in args
     assert args[-1] == 'root@192.168.122.20'
+
+
+def test_root_probe_streams_both_channels_through_the_existing_observed_transport():
+    value = client()
+    value.commands.watch_command = None
+    output = Mock()
+    def run(args, *, on_output, **kwargs):
+        assert args[-2] == 'root@192.168.122.20'
+        assert kwargs['merge_stderr'] is False
+        on_output(b'guest output\n', 'stdout')
+        on_output(b'guest error\n', 'stderr')
+        return b'guest output\n'
+    value.commands.run.side_effect = run
+    value.call(['journalctl', '--no-pager'], check=False, on_stream=output)
+    assert output.call_args_list == [
+        call(b'guest output\n', 'stdout'), call(b'guest error\n', 'stderr')]
+    value.guard.assert_called_once_with(value.config)
+    assert value.commands.watch_command is None
+
+
+def test_stream_callback_refuses_ambiguous_selection_before_any_guest_access():
+    value = client()
+    with pytest.raises(transport.Error, match='ambiguous-output'):
+        value.call(['id'], on_stream=Mock(), on_output=Mock())
+    value.guard.assert_not_called()
+    value.commands.run.assert_not_called()
 
 
 def test_replaced_domain_cannot_receive_any_command():

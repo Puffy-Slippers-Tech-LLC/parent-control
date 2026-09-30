@@ -787,7 +787,7 @@ def select(root, argv):
 
     def parse(attaching=False):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-        parser.add_argument('--vm', help='one enabled VM; omitted: configured enabled queue and concurrency')
+        parser.add_argument('--vm', help='enabled VM name or ID; omitted: configured enabled queue and concurrency')
         kind = int if attaching else positive
         parser.add_argument('--sessions', type=kind,
                             help='new run: maximum sessions (plain invocation defaults to 5); active run: signed adjustment')

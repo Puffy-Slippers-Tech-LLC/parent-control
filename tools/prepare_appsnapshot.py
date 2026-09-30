@@ -16,7 +16,7 @@ from vm_selection import select, arguments as vm_arguments
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--vm', required=True, help='exact name in config/test-vm.json')
+    parser.add_argument('--vm', required=True, help='name or ID in config/test-vm.json')
     parser.add_argument('--mode', choices=('online', 'offline'), default='online',
                         help='snapshot after reboot with memory (online, default), '
                              'or after shutdown (offline)')

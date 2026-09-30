@@ -309,11 +309,17 @@ def _operate(lease, action, keys):
 
 def main(argv=None):
     argv, _ = runner.baseline.guest_contract.vm_config.extract(sys.argv[1:] if argv is None else argv)
+    probe = None
+    if argv[2:3] == ['exec'] and argv[:1] == ['--expected-uuid']:
+        boundary = 2
+        # The dispatcher supplies only the fixed UUID prefix before exec.
+        probe = runner.baseline.guest_contract.vm_config.guest_command_arguments(argv[boundary + 1:])
+        argv = argv[:boundary] + ['exec']
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--vm', help='required configured VM name (validated before parsing)')
+    parser.add_argument('--vm', help='required configured VM name or ID (validated before parsing)')
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reset',
-                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk'))
+                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec'))
     parser.add_argument('keys', nargs='*', type=int)
     parser.add_argument('--new-name')
     args = parser.parse_args(argv)
@@ -328,6 +334,7 @@ def main(argv=None):
                         (args.action == 'recover-online' and len(args.keys) == 1 and args.keys[0] > 0) or
                         (args.action not in ('send-key', 'recover-online') and not args.keys)), 'vm-control:arguments')
         runner.require((args.action == 'rename') == (args.new_name is not None), 'vm-control:arguments')
+        runner.require(args.action != 'exec' or probe is not None, 'vm-control:arguments')
         if args.new_name is not None:
             runner.baseline.guest_contract.vm_config.validate_name(args.new_name)
         os.umask(0o077)
@@ -366,6 +373,13 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
+        elif args.action == 'exec':
+            from vm_probe import execute
+            with operation('Probing the owned guest as root'):
+                resume(lease)
+                status = execute(lease, probe[1], probe[0])
+                event('Maintenance: exec complete')
+                return status
         else:
             operate(lease, args.action, args.keys)
         event('Maintenance: ' + args.action + ' complete')

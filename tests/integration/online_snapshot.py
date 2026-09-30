@@ -159,16 +159,9 @@ replace(marker_path,json.dumps(marker,sort_keys=True))
 '''
 
 
-@system.observed('Restoring the running app snapshot')
-def restore(lease, record, *, maintenance=False):
-    from app_snapshot import mode_mismatch
-    lease.guard()
-    system.require(mode_mismatch(lease.installed_xml, 'online') is None,
-                   'online-snapshot:expired-or-invalid')
-    snap = lease.source.domain.snapshotLookupByName(lease.installed_name, 0)
-    system.require(snap.getXMLDesc(0) == lease.installed_xml,
-                   'suite:snapshot-metadata-changed')
-    root = ET.fromstring(lease.installed_xml)
+def validate_saved_snapshot(lease, xml, record):
+    """Shared identity/isolation proof for restoration and current-guest probes."""
+    root = ET.fromstring(xml)
     system.require(json.loads(root.findtext('description'))['baseline_sha256'] ==
                    lease.state['baseline_sha256'], 'online-snapshot:baseline-changed')
     domain = root.find('domain')
@@ -182,6 +175,18 @@ def restore(lease, record, *, maintenance=False):
     system.require(not any(domain.findall('devices/' + kind) for kind in
         ('filesystem', 'hostdev', 'channel', 'redirdev')),
         'online-snapshot:host-sharing')
+
+
+@system.observed('Restoring the running app snapshot')
+def restore(lease, record, *, maintenance=False):
+    from app_snapshot import mode_mismatch
+    lease.guard()
+    system.require(mode_mismatch(lease.installed_xml, 'online') is None,
+                   'online-snapshot:expired-or-invalid')
+    snap = lease.source.domain.snapshotLookupByName(lease.installed_name, 0)
+    system.require(snap.getXMLDesc(0) == lease.installed_xml,
+                   'suite:snapshot-metadata-changed')
+    validate_saved_snapshot(lease, lease.installed_xml, record)
     lease.capture.retire_vm_ownership()
     if maintenance:
         # Finish every refusal check before replacing an existing maintenance
@@ -289,7 +294,8 @@ def reconnect_network(lease):
     system.log('online-snapshot:network-reconnected')
 
 
-def saved_transport(lease, directory, record, hostname):
+def connect_saved_transport(lease, directory, record, hostname):
+    """Authenticate the current guest without restoring or changing its clock."""
     from vm_transport import Transport
     old = directory / 'snapshot-transport'
     old.mkdir(mode=0o700)
@@ -301,6 +307,11 @@ def saved_transport(lease, directory, record, hostname):
                   domain_uuid=lease.source.uuid, domain_id=lease.view.domain_id)
     transport = Transport(config, lease.commands, guard=lambda _: lease.guard())
     transport.probe_ready()
+    return transport
+
+
+def saved_transport(lease, directory, record, hostname):
+    transport = connect_saved_transport(lease, directory, record, hostname)
     # Resuming RAM may resume an old realtime clock. Correct it before tests
     # establish time expectations; no boot or customer action has begun.
     before = int(time.time())

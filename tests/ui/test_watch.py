@@ -1,4 +1,5 @@
 """Combined viewer behavior on a private compositor, with no live VM."""
+from tests.support.vm_registry import vm_name
 
 import json
 
@@ -79,7 +80,7 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
     assert process.returncode == 0, log.read_text()
 
 
-@pytest.mark.parametrize('vm_name', ['onpc-Ubuntu26.04', 'onpc-Fedora-Workstation-44'])
+@pytest.mark.parametrize('vm_name', [vm_name(), vm_name(1)])
 def test_combined_tabs_output_dividers_and_hidden_viewers(
         launch_ui, tmp_path, automation, wait_for_accessible_state, vm_name):
     ui, wait = automation, wait_for_accessible_state

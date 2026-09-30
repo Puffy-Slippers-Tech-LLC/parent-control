@@ -1,4 +1,5 @@
 """Boundary and execution tests for all approved test category routes."""
+from tests.support.vm_registry import vm_name
 import ast
 import json
 import os
@@ -13,7 +14,7 @@ from tests.support.paths import ROOT
 import test_launcher as host
 import test_commands as commands
 
-VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+VM_ARGS = ['--vm', vm_name()]
 
 
 def named_qualification_inputs():

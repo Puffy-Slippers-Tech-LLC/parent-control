@@ -2,11 +2,13 @@
   "concurrency": 1,
   "vms": [
     {
+      "id": "1",
       "name": "onpc-Ubuntu26.04",
       "enabled": "true",
       "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04.qcow2"
     },
     {
+      "id": "2",
       "name": "onpc-Fedora-Workstation-44",
       "enabled": "false",
       "disk_anchor": "/Data/virt-manager/onpc-Fedora-Workstation-44.qcow2"

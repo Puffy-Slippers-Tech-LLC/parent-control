@@ -1,4 +1,5 @@
 """The scripting loop never resumes an agent or repeats composite categories."""
+from tests.support.vm_registry import vm_name
 
 import json
 import io
@@ -161,7 +162,7 @@ def test_runner_owns_validation_of_new_category_arguments(monkeypatch):
     assert inventory['unit']['args'] == options
 
 
-@pytest.mark.parametrize('vm_args', [[], ['--vm', 'onpc-Ubuntu26.04']])
+@pytest.mark.parametrize('vm_args', [[], ['--vm', vm_name()]])
 def test_vm_selection_precedes_runner_argument_validation(monkeypatch, vm_args):
     import vm_selection
     monkeypatch.delenv(vm_selection.VARIABLE, raising=False)
@@ -780,7 +781,7 @@ def test_granular_inventory_order_excludes_every_duplicate_helper():
     assert set(inventory) | helpers == set(test_commands.CATEGORIES)
     assert inventory['ui']['args'] == ['--timeout', '1800s', '-m', 'not live_e2e']
     for category, spec in inventory.items():
-        test_commands.validate(ROOT, ['--stop-on-error', category, *spec['args'], '--vm', 'onpc-Ubuntu26.04'])
+        test_commands.validate(ROOT, ['--stop-on-error', category, *spec['args'], '--vm', vm_name()])
 
 
 def test_future_categories_follow_readiness_without_a_second_allowlist(monkeypatch):

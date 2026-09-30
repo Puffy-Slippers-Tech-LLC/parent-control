@@ -1,4 +1,5 @@
 """Guest preparation adapters only; no libvirt, disks, or host processes used."""
+from tests.support.vm_registry import vm_name
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import Mock
@@ -134,7 +135,7 @@ def test_guest_entry_updates_only_after_successful_auto_setup(guest_entry, monke
     # Fixed reboot path is only a read; fixture chooses whether it is present.
     exists = Path.exists
     monkeypatch.setattr(Path, 'exists', lambda p: False if str(p) == '/run/reboot-required' else exists(p))
-    assert entry.main(['--vm', 'onpc-Ubuntu26.04']) == setup_status
+    assert entry.main(['--vm', vm_name()]) == setup_status
     assert update.call_count == int(mode == 'auto' and setup_status == 0)
     assert (root / 'success').exists() == (setup_status == 0)
     assert not (root / 'password').exists()
@@ -145,7 +146,7 @@ def test_guest_update_failure_never_marks_success(guest_entry, monkeypatch):
     (root / 'mode').write_text('auto')
     monkeypatch.setattr(entry, 'update_system', Mock(side_effect=RuntimeError('update failed')))
     with pytest.raises(RuntimeError, match='update failed'):
-        entry.main(['--vm', 'onpc-Ubuntu26.04'])
+        entry.main(['--vm', vm_name()])
     assert not (root / 'success').exists()
 
 
@@ -155,7 +156,7 @@ def test_auto_guest_records_reboot_before_success(guest_entry, monkeypatch):
     monkeypatch.setattr(entry, 'update_system', Mock())
     exists = Path.exists
     monkeypatch.setattr(Path, 'exists', lambda p: True if str(p) == '/run/reboot-required' else exists(p))
-    assert entry.main(['--vm', 'onpc-Ubuntu26.04']) == 0
+    assert entry.main(['--vm', vm_name()]) == 0
     assert (root / 'reboot-required').read_text() == 'new-boot-id'
     assert not (root / 'success').exists()
 
@@ -163,13 +164,13 @@ def test_auto_guest_records_reboot_before_success(guest_entry, monkeypatch):
 def test_guest_requires_a_different_boot_before_success(guest_entry, monkeypatch):
     entry, root = guest_entry
     (root / 'reboot-required').write_text('new-boot-id')
-    assert entry.main(['--verify-reboot', '--vm', 'onpc-Ubuntu26.04']) == 1
+    assert entry.main(['--verify-reboot', '--vm', vm_name()]) == 1
     assert not (root / 'success').exists()
     (root / 'reboot-required').write_text('old-boot-id')
     read = Path.read_text
     monkeypatch.setattr(Path, 'read_text', lambda p, *a, **k:
                         '' if str(p) == '/var/lib/dpkg/status' else read(p, *a, **k))
-    assert entry.main(['--verify-reboot', '--vm', 'onpc-Ubuntu26.04']) == 0
+    assert entry.main(['--verify-reboot', '--vm', vm_name()]) == 0
     assert (root / 'success').read_text() == 'success\n'
     assert not (root / 'reboot-required').exists()
 
@@ -362,7 +363,7 @@ def test_missing_password_precedes_any_host_dependency_or_vm_access(monkeypatch)
     tools, source = Mock(), Mock()
     monkeypatch.setattr(host.shutil, 'which', tools)
     monkeypatch.setattr(host, 'LibvirtSource', source)
-    assert host.main(['--mode', 'manual', '--vm', 'onpc-Ubuntu26.04']) == 1
+    assert host.main(['--mode', 'manual', '--vm', vm_name()]) == 1
     tools.assert_not_called()
     source.assert_not_called()
 
@@ -410,13 +411,13 @@ def test_fedora_manual_entry_does_not_update_and_auto_requires_a_new_boot(guest_
                         {'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'})
     update = Mock()
     monkeypatch.setattr(entry, 'update_system', update)
-    assert entry.main(['--vm', 'onpc-Fedora-Workstation-44']) == 0
+    assert entry.main(['--vm', vm_name(1)]) == 0
     update.assert_not_called()
     (root / 'success').unlink()
     (root / 'password').write_text('fixture-password')
     (root / 'password').chmod(0o600)
     (root / 'mode').write_text('auto')
-    assert entry.main(['--vm', 'onpc-Fedora-Workstation-44']) == 0
+    assert entry.main(['--vm', vm_name(1)]) == 0
     update.assert_called_once_with('fedora')
     assert (root / 'reboot-required').read_text() == 'new-boot-id'
     assert not (root / 'success').exists()

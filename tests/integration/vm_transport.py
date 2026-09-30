@@ -112,14 +112,17 @@ class Transport:
         self.commands = commands or Commands()
         self.guard = guard
 
-    def call(self, argv, *, input=None, timeout=120, check=True, attempts=1, on_output=None):
+    def call(self, argv, *, input=None, timeout=120, check=True, attempts=1, on_output=None,
+             on_stream=None):
+        require(on_output is None or on_stream is None, 'transport:ambiguous-output-callback')
         from watch_activity import operation, remote_command
         selection = remote_command(argv, input is not None)
         with operation(selection[0], priority=1):
             return self._call(argv, input=input, timeout=timeout, check=check,
-                              attempts=attempts, on_output=on_output, selection=selection)
+                              attempts=attempts, on_output=on_output, on_stream=on_stream,
+                              selection=selection)
 
-    def _call(self, argv, *, input, timeout, check, attempts, on_output, selection):
+    def _call(self, argv, *, input, timeout, check, attempts, on_output, on_stream, selection):
         self.guard(self.config)
         previous_watch = getattr(self.commands, 'watch_command', None)
         self.commands.watch_command = selection
@@ -129,7 +132,8 @@ class Transport:
                     on_output(data)
             return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
                                      input=input, timeout=timeout, check=check, merge_stderr=False,
-                                     on_output=command_output if on_output is not None else None)
+                                     on_output=on_stream if on_stream is not None else
+                                     command_output if on_output is not None else None)
         finally:
             self.commands.watch_command = previous_watch
 

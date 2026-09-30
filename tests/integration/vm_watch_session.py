@@ -135,7 +135,7 @@ def main():
     from vm_config import extract
     argv, _ = extract(sys.argv[1:])
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument('--vm', help='required configured VM name (validated before parsing)')
+    parser.add_argument('--vm', help='required configured VM name or ID (validated before parsing)')
     for name in ('control', 'display', 'uid', 'domain-id'):
         parser.add_argument('--' + name, type=int, required=True)
     for name in ('run', 'uuid', 'xml-sha256'):

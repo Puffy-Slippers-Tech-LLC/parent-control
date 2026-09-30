@@ -1,6 +1,7 @@
 """Shared test VM configuration; loading it never accesses libvirt or VM disks."""
 
 from dataclasses import dataclass
+import argparse
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ class VMConfig:
     name: str
     disk_anchor: Path
     enabled: bool = False
+    id: str | None = None
 
     @property
     def hostname(self):
@@ -49,7 +51,8 @@ def validate_name(name):
     return name
 
 
-def configuration(path=CONFIG):
+def configuration(path=None):
+    path = CONFIG if path is None else path
     try:
         document = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique_keys)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -62,27 +65,44 @@ def configuration(path=CONFIG):
         raise ValueError('vm-config:concurrency must be a positive integer')
     result = {}
     anchors = set()
+    ids = set()
     for entry in document['vms']:
         configured = validate_entry(entry)
         if configured.name in result or configured.disk_anchor in anchors:
             raise ValueError('vm-config:duplicate-vm-or-disk')
         result[configured.name] = configured
         anchors.add(configured.disk_anchor)
+        if configured.id is not None:
+            if configured.id in ids:
+                raise ValueError('vm-config:duplicate-id')
+            ids.add(configured.id)
+    for vm in result.values():
+        if vm.id in result and result[vm.id] != vm:
+            raise ValueError('vm-config:ambiguous-id-or-name')
     return concurrency, result
 
 
-def registry(path=CONFIG):
+def registry(path=None):
     return configuration(path)[1]
 
 
-def execution(name=None, path=CONFIG):
+def resolve(name, configured):
+    """Resolve a selector against this read of the registry, never a cached map."""
+    if name is None:
+        raise ValueError('vm-config: --vm NAME_OR_ID is required')
+    validate_name(name)
+    for vm in configured.values():
+        if name == vm.name or name == vm.id:
+            return vm
+    raise ValueError('vm-config:unknown-vm; choose a name or id in config/test-vm.json')
+
+
+def execution(name=None, path=None):
     """Snapshot the finite enabled queue and its maximum simultaneous guests."""
     concurrency, configured = configuration(path)
     if name is not None:
-        validate_name(name)
-        if name not in configured:
-            raise ValueError('vm-config:unknown-vm; choose a name in config/test-vm.json')
-        configured = {name: configured[name]}
+        vm = resolve(name, configured)
+        configured = {vm.name: vm}
     enabled = tuple(vm for vm in configured.values() if vm.enabled)
     if not enabled:
         raise ValueError('vm-config:no enabled VMs in config/test-vm.json')
@@ -91,7 +111,8 @@ def execution(name=None, path=CONFIG):
 
 def validate_entry(document):
     if (not isinstance(document, dict) or
-            set(document) not in ({'name', 'disk_anchor'}, {'name', 'disk_anchor', 'enabled'})):
+            not {'name', 'disk_anchor'} <= set(document) or
+            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id'}):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
     value = document['disk_anchor']
@@ -102,17 +123,17 @@ def validate_entry(document):
     enabled = document.get('enabled', 'false')
     if enabled not in ('true', 'false'):
         raise ValueError('vm-config:enabled must be the string true or false')
-    return VMConfig(name, Path(value), enabled == 'true')
+    identifier = document.get('id')
+    if 'id' in document:
+        if type(identifier) is int:
+            identifier = str(identifier)
+        if not isinstance(identifier, str) or not re.fullmatch(r'[1-9][0-9]*', identifier):
+            raise ValueError('vm-config:id must be a positive decimal integer or string')
+    return VMConfig(name, Path(value), enabled == 'true', identifier)
 
 
-def load(name=None, path=CONFIG):
-    if name is None:
-        raise ValueError('vm-config: --vm NAME is required')
-    validate_name(name)
-    configured = registry(path)
-    if name not in configured:
-        raise ValueError('vm-config:unknown-vm; choose a name in config/test-vm.json')
-    return configured[name]
+def load(name=None, path=None):
+    return resolve(name, registry(path))
 
 
 def selected(*, required=True):
@@ -122,7 +143,7 @@ def selected(*, required=True):
     return load(name)
 
 
-def select(name, path=CONFIG):
+def select(name, path=None):
     """Bind this controller and its imported adapters to an explicit selection."""
     configured = load(name, path)
     os.environ[VARIABLE] = configured.name
@@ -141,12 +162,17 @@ def arguments():
     return ['--vm', selected().name]
 
 
-def extract(argv, *, required=True, path=CONFIG):
-    """Consume one literal --vm option, rejecting duplicates and unknown names."""
+def extract(argv, *, required=True, path=None):
+    """Consume one --vm name or ID and bind its canonical name."""
     remaining, names = [], []
     iterator = iter(argv)
     for value in iterator:
-        if value == '--vm':
+        if value == '--':
+            # Guest command arguments belong to the guest, including --vm and
+            # --help. Never reinterpret them as host VM selection options.
+            remaining.extend((value, *iterator))
+            break
+        elif value == '--vm':
             names.append(next(iterator, None))
         elif value.startswith('--vm='):
             names.append(value.partition('=')[2])
@@ -154,7 +180,27 @@ def extract(argv, *, required=True, path=CONFIG):
             remaining.append(value)
     if len(names) > 1:
         raise ValueError('vm-config:duplicate --vm')
-    if not names and (not required or any(value in ('--help', '-h') for value in remaining)):
+    controls = remaining[:remaining.index('--')] if '--' in remaining else remaining
+    if not names and (not required or any(value in ('--help', '-h') for value in controls)):
         return remaining, None
     configured = select(names[0] if names else None, path)
     return remaining, configured
+
+
+def guest_command_arguments(argv):
+    """Parse only host controls before the explicit guest argument boundary."""
+    if '--' not in argv:
+        raise ValueError('vm-probe: use exec [--timeout SECONDS] -- COMMAND [ARG ...]')
+    boundary = argv.index('--')
+    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    parser.add_argument('--timeout', type=int, default=120)
+    try:
+        options = parser.parse_args(argv[:boundary])
+    except SystemExit as error:
+        raise ValueError('vm-probe: invalid host options') from error
+    command = argv[boundary + 1:]
+    if (not 1 <= options.timeout <= 86400 or not command or
+            not command[0] or command[0].startswith('-') or
+            any('\0' in arg for arg in command)):
+        raise ValueError('vm-probe: invalid timeout or guest command')
+    return options.timeout, command

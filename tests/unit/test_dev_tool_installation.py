@@ -1,4 +1,5 @@
 """Clean-machine rendering and root-owned installation boundaries."""
+from tests.support.vm_registry import vm_name
 import ast
 import json
 import os
@@ -65,12 +66,12 @@ def test_unsafe_baseline_cannot_pin_vm(baseline, kind):
 
 def test_rendered_dispatcher_resolves_checkout_and_pins_uuid(monkeypatch):
     monkeypatch.chdir(ROOT)
-    source = installer['render_helper'](ROOT, 'onpc-test-runner', {'onpc-Ubuntu26.04': UUID})
+    source = installer['render_helper'](ROOT, 'onpc-test-runner', {vm_name(): UUID})
     namespace = {}
     exec(compile(source, '<installed-dispatcher-fixture>', 'exec'), namespace)
     assert namespace['CHECKOUT'] == str(ROOT)
-    assert namespace['VM_UUIDS'] == {'onpc-Ubuntu26.04': UUID}
-    assert namespace['selection'](ROOT, ['vm', 'reboot', '--vm', 'onpc-Ubuntu26.04'])[-3:] == ['--expected-uuid', UUID, 'reboot']
+    assert namespace['VM_UUIDS'] == {vm_name(): UUID}
+    assert namespace['selection'](ROOT, ['vm', 'reboot', '--vm', vm_name()])[-3:] == ['--expected-uuid', UUID, 'reboot']
     assert str(ROOT) not in source
 
 
@@ -327,7 +328,7 @@ def test_only_missing_fixed_dependencies_are_installed_without_upgrades(monkeypa
     installer['install_missing_dependencies']()
     if missing:
         command = execute.call_args.args[0]
-        assert command[-5:] == ['ripgrep', 'curl', 'gtk-update-icon-cache',
+        assert command[-6:] == ['openssh-client', 'ripgrep', 'curl', 'gtk-update-icon-cache',
                                'python3-pytest-cov', 'gir1.2-vte-3.91']
         assert '--no-upgrade' in command
         assert '--no-remove' in command

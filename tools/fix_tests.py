@@ -516,7 +516,7 @@ def follow(run, stream=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--vm', help='one enabled VM; omitted: configured enabled queue and concurrency')
+    parser.add_argument('--vm', help='enabled VM name or ID; omitted: configured enabled queue and concurrency')
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
     parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
     parser.add_argument('--rounds', type=int, default=1, metavar='X',

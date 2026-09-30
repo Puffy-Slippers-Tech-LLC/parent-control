@@ -71,10 +71,18 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         import vm_config
     finally:
         sys.path.pop(0)
-    argv, configured = vm_config.extract(argv, required='--list' not in argv,
+    controls = argv[:argv.index('--')] if '--' in argv else argv
+    argv, configured = vm_config.extract(argv, required='--list' not in controls,
                                           path=root / 'config/test-vm.json')
     identity = VM_UUIDS.get(configured.name) if configured is not None else None
     vm_args = ['--vm', configured.name] if configured is not None else []
+    if argv[:2] == ['vm', 'exec']:
+        timeout, command = vm_config.guest_command_arguments(argv[2:])
+        if identity is None:
+            raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
+        target = confined_file(root, 'tests/integration/vm_control.py')
+        return ['/usr/bin/python3', '-B', str(target), *vm_args, '--expected-uuid', identity,
+                'exec', '--timeout', str(timeout), '--', *command]
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     categories = parser.add_subparsers(dest='category', required=True)
     integration = categories.add_parser('integration', allow_abbrev=False)
@@ -106,11 +114,14 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     appsnapshot.add_argument('--artifacts', type=Path)
     appsnapshot.add_argument('--overwrite', choices=('true', 'false'), default='true',
                             nargs='?', const='true')
-    vm = categories.add_parser('vm', allow_abbrev=False)
+    vm = categories.add_parser('vm', allow_abbrev=False,
+        epilog='Root guest commands: tools/test-vm --vm NAME exec '
+               '[--timeout SECONDS] -- COMMAND [ARG ...]. '
+               'Requires an owned running online app snapshot; never restores it.')
     for category in (integration, system, e2e, appsnapshot, vm):
-        category.add_argument('--vm', help='required configured VM name; optional for declaration listing')
+        category.add_argument('--vm', help='required configured VM name or ID; optional for declaration listing')
     vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
-                                      'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk'))
+                                      'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec'))
     vm.add_argument('keys', nargs='*', type=int)
     vm.add_argument('--new-name')
     args = parser.parse_args(argv)
@@ -132,6 +143,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             raise ValueError('test-runner:missing-artifact-directory')
         return [*command, '--overwrite', args.overwrite, '--artifacts', str(args.artifacts)]
     if args.category == 'vm':
+        if args.action == 'exec':
+            raise ValueError('vm-probe: use exec -- COMMAND [ARG ...]')
         if (args.action == 'rename') != (args.new_name is not None):
             raise ValueError('test-runner:rename-requires-new-name')
         if args.new_name is not None:
@@ -261,7 +274,8 @@ def run(root, argv, caller):
                 return control.run(command, cwd=root, env=environment)
     command = selection(root, argv)
     import vm_config
-    argv, configured = vm_config.extract(argv, required='--list' not in argv,
+    controls = argv[:argv.index('--')] if '--' in argv else argv
+    argv, configured = vm_config.extract(argv, required='--list' not in controls,
                                           path=root / 'config/test-vm.json')
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                    'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1'}
@@ -298,7 +312,8 @@ def run(root, argv, caller):
         environment.update(test_retention.environment())
         result = subprocess.run(command, cwd=root, env=environment,
                                 pass_fds=scratch_descriptors(), check=False)
-    print(f'test-runner: selected test finished (status={result.returncode})', flush=True)
+    print(f'test-runner: selected test finished (status={result.returncode})',
+          file=sys.stderr if argv[:2] == ['vm', 'exec'] else sys.stdout, flush=True)
     return result.returncode
 
 

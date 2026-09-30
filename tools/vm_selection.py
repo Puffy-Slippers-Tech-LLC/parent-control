@@ -58,7 +58,7 @@ def execution_instructions():
     return selection + BASELINE_INSTRUCTIONS
 
 
-def choice_screen(screen, names):
+def choice_screen(screen, names, ids):
     """Terminal VM selection with one shared keyboard/mouse selection index."""
     import curses
     selected = 0
@@ -83,10 +83,10 @@ def choice_screen(screen, names):
             raise ValueError('VM chooser needs a larger terminal; use --vm NAME')
         screen.addnstr(0, 0, 'Choose a VM from config/test-vm.json:', width - 1)
         for index, name in enumerate(names):
-            label = f'  {index + 1}. {name}'
+            label = f'  {ids[index]}. {name}'
             screen.addnstr(index + 1, 0, label, width - 1,
                            curses.A_BOLD if index == selected else curses.A_NORMAL)
-        screen.addnstr(len(names) + 2, 0, f'Select VM [1-{len(names)}]: {selected + 1}', width - 1)
+        screen.addnstr(len(names) + 2, 0, f'Select VM ID [{", ".join(ids)}]: {ids[selected]}', width - 1)
         screen.addnstr(len(names) + 3, 0, 'Up/Down, mouse or number; Enter confirms; Esc cancels.', width - 1)
         screen.refresh()
         key = screen.get_wch()
@@ -108,22 +108,24 @@ def choice_screen(screen, names):
             digits = ''
         elif isinstance(key, str) and key.isascii() and key.isdecimal():
             candidate = digits + key
-            if 1 <= int(candidate) <= len(names):
+            if candidate in ids:
                 digits = candidate
-                selected = int(candidate) - 1
-            elif 1 <= int(key) <= len(names):
+                selected = ids.index(candidate)
+            elif any(identifier.startswith(candidate) for identifier in ids):
+                digits = candidate
+            elif key in ids:
                 digits = key
-                selected = int(key) - 1
+                selected = ids.index(key)
 
 
-def interactive_choice(names):
+def interactive_choice(names, ids):
     import curses
     # ncurses enables button reporting; xterm all-motion adds hover selection.
     # Restore it even on cancellation before returning to ordinary line input.
     try:
         sys.stdout.write('\033[?1003h')
         sys.stdout.flush()
-        index = curses.wrapper(choice_screen, names)
+        index = curses.wrapper(choice_screen, names, ids)
     except (EOFError, KeyboardInterrupt) as error:
         raise ValueError('VM selection cancelled; supply --vm NAME to proceed') from error
     except curses.error as error:
@@ -132,10 +134,10 @@ def interactive_choice(names):
         sys.stdout.write('\033[?1003l')
         sys.stdout.flush()
     print('Choose a VM from config/test-vm.json:')
-    for number, name in enumerate(names, 1):
-        line = f'  {number}. {name}'
-        print('\033[1m' + line + '\033[0m' if number == index + 1 else line)
-    print(f'Select VM [1-{len(names)}]: {index + 1}')
+    for number, name in enumerate(names):
+        line = f'  {ids[number]}. {name}'
+        print('\033[1m' + line + '\033[0m' if number == index else line)
+    print(f'Select VM ID [{", ".join(ids)}]: {ids[index]}')
     return index
 
 

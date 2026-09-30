@@ -12,11 +12,22 @@
   They drain that finite queue, including after an individual VM fails. Tests
   within each VM remain ordered. `--vm NAME` narrows tests to one enabled entry.
   VM maintenance and preparation still require an explicit `--vm NAME` whose
-  exact, case-sensitive name appears in the registry. `tools/cleanup-e2e` may
+  exact, case-sensitive name or ID appears in the registry. All `--vm` and Make
+  `VM=` selectors resolve names and IDs from the current JSON on invocation.
+  IDs are unique positive decimal strings or integers; renumbering them requires
+  no tools refresh or baseline replacement. Controllers retain canonical names
+  for leases, UUID pins and active-run ownership, never a saved ID mapping.
+  `tools/cleanup-e2e` may
   reconcile all enabled VMs serially when the selector is omitted.
   Operate the selected, individually pinned VM only through `tools/test-vm`.
   Do not bypass ownership or create snapshots, overlays or clones. Stop maintenance
   before system/E2E tests; reset is not a customer journey step.
+  Root OS investigation uses `tools/test-vm --vm NAME exec -- COMMAND [ARG ...]`
+  in an owned running online app-snapshot maintenance instance. Arbitrary command
+  arguments and root privileges apply only in the guest. The route must reuse
+  the existing private SSH identity, guarded transport, exclusive lease and
+  observation; it must never restore the guest to inspect it or adopt another
+  controller's running instance.
   Each VM has an exclusive preparation/execution lease and separate evidence
   journals. New controllers also hold a shared legacy root lease,
   excluding older controllers that still require it exclusively. Existing

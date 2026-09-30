@@ -1,4 +1,5 @@
 """VM maintenance uses real lease files/locks with exclusively mocked VM calls."""
+from tests.support.vm_registry import vm_name
 import json
 import hashlib
 from pathlib import Path
@@ -16,7 +17,7 @@ from tests.support.vm_runner import lease_rig, UUID
 
 import vm_control as control
 
-VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+VM_ARGS = ['--vm', vm_name()]
 
 
 def reopened(lease):
@@ -136,9 +137,168 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     select = dispatcher['selection']
     with pytest.raises(ValueError, match='refresh'):
         select(root, ['vm', 'start', *VM_ARGS])
-    select.__globals__['VM_UUIDS'] = {'onpc-Ubuntu26.04': UUID}
+    select.__globals__['VM_UUIDS'] = {vm_name(): UUID}
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
+
+
+def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller():
+    root = Path(__file__).resolve().parents[2]
+    dispatch = runpy.run_path(str(root / 'tools/onpc-test-runner'))['selection']
+    dispatch.__globals__['VM_UUIDS'] = {vm_name(): UUID}
+    guest = ['sh', '-c', 'journalctl; id -u', '--vm', 'unknown-vm', '--help', '--list']
+    command = dispatch(root, ['vm', 'exec', *VM_ARGS, '--timeout', '600', '--', *guest])
+    assert command == ['/usr/bin/python3', '-B', str(root / 'tests/integration/vm_control.py'),
+                       *VM_ARGS, '--expected-uuid', UUID, 'exec', '--timeout', '600', '--', *guest]
+    with pytest.raises(ValueError, match='--vm'):
+        dispatch(root, ['vm', 'exec', '--', *guest])
+
+
+def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkeypatch):
+    import dev_privileges
+    import sys
+    root = Path(__file__).resolve().parents[2]
+    guest = ['printf', '--vm', 'unknown-vm', '--help', '--list']
+    launch = Mock()
+    monkeypatch.setattr(dev_privileges, 'launch', launch)
+    monkeypatch.setattr(os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(sys, 'argv', [str(root / 'tools/test-vm'), *VM_ARGS, 'exec', '--', *guest])
+    runpy.run_path(str(root / 'tools/test-vm'), run_name='__main__')
+    launch.assert_called_once_with('/usr/local/libexec/onpc-test-runner',
+                                  ['vm', *VM_ARGS, 'exec', '--', *guest])
+
+
+@pytest.mark.parametrize('args', [[], ['id'], ['--'], ['--host', 'other', '--', 'id']])
+def test_root_guest_dispatch_refuses_invalid_host_controls(args):
+    root = Path(__file__).resolve().parents[2]
+    dispatch = runpy.run_path(str(root / 'tools/onpc-test-runner'))['selection']
+    with pytest.raises(ValueError, match='vm-probe:'):
+        dispatch(root, ['vm', 'exec', *VM_ARGS, *args])
+
+
+def probe_snapshot(held, current):
+    """Current snapshot identity double, backed only by a private lease fixture."""
+    tree = ET.Element('domainsnapshot')
+    ET.SubElement(tree, 'state').text = 'running'
+    ET.SubElement(tree, 'memory', snapshot='internal')
+    ET.SubElement(tree, 'description').text = json.dumps({'baseline_sha256': held.state['baseline_sha256']})
+    tree.append(ET.fromstring(current['xml']))
+    snapshot = Mock()
+    snapshot.getName.return_value = 'onpc-v1.1'
+    snapshot.getXMLDesc.side_effect = lambda _: ET.tostring(tree, encoding='unicode')
+    held.source.domain.snapshotCurrent.return_value = snapshot
+    record = {'run': held.state['run'], 'private_key': 'private-key-canary'}
+    return tree, snapshot, record
+
+
+@pytest.mark.parametrize('status', [0, 1, 127, 255])
+def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch, capsys, status):
+    import online_snapshot
+    import vm_probe
+    lease, current = lease_rig
+    start(lease)
+    held = reopened(lease)
+    control.resume(held)
+    held.commands.directory = lease.directory / 'probe-scratch'
+    held.commands.directory.mkdir()
+    _, _, record = probe_snapshot(held, current)
+    monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=record))
+    monkeypatch.setattr(vm_probe.system, 'address', Mock(return_value='192.168.122.20'))
+    transport = Mock()
+    def run(command, **kwargs):
+        assert command == ['journalctl', '--no-pager']
+        assert kwargs['check'] is False and kwargs['timeout'] == 120
+        kwargs['on_stream'](b'guest stdout\n', 'stdout')
+        kwargs['on_stream'](b'guest stderr\n', 'stderr')
+        transport.commands.last_returncode = status
+    transport.call.side_effect = run
+    connect = Mock(return_value=transport)
+    monkeypatch.setattr(online_snapshot, 'connect_saved_transport', connect)
+    journal, owner = held.journal.read_bytes(), (held.directory / 'vm-control.json').read_bytes()
+    restores = held.source.domain.revertToSnapshot.call_count
+    guard = held.guard
+    def checked_guard():
+        guard()
+        transport.commands.last_returncode = 0
+    held.guard = checked_guard
+    try:
+        assert vm_probe.execute(held, ['journalctl', '--no-pager'], 120) == status
+        connect.assert_called_once_with(held, held.commands.directory, record, '192.168.122.20')
+        assert held.journal.read_bytes() == journal
+        assert (held.directory / 'vm-control.json').read_bytes() == owner
+        assert held.source.domain.revertToSnapshot.call_count == restores
+        assert current['id'] == 71
+        out = capsys.readouterr()
+        assert 'guest stdout' in out.out and 'guest stderr' in out.err
+        assert 'private-key-canary' not in out.out + out.err
+    finally:
+        held.release()
+
+
+@pytest.mark.parametrize('fault', ['credentials', 'name', 'memory', 'uuid', 'run', 'baseline', 'sharing'])
+def test_root_probe_refuses_unbound_snapshot_credentials_before_connecting(lease_rig, monkeypatch, fault):
+    import online_snapshot
+    import vm_probe
+    lease, current = lease_rig
+    start(lease)
+    held = reopened(lease)
+    control.resume(held)
+    tree, snapshot, record = probe_snapshot(held, current)
+    if fault == 'credentials':
+        record = None
+    elif fault == 'name':
+        snapshot.getName.return_value = 'onpc_baseline'
+    elif fault == 'memory':
+        tree.find('memory').set('snapshot', 'no')
+    elif fault == 'uuid':
+        tree.find('domain/uuid').text = '0' * 36
+    elif fault == 'run':
+        record['run'] = 'f' * 32
+    elif fault == 'baseline':
+        tree.find('description').text = json.dumps({'baseline_sha256': 'f' * 64})
+    else:
+        ET.SubElement(tree.find('domain/devices'), 'filesystem')
+    monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=record))
+    connect = Mock()
+    monkeypatch.setattr(online_snapshot, 'connect_saved_transport', connect)
+    address = Mock()
+    monkeypatch.setattr(vm_probe.system, 'address', address)
+    journal = held.journal.read_bytes()
+    restores = held.source.domain.revertToSnapshot.call_count
+    try:
+        with pytest.raises(RuntimeError):
+            vm_probe.execute(held, ['id', '-u'], 120)
+        connect.assert_not_called()
+        address.assert_not_called()
+        assert held.journal.read_bytes() == journal
+        assert held.source.domain.revertToSnapshot.call_count == restores
+    finally:
+        held.release()
+
+
+@pytest.mark.parametrize('fault', ['owner', 'busy', 'instance'])
+def test_root_probe_refuses_foreign_or_active_controller_before_ssh(lease_rig, monkeypatch, fault):
+    import vm_probe
+    lease, current = lease_rig
+    if fault == 'busy':
+        lease.view.graphics_type = 'vnc'
+        control.operate(lease, 'start', [])
+    else:
+        start(lease)
+        if fault == 'owner':
+            (lease.directory / 'vm-control.json').write_text('{}')
+        else:
+            current['id'] += 1
+    execute = Mock()
+    monkeypatch.setattr(vm_probe, 'execute', execute)
+    held = reopened(lease)
+    try:
+        with pytest.raises(RuntimeError):
+            control.resume(held)
+        execute.assert_not_called()
+    finally:
+        held.release()
+        lease.release()
 
 
 @pytest.mark.parametrize('argv', [
@@ -149,7 +309,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
 ])
 def test_dispatcher_refuses_invalid_rename_destinations(argv):
     dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
-    dispatcher['selection'].__globals__['VM_UUIDS'] = {'onpc-Ubuntu26.04': UUID}
+    dispatcher['selection'].__globals__['VM_UUIDS'] = {vm_name(): UUID}
     with pytest.raises(ValueError):
         dispatcher['selection'](Path(__file__).resolve().parents[2], [*argv, *VM_ARGS])
 
@@ -157,7 +317,7 @@ def test_dispatcher_refuses_invalid_rename_destinations(argv):
 def test_dispatcher_rename_keeps_uuid_pin_and_only_accepts_destination_label():
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
-    dispatcher['selection'].__globals__['VM_UUIDS'] = {'onpc-Ubuntu26.04': UUID}
+    dispatcher['selection'].__globals__['VM_UUIDS'] = {vm_name(): UUID}
     assert dispatcher['selection'](root, ['vm', 'rename', '--new-name', 'custom-Ubuntu26.04', *VM_ARGS])[3:] == [
         *VM_ARGS, '--expected-uuid', UUID, 'rename', '--new-name', 'custom-Ubuntu26.04']
 

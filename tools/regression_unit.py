@@ -7,6 +7,11 @@ shared pytest/Hypothesis caches and aggregate retention in every unit worker.
 Unknown modules fail closed to exclusive execution; new modules must receive an
 isolation/resource review and classification before their work is complete.
 
+Guest-probe additions to VM-control, snapshot, configuration and transport tests
+use existing private pytest lease/scratch trees and process-local SSH/libvirt,
+stream and clock doubles. They add no live guest, socket, display, credentials,
+shared state or heavy construction; their compatible unit classifications hold.
+
 Fresh-desktop, Shell-search and GDM recipient release bindings use tiny tmp_path
 metadata and a restored process-local ROOT patch; no VM, shared file, socket or
 display is accessed.
@@ -195,6 +200,10 @@ write_e2e write_e2e_cleanup_safety
 # identity-recorded, waited session/repair doubles. VM queue selection only
 # reads configuration; no live VM, display, bus, shared cache or heavy fixture.
 # Existing compatible classifications remain valid for these modules.
+# VM selector regressions edit only private tmp_path JSON registries and mock
+# dispatch. Reconnect coverage reuses the recorded, waited session child; the
+# configured-identity fixture reads checkout JSON without touching VM resources.
+# Existing compatible unit, cleanup and viewer classifications still apply.
 # Challenge, install, reboot and package-authority contracts mock host/guest
 # mutations; app-row, feedback and no-approver reads use accessibility doubles.
 # Ineligible-approver fixture checks use only in-memory NSS/AccountsService

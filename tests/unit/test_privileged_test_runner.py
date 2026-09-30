@@ -1,4 +1,5 @@
 """The category dispatcher must not become an arbitrary root command runner."""
+from tests.support.vm_registry import vm_name
 
 from pathlib import Path
 from contextlib import nullcontext
@@ -13,7 +14,7 @@ from unittest.mock import Mock, call
 import pytest
 
 runner = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
-VM_ARGS = ['--vm', 'onpc-Ubuntu26.04']
+VM_ARGS = ['--vm', vm_name()]
 
 
 def select(root, argv):
@@ -176,7 +177,7 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
             status = dispatcher['run'](
                 Path(dispatcher['CHECKOUT']),
                 ['--unattended', 'system', '--artifacts', '/tmp/onpc-build-regression',
-                 '--vm', 'onpc-Ubuntu26.04'],
+                 '--vm', sys.argv[3]],
                 pwd.getpwuid(os.getuid()))
         assert status == safety_status
         assert len(calls) == 1
@@ -187,7 +188,7 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     probe.chmod(0o755)
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                    'PYTHONDONTWRITEBYTECODE': '1'}
-    result = subprocess.run([str(probe), str(installed), str(safety_status)],
+    result = subprocess.run([str(probe), str(installed), str(safety_status), vm_name()],
                             cwd=checkout, env=environment, capture_output=True,
                             text=True, timeout=20, check=False)
     assert result.returncode == 0, result.stdout + result.stderr

@@ -177,6 +177,12 @@ Its positive integer `concurrency` limits active guests: 1 is serial, 2 permits
 two simultaneous guests. Free slots refill until every enabled VM executes,
 including after another guest fails. Cancellation stops queued work and waits
 for active guests' cleanup. `--vm NAME` narrows tests to one enabled entry.
+All `--vm` options and Make `VM=` parameters accept either the exact configured
+name or its `id`. IDs resolve from the current `config/test-vm.json` on every
+invocation; changing or swapping them needs no helper refresh or baseline
+replacement. Active runs keep their canonical names, so attachment uses the
+current ID for the original guest. UUID pins, leases and journals remain scoped
+to that guest. Names and IDs have no hardcoded mappings in consumers.
 Host work runs once; VM workers keep individual reports and journals, with a
 retained queue summary linking their logs and failure handoffs. Required package
 inputs are prepared through the maintained builders. Repair and implementation
@@ -1178,6 +1184,32 @@ application data. Restrictive organization-managed Codex policies still take
 precedence over local allow rules.
 
 ### Manual entry points
+
+Keep the checkout and VS Code workspace on the host. Unit/UI/host launchers
+continue to run locally. After the ordinary online `tools/prepare-appsnapshot
+--vm NAME` workflow leaves an owned running guest, investigate its OS as root
+from the host terminal:
+
+```sh
+tools/test-vm --vm 'NAME' exec -- 'id' '-u'
+tools/test-vm --vm 'NAME' exec -- 'journalctl' '--boot' '--lines=100' '--no-pager'
+tools/test-vm --vm 'NAME' exec -- 'systemctl' 'status' 'oh-no-parent-control-broker.service' '--no-pager'
+tools/test-vm --vm 'NAME' exec --timeout 600 -- 'sh' '-c' 'id -u; uname -a'
+```
+
+Replace `NAME` with the exact configured VM name. `exec` preserves current guest
+state, uses the existing root SSH credentials and returns guest stdout, stderr
+and exit status. It supports arbitrary guest programs, shells and interpreters;
+it provides finite commands rather than an interactive shell. `--` separates
+guest arguments from host options, including guest `--vm`/`--help` arguments.
+Use `tools/watch` for the shared live screen and filtered command transcript.
+The existing detached display observer remains attached when probes finish.
+An active test controller, unowned guest or unavailable current online snapshot
+credentials cause refusal. A baseline-only `tools/test-vm start` does not provide
+app-snapshot credentials; use the existing online app preparation workflow.
+Collect needed logs before an explicit restore. Provision the host route and
+missing SSH client only through `./setup.sh --test-tools-only`; full setup also
+includes it. No source mount or VS Code remote backend is involved.
 
 When changing a cleanup implementation, validate its cleanup-safety regressions
 explicitly during development. They are not runtime prerequisites. For example,

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_account_password import read_password
 from dev_privileges import check
 from baseline_messages import help_message
-from vm_selection import select
+from vm_selection import registry, select
 
 HELPER = '/usr/local/libexec/onpc-setup'
 
@@ -22,7 +22,7 @@ def arguments(argv=None):
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--mode', required=True, choices=('auto', 'manual'),
                         help='auto: restore baseline and update Ubuntu; manual: prepare current VM state')
-    parser.add_argument('--vm', required=True, help='exact name in config/test-vm.json')
+    parser.add_argument('--vm', help='exact name in config/test-vm.json; prompts when omitted')
     parser.epilog = help_message()
     # Show the complete, short usage reminder for missing options or values.
     def error(message):
@@ -32,9 +32,28 @@ def arguments(argv=None):
     return parser.parse_args(argv)
 
 
+def choose_vm():
+    names = list(registry())
+    print('Choose a VM from config/test-vm.json:')
+    for number, name in enumerate(names, 1):
+        print(f'  {number}. {name}')
+    while True:
+        try:
+            answer = input(f'Select VM [1-{len(names)}]: ').strip()
+        except (EOFError, KeyboardInterrupt) as error:
+            raise ValueError('VM selection cancelled; supply --vm NAME to proceed') from error
+        if answer.isascii() and answer.isdecimal():
+            number = int(answer)
+            if 1 <= number <= len(names):
+                return names[number - 1]
+        print(f'Please enter a number from 1 to {len(names)}.')
+
+
 def main(argv=None):
     args = arguments(argv)
     try:
+        if args.vm is None:
+            args.vm = choose_vm()
         select(args.vm)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')

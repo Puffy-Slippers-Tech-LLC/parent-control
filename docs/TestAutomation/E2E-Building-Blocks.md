@@ -1050,7 +1050,7 @@ routes remain separate consumers.
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
 | LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | `package_install.submit_install` / `observe_install` compose FILE01/02/06 and AUTH03 with verified artifact identity, one submission and independent completion/final notice. `PackageInstallJourney` qualifies the fresh product-free install entry; [qualification](#customer-package-install-composition). No Terminal, sudo-prompt exercise or private product-state assertion. | install ready; update/remove/reinstall/purge pending |
 | LIFE05 | C | Follow the displayed activation requirement for the explicit finite list of affected apps/users: none, process reopen, session renewal, or reboot/login. | None: UI03(notice). Process: LIFE01 for each app. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | pending |
-| LIFE06 | C | Remove and restore the owned VM's Internet access through one shared distro-independent operation; independently observe offline/online state and required product results. Local test-control access remains available. | `vm_internet.InternetIsolation.enter(transport)` / `restore(lease)`; [owned VM Internet contract](#owned-vm-internet-isolation). No guest networking service, new transport or injected product fault. | VM Internet helper ready; Parent usability composition remains pending in task 193; no complete-scenario credit |
+| LIFE06 | C | Remove and restore the owned VM's Internet access through one shared distro-independent operation; independently observe offline/online state and required product results. Local test-control access remains available. | `vm_internet.InternetIsolation.enter(transport)` / `restore(lease)` and `offline_controls.offline_controls`; [owned VM Internet contract](#owned-vm-internet-isolation). No guest networking service, new transport or injected product fault. | ready for the VM Internet helper and Parent enable/disable with independent saved-state reads and same-window continuity; other product results and complete scenarios remain pending |
 
 For LIFE06, `disconnect` and `reconnect` in recipes mean remove and restore
 Internet access, not disable a guest network adapter. Use the same qualified
@@ -1095,6 +1095,23 @@ the helper denies it and probes it whenever one is available. Evidence remains
 in `onpc-graphical-smoke-d8q5v0v_` and `onpc-e2e-evidence-oqm37q1r` under
 privileged test allocations. Parent usability and other customer assertions
 remain separate qualifications.
+
+`offline_controls.offline_controls` composes declared public input/readback
+operations with that same owned isolation lifetime. It pins the Parent window's
+endpoint/PID before isolation, compares it around every input and after recovery,
+and requires independent Internet probes before, during and after isolation.
+`public_connectivity_controls.PLAN` / `qualify` reuse the unchanged UI17 control
+sequence through `onpc_parent_toggle::run`, with fresh qualified sign-in and
+PARENT01 launch rather than autologin/autostart preparation.
+`check_e2e_operate_public_connectivity_controls` passed in
+`20260930T233245Z-9d68a23f` on every enabled VM (`onpc-Ubuntu26.04`): disabled
+entry and wrong-child refusal, offline enable/disable with separate saved-state
+reads, unchanged active Parent window and Internet recovery. The affected
+`check_e2e_toggle` qualification passed in `20260930T233540Z-66f7eb21`.
+Both passed collection, owned cleanup and baseline restoration. These qualify
+the exact Parent slice; no complete offline approval/enforcement scenario is
+claimed. Runtime-binding failures retain bounded service/session state on
+private command stderr without changing input, timeout or refusal checks.
 
 ### About, feedback and customer-selected attachments
 

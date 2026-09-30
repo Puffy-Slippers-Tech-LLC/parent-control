@@ -1870,6 +1870,7 @@ def test_runtime_timeout_diagnostic_reads_only_bounded_os_state(monkeypatch, cap
     import accessible_ui
     replies = ['c7\n', 'Class=user\nType=wayland\nActive=yes\nSeat=seat0\n',
                'ActiveState=active\nSubState=running\nResult=success\n',
+               'ActiveState=activating\nSubState=start-post\nResult=success\n',
                'ActiveState=failed\nSubState=failed\nResult=exit-code\n']
     run = Mock(side_effect=[SimpleNamespace(stdout=value) for value in replies])
     monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
@@ -1879,9 +1880,30 @@ def test_runtime_timeout_diagnostic_reads_only_bounded_os_state(monkeypatch, cap
     assert document['sessions'] == [{'Class': 'user', 'Type': 'wayland',
                                      'Active': 'yes', 'Seat': 'seat0'}]
     assert document['units']['oh-no-parent-control-execution-policy-ready.service']['Result'] == 'exit-code'
-    assert len(run.call_args_list) == 4
+    assert document['units']['fapolicyd.service']['SubState'] == 'start-post'
+    assert len(run.call_args_list) == 5
     assert all(call.kwargs['timeout'] == 2 for call in run.call_args_list)
-    assert [call.args[0][1] for call in run.call_args_list] == ['show-user', 'show-session', 'show', 'show']
+    assert [call.args[0][1] for call in run.call_args_list] == ['show-user', 'show-session', 'show', 'show', 'show']
+
+
+def test_session_bus_delayed_readiness_keeps_owner_checks_without_diagnostic(tmp_path, monkeypatch):
+    import accessible_ui
+    import stat
+    clock = [0.0]
+    account = SimpleNamespace(pw_uid=12345)
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: clock.__setitem__(0, clock[0] + delay))
+    def metadata(path):
+        if clock[0] < .4:
+            raise FileNotFoundError()
+        return SimpleNamespace(st_uid=12345, st_mode=(stat.S_IFSOCK if path.name == 'bus' else stat.S_IFDIR))
+    monkeypatch.setattr(Path, 'lstat', metadata)
+    diagnostic = Mock()
+    monkeypatch.setattr(accessible_ui, 'runtime_failure_diagnostic', diagnostic)
+    result = session_environment(account, runtime_root=tmp_path, timeout=1)
+    assert result['XDG_RUNTIME_DIR'] == str(tmp_path / '12345')
+    assert clock[0] == .4
+    diagnostic.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'duplicate', 'remote', 'inactive', 'desktop', 'wrong-seat', 'root'])

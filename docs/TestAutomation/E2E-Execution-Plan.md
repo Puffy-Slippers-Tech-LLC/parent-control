@@ -19,20 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **193 — [Verify Parent usability without Internet access](E2E-Tasks/193-operate-public-connectivity-controls.md)**.
+Next task: **035p — [Install the declared native app fixtures](E2E-Tasks/035p-native-fixtures.md)**.
 
-Task 193a qualified the shared VM Internet isolation/recovery helper in
-`20260930T225447Z-420cdcde`, including controller observations, collection,
-owned cleanup and baseline restoration on every enabled VM. Task 193 now
-composes that helper with a normal Parent control action and public result.
-The helper qualification supplies no LIFE06 or complete-scenario acceptance.
-
-Task 193's first live qualification failed on `onpc-Ubuntu26.04` in
-`20260930T231801Z-a17f2640` with `e2e:worker-execution-failed`; product and
-collection results were not run. Owned cleanup and baseline restoration passed.
-Scoped host checks passed. Resume by diagnosing the retained report and private
-evidence, repairing the established cause, and rerunning the fixed qualification
-on every enabled VM before close-out.
+Task 193 qualified LIFE06's Parent control composition in
+`20260930T233245Z-9d68a23f` on every enabled VM: same-window enable/disable and
+independent saved results while offline, followed by independent Internet
+recovery. The shared UI17 worker now uses qualified sign-in and PARENT01 launch;
+its affected toggle qualification passed in `20260930T233540Z-66f7eb21`.
+Both passed collection, owned cleanup and baseline restoration. Complete
+offline scenarios remain in their separate tasks.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

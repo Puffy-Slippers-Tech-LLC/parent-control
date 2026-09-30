@@ -8007,7 +8007,8 @@ def runtime_failure_diagnostic(account, pending, elapsed_ms):
                                               props.splitlines() if '=' in line))
     except (OSError, subprocess.SubprocessError):
         document['sessions_unavailable'] = True
-    for unit in ('display-manager.service', 'oh-no-parent-control-execution-policy-ready.service'):
+    for unit in ('display-manager.service', 'fapolicyd.service',
+                 'oh-no-parent-control-execution-policy-ready.service'):
         try:
             props = read(['/usr/bin/systemctl', 'show', unit, '--no-pager',
                           '-p', 'ActiveState', '-p', 'SubState', '-p', 'Result'])

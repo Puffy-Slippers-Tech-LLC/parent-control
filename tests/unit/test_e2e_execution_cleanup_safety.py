@@ -270,7 +270,7 @@ def test_public_preparation_satisfies_real_bootstrap_input_contract(harness, mon
     @contextmanager
     def mounted(*args, **kwargs):
         (Path(args[1].commands.directory).parent / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB fixture\n')
-        yield guest
+        yield (guest, '/dev/sda2') if kwargs.get('with_root') else guest
     monkeypatch.setattr(execution.system, 'mounted_guest', mounted)
     result = run(harness)
     assert result['outcome'] == 'passed', result

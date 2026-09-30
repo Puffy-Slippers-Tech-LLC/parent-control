@@ -338,14 +338,16 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
         for node in devices.findall(name):
             devices.remove(node)
     require(graphics_type in ('spice', 'vnc'), 'guard:graphics-type')
-    # Neither display listens on a host port/socket. Graphical workers obtain
-    # VNC through libvirt's public openGraphicsFD API under the same lease.
-    graphics = ET.SubElement(devices, 'graphics', type=graphics_type)
+    # Keep SPICE first for interactive viewers and their keyboard capture.
+    # Automation uses a separate private VNC endpoint, selected by protocol.
+    # Neither console listens on a host port/socket.
+    graphics = ET.SubElement(devices, 'graphics', type='spice', autoport='yes')
     ET.SubElement(graphics, 'listen', type='none')
-    if graphics_type == 'spice':
-        graphics.set('autoport', 'yes')
-        ET.SubElement(graphics, 'clipboard', copypaste='no')
-        ET.SubElement(graphics, 'filetransfer', enable='no')
+    ET.SubElement(graphics, 'clipboard', copypaste='no')
+    ET.SubElement(graphics, 'filetransfer', enable='no')
+    if graphics_type == 'vnc':
+        graphics = ET.SubElement(devices, 'graphics', type='vnc')
+        ET.SubElement(graphics, 'listen', type='none')
     # Every lease has the same private output collector, including system and
     # maintenance work. Users receive copies, never this QEMU connection.
     from e2e_watch import display_endpoint
@@ -367,7 +369,13 @@ def validate_private_vnc(root):
     """Refuse display replacement or any host listener, including normalized XML."""
     displays = root.findall('devices/graphics')
     validate_observer(displays)
-    display = displays[0]
+    # Retain legacy VNC-only layouts for recorded cleanup and recovery.
+    if displays[0].get('type') == 'spice':
+        validate_private_spice(displays[0])
+        require(len(displays) == 3, 'guard:graphics-count')
+        display = displays[1]
+    else:
+        display = displays[0]
     require(display.get('type') == 'vnc' and
             set(display.attrib) <= {'type', 'port', 'autoport'} and
             display.get('port', '-1') == '-1' and
@@ -379,13 +387,29 @@ def validate_private_vnc(root):
 
 def validate_observer(displays):
     # Accept the previous VNC-only layout for durable interrupted-run recovery.
-    require(len(displays) in (1, 2), 'guard:graphics-count')
-    if len(displays) == 2:
-        observer = displays[1]
+    require(len(displays) in (1, 2, 3), 'guard:graphics-count')
+    if len(displays) == 3:
+        require([display.get('type') for display in displays[:2]] == ['spice', 'vnc'],
+                'guard:graphics-endpoint')
+    if len(displays) >= 2:
+        observer = displays[-1]
         require(observer.attrib == {'type': 'dbus', 'p2p': 'yes'} and
                 len(observer) == 1 and observer[0].tag == 'gl' and
                 observer[0].attrib == {'enable': 'no'} and len(observer[0]) == 0,
                 'guard:graphics-observer-endpoint')
+
+
+def validate_private_spice(display):
+    """Preserve keyboard capture without reintroducing SPICE host transfers."""
+    require(display.get('type') == 'spice' and
+            set(display.attrib) <= {'type', 'port', 'tlsPort', 'autoport'} and
+            display.get('port', '-1') == display.get('tlsPort', '-1') == '-1' and
+            display.get('autoport') == 'yes', 'guard:graphics-endpoint')
+    require(len(display) == 3 and
+            {child.tag: dict(child.attrib) for child in display} == {
+                'listen': {'type': 'none'}, 'clipboard': {'copypaste': 'no'},
+                'filetransfer': {'enable': 'no'}} and
+            all(len(child) == 0 for child in display), 'guard:graphics-listener')
 
 
 class SourceView:
@@ -1086,16 +1110,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
                 (row['app2_name'], row['app2_version'])
                 for row in g.inspect_list_applications2(root))
             log('bootstrap:fedora-tools-ready')
-        # The removed preparation-only share must not prevent boot via fstab.
-        fstab = g.read_file('/etc/fstab').decode()
-        lines = []
-        for line in fstab.splitlines():
-            fields = line.split()
-            if fields and not fields[0].startswith('#') and len(fields) >= 3 and fields[2] in {'virtiofs', '9p'}:
-                require(fields[1] == '/Data', 'bootstrap:unexpected-share')
-                continue
-            lines.append(line)
-        g.write('/etc/fstab', ('\n'.join(lines) + '\n').encode())
+        # Mount configuration belongs to the VM owner. Isolation must not edit
+        # /etc/fstab, including entries for shares absent from this attempt.
         marker = {'purpose': 'onpc-system-test', 'run': lease.state['run'],
                   'domain_uuid': lease.source.uuid,
                   'machine_id': g.read_file('/etc/machine-id').decode().strip(),
@@ -1151,7 +1167,7 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
         g.chmod(0o600, authorized)
         if os_id == 'fedora':
             policy = baseline.guest_contract.selinux_policy(g.read_file('/etc/selinux/config').decode())
-            paths = ['/etc/fstab', '/etc/onpc-system-test.json', ssh_directory]
+            paths = ['/etc/onpc-system-test.json', ssh_directory]
             # Match baseline preparation's supported mounted-guest setfiles
             # route when the host appliance lacks SELinux relabel support.
             if not g.feature_available(['selinuxrelabel']):

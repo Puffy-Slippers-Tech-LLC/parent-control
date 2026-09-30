@@ -120,7 +120,8 @@ Signed-By:
 @pytest.mark.parametrize('failure', [None, 'write', 'readback', 'missing-tools', 'symlink'])
 @pytest.mark.parametrize('observation_only', [False, True])
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only, package_format):
+@pytest.mark.parametrize('share_type', ['virtiofs', '9p'])
+def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only, package_format, share_type):
     commands, lease, guestfs = Mock(), Mock(), Mock()
     lease.capture.state = {'source': {'layout': {'disk': '/guarded-image'}},
                            'guest': {'preparation_record_sha256': 'e' * 64}}
@@ -131,6 +132,11 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
         (tmp_path / ('input/package.' + package_format)).write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     g, files = bootstrap_guest()
+    fstab = (b'# Owner-managed mounts; preserve spacing and final newline state.\n'
+             b'/dev/sda2 / ext4 defaults 0 1\n'
+             b'Data\t/Data\t' + share_type.encode() + b'\tdefaults 0 0\n'
+             b'other /other 9p nofail 0 0')
+    files['/etc/fstab'] = fstab
     if package_format == 'rpm':
         from guest_test_dependencies import FEDORA_VERSIONS
         g.inspect_get_distro.return_value = 'fedora'
@@ -194,7 +200,10 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
         if package_format == 'rpm':
             g.command.assert_called_once_with(['/usr/sbin/setfiles', '-m',
                 '/etc/selinux/targeted/contexts/files/file_contexts',
-                '/etc/fstab', '/etc/onpc-system-test.json', '/root/.ssh'])
+                '/etc/onpc-system-test.json', '/root/.ssh'])
+    assert files['/etc/fstab'] == fstab
+    for method in (g.read_file, g.write, g.chmod, g.chown, g.selinux_relabel):
+        assert all('/etc/fstab' not in call.args for call in method.call_args_list)
     assert [call.args[0][0] for call in commands.run.call_args_list] == ['ssh-keygen']
 
 

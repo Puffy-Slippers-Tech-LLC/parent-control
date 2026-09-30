@@ -381,14 +381,18 @@ runtime/build dependencies; existing `setup.sh --dependencies-only` installs bui
 prerequisites through its existing build-dependency route. No new setup entry
 point or privileged runtime command is introduced.
 
-Fedora is a reviewed OS category and uses one read-only RPM query for its fixed
+Package collection selects available Python APT bindings, falling back to RPM
+when those bindings are absent, independently of the OS identity category.
+The RPM collector uses one read-only query for its fixed
 20-package runtime list, including dconf. Only named packages' numeric upstream
 versions and reviewed architecture categories survive projection. Epochs,
 release revisions, origins, query stderr and arbitrary metadata are excluded.
 The same ten-second budget applies; missing packages mark collection partial,
 and a failed or malformed query marks it unavailable. Export preserves these
-reviewed Fedora rows alongside the existing Ubuntu APT rows. Ubuntu and Debian
-retain their APT collector. New frontend processes load this change; no saved
+reviewed RPM rows alongside the existing APT rows. Unreviewed distro identities
+remain `unknown` without preventing package collection. Unsupported package
+backends report `unavailable`; distro-specific package names absent from the
+fixed list report `partial`. Fedora remains a reviewed OS category. New frontend processes load this change; no saved
 data, package dependency or portal change is required.
 
 Account collection reads a bounded local passwd file transiently to enumerate

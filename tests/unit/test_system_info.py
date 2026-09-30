@@ -3,6 +3,7 @@
 from io import BytesIO
 import json
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -129,7 +130,8 @@ def test_dependency_failure_does_not_format_exception():
     assert info.dependency_info(BrokenCache())["status"] == "unavailable"
 
 
-def test_fedora_dependency_query_is_bounded_and_survives_archive_projection(monkeypatch):
+def test_rpm_dependency_query_is_bounded_and_survives_archive_projection(monkeypatch):
+    monkeypatch.setitem(sys.modules, "apt", None)
     def query(command, **kwargs):
         assert command == ["/usr/bin/rpm", "--query", "--queryformat",
                            "%{NAME}\t%{VERSION}\t%{ARCH}\n", "--", *info.RPM_DIAGNOSTIC_PACKAGES]
@@ -139,7 +141,7 @@ def test_fedora_dependency_query_is_bounded_and_survives_archive_projection(monk
                 if name != "dconf"]
         return subprocess.CompletedProcess(command, 1, "\n".join(rows) + "\npackage dconf is not installed\n", SECRET)
     monkeypatch.setattr(info.subprocess, "run", query)
-    dependencies = info.dependency_info(os_id="fedora")
+    dependencies = info.dependency_info()
     assert dependencies["status"] == "partial"
     assert {row["name"] for row in dependencies["packages"]} == set(info.RPM_DIAGNOSTIC_PACKAGES) | {"quill"}
     assert SECRET not in json.dumps(dependencies)
@@ -156,32 +158,51 @@ def test_fedora_dependency_query_is_bounded_and_survives_archive_projection(monk
 @pytest.mark.parametrize("failure", [OSError(SECRET), subprocess.TimeoutExpired([], 10),
                                      subprocess.CompletedProcess([], 2, SECRET, SECRET),
                                      subprocess.CompletedProcess([], 0, SECRET, SECRET)])
-def test_fedora_query_failures_are_explicit_and_private(monkeypatch, failure):
+def test_rpm_query_failures_are_explicit_and_private(monkeypatch, failure):
+    monkeypatch.setitem(sys.modules, "apt", None)
     def query(*args, **kwargs):
         if isinstance(failure, Exception):
             raise failure
         return failure
     monkeypatch.setattr(info.subprocess, "run", query)
-    result = info.dependency_info(os_id="fedora")
+    result = info.dependency_info()
     assert result["status"] == "unavailable"
     assert SECRET not in json.dumps(result)
 
 
-def test_fedora_dependency_deadline_does_not_launch_rpm(monkeypatch):
+def test_rpm_dependency_deadline_does_not_launch_rpm(monkeypatch):
+    monkeypatch.setitem(sys.modules, "apt", None)
     query = Mock(side_effect=AssertionError("Expired budget"))
     monkeypatch.setattr(info.subprocess, "run", query)
-    assert info.dependency_info(os_id="fedora", deadline=0)["status"] == "partial"
+    assert info.dependency_info(deadline=0)["status"] == "partial"
     query.assert_not_called()
 
 
-def test_ubuntu_dependencies_still_use_apt_and_never_launch_rpm(monkeypatch):
-    query = Mock(side_effect=AssertionError("Ubuntu must use APT"))
+def test_available_apt_backend_never_launches_rpm(monkeypatch):
+    query = Mock(side_effect=AssertionError("Available APT must use APT"))
     monkeypatch.setattr(info.subprocess, "run", query)
     cache = {name: SimpleNamespace(installed=installed(name)) for name in info.DIAGNOSTIC_PACKAGES}
-    result = info.dependency_info(cache, os_id="ubuntu")
+    monkeypatch.setitem(sys.modules, "apt", SimpleNamespace(Cache=Mock(return_value=cache)))
+    result = info.dependency_info()
     assert result["status"] == "complete"
     assert {row["name"] for row in result["packages"]} == set(info.DIAGNOSTIC_PACKAGES) | {"quill"}
     query.assert_not_called()
+
+
+@pytest.mark.parametrize("os_id", ["fedora", "opensuse-tumbleweed", "rocky", "private-brand"])
+def test_rpm_collection_does_not_depend_on_distribution_identity(monkeypatch, os_id):
+    monkeypatch.setitem(sys.modules, "apt", None)
+    monkeypatch.setattr(info, "_bounded_read", lambda path: (
+        f'ID={os_id}\nVERSION_ID="44"' if str(path) == "/etc/os-release"
+        else '{"version":"1.2"}'))
+    monkeypatch.setattr(info, "account_info", lambda _: sample_info()["accounts"])
+    query = Mock(return_value=subprocess.CompletedProcess([], 0, "\n".join(
+        f"{name}\t1.2\tx86_64" for name in info.RPM_DIAGNOSTIC_PACKAGES), ""))
+    monkeypatch.setattr(info.subprocess, "run", query)
+    result = info.collect_system_info(Mock())
+    assert result["dependencies"]["status"] == "complete"
+    assert result["os"]["id"] == (os_id if os_id in info.OS_IDS else "unknown")
+    query.assert_called_once()
 
 def test_runtime_roots_track_declared_dependencies():
     control = (Path(__file__).resolve().parents[2] / "debian/control").read_text()

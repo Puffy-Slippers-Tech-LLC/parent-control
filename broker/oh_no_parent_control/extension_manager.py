@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception
 import os
 import pwd
 import stat
@@ -326,6 +326,9 @@ class ExtensionManager:
                 # Persist the desired state for Shell to consume at next login.
                 self._set_offline(account, enabled, old_enabled, old_disabled)
         except Exception as error:
+            # Preserve the shipped failure location before the broker converts
+            # it to BackendFailure; never format private exception details.
+            record_exception(error)
             LOG.warning("extension-manager.009", enabled=enabled, error_type=error_code(error))
             try:
                 try:
@@ -345,6 +348,7 @@ class ExtensionManager:
                         "GNOME extension runtime rollback verification failed"
                     )
             except Exception as rollback_error:
+                record_exception(rollback_error)
                 LOG.critical(
                     "extension-manager.010",
                     enabled=enabled,

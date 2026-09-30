@@ -16,7 +16,8 @@ from oh_no_parent_control.extension_manager import (
 class GnomeRecoveryState:
     """Stateful public-command fake, including GNOME's global disable switch."""
 
-    def __init__(self, *, inactive=False, ignore_switch=False, rollback_failure=False):
+    def __init__(self, *, inactive=False, ignore_switch=False, rollback_failure=False,
+                 ignore_lists=False):
         self.values = {
             ENABLED_KEY: ["other-enabled@example.com"],
             DISABLED_KEY: [UUID, "other-disabled@example.com"],
@@ -25,6 +26,7 @@ class GnomeRecoveryState:
         self.inactive = inactive
         self.ignore_switch = ignore_switch
         self.rollback_failure = rollback_failure
+        self.ignore_lists = ignore_lists
         self.commands = []
 
     def run(self, _account, arguments, **_kwargs):
@@ -40,7 +42,7 @@ class GnomeRecoveryState:
                     raise RuntimeError("private-command-canary")
                 if not self.ignore_switch:
                     self.values[key] = value == "true"
-            else:
+            elif not self.ignore_lists:
                 self.values[key] = ast.literal_eval(value)
         elif arguments[:2] == ("gnome-extensions", "enable"):
             if UUID in self.values[DISABLED_KEY]:
@@ -140,6 +142,32 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertIn({"key": DISABLE_ALL_KEY, "stage": "switch", "matches": False}, verification)
         self.assertIn({"key": ENABLED_KEY, "stage": "rollback", "matches": True}, verification)
         self.assertIn({"key": DISABLED_KEY, "stage": "rollback", "matches": True}, verification)
+        fault = next(item for item in payloads if item["event"] == "runtime.fault")
+        self.assertEqual(fault["fields"]["source"], "extension-manager")
+        self.assertEqual(fault["fields"]["error_type"], "RuntimeError")
+        self.assertGreater(fault["fields"]["line"], 0)
+        self.assertNotIn("other-enabled@example.com", "\n".join(logs.output))
+        self.assertNotIn("diagnostic.rejected", [item["event"] for item in payloads])
+
+    def test_offline_uncommitted_settings_log_failure_and_verified_rollback(self):
+        state = GnomeRecoveryState(ignore_lists=True)
+        state.values[DISABLE_ALL_KEY] = False
+        before = {key: value[:] if isinstance(value, list) else value
+                  for key, value in state.values.items()}
+        with self.assertLogs("onpc", "INFO") as logs:
+            with self.assertRaisesRegex(RuntimeError, "activation verification failed"):
+                self._recover(state, live=False)
+        payloads = [decode(record.onpc_payload) for record in logs.records]
+        verification = [item["fields"] for item in payloads
+                        if item["event"] == "extension-manager.setting-verification"]
+        self.assertIn({"key": ENABLED_KEY, "stage": "offline", "matches": False}, verification)
+        self.assertIn({"key": ENABLED_KEY, "stage": "rollback", "matches": True}, verification)
+        self.assertIn({"key": DISABLED_KEY, "stage": "rollback", "matches": True}, verification)
+        fault = next(item for item in payloads if item["event"] == "runtime.fault")
+        self.assertEqual(fault["fields"]["source"], "extension-manager")
+        self.assertGreater(fault["fields"]["line"], 0)
+        self.assertEqual(state.values, before)
+        self.assertNotIn("other-enabled@example.com", "\n".join(logs.output))
         self.assertNotIn("diagnostic.rejected", [item["event"] for item in payloads])
 
     def test_shell_availability_uses_standard_bus_name_ownership(self):
@@ -444,6 +472,12 @@ class ExtensionManagerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "rollback could not be verified"):
                 self._recover(state, live=True)
         self.assertIn("rollback-failed", logs.output[-1])
+        faults = [decode(record.onpc_payload) for record in logs.records
+                  if decode(record.onpc_payload)["event"] == "runtime.fault"]
+        self.assertEqual(len(faults), 2)
+        self.assertTrue(all(item["fields"]["source"] == "extension-manager"
+                            and item["fields"]["line"] > 0 for item in faults))
+        self.assertNotEqual(faults[0]["fields"]["line"], faults[1]["fields"]["line"])
         self.assertNotIn("private-command-canary", "\n".join(logs.output))
         self.assertNotIn(UUID, state.values[ENABLED_KEY])
         self.assertIn(UUID, state.values[DISABLED_KEY])

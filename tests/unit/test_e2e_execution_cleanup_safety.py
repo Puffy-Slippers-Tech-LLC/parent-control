@@ -22,6 +22,7 @@ import evidence
 import execution
 import e2e_worker
 import suite_lease
+import vm_config
 from private_artifacts import EvidenceError, PrivateCollector
 REAL_BOOTSTRAP = execution.system.bootstrap
 
@@ -555,7 +556,8 @@ def public(harness, monkeypatch):
 
 
 def test_public_main_runs_selected_callback_and_emits_post_close_result(public, capsys):
-    assert public.runner['main'](['--artifacts=' + public.plan['artifacts']]) == 0
+    assert public.runner['main']([
+        *vm_config.arguments(), '--artifacts=' + public.plan['artifacts']]) == 0
     result = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert result['outcome'] == 'passed'
     assert result['expected_cases'] == [public.case['case_id']]
@@ -589,7 +591,8 @@ def test_public_failure_is_terminal_and_retains_original_attempt(public, monkeyp
                     collector.close = fail
             return collector
         monkeypatch.setattr(execution, 'PrivateCollector', broken)
-    assert public.runner['main'](['--artifacts=' + public.plan['artifacts']]) == 1
+    assert public.runner['main']([
+        *vm_config.arguments(), '--artifacts=' + public.plan['artifacts']]) == 1
     result = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert result['outcome'] == 'failed'
     assert result['attempts'][0]['outcome'] == (

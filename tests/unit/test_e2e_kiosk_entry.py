@@ -672,6 +672,7 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     (e2e / 'public_atspi.py').write_text(reader)
     (e2e / 'block_semantics.py').write_text('SEMANTICS = True\n')
     (e2e / 'feedback_formats.py').write_text('FORMATS = True\n')
+    (e2e / 'download_destination.py').write_text('DESTINATION = True\n')
     data = tmp_path / 'data'
     data.mkdir()
     (data / 'app.json').write_text('{"version": "1.1"}')
@@ -691,7 +692,11 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
         'feedback_formats = types.ModuleType("feedback_formats")\n'
         'sys.modules["feedback_formats"] = feedback_formats\n'
         'exec(compile(' + repr('FORMATS = True\n') + ', "feedback_formats.py", "exec"), '
-        'feedback_formats.__dict__)\n' + source
+        'feedback_formats.__dict__)\n'
+        'download_destination = types.ModuleType("download_destination")\n'
+        'sys.modules["download_destination"] = download_destination\n'
+        'exec(compile(' + repr('DESTINATION = True\n') + ', "download_destination.py", "exec"), '
+        'download_destination.__dict__)\n' + source
     ).encode()
 
     def call(argv, **kwargs):

@@ -12,6 +12,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **003d** — DESK04 direct logout command and independent GDM result.
 - **010** — UI17 Parent Screen time limit binding; installed qualification and owned cleanup passed.
 - **044a** — DESK10 same-desktop window switching.
+- **193a** — independent guarded management and public observations during guest test-connection loss.
+
+## Session boundary
+
+Task 193a delivers the missing shared management route first. The current
+`system_runner.isolated_xml` requires one NIC, `system_runner.address` selects
+its single DHCP address, and `InstalledJourney` shares that SSH transport with
+public UI observations. Disconnecting that connection would remove command and
+semantic result access. No live acceptance has been attempted for this task.
+Resume after 193a's guarded live qualification and cleanup pass; this task still
+owns the complete LIFE06 qualification and Parent usability assertion below.
 
 ## Read only this context
 

@@ -25,10 +25,10 @@ def reply(status='ready_for_vm', live='failed', **values):
             **values}
 
 
-def prerequisite_writes():
+def prerequisite_writes(no_dependencies='Baseline'):
     return {
         workflow.PLAN: 'Next task: **000a — [Prerequisite](E2E-Tasks/000a.md)**.\n',
-        workflow.QUEUE: '| [ ] | 000a | [Prerequisite](E2E-Tasks/000a.md) | — | Setup |\n'
+        workflow.QUEUE: f'| [ ] | 000a | [Prerequisite](E2E-Tasks/000a.md) | {no_dependencies} | Setup |\n'
                         '| [ ] | 001 | [First](E2E-Tasks/001.md) | 000a | Consumer |\n'
                         '| [ ] | 002 | Second | 001 | Later |\n',
         'docs/TestAutomation/E2E-Tasks/000a.md': 'Implement and qualify the prerequisite.\n',

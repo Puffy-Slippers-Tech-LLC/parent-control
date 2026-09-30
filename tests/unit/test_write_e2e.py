@@ -492,20 +492,21 @@ def test_queue_order_is_authoritative_and_deferred_tasks_are_excluded(tmp_path):
     assert workflow.queue_state(tmp_path)[0] is None
 
 
-def insert_prerequisite(root):
-    for name, content in prerequisite_writes().items():
+def insert_prerequisite(root, no_dependencies='Baseline'):
+    for name, content in prerequisite_writes(no_dependencies).items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
 
 
-def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp_path):
+@pytest.mark.parametrize('no_dependencies', ['Baseline', '—', '-', ''])
+def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp_path, no_dependencies):
     prepare(tmp_path)
     _, before = workflow.queue_state(tmp_path)
     state = dict(workflow.fresh_state('001'), task_sessions=3, live_attempts=2,
                  in_flight=True, stage_candidates=['partial.py'],
                  stage_baseline={'unrelated.py': 'original'}, progress_keys=['1'])
-    insert_prerequisite(tmp_path)
+    insert_prerequisite(tmp_path, no_dependencies)
     selected = workflow.accept_result(tmp_path, state,
         reply('blocked', 'not_run', host_validated=False, handoff='Keep partial consumer work.'), before)
     assert selected['task_id'] == '000a' and selected['phase'] == 'implement'
@@ -522,6 +523,7 @@ def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp
 
 
 @pytest.mark.parametrize('fault', ['unrelated', 'checked', 'missing-brief', 'forward-dependency',
+                                  'unknown-dependency', 'mixed-baseline',
                                   'extra-row', 'reordered', 'live-failure'])
 def test_prerequisite_exception_does_not_allow_skips_or_unrelated_queue_edits(tmp_path, fault):
     prepare(tmp_path)
@@ -536,7 +538,11 @@ def test_prerequisite_exception_does_not_allow_skips_or_unrelated_queue_edits(tm
     elif fault == 'missing-brief':
         (tmp_path / 'docs/TestAutomation/E2E-Tasks/000a.md').unlink()
     elif fault == 'forward-dependency':
-        text = text.replace('| — | Setup |', '| 001 | Setup |')
+        text = text.replace('| Baseline | Setup |', '| 001 | Setup |')
+    elif fault == 'unknown-dependency':
+        text = text.replace('| Baseline | Setup |', '| missing | Setup |')
+    elif fault == 'mixed-baseline':
+        text = text.replace('| Baseline | Setup |', '| Baseline, 001 | Setup |')
     elif fault == 'extra-row':
         text += '| [ ] | extra | Extra | — | Extra |\n'
     elif fault == 'reordered':
@@ -607,6 +613,89 @@ def test_multiple_inserted_prerequisites_keep_consumer_across_launcher_boundarie
     assert second['task_id'] == '000b' and second['task_sessions'] == 0
     assert second['suspended_tasks']['001']['task_sessions'] == 2
     assert workflow.select_task_state('001', second)['task_sessions'] == 2
+
+
+@pytest.mark.parametrize('task,prerequisites', [
+    ('137bc', ('901a', '008zz', '650b')),
+    ('007zz', ('850c', '120ab', '003q')),
+])
+@pytest.mark.parametrize('shape', ['single', 'chain', 'diamond', 'independent'])
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_generic_prerequisite_graph_preserves_consumer_through_completion_and_restart(
+        tmp_path, monkeypatch, task, prerequisites, shape, interrupted):
+    docs = tmp_path / workflow.QUEUE
+    docs.parent.mkdir(parents=True)
+    briefs = docs.parent / 'E2E-Tasks'
+    briefs.mkdir()
+
+    def write_queue(rows, current):
+        docs.write_text(
+            '| Done | ID | Task | Requires tasks | Delivered scope | Minutes |\n'
+            + ''.join(f'| [{"x" if done else " "}] | {key} | '
+                      f'[Task](E2E-Tasks/{key}.md) | {requires} | Scope | 20–30 |\n'
+                      for key, done, requires in rows)
+            + '## Deferred future work\n| [ ] | 999 | Deferred | Baseline | Later | 20–30 |\n')
+        (tmp_path / workflow.PLAN).write_text(f'Next task: **{current} — Task**.\n')
+        for key, _, _ in rows:
+            (briefs / f'{key}.md').write_text(f'# {key} — Task\n')
+
+    original = [('950a', True, 'Baseline'), ('800b', True, '950a'),
+                (task, False, '950a, 800b'), ('020q', False, task)]
+    write_queue(original, task)
+    _, before = workflow.queue_state(tmp_path)
+    consumer = dict(workflow.fresh_state(task), in_flight=True, task_sessions=4,
+                    live_attempts=2, stage_candidates=['partial.py'],
+                    stage_baseline={'unrelated.py': 'original'}, queue_before=before,
+                    handoff='Resume retained consumer work after its prerequisites.')
+    previous = tmp_path / 'previous-run'
+    previous.mkdir()
+    checkpoint = previous / 'checkpoint.json'
+    checkpoint.write_text(json.dumps(consumer))
+    retained = checkpoint.read_bytes()
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
+
+    first, second, third = prerequisites
+    graphs = {
+        'single': [(first, 'Baseline')],
+        'chain': [(first, 'Baseline'), (second, first), (third, second)],
+        'diamond': [(first, 'Baseline'), (second, '950a'), (third, f'{first}, {second}')],
+        'independent': [(first, 'Baseline'), (second, 'Baseline'), (third, '950a')],
+    }
+    graph = graphs[shape]
+    required = ', '.join(key for key, _ in graph) if shape == 'independent' else graph[-1][0]
+    rows = [*original[:2], *((key, False, requires) for key, requires in graph),
+            (task, False, f'{required}, 800b'), original[-1]]
+    write_queue(rows, first)
+    selected = (workflow.initial_state(tmp_path, tmp_path) if interrupted else
+                workflow.accept_result(tmp_path, consumer,
+                    reply('blocked', 'not_run', task_id=task, host_validated=False,
+                          handoff=consumer['handoff']), before))
+    assert selected['task_id'] == first
+    assert selected['phase'] == ('recover' if interrupted else 'implement')
+    assert selected['task_sessions'] == selected['live_attempts'] == 0
+    assert selected['stage_candidates'] == []
+    assert checkpoint.read_bytes() == retained
+
+    # Complete each prerequisite in table order, restarting at every boundary.
+    # Task IDs deliberately differ from numeric order and from the original incident.
+    for index, (key, _) in enumerate(graph):
+        assert selected['task_id'] == key and selected['task_sessions'] == 0
+        _, prior = workflow.queue_state(tmp_path)
+        next_task = graph[index + 1][0] if index + 1 < len(graph) else task
+        rows = [(identity, done or identity == key, requires) for identity, done, requires in rows]
+        write_queue(rows, next_task)
+        selected = workflow.accept_result(tmp_path, selected,
+            reply('task_complete', 'passed', task_id=key), prior)
+        checkpoint.write_text(json.dumps(selected))
+        selected = workflow.initial_state(tmp_path, tmp_path)
+
+    assert selected['task_id'] == task and selected['phase'] == 'recover'
+    assert selected['task_sessions'] == 4 and selected['live_attempts'] == 2
+    assert selected['stage_candidates'] == ['partial.py']
+    assert selected['stage_baseline'] == {'unrelated.py': 'original'}
+    assert selected['handoff'] == consumer['handoff']
+    assert not selected['in_flight']
+    assert all(workflow.queue_state(tmp_path)[1][key] == done for key, done in before.items())
 
 
 @pytest.mark.parametrize('value', ['0', '-1', 'garbage', '1.5'])

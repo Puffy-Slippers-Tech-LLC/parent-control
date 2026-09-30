@@ -544,6 +544,16 @@ Private key copies and command artifacts remain in shared root-private scratch;
 stdout/stderr return to the authenticated caller and the existing filtered watch
 transcript. Setup refresh installs this route and any missing OpenSSH client via
 `./setup.sh --test-tools-only`, without new Polkit actions or general SSH grants.
+The direct `tools/test-vm` and `./tools/test-vm` prefixes already approve every
+guest command after `exec --`, including guest shells and interpreters, for
+current configured IDs and names. Do not add selector-specific or host-shell
+grants. Keep the host invocation a simple literal command: complex embedded
+quoting can prevent Codex's shell parser from extracting the launcher prefix.
+For large guest scripts or text payloads, pass a shell-quoted literal encoded
+argument and decode it inside the guest rather than embedding multiline source
+or shell quote concatenations. Encoding changes transport only; guest identity,
+ownership, observation and authorization checks still apply. A rules refresh
+does not change that parser boundary or reload the current Codex process.
 Rename accepts only a destination label, preserving the UUID and disks. It
 records original metadata before mutation and rolls back checked failures;
 interrupted records remain a refusal gate. After renaming, update `name` in the

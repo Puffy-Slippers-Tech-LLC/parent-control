@@ -61,6 +61,29 @@ def test_tool_allowance_does_not_cancel_general_interpreter_prompts(command):
             if matches(rule['pattern'], shlex.split(command))} == {'prompt'}
 
 
+@pytest.mark.parametrize('executable', ['tools/test-vm', './tools/test-vm'])
+@pytest.mark.parametrize('guest', [
+    ['journalctl', '--no-pager', '-n', '100'],
+    ['python3', '-c', 'print(1)'],
+    ['/usr/bin/python3', '-c', 'print(1)'],
+    ['sh', '-c', 'printf probe'],
+    ['/bin/bash', '-lc', 'printf probe'],
+    ['systemctl', 'show', 'oh-no-parent-control-broker.service'],
+])
+def test_configured_vm_probe_uses_existing_launcher_allowance(executable, guest):
+    # These are guest argv tokens, not separately executed host commands.
+    # The launcher resolves current registry IDs/names and enforces ownership.
+    # No selector-specific grant should need renewal when the registry changes.
+    import json
+    registry = json.loads((ROOT / 'config/test-vm.json').read_text())
+    rules = [*entries('codex-read-only.rules'), *entries()]
+    for vm in registry['vms']:
+        for selector in (str(vm['id']), vm['name']):
+            argv = [executable, '--vm', selector, 'exec', '--timeout', '30', '--', *guest]
+            assert [rule['decision'] for rule in rules
+                    if matches(rule['pattern'], argv)] == ['allow']
+
+
 @pytest.mark.parametrize('command', [
     'tools/random.py --help', '/tmp/tools/read-only run',
     'pkexec tools/read-only status', 'apply_patch arbitrary',

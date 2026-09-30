@@ -37,6 +37,11 @@ class PrivateError(Exception):
     ("The key is not writable", "settings-not-writable"),
     ("No such schema", "settings-schema-missing"),
     ("dconf will not work properly", "dconf-runtime-unavailable"),
+    ("dbus-daemon[987654]: Failed to start message bus: Cannot acquire AVC netlink fd: "
+     "Address family not supported by protocol\n"
+     "dbus-run-session: dbus-daemon exited with code 1\n"
+     "failed to commit changes to dconf: Could not connect: No such file or directory", "dconf-commit-failed"),
+    ("dbus-run-session: dbus-daemon exited with code 1", "other"),
     ("", "other"),
 ])
 def test_gnome_warning_projection_never_exports_stderr(tmp_path, caplog, marker, reason):
@@ -59,6 +64,14 @@ def test_gnome_warning_projection_never_exports_stderr(tmp_path, caplog, marker,
         exported = "".join(archive.read(name).decode() for name in archive.namelist())
     assert SECRET not in exported
     assert "reason=" + reason in exported
+    assert "987654" not in exported
+    if "dbus-run-session: dbus-daemon exited with code" in marker:
+        cause = ("selinux-netlink-family-unavailable" if "Cannot acquire AVC netlink fd" in marker
+                 else "startup-failed")
+        assert "session bus startup failed" in exported
+        assert "reason=" + cause in exported
+    else:
+        assert "session bus startup failed" not in exported
 
 
 def test_unknown_values_never_enter_a_logrecord(caplog):

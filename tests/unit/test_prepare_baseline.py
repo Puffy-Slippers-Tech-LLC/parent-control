@@ -1,4 +1,8 @@
-"""Capture acceptance with real private files and mocked VM/image operations."""
+"""Capture acceptance with real private files and mocked VM/image operations.
+
+Share-validation regressions use synthetic XML and the existing private rig;
+no live VM, mount, socket or shared path is accessed. Compatible scheduling holds.
+"""
 from tests.support.vm_registry import vm_name
 
 import copy
@@ -7,7 +11,7 @@ import os
 import stat
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -555,6 +559,50 @@ def test_domain_layout_refuses_ambiguous_storage(change, rig):
         host.domain_layout(change(xml(rig.top)), UUID)
 
 
+@pytest.mark.parametrize('directory,tag', [
+    ('/Data', 'Data'), ('/Data', '/Data'),
+    ('/Data/Code/PST', 'pst'), ('/Data/projects/example', 'project-files'),
+])
+def test_preparation_share_records_actual_directory_and_mount_tag(rig, directory, tag):
+    document = xml(rig.top).replace("dir='/Data'", f"dir='{directory}'").replace(
+        "dir='Data'", f"dir='{tag}'")
+    assert host.domain_layout(document, UUID)['source_shares'] == [
+        {'type': 'virtiofs', 'source': directory, 'target': tag, 'preparation_only': True}]
+
+
+@pytest.mark.parametrize('directory,tag', [
+    ('/home', 'pst'), ('/Database', 'pst'), ('Data/Code/PST', 'pst'),
+    ('/Data/../home', 'pst'), ('/Data/Code/../../home', 'pst'),
+    ('/Data/./Code', 'pst'), ('/Data//Code', 'pst'), ('/Data/Code/', 'pst'),
+    ('/Data/Code&#10;PST', 'pst'),
+    ('/Data/Code/PST', ''), ('/Data/Code/PST', '.'), ('/Data/Code/PST', '..'),
+    ('/Data/Code/PST', '/mnt/pst'), ('/Data/Code/PST', 'bad tag'),
+])
+def test_preparation_share_refuses_outside_storage_or_ambiguous_names(rig, directory, tag):
+    document = xml(rig.top).replace("dir='/Data'", f"dir='{directory}'").replace(
+        "dir='Data'", f"dir='{tag}'")
+    with pytest.raises(host.CaptureError, match='guard:filesystem-share'):
+        host.domain_layout(document, UUID)
+
+
+@pytest.mark.parametrize('change', [
+    lambda value: value.replace("type='virtiofs'", "type='9p'"),
+    lambda value: value.replace("filesystem type='mount'", "filesystem type='file'"),
+    lambda value: value.replace("<driver type='virtiofs'/>", ''),
+    lambda value: value.replace("<source dir='/Data'/>", ''),
+    lambda value: value.replace("<target dir='Data'/>", ''),
+    lambda value: value.replace("<source dir='/Data'/>", "<source dir='/Data'/><source dir='/home'/>"),
+    lambda value: value.replace("<driver type='virtiofs'/>", "<driver type='virtiofs'/><driver type='9p'/>"),
+    lambda value: value.replace("<target dir='Data'/>", "<target dir='Data'/><target dir='other'/>"),
+    lambda value: value.replace('</devices>',
+        "<filesystem type='mount'><driver type='virtiofs'/><source dir='/Data/Code/PST'/>"
+        "<target dir='pst'/></filesystem></devices>"),
+])
+def test_preparation_share_refuses_unsupported_or_duplicate_devices(rig, change):
+    with pytest.raises(host.CaptureError, match='guard:filesystem-share'):
+        host.domain_layout(change(xml(rig.top)), UUID)
+
+
 def test_malformed_xml_refused():
     with pytest.raises(host.ET.ParseError):
         host.domain_layout("<domain", UUID)
@@ -1069,6 +1117,31 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
     assert host.main(["--vm", vm_name(), "--check-tools"]) == 1
     assert "run ./setup.sh" in capsys.readouterr().err
     connect.assert_not_called()
+
+
+def test_unsupported_share_diagnostic_preserves_vm_and_controller_state(monkeypatch, capsys):
+    monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
+    monkeypatch.setattr(host.guest_contract, 'CHECKOUT', ROOT)
+    monkeypatch.setattr(host.shutil, 'which', lambda name: f'/usr/bin/{name}')
+    monkeypatch.setattr(host.importlib, 'import_module', Mock())
+    monkeypatch.setattr(host.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(host.os, 'getegid', lambda: 0)
+    monkeypatch.setattr(host.threading, 'Thread', Mock())
+    source = Mock()
+    source.snapshot.side_effect = host.CaptureError('guard:filesystem-share')
+    monkeypatch.setattr(host, 'LibvirtSource', Mock(return_value=source))
+    state_root, capture = Mock(), Mock()
+    monkeypatch.setattr(host, 'prepare_state_root', state_root)
+    monkeypatch.setattr(host, 'Capture', capture)
+
+    assert host.main(['--vm', vm_name(), '--mode', 'manual', '--y']) == 1
+    output = capsys.readouterr().err
+    assert 'at most one mount-type virtiofs share from /Data or a subdirectory' in output
+    assert 'recovery-phase:before-validation' in output
+    assert 'retain snapshot and controller state' in output
+    state_root.assert_not_called()
+    capture.assert_not_called()
+    assert source.mock_calls == [call.snapshot(), call.close()]
 
 
 @pytest.mark.parametrize('missing_baseline', [False, True])

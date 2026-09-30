@@ -26,7 +26,7 @@ def snapshot(memory):
 
 def main():
     mode = sys.argv[1:]
-    require(mode in ([], ['--experiment'], ['--stopped']) and os.geteuid() == 0, 'probe-context')
+    require(mode in ([], ['--experiment'], ['--internet'], ['--stopped']) and os.geteuid() == 0, 'probe-context')
     uid = int(os.environ['PKEXEC_UID'])
     require(uid > 0, 'probe-user')
     os.setgroups([])
@@ -69,7 +69,10 @@ def main():
                                   if last else None)}), file=sys.stderr, flush=True)
     require(first is not None, 'probe-no-live-frame')
     progress = first[1].get('progress', {})
-    if mode == ['--experiment']:
+    if mode == ['--internet']:
+        require(activity.get('operation') == 'Qualifying VM Internet isolation'
+                and activity.get('operation_started_ns', 0) > 0, 'probe-no-internet-intent')
+    elif mode == ['--experiment']:
         require(not progress and activity.get('operation') == 'Qualifying VM maintenance observation'
                 and activity.get('operation_started_ns', 0) > 0, 'probe-no-experiment-intent')
     else:

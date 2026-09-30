@@ -254,7 +254,11 @@ suite, while live ownership and isolation checks remain active throughout.
 Final acceptance requires the closing audit and actual lease release. No
 case may continue after a failure. See [suite controller](../e2e/suite_lease.py).
 
-The preparation `/Data` virtiofs share is outside VM disk state. A snapshot
+Preparation accepts at most one mount-type virtiofs share from `/Data` or a
+subdirectory, with a simple mount tag such as `Data` or `pst` (the legacy `/Data`
+tag also remains accepted). The recorded source and tag must match on reuse;
+paths outside `/Data`, traversal and ambiguous layouts are refused.
+This preparation share is outside VM disk state. A snapshot
 restore may reintroduce its saved domain configuration, so every test boot
 requires the runner's share-detachment checks. Do not manually restore and boot
 the VM using a copied command sequence that bypasses these guards. External

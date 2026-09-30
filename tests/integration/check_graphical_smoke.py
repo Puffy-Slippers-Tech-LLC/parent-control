@@ -671,7 +671,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          synthetic_files=False, document_open=False, archive_open=False, source_change=False,
          file_chooser=False, save_chooser=False, diagnostic_export=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
-         feedback_formats=False, feedback_link_semantics=False, real_interval=False):
+         feedback_formats=False, feedback_link_semantics=False, real_interval=False,
+         independent_network=False):
+    require(type(independent_network) is bool and (not independent_network or (
+        assets is not None and provision_credentials and fresh_desktop == 'parent'
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'independent_network')
+            and isinstance(value, bool)))), 'smoke:independent-network-prerequisites')
     require(type(real_interval) is bool and (not real_interval or (
         assets is not None and provision_credentials and fresh_desktop is None and approval_flow is None
         and not any(value for name, value in locals().items()
@@ -1342,6 +1348,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-app-restart-qualification'
         if real_interval:
             result['scope'] = 'installed-real-interval-qualification'
+        if independent_network:
+            result['scope'] = 'installed-independent-network-qualification'
         if repeated_operations:
             result['scope'] = 'installed-repeated-operations-qualification'
         if challenges:
@@ -1434,6 +1442,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     if source_change:
                         from parent_setup_qualification import SourceChangeQualification
                         qualification_class = SourceChangeQualification
+                    if independent_network:
+                        from parent_setup_qualification import IndependentNetworkQualification
+                        qualification_class = IndependentNetworkQualification
                 if fresh_desktop == 'standard':
                     from parent_setup_qualification import FreshStandardDesktopQualification
                     qualification_class = FreshStandardDesktopQualification

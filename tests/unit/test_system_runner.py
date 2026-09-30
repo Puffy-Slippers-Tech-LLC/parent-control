@@ -1,4 +1,8 @@
-"""Host-safe guard/transport tests; real temporary files, no live VM operations."""
+"""Host-safe guard/transport tests; real temporary files, no live VM operations.
+
+Share-isolation variants transform only synthetic XML in memory; no host mounts,
+VM, socket or shared path is accessed. Compatible scheduling remains appropriate.
+"""
 from tests.support.vm_registry import vm_name
 
 import copy
@@ -196,8 +200,11 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
 
 
 
-def test_isolation_removes_shares_and_spice_transfer_but_preserves_disk():
-    root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN))
+@pytest.mark.parametrize('directory,tag', [('/Data', 'Data'), ('/Data/Code/PST', 'pst')])
+def test_isolation_removes_shares_and_spice_transfer_but_preserves_disk(directory, tag):
+    document = xml().replace('dir="/Data"', f'dir="{directory}"').replace(
+        'dir="Data"', f'dir="{tag}"')
+    root = ET.fromstring(runner.isolated_xml(document, UUID, RUN))
     assert root.findtext('uuid') == UUID
     assert root.find('devices/disk/source').get('file') == '/image'
     for name in ('filesystem', 'channel', 'redirdev', 'hostdev'):

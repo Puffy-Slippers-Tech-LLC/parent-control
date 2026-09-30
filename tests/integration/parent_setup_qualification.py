@@ -413,6 +413,20 @@ class FreshParentDesktopQualification(FreshDesktopQualification):
     role = 'parent'
 
 
+class IndependentNetworkQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from dataclasses import replace
+        from app_snapshot import snapshot_name
+        from fresh_desktop import PARENT_PLAN
+        from installed_journey import InstalledJourney
+        from vm_internet_qualification import qualify
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        plan = replace(PARENT_PLAN, stage_actions={'desktop': 'independent-network'})
+        return InstalledJourney(context, progress, plan, actions={'independent-network': qualify})
+
+
 class SyntheticFilesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

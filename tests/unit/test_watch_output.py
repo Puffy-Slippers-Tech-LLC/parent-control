@@ -13,6 +13,39 @@ import pytest
 from test_storage import directory
 from tests.support.terminal_screen import Terminal
 from watch_output import Output, TerminalWriter, TAIL_BYTES
+from watch_viewer import viewer_entries
+
+
+def test_viewer_vm_ids_are_numeric_and_duplicate_checkouts_follow_the_controller():
+    entries = {
+        ('main', 'ui-first'): ('ui', 'UI first', True, True),
+        ('main', 'vm-ten'): ('idle ten', 'Ten', False, False),
+        ('main', 'vm-two'): ('unlocked two', 'Two', True, False),
+        ('main', 'vm-legacy'): ('legacy', 'Legacy', True, True),
+        ('worktree', 'ui-second'): ('ui', 'UI second', True, True),
+        ('worktree', 'vm-ten'): ('active ten', 'Ten', True, True),
+        ('worktree', 'vm-two'): ('controller two', 'Two', True, True),
+    }
+    ids = {entry: ('10' if entry[1] == 'vm-ten' else 2)
+           for entry in entries if entry[1] in ('vm-ten', 'vm-two')}
+    selected = viewer_entries(entries, vm_ids=ids)
+    assert list(selected) == [('main', 'ui-first'), ('worktree', 'ui-second'),
+                             ('worktree', 'vm-two'), ('worktree', 'vm-ten'),
+                             ('main', 'vm-legacy')]
+    assert selected['worktree', 'vm-two'][0] == 'controller two'
+    assert list(viewer_entries(entries, scope='main', vm_ids=ids)) == [
+        ('main', 'ui-first'), ('main', 'vm-two'), ('main', 'vm-ten'), ('main', 'vm-legacy')]
+    entries['worktree', 'vm-two'] = ('idle two', 'Two', False, False)
+    selected = viewer_entries(entries, vm_ids=ids)
+    assert selected['main', 'vm-two'][0] == 'unlocked two'
+    assert ('worktree', 'vm-two') not in selected
+
+
+def test_viewer_legacy_vm_order_is_stable_when_all_sources_are_idle():
+    entries = {('worktree', 'vm-z'): ('z', 'Z', False, False),
+               ('main', 'vm-a'): ('a', 'A', False, False),
+               ('main', 'vm-z'): ('duplicate z', 'Z', False, False)}
+    assert list(viewer_entries(entries)) == [('worktree', 'vm-z'), ('main', 'vm-a')]
 
 
 @contextmanager

@@ -77,7 +77,8 @@ A trusted Polkit agent authenticates the selected administrator. Product front
 ends never handle the administrator password.
 Normal management, approval and enforcement use local services. Only explicitly
 opened online links and submitted feedback require Internet access; the broker's
-service sandbox permits Unix sockets, not Internet sockets.
+service sandbox permits Unix sockets and local netlink sockets (needed by the
+offline session bus for SELinux AVC monitoring), not Internet sockets.
 
 ## State ownership and shared constraints
 

@@ -9,10 +9,11 @@ from pathlib import Path
 import sys
 import threading
 import time
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import Frames, SIZE
-from e2e_watch_viewer import AsyncFeed, Feed
+from e2e_watch_viewer import Feed
 from ui_watch_transport import Feeds, Publication
 from watch_output import Output
 from watch_viewer import application
@@ -75,9 +76,15 @@ def runner(kind, text):
 
 vm_names = [os.environ['ONPC_TEST_VM'], 'Fixture-VM-2', 'Fixture-VM-3',
             'Fixture-VM-4', 'Fixture-VM-5']
-vm_feeds = {name: AsyncFeed(VM(name)) for name in vm_names}
-app = application(feeds=Feeds(runtime), vm_feeds=vm_feeds,
-                  output=Output(root))
+vm_ids = dict(zip(vm_names, ('10', 2, '30', 4, '1')))
+(root / 'config').mkdir()
+(root / 'config/test-vm.json').write_text(json.dumps({'vms': [
+    dict(name=name, id=vm_ids[name], enabled='false', disk_anchor='/unused/' + name + '.qcow2')
+    for name in reversed(vm_names)]}))
+# Use production registration/ID loading with only the VM transport replaced.
+# Synthetic memfds have no privileged host registration to bind to a checkout.
+stack.enter_context(patch('e2e_watch_viewer.Feed', lambda name, *, root: VM(name)))
+app = application(feeds=Feeds(runtime), output=Output(root), checkouts={root: 'Fixture'})
 import gi
 gi.require_version('Vte', '3.91')
 from gi.repository import GLib, Gtk, Vte
@@ -189,6 +196,7 @@ def tick():
         for source in extra_sources.values():
             source.publish()
         result['vm_names'] = vm_names
+        result['vm_ids'] = vm_ids
         result['vm_cells'] = {
             name: list(app.vm_grid.query_child(app.cells[str(app.primary.root), key][0]))
             for name, key in app.vm_keys.items()
@@ -199,6 +207,11 @@ def tick():
             if cell.get_parent() == app.vm_grid}
         result['vm_tabs'] = {name: app.buttons[key].get_opacity()
                              for name, key in app.vm_keys.items()}
+        result['top_tabs'] = []
+        tab = app.scopes[app.selected_checkout]['bar'].get_first_child()
+        while tab is not None:
+            result['top_tabs'].append(tab.get_label())
+            tab = tab.get_next_sibling()
         result['selected'] = app.selected
         result['stage'] = stage
         result['output_active'] = app.output_active
@@ -226,7 +239,8 @@ finally:
         vm_source.close()
     for source in extra_sources.values():
         source.close()
-    for feed in vm_feeds.values():
+    for view in app.vms.values():
+        feed = view.feed
         feed.close()
         feed.thread.join(2)
         assert not feed.thread.is_alive()

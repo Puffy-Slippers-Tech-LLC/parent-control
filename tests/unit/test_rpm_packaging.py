@@ -38,6 +38,9 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert (payload / 'usr/lib/oh-no-parent-control/parent/oh_no_parent_control_parent/main.py').is_file()
     broker = (payload / 'usr/lib/systemd/system/oh-no-parent-control-broker.service').read_text()
     assert 'Group=wheel\n' in broker and 'Group=sudo' not in broker
+    unit = configparser.ConfigParser(strict=False, interpolation=None)
+    unit.read_string(broker)
+    assert set(unit['Service']['RestrictAddressFamilies'].split()) == {'AF_UNIX', 'AF_NETLINK'}
     agent = (payload / 'usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service').read_text()
     assert 'Type=simple\n' in agent
     assert 'ExecStart=/usr/libexec/polkit-mate-authentication-agent-1\n' in agent

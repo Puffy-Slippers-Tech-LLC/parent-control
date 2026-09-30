@@ -159,13 +159,16 @@ def run(root):
             viewer_cells = {app.cells[entry][1].get_label(): list(scope['grid'].query_child(cell))
                             for entry, (cell, _title) in app.cells.items()
                             if cell.get_parent() == scope['grid']}
+            viewer_sources = {app.cells[entry][1].get_label(): labels[Path(entry[0])]
+                              for entry, (cell, _title) in app.cells.items()
+                              if cell.get_parent() in (scope['grid'], *scope['bodies'].values())}
             top_tabs = []
             tab = scope['bar'].get_first_child()
             while tab is not None:
                 top_tabs.append(tab.get_label())
                 tab = tab.get_next_sibling()
             evidence.write_text(json.dumps(dict(
-                cells=cells, viewer_cells=viewer_cells, top_tabs=top_tabs,
+                cells=cells, viewer_cells=viewer_cells, viewer_sources=viewer_sources, top_tabs=top_tabs,
                 blank=scope['blank'].get_parent() == scope['grid'],
                 terminal_heights=[view.get_height() for view in app.checkouts.values()
                                   if view.get_parent() == app.terminal_grid],

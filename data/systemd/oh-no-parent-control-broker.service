@@ -37,7 +37,9 @@ ReadWritePaths=/etc/fapolicyd
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_UNIX
+# Offline dbus-run-session needs SELinux AVC monitoring over netlink. Keep
+# Internet socket families excluded; policy and settings use local services.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
 RestrictNamespaces=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes

@@ -101,6 +101,11 @@ system-guest, provenance, package-content and snapshot modules stay compatible.
 # doubles, existing private tmp_path logs and bounded in-memory archives. They
 # launch no RPM/GNOME process and access no host package DB, bus or display;
 # extension_manager, diagnostic_privacy and system_info remain compatible.
+# Broker address-family checks read immutable unit/payload inputs; payload
+# fixtures retain their existing private build trees and resource admission.
+# Sandbox socket probes use process-local doubles, including netlink; no real
+# socket, systemd service, VM, display or shared state is touched. The existing
+# systemd_unit, package_payload, rpm_packaging and sandbox cleanup buckets hold.
 
 from pathlib import PurePosixPath
 

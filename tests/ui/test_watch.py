@@ -39,18 +39,18 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
             titles.append(f'[{name}]: UI - Category A')
             if name == 'main':
                 titles.append(f'[{name}]: UI - Category B')
-            titles.append(f'[{name}]: Fixture-VM')
+        titles.append('Fixture-VM')
         viewer_expected = {title: [index % 2, index // 2, 1, 1]
                            for index, title in enumerate(titles)}
         wait(lambda: evidence().get('viewer_cells') == viewer_expected,
-             'one flat grid orders each branch UI categories before its VM')
+             'one flat grid orders checkout UI categories before each unique VM')
         top_titles = []
         for name in ('main', 'worktree', 'third'):
             if name in names:
                 top_titles.append(f'[{name}]: UI - Category A')
                 if name == 'main':
                     top_titles.append(f'[{name}]: UI - Category B')
-            top_titles.append(f'[{name}]: Fixture-VM')
+        top_titles.append('Fixture-VM')
         assert evidence()['top_tabs'] == ['All', *top_titles]
         assert evidence()['blank'] == (len(titles) % 2 == 1)
         wait(lambda: len(evidence().get('terminal_heights', [])) == count and
@@ -77,6 +77,20 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
     wait(lambda: evidence().get('selected') == 'third', 'one click opens the active terminal branch')
     ui.activate('watch-checkout-tab-all')
     wait(lambda: evidence().get('viewer_cells') == viewer_expected, 'bottom All restores every viewer')
+    vm_key = 'vm-' + 'Fixture-VM'.encode('ascii').hex()
+    ui.activate('watch-all-watch-tab-' + vm_key)
+    wait(lambda: evidence().get('viewer_sources') == {'Fixture-VM': 'main'},
+         'one VM tab shows its active checkout source')
+    control.write_text('finish-main')
+    wait(lambda: evidence().get('viewer_sources') == {'Fixture-VM': 'worktree'},
+         'selected VM tab follows activity to another checkout without duplication')
+    assert evidence()['selected_viewer'] == vm_key
+    assert evidence()['top_tabs'].count('Fixture-VM') == 1
+    control.write_text('count-3')
+    wait(lambda: evidence().get('viewer_sources') == {'Fixture-VM': 'main'},
+         'VM source reconnects on the same selected tab')
+    ui.activate('watch-all-watch-tab-all')
+    wait(lambda: evidence().get('viewer_cells') == viewer_expected, 'All restores matching tile headings')
     control.write_text('finish-terminals')
     wait(lambda: evidence().get('output_active') == [] and len(evidence().get('cells', {})) == 1,
          'finishing terminals shrink the left panel while UI and VM viewers stay active')
@@ -94,7 +108,7 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
     control.write_text('count-1')
     wait(lambda: evidence().get('cells') == {'main': [0, 0, 1, 1]}, 'one active checkout fills All')
     main_viewers = {title: [index % 2, index // 2, 1, 1]
-                    for index, title in enumerate(titles[:3])}
+                    for index, title in enumerate((titles[0], titles[1], 'Fixture-VM'))}
     wait(lambda: evidence().get('viewer_cells') == main_viewers and evidence().get('blank'),
          'one branch still has three flat viewer cells and an empty final right cell')
     control.write_text('count-0')
@@ -192,12 +206,15 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
          'finished UI leaves VM at full height')
     wait(lambda: ui.text('watch-output-status') == 'Terminal Outputs — run-tests', 'runner resumes after repair')
     names = evidence()['vm_names']
+    ids = evidence()['vm_ids']
+    ordered_names = sorted(names, key=lambda name: int(ids[name]))
+    assert evidence()['top_tabs'] == ['All', *ordered_names]
     for count in (2, 3, 5):
         control.write_text('vms-' + str(count))
         expected = {name: [index % 2, index // 2, 1, 1]
-                    for index, name in enumerate(names[:count])}
+                    for index, name in enumerate(sorted(names[:count], key=lambda name: int(ids[name])))}
         wait(lambda: evidence().get('vm_cells') == expected,
-             'active VMs occupy successive two-column cells')
+             'active VM tiles follow the same numeric ID order as their tab headers')
         for name in names[:count]:
             prefix = 'e2e-watch-vm-' + name.encode('ascii').hex()
             assert ui.text(prefix + '-title') == name

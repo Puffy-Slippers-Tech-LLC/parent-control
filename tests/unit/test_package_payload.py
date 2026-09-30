@@ -135,6 +135,7 @@ def test_packaged_broker_preserves_private_probe_runtime(production_payload):
     assert service["RuntimeDirectoryMode"] == "0700"
     assert service["RuntimeDirectoryPreserve"] == "yes"
     assert service["ProtectSystem"] == "strict"
+    assert set(service["RestrictAddressFamilies"].split()) == {"AF_UNIX", "AF_NETLINK"}
     # systemd provisions /run at service start; it is not a package directory
     # that dpkg could delete while a separately owned transient probe remains.
     assert not (production_payload / "run").exists()

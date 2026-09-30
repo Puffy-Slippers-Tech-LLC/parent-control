@@ -163,7 +163,8 @@ def test_worker_retains_each_stage_and_failure_evidence(monkeypatch, tmp_path, f
 
 
 @pytest.mark.parametrize('fault', ['none', 'capability', 'no-new-privileges', 'seccomp',
-                                   'cgroup', 'writable', 'inet', 'socket-error', 'pid'])
+                                   'cgroup', 'writable', 'inet', 'inet6', 'netlink',
+                                   'socket-error', 'pid'])
 def test_process_observation_refuses_missing_effective_restrictions(monkeypatch, fault):
     monkeypatch.setattr(sandbox.guest, 'run', Mock(return_value='0' if fault == 'pid' else '12'))
     fields = dict(CapBnd='abc', CapEff='abc', CapAmb='c', NoNewPrivs='1', Seccomp='2')
@@ -184,17 +185,52 @@ def test_process_observation_refuses_missing_effective_restrictions(monkeypatch,
     monkeypatch.setattr(os, 'statvfs', Mock(return_value=SimpleNamespace(
         f_flag=0 if fault == 'writable' else os.ST_RDONLY)))
     connection = Mock()
-    opened = Mock(return_value=connection, side_effect=None if fault == 'inet' else
-                  OSError(errno.EIO if fault == 'socket-error' else errno.EAFNOSUPPORT, 'refused'))
+    def open_socket(family, kind, protocol=0):
+        if family == sandbox.socket.AF_NETLINK:
+            assert kind == sandbox.socket.SOCK_RAW
+            assert protocol == sandbox.socket.NETLINK_ROUTE
+            if fault == 'netlink':
+                raise OSError(errno.EAFNOSUPPORT, 'refused')
+            return connection
+        if ((fault == 'inet' and family == sandbox.socket.AF_INET) or
+                (fault == 'inet6' and family == sandbox.socket.AF_INET6)):
+            return connection
+        raise OSError(errno.EIO if fault == 'socket-error' else errno.EAFNOSUPPORT, 'refused')
+    opened = Mock(side_effect=open_socket)
+    connection.__enter__ = Mock(return_value=connection)
+    connection.__exit__ = Mock(return_value=False)
     monkeypatch.setattr(sandbox.socket, 'socket', opened)
     if fault == 'none':
         records = {}
         sandbox.observe_process(records.__setitem__)
         assert records['onpc.probe.sandbox.inet-refused']
+        assert records['onpc.probe.sandbox.inet6-refused']
+        assert records['onpc.probe.sandbox.netlink-permitted']
+        assert [call.args[0] for call in opened.call_args_list] == [
+            sandbox.socket.AF_INET, sandbox.socket.AF_INET6, sandbox.socket.AF_NETLINK]
+        connection.__exit__.assert_called_once()
     else:
-        with pytest.raises(sandbox.guest.GuestError):
+        with pytest.raises(OSError if fault == 'netlink' else sandbox.guest.GuestError):
             sandbox.observe_process(Mock())
-    if fault == 'inet':
+    if fault in {'inet', 'inet6'}:
         connection.close.assert_called_once()
-    elif fault not in {'none', 'socket-error'}:
+    elif fault not in {'none', 'socket-error', 'netlink'}:
         opened.assert_not_called()
+
+
+@pytest.mark.parametrize('families,accepted', [
+    ('AF_UNIX AF_NETLINK', True), ('AF_NETLINK AF_UNIX', True),
+    ('AF_UNIX', False), ('', False), ('AF_UNIX AF_NETLINK AF_INET', False),
+    ('AF_UNIX AF_NETLINK AF_INET6', False),
+])
+def test_sandbox_requires_only_local_socket_families(monkeypatch, families, accepted):
+    fields = dict.fromkeys(sandbox.PROPERTIES, '')
+    fields.update(ProtectSystem='strict', NoNewPrivileges='yes',
+                  RestrictAddressFamilies=families)
+    monkeypatch.setattr(sandbox.guest, 'run', Mock(return_value='\n'.join(
+        f'{key}={value}' for key, value in fields.items())))
+    if accepted:
+        assert sandbox.restrictions() == fields
+    else:
+        with pytest.raises(sandbox.guest.GuestError, match='sandbox:restrictions-missing'):
+            sandbox.restrictions()

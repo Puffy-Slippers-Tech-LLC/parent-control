@@ -35,7 +35,7 @@ def restrictions():
     guest.require(set(fields) == set(PROPERTIES), 'sandbox:properties-missing')
     guest.require(fields['ProtectSystem'] == 'strict' and
                   fields['NoNewPrivileges'] == 'yes' and
-                  fields['RestrictAddressFamilies'] == 'AF_UNIX',
+                  set(fields['RestrictAddressFamilies'].split()) == {'AF_UNIX', 'AF_NETLINK'},
                   'sandbox:restrictions-missing')
     return fields
 
@@ -148,14 +148,20 @@ def observe_process(record):
     guest.require(Path('/proc/self/cgroup').read_bytes() ==
                   (Path('/proc') / pid / 'cgroup').read_bytes(), 'sandbox:foreign-cgroup')
     guest.require(os.statvfs('/usr').f_flag & os.ST_RDONLY, 'sandbox:usr-writable')
-    try:
-        connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    except OSError as error:
-        guest.require(error.errno in {errno.EPERM, errno.EAFNOSUPPORT}, 'sandbox:socket-error')
-    else:
-        connection.close()
-        raise guest.GuestError('sandbox:inet-permitted')
-    record('onpc.probe.sandbox.inet-refused', True)
+    for family, label in ((socket.AF_INET, 'inet'), (socket.AF_INET6, 'inet6')):
+        try:
+            connection = socket.socket(family, socket.SOCK_STREAM)
+        except OSError as error:
+            guest.require(error.errno in {errno.EPERM, errno.EAFNOSUPPORT}, 'sandbox:socket-error')
+        else:
+            connection.close()
+            raise guest.GuestError('sandbox:' + label + '-permitted')
+        record('onpc.probe.sandbox.' + label + '-refused', True)
+    # Prove the family is available without subscribing or changing kernel state.
+    # Routing netlink also exists on distros where SELinux AVC is inactive.
+    with socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, socket.NETLINK_ROUTE):
+        pass
+    record('onpc.probe.sandbox.netlink-permitted', True)
 
 
 def worker():

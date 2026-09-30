@@ -125,9 +125,10 @@ def environment(root, *, scratch=True):
                   PYTHONNOUSERSITE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
     result.update(test_activity.environment())
-    from vm_selection import VARIABLE
-    if VARIABLE in os.environ:
-        result[VARIABLE] = os.environ[VARIABLE]
+    from vm_selection import VARIABLE, BATCH
+    for variable in (VARIABLE, BATCH):
+        if variable in os.environ:
+            result[variable] = os.environ[variable]
     import test_retention
     result.update(test_retention.environment())
     if scratch:

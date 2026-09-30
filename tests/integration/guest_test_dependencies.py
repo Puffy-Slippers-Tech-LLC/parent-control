@@ -19,6 +19,53 @@ PACKAGES = (
 VERSIONS = dict(package.split('=', 1) for package in PACKAGES)
 # Qualified minimum versions. Security and maintenance updates may be newer.
 DORMANT_PATHS = ('/etc/ldap/slapd.d', '/etc/ldap/slapd.conf', '/etc/sssd/sssd.conf')
+# Fedora preparation supports local-account qualification. The Ubuntu LDAP
+# fixture is not a Fedora runtime recipe and is deliberately not installed.
+FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2'}
+
+
+def versions(os_id):
+    if os_id == 'ubuntu':
+        return VERSIONS
+    if os_id == 'fedora':
+        return FEDORA_VERSIONS
+    raise ValueError('guest-tools:unsupported-os')
+
+
+def verify_fedora_packages(packages):
+    """Compare stable upstream versions, independently of RPM release counters.
+
+    These two projects use numeric releases (OpenSSH also uses pN). Refuse
+    prerelease/unknown formats rather than guessing their RPM ordering.
+    """
+    def stable_version(value):
+        if not isinstance(value, str) or not re.fullmatch(r'[0-9]+(?:[.p][0-9]+)*', value):
+            raise ValueError('guest-tools:unsupported-package-version')
+        return tuple(int(part) for part in re.split(r'[.p]', value))
+    found = {}
+    for name, version in packages:
+        if name not in FEDORA_VERSIONS:
+            continue
+        if name in found:
+            raise ValueError('guest-tools:ambiguous-package-status')
+        if stable_version(version) < stable_version(FEDORA_VERSIONS[name]):
+            raise ValueError('guest-tools:missing-or-mismatched-package')
+        found[name] = version
+    if set(found) != set(FEDORA_VERSIONS):
+        raise ValueError('guest-tools:missing-or-mismatched-package')
+    return found
+
+
+def verify_installed(os_id, *, runner, root):
+    if os_id == 'ubuntu':
+        return verify_packages((root / 'var/lib/dpkg/status').read_text())
+    if os_id != 'fedora':
+        raise ValueError('guest-tools:unsupported-os')
+    result = runner.run(['rpm', '-qa', '--queryformat', '%{NAME}\t%{VERSION}\n'])
+    rows = [line.split('\t') for line in result.stdout.splitlines()]
+    if any(len(row) != 2 for row in rows):
+        raise ValueError('guest-tools:ambiguous-package-status')
+    return verify_fedora_packages(rows)
 
 
 def ubuntu_archive_sources(contents):

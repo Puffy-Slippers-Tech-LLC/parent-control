@@ -58,14 +58,16 @@ def rename(lease, new_name):
         lease.capture.directory_identity = lease.capture.private_directory()
         base.canonical(old_directory.parent)
         runner.require(not os.path.lexists(destination), 'vm-control:rename-state-exists')
+        lease.compatibility_fd = base.compatibility_lock(old_directory)
         lock = lease.capture.lock_path
+        lease.fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         base.identity(lock, private=True, mode=0o600)
-        lease.fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
         try:
             fcntl.flock(lease.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise runner.Error('state:busy-controller') from error
         lease.commands.lock_fd = lease.fd
+        lease.commands.compatibility_fd = lease.compatibility_fd
         lease.capture.state = lease.capture.read_state()
         runner.require(lease.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
         lease.capture.require_idle_attempt()
@@ -179,14 +181,16 @@ def resume(lease, *, stopping=False, recovery_instance=None):
     """Only adopt this helper's exact recorded instance, never another controller."""
     base = runner.baseline
     lease.capture.directory_identity = lease.capture.private_directory()
+    lease.compatibility_fd = base.compatibility_lock(lease.directory)
     lock = lease.capture.lock_path
+    lease.fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     base.identity(lock, private=True, mode=0o600)
-    lease.fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
     try:
         fcntl.flock(lease.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError as error:
         raise runner.Error('state:busy-controller') from error
     lease.commands.lock_fd = lease.fd
+    lease.commands.compatibility_fd = lease.compatibility_fd
     lease.capture.state = lease.capture.read_state()
     runner.require(lease.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
     owner_path = lease.directory / 'vm-control.json'

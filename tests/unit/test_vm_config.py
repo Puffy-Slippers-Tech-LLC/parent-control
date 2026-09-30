@@ -139,7 +139,7 @@ def test_unsafe_state_root_is_refused_without_repair(tmp_path, monkeypatch, faul
         host.prepare_state_root(directory)
 
 
-def test_names_share_legacy_lock_and_refuse_concurrent_capture(rig, monkeypatch):
+def test_named_vms_have_separate_leases_and_same_vm_refuses_concurrent_capture(rig, monkeypatch):
     state_root = rig.directory.parent
     monkeypatch.setattr(vm_config, 'STATE_ROOT', state_root)
     capture = rig.capture()
@@ -148,12 +148,14 @@ def test_names_share_legacy_lock_and_refuse_concurrent_capture(rig, monkeypatch)
     other_directory.mkdir(mode=0o700)
     other = host.Capture(rig.source, rig.commands, rig.inspect,
                          anchor=rig.anchor, directory=other_directory)
-    assert capture.lock_path == other.lock_path == state_root / '.lock'
+    assert capture.lock_path != other.lock_path
+    assert capture.lock_path == capture.directory / '.lock'
     with capture.lock_path.open('rb') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        for controller in (capture, other):
-            with pytest.raises(host.CaptureError, match='busy-controller'):
-                controller.run()
+        with pytest.raises(host.CaptureError, match='busy-controller'):
+            capture.run()
+        with other.lock_path.open('wb') as other_lock:
+            fcntl.flock(other_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     assert len(rig.source.creations) == 1
     assert not (other_directory / 'phase.json').exists()
 
@@ -223,7 +225,7 @@ def test_selection_updates_imported_controller_and_guest(monkeypatch):
     ['tools/run-tests', 'all'], ['tools/write-e2e', '--tasks', '1'],
     ['tools/fix-tests', 'system'],
 ])
-@pytest.mark.parametrize('options', [[], ['--vm', 'unknown-vm']])
+@pytest.mark.parametrize('options', [['--vm', 'unknown-vm']])
 def test_public_vm_commands_refuse_before_privileges_resources_or_sessions(command, options):
     # Each short-lived process is owned by subprocess.run. Refusals create no
     # VM, display, socket, fixture, cache or shared output; compatible unit work.
@@ -236,6 +238,243 @@ def test_public_vm_commands_refuse_before_privileges_resources_or_sessions(comma
     assert 'noninteractive authorization' not in result.stderr
     assert 'Started run-tests session' not in result.stderr
     assert 'Traceback' not in result.stderr
+
+
+@pytest.mark.parametrize('concurrency', [0, -1, True, '2', 1.5, None])
+def test_execution_refuses_invalid_concurrency(tmp_path, concurrency):
+    path = tmp_path / 'config.json'
+    path.write_text(json.dumps({'concurrency': concurrency, 'vms': [
+        {'name': 'first', 'disk_anchor': '/first', 'enabled': 'true'}]}))
+    with pytest.raises(ValueError, match='concurrency'):
+        vm_config.execution(path=path)
+
+
+def test_execution_selects_only_literal_true_in_registry_order(tmp_path):
+    path = tmp_path / 'config.json'
+    path.write_text(json.dumps({'concurrency': 2, 'vms': [
+        {'name': 'first', 'disk_anchor': '/first', 'enabled': 'true'},
+        {'name': 'disabled', 'disk_anchor': '/disabled', 'enabled': 'false'},
+        {'name': 'missing', 'disk_anchor': '/missing'},
+        {'name': 'last', 'disk_anchor': '/last', 'enabled': 'true'}]}))
+    concurrency, vms = vm_config.execution(path=path)
+    assert concurrency == 2 and [vm.name for vm in vms] == ['first', 'last']
+    assert vm_config.execution('last', path)[0] == 1
+    with pytest.raises(ValueError, match='no enabled'):
+        vm_config.execution('disabled', path)
+    with pytest.raises(ValueError, match='no enabled'):
+        vm_config.execution('missing', path)
+
+
+@pytest.mark.parametrize('concurrency', [1, 2, 3])
+def test_vm_queue_refills_to_limit_and_executes_every_vm_after_failure(concurrency):
+    # Only in-process threads and finite private state; no guest or shared cache.
+    import threading
+    import time
+    from vm_test_queue import dispatch
+    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(7)]
+    gate = threading.Lock()
+    running, peak, attempts = 0, 0, []
+    def execute(vm):
+        nonlocal running, peak
+        with gate:
+            running += 1
+            peak = max(peak, running)
+            attempts.append(vm.name)
+        time.sleep(.02)
+        with gate:
+            running -= 1
+        return 1 if vm.name == 'guest-0' else 0
+    results = dispatch(vms, concurrency, execute, threading.Event())
+    assert peak == concurrency
+    assert len(attempts) == len(set(attempts)) == len(vms)
+    assert results == {vm.name: (1 if vm.name == 'guest-0' else 0) for vm in vms}
+
+
+def test_cancelled_vm_queue_never_starts_another_guest():
+    import threading
+    from vm_test_queue import dispatch
+    stopped = threading.Event()
+    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(5)]
+    attempts = []
+    def execute(vm):
+        attempts.append(vm.name)
+        stopped.set()
+        return 130
+    assert set(dispatch(vms, 1, execute, stopped).values()) == {130}
+    assert attempts == ['guest-0']
+
+
+def test_batch_test_selection_and_explicit_diagnosis_obey_enabled_config(monkeypatch):
+    import test_commands
+    import vm_selection
+    args, configured = test_commands.vm_request(['system'])
+    assert args == ['system'] and configured is None
+    assert vm_selection.execution_arguments() == []
+    assert vm_selection.execution_binding()['vms'] == ['onpc-Ubuntu26.04']
+    with pytest.raises(ValueError, match='no enabled'):
+        test_commands.vm_request(['system', '--vm', 'onpc-Fedora-Workstation-44'])
+    test_commands.vm_request(['system', '--vm', 'onpc-Ubuntu26.04'])
+    assert vm_selection.execution_arguments() == ['--vm', 'onpc-Ubuntu26.04']
+
+
+def test_mixed_host_and_vm_categories_use_queue_without_reinterpreting_host_options():
+    import test_commands
+    import vm_selection
+    assert test_commands.host_only_request(['unit', '-k', 'e2e'])
+    assert not test_commands.host_only_request(['unit', 'system'])
+    test_commands.vm_request(['unit', 'system'])
+    assert vm_selection.execution_arguments() == []
+
+
+def test_queue_cancellation_binding_survives_disabled_configuration(tmp_path):
+    import vm_selection
+    binding = {'concurrency': 2, 'vms': ['first', 'second']}
+    vm_selection.save_binding(tmp_path, binding)
+    vm_selection.check_binding(tmp_path, None, stopping=True)
+    with pytest.raises(ValueError, match='original'):
+        vm_selection.check_binding(tmp_path, None)
+
+
+def test_legacy_controller_lease_excludes_all_named_leases(rig, monkeypatch):
+    root = rig.directory.parent
+    monkeypatch.setattr(vm_config, 'STATE_ROOT', root)
+    legacy = root / '.lock'
+    legacy.touch(mode=0o600)
+    with legacy.open('rb') as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BlockingIOError):
+            host.compatibility_lock(rig.directory)
+    descriptors = [host.compatibility_lock(root / name) for name in ('first', 'second')]
+    try:
+        with legacy.open('rb') as lock:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        for descriptor in descriptors:
+            os.close(descriptor)
+
+
+def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    import threading
+    import time
+    import test_commands
+    import vm_test_queue as queue
+    import vm_selection
+    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(5)]
+    monkeypatch.setenv(vm_selection.BATCH, json.dumps({'vms': [vm.name for vm in vms], 'concurrency': 2}))
+    monkeypatch.setattr(vm_config, 'registry', lambda: {vm.name: vm for vm in vms})
+    monkeypatch.setattr(queue.test_activity, 'retention_path', lambda root: tmp_path / 'journal')
+    monkeypatch.setattr(queue.test_launcher, 'environment', lambda root: dict(os.environ))
+    original_allocate = queue.test_retention.allocate
+    monkeypatch.setattr(queue.test_retention, 'allocate',
+                        lambda factory, **kwargs: original_allocate(factory, dir=tmp_path, **kwargs))
+    hosts = []
+    monkeypatch.setattr(test_commands, '_main', lambda argv, **kwargs: hosts.append(argv) or 0)
+    monkeypatch.setattr(test_commands, 'qualification_artifact_command',
+                        lambda root, category, options: ['prepare-input'] if category == 'system' else None)
+    calls, active, peak = [], 0, 0
+    gate = threading.Lock()
+    class FakeControl:
+        stopped = threading.Event()
+        @contextmanager
+        def installed(self, **kwargs):
+            yield self
+        def run(self, command, *, env, output=None, **kwargs):
+            nonlocal active, peak
+            if command == ['prepare-input']:
+                assert active == 0
+                calls.append(('prepare-input', 'host'))
+                return 0
+            mode, name = command[3:5]
+            assert env[vm_selection.VARIABLE] == name
+            assert vm_selection.BATCH not in env
+            with gate:
+                calls.append((mode, name))
+                if mode == '--recover':
+                    assert active == 0
+                    return 0
+                assert len([item for item in calls if item[0] == '--recover']) == len(vms)
+                active += 1
+                peak = max(peak, active)
+            assert command[5:] == ['system', 'e2e']
+            assert ('prepare-input', 'host') in calls
+            time.sleep(.02)
+            output(b'test output\n')
+            with gate:
+                active -= 1
+            return 1 if name == 'guest-0' else 0
+    monkeypatch.setattr(queue, 'Control', FakeControl)
+    assert queue.run(ROOT, ['all']) == 1
+    assert hosts == [['host']]
+    assert calls[:len(vms)] == [('--recover', vm.name) for vm in vms]
+    assert sorted(name for mode, name in calls if mode == '--execute') == [vm.name for vm in vms]
+    assert peak == 2
+    evidence, = tmp_path.glob('onpc-vm-queue-*')
+    assert json.loads((evidence / 'failure.json').read_text())['categories'] == ['system', 'e2e']
+    assert set(json.loads((evidence / 'results.json').read_text())) == {vm.name for vm in vms}
+    for vm in vms:
+        assert (evidence / (vm.name + '.log')).read_text() == 'test output\n'
+
+
+def test_cancelling_parallel_workers_waits_for_each_owned_child_cleanup(tmp_path):
+    import sys
+    import threading
+    from regression_process import Control
+    from vm_test_queue import dispatch
+    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(5)]
+    stopped = threading.Event()
+    gate = threading.Lock()
+    started = []
+    script = tmp_path / 'owned_worker.py'
+    script.write_text('import pathlib,sys\nprint("ready", flush=True)\n'
+                      'sys.stdin.buffer.readline()\npathlib.Path(sys.argv[1]).write_text("cleaned")\n')
+    def execute(vm):
+        control = Control()
+        control.stopped = stopped
+        def output(data):
+            if b'ready' in data:
+                with gate:
+                    started.append(vm.name)
+                    if len(started) == 2:
+                        stopped.set()
+        return control.run([sys.executable, '-B', str(script), str(tmp_path / vm.name)],
+                           cwd=tmp_path, env=dict(os.environ), output=output, cooperative=True)
+    results = dispatch(vms, 2, execute, stopped)
+    assert set(results.values()) == {130}
+    assert set(started) == {'guest-0', 'guest-1'}
+    assert {path.name for path in tmp_path.iterdir() if path.name != script.name} == set(started)
+    assert all((tmp_path / name).read_text() == 'cleaned' for name in started)
+
+
+def test_both_agent_launchers_bind_the_enabled_queue_and_request_shared_tests(monkeypatch, tmp_path):
+    import fix_tests
+    import write_e2e
+    import vm_selection
+    from detached_launcher import atomic
+    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(3)]
+    monkeypatch.setattr(vm_config, 'execution', lambda name=None: (2, tuple(vms)))
+    monkeypatch.setattr(vm_selection, 'select', lambda name: None)
+    selected = Mock(return_value=(None, False))
+    monkeypatch.setattr(fix_tests, 'select', selected)
+    assert fix_tests.main(['system']) == 0
+    binding = vm_selection.execution_binding()
+    assert binding == {'concurrency': 2, 'vms': [vm.name for vm in vms]}
+    monkeypatch.setattr(fix_tests.detached_launcher, 'supervise', lambda *args, **kwargs: args[4])
+    command = fix_tests.supervise(ROOT, tmp_path, 42, 'test', 'system', 'model', 'low')
+    assert '--vm' not in command
+    assert command[1:] == ['--stop-on-error', 'system']
+    prompt = fix_tests.repair_prompt('Failure evidence')
+    assert 'guest-2' in prompt and 'at most 2 simultaneously' in prompt
+    monkeypatch.setattr(write_e2e.launcher, 'select', Mock(return_value=(None, False)))
+    assert write_e2e.select(ROOT, ['--tasks', '1']) == (None, False)
+    arguments = write_e2e.launcher.select.call_args
+    assert arguments.kwargs['on_start']
+    atomic(tmp_path / 'vm.json', {'vm': binding})
+    # Reattachment checks the entire selection, not only the first guest.
+    vm_selection.check_binding(tmp_path, binding)
+    with pytest.raises(ValueError, match='original'):
+        vm_selection.check_binding(tmp_path, dict(binding, vms=['guest-0']))
 
 
 def test_make_targets_require_configured_vm_and_preserve_literal_name():

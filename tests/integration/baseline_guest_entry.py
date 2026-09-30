@@ -12,8 +12,8 @@ ROOT = Path('/var/lib/onpc-baseline-preparation')
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
 
 
-def update_system():
-    """APT's scripting interface updates the current Ubuntu release only."""
+def update_system(os_id='ubuntu'):
+    """Update packages within the supported guest release using APT or DNF5."""
     environment = {**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'a'}
     commands = (
         ['apt-get', '-o', 'APT::Update::Error-Mode=any', 'update'],
@@ -22,11 +22,15 @@ def update_system():
          '-y', 'dist-upgrade'],
         ['apt-get', 'check'],
     )
+    if os_id == 'fedora':
+        commands = (['dnf5', '--refresh', '-y', 'upgrade'], ['dnf5', 'check'])
+    elif os_id != 'ubuntu':
+        raise ValueError('baseline:unsupported-os')
     for command in commands:
-        print('baseline: updating Ubuntu: ' + command[-1], flush=True)
+        print('baseline: updating ' + os_id + ': ' + command[-1], flush=True)
         subprocess.run(command, check=True, timeout=3600, env=environment,
                        stdin=subprocess.DEVNULL)
-    prepare_vm.guest_tools.verify_packages(Path('/var/lib/dpkg/status').read_text())
+    prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'))
 
 
 def main(argv=None):
@@ -40,7 +44,8 @@ def main(argv=None):
         previous = (root / 'reboot-required').read_text().strip()
         if not previous or previous == BOOT_ID.read_text().strip():
             return 1
-        prepare_vm.guest_tools.verify_packages(Path('/var/lib/dpkg/status').read_text())
+        os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
+        prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'))
         (root / 'reboot-required').unlink()
         (root / 'success').write_text('success\n')
         return 0
@@ -65,8 +70,11 @@ def main(argv=None):
     password = ''
     if result == 0:
         if mode == 'auto':
-            update_system()
-            if Path('/run/reboot-required').exists():
+            os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
+            update_system(os_id)
+            # A full power cycle after Fedora updates avoids depending on an
+            # optional needs-restarting plugin. Manual mode performs no update.
+            if os_id == 'fedora' or Path('/run/reboot-required').exists():
                 (root / 'reboot-required').write_text(BOOT_ID.read_text())
                 return 0
         (root / 'success').write_text('success\n')

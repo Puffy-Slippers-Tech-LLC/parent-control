@@ -417,6 +417,7 @@ class Lease:
         self.directory = self.capture.directory
         self.journal = self.directory / 'system-run.json'
         self.fd = None
+        self.compatibility_fd = None
         self.state = None
         self.original_xml = None
         self.original_id = None
@@ -448,13 +449,15 @@ class Lease:
     def __enter__(self):
         try:
             self.capture.directory_identity = self.capture.private_directory()
-            self.fd = os.open(self.capture.lock_path, os.O_RDWR | os.O_NOFOLLOW)
+            self.compatibility_fd = baseline.compatibility_lock(self.directory)
+            self.fd = os.open(self.capture.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
             baseline.identity(self.capture.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
                 raise Error('state:busy-controller') from error
             self.commands.lock_fd = self.fd
+            self.commands.compatibility_fd = self.compatibility_fd
             self.capture.state = self.capture.read_state()
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
             self.capture.require_idle_attempt()
@@ -678,6 +681,7 @@ class Lease:
         # not clear the active owner's inherited-lock reference.
         if self.fd is not None and self.commands.lock_fd == self.fd:
             self.commands.lock_fd = None
+            self.commands.compatibility_fd = None
         if self.fd is not None:
             try:
                 os.close(self.fd)
@@ -685,6 +689,9 @@ class Lease:
                 pending = pending if pending is not None else error
             finally:
                 self.fd = None
+        if self.compatibility_fd is not None:
+            os.close(self.compatibility_fd)
+            self.compatibility_fd = None
         if pending is not None:
             raise pending
 
@@ -707,13 +714,15 @@ class Lease:
         """Reacquire ownership and verify every saved identity before mutation."""
         try:
             self.capture.directory_identity = self.capture.private_directory()
-            self.fd = os.open(self.capture.lock_path, os.O_RDWR | os.O_NOFOLLOW)
+            self.compatibility_fd = baseline.compatibility_lock(self.directory)
+            self.fd = os.open(self.capture.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
             baseline.identity(self.capture.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
                 raise Error('state:busy-controller') from error
             self.commands.lock_fd = self.fd
+            self.commands.compatibility_fd = self.compatibility_fd
             self.capture.state = self.capture.read_state()
             require(self.capture.state['phase'] == 'finalized', 'baseline:not-finalized')
             baseline.identity(self.journal, private=True, mode=0o600)

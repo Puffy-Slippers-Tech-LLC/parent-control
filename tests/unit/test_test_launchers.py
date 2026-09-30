@@ -264,7 +264,8 @@ def test_retention_permission_failure_identifies_allocation_without_starting_tes
     import regression
     import test_retention
 
-    store = test_retention.Store(tmp_path / 'output/test-runs/host/state/retention')
+    import test_activity
+    store = test_retention.Store(test_activity.retention_path(tmp_path))
     with pytest.raises(PermissionError):
         with store.session():
             scratch = tmp_path / 'sbuild-scratch'

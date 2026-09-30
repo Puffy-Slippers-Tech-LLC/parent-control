@@ -65,18 +65,18 @@ def test_recovery_diagnostics_rotate_without_changing_unfinished_vm_journal(tmp_
     import check_graphical_recovery as recovery
     from tools import test_storage
     monkeypatch.setattr(test_storage, 'ROOT', tmp_path)
-    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'vm-state')
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'retention-1000-guest')
     monkeypatch.setenv('PKEXEC_UID', '1000')
     monkeypatch.setattr(storage, 'os', SimpleNamespace(geteuid=lambda: 0, environ=os.environ))
     monkeypatch.setattr(recovery, 'os', SimpleNamespace(umask=lambda _: None))
     def missing_runtime(_):
         raise RuntimeError('injected recovery failure')
     monkeypatch.setattr(recovery, 'importlib', SimpleNamespace(import_module=missing_runtime))
-    vm_store = retention.Store(tmp_path / 'vm-state')
+    vm_store = retention.Store(tmp_path / 'retention-1000-guest')
     with vm_store.session():
         retention.preserve_for_recovery()
     original = (vm_store.path / 'current.json').read_bytes()
-    journal = tmp_path / 'recovery-diagnostics-1000/current.json'
+    journal = tmp_path / 'recovery-diagnostics-1000-guest/current.json'
     paths = []
     for index in range(5):
         with storage.recovery_session():

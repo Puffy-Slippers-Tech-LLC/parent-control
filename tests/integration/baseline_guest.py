@@ -52,12 +52,15 @@ def mounted(guestfs, capture):
         g.add_drive_opts(capture.state['source']['layout']['disk'], format='qcow2')
         g.launch()
         roots = g.inspect_os()
-        require(len(roots) == 1 and g.inspect_get_distro(roots[0]) == 'ubuntu'
-                and g.inspect_get_major_version(roots[0]) == 26
-                and g.inspect_get_minor_version(roots[0]) == 4, 'guest:release')
+        require(len(roots) == 1, 'guest:release')
         mounts = g.inspect_get_mountpoints(roots[0])
+        require('/' in mounts, 'guest:mounts')
         for point in sorted(mounts, key=lambda value: (len(value), value)):
             g.mount(mounts[point], point)
+        try:
+            prepare_vm.inspected_release(g, roots[0])
+        except prepare_vm.PreparationError:
+            require(False, 'guest:release; requires Ubuntu 26.04 or Fedora Workstation 44')
         yield g
         g.sync()
     finally:
@@ -85,6 +88,21 @@ def write(g, path, content):
                 'guest:preparation-file')
     g.write(path, content)
     g.chmod(0o600, path)
+
+
+def label_preparation(g):
+    release = prepare_vm.parse_os_release(g.read_file('/etc/os-release').decode('utf-8'))
+    os_id, _ = prepare_vm.release_identity(release)
+    if os_id == 'fedora':
+        policy = prepare_vm.selinux_policy(g.read_file('/etc/selinux/config').decode('utf-8'))
+        # The host's supported libguestfs provides selinux_relabel; use setfiles
+        # where the newer API is available. Do not change enforcement or policy.
+        paths = [STAGE, UNIT, LINK]
+        if hasattr(g, 'setfiles'):
+            g.setfiles(policy, paths)
+        else:
+            for path in paths:
+                g.selinux_relabel(policy, path)
 
 
 @observed('Preparing the baseline VM; waiting for guest setup and shutdown')
@@ -116,8 +134,9 @@ def prepare(capture, guestfs, password, *, mode='manual'):
                     'guest:preparation-unit')
         else:
             g.ln_s(UNIT, LINK)
+        label_preparation(g)
     from watch_activity import operation
-    with operation('Running no-app setup and Ubuntu system updates' if mode == 'auto'
+    with operation('Running no-app setup and guest system updates' if mode == 'auto'
                    else 'Running no-app prerequisite setup'):
         boot_and_wait(capture)
     with mounted(guestfs, capture) as g:
@@ -129,8 +148,9 @@ def prepare(capture, guestfs, password, *, mode='manual'):
             service = service.replace('/password', '/reboot-required').replace(
                 '\nTimeoutStartSec=', ' --verify-reboot\nTimeoutStartSec=')
             write(g, UNIT, service.encode('ascii'))
+            label_preparation(g)
     if reboot:
-        with operation('Rebooting updated Ubuntu and verifying the new boot'):
+        with operation('Rebooting the updated guest and verifying the new boot'):
             boot_and_wait(capture)
     with mounted(guestfs, capture) as g:
         success = g.exists(STAGE + '/success') and g.read_file(STAGE + '/success') == b'success\n'

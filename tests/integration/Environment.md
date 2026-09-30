@@ -10,10 +10,15 @@ another baseline, download a new image, or create a replacement domain.
 [config/test-vm.json](../../config/test-vm.json) is the single configuration for
 guest preparation, host capture, installed-system/E2E runners and VM maintenance.
 Its `vms` array contains one object per existing VM, each with a unique `name`
-and absolute base QCOW2 `disk_anchor`. Every VM operation requires `--vm NAME`,
-matching a configured name exactly, including case. There is no default or
-environment override for public commands. Workers inherit only the explicitly
-validated selection. The guest hostname is the lowercase form of that name
+and absolute base QCOW2 `disk_anchor`, plus `enabled` as the string `"true"` or
+`"false"`. The positive integer `concurrency` limits simultaneous test VMs.
+`tools/run-tests`, `tools/fix-tests` and `tools/write-e2e` default to every enabled
+entry in registry order, refilling free slots until all have executed. Disabled
+entries are ignored. `--vm NAME` restricts tests to one enabled VM. Maintenance
+and preparation require that explicit selector, matching a configured name
+exactly, including case. Workers inherit validated selections; there is no
+ambient environment override for public commands. Each VM has its own exclusive
+lease and retention journal. The guest hostname is the lowercase form of that name
 (hostname labels, at most 63 characters). The active image can be a backing-chain
 member; capture still verifies that its chain ends at the selected anchor.
 Each entry has separate baseline provenance and an individually pinned UUID.

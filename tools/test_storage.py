@@ -90,7 +90,34 @@ def named_input(*, package_source=False):
 def privileged_state(uid):
     if type(uid) is not int or uid <= 0 or os.geteuid() != 0:
         raise ValueError('privileged storage requires an authenticated caller')
-    return directory('state') / f'retention-{uid}'
+    from vm_selection import selected
+    vm = selected(required=False)
+    legacy = directory('state') / f'retention-{uid}'
+    if vm:
+        legacy_retention_guard(legacy)
+    return legacy.with_name(legacy.name + ('-' + vm.name if vm else ''))
+
+
+def legacy_retention_guard(path):
+    """Preserve old journals and refuse to forget an unfinished or live owner."""
+    if not path.exists():
+        return
+    if __package__:
+        from .test_retention import Store, private
+    else:
+        from test_retention import Store, private
+    store = Store(path)
+    with store.opened() as fd:
+        owner = os.open('owner.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=fd)
+        try:
+            private(os.fstat(owner), regular=True)
+            fcntl.flock(owner, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            with store.locked(fd, 'writer.lock'):
+                state = store.read(fd)
+                if state and not state['finished']:
+                    raise ValueError('retention: legacy VM journal is unfinished; preserve evidence and recover it before parallel execution')
+        finally:
+            os.close(owner)
 
 
 def runtime_allocation(factory, *, prefix='onpc-runtime-'):

@@ -18,8 +18,15 @@ _host_only = False
 
 
 def retention_path(root):
-    from test_storage import directory
-    return directory('state', root=root) / ('retention-host' if _host_only else 'retention')
+    from test_storage import directory, legacy_retention_guard
+    from vm_selection import BATCH, selected
+    vm = selected(required=False)
+    suffix = ('-host' if _host_only else '-batch' if BATCH in os.environ else
+              '-' + vm.name if vm else '')
+    legacy = directory('state', root=root) / 'retention'
+    if suffix and suffix != '-host':
+        legacy_retention_guard(legacy)
+    return legacy.with_name('retention' + suffix)
 
 
 def descriptors():

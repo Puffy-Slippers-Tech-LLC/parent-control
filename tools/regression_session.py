@@ -90,6 +90,9 @@ def select(root, argv):
                 _, active_vm = extract(previous_args, required=False)
                 if active_vm is not None and (requested_vm is None or requested_vm.name != active_vm.name):
                     raise ValueError('vm-config: active run requires its original --vm NAME')
+                record = json.loads((candidate / 'current.json').read_text())
+                if record.get('vm_batch') is not None and requested_vm is not None:
+                    raise ValueError('vm-config: active run executes the enabled VM queue; attach without --vm')
                 if '--stop' in argv:
                     (run / 'cancel').touch(mode=0o600)
                 return run, False
@@ -133,7 +136,9 @@ def select(root, argv):
                 # Publish before spawning: terminal loss immediately after
                 # Popen must not leave a live worker without reconnect metadata.
                 temporary = directory / 'current.tmp'
-                temporary.write_text(json.dumps({'run': run.name, 'argv': requested}))
+                from vm_selection import BATCH
+                temporary.write_text(json.dumps({'run': run.name, 'argv': requested,
+                    'vm_batch': json.loads(os.environ[BATCH]) if BATCH in os.environ and not host_only else None}))
                 temporary.replace(current)
                 from test_storage import scratch_descriptors
                 from detached_launcher import nested_operation, WORKFLOW_DIRECTORY
@@ -229,7 +234,9 @@ def worker(root, argv, run, owner):
             categories = [kind for kind, _ in selections(root, argv)] if argv else []
             sys.stdout.controller('preparing', [
                 f'Category: {categories[0] if categories else "all"} (1/{len(categories) or 1}) | Preparing tests'])
-            before_run(root, argv, categories=categories)
+            from vm_selection import BATCH
+            if BATCH not in os.environ:
+                before_run(root, argv, categories=categories)
             status = _main(argv, detached=True)
     finally:
         finished.set()

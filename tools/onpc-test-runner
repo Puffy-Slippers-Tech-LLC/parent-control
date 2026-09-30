@@ -22,10 +22,12 @@ def retention_guard(root):
     """Read recovery state under the existing VM lease; never repair it here."""
     sys.path.insert(0, str(root / 'tests/integration'))
     import prepare_baseline as baseline
-    baseline.canonical(baseline.BASELINES)
+    baseline.private_baseline_directory(baseline.BASELINES)
+    compatibility = baseline.compatibility_lock(baseline.BASELINES)
     lock_path = baseline.baseline_lock_path(baseline.BASELINES)
-    fd = os.open(lock_path, os.O_RDWR | os.O_NOFOLLOW)
+    fd = None
     try:
+        fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         baseline.identity(lock_path, private=True, mode=0o600)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         for name, phase in (('phase.json', 'finalized'), ('system-run.json', 'complete')):
@@ -36,7 +38,10 @@ def retention_guard(root):
             if json.loads(path.read_bytes()).get('phase') != phase:
                 raise ValueError('retention: VM recovery is unfinished; preserve evidence')
     finally:
-        os.close(fd)
+        if fd is not None:
+            os.close(fd)
+        if compatibility is not None:
+            os.close(compatibility)
 
 CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 VM_UUIDS = {}  # Pinned by name from finalized baseline state by install_test_runner.py.

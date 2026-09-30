@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_account_password import read_password
 from dev_privileges import check
 from baseline_messages import help_message
-from vm_selection import registry, select
+from vm_selection import registry, select, interactive_choice
 
 HELPER = '/usr/local/libexec/onpc-setup'
 
@@ -21,7 +21,7 @@ def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--mode', required=True, choices=('auto', 'manual'),
-                        help='auto: restore baseline and update Ubuntu; manual: prepare current VM state')
+                        help='auto: restore baseline and update guest; manual: prepare current VM state')
     parser.add_argument('--vm', help='exact name in config/test-vm.json; prompts when omitted')
     parser.epilog = help_message()
     # Show the complete, short usage reminder for missing options or values.
@@ -34,6 +34,8 @@ def arguments(argv=None):
 
 def choose_vm():
     names = list(registry())
+    if sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get('TERM', '') not in ('', 'dumb'):
+        return names[interactive_choice(names)]
     print('Choose a VM from config/test-vm.json:')
     for number, name in enumerate(names, 1):
         print(f'  {number}. {name}')
@@ -66,11 +68,15 @@ def main(argv=None):
             env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
         ).returncode
         if status == 3:  # Operator declined; no baseline was prepared.
+            print('prepare-baseline: cancelled; no baseline snapshot was prepared.')
             return 0
         if status:
             return status
         # Pin the accepted UUID only after successful baseline reconciliation.
-        return subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
+        status = subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
+        if status == 0:
+            print(f'prepare-baseline: onpc_baseline prepared and accepted for {args.vm}.')
+        return status
     except (ValueError, OSError) as error:
         print('prepare-baseline: ' + str(error), file=sys.stderr)
         return 2

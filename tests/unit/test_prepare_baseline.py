@@ -734,6 +734,46 @@ def test_offline_inspection_is_explicitly_readonly_and_preserves_only_safe_field
     assert set(result) == {"preparation_record_sha256", "preparation_script_sha256", "ubuntu_version", "accounts"}
 
 
+@pytest.mark.parametrize('fault', [None, 'tools', 'role', 'variant', 'selinux', 'package', 'marker'])
+def test_fedora_offline_acceptance_checks_release_tools_roles_and_product_residue(fault):
+    fixture = guest_fixture()
+    g, files = fixture.g, fixture.files
+    g.inspect_get_distro.return_value = 'fedora'
+    g.inspect_get_major_version.return_value = 44
+    g.inspect_get_minor_version.return_value = 0
+    files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+    files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+    files['/etc/group'] = b'wheel:x:10:onpc-parent-jamie,onpc-parent-casey\n'
+    marker = guest.marker_document(guest.GuestIdentity(guest.HOSTNAME, 'a' * 32, '44', 'kvm', 'fedora'),
+                                   fixture.marker['accounts'], SCRIPT_DIGEST)
+    files[str(guest.MARKER)] = host.encode(marker)
+    applications = [{'app2_name': name, 'app2_version': version}
+                    for name, version in guest.guest_tools.FEDORA_VERSIONS.items()]
+    g.inspect_list_applications2.return_value = applications
+    if fault == 'tools':
+        applications.pop()
+    elif fault == 'role':
+        files['/etc/group'] += b'wheel:x:11:onpc-child-riley\n'
+    elif fault == 'variant':
+        files['/etc/os-release'] = files['/etc/os-release'].replace(b'workstation', b'server')
+    elif fault == 'selinux':
+        files['/etc/selinux/config'] = files['/etc/selinux/config'].replace(b'enforcing', b'permissive')
+    elif fault == 'package':
+        applications.append({'app2_name': 'oh-no-parent-control', 'app2_version': '1.2'})
+    elif fault == 'marker':
+        files[str(guest.MARKER)] = host.encode(fixture.marker)
+    if fault:
+        with pytest.raises((host.CaptureError, guest.PreparationError, ValueError)):
+            host.inspect_guest(fixture.module, Path('/images/top.qcow2'), SCRIPT_DIGEST)
+    else:
+        result = host.inspect_guest(fixture.module, Path('/images/top.qcow2'), SCRIPT_DIGEST)
+        assert result['os_id'] == 'fedora' and result['version'] == '44'
+        assert 'ubuntu_version' not in result
+        assert result['accounts'] == marker['accounts']
+    g.close.assert_called_once()
+    g.mount.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['missing-tools', 'old-marker', 'configured-directory'])
 def test_offline_inspection_refuses_unprepared_dependency_baseline(fault):
     fixture = guest_fixture()

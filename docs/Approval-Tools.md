@@ -458,17 +458,23 @@ read-only for VM activity and may attach or detach at any time without controlli
 the VM. In the left runner terminal, selection and Copy are available; Ctrl+C
 requests the displayed runner's cooperative cancellation and cleanup.
 
-All VM execution, maintenance and recovery commands require
-`--vm NAME`, matching an entry in [config/test-vm.json](../config/test-vm.json)'s
-`vms` array exactly. `tools/run-tests` requires it for `system`, `e2e`,
-`integration`, `all` and combinations containing VM work. Host-only tests,
-help and declaration listing do not require a VM. `tools/write-e2e`,
-VM-scoped `tools/fix-tests`, baseline and app-snapshot preparation,
-and `tools/cleanup-e2e` carry the same explicit selection. Make VM targets
-require `VM=NAME`; replacement setup requires `--vm NAME`. Public commands
-never use an ambient environment value or registry order as a default.
+`tools/run-tests`, VM-scoped `tools/fix-tests` and `tools/write-e2e` read
+[config/test-vm.json](../config/test-vm.json) and execute all entries whose
+`enabled` equals the string `"true"`, up to its positive integer `concurrency`
+simultaneously. The finite queue drains even after a VM failure; cancellation
+stops queued work and waits for every active guest's owned cleanup. Tests within
+each guest remain ordered; repair and implementation agents remain serial.
+`--vm NAME` restricts tests to one enabled entry. Disabled entries never
+participate. Host-only tests, help and listing do not require enabled VMs.
+Maintenance, baseline and app-snapshot preparation require an explicit
+configured `--vm NAME`; Make VM targets require `VM=NAME`. Replacement setup
+also requires `--vm NAME`. `tools/cleanup-e2e` without a selector reconciles all
+enabled guests serially. Workers receive validated selections, never an ambient
+environment default. Each VM has separate leases and retention journals;
+unfinished legacy journals remain blockers until recovered.
 `tools/watch` and `make watch` observe all registered VMs without a VM parameter.
-Reattachment and cancellation of a VM run require its original selected name.
+Reattachment and cancellation of a narrowed VM run require its original selected
+name; attach to a configured queue without `--vm`.
 
 `tools/test-vm` accepts this configured-name selector and no URI, disk, XML,
 snapshot-name or arbitrary-command input. It uses `qemu:///system` and the UUID

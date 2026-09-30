@@ -12,6 +12,7 @@ from tests.support.vm_baseline import rig
 @pytest.fixture
 def preparation(monkeypatch):
     files, links = {}, {}
+    files['/etc/os-release'] = b'ID=ubuntu\nVERSION_ID=26.04\n'
     files['/etc/shadow'] = ''.join(f'{account.username}:hash:20000:0:99999:7:::\n'
                                  for account in guest.prepare_vm.IDENTITIES).encode()
     monkeypatch.setattr(guest, 'matches', lambda password, encoded: password == 'fixture-password' and encoded == 'hash')
@@ -117,6 +118,7 @@ def guest_entry(tmp_path, monkeypatch):
     monkeypatch.setattr(entry.os, 'fstat', fstat)
     monkeypatch.setattr(entry.prepare_vm, 'CHECKOUT', root / 'checkout')
     monkeypatch.setattr(entry.prepare_vm, 'main', Mock(return_value=0))
+    monkeypatch.setattr(entry.prepare_vm, '_read_os_release', lambda path: {'ID': 'ubuntu', 'VERSION_ID': '26.04'})
     monkeypatch.setattr(entry.prepare_vm.guest_tools, 'verify_packages', Mock())
     return entry, root
 
@@ -363,3 +365,43 @@ def test_missing_password_precedes_any_host_dependency_or_vm_access(monkeypatch)
     assert host.main(['--mode', 'manual', '--vm', 'onpc-Ubuntu26.04']) == 1
     tools.assert_not_called()
     source.assert_not_called()
+
+
+def test_fedora_staging_labels_owned_paths_without_weakening_selinux(preparation):
+    p = preparation
+    p.files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+    p.files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+    guest.prepare(p.capture, Mock(), 'fixture-password')
+    p.g.setfiles.assert_called_once_with('/etc/selinux/targeted/contexts/files/file_contexts',
+                                        [guest.STAGE, guest.UNIT, guest.LINK])
+    assert p.files['/etc/selinux/config'] == b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
+
+
+def test_fedora_manual_entry_does_not_update_and_auto_requires_a_new_boot(guest_entry, monkeypatch):
+    entry, root = guest_entry
+    monkeypatch.setattr(entry.prepare_vm, '_read_os_release', lambda path:
+                        {'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'})
+    update = Mock()
+    monkeypatch.setattr(entry, 'update_system', update)
+    assert entry.main(['--vm', 'onpc-Fedora-Workstation-44']) == 0
+    update.assert_not_called()
+    (root / 'success').unlink()
+    (root / 'password').write_text('fixture-password')
+    (root / 'password').chmod(0o600)
+    (root / 'mode').write_text('auto')
+    assert entry.main(['--vm', 'onpc-Fedora-Workstation-44']) == 0
+    update.assert_called_once_with('fedora')
+    assert (root / 'reboot-required').read_text() == 'new-boot-id'
+    assert not (root / 'success').exists()
+
+
+def test_fedora_updates_use_dnf_and_verify_rpm_inventory(monkeypatch):
+    import baseline_guest_entry as entry
+    run, verify = Mock(), Mock()
+    monkeypatch.setattr(entry.subprocess, 'run', run)
+    monkeypatch.setattr(entry.prepare_vm.guest_tools, 'verify_installed', verify)
+    entry.update_system('fedora')
+    assert [call.args[0] for call in run.call_args_list] == [
+        ['dnf5', '--refresh', '-y', 'upgrade'], ['dnf5', 'check']]
+    assert all(call.kwargs['check'] and call.kwargs['timeout'] == 3600 for call in run.call_args_list)
+    assert verify.call_args.args == ('fedora',)

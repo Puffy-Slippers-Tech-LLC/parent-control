@@ -14,6 +14,7 @@ vm_config.select('onpc-Ubuntu26.04')
 
 @pytest.fixture(autouse=True)
 def configured_vm_fixture(monkeypatch):
+    monkeypatch.delenv('ONPC_TEST_VM_BATCH', raising=False)
     monkeypatch.setenv(vm_config.VARIABLE, 'onpc-Ubuntu26.04')
     vm_config.select('onpc-Ubuntu26.04')
     yield

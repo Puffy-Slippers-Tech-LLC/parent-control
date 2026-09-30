@@ -77,7 +77,7 @@ def test_failed_baseline_does_not_refresh_test_tools(authorized, monkeypatch, ca
 
 
 @pytest.mark.parametrize('mode', ['auto', 'manual'])
-def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode):
+def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode, capsys):
     run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)])
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', mode, *VM_ARGS]) == 0
@@ -86,6 +86,7 @@ def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode)
         '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', mode, *VM_ARGS]
     assert run.call_args_list[1].args[0] == [str(ROOT / 'setup.sh'), '--test-tools-only']
     assert run.call_args_list[1].kwargs['cwd'] == ROOT
+    assert 'onpc_baseline prepared and accepted for onpc-Ubuntu26.04' in capsys.readouterr().out
 
 
 def test_tools_refresh_failure_is_returned_after_baseline(authorized, monkeypatch):
@@ -116,11 +117,12 @@ def test_help_reuses_warning_bullets_without_red_color(launcher, capsys):
     assert '\033[' not in output
 
 
-def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch):
+def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, capsys):
     run = Mock(return_value=SimpleNamespace(returncode=3))
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0
     assert run.call_count == 1
+    assert capsys.readouterr().out == 'prepare-baseline: cancelled; no baseline snapshot was prepared.\n'
 
 
 def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypatch, capsys):
@@ -139,7 +141,8 @@ def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypa
         return SimpleNamespace(returncode=3)
     monkeypatch.setattr(authorized['subprocess'], 'run', dispatch)
     assert authorized['main'](['--mode', 'auto']) == 0
-    assert capsys.readouterr().out == 'baseline warnings\n'
+    assert capsys.readouterr().out == ('baseline warnings\n'
+                                     'prepare-baseline: cancelled; no baseline snapshot was prepared.\n')
 
 
 def test_vm_prompt_retries_invalid_numbers(launcher, monkeypatch, capsys):
@@ -165,3 +168,51 @@ def test_explicit_vm_never_prompts(authorized, monkeypatch):
     monkeypatch.setitem(authorized, 'input', Mock(side_effect=AssertionError('unexpected prompt')))
     monkeypatch.setattr(authorized['subprocess'], 'run', Mock(return_value=SimpleNamespace(returncode=3)))
     assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0
+
+
+@pytest.mark.parametrize('action', ['down', 'up', 'number', 'mouse', 'scroll-up', 'scroll-down'])
+def test_terminal_choice_updates_bold_row_and_number_before_enter(monkeypatch, action):
+    import curses
+    import vm_selection
+    for name in ('mousemask', 'mouseinterval', 'curs_set'):
+        monkeypatch.setattr(curses, name, Mock())
+    events = {
+        'down': curses.KEY_DOWN, 'up': curses.KEY_UP, 'number': '2',
+        'mouse': curses.KEY_MOUSE, 'scroll-up': curses.KEY_MOUSE, 'scroll-down': curses.KEY_MOUSE,
+    }
+    buttons = {'mouse': curses.REPORT_MOUSE_POSITION, 'scroll-up': curses.BUTTON4_PRESSED,
+               'scroll-down': curses.BUTTON5_PRESSED}
+    monkeypatch.setattr(curses, 'getmouse', lambda: (0, 5, 2, 0, buttons.get(action, 0)))
+    keys = iter([events[action], '\n'])
+    screen = Mock()
+    screen.getmaxyx.return_value = (24, 100)
+    screen.get_wch.side_effect = lambda: next(keys)
+    frames = []
+    screen.erase.side_effect = lambda: frames.append([])
+    screen.addnstr.side_effect = lambda *args: frames[-1].append(args)
+    selected = vm_selection.choice_screen(screen, ['Ubuntu', 'Fedora'])
+    expected = 0 if action == 'scroll-up' else 1
+    assert selected == expected
+    assert frames[-1][selected + 1][-1] == curses.A_BOLD
+    assert frames[-1][2 - selected][-1] == curses.A_NORMAL
+    assert frames[-1][3][2] == f'Select VM [1-2]: {selected + 1}'
+
+
+def test_terminal_choice_restores_mouse_reporting_on_cancel(monkeypatch, capsys):
+    import curses
+    import vm_selection
+    monkeypatch.setattr(curses, 'wrapper', Mock(side_effect=KeyboardInterrupt))
+    with pytest.raises(ValueError, match='VM selection cancelled'):
+        vm_selection.interactive_choice(['Ubuntu', 'Fedora'])
+    assert capsys.readouterr().out.endswith('\033[?1003l')
+
+
+def test_tty_chooser_uses_interactive_selection(launcher, monkeypatch):
+    monkeypatch.setattr(launcher['sys'].stdin, 'isatty', lambda: True)
+    monkeypatch.setattr(launcher['sys'].stdout, 'isatty', lambda: True)
+    monkeypatch.setenv('TERM', 'xterm-256color')
+    chooser = Mock(return_value=1)
+    monkeypatch.setitem(launcher, 'interactive_choice', chooser)
+    names = list(launcher['registry']())
+    assert launcher['choose_vm']() == names[1]
+    chooser.assert_called_once_with(names)

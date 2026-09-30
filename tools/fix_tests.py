@@ -92,12 +92,8 @@ def record_usage(run, metadata, usage=None, *, event='turn'):
 
 
 def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summary=None):
-    from vm_selection import selected
-    vm = selected(required=False)
-    if vm is not None:
-        prompt += (f'\nThis run is bound to configured VM {vm.name}. '
-                   f'Every VM command must include --vm {vm.name}; '
-                   f'Make VM targets use VM={vm.name}. Do not select another VM.')
+    from vm_selection import execution_instructions
+    prompt += '\n' + execution_instructions()
     instructions = (
         'Classify the failure from the evidence as a test issue, an app issue, or '
         'uncertain before editing. If it is a test issue, fix it in this session '
@@ -250,13 +246,13 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
 
 def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     if kind == 'test':
-        from vm_selection import arguments, selected
-        vm_args = arguments() if selected(required=False) is not None else []
+        from vm_selection import execution_arguments, selected
+        vm_args = execution_arguments() if selected(required=False) is not None else []
         command = [str(root / 'tools/run-tests'), '--stop-on-error', category,
                    *json.loads(test_args), *vm_args]
     elif kind == 'recovery':
-        from vm_selection import arguments
-        command = [str(root / 'tools/cleanup-e2e'), *arguments()]
+        from vm_selection import execution_arguments
+        command = [str(root / 'tools/cleanup-e2e'), *execution_arguments()]
     else:
         command = repair_command(root, model, effort, run)
         metadata = dict(json.loads(test_args), phase=category, model=model,
@@ -447,9 +443,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]'):
 
 
 def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()):
-    from vm_selection import selected, check_binding, save_binding
-    vm = selected(required=False)
-    name = vm.name if vm else None
+    from vm_selection import execution_binding, check_binding, save_binding
+    name = execution_binding()
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
         with lock(legacy / 'owner') as owner:
@@ -469,7 +464,7 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
                 selected_effort, app_model, json.dumps(categories)]
 
     return detached_launcher.select(root, 'fix-tests', command, stop=stop,
-        on_attach=lambda run: check_binding(run, name),
+        on_attach=lambda run: check_binding(run, name, stopping=stop),
         on_start=lambda run: save_binding(run, name))
 
 
@@ -479,7 +474,7 @@ def follow(run, stream=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--vm', help='required for VM categories; exact name in config/test-vm.json')
+    parser.add_argument('--vm', help='one enabled VM; omitted: configured enabled queue and concurrency')
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
     parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
@@ -500,15 +495,20 @@ def main(argv=None):
 
     previous = signal.signal(signal.SIGINT, cancel)
     try:
-        from vm_selection import select as select_vm
+        from vm_selection import execution_selection
         inventory = suite_inventory(args.categories)
-        if args.vm is not None:
-            select_vm(args.vm)
-        elif any(name in inventory for name in ('system', 'e2e')):
-            raise ValueError('vm-config: --vm NAME is required for VM categories')
-        else:
-            from vm_selection import VARIABLE
+        if args.stop and args.vm is None:
+            from vm_selection import VARIABLE, BATCH
             os.environ.pop(VARIABLE, None)
+            os.environ.pop(BATCH, None)
+        elif args.vm is not None:
+            execution_selection(args.vm)
+        elif any(name in inventory for name in ('system', 'e2e')):
+            execution_selection()
+        else:
+            from vm_selection import VARIABLE, BATCH
+            os.environ.pop(VARIABLE, None)
+            os.environ.pop(BATCH, None)
         run, started = select(root, stop=requested, model=args.model, effort=args.effort,
                               categories=args.categories)
         if run is None:

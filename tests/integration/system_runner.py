@@ -620,6 +620,8 @@ class Lease:
         require(self.view.domain_id is not None and
                 self.state['domain_id'] == self.view.domain_id,
                 'cleanup:unowned-domain')
+        from vm_internet import restore as restore_internet
+        restore_internet(self)
         self.capture.retire_vm_ownership()
         self.guard()
         self.save('cleanup-requested')
@@ -641,6 +643,8 @@ class Lease:
 
     @observed('Restoring the VM and verifying cleanup')
     def finish(self):
+        from vm_internet import restore as restore_internet
+        restore_internet(self)
         if not self.mutated:
             self.save('complete')
             return
@@ -743,7 +747,7 @@ class Lease:
             baseline.identity(self.journal, private=True, mode=0o600)
             state = baseline.parse_json(self.journal.read_bytes())
             isolated = isinstance(state, dict) and state.get('phase') == 'isolated'
-            require(isinstance(state, dict) and set(state) - {'e2e_snapshot'} == {
+            require(isinstance(state, dict) and set(state) - {'e2e_snapshot', 'internet_isolation'} == {
                 'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
                 'original_xml', 'baseline_sha256'} and state['schema_version'] == 1 and
                 state['phase'] in ('running', 'cleanup-requested', 'isolated') and
@@ -805,6 +809,8 @@ class Lease:
                 self.guard()
             require(self.capture.verify_snapshot(boundary='recovery') ==
                     self.capture.state['proof'], 'recovery:baseline-changed')
+            from vm_internet import restore as restore_internet
+            restore_internet(self)
             if restored_off:
                 # No domain mutation is authorized by the off-state branch.
                 # Independently audit the restored guest and reconcile the

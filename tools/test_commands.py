@@ -404,7 +404,9 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_set_fresh_thirty_minute_allowance.py'],
             ['check_e2e_app_restart'], ['check_e2e_app_restart.py'],
             ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard'],
-            ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py']):
+            ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py'],
+            ['check_e2e_independent_network_management'],
+            ['check_e2e_independent_network_management.py']):
         return None
     from test_storage import named_input
     output = str(named_input(package_source=True) if args in (

@@ -27,12 +27,15 @@ from pathlib import PurePosixPath
 
 # TIME03 deadline/recorder additions retain private tmp_path collectors and
 # process-local worker, clock and UI doubles; both existing classifications hold.
+# VM Internet cleanup uses only pytest-private journals and process-local
+# libvirt/filter/SSH doubles; it is compatible with other cleanup/unit buckets.
 
 from regression_ui import Bucket
 from regression_resources import HOST_WORKERS
 
 
 REVIEWED = frozenset('''
+vm_internet
 appsnapshot backing_verification baseline_guest challenges child_preview clean_install customer_reboot dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_files e2e_fixture_credentials
 e2e_keyring_fixture e2e_leased_recording e2e_recording e2e_startup_cache e2e_suite

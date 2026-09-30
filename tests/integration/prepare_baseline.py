@@ -224,12 +224,21 @@ def domain_layout(xml, expected_uuid):
             "guard:external-device-state")
     shares = []
     for share in root.findall("devices/filesystem"):
-        require(share.get("type") == "mount" and share.find("driver") is not None and
-                share.find("driver").get("type") == "virtiofs" and
-                share.find("source") is not None and share.find("source").get("dir") == "/Data" and
-                share.find("target") is not None and share.find("target").get("dir") in {"Data", "/Data"},
+        require(share.get("type") == "mount" and
+                all(len(share.findall(name)) == 1 for name in ("driver", "source", "target")) and
+                share.find("driver").get("type") == "virtiofs", "guard:filesystem-share")
+        directory = share.find("source").get("dir", "")
+        tag = share.find("target").get("dir", "")
+        # A narrower preparation share need not expose all of /Data or use its
+        # old mount tag. Keep the storage boundary and exact journal identity;
+        # isolated test/maintenance boots still detach every filesystem share.
+        require(directory.startswith("/") and
+                Path(directory).is_relative_to("/Data") and
+                not any(part in ("", ".", "..") for part in directory.split("/")[1:]) and
+                not any(ord(character) < 32 or ord(character) == 127 for character in directory) and
+                (tag == "/Data" or (re.fullmatch(r"[A-Za-z0-9_.-]+", tag) and tag not in (".", ".."))),
                 "guard:filesystem-share")
-        shares.append({"type": "virtiofs", "source": "/Data", "target": share.find("target").get("dir"),
+        shares.append({"type": "virtiofs", "source": directory, "target": tag,
                        "preparation_only": True})
     require(len(shares) <= 1, "guard:filesystem-share")
     return {"uuid": expected_uuid, "disk": source.get("file"), "target": target,
@@ -1097,6 +1106,11 @@ def main(argv=None):
             print("prepare-baseline: the recorded baseline has no matching libvirt snapshot metadata; "
                   "retain the disk and controller state; recover verified metadata or "
                   "prepare the powered-off guest and explicitly replace the baseline", file=sys.stderr)
+        if category == "guard:filesystem-share":
+            print("prepare-baseline: allow at most one mount-type virtiofs share from /Data or a "
+                  "subdirectory, with a simple mount tag (or legacy /Data); "
+                  "remove unsupported shares from the powered-off VM configuration before retrying",
+                  file=sys.stderr)
         print("prepare-baseline: resolve the reported condition, then rerun tools/prepare-baseline; retain snapshot and controller state",
               file=sys.stderr)
         return 1

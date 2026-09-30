@@ -32,6 +32,45 @@ def start(lease):
     lease.release()
 
 
+@pytest.mark.parametrize('phase', [
+    'validated', 'shutdown-requested', 'restore-requested', 'isolated', 'start-requested', 'cleanup-requested'])
+@pytest.mark.parametrize('fault', [None, 'running', 'owner', 'configuration'])
+def test_preparation_recovers_never_started_owned_maintenance_without_booting(
+        lease_rig, phase, fault):
+    lease, current = lease_rig
+    lease.view.graphics_type = 'vnc'
+    lease.__enter__()
+    control.save_owner(lease)
+    if phase in ('isolated', 'start-requested', 'cleanup-requested'):
+        lease.prepare()
+    lease.save(phase)
+    lease.release()
+    before = lease.journal.read_bytes()
+    if fault == 'running':
+        current['id'] = 71
+        lease.source.off = False
+        lease.source.domain.listAllSnapshots.return_value = []
+    elif fault == 'owner':
+        (lease.directory / 'vm-control.json').write_text('{}')
+    elif fault == 'configuration':
+        current['xml'] = current['xml'].replace('</domain>', '<description>unrelated</description></domain>')
+    held = reopened(lease)
+    snapshots = lease.source.domain.revertToSnapshot.call_count
+    try:
+        if fault:
+            with pytest.raises(RuntimeError):
+                control.recover_preparation(held)
+            assert lease.journal.read_bytes() == before
+            assert lease.source.domain.revertToSnapshot.call_count == snapshots
+        else:
+            control.recover_preparation(held)
+            assert held.state['phase'] == 'complete'
+            assert current['id'] == -1
+    finally:
+        held.release()
+    lease.source.domain.create.assert_not_called()
+
+
 def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lease_rig, monkeypatch):
     lease, current = lease_rig
     monkeypatch.setattr(runner.baseline, 'digest', Mock(side_effect=AssertionError('image hash')))
@@ -39,7 +78,6 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
     original = current['xml']
     start(lease)
     assert lease.state['phase'] == 'running'
-    assert not lease.source.layout['source_shares']
     run = lease.state['run']
     for action, keys in [('reboot', []), ('send-key', [28])]:
         resumed = reopened(lease)
@@ -62,6 +100,51 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
     assert resumed.state['phase'] == 'complete'
     assert resumed.capture.verification_totals['bytes_read'] == 0
     assert lease.source.off
+
+
+@pytest.mark.parametrize('fault', [None, 'instance', 'owner', 'busy'])
+def test_automatic_preparation_recovery_stops_only_proven_maintenance(
+        lease_rig, tmp_path, monkeypatch, fault):
+    import check_graphical_recovery as recovery
+    lease, current = lease_rig
+    start(lease)
+    before = lease.journal.read_bytes()
+    if fault == 'instance':
+        current['id'] += 1
+    elif fault == 'owner':
+        owner = json.loads((lease.directory / 'vm-control.json').read_bytes())
+        owner['baseline_sha256'] = 'f' * 64
+        (lease.directory / 'vm-control.json').write_text(json.dumps(owner))
+    evidence = tmp_path / 'recovery-evidence'
+    evidence.mkdir()
+    recovered = reopened(lease)
+    monkeypatch.setattr(recovery, 'allocate', lambda *a, **kw: str(evidence))
+    monkeypatch.setattr(recovery.os, 'umask', Mock())
+    monkeypatch.setattr(recovery.threading, 'Thread', Mock())
+    monkeypatch.setattr(recovery.importlib, 'import_module', lambda _: Mock())
+    monkeypatch.setattr(recovery.runner.baseline, 'LibvirtSource', lambda _: lease.source)
+    monkeypatch.setattr(recovery.runner, 'Commands', lambda: lease.commands)
+    monkeypatch.setattr(recovery.runner, 'Lease', lambda *a, **kw: recovered)
+    # Online maintenance has SPICE first and private VNC beside its observer.
+    monkeypatch.setattr(recovery, 'recorded_graphics_type', lambda _: 'spice')
+    lease.source.close = Mock()
+    competitor = reopened(lease)
+    if fault == 'busy':
+        control.resume(competitor)
+    snapshots = lease.source.domain.revertToSnapshot.call_count
+    try:
+        assert recovery.recover(None, maintenance=True) == int(fault is not None)
+    finally:
+        competitor.release()
+    result = json.loads((evidence / 'result.json').read_bytes())
+    assert result['scope'] == 'recorded-maintenance-cleanup-only'
+    if fault:
+        assert lease.journal.read_bytes() == before
+        assert lease.source.domain.revertToSnapshot.call_count == snapshots
+    else:
+        assert json.loads(lease.journal.read_bytes())['phase'] == 'complete'
+        assert current['id'] == -1
+    assert recovered.fd is None
 
 
 @pytest.mark.parametrize('mutation', ['instance', 'run', 'owner', 'baseline', 'symlink'])
@@ -235,7 +318,7 @@ def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch
         held.release()
 
 
-@pytest.mark.parametrize('fault', ['credentials', 'name', 'memory', 'uuid', 'run', 'baseline', 'sharing'])
+@pytest.mark.parametrize('fault', ['credentials', 'name', 'memory', 'uuid', 'run', 'baseline'])
 def test_root_probe_refuses_unbound_snapshot_credentials_before_connecting(lease_rig, monkeypatch, fault):
     import online_snapshot
     import vm_probe
@@ -256,8 +339,6 @@ def test_root_probe_refuses_unbound_snapshot_credentials_before_connecting(lease
         record['run'] = 'f' * 32
     elif fault == 'baseline':
         tree.find('description').text = json.dumps({'baseline_sha256': 'f' * 64})
-    else:
-        ET.SubElement(tree.find('domain/devices'), 'filesystem')
     monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=record))
     connect = Mock()
     monkeypatch.setattr(online_snapshot, 'connect_saved_transport', connect)
@@ -593,7 +674,9 @@ def test_online_resume_refusal_preserves_idle_or_running_ownership(
 
 
 @pytest.mark.parametrize('fault', [None, 'instance', 'owner', 'credentials', 'sharing', 'baseline'])
-def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(lease_rig, monkeypatch, fault):
+@pytest.mark.parametrize('automatic', [False, True])
+def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(
+        lease_rig, monkeypatch, fault, automatic):
     import online_snapshot
     lease, current = lease_rig
     start(lease)
@@ -619,13 +702,28 @@ def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(lease_ri
         current['xml'] = current['xml'].replace('</devices>', '<channel/></devices>')
     resumed = reopened(lease)
     calls = lease.source.domain.revertToSnapshot.call_count
+    def recover():
+        if automatic:
+            if fault == 'instance':
+                # The observed instance changes before the exclusive lease is
+                # acquired. Automation must retain the recorded refusal.
+                first = [True]
+                def observed_instance():
+                    if first:
+                        first.pop()
+                        return 72
+                    return current['id']
+                lease.source.domain.ID.side_effect = observed_instance
+            control.recover_preparation(resumed)
+        else:
+            control.operate(resumed, 'recover-online', [72 if fault == 'instance' else 71])
     try:
         if fault:
             with pytest.raises(RuntimeError):
-                control.operate(resumed, 'recover-online', [72 if fault == 'instance' else 71])
+                recover()
             assert lease.source.domain.revertToSnapshot.call_count == calls
         else:
-            control.operate(resumed, 'recover-online', [71])
+            recover()
             assert resumed.state['phase'] == 'complete'
             assert lease.source.off
             assert lease.source.domain.revertToSnapshot.call_count == calls + 1

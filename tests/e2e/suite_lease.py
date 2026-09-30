@@ -191,13 +191,12 @@ class SuiteLease(system.Lease):
         snap = self.source.domain.snapshotLookupByName(name, 0)
         system.require(snap.getXMLDesc(0) == expected, 'suite:snapshot-metadata-changed')
         # FORCE permits replacing QEMU when the saved XML differs. The saved
-        # baseline is off: do not boot until shares have been removed again.
+        # The baseline is off; prepare the test configuration before boot.
         with self.snapshot_status('Restoring', name):
             self.source.domain.revertToSnapshot(snap, self.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)
-        self.close_watch()
         # generalhw still owes its final status-off callback. Preserve the run
         # tag until it closes, without booting or modifying restored disk data.
         self.source.connection.defineXML(self.test_xml)

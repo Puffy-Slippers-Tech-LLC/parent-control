@@ -1,11 +1,12 @@
 """Collector cleanup can signal only its pinned child, never user viewers."""
 
 import signal
+import fcntl
+import os
 import json
 import subprocess
 import threading
 import xml.etree.ElementTree as ET
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -144,11 +145,14 @@ def test_unfinished_cleanup_retains_identity():
 def test_failed_pin_closes_gate_without_authorizing_attachment():
     display = Mock()
     local, remote, listener, listener_remote = Mock(), Mock(), Mock(), Mock()
-    with patch.object(watch, 'Publication'), \
+    for fd, peer in enumerate((display, local, remote, listener, listener_remote), 100):
+        peer.fileno.return_value = fd
+    with patch.object(watch, 'Publication') as publisher, \
             patch.object(watch.socket, 'socketpair', side_effect=[(local, remote), (listener, listener_remote)]), \
             patch.object(watch.subprocess, 'Popen') as spawn, \
             patch.object(watch.os, 'pidfd_open', side_effect=OSError), \
             patch.object(watch.signal, 'pidfd_send_signal') as send:
+        publisher.return_value.server.fileno.return_value = 200
         with pytest.raises(OSError):
             watch.Observer(display, 1000, 'a' * 32)
     local.sendall.assert_not_called()
@@ -162,21 +166,55 @@ def test_optional_failure_keeps_automation_running():
     with patch.dict(watch.os.environ, {'PKEXEC_UID': '1000'}), \
             patch.object(watch, 'Observer', side_effect=ValueError('unavailable')):
         assert watch.start(adapter) is None
-    adapter.open_display.assert_called_once_with(index=1)
+    adapter.open_display.assert_called_once_with()
     adapter.close_display.assert_not_called()
     adapter.lease.stop.assert_not_called()
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_baseline_feed_spans_preparation_and_closes_after_lock_release(rig, monkeypatch, failed):
+    capture = rig.capture()
+    observer = Mock()
+    def begin(owner):
+        assert owner.commands.lock_fd is not None
+        owner.watch = observer
+    def prepare(owner):
+        assert owner.watch is observer
+        observer.close.assert_not_called()
+        if failed:
+            raise RuntimeError('preparation-failed')
+    def closed():
+        assert capture.commands.lock_fd is None
+        # Establish actual OS lock release, rather than just cleared metadata.
+        fd = os.open(capture.lock_path, os.O_RDWR | os.O_NOFOLLOW)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.close(fd)
+    monkeypatch.setattr(watch, 'begin', begin)
+    observer.close.side_effect = closed
+    capture.prepare_guest = prepare
+    if failed:
+        with pytest.raises(RuntimeError, match='preparation-failed'):
+            capture.run()
+    else:
+        capture.run()
+    observer.close.assert_called_once()
+    assert capture.watch is None
 
 
 @pytest.mark.parametrize('graphics', ['vnc', 'spice'])
 @pytest.mark.parametrize('failure', [None, 'body', 'close'])
 def test_every_lease_observes_start_and_owns_cleanup(lease_rig, graphics, failure):
     lease, _ = lease_rig
-    observer = Mock()
+    observer = Mock(finished=threading.Event())
     lease.view.graphics_type = graphics
+    def begin(owner):
+        owner.watch = observer
     with patch.dict(watch.os.environ, {'PKEXEC_UID': '1000'}), \
-            patch.object(watch, 'os', SimpleNamespace(geteuid=lambda: 0, environ=watch.os.environ)), \
+            patch.object(watch, 'begin', side_effect=begin), \
             patch.object(watch, 'DisplayAdapter') as adapter, \
-            patch.object(watch, 'start', return_value=observer):
+            patch.object(watch, 'start', side_effect=AssertionError('Must reuse the lease feed')):
         lease.__enter__()
         lease.prepare()
         try:
@@ -198,18 +236,27 @@ def test_every_lease_observes_start_and_owns_cleanup(lease_rig, graphics, failur
                         lease.close_watch()
                 assert lease.watch is None
             lease.stop()
-            assert lease.watch is None
-            observer.close.assert_called()
+            if failure is None:
+                assert lease.watch is observer
+                observer.close.assert_not_called()
+                lease.start()
+                assert lease.watch is observer
+                assert observer.attach_display.call_count == 2
+            def closed():
+                assert lease.fd is None, 'Feed must remain connected until actual lock release'
+            observer.close.side_effect = closed
         finally:
             lease.finish()
             lease.release()
+        assert lease.watch is None
+        observer.close.assert_called()
 
 
 def test_failed_shared_start_cannot_swallow_collector_cleanup_failure():
-    lease = Mock(watch=None, state={'run': 'a' * 32})
+    lease = Mock(watch=None, watch_detached=False, state={'run': 'a' * 32})
     with patch.dict(watch.os.environ, {'PKEXEC_UID': '1000'}), \
             patch.object(watch.os, 'geteuid', return_value=0), \
-            patch.object(watch, 'DisplayAdapter'), patch.object(watch, 'start',
+            patch.object(watch, 'DisplayAdapter'), patch.object(watch, 'begin',
                 side_effect=RuntimeError('collector-cleanup-failed')):
         with pytest.raises(RuntimeError, match='collector-cleanup-failed'):
             watch.attach(lease)

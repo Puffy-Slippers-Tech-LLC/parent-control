@@ -173,7 +173,6 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     if mode == 'offline':
         lease.source.shutdown(lease.guard, requested=False)
         lease.guard(off=True)
-        lease.close_watch()
     preparation('Taking snapshot ' + name)
     from online_snapshot import disconnected_network, publish
     with disconnected_network(lease) if mode == 'online' else nullcontext():

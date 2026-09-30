@@ -215,7 +215,7 @@ def test_automatic_vm_recovery_keeps_guard_refusals(tmp_path, monkeypatch, fault
             raise ValueError('retention: VM recovery is unfinished; preserve evidence')
     monkeypatch.setattr(recovery.runpy, 'run_path', lambda path: {'retention_guard': guard})
     def finish(**kwargs):
-        assert kwargs == {'graphics_type': None}
+        assert kwargs == {'graphics_type': None, 'maintenance': True}
         calls.append('recover')
         return int(fault == 'recovery-failed')
     monkeypatch.setattr(recovery.check_graphical_recovery, 'main', finish)

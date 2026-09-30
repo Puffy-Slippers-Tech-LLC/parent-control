@@ -110,9 +110,10 @@ baseline records and other VMs' directories remain intact; they are never
 silently adopted or retired when the configuration changes. A replaced VM with
 the same configured name still fails the recorded UUID check. Ordinary runners
 also require the recorded disk identities; explicit preparation can accept a
-changed disk chain after manual maintenance on that same VM. All names
-share the existing controller lock in the state root. Finish tests and stop any
-maintenance attempt before changing the selected VM. Configuration
+changed disk chain after manual maintenance on that same VM. Each name has an
+exclusive controller lease, so different VMs may prepare in parallel. A shared
+compatibility lease excludes older controllers that still own the state root
+exclusively. Finish tests and stop maintenance on the same VM before preparation. Configuration
 and loader sources are included in the preparation digest, so changing them
 requires matching guest preparation before a new baseline can be accepted.
 This is development tooling: activation is the next invocation (installed UUID
@@ -240,7 +241,7 @@ existing guarded controllers; raw `virsh` commands bypass these contracts.
 
 Only the guarded runner may perform a normal test reset under its exclusive
 lease, outside a complete independent attempt. It restores the retained
-baseline, removes writable host shares and transfer channels before boot,
+baseline, removes transfer channels before boot,
 executes real guest operations, collects evidence, restores the baseline/prior
 persistent domain configuration, and leaves the VM off. It creates no new
 snapshot, overlay or cloned VM. Reboot inside a journey changes the real boot
@@ -254,21 +255,7 @@ suite, while live ownership and isolation checks remain active throughout.
 Final acceptance requires the closing audit and actual lease release. No
 case may continue after a failure. See [suite controller](../e2e/suite_lease.py).
 
-Preparation accepts at most one mount-type virtiofs share from `/Data` or a
-subdirectory, with a simple mount tag such as `Data` or `pst` (the legacy `/Data`
-tag also remains accepted). The recorded source and tag must match on reuse;
-paths outside `/Data`, traversal and ambiguous layouts are refused.
-This preparation share is outside VM disk state. A snapshot
-restore may reintroduce its saved domain configuration, so every test boot
-requires the runner's share-detachment checks. Do not manually restore and boot
-the VM using a copied command sequence that bypasses these guards. External
-firmware/TPM state outside the recorded snapshot contract is refused.
-
-Guest `/etc/fstab` belongs to the VM owner. Bootstrap leaves its contents,
-permissions and SELinux label untouched, including `/Data` entries. Configure
-optional host shares with `nofail` so the isolated guest can boot without them.
-Snapshot restores still select the mount configuration saved in that snapshot;
-capture manual mount changes in the baseline before relying on them in tests.
+External firmware/TPM state outside the recorded snapshot contract is refused.
 
 ## Interrupted or invalid state
 
@@ -301,6 +288,33 @@ no product service or saved-data change is involved.
 An incomplete prior system run prevents a new run. Use only a supported,
 identity-verified recovery path for that recorded attempt; if recovery is not
 implemented for its state, diagnose and repair the controller before reuse.
+Baseline preparation automatically invokes shared recovery for a powered-off
+unfinished test attempt before beginning preparation. Recovery revalidates the
+recorded identities and preserves evidence; a matching maintenance owner takes
+the manual retirement path below, preserving the current disk state.
+Explicit manual baseline preparation can supersede a powered-off maintenance
+attempt, including a never-started preparation phase with a null domain ID,
+when its private `vm-control.json` matches the journal, UUID, accepted baseline
+and snapshot metadata. Disk-chain
+identities must still match. An existing baseline must match the owner's exact
+snapshot digest and the accepted internal disk proof. A missing baseline can be
+replaced only when both its libvirt metadata and internal disk record are absent;
+an orphan record is refused. No old disk or configuration is
+restored. Only after confirmation, successful guest preparation and independent
+inspection are the original run and ownership records archived and the attempt
+closed with outcome `superseded`. This supplies no test acceptance credit.
+Auto preparation continues to refuse unfinished maintenance. Ordinary runners
+require completed journals after their supported startup recovery.
+Shared test cleanup also accepts a never-started `cleanup-requested` attempt
+with a null domain ID only while the VM is off. It verifies the recorded run,
+configuration, source identities and baseline proof before restoring the outer
+baseline and original configuration, or auditing an already restored guest.
+It never boots or adopts an unrecorded running instance.
+Shared preparation recovery also stops matching maintenance owners, including
+never-started phases while off. An interrupted online restore with no recorded
+instance ID additionally requires the exact private saved-snapshot credentials,
+baseline and isolation proof; its observed instance ID is checked again under
+the exclusive lease. Replaced instances and changed proofs refuse recovery.
 Changed/replaced identities prevent recovery from mutating a replacement.
 Explicit preparation after a completed operation accepts manual disk maintenance
 on the same VM as described above. A preparation

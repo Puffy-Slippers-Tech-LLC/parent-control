@@ -1,11 +1,12 @@
 """Capture acceptance with real private files and mocked VM/image operations.
 
-Share-validation regressions use synthetic XML and the existing private rig;
+Maintenance retirement uses synthetic XML and the private rig;
 no live VM, mount, socket or shared path is accessed. Compatible scheduling holds.
 """
 from tests.support.vm_registry import vm_name
 
 import copy
+import hashlib
 import json
 import os
 import stat
@@ -25,6 +26,254 @@ from tests.support.vm_baseline import UUID, SCRIPT_DIGEST, Source, Images, xml, 
 
 def state(rig):
     return json.loads((rig.directory / "phase.json").read_text())
+
+
+@pytest.mark.parametrize('kind', ['vnc', 'spice'])
+@pytest.mark.parametrize('owned', [False, True])
+def test_baseline_retry_recovers_tests_but_preserves_manual_maintenance(rig, monkeypatch, kind, owned):
+    import check_graphical_recovery
+    import system_runner
+    rig.capture().run()
+    attempt = {'phase': 'cleanup-requested', 'run': 'a' * 32}
+    journal = rig.directory / 'system-run.json'
+    journal.write_bytes(host.encode(attempt))
+    journal.chmod(0o600)
+    owner = rig.directory / 'vm-control.json'
+    owner.write_bytes(host.encode({'run': ('a' if owned else 'b') * 32}))
+    owner.chmod(0o600)
+    monkeypatch.setattr(host.guest_contract.vm_config, 'selected', lambda: SimpleNamespace(
+        baseline_directory=rig.directory))
+    monkeypatch.setattr(check_graphical_recovery, 'recorded_graphics_type', lambda _: kind)
+    rig.source.domain = Mock()
+    reopened = Mock()
+    factory = Mock(return_value=reopened)
+    monkeypatch.setattr(system_runner, 'Lease', factory)
+    before = journal.read_bytes(), owner.read_bytes()
+    host.recover_off_attempt(rig.source, rig.commands, rig.inspect)
+    assert before == (journal.read_bytes(), owner.read_bytes())
+    if owned:
+        factory.assert_not_called()
+    else:
+        factory.assert_called_once_with(rig.source, rig.commands, rig.inspect, graphics_type=kind)
+        (reopened.recover_graphical_cleanup if kind == 'vnc' else
+         reopened.recover_system_cleanup).assert_called_once()
+    rig.source.domain.create.assert_not_called()
+
+
+def test_baseline_retry_keeps_recovery_failures_and_original_journal(rig, monkeypatch):
+    import check_graphical_recovery
+    import system_runner
+    rig.capture().run()
+    journal = rig.directory / 'system-run.json'
+    raw = host.encode({'phase': 'cleanup-requested', 'run': 'a' * 32})
+    journal.write_bytes(raw)
+    journal.chmod(0o600)
+    monkeypatch.setattr(host.guest_contract.vm_config, 'selected', lambda: SimpleNamespace(
+        baseline_directory=rig.directory))
+    monkeypatch.setattr(check_graphical_recovery, 'recorded_graphics_type', lambda _: 'spice')
+    rig.source.domain = Mock()
+    lease = Mock()
+    lease.recover_system_cleanup.side_effect = host.CaptureError('recovery:journal-identity')
+    monkeypatch.setattr(system_runner, 'Lease', Mock(return_value=lease))
+    with pytest.raises(host.CaptureError, match='recovery:journal-identity'):
+        host.recover_off_attempt(rig.source, rig.commands, rig.inspect)
+    assert journal.read_bytes() == raw
+    rig.source.domain.create.assert_not_called()
+
+
+def test_declining_baseline_retry_does_not_recover_or_change_the_previous_attempt(rig, monkeypatch):
+    import system_runner
+    rig.capture().run()
+    journal = rig.directory / 'system-run.json'
+    raw = host.encode({'phase': 'cleanup-requested', 'run': 'a' * 32})
+    journal.write_bytes(raw)
+    journal.chmod(0o600)
+    monkeypatch.setattr(host.guest_contract.vm_config, 'selected', lambda: SimpleNamespace(
+        baseline_directory=rig.directory))
+    factory = Mock(side_effect=AssertionError('recovery attempted before consent'))
+    monkeypatch.setattr(system_runner, 'Lease', factory)
+    assert host.recover_off_attempt(rig.source, rig.commands, rig.inspect, confirm=lambda: False) is False
+    assert journal.read_bytes() == raw
+    factory.assert_not_called()
+
+
+def off_maintenance(rig):
+    """Record a synthetic owned maintenance attempt."""
+    rig.capture().run()
+    attempt = {
+        'schema_version': 1, 'run': 'a' * 32, 'phase': 'running',
+        'domain_uuid': UUID, 'domain_id': 163, 'original_xml': xml(rig.top),
+        'baseline_sha256': hashlib.sha256(host.encode(state(rig))).hexdigest(),
+    }
+    owner = {key: attempt[key] for key in ('run', 'domain_uuid', 'baseline_sha256')}
+    owner['snapshot_sha256'] = hashlib.sha256(rig.source.baseline_xml.encode()).hexdigest()
+    raw = {'system-run.json': host.encode(attempt), 'vm-control.json': host.encode(owner)}
+    for name, data in raw.items():
+        path = rig.directory / name
+        path.write_bytes(data)
+        path.chmod(0o600)
+    rig.source.domain = Mock()
+    rig.source.domain.ID.return_value = -1
+    rig.source.domain.autostart.return_value = False
+    rig.source.domain.UUIDString.return_value = UUID
+    rig.source.connection = Mock()
+    rig.source.connection.lookupByName.return_value = rig.source.domain
+    return raw
+
+
+@pytest.mark.parametrize('phase', [
+    'validated', 'shutdown-requested', 'restore-requested', 'isolated', 'start-requested', 'cleanup-requested'])
+def test_manual_preparation_supersedes_never_started_owned_attempt_and_keeps_current_disk(rig, phase):
+    raw = off_maintenance(rig)
+    attempt = json.loads(raw['system-run.json'])
+    attempt.update(phase=phase, domain_id=None)
+    recorded = host.encode(attempt)
+    (rig.directory / 'system-run.json').write_bytes(recorded)
+    rig.top.write_bytes(b'current manually maintained disk')
+    rig.source.restore_baseline = Mock(side_effect=AssertionError('manual preparation must preserve disk'))
+    capture = rig.capture()
+    capture.prepare_guest = Mock()
+    assert capture.run(mode='manual', confirm=lambda *_: True)
+    assert rig.top.read_bytes().startswith(b'current manually maintained disk')
+    assert (rig.directory / f'retired-system-run-{"a" * 32}.json').read_bytes() == recorded
+    assert json.loads((rig.directory / 'system-run.json').read_bytes())['outcome'] == 'superseded'
+
+
+@pytest.mark.parametrize('missing_baseline', [False, True])
+def test_manual_preparation_supersedes_off_maintenance_without_restoring_disk(rig, missing_baseline):
+    raw = off_maintenance(rig)
+    if missing_baseline:
+        rig.source.baseline_xml = None
+        rig.commands.snapshots = []
+    saved = (rig.directory / 'phase.json').read_bytes()
+    rig.top.write_bytes(b'owner-maintained current guest')
+    rig.source.restore_baseline = Mock(side_effect=AssertionError('must preserve current disk'))
+    capture = rig.capture()
+
+    def prepare(held):
+        assert (rig.directory / 'system-run.json').read_bytes() == raw['system-run.json']
+        assert rig.top.read_bytes() == b'owner-maintained current guest'
+        assert not rig.source.deletions
+        # Libvirt's starting handle retains its ID after guest poweroff; a fresh
+        # lookup must attest the currently off UUID instead of rejecting it.
+        rig.source.domain.ID.return_value = 164
+        rig.source.connection.lookupByName.return_value = Mock(
+            ID=Mock(return_value=-1), UUIDString=Mock(return_value=UUID),
+            autostart=Mock(return_value=False))
+
+    capture.prepare_guest = prepare
+    assert capture.run(mode='manual', confirm=lambda *_: True)
+    assert rig.source.off
+    assert rig.top.read_bytes().startswith(b'owner-maintained current guest')
+    closed = json.loads((rig.directory / 'system-run.json').read_bytes())
+    assert closed['phase'] == 'complete' and closed['outcome'] == 'superseded'
+    assert closed['superseded_by'] == state(rig)['operation']
+    for name, data in raw.items():
+        assert (rig.directory / f'retired-{name[:-5]}-{"a" * 32}.json').read_bytes() == data
+    assert (rig.directory / 'vm-control.json').read_bytes() == raw['vm-control.json']
+    assert (rig.directory / f'retired-{json.loads(saved)["operation"]}.json').read_bytes() == saved
+
+
+@pytest.mark.parametrize('failure', ['declined', 'preparation', 'inspection'])
+def test_manual_maintenance_retirement_waits_for_confirmed_success(rig, failure):
+    raw = off_maintenance(rig)
+    saved = (rig.directory / 'phase.json').read_bytes()
+    capture = rig.capture()
+    capture.prepare_guest = Mock()
+    if failure == 'preparation':
+        capture.prepare_guest.side_effect = host.CaptureError('guest:failed')
+    elif failure == 'inspection':
+        rig.inspect.side_effect = host.CaptureError('guest:failed')
+    if failure == 'declined':
+        assert capture.run(mode='manual', confirm=lambda *_: False) is False
+        capture.prepare_guest.assert_not_called()
+    else:
+        with pytest.raises(host.CaptureError, match='guest:failed'):
+            capture.run(mode='manual', confirm=lambda *_: True)
+    for name, data in raw.items():
+        assert (rig.directory / name).read_bytes() == data
+    assert (rig.directory / 'phase.json').read_bytes() == saved
+    assert not list(rig.directory.glob('retired-system-run-*.json'))
+    assert not rig.source.deletions
+
+
+@pytest.mark.parametrize('failure', [
+    'auto', 'unowned', 'owner-mismatch', 'baseline-mismatch', 'uuid-mismatch',
+    'wrong-phase', 'extra-fields', 'autostart', 'running', 'changed-disk', 'disk-proof',
+    'owner-snapshot-digest', 'xml-digest-mismatch', 'orphan-disk-record', 'missing-disk-record',
+    'live-uuid-mismatch',
+])
+def test_manual_maintenance_retirement_refuses_unproven_attempts(rig, failure):
+    raw = off_maintenance(rig)
+    saved = (rig.directory / 'phase.json').read_bytes()
+    attempt = json.loads(raw['system-run.json'])
+    if failure == 'unowned':
+        (rig.directory / 'vm-control.json').unlink()
+    elif failure in ('owner-mismatch', 'owner-snapshot-digest'):
+        owner = json.loads(raw['vm-control.json'])
+        if failure == 'owner-mismatch':
+            owner['run'] = 'b' * 32
+        else:
+            owner['snapshot_sha256'] = 'invalid'
+        (rig.directory / 'vm-control.json').write_bytes(host.encode(owner))
+    elif failure in ('baseline-mismatch', 'uuid-mismatch', 'wrong-phase', 'extra-fields'):
+        key, value = {
+            'baseline-mismatch': ('baseline_sha256', 'b' * 64),
+            'uuid-mismatch': ('domain_uuid', 'other'),
+            'wrong-phase': ('phase', 'start-requested'),
+            'extra-fields': ('e2e_snapshot', 'onpc-v1.2'),
+        }[failure]
+        attempt[key] = value
+        (rig.directory / 'system-run.json').write_bytes(host.encode(attempt))
+    elif failure == 'autostart':
+        rig.source.domain.autostart.return_value = True
+    elif failure == 'running':
+        rig.source.off = False
+    elif failure == 'changed-disk':
+        rig.anchor.rename(rig.anchor.with_suffix('.previous'))
+        rig.anchor.write_bytes(b'replacement disk')
+    elif failure == 'disk-proof':
+        rig.commands.snapshots[0]['id'] = 'replaced'
+    elif failure == 'xml-digest-mismatch':
+        rig.source.baseline_xml += '\n'
+    elif failure == 'orphan-disk-record':
+        rig.source.baseline_xml = None
+    elif failure == 'missing-disk-record':
+        rig.commands.snapshots = []
+    elif failure == 'live-uuid-mismatch':
+        rig.source.domain.UUIDString.return_value = 'other'
+    capture = rig.capture()
+    capture.prepare_guest = Mock(side_effect=AssertionError('must not prepare'))
+    with pytest.raises(host.CaptureError):
+        capture.run(mode='auto' if failure == 'auto' else 'manual', confirm=lambda *_: True)
+    assert (rig.directory / 'phase.json').read_bytes() == saved
+    assert not list(rig.directory.glob('retired-system-run-*.json'))
+    assert not rig.source.deletions and not rig.source.app_deletions
+
+
+@pytest.mark.parametrize('failure', ['archive', 'close'])
+def test_manual_maintenance_retirement_interruption_preserves_original_evidence(rig, monkeypatch, failure):
+    raw = off_maintenance(rig)
+    saved = (rig.directory / 'phase.json').read_bytes()
+    replace = host.os.replace
+
+    def interrupt(source, destination):
+        name = Path(destination).name
+        if ((failure == 'archive' and name.startswith('retired-vm-control-')) or
+                (failure == 'close' and name == 'system-run.json')):
+            raise KeyboardInterrupt
+        replace(source, destination)
+
+    monkeypatch.setattr(host.os, 'replace', interrupt)
+    capture = rig.capture()
+    capture.prepare_guest = Mock()
+    with pytest.raises(KeyboardInterrupt):
+        capture.run(mode='manual', confirm=lambda *_: True)
+    for name, data in raw.items():
+        assert (rig.directory / name).read_bytes() == data
+    assert (rig.directory / 'phase.json').read_bytes() == saved
+    assert not rig.source.deletions
+    assert (rig.directory / f'retired-system-run-{"a" * 32}.json').read_bytes() == raw['system-run.json']
 
 
 @pytest.mark.parametrize('mode', ['auto', 'manual'])
@@ -547,7 +796,6 @@ def test_repeat_preserves_baseline_after_product_testing(rig, running):
     lambda value: value.replace("<target dev='vda'/>", "<mirror/><target dev='vda'/>"),
     lambda value: value.replace("<target dev='vda'/>", "<shareable/><target dev='vda'/>"),
     lambda value: value.replace("<target dev='sda'/>", "<source file='/tmp/media.iso'/><target dev='sda'/>"),
-    lambda value: value.replace("<source dir='/Data'/>", "<source dir='/home'/>") ,
     lambda value: value.replace("</devices>", "<hostdev/></devices>"),
     lambda value: value.replace("</devices>", "<tpm/></devices>"),
     lambda value: value.replace("</domain>", "<os><nvram>/tmp/firmware</nvram></os></domain>"),
@@ -559,48 +807,6 @@ def test_domain_layout_refuses_ambiguous_storage(change, rig):
         host.domain_layout(change(xml(rig.top)), UUID)
 
 
-@pytest.mark.parametrize('directory,tag', [
-    ('/Data', 'Data'), ('/Data', '/Data'),
-    ('/Data/Code/PST', 'pst'), ('/Data/projects/example', 'project-files'),
-])
-def test_preparation_share_records_actual_directory_and_mount_tag(rig, directory, tag):
-    document = xml(rig.top).replace("dir='/Data'", f"dir='{directory}'").replace(
-        "dir='Data'", f"dir='{tag}'")
-    assert host.domain_layout(document, UUID)['source_shares'] == [
-        {'type': 'virtiofs', 'source': directory, 'target': tag, 'preparation_only': True}]
-
-
-@pytest.mark.parametrize('directory,tag', [
-    ('/home', 'pst'), ('/Database', 'pst'), ('Data/Code/PST', 'pst'),
-    ('/Data/../home', 'pst'), ('/Data/Code/../../home', 'pst'),
-    ('/Data/./Code', 'pst'), ('/Data//Code', 'pst'), ('/Data/Code/', 'pst'),
-    ('/Data/Code&#10;PST', 'pst'),
-    ('/Data/Code/PST', ''), ('/Data/Code/PST', '.'), ('/Data/Code/PST', '..'),
-    ('/Data/Code/PST', '/mnt/pst'), ('/Data/Code/PST', 'bad tag'),
-])
-def test_preparation_share_refuses_outside_storage_or_ambiguous_names(rig, directory, tag):
-    document = xml(rig.top).replace("dir='/Data'", f"dir='{directory}'").replace(
-        "dir='Data'", f"dir='{tag}'")
-    with pytest.raises(host.CaptureError, match='guard:filesystem-share'):
-        host.domain_layout(document, UUID)
-
-
-@pytest.mark.parametrize('change', [
-    lambda value: value.replace("type='virtiofs'", "type='9p'"),
-    lambda value: value.replace("filesystem type='mount'", "filesystem type='file'"),
-    lambda value: value.replace("<driver type='virtiofs'/>", ''),
-    lambda value: value.replace("<source dir='/Data'/>", ''),
-    lambda value: value.replace("<target dir='Data'/>", ''),
-    lambda value: value.replace("<source dir='/Data'/>", "<source dir='/Data'/><source dir='/home'/>"),
-    lambda value: value.replace("<driver type='virtiofs'/>", "<driver type='virtiofs'/><driver type='9p'/>"),
-    lambda value: value.replace("<target dir='Data'/>", "<target dir='Data'/><target dir='other'/>"),
-    lambda value: value.replace('</devices>',
-        "<filesystem type='mount'><driver type='virtiofs'/><source dir='/Data/Code/PST'/>"
-        "<target dir='pst'/></filesystem></devices>"),
-])
-def test_preparation_share_refuses_unsupported_or_duplicate_devices(rig, change):
-    with pytest.raises(host.CaptureError, match='guard:filesystem-share'):
-        host.domain_layout(change(xml(rig.top)), UUID)
 
 
 def test_malformed_xml_refused():
@@ -1119,29 +1325,6 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
     connect.assert_not_called()
 
 
-def test_unsupported_share_diagnostic_preserves_vm_and_controller_state(monkeypatch, capsys):
-    monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
-    monkeypatch.setattr(host.guest_contract, 'CHECKOUT', ROOT)
-    monkeypatch.setattr(host.shutil, 'which', lambda name: f'/usr/bin/{name}')
-    monkeypatch.setattr(host.importlib, 'import_module', Mock())
-    monkeypatch.setattr(host.os, 'geteuid', lambda: 0)
-    monkeypatch.setattr(host.os, 'getegid', lambda: 0)
-    monkeypatch.setattr(host.threading, 'Thread', Mock())
-    source = Mock()
-    source.snapshot.side_effect = host.CaptureError('guard:filesystem-share')
-    monkeypatch.setattr(host, 'LibvirtSource', Mock(return_value=source))
-    state_root, capture = Mock(), Mock()
-    monkeypatch.setattr(host, 'prepare_state_root', state_root)
-    monkeypatch.setattr(host, 'Capture', capture)
-
-    assert host.main(['--vm', vm_name(), '--mode', 'manual', '--y']) == 1
-    output = capsys.readouterr().err
-    assert 'at most one mount-type virtiofs share from /Data or a subdirectory' in output
-    assert 'recovery-phase:before-validation' in output
-    assert 'retain snapshot and controller state' in output
-    state_root.assert_not_called()
-    capture.assert_not_called()
-    assert source.mock_calls == [call.snapshot(), call.close()]
 
 
 @pytest.mark.parametrize('missing_baseline', [False, True])

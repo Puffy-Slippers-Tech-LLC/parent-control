@@ -22,6 +22,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Per-VM leases, moved lease identity and legacy-journal refusal checks retain
 # only private tmp_path locks/journals and process-local libvirt doubles. Storage,
 # qualification and VM-control modules keep their compatible classification.
+# Never-started recovery in graphical_smoke_cleanup_safety uses private rig
+# journals and mocked VM APIs, without live processes, displays or shared paths.
+# Its existing compatible cleanup classification remains appropriate.
 
 from pathlib import PurePosixPath
 
@@ -124,6 +127,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Measured four-worker costs guide packing only; never reuse passing results.
 # Recorder shards include their concurrent durable-write cost (higher than a
 # single worker's elapsed time). Recalibrate from --durations=0 after growth.
+# Preparation recovery additions use private journals and mocked lease/SSH
+# lifecycle only. App-snapshot, graphical and retention cleanup stay compatible;
+# neither host privileges nor a shared VM/display/storage root is touched.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_fix_tests_cleanup_safety.py': 38,
              'test_write_e2e_cleanup_safety.py': 54,

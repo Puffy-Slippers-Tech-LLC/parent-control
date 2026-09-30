@@ -222,27 +222,18 @@ def domain_layout(xml, expected_uuid):
     # Offline internal disk snapshots do not capture external firmware/TPM state.
     require(root.find("os/nvram") is None and not root.findall("devices/tpm"),
             "guard:external-device-state")
-    shares = []
-    for share in root.findall("devices/filesystem"):
-        require(share.get("type") == "mount" and
-                all(len(share.findall(name)) == 1 for name in ("driver", "source", "target")) and
-                share.find("driver").get("type") == "virtiofs", "guard:filesystem-share")
-        directory = share.find("source").get("dir", "")
-        tag = share.find("target").get("dir", "")
-        # A narrower preparation share need not expose all of /Data or use its
-        # old mount tag. Keep the storage boundary and exact journal identity;
-        # isolated test/maintenance boots still detach every filesystem share.
-        require(directory.startswith("/") and
-                Path(directory).is_relative_to("/Data") and
-                not any(part in ("", ".", "..") for part in directory.split("/")[1:]) and
-                not any(ord(character) < 32 or ord(character) == 127 for character in directory) and
-                (tag == "/Data" or (re.fullmatch(r"[A-Za-z0-9_.-]+", tag) and tag not in (".", ".."))),
-                "guard:filesystem-share")
-        shares.append({"type": "virtiofs", "source": directory, "target": tag,
-                       "preparation_only": True})
-    require(len(shares) <= 1, "guard:filesystem-share")
     return {"uuid": expected_uuid, "disk": source.get("file"), "target": target,
-            "empty_optical_drive": bool(optical), "source_shares": shares}
+            "empty_optical_drive": bool(optical)}
+
+
+def recorded_layout(layout):
+    """Compare only the maintained disk identity fields in durable records."""
+    return {key: layout[key] for key in ('uuid', 'disk', 'target', 'empty_optical_drive')
+            if key in layout}
+
+
+def recorded_source(source):
+    return dict(source, layout=recorded_layout(source['layout']))
 
 
 class LibvirtSource:
@@ -273,7 +264,7 @@ class LibvirtSource:
                           self.api.VIR_DOMAIN_SHUTOFF), "guard:domain-state")
         layout = domain_layout(domain.XMLDesc(0), self.uuid)
         inactive = domain_layout(domain.XMLDesc(self.api.VIR_DOMAIN_XML_INACTIVE), self.uuid)
-        require(inactive == layout, "guard:pending-disk-change")
+        require(inactive == recorded_layout(layout), "guard:pending-disk-change")
         if state != self.api.VIR_DOMAIN_SHUTOFF:
             require(not domain.blockJobInfo(layout["target"], 0), "guard:block-job")
         return layout, state == self.api.VIR_DOMAIN_SHUTOFF
@@ -319,18 +310,18 @@ class LibvirtSource:
     @observed('Restoring the VM baseline before automatic preparation')
     def restore_baseline(self, layout, expected_xml):
         current, off = self.snapshot()
-        require(off and current == layout, 'snapshot:source-changed')
+        require(off and current == recorded_layout(layout), 'snapshot:source-changed')
         require(self.baseline() == expected_xml, 'snapshot:changed')
         name = ET.fromstring(expected_xml).findtext('name')
         snapshot = self.domain.snapshotLookupByName(name, 0)
         self.domain.revertToSnapshot(snapshot, 0)
         current, off = self.snapshot()
-        require(off and current == layout, 'snapshot:source-changed')
+        require(off and current == recorded_layout(layout), 'snapshot:source-changed')
 
     @observed('Creating the VM baseline snapshot')
     def create_baseline(self, layout, description):
         current, off = self.snapshot()
-        require(off and current == layout, "snapshot:source-changed")
+        require(off and current == recorded_layout(layout), "snapshot:source-changed")
         require(self.baseline() is None, "snapshot:already-exists")
         root = ET.Element("domainsnapshot")
         ET.SubElement(root, "name").text = SNAPSHOT
@@ -351,13 +342,13 @@ class LibvirtSource:
             if re.fullmatch(r'onpc-v?[0-9]+(?:\.[0-9]+)*', snapshot.getName()) is None:
                 continue
             current, off = self.snapshot()
-            require(off and current == layout, 'snapshot:source-changed')
+            require(off and current == recorded_layout(layout), 'snapshot:source-changed')
             snapshot.delete(0)  # Delete this snapshot only, never its children.
 
     @observed('Deleting the VM baseline snapshot')
     def delete_baseline(self, layout):
         current, off = self.snapshot()
-        require(off and current == layout, "snapshot:source-changed")
+        require(off and current == recorded_layout(layout), "snapshot:source-changed")
         matches = [snapshot for snapshot in self.domain.listAllSnapshots(0)
                    if snapshot.getName() in SNAPSHOT_NAMES]
         require(len(matches) <= 1, "snapshot:ambiguous-baseline")
@@ -376,7 +367,7 @@ def snapshot_proof(xml, layout, description):
     memory = root.find("memory")
     require(memory is not None and memory.get("snapshot") == "no", "snapshot:memory")
     domain = root.find("domain")
-    require(domain is not None and domain_layout(ET.tostring(domain, encoding="unicode"), layout["uuid"]) == layout,
+    require(domain is not None and domain_layout(ET.tostring(domain, encoding="unicode"), layout["uuid"]) == recorded_layout(layout),
             "snapshot:domain")
     disks = root.findall("disks/disk")
     selected = [disk for disk in disks if disk.get("snapshot") != "no"]
@@ -519,6 +510,7 @@ class Capture:
                                     "policy": "metadata-only"}
         self.vm_ownership = None
         self.verification_failure = None
+        self.watch = None
 
     @property
     def lock_path(self):
@@ -578,7 +570,7 @@ class Capture:
 
     def revalidate(self, *, off=False):
         current, is_off = self.inventory()
-        require(current == self.state["source"], "guard:source-changed")
+        require(current == recorded_source(self.state["source"]), "guard:source-changed")
         require(not off or is_off, "guard:source-running")
         if self.directory_identity is not None:
             require(self.private_directory() == self.directory_identity, "guard:directory-changed")
@@ -589,10 +581,8 @@ class Capture:
     def prepare_private_directory(self, *, refresh=False):
         """Create, or safely repair, the empty controller-state directory.
 
-        A source guest can expose the host's ``/Data`` share and maps its root
-        user to an unprivileged host identity.  A mistaken guest-side invocation
-        can therefore leave an empty directory at the fixed state path.  It has
-        no controller state to preserve, so the host controller repairs only
+        An interrupted setup can leave an empty directory at the fixed state
+        path. It has no controller state to preserve, so the controller repairs only
         that exact empty directory.  Any entry remains evidence and is refused.
         """
         canonical(self.directory.parent)
@@ -701,7 +691,7 @@ class Capture:
     def refuse_existing_snapshot(self):
         require(self.source.baseline() is None and self.disk_snapshot() is None, "snapshot:already-exists")
 
-    def require_idle_attempt(self):
+    def require_idle_attempt(self, *, manual_inventory=None):
         for record in self.directory.glob('disk-rename-*.json'):
             identity(record, private=True, mode=0o600)
             rename = parse_json(record.read_bytes())
@@ -716,8 +706,117 @@ class Capture:
         if os.path.lexists(attempt):
             identity(attempt, private=True, mode=0o600)
             previous = parse_json(attempt.read_bytes())
-            require(isinstance(previous, dict) and previous.get('phase') == 'complete',
-                    'state:interrupted-run; preserve state for recovery')
+            if isinstance(previous, dict) and previous.get('phase') == 'complete':
+                return None
+            if manual_inventory is not None:
+                return self.inspect_off_maintenance(previous, manual_inventory)
+            raise CaptureError('state:interrupted-run; preserve state for recovery')
+        return None
+
+    def inspect_off_maintenance(self, attempt, inventory):
+        """Attest an abandoned maintenance owner for explicit manual preparation.
+
+        This never restores the disk or the old domain configuration. Other
+        consumers continue to refuse unfinished attempts. Retirement happens
+        only after the confirmed preparation and independent inspection succeed.
+        """
+        category = 'state:interrupted-run; recovery-check:maintenance-journal'
+        prestart = ('validated', 'shutdown-requested', 'restore-requested', 'isolated', 'start-requested')
+        require(self.state is not None and self.state['phase'] == 'finalized' and
+                isinstance(attempt, dict) and set(attempt) == {
+                    'schema_version', 'run', 'phase', 'domain_uuid', 'domain_id',
+                    'original_xml', 'baseline_sha256'} and
+                attempt['schema_version'] == 1 and
+                ((attempt['phase'] in ('running', 'cleanup-requested') and
+                  type(attempt['domain_id']) is int and attempt['domain_id'] >= 0) or
+                 (attempt['phase'] in (*prestart, 'cleanup-requested') and attempt['domain_id'] is None)) and
+                isinstance(attempt['run'], str) and re.fullmatch(r'[0-9a-f]{32}', attempt['run']) and
+                attempt['domain_uuid'] == self.state['source']['layout']['uuid'] and
+                attempt['baseline_sha256'] == hashlib.sha256(encode(self.state)).hexdigest(), category)
+        owner_path = self.directory / 'vm-control.json'
+        require(os.path.lexists(owner_path), 'state:interrupted-run; recovery-check:maintenance-owner-missing')
+        identity(owner_path, private=True, mode=0o600)
+        owner_raw = owner_path.read_bytes()
+        owner = parse_json(owner_raw)
+        snapshot = self.source.baseline()
+        expected_owner = {
+            'run': attempt['run'], 'domain_uuid': attempt['domain_uuid'],
+            'baseline_sha256': attempt['baseline_sha256']}
+        require(isinstance(owner, dict) and
+                set(owner) == set(expected_owner) | {'snapshot_sha256'},
+            'state:interrupted-run; recovery-check:maintenance-owner')
+        for key, value in expected_owner.items():
+            require(owner[key] == value,
+                    'state:interrupted-run; recovery-check:maintenance-owner-' + key)
+        require(isinstance(owner['snapshot_sha256'], str) and
+                re.fullmatch(r'[0-9a-f]{64}', owner['snapshot_sha256']),
+                'state:interrupted-run; recovery-check:maintenance-owner-snapshot-digest')
+        require(domain_layout(attempt['original_xml'], attempt['domain_uuid']) ==
+                recorded_layout(self.state['source']['layout']), 'state:interrupted-run; recovery-check:original-layout')
+        require(inventory['layout'] == recorded_layout(self.state['source']['layout']),
+                'state:interrupted-run; recovery-check:storage-layout')
+        require(inventory['chain'] == self.state['source']['chain'],
+                'state:interrupted-run; recovery-check:disk-chain')
+        require(self.inventory() == (inventory, True),
+                'state:interrupted-run; recovery-check:idle-off')
+        self.require_off_maintenance_domain()
+        record = self.disk_snapshot()
+        if snapshot is None:
+            # Manual preparation explicitly replaces an owner-deleted baseline,
+            # never restores missing metadata or adopts an orphan disk record.
+            require(record is None, 'snapshot:orphan-disk-record; preserve state for recovery')
+        else:
+            require(owner['snapshot_sha256'] == hashlib.sha256(snapshot.encode()).hexdigest(),
+                    'state:interrupted-run; recovery-check:maintenance-snapshot-digest')
+            proof = snapshot_proof(self.proven_snapshot_xml(snapshot),
+                                   self.state['source']['layout'], self.description())
+            require(record is not None, 'snapshot:missing-or-invalid-disk-record')
+            proof['disk'] = {key: record.get(key) for key in
+                             ('id', 'name', 'date-sec', 'date-nsec', 'vm-state-size')}
+            require(proof == self.state['proof'], 'snapshot:changed')
+        return {'attempt': attempt, 'system-run.json': (self.directory / 'system-run.json').read_bytes(),
+                'vm-control.json': owner_raw}
+
+    def require_off_maintenance_domain(self):
+        # virDomainGetID reads the handle's cached ID. After guest poweroff the
+        # handle used to start it can still hold its former running instance ID.
+        domain = self.source.connection.lookupByName(DOMAIN)
+        require(domain.UUIDString() == self.state['source']['layout']['uuid'], 'guard:domain-identity')
+        require(domain.ID() == -1 and not domain.autostart(), 'guard:source-running')
+
+    def retire_off_maintenance(self, pending):
+        """Preserve both ownership records before closing a superseded attempt."""
+        self.revalidate(off=True)
+        self.require_off_maintenance_domain()
+        require(self.private_directory() == self.directory_identity, 'guard:directory-changed')
+        run = pending['attempt']['run']
+        for name in ('system-run.json', 'vm-control.json'):
+            path = self.directory / name
+            identity(path, private=True, mode=0o600)
+            raw = pending[name]
+            require(path.read_bytes() == raw, 'state:maintenance-record-changed')
+            archive = self.directory / f'retired-{name.removesuffix(".json")}-{run}.json'
+            if os.path.lexists(archive):
+                identity(archive, private=True, mode=0o600)
+                require(archive.read_bytes() == raw, 'state:retired-record-mismatch')
+            else:
+                fd, temporary = tempfile.mkstemp(prefix='.retired-', dir=self.directory)
+                with os.fdopen(fd, 'wb') as stream:
+                    stream.write(raw)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, archive)
+            sync_directory(self.directory)
+        closed = dict(pending['attempt'], phase='complete', outcome='superseded',
+                      superseded_by=self.state['operation'])
+        fd, temporary = tempfile.mkstemp(prefix='.system-run-', dir=self.directory)
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(encode(closed))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, self.directory / 'system-run.json')
+        sync_directory(self.directory)
+        log('recovery:off-maintenance-superseded')
 
     def archive_state(self):
         """Preserve provenance durably before explicit baseline replacement."""
@@ -805,6 +904,8 @@ class Capture:
                 raise CaptureError("state:busy-controller") from error
             self.commands.lock_fd = fd
             self.commands.compatibility_fd = compatibility
+            from e2e_watch import begin
+            begin(self)
             if mode is not None:
                 return self.prepare_mode(inventory, mode, confirm)
             if os.path.lexists(self.directory / "phase.json"):
@@ -816,7 +917,7 @@ class Capture:
                               "source": inventory, "source_digests": None, "guest": None,
                               "operation": uuid.uuid4().hex, "proof": None, "script_digest": self.script_digest}
                 self.save("validation")
-            if refresh and self.state['source'] != inventory:
+            if refresh and recorded_source(self.state['source']) != inventory:
                 self.replace_prepared_source(inventory)
             self.revalidate(off=refresh)
             if refresh:
@@ -832,12 +933,18 @@ class Capture:
                 self.replace_missing_baseline()
             self.execute(require_off=refresh)
         finally:
-            self.commands.lock_fd = None
-            self.commands.compatibility_fd = None
-            if fd is not None:
-                os.close(fd)
-            if compatibility is not None:
-                os.close(compatibility)
+            try:
+                self.commands.lock_fd = None
+                self.commands.compatibility_fd = None
+                if fd is not None:
+                    os.close(fd)
+                if compatibility is not None:
+                    os.close(compatibility)
+            finally:
+                observer = getattr(self, 'watch', None)
+                if observer is not None:
+                    observer.close()
+                    self.watch = None
 
     def prepare_mode(self, inventory, mode, confirm):
         """Hold the shared lease from confirmation through offline replacement.
@@ -852,7 +959,7 @@ class Capture:
             require(inventory['layout']['uuid'] == self.state['source']['layout']['uuid'],
                     'guard:source-changed')
             if self.state['phase'] != 'finalized':
-                require(inventory == self.state['source'], 'guard:source-changed')
+                require(inventory == recorded_source(self.state['source']), 'guard:source-changed')
             if existing is not None:
                 require(self.state['phase'] in ('snapshot-requested', 'finalized'),
                         'state:unfinished-preparation')
@@ -865,7 +972,8 @@ class Capture:
                     # write. Verify that operation's snapshot, then do this run's
                     # full workflow instead of treating recovery as completion.
                     self.verify_snapshot()
-        self.require_idle_attempt()
+        pending_maintenance = self.require_idle_attempt(
+            manual_inventory=inventory if mode == 'manual' else None)
         if mode == 'auto':
             require(recorded and existing is not None, 'snapshot:unowned-baseline')
             self.revalidate(off=True)
@@ -889,6 +997,8 @@ class Capture:
         observed_guest = self.inspect(Path(inventory['layout']['disk']), self.script_digest)
         self.revalidate(off=True)
         require(self.source.baseline() == existing, 'snapshot:changed')
+        if pending_maintenance is not None:
+            self.retire_off_maintenance(pending_maintenance)
         prepared = self.state
         if previous is not None:
             self.state = previous
@@ -1015,6 +1125,46 @@ def prepare_state_root(directory=guest_contract.vm_config.STATE_ROOT):
             'guard:baseline-state-root')
 
 
+def recover_off_attempt(source, commands, inspect, *, confirm=None):
+    """Recover abandoned test cleanup without restoring owned manual maintenance.
+
+    These reads select the recovery route only. The shared lease revalidates
+    the complete journal, domain, disks and baseline under its exclusive lock.
+    """
+    directory = guest_contract.vm_config.selected().baseline_directory
+    if not os.path.lexists(directory):
+        return
+    private_baseline_directory(directory)
+    journal = directory / 'system-run.json'
+    if not os.path.lexists(journal):
+        return
+    identity(journal, private=True, mode=0o600)
+    attempt = parse_json(journal.read_bytes())
+    require(isinstance(attempt, dict), 'state:invalid-run-journal')
+    if attempt.get('phase') == 'complete':
+        return
+    owner_path = directory / 'vm-control.json'
+    if os.path.lexists(owner_path):
+        identity(owner_path, private=True, mode=0o600)
+        owner = parse_json(owner_path.read_bytes())
+        require(isinstance(owner, dict), 'state:invalid-maintenance-owner')
+        if owner.get('run') == attempt.get('run'):
+            return  # Manual preparation attests and preserves this current disk.
+    require(source.snapshot()[1], 'guard:source-running')
+    if confirm is not None and not confirm():
+        return False
+    from check_graphical_recovery import recorded_graphics_type
+    from system_runner import Lease
+    kind = recorded_graphics_type(source.domain.XMLDesc(0))
+    lease = Lease(source, commands, inspect, graphics_type=kind)
+    if kind == 'vnc':
+        lease.recover_graphical_cleanup()
+    else:
+        lease.recover_system_cleanup()
+    log('recovery:unfinished-test-cleanup-completed')
+    return True
+
+
 def main(argv=None):
     argv, _ = guest_contract.vm_config.extract(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
@@ -1071,14 +1221,23 @@ def main(argv=None):
         require(source.snapshot()[1], "guard:source-running")
         prepare_state_root()
         from baseline_guest import prepare
-        capture = Capture(source, Commands(), lambda disk, sha: inspect_guest(modules["guestfs"], disk, sha),
+        commands = Commands()
+        inspect = lambda disk, sha: inspect_guest(modules['guestfs'], disk, sha)
+        confirmation = partial(confirm_preparation, assume_yes=args.y)
+        recovered = None
+        if args.mode is not None:
+            recovered = recover_off_attempt(source, commands, inspect,
+                confirm=lambda: confirmation(args.mode, source.baseline() is not None))
+            if recovered is False:
+                return 3
+        capture = Capture(source, commands, inspect,
                           prepare_guest=lambda held: prepare(held, modules['guestfs'], password,
                                                              mode=args.mode or 'manual'))
         if args.replace_missing:
             capture.run(replace_missing=True)
         else:
             if not capture.run(mode=args.mode,
-                               confirm=partial(confirm_preparation, assume_yes=args.y)):
+                               confirm=(lambda *_: True) if recovered else confirmation):
                 return 3
         return 0
     except MissingAutoBaseline:
@@ -1106,11 +1265,6 @@ def main(argv=None):
             print("prepare-baseline: the recorded baseline has no matching libvirt snapshot metadata; "
                   "retain the disk and controller state; recover verified metadata or "
                   "prepare the powered-off guest and explicitly replace the baseline", file=sys.stderr)
-        if category == "guard:filesystem-share":
-            print("prepare-baseline: allow at most one mount-type virtiofs share from /Data or a "
-                  "subdirectory, with a simple mount tag (or legacy /Data); "
-                  "remove unsupported shares from the powered-off VM configuration before retrying",
-                  file=sys.stderr)
         print("prepare-baseline: resolve the reported condition, then rerun tools/prepare-baseline; retain snapshot and controller state",
               file=sys.stderr)
         return 1

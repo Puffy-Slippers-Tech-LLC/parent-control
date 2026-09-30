@@ -100,6 +100,17 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
         advance(control, 5)
         wait(lambda: ui.text('e2e-watch-status') == 'VM running · Waiting for the next operation',
              'completed operations do not leave stale intent in the footer')
+        advance(control, 6)
+        wait(lambda: ui.text('e2e-watch-status') == 'VM operation in progress · Waiting for display',
+             'held lease stays connected while the guest display is unavailable')
+        advance(control, 7)
+        wait(lambda: ui.text('e2e-watch-status') == 'VM running · Waiting for the next operation',
+             'guest display resumes on the same held lease')
+        advance(control, 8)
+        wait(lambda: ui.text('e2e-watch-status') ==
+             'Waiting for VM activity. You can leave this window open.',
+             'viewer disconnects after lease publication ends')
+        assert evidence(output)['lease_feed_survives_display_restart']
 
     ui.activate('watch-close')
     deadline = time.monotonic() + 10

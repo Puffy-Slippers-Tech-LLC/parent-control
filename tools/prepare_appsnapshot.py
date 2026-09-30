@@ -66,7 +66,7 @@ def main(argv=None):
             return 0
         root = Path(__file__).resolve().parents[1]
         helper = '/usr/local/libexec/onpc-test-runner'
-        with test_activity.activity(root), Control().installed() as control:
+        with test_activity.activity(root, named_vm=True), Control().installed() as control:
             check(helper)
             environment = test_launcher.environment(root)
             if args.overwrite == 'true':
@@ -76,6 +76,13 @@ def main(argv=None):
             status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
                 helper, 'appsnapshot', '--probe', '--mode', args.mode,
                 '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
+            if status == 6:
+                cleanup(root)
+                if control.stopped.is_set():
+                    return 130
+                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                    helper, 'appsnapshot', '--probe', '--mode', args.mode,
+                    '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
             if status == 4:
                 return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
                     helper, 'appsnapshot', '--resume', '--mode', args.mode, *vm_arguments()],

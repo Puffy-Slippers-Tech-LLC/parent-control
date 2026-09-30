@@ -26,7 +26,8 @@ def snapshot(memory):
 
 def main():
     mode = sys.argv[1:]
-    require(mode in ([], ['--experiment'], ['--internet'], ['--stopped']) and os.geteuid() == 0, 'probe-context')
+    require(mode in ([], ['--experiment'], ['--internet'], ['--stopped'], ['--held'])
+            and os.geteuid() == 0, 'probe-context')
     uid = int(os.environ['PKEXEC_UID'])
     require(uid > 0, 'probe-user')
     os.setgroups([])
@@ -41,6 +42,18 @@ def main():
             time.sleep(.05)
         require(not current_path.exists(), 'probe-keeper-not-stopped')
         print(json.dumps({'keeper_stopped_with_vm': True}))
+        return
+    if mode == ['--held']:
+        feed.connect()
+        first = snapshot(feed.memory)
+        time.sleep(1)
+        current = snapshot(feed.memory)
+        require(current_path.exists() and current[0] > first[0]
+                and current[1]['lease_locked'] is True and current[1]['state'] == 'waiting'
+                and time.monotonic_ns() - current[1]['updated_ns'] < 1_000_000_000,
+                'probe-lease-feed-disconnected')
+        feed.close()
+        print(json.dumps({'connected_while_vm_off': True, 'feed_run': current[1]['run']}))
         return
     activity = feed.activity()
     require(activity is not None and 'SSH $ printf' in activity['text']
@@ -100,6 +113,7 @@ def main():
             and time.monotonic_ns() - current[1]['updated_ns'] < 1_000_000_000, 'probe-writer-stopped')
     feed.close()
     print(json.dumps({'connections': 60, 'frame_size': [first[1]['width'], first[1]['height']],
+                      'feed_run': first[1]['run'],
                       'max_frame_age_ms': round(max(ages), 2), 'read_only': True,
                       'ssh_command_stdout_stderr': True, 'timed_progress_with_frames': not mode,
                       'without_e2e_recorder': mode == ['--experiment']}))

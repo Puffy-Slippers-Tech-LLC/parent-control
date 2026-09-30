@@ -23,18 +23,19 @@ def recorded_graphics_type(xml):
     return displays[0].get('type')
 
 
-def main(*, graphics_type='vnc'):
+def main(*, graphics_type='vnc', maintenance=False):
     runner.require(len(sys.argv) == 1, 'recovery:invalid-arguments')
     runner.require(graphics_type in (None, 'vnc', 'spice'), 'recovery:invalid-graphics')
     runner.require(os.geteuid() == os.getegid() == 0, 'recovery:root-required')
     runner.require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT,
                    'recovery:checkout')
     with recovery_session():
-        return recover(graphics_type)
+        return recover(graphics_type, maintenance=maintenance)
 
 
-def recover(graphics_type):
+def recover(graphics_type, *, maintenance=False):
     os.umask(0o077)
+    requested_graphics_type = graphics_type
     kind = 'graphical' if graphics_type == 'vnc' else 'system'
     directory = Path(allocate(tempfile.mkdtemp, prefix=f'onpc-{kind}-recovery-'))
     commands = runner.Commands()
@@ -58,7 +59,29 @@ def recover(graphics_type):
         lease = runner.Lease(source, commands,
                             lambda disk, digest: runner.baseline.inspect_guest(guestfs, disk, digest),
                             graphics_type=graphics_type)
-        if graphics_type == 'vnc':
+        owned = False
+        if maintenance:
+            journal = lease.journal
+            owner_path = lease.directory / 'vm-control.json'
+            if os.path.lexists(journal) and os.path.lexists(owner_path):
+                for path in (journal, owner_path):
+                    runner.baseline.identity(path, private=True, mode=0o600)
+                attempt = runner.baseline.parse_json(journal.read_bytes())
+                owner = runner.baseline.parse_json(owner_path.read_bytes())
+                owned = (isinstance(attempt, dict) and isinstance(owner, dict)
+                         and attempt.get('run') == owner.get('run'))
+        if owned:
+            # Route selection is not an ownership grant: stop reacquires the
+            # lease and checks the exact instance, owner and snapshot proofs.
+            import vm_control
+            runner.require(requested_graphics_type in (None, 'vnc'), 'recovery:maintenance-graphics')
+            lease.view.graphics_type = 'vnc'
+            result['scope'] = 'recorded-maintenance-cleanup-only'
+            try:
+                vm_control.recover_preparation(lease)
+            finally:
+                lease.release()
+        elif graphics_type == 'vnc':
             lease.recover_graphical_cleanup()
         else:
             lease.recover_system_cleanup()

@@ -68,13 +68,11 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def validate_marker(marker, expected, machine, domain, mounts):
+def validate_marker(marker, expected, machine, domain):
     require(isinstance(marker, dict) and marker.get('purpose') == 'onpc-system-test', 'marker-purpose')
     require(re.fullmatch(r'[0-9a-f]{32}', expected or '') and marker.get('run') == expected, 'run-identity')
     require(marker.get('machine_id') == machine and machine != marker.get('host_machine_id'), 'machine-identity')
     require(marker.get('domain_uuid') == domain.lower(), 'domain-identity')
-    require(not any(kind in {'virtiofs', '9p', 'nfs', 'nfs4', 'cifs', 'fuse.sshfs'}
-                    for kind in mounts), 'host-filesystem-exposed')
     for key in ('baseline_sha256', 'preparation_sha256', 'package_sha256',
                 'selected_inputs_sha256'):
         require(isinstance(marker.get(key), str) and re.fullmatch(r'[0-9a-f]{64}', marker[key]), 'marker-digest')
@@ -92,11 +90,9 @@ def guard():
     require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 0 and
             stat.S_IMODE(info.st_mode) == 0o600, 'marker-permissions')
     marker = json.loads(MARKER.read_text())
-    mounts = [line.split(' - ', 1)[1].split()[0]
-              for line in Path('/proc/self/mountinfo').read_text().splitlines()]
     validate_marker(marker, os.environ.get('ONPC_EXPECTED_RUN'),
                     Path('/etc/machine-id').read_text().strip(),
-                    Path('/sys/class/dmi/id/product_uuid').read_text().strip(), mounts)
+                    Path('/sys/class/dmi/id/product_uuid').read_text().strip())
     require(run(['systemd-detect-virt', '--vm']) in {'kvm', 'qemu'}, 'virtualization')
     check_prepared_hostname(marker['preparation_sha256'], Path('/etc/hostname').read_text().strip())
     release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines()

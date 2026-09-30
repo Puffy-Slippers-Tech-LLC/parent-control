@@ -159,6 +159,25 @@ def inspect():
         elif stage == 7 and advance_requested(5):
             feed.invocation_activity.update(operation='VM observation complete', operation_active=False)
             stage = 8
+        elif stage == 8 and advance_requested(6):
+            # Display stops while the same lease publication remains connected.
+            feed.invocation_activity = None
+            source.publish(state='waiting', width=0, height=0, lease_locked=True, progress={})
+            stage = 9
+        elif stage == 9 and advance_requested(7):
+            assert feed.memory is not None and app.vm.active and app.vm.locked
+            assert app.vm.screen.texture is None
+            source.publish(b'\xff\0\0\0' * 12, state='live', width=4, height=3,
+                           stride=16, format=0x20020888, lease_locked=True)
+            stage = 10
+        elif stage == 10 and advance_requested(8):
+            assert app.vm.screen.texture is not None
+            assert feed.memory is not None and app.vm.active and app.vm.locked
+            evidence['lease_feed_survives_display_restart'] = True
+            source.close()
+            source = None
+            stage = 11
+            publish_evidence()
         if stage < 6:
             assert elapsed < 20, 'Fixture viewer did not complete its transitions'
         return True

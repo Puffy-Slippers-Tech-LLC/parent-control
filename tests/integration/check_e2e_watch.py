@@ -129,7 +129,16 @@ def maintenance_probe(lease, commands, directory, host_key, *, detached=True):
     with operation('Qualifying VM maintenance observation'):
         result = json.loads(commands.run([*reader, '--experiment'], timeout=40))
     lease.stop()
-    result.update(json.loads(commands.run([*reader, '--stopped'], timeout=20)))
+    stopped = json.loads(commands.run([*reader, '--stopped' if detached else '--held'], timeout=20))
+    if not detached:
+        require(stopped['feed_run'] == result['feed_run'], 'watch:lease-feed-replaced')
+        lease.start()
+        with operation('Qualifying VM maintenance observation'):
+            resumed = json.loads(commands.run([*reader, '--experiment'], timeout=40))
+        require(resumed['feed_run'] == result['feed_run'], 'watch:lease-feed-replaced')
+        lease.stop()
+        result['same_feed_after_vm_restart'] = True
+    result.update(stopped)
     return result
 
 
@@ -180,6 +189,9 @@ def main():
                     result[name] = run_probe(lease, commands, attempt, host_key)
                     ledger.pass_outcome('infrastructure')
                     ledger.pass_outcome('collection')
+                if name == 'system':
+                    result[name].update(json.loads(commands.run(['/usr/bin/python3', '-B',
+                        str(Path(__file__).with_name('e2e_watch_probe.py')), '--stopped'], timeout=20)))
             result['outcome'] = 'passed'
         except (Exception, KeyboardInterrupt) as error:
             result['category'] = runner.record_caught_failure(ledger, error)

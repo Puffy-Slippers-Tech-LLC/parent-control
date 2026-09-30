@@ -104,7 +104,7 @@ def test_nested_ui_stream_keeps_guard_output_out_of_outer_parser():
     assert previous.call_count == 2
 
 
-@pytest.mark.parametrize('fault', [None, 'name', 'instance', 'connection', 'shares', 'run'])
+@pytest.mark.parametrize('fault', [None, 'name', 'instance', 'connection', 'run'])
 def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch, fault):
     configured = Mock(name='configuration')
     configured.name = 'custom-test-vm'
@@ -113,9 +113,8 @@ def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch
     domain.ID.return_value = 72 if fault == 'instance' else 71
     domain.name.return_value = 'old-vm' if fault == 'name' else configured.name
     run = 'b' * 32 if fault == 'run' else config()['run']
-    devices = '<filesystem/>' if fault == 'shares' else ''
     domain.XMLDesc.return_value = (
-        f'<domain><description>onpc-system-run:{run}</description><devices>{devices}</devices></domain>')
+        f'<domain><description>onpc-system-run:{run}</description><devices/></domain>')
     connection = Mock()
     connection.getURI.return_value = 'qemu:///session' if fault == 'connection' else 'qemu:///system'
     connection.lookupByUUIDString.return_value = domain

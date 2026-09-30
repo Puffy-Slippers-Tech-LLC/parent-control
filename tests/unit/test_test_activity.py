@@ -11,18 +11,23 @@ import test_activity
 import regression_inputs
 
 
-def child(tmp_path, env, pass_fds=(), *, cleanup=False, host_only=None, retention=False):
+def child(tmp_path, env, pass_fds=(), *, cleanup=False, host_only=None, retention=False,
+          named_vm=None, vm=None):
     script = tmp_path / 'lock_child.py'
     script.write_text('''import pathlib,sys
 sys.path.insert(0, sys.argv[1])
 import test_activity
 import regression_inputs
 import test_retention
+import vm_selection
 regression_inputs.identity = lambda root: 'a' * 64
 try:
     root = pathlib.Path(sys.argv[2])
     scope = {'auto': None, 'host': True, 'vm': False}[sys.argv[4]]
-    with test_activity.activity(root, host_only=scope):
+    if sys.argv[7]:
+        vm_selection.select(sys.argv[7])
+    named = {'auto': None, 'yes': True, 'no': False}[sys.argv[6]]
+    with test_activity.activity(root, host_only=scope, named_vm=named):
         if sys.argv[5] == 'retain':
             with test_retention.Store(test_activity.retention_path(root)).session():
                 pass
@@ -35,7 +40,8 @@ except (ValueError, OSError) as error:
                            str(Path(test_activity.__file__).parent), str(tmp_path / 'checkout'),
                            'cleanup' if cleanup else 'ownership',
                            'auto' if host_only is None else 'host' if host_only else 'vm',
-                           'retain' if retention else 'none'],
+                           'retain' if retention else 'none',
+                           'auto' if named_vm is None else 'yes' if named_vm else 'no', vm or ''],
                           env=env, pass_fds=pass_fds, capture_output=True, text=True, timeout=10)
 
 
@@ -45,6 +51,30 @@ def test_competing_process_refuses_then_succeeds_after_owner_exits(tmp_path):
     with test_activity.activity(tmp_path / 'checkout'):
         assert child(tmp_path, env).returncode == 2
     assert child(tmp_path, env).returncode == 0
+
+
+def test_named_preparation_allows_other_vm_and_host_but_excludes_same_vm_and_aggregate(
+        tmp_path, monkeypatch):
+    import vm_selection
+    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
+    monkeypatch.setenv(vm_selection.VARIABLE, '')
+    first, second = list(vm_selection.registry())[:2]
+    vm_selection.select(first)
+    root = tmp_path / 'checkout'
+    with test_activity.activity(root, named_vm=True):
+        assert child(tmp_path, {}, named_vm=True, vm=first).returncode == 2
+        assert child(tmp_path, {}, named_vm=True, vm=second, retention=True).returncode == 0
+        assert child(tmp_path, {}, host_only=True).returncode == 0
+        assert child(tmp_path, {}, named_vm=False).returncode == 2
+        # Owned workers infer the named scope from the real inherited inode.
+        assert child(tmp_path, test_activity.environment(), test_activity.descriptors(),
+                     vm=first).returncode == 0
+        assert child(tmp_path, test_activity.environment(), test_activity.descriptors(),
+                     vm=second, named_vm=True).returncode == 2
+    with test_activity.activity(root, named_vm=False):
+        assert child(tmp_path, {}, vm=first, named_vm=True).returncode == 2
+        assert child(tmp_path, {}, vm=second, named_vm=True).returncode == 2
+    assert child(tmp_path, {}, named_vm=True, vm=first).returncode == 0
 
 
 @pytest.mark.parametrize('host_only', [False, True])

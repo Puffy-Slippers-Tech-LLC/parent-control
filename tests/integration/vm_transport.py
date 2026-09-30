@@ -57,7 +57,7 @@ def guard_host(config):
         require(connection.getURI() == vm_config.URI and
                 domain.ID() == config['domain_id'] and domain.name() == configured.name and
                 root.findtext('description') == 'onpc-system-run:' + config['run'] and
-                not root.findall('devices/filesystem') and not root.findall('devices/hostdev') and
+                not root.findall('devices/hostdev') and
                 not root.findall('devices/channel') and not root.findall('devices/redirdev'),
                 'transport:domain-replaced-or-shared')
     finally:
@@ -73,10 +73,7 @@ def guest_prefix(config):
         'm=json.loads(p.read_text()); '
         f'assert m["run"]=={config["run"]!r} and m["domain_uuid"]=={config["domain_uuid"]!r}; '
         'assert pathlib.Path("/sys/class/dmi/id/product_uuid").read_text().strip().lower()==m["domain_uuid"]; '
-        'assert pathlib.Path("/etc/machine-id").read_text().strip()==m["machine_id"]!=m["host_machine_id"]; '
-        'assert not any(x.split(" - ")[1].split()[0] in '
-        '{"virtiofs","9p","nfs","nfs4","cifs","fuse.sshfs"} '
-        'for x in pathlib.Path("/proc/self/mountinfo").read_text().splitlines())'
+        'assert pathlib.Path("/etc/machine-id").read_text().strip()==m["machine_id"]!=m["host_machine_id"]'
     )
     return shlex.join(['/usr/bin/python3', '-c', program]) + ' && '
 

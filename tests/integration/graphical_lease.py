@@ -124,7 +124,7 @@ class Adapter:
                 self.close_serial()
             finally:
                 self.close_display()
-                self.close_observer()
+                self.lease.close_watch()
             raise
 
     def close_serial(self):
@@ -145,7 +145,10 @@ class Adapter:
             log('display-closed')
 
     def close_observer(self):
-        self.lease.close_watch()
+        # Worker/console cleanup does not release the enclosing VM lease.
+        # Its read-only feed also covers between-case audits and restoration.
+        if self.lease.fd is None:
+            self.lease.close_watch()
 
     def open_display(self):
         from e2e_watch import graphics_index

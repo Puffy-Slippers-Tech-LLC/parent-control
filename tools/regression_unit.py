@@ -108,6 +108,9 @@ from pathlib import PurePosixPath
 # records and bounded waited Perl children. No VM, bus, display or shared cache.
 # VM Internet ownership/recovery checks use only tiny tmp_path journals and
 # in-memory libvirt/SSH/UI doubles, with no sockets, live VM or host mutations.
+# Watch transport regressions use private socketpairs, managed short socket
+# paths, sealed frame mappings and owned fixture processes with tmp_path logs.
+# They remain compatible with other unit modules; no live VM/display/bus is used.
 
 from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
 from regression_resources import HOST_WORKERS
@@ -262,6 +265,11 @@ write_e2e write_e2e_cleanup_safety
 # Parent privacy link coverage extends the existing in-memory accessibility
 # matrix and bounded, waited Perl doubles. Launcher and recorder checks retain
 # private tmp_path files and mocked VM/transport; no shared resource is added.
+# Manual baseline retirement regressions use the existing private rig, synthetic
+# ownership records and mocked domain APIs. No live VM, mount, process or socket
+# is touched; prepare_baseline remains compatible and needs no build admission.
+# Never-started graphical cleanup uses private rig journals and mocked libvirt
+# APIs only; graphical_smoke_cleanup_safety stays compatible in both schedulers.
 # Parent custom-save ordering tests hold callbacks in memory and use mocked
 # widgets only; they add no timers, threads, filesystem or display resources.
 # Public AT-SPI transport tests use in-memory RPC/connection doubles only;
@@ -269,6 +277,10 @@ write_e2e write_e2e_cleanup_safety
 # Parent continuous-activity checks mock session identity, privilege transitions
 # and gsettings calls; diagnostic checks mock the read-only screen-saver query.
 # Neither touches the host session, settings, bus or display.
+# Preparation retry and named-VM activity regressions use private tmp_path
+# journals/locks, bounded waited Python children and mocked VM/SSH controllers.
+# Baseline, test_activity, app-snapshot, retention and graphical recovery retain
+# compatible scheduling; there are no shared guests, displays or heavy builds.
 
 # Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
 # trees, reads installed runtime inputs and owns its native child. Keep it out

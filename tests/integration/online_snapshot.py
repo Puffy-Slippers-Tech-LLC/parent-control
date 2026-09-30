@@ -33,7 +33,7 @@ def fingerprint(xml):
 
 
 def recover_identity(lease):
-    """Bind explicitly authorized interrupted-start cleanup to a saved snapshot."""
+    """Bind interrupted-start cleanup to the exact private snapshot and isolation."""
     live = ET.fromstring(lease.source.domain.XMLDesc(0))
     tag = live.findtext('description', '')
     matches = []
@@ -52,13 +52,15 @@ def recover_identity(lease):
             continue
         system.require(json.loads(root.findtext('description'))['baseline_sha256'] ==
                        lease.state['baseline_sha256'], 'online-snapshot:baseline-changed')
-        expected = dict(lease.capture.state['source']['layout'], source_shares=[])
+        expected = system.baseline.recorded_layout(lease.capture.state['source']['layout'])
         for tree in (domain, live):
+            system.require(len(tree.findall('description')) == 1,
+                           'online-snapshot:recovery-identity')
             system.require(system.baseline.domain_layout(ET.tostring(tree, encoding='unicode'),
                 lease.source.uuid) == expected, 'online-snapshot:source-changed')
             system.validate_private_vnc(tree)
             system.require(not any(tree.findall('devices/' + kind) for kind in
-                ('filesystem', 'hostdev', 'channel', 'redirdev')), 'online-snapshot:host-sharing')
+                ('hostdev', 'channel', 'redirdev')), 'online-snapshot:host-sharing')
         matches.append(record['run'])
     system.require(len(matches) == 1, 'online-snapshot:recovery-identity')
     return matches[0]
@@ -169,11 +171,11 @@ def validate_saved_snapshot(lease, xml, record):
         and domain.findtext('description') == system.TAG + record['run'],
         'online-snapshot:domain-identity')
     layout = system.baseline.domain_layout(ET.tostring(domain, encoding='unicode'), lease.source.uuid)
-    expected = dict(lease.capture.state['source']['layout'], source_shares=[])
+    expected = system.baseline.recorded_layout(lease.capture.state['source']['layout'])
     system.require(layout == expected, 'online-snapshot:source-changed')
     system.validate_private_vnc(domain)
     system.require(not any(domain.findall('devices/' + kind) for kind in
-        ('filesystem', 'hostdev', 'channel', 'redirdev')),
+        ('hostdev', 'channel', 'redirdev')),
         'online-snapshot:host-sharing')
 
 

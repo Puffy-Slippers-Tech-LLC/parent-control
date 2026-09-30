@@ -279,7 +279,11 @@ def snapshots(suite):
             ET.SubElement(root, 'state').text = 'running'
             ET.SubElement(root, 'creationTime').text = str(int(time.time()))
             root.append(ET.fromstring(lease.test_xml))
-            xml = ET.tostring(root, encoding='unicode')
+        else:
+            # Real libvirt snapshots include their saved domain configuration.
+            root.append(ET.fromstring(system.isolated_xml(
+                lease.original_xml, lease.source.uuid, lease.state['run'], graphics_type='vnc')))
+        xml = ET.tostring(root, encoding='unicode')
         return add(name, xml)
     domain.snapshotLookupByName.side_effect = lookup
     domain.snapshotListNames.side_effect = lambda flags: list(names)
@@ -328,6 +332,9 @@ def current_xml(owner, directory):
     ET.SubElement(root, 'description').text = app_snapshot.input_identity(
         Mock(state=state, capture=Mock(state=owner.lease.capture.read_state())),
         directory, owner._input_bundle, owner.commands)
+    root.append(ET.fromstring(system.isolated_xml(
+        owner.lease.source.domain.XMLDesc(0), owner.lease.source.uuid, 'a' * 32,
+        graphics_type='vnc')))
     return ET.tostring(root, encoding='unicode')
 
 

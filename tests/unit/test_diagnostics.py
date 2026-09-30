@@ -11,6 +11,51 @@ from common.oh_no_parent_control_ui.diagnostic_bundle import validate_bundle
 from common.oh_no_parent_control_ui.diagnostic_report import read_report
 
 
+def test_pre_enable_import_failure_and_policy_cause_survive_report_privately(tmp_path, monkeypatch):
+    import logging
+    import subprocess
+    from types import SimpleNamespace
+    from gi.repository import GLib
+    from oh_no_parent_control.extension_manager import ExtensionManager, UUID
+    from oh_no_parent_control.logs import BrokerFileHandler
+
+    secret = "private@example.test /home/private-child"
+    message = (f"ImportError: Unable to load file from: file:///usr/share/gnome-shell/extensions/{UUID}/"
+               "indicatorLogic.mjs (" + secret + ": Operation not permitted)")
+    info = GLib.Variant("(a{sv})", ({"state": GLib.Variant("d", 3),
+                                   "error": GLib.Variant("s", message)},)).print_(True)
+    manager = ExtensionManager()
+    monkeypatch.setattr(manager, "_account", lambda _uid: (object(), None))
+    monkeypatch.setattr(manager, "_session_transport", lambda _account: "live-session")
+    replies = iter(["(true,)", info])
+    monkeypatch.setattr(manager, "_run_command", lambda *_args, **_kwargs:
+                        SimpleNamespace(stdout=next(replies)))
+    policy = iter(["application/javascript", "rpmdb /home/private-child/private app.js 1 " + "a" * 64,
+                   "decision exclude", "%languages=application/javascript\n"
+                   "allow perm=open all : ftype=%languages trust=1\n"
+                   "deny_audit perm=any all : ftype=%languages"])
+    monkeypatch.setattr("oh_no_parent_control.extension_manager.subprocess.run",
+                        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                            [], 0, stdout=next(policy), stderr=secret))
+    writer = DailyLogWriter(tmp_path, now=lambda: datetime.now(timezone.utc))
+    logger = logging.getLogger("onpc.extension-manager")
+    monkeypatch.setattr(logger, "handlers", [BrokerFileHandler(writer)])
+    monkeypatch.setattr(logger, "level", logging.INFO)
+    manager.collect_diagnostics([123456])
+    bundle = validate_bundle(writer.snapshot())
+    with ZipFile(BytesIO(bundle)) as archive:
+        logs, _info = read_report(archive)
+        records = [record for rows in logs.values() for record in rows]
+        load = next(record for record in records if record["event"] == "extension-manager.load-state")
+        cause = next(record for record in records if record["event"] == "extension-manager.payload-policy")
+        assert load["fields"]["reason"] == "import-operation-not-permitted"
+        assert cause["fields"]["trust"] == "absent"
+        assert cause["fields"]["filter"] == "excluded"
+        assert cause["fields"]["language_policy"] == "trusted-only-rule-present"
+        assert all(b"private" not in archive.read(name) and b"123456" not in archive.read(name)
+                   for name in archive.namelist())
+
+
 def test_packaged_diagnostic_modules_include_their_local_dependencies():
     """Source-tree imports must not conceal missing installed modules."""
     import ast

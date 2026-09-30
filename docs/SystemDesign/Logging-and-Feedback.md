@@ -96,6 +96,29 @@ it does not change the broker sandbox, commands, verification or rollback.
 Ship the additive catalogue with all validators; the broker loads this logging
 on process restart, and new frontend processes load the updated catalogue.
 
+Diagnostic export also observes eligible live child sessions through GNOME's
+public `GetExtensionInfo` interface, before taking the log snapshot. This catches
+module import failures that prevent the extension's own logger from loading.
+Live activation failures collect this evidence before rollback too. One shared
+eight-second budget bounds the session and policy commands; unavailable probes
+are recorded without preventing export. No extension or settings mutation is
+performed by collection.
+
+`extension-manager.load-state` projects only closed Shell state, shipped module
+and failure categories. For recognized shipped `.mjs` import failures,
+`extension-manager.payload-policy` records the JavaScript file-type category,
+presence in fapolicyd's trust database, trust-filter decision, and presence of
+the reviewed trusted-language rule pattern. An operation-not-permitted import
+with absent trust, an excluding filter and trusted-only JavaScript rules points
+to a packaged payload trust-filter mismatch. Listed rules and database reads do
+not acknowledge the daemon's active generation. Missing tools or incomplete
+queries remain `unknown`, never an assertion of absent trust. Shell error text,
+paths, account identifiers, trust hashes and other database/rule contents are
+discarded. These read-only observations are generic across supported desktops;
+unsupported fapolicyd query interfaces produce unknown fields. Activation and
+rollback acceptance remain unchanged. Ship the additive catalogue with all
+validators; the broker loads the collector on process restart.
+
 Allowed sources include operation outcomes, duration calculation operands,
 counts, packaged app version, elapsed operation timings, and fixed dependency
 states. Random request references correlate a single approval across components;

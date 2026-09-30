@@ -526,6 +526,11 @@ class Service:
     def _export_logs_worker(self, invocation, caller_uid):
         data = None
         try:
+            try:
+                self.broker.collect_extension_diagnostics()
+            except Exception:
+                get_logger("extension-manager").warning(
+                    "extension-manager.load-observation", outcome="unavailable")
             data = self.log_writer.snapshot(health=self._health_snapshot())
         except Exception as error:
             LOG.warning("service.011", error_type=error_code(error))

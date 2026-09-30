@@ -53,8 +53,8 @@ GROUPS = (
 # checks only read a running E2E feed and are excluded from host aggregates.
 # The combined watcher has private memfds, runtime sockets and tmp_path launcher
 # locks/logs, on this same private display/bus; it starts no real runner or VM.
-# Both configured-name variants use that private fixture and forward only their
-# explicit VM identity. They add no libvirt, network or shared desktop resource.
+# The multi-VM grid uses up to five private synthetic memfds in this fixture;
+# cells share only its private display/bus and add no libvirt or host resources.
 # Automation identity uses the standard private preview session. Fixture GUI
 # builds its payload and Flatpak installation below its private pytest root;
 # both use the worker's private compositor, accessibility bus and runtime.

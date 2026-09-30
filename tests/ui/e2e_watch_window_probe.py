@@ -44,7 +44,7 @@ class FixtureFeed(Feed):
 
 feed = Feed() if live else FixtureFeed()
 app = application(feed=feed)
-app.connect_after('activate', lambda *_: app.buttons['vm'].set_active(True))
+app.connect_after('activate', lambda *_: app.buttons[app.vm_keys[feed.vm_name]].set_active(True))
 from gi.repository import GLib
 started = time.monotonic()
 stage = 0
@@ -86,7 +86,7 @@ def inspect():
                     stage += 1
                     evidence['reconnects'] += 1
             elif evidence['frames'] > 20 and not (Path('/run/onpc-e2e-watch') /
-                    str(os.getuid()) / 'current.json').exists():
+                    str(os.getuid()) / ('current-' + feed.vm_name.encode('ascii').hex() + '.json')).exists():
                 evidence['stopped_window_still_open'] = True
                 publish_evidence()
             assert elapsed < 1200, 'Live attempt did not end within qualification deadline'

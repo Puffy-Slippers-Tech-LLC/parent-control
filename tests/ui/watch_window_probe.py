@@ -11,7 +11,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import Frames, SIZE
-from e2e_watch_viewer import Feed
+from e2e_watch_viewer import AsyncFeed, Feed
 from ui_watch_transport import Feeds, Publication
 from watch_output import Output
 from watch_viewer import application
@@ -23,6 +23,7 @@ stack = ExitStack()
 runtime = stack.enter_context(runtime_directory(prefix='onpc-watch-test-'))
 ui_source = None
 vm_source = None
+extra_sources = {}
 locks = {}
 stage = ''
 result = {}
@@ -31,9 +32,10 @@ failure = None
 
 class VM(Feed):
     def connect(self):
-        if vm_source is None:
+        source = vm_source if self.vm_name == vm_names[0] else extra_sources.get(self.vm_name)
+        if source is None:
             raise FileNotFoundError
-        self.memory = mmap.mmap(vm_source.read_fd, SIZE, access=mmap.ACCESS_READ)
+        self.memory = mmap.mmap(source.read_fd, SIZE, access=mmap.ACCESS_READ)
         self.sequence = 0
         self.last_frame = time.monotonic()
 
@@ -58,7 +60,11 @@ def runner(kind, text):
     locks[kind] = lock
 
 
-app = application(feeds=Feeds(runtime), feed=VM(), output=Output(root))
+vm_names = [os.environ['ONPC_TEST_VM'], 'Fixture-VM-2', 'Fixture-VM-3',
+            'Fixture-VM-4', 'Fixture-VM-5']
+vm_feeds = {name: AsyncFeed(VM(name)) for name in vm_names}
+app = application(feeds=Feeds(runtime), vm_feeds=vm_feeds,
+                  output=Output(root))
 from gi.repository import GLib, Gtk, Vte
 
 
@@ -67,6 +73,7 @@ def tick():
     try:
         if app.window is None:
             return True
+        app.vm = app.vms[app.vm_keys[vm_names[0]]]
         requested = control.read_text() if control.exists() else ''
         if requested != stage:
             stage = requested
@@ -97,7 +104,7 @@ def tick():
                 result['started'] = time.monotonic()
                 runner('fix-tests', '\x1b[31mFIX OUTPUT\x1b[0m\n')
             elif stage == 'hide-ui':
-                assert app.selected == 'vm'
+                assert app.selected == app.vm_keys[vm_names[0]]
                 result['hidden_ui_test'] = app.ui.views[ui_source.run][0].description.get_label()
                 ui_source.frames.publish(test='UI next')
                 result['started'] = time.monotonic()
@@ -109,6 +116,25 @@ def tick():
                 vm_source.close()
                 vm_source = None
                 fcntl.flock(locks['sessions-host'], fcntl.LOCK_UN)
+            elif stage == 'unlocked':
+                vm_source.publish(lease_locked=False)
+            elif stage.startswith('vms-'):
+                count = int(stage.removeprefix('vms-'))
+                for index, name in enumerate(vm_names[1:], 1):
+                    if index < count and name not in extra_sources:
+                        source = Frames(str(index) * 32)
+                        source.publish(b'\x10\x20\x30\0' * 12, state='live', width=4, height=3,
+                                       stride=16, format=0x20020888)
+                        extra_sources[name] = source
+                    elif index >= count and name in extra_sources:
+                        extra_sources.pop(name).close()
+            elif stage == 'double-click':
+                view = app.vms[app.vm_keys[vm_names[2]]]
+                controllers = view.observe_controllers()
+                for index in range(controllers.get_n_items()):
+                    controller = controllers.get_item(index)
+                    if isinstance(controller, Gtk.GestureClick):
+                        controller.emit('pressed', 2, 0., 0.)
         if stage == 'hide-vm' and time.monotonic() - result['started'] > .8:
             result['vm_frozen'] = (app.vm.step.get_label() == result['hidden_vm_step']
                 and app.vm.screen.meta['updated_ns'] == result['hidden_vm_sequence'])
@@ -132,6 +158,16 @@ def tick():
             ui_source.frames.publish()
         if vm_source is not None:
             vm_source.publish()
+        for source in extra_sources.values():
+            source.publish()
+        result['vm_names'] = vm_names
+        result['vm_cells'] = {
+            name: list(app.vm_grid.query_child(app.vms[key]))
+            for name, key in app.vm_keys.items()
+            if app.vms[key].get_parent() == app.vm_grid}
+        result['vm_tabs'] = {name: app.buttons[key].get_opacity()
+                             for name, key in app.vm_keys.items()}
+        result['selected'] = app.selected
         evidence.write_text(json.dumps(result))
         return True
     except BaseException as error:
@@ -148,6 +184,12 @@ finally:
         ui_source.close()
     if vm_source is not None:
         vm_source.close()
+    for source in extra_sources.values():
+        source.close()
+    for feed in vm_feeds.values():
+        feed.close()
+        feed.thread.join(2)
+        assert not feed.thread.is_alive()
     stack.close()
 if failure is not None:
     raise failure

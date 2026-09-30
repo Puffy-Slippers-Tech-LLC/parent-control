@@ -123,6 +123,7 @@ bump-version:
 
 .PHONY: package-source-files
 .PHONY: watch
+watch: export ONPC_WATCH_VM_ORIGIN := $(origin VM)
 watch:
 	@/usr/bin/python3 -IB tools/vm_selection.py --from-make watch
 

@@ -35,7 +35,7 @@ def make_command(root, target, environment):
         raise ValueError('vm-config:unsupported Make target')
     name = environment.get('ONPC_MAKE_VM') or None
     if target == 'watch':
-        if name is not None:
+        if name is not None or environment.get('ONPC_WATCH_VM_ORIGIN', 'undefined') != 'undefined':
             raise ValueError('watch: VM parameter refused; watches all registered VMs')
         return [str(root / 'tools/watch')]
     options = []

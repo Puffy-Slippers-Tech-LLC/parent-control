@@ -5,13 +5,15 @@ import fcntl
 import mmap
 import os
 import socket
+import threading
+import time
 from unittest.mock import Mock, patch
 
 import pytest
 
 import e2e_watch_protocol as protocol
 from e2e_watch_collector import Display
-from e2e_watch_viewer import Feed
+from e2e_watch_viewer import AsyncFeed, Feed
 
 
 def test_headless_feed_import_needs_no_checkout_or_desktop_environment():
@@ -44,6 +46,102 @@ def test_help_exits_before_inspecting_or_launching_the_desktop(monkeypatch, caps
     output = capsys.readouterr()
     assert 'Watch test output, UI tests and VM activity.' in output.out
     assert output.err == ''
+
+
+@pytest.mark.parametrize('arguments', [['--vm', 'any-vm'], ['--vm=any-vm']])
+def test_watcher_refuses_vm_selection_before_desktop_or_resource_access(monkeypatch, arguments):
+    import watch_viewer as viewer
+    launch = Mock(side_effect=AssertionError('Refused selector must not launch'))
+    monkeypatch.setattr(viewer.subprocess, 'run', launch)
+    monkeypatch.setattr(viewer.os, 'getuid', launch)
+    with pytest.raises(SystemExit) as stopped:
+        viewer.main(arguments)
+    assert stopped.value.code == 2
+    launch.assert_not_called()
+
+
+def test_slow_vm_transport_cannot_block_another_cell_or_the_renderer():
+    release, entered, healthy_polled = threading.Event(), threading.Event(), threading.Event()
+    def stalled(*, pixels):
+        entered.set()
+        assert release.wait(5)
+        return 'waiting'
+    slow_source = Mock(vm_name='slow', poll=stalled)
+    slow_source.progress.return_value = slow_source.activity.return_value = None
+    def ready(*, pixels):
+        healthy_polled.set()
+        return 'waiting'
+    fast_source = Mock(vm_name='fast', poll=ready)
+    fast_source.progress.return_value = {'step': 'fast VM'}
+    fast_source.activity.return_value = None
+    slow, fast = AsyncFeed(slow_source), AsyncFeed(fast_source)
+    try:
+        assert slow.poll() is None
+        assert entered.wait(2)
+        fast.poll()
+        assert healthy_polled.wait(2)
+        deadline = time.monotonic() + 2
+        while fast.progress() is None and time.monotonic() < deadline:
+            fast.poll()
+            time.sleep(.005)
+        assert fast.progress() == {'step': 'fast VM'}
+        assert not release.is_set()
+        # Poll and close remain immediate even while this VM's socket is stuck.
+        assert slow.poll() is None
+        slow.close()
+        assert slow.thread.is_alive()
+        assert slow.requests.qsize() <= 1 and fast.updates.qsize() <= 1
+    finally:
+        slow.close()
+        fast.close()
+        release.set()
+        slow.thread.join(2)
+        fast.thread.join(2)
+    assert not slow.thread.is_alive() and not fast.thread.is_alive()
+    slow_source.close.assert_called_once()
+    fast_source.close.assert_called_once()
+
+
+def test_latest_vm_snapshot_queue_is_bounded_and_preserves_changed_frames():
+    source = Mock(vm_name='isolated')
+    source.progress.return_value = source.activity.return_value = None
+    source.poll.side_effect = [('frame', {'run': 'first'}, b'pixels', b''), None,
+                               ('frame', {'run': 'last'}, b'new pixels', b'')]
+    feed = AsyncFeed(source)
+    try:
+        for count in range(1, 4):
+            feed.replace(feed.requests, True)
+            deadline = time.monotonic() + 2
+            while source.poll.call_count < count and time.monotonic() < deadline:
+                time.sleep(.005)
+            assert source.poll.call_count == count
+        deadline = time.monotonic() + 2
+        while feed.updates.empty() and time.monotonic() < deadline:
+            time.sleep(.005)
+        frame, _, _, pixels = feed.updates.get(timeout=2)
+        assert frame[1]['run'] == 'last' and pixels is True
+        assert feed.updates.empty()
+    finally:
+        feed.close()
+        feed.thread.join(2)
+    assert not feed.thread.is_alive()
+
+
+def test_each_vm_discovers_only_its_own_display_and_progress_registrations(tmp_path, monkeypatch):
+    import e2e_watch_viewer as viewer
+    directory = tmp_path / str(os.getuid())
+    directory.mkdir()
+    monkeypatch.setattr(viewer, 'BASE', tmp_path)
+    feeds = [Feed('First-VM'), Feed('Second-VM')]
+    for kind in ('current', 'progress'):
+        paths = [directory / (kind + '-' + feed.vm_name.encode('ascii').hex() + '.json')
+                 for feed in feeds]
+        for path in paths:
+            path.touch()
+        assert [feed.registration_path(kind) for feed in feeds] == paths
+        paths[0].unlink()
+        assert feeds[0].registration_path(kind) == directory / (kind + '.json')
+        assert feeds[1].registration_path(kind) == paths[1]
 
 
 def test_snap_viewer_launch_uses_user_service_not_inherited_scope(monkeypatch):
@@ -127,6 +225,32 @@ def test_hidden_feed_reads_only_metadata_and_resumes_current_pixels(frames):
         assert feed.poll()[2] == b'\x01\x02\x03\0' * 4
     finally:
         feed.close()
+
+
+def test_tab_reopen_retries_pixels_after_a_torn_header(frames, monkeypatch):
+    import e2e_watch_viewer as viewer
+    frames.publish(b'\x01\x02\x03\0' * 4, state='live', width=2, height=2,
+                   stride=8, format=0x20020888)
+    feed = Feed()
+    feed.memory = receive(frames)
+    try:
+        assert feed.poll(pixels=False)[2:] == (b'', b'')
+        with monkeypatch.context() as scope:
+            scope.setattr(viewer, 'read_frame', Mock(return_value=None))
+            assert feed.poll(pixels=True) is None
+        assert feed.poll(pixels=True)[2] == b'\x01\x02\x03\0' * 4
+    finally:
+        feed.close()
+
+
+@pytest.mark.parametrize('locked', [True, False])
+def test_controller_lease_status_uses_read_only_frame_metadata(frames, locked):
+    from e2e_watch_collector import receive_progress
+    server, client = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    with server, client:
+        client.send(b'lease-locked' if locked else b'lease-unlocked')
+        assert receive_progress(server, frames)
+    assert protocol.read_frame(frames.memory)[1]['lease_locked'] is locked
 
 
 def test_readers_cannot_modify_frames_even_by_reopening_fd(frames):

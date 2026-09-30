@@ -34,6 +34,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 '''.split())
 
 # Online snapshot, baseline CPU and maintenance recovery/rollback regressions
+# Per-VM spectator publication cleanup uses private tmp_path registrations and
+# mocked servers; it touches no live sockets, processes, VM leases or displays.
 # retain private tmp_path journals and VM/transport doubles. No new shared
 # resource or heavy fixture is introduced; their reviewed buckets still apply.
 # Resume refusal and delayed-clock checks use those same private journals and

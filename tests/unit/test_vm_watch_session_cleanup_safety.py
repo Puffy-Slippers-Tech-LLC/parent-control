@@ -68,6 +68,8 @@ def test_keeper_survives_only_explicit_handoff_and_stops_on_identity_loss(detach
         client.close()
         session.follow(server, observer, guard)
     assert guard.call_count == (3 if detach else 1)
+    if detach:
+        assert observer.lease_locked is False
     observer.close.assert_not_called()  # Owning finally performs the one reap.
 
 

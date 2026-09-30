@@ -255,6 +255,8 @@ def test_make_watch_observes_all_vms_and_refuses_vm_parameter():
     for name in vm_config.registry():
         with pytest.raises(ValueError, match='VM parameter refused'):
             make_command(ROOT, 'watch', {'ONPC_MAKE_VM': name})
+    with pytest.raises(ValueError, match='VM parameter refused'):
+        make_command(ROOT, 'watch', {'ONPC_MAKE_VM': '', 'ONPC_WATCH_VM_ORIGIN': 'command line'})
 
 
 def test_configured_vm_pins_are_selected_by_name_and_missing_pin_never_falls_back():

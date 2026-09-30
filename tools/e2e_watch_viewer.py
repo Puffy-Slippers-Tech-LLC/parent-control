@@ -76,6 +76,7 @@ class AsyncFeed:
         self.updates = queue.Queue(maxsize=1)
         self.stop = threading.Event()
         self.progress_value = self.activity_value = None
+        self.last_update = time.monotonic()
         self.thread = threading.Thread(target=self.run, daemon=True,
                                        name='watch-' + self.vm_name)
         self.thread.start()
@@ -104,6 +105,7 @@ class AsyncFeed:
                     previous = None
                 if frame is None and previous is not None:
                     frame = previous[0]
+                    pixels = previous[3]
                 self.updates.put_nowait((frame, progress, activity, pixels))
         finally:
             self.feed.close()
@@ -113,7 +115,11 @@ class AsyncFeed:
         try:
             frame, self.progress_value, self.activity_value, rendered = self.updates.get_nowait()
         except queue.Empty:
+            if time.monotonic() - self.last_update > 3:
+                self.progress_value = self.activity_value = None
+                return 'waiting'
             return None
+        self.last_update = time.monotonic()
         # Never deliver header-only frames to a renderer when a tab reopens.
         if pixels and not rendered and frame not in (None, 'waiting'):
             return None
@@ -308,13 +314,13 @@ class Feed:
                 self.connect()
             frame = read_frame(self.memory, self.sequence if pixels == getattr(self, '_pixels', True) else 0,
                                pixels=pixels)
-            self._pixels = pixels
             if frame is None:
                 # A killed/stopped writer can leave an odd seqlock indefinitely.
                 if now - self.last_frame > 3:
                     self.close()
                     return 'waiting'
                 return None
+            self._pixels = pixels
             sequence, meta, *_ = frame
             if meta['state'] == 'stopped' or time.monotonic_ns() - meta['updated_ns'] > 3_000_000_000:
                 self.close()
@@ -389,6 +395,7 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
             self.feed = feed if feed is not None else Feed()
             self.metadata = {}
             self.active = False
+            self.locked = False
             self.title = Gtk.Label(label=vm_name or self.feed.vm_name, xalign=0,
                                    ellipsize=Pango.EllipsizeMode.END)
             self.title.add_css_class('heading')
@@ -463,6 +470,8 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
             progress = self.feed.progress()
             activity = self.feed.activity()
             self.active = bool(self.metadata or progress or (activity and activity.get('operation_active')))
+            self.locked = bool(progress or (activity and activity.get('operation_active')) or
+                               (self.metadata and self.metadata.get('lease_locked', True)))
             if not render:
                 return
             if activity is not None:

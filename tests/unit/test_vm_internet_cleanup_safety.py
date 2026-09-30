@@ -64,6 +64,9 @@ class Connection:
     def listAllNWFilters(self, _): return self.filters.copy()
     def listAllNWFilterBindings(self, _): return self.bindings.copy()
     def listAllDomains(self, _): return [self.domain, *self.extra_domains]
+    def lookupByUUIDString(self, identity):
+        assert identity == DOMAIN_UUID
+        return self.domain
     def networkLookupByName(self, name):
         assert name == 'default'
         return SimpleNamespace(isActive=lambda: True, UUIDString=lambda: self.net_uuid,
@@ -89,7 +92,7 @@ def rig(tmp_path):
     domain.XMLDesc.return_value = DOMAIN_XML
     connection = Connection(domain)
     lease = SimpleNamespace(
-        source=SimpleNamespace(domain=domain, connection=connection,
+        source=SimpleNamespace(domain=domain, connection=connection, uuid=DOMAIN_UUID,
                                api=SimpleNamespace(VIR_DOMAIN_XML_INACTIVE=2)),
         state={'domain_uuid': DOMAIN_UUID, 'domain_id': 9, 'run': 'a' * 32,
                'phase': 'running', 'original_xml': DOMAIN_XML}, guard=Mock())
@@ -220,6 +223,100 @@ def test_off_cleanup_accepts_binding_already_retired_by_libvirt(rig):
     assert not connection.filters
 
 
+@pytest.mark.parametrize('count', ['1', '0', None])
+def test_shutdown_connection_count_is_not_network_configuration(rig, count):
+    lease, connection, transport, journal = rig
+    connection.net_xml = NETWORK_XML.replace('<network>', "<network connections='2'>")
+    network.InternetIsolation(lease).enter(transport)
+    original = lease.state['internet_isolation']['network_xml']
+    connection.domain.ID.return_value = -1
+    connection.net_xml = NETWORK_XML if count is None else NETWORK_XML.replace(
+        '<network>', "<network connections='" + count + "'>")
+    network.restore(lease)
+    assert not connection.filters and not connection.bindings
+    assert json.loads(journal.read_text())['internet_isolation']['network_xml'] == original
+
+
+@pytest.mark.parametrize('fault', ['instance', 'uuid', 'configuration', 'nested',
+                                  'text', 'whitespace', 'malformed', 'root', 'reappeared'])
+def test_fresh_domain_and_network_configuration_refuse_changed_identity(rig, fault):
+    lease, connection, transport, journal = rig
+    network.InternetIsolation(lease).enter(transport)
+    stale = lease.source.domain
+    fresh = Mock(ID=Mock(return_value=-1), UUIDString=Mock(return_value=DOMAIN_UUID),
+                 XMLDesc=Mock(return_value=DOMAIN_XML))
+    fresh.name.return_value = 'fixture-vm'
+    connection.domain = fresh
+    if fault == 'instance': fresh.ID.return_value = 10
+    elif fault == 'uuid': fresh.UUIDString.return_value = NETWORK_UUID
+    elif fault == 'configuration': connection.net_xml = NETWORK_XML.replace('virbr0', 'virbr1')
+    elif fault == 'nested': connection.net_xml = NETWORK_XML.replace('<bridge ', '<bridge connections="1" ')
+    elif fault == 'text': connection.net_xml = NETWORK_XML.replace('</network>', '<metadata>changed</metadata></network>')
+    elif fault == 'whitespace': connection.net_xml += ' '
+    elif fault == 'malformed': connection.net_xml = '<network'
+    elif fault == 'root': connection.net_xml = NETWORK_XML.replace('network', 'other')
+    else: lease.state['internet_isolation']['phase'] = 'restored'
+    before = journal.read_bytes(), connection.calls.copy()
+    with pytest.raises((CommandError, ET.ParseError)):
+        network.restore(lease)
+    assert (journal.read_bytes(), connection.calls) == before
+    assert connection.filters and connection.bindings
+    assert stale.ID() == 9
+
+
+@pytest.mark.parametrize('callback', [True, False])
+def test_snapshot_restoration_refreshes_stale_handle_before_final_network_audit(
+        rig, callback, local_preparation_source):
+    from contextlib import nullcontext
+    import system_runner as runner
+    initial, connection, transport, journal = rig
+    connection.net_xml = NETWORK_XML.replace('<network>', "<network connections='2'>")
+    network.InternetIsolation(initial).enter(transport)
+    network.restore(initial)
+    stale = initial.source.domain
+    off_xml = DOMAIN_XML.replace(' bridge="virbr0"', '').replace('<target dev="vnet7"/>', '')
+    fresh = Mock(ID=Mock(return_value=-1), UUIDString=Mock(return_value=DOMAIN_UUID),
+                 XMLDesc=Mock(return_value=off_xml))
+    fresh.name.return_value = 'fixture-vm'
+    initial.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE = 4
+    snap = Mock(getXMLDesc=Mock(return_value='<snapshot/>'))
+    stale.snapshotLookupByName.return_value = snap
+    def revert(*_):
+        connection.domain = fresh
+        stale.XMLDesc.return_value = off_xml  # ID remains cached at 9.
+        connection.net_xml = NETWORK_XML.replace('<network>', "<network connections='1'>")
+    stale.revertToSnapshot.side_effect = revert
+    connection.defineXML = Mock()
+    lease = runner.Lease(initial.source, Mock(), Mock(return_value='guest'),
+                         directory=journal.parent, graphics_type='vnc')
+    lease.state = initial.state
+    lease.original_xml = off_xml
+    lease.state['original_xml'] = off_xml
+    lease.save = initial.save
+    lease.guard = Mock()
+    lease.capture = Mock(state={'proof': {'name': 'baseline'}, 'source': {
+        'layout': {'disk': str(journal.parent / 'disk')}}, 'script_digest': 'digest', 'guest': 'guest'})
+    lease.capture.verify_snapshot.return_value = lease.capture.state['proof']
+    lease.ownership_run = None
+    lease.snapshot_xml = '<snapshot/>'
+    lease.snapshot_status = lambda *_: nullcontext()
+    lease.view.domain_id = 9
+    lease.mutated = True
+    if callback:
+        lease.stop_by_restore()
+    else:
+        lease.restore()
+        lease.restored_by_callback = True
+    lease.finish()
+    assert stale.ID() == 9 and lease.source.domain is fresh
+    assert lease.state['domain_id'] == 9  # Never rewrite the expected instance.
+    assert lease.state['phase'] == 'complete'
+    assert not connection.filters and not connection.bindings
+    assert connection.calls == ['define', 'bind', 'delete', 'undefine']
+    connection.defineXML.assert_called_once_with(off_xml)
+    fresh.create.assert_not_called()
+
+
 def test_policy_only_allows_controller_inbound_ssh_and_exact_arp(rig):
     lease, connection, transport, _ = rig
     network.InternetIsolation(lease).enter(transport)
@@ -339,14 +436,21 @@ def test_outer_cleanup_invokes_network_cleanup_before_snapshot_transition(monkey
     assert calls == ['network', 'complete']
 
 
-@pytest.mark.parametrize('running', [True, False])
+@pytest.mark.parametrize('mode', ['running', 'off', 'restored-original'])
 def test_reconstructed_outer_recovery_removes_canonical_owned_resources(
-        rig, monkeypatch, running, local_preparation_source):
+        rig, monkeypatch, mode, local_preparation_source):
     import hashlib
     import system_runner as runner
     from unittest.mock import patch
     original, connection, transport, journal = rig
+    running = mode == 'running'
+    if mode == 'restored-original':
+        original.state['original_xml'] = DOMAIN_XML.replace('</interface>',
+            '<filterref filter="unrelated-original"/></interface>')
     network.InternetIsolation(original).enter(transport)
+    if mode == 'restored-original':
+        network.restore(original)
+        connection.domain.XMLDesc.return_value = original.state['original_xml']
     original.state = json.loads(journal.read_text())
     source = original.source
     source.uuid = DOMAIN_UUID
@@ -384,4 +488,36 @@ def test_reconstructed_outer_recovery_removes_canonical_owned_resources(
     assert not connection.filters and not connection.bindings
     assert recovered.state['internet_isolation']['phase'] == 'restored'
     assert recovered.finish.call_count == int(running)
+    if mode == 'restored-original':
+        assert source.domain.XMLDesc(0) == original.state['original_xml']
+        assert connection.calls == ['define', 'bind', 'delete', 'undefine']
     source.domain.create.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'eof', 'timeout', 'oversized'])
+def test_dns_probe_reads_fragmented_tcp_frames_with_bounded_failure(monkeypatch, capsys, fault):
+    import socket
+    import struct
+    import subprocess
+    response = b'\x19\x3a\x81\x00' + b'\x00' * 8
+    class Peer:
+        def __init__(self, family, kind):
+            self.kind = kind
+            self.frame = struct.pack('!H', 4097 if fault == 'oversized' else len(response)) + response
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def settimeout(self, timeout): assert 0 < timeout <= 3
+        def connect(self, address): pass
+        def sendall(self, data): pass
+        def send(self, data): pass
+        def recv(self, count):
+            if self.kind == socket.SOCK_DGRAM: return response
+            if fault == 'timeout': raise TimeoutError()
+            if fault == 'eof' and len(self.frame) < len(response): return b''
+            chunk, self.frame = self.frame[:1], self.frame[1:]
+            return chunk
+    monkeypatch.setattr(socket, 'socket', Peer)
+    monkeypatch.setattr(subprocess, 'check_output', lambda args: b'[]')
+    exec(qualification.PROBE, {})
+    result = json.loads(capsys.readouterr().out)
+    assert [item['reachable'] for item in result['probes']] == [fault is None, True] * 2

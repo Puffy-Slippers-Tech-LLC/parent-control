@@ -19,14 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **193a — [Qualify simple VM Internet isolation](E2E-Tasks/193a-independent-network-management.md)**.
+Next task: **193 — [Verify Parent usability without Internet access](E2E-Tasks/193-operate-public-connectivity-controls.md)**.
 
-Task 193 remains unchecked. Blocker: a simple shared VM-level Internet isolation
-operation preserving existing test control and public observations is not yet
-qualified. Task 193a must qualify one distro-independent mechanism, then task 193
-focuses on Parent usability offline. Local network disconnection and a separate
-management connection are not required. No live attempt or product-behavior
-failure has occurred; this prerequisite supplies no LIFE06 acceptance credit.
+Task 193a qualified the shared VM Internet isolation/recovery helper in
+`20260930T225447Z-420cdcde`, including controller observations, collection,
+owned cleanup and baseline restoration on every enabled VM. Task 193 now
+composes that helper with a normal Parent control action and public result.
+The helper qualification supplies no LIFE06 or complete-scenario acceptance.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

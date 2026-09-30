@@ -585,9 +585,18 @@ class Lease:
         require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
         with self.snapshot_status('Restoring', self.capture.state['proof']['name']):
             self.source.domain.revertToSnapshot(snap, 0)
+        self.refresh_domain()
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)
+
+    def refresh_domain(self):
+        # Revert changes the runtime instance without updating virDomain.ID().
+        # Keep the journal's expected instance intact; refresh only the handle.
+        domain = self.source.connection.lookupByUUIDString(self.source.uuid)
+        require(domain.UUIDString() == self.source.uuid == self.state['domain_uuid'],
+                'guard:domain-identity')
+        self.source.domain = domain
 
     @observed('Starting the VM')
     def start(self):
@@ -653,6 +662,7 @@ class Lease:
         require(snap.getXMLDesc(0) == self.snapshot_xml, 'baseline:snapshot-metadata-changed')
         with self.snapshot_status('Restoring', self.capture.state['proof']['name']):
             self.source.domain.revertToSnapshot(snap, self.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
+        self.refresh_domain()
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)

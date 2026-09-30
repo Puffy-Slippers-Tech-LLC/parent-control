@@ -60,19 +60,47 @@ def binding_xml(record, domain_uuid):
     return ET.tostring(root, encoding='unicode')
 
 
-def network_identity(lease, *, running):
+def fresh_domain(lease):
     lease.guard()
-    domain = lease.source.domain
+    # virDomain.ID() is cached in the handle, including across snapshot revert.
+    # Resolve the pinned identity without adopting a replacement instance ID.
+    domain = lease.source.connection.lookupByUUIDString(lease.state['domain_uuid'])
+    require(domain.UUIDString() == lease.state['domain_uuid'], 'internet:domain-identity')
+    return domain
+
+
+def network_configuration(xml):
+    root = ET.fromstring(xml)
+    require(root.tag == 'network', 'internet:network-xml')
+    opening = re.match(r'<network\b[^>]*>', xml)
+    require(opening is not None, 'internet:network-xml')
+    if 'connections' not in root.attrib:
+        return xml
+    require(re.fullmatch(r'[0-9]+', root.get('connections')), 'internet:network-xml')
+    # Only the read-only root interface count may change. Preserve every other
+    # byte, including nested attributes, metadata and trailing whitespace.
+    normalized, count = re.subn(r'\s+connections\s*=\s*([\'\"])[0-9]+\1',
+                               '', opening.group(), count=1)
+    require(count == 1, 'internet:network-xml')
+    return normalized + xml[opening.end():]
+
+
+def network_identity(lease, *, running, restored_original=False, domain=None):
+    lease.guard()
+    domain = fresh_domain(lease) if domain is None else domain
     require(domain.UUIDString() == lease.state['domain_uuid'] and
             (not running or domain.ID() == lease.state['domain_id'] >= 0),
             'internet:domain-identity')
-    root = ET.fromstring(domain.XMLDesc(0))
+    xml = domain.XMLDesc(0)
+    require(not restored_original or (not running and xml == lease.state['original_xml']),
+            'internet:original-configuration-changed')
+    root = ET.fromstring(xml)
     nics = root.findall('devices/interface')
     require(len(nics) == 1 and nics[0].get('type') == 'network', 'internet:nic-layout')
     nic = nics[0]
     source, mac, target = nic.find('source'), nic.find('mac'), nic.find('target')
     require(source is not None and source.get('network') == 'default'
-            and not nic.findall('filterref') and mac is not None
+            and (restored_original or not nic.findall('filterref')) and mac is not None
             and re.fullmatch(r'(?:[0-9a-f]{2}:){5}[0-9a-f]{2}', mac.get('address', '')),
             'internet:nic-identity')
     original = ET.fromstring(lease.state['original_xml']).findall('devices/interface')
@@ -139,10 +167,15 @@ def validate_record(lease, record):
         address = ipaddress.ip_address(record[key])
         require(address.version == 4 and address.is_private and not address.is_loopback,
                 'internet:journal')
-    running = lease.source.domain.ID() != -1
-    current = network_identity(lease, running=running)
+    domain = fresh_domain(lease)
+    running = domain.ID() != -1
+    current = network_identity(lease, running=running,
+        restored_original=not running and record['phase'] == 'restored' and
+        domain.XMLDesc(0) == lease.state['original_xml'], domain=domain)
+    require(network_configuration(current['network_xml']) ==
+            network_configuration(record['network_xml']), 'internet:identity-changed')
     require(all(current[key] == record[key] for key in current
-                if key != 'tap' or running), 'internet:identity-changed')
+                if key != 'network_xml' and (key != 'tap' or running)), 'internet:identity-changed')
     if not running:
         # A stale tap name may have been reused. Never delete its new binding
         # or manipulate an interface now attached to any other running guest.

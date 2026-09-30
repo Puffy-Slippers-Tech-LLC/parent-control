@@ -16,16 +16,28 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Session boundary
 
-Task 193a qualifies the minimal shared offline mechanism first. Reuse its
+Task 193a qualified the minimal shared offline mechanism. Reuse its
 enter-offline, restore-online and cleanup operations without adding networking
-infrastructure. No live acceptance has been attempted for this task. Resume after
-193a's live qualification and cleanup pass; this task owns LIFE06's composition
+infrastructure. No live acceptance has been attempted for this task. This task owns LIFE06's composition
 and the Parent usability assertion below.
 
 ## Read only this context
 
 Read LIFE06 and the qualified shared isolation, observation and cleanup callables.
 Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
+
+- [Owned VM Internet contract](../E2E-Building-Blocks.md#owned-vm-internet-isolation)
+  and LIFE06; UI17's Parent binding and its shared control/readback operations.
+- `tests/integration/vm_internet.py`: `InternetIsolation.enter`, context-manager
+  unwind and `restore`; `tests/integration/vm_internet_qualification.py`:
+  `internet_result` for independent Internet observations. The finite
+  `online_offline_online` sequence is helper qualification, not the app recipe.
+- `tests/integration/system_runner.py`: `Lease.stop_by_restore`, `finish` and
+  `_recover_recorded_cleanup`; retain fresh pinned-domain handles and exact
+  configuration identity except the network's read-only connection count.
+- `tests/unit/test_vm_internet_cleanup_safety.py` and affected recorder/worker
+  cleanup tests. Helper qualification and final cleanup passed in
+  `output/test-runs/host/reports/20260930T225447Z-420cdcde/report.md`.
 
 ## Implementation
 

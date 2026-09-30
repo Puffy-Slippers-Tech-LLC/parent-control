@@ -62,6 +62,20 @@ closed. Unknown enum values become the fixed category `other` at the producer.
 Foreign Python log records become a fixed suppressed-event marker without
 formatting their arguments or exceptions.
 
+Child-extension diagnostics identify the fixed command tool, settings key and
+live-session/offline transport. Activation records include Shell availability
+and global-switch recovery context. Settings read-back and rollback record the
+key, verification stage and match result; runtime verification records only
+configured/active booleans. Command stderr is inspected transiently for reviewed
+warning markers and reduced to closed categories (dconf commit, service
+activation, access, read-only storage, runtime, schema, writability or memory
+backend failures). A zero exit status does not suppress those warnings. Unknown
+stderr becomes `other`; no raw text, argv values, extension lists, usernames,
+UIDs, paths or exception messages are logged. Commands keep the existing locale
+but use C message translations so classification is stable. These observations
+do not change activation or rollback acceptance. The broker loads them after
+`process-restart`; ship the additive catalogue with all frontend validators.
+
 Allowed sources include operation outcomes, duration calculation operands,
 counts, packaged app version, elapsed operation timings, and fixed dependency
 states. Random request references correlate a single approval across components;
@@ -366,6 +380,16 @@ account counts remain available. `python3-apt` is declared in
 runtime/build dependencies; existing `setup.sh --dependencies-only` installs build
 prerequisites through its existing build-dependency route. No new setup entry
 point or privileged runtime command is introduced.
+
+Fedora is a reviewed OS category and uses one read-only RPM query for its fixed
+20-package runtime list, including dconf. Only named packages' numeric upstream
+versions and reviewed architecture categories survive projection. Epochs,
+release revisions, origins, query stderr and arbitrary metadata are excluded.
+The same ten-second budget applies; missing packages mark collection partial,
+and a failed or malformed query marks it unavailable. Export preserves these
+reviewed Fedora rows alongside the existing Ubuntu APT rows. Ubuntu and Debian
+retain their APT collector. New frontend processes load this change; no saved
+data, package dependency or portal change is required.
 
 Account collection reads a bounded local passwd file transiently to enumerate
 local interactive candidates, then requests only AccountsService `LocalAccount`,

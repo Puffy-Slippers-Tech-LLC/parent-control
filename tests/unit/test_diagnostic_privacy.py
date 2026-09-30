@@ -16,6 +16,7 @@ from common.oh_no_parent_control_ui.diagnostic_bundle import build_bundle, valid
 from common.oh_no_parent_control_ui.errors import ErrorReport
 from oh_no_parent_control.logs import DailyLogWriter, BrokerFileHandler
 from oh_no_parent_control.grant_diagnostics import GrantDiagnostics
+from oh_no_parent_control.extension_manager import _stderr_reason, ExtensionManager
 from tests.support.broker import make_broker
 
 SECRET = "Child Name /home/private-user/private-file private@example.test secret-token"
@@ -24,6 +25,40 @@ SECRET = "Child Name /home/private-user/private-file private@example.test secret
 class PrivateError(Exception):
     def __str__(self):
         raise AssertionError("Exception text must not be inspected")
+
+
+@pytest.mark.parametrize("marker,reason", [
+    ("failed to commit changes to dconf: org.freedesktop.DBus.Error.ServiceUnknown", "dconf-service-missing"),
+    ("failed to commit changes to dconf: org.freedesktop.DBus.Error.Spawn.ExecFailed", "dconf-service-start-failed"),
+    ("failed to commit changes to dconf: Permission denied", "dconf-access-denied"),
+    ("failed to commit changes to dconf: Read-only file system", "dconf-read-only"),
+    ("failed to commit changes to dconf:", "dconf-commit-failed"),
+    ("Using the 'memory' GSettings backend", "settings-memory-backend"),
+    ("The key is not writable", "settings-not-writable"),
+    ("No such schema", "settings-schema-missing"),
+    ("dconf will not work properly", "dconf-runtime-unavailable"),
+    ("", "other"),
+])
+def test_gnome_warning_projection_never_exports_stderr(tmp_path, caplog, marker, reason):
+    raw = marker + " " + SECRET
+    assert _stderr_reason(raw) == reason
+    assert _stderr_reason(None) is None
+    assert _stderr_reason(" \n") is None
+    writer = DailyLogWriter(tmp_path)
+    handler = BrokerFileHandler(writer)
+    with caplog.at_level("INFO"):
+        ExtensionManager._log_stderr(raw, "set", "offline", {
+            "tool": "gsettings", "key": "enabled-extensions"})
+    for record in caplog.records:
+        assert SECRET not in record.getMessage()
+        assert SECRET not in events.record_payload(record)
+        handler.emit(record)
+    bundle = writer.snapshot()
+    validate_bundle(bundle)
+    with ZipFile(BytesIO(bundle)) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    assert SECRET not in exported
+    assert "reason=" + reason in exported
 
 
 def test_unknown_values_never_enter_a_logrecord(caplog):

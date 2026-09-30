@@ -1,16 +1,18 @@
-# 193a — Qualify independent management during guest network loss
+# 193a — Qualify simple VM Internet isolation
 
 Estimate: 45–75 minutes. Follow the
 [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
-Session exception: The guarded transport, network ownership, snapshot restoration and public observation changes require one coherent installed qualification with affected shared-infrastructure regressions; host-only preparation cannot establish this capability.
+Session exception: One live isolation/recovery cycle, interruption cleanup and affected shared-infrastructure regressions must qualify the chosen mechanism together. The estimate is provisional until that mechanism is confirmed; it does not authorize broader networking work.
 
 ## Scope and prerequisites
 
-Deliver a shared guarded management route independent of the guest's declared
-NetworkManager test connection, with public semantic observations and watch
-visibility throughout real loss and recovery of that connection. This is a
-harness prerequisite, not LIFE06 qualification or a complete customer scenario.
+Deliver the simplest reliable way to make the owned VM unable to access the
+Internet while preserving existing test commands, public UI observations and
+watch visibility. Use one shared, supported VM-level mechanism independent of
+guest distribution: Ubuntu, Fedora and other guests use the same operation.
+Offline means Internet unavailable; the guest's local network link may remain up.
+This is a small harness prerequisite; task 193 then qualifies app usability.
 
 Required tasks: none (Baseline).
 
@@ -23,55 +25,39 @@ Required tasks: none (Baseline).
 - [Shared live and capability acceptance](../E2E-Execution-Contracts.md#live-verification-contract),
   [composition preflight](../E2E-Building-Blocks.md#composition-preflight),
   LIFE06 and the guarded transport/watch/cleanup contracts for affected routes.
-- `config/test-vm.json`; `tests/integration/Environment.md`, Resources and
-  baseline preparation; `tests/integration/prepare_baseline.py::domain_layout`;
-  `tests/integration/system_runner.py::isolated_xml`, `address`, lease acquisition
-  and restoration; `tests/integration/online_snapshot.py::network_link`,
-  `disconnected_network`, `reconnect_network` and saved transport.
-- `tests/integration/vm_transport.py::Transport`, its ownership guard and SSH
-  command construction; `tests/e2e/installed_journey.py::InstalledJourney`;
-  `tests/e2e/ui_observations.py::UiObservations.call`;
-  `tests/integration/graphical_lease.py::open_display` and shared watch transport.
-- Relevant checks: `tests/unit/test_system_runner.py`,
-  `test_system_runner_cleanup_safety.py`, `test_prepare_baseline.py`,
-  `test_prepare_baseline_cleanup_safety.py`, `test_system_snapshots.py`,
-  `test_appsnapshot_cleanup_safety.py`, `test_vm_transport.py`,
-  `test_e2e_observation_transport.py`, `test_graphical_lease.py`,
-  `test_e2e_watch.py` and affected worker/transport cleanup tests, all under
-  `tests/unit/`. Follow complete affected functions and dependencies.
+- `config/test-vm.json`; the network and ownership boundaries in
+  `tests/integration/Environment.md` and `tests/integration/system_runner.py`;
+  the existing guarded transport and owned cleanup entry points. Follow complete
+  affected functions and dependencies for the chosen mechanism only.
 
 ## Implementation
 
-The current envelope admits one libvirt default-network NIC and selects one
-DHCP address; the same SSH transport carries commands and public UI observations.
-The display FD is independent but cannot replace semantic result readback.
-Snapshot carrier handling also assumes one NIC. Do not disconnect that sole
-connection to discover whether the harness survives.
+The current single guest network connection also carries SSH commands and public
+UI observations. Keep that connection usable. Select one supported operation at
+the host's virtualization boundary that isolates only the owned VM's Internet
+traffic while retaining the existing controller access. Invoke it through the
+maintained guarded harness, with explicit VM/network identity and owned reversal.
+Use the same implementation across VMs; configuration may supply VM identities,
+but must not select distro-specific commands or guest networking services.
 
-Consult bounded read-only Astra High advice before implementing an unresolved
-network/ownership design. Choose a maintained public route within the existing
-authority; bind management and test identities explicitly and validate ownership
-before any change. An independent management route must not provide alternate
-Internet access that invalidates the offline assertion. Update transport/address
-selection, baseline preparation and snapshot restoration consistently wherever
-the chosen route crosses those boundaries. Preserve default-deny guards rather
-than merely allowing another NIC or channel.
+Qualify only enter-offline, restore-online and interruption cleanup. Do not add
+network adapters, a new management transport, guest NetworkManager/firewall
+backends, or a general network-management framework. If a simple supported route
+cannot preserve control within existing authority, report the concrete blocker
+before expanding the design. Do not disconnect the sole test-control connection.
 
-Use shared commands and observations, the existing lease and watch intention,
-command transcript and display collector. Preserve single-use command handling,
-wrong-role/connection refusal and uncertain-input refusal without replay. Keep
-sanitized evidence and owned restoration on failure/cancellation. No direct
-libvirt workaround, unrelated host network changes, alternate viewer, product
-fault injection or broadened grant is authorized. If maintained setup cannot
-establish the chosen route within current authority, report the specific external
-prerequisite rather than bypassing it.
+Preserve the existing lease, command transcript, public observations and display
+collector. Refuse wrong ownership and uncertain replay. Internet isolation must
+cover IPv4 and IPv6 where available, with no alternate Internet path through the
+retained controller connection. Limit changes to the owned VM; preserve unrelated
+host and VM networking. Use no product fault injection or broader grants.
 
 ## Host and live acceptance
 
-Regress network-role/ownership rejection, ambiguous address selection, guarded
-SSH and public-observation routing, snapshot restore and owned interruption
-cleanup. Review any new host modules for parallel scheduling and run affected
-cleanup/ownership checks in isolation before other host validation.
+Run focused regressions for the selected operation's ownership refusal, Internet
+isolation, preserved controller access and restoration after interruption. Review
+new host modules for parallel scheduling and run affected cleanup/ownership
+checks in isolation first. Broaden validation only for boundaries actually changed.
 
 Implement and register this planned argument-free qualification and cleanup
 coverage before invoking it (the selector is currently unimplemented):
@@ -80,15 +66,15 @@ coverage before invoking it (the selector is currently unimplemented):
 tools/run-tests integration check_e2e_independent_network_management
 ```
 
-Through the guarded installed envelope on every enabled VM, establish independent
-valid entry, refuse wrong roles/connections before mutation, then change the
-declared test connection with one fixed NetworkManager operation. Independently
-observe real offline state while management commands, public semantic UI reads
-and shared watch remain usable. Reconnect and independently observe recovery.
-Prove management supplies no alternate Internet route, and preserve uncertain
-replay refusal. Collection, owned cleanup and baseline restoration must pass.
-Use declared fixed outcomes without sending feedback or qualifying a customer
-case. Task 193 separately owns Parent usability across this transition.
+Through the guarded installed envelope on every enabled VM, use the same shared
+operation and fixed online → offline → online sequence. Independently establish
+Internet access before isolation, its absence during isolation, and its return
+after restoration; a command's success or one failed website request is not
+proof. Confirm commands, public semantic UI reads and watch remain usable while
+offline. Refuse wrong VM/network ownership before mutation and uncertain replay.
+Collection, owned interruption cleanup and baseline restoration must pass.
+Use fixed outcomes without sending feedback. Once this minimal capability is
+qualified, move to task 193's app assertion; do not add network-feature coverage.
 
 Prepare snapshots through the maintained explicit `--vm NAME --y` route and
 release maintenance ownership before acceptance; run acceptance through
@@ -98,7 +84,7 @@ boundary without repairing or retrying that failure in the same session.
 ## Close out
 
 Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Record the qualified shared callable, ownership/routing scope, selector and
+Record the qualified shared callable, VM isolation scope, selector and
 artifact in maintained contracts. Close only 193a after live acceptance and
 cleanup, remove its resolved blocker from task 193 and the plan, and advance to
 193. Update 193's reading route with proven callables, preserving its full

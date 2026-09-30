@@ -1717,7 +1717,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Compose authorized synthetic feedback and files in Parent and review Privacy and submission contents."},
-          {"id": "step-2", "operation": "ui", "description": "Disconnect the declared connection using the shared LIFE06 system-network command, preserving the independent observation channel."},
+          {"id": "step-2", "operation": "ui", "description": "Remove Internet access using the shared distro-independent LIFE06 VM helper, preserving existing test control and public observations."},
           {"id": "step-3", "operation": "ui", "description": "Return to feedback, select Send once and read retry progress and unavailable editing/duplicate Send."},
           {"id": "step-4", "operation": "ui", "description": "Reconnect through the same shared system-network helper within the retry period."},
           {"id": "step-5", "operation": "ui", "description": "Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft."}
@@ -2205,7 +2205,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Disconnect the declared connection through the shared LIFE06 system-network command. In Parent enable limits and save the allowance and hard/soft app rules."},
+          {"id": "step-1", "operation": "ui", "description": "Remove Internet access through the shared distro-independent LIFE06 VM helper, preserving test control. In Parent enable limits and save the allowance and hard/soft app rules."},
           {"id": "step-2", "operation": "ui", "description": "Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt."},
           {"id": "step-3", "operation": "ui", "description": "Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection."}
         ],
@@ -2431,7 +2431,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches disconnect through the shared LIFE06 system-network command before one explicit Send."},
+          {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send."},
           {"id": "step-2", "operation": "ui", "description": "Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance."},
           {"id": "step-3", "operation": "ui", "description": "Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed."}
         ],

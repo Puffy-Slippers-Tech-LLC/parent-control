@@ -115,7 +115,9 @@ Unit file/case selectors, `-k`, `-m` and scoped ignores preserve the exact
 collected IDs, and each worker must account for every assigned case once.
 `-x`/`--exitfirst` and positive `--maxfail` keep one serial invocation so the
 failure limit remains selection-wide. `tools/run-unit-tests` remains the direct
-serial route for narrow iteration or diagnosis. Inspection/collection-only
+serial route for narrow iteration or diagnosis. Its execution output also appears
+in the left terminal of `tools/watch`, using the shared reconnectable session and
+cooperative cancellation. Inspection/collection-only
 commands keep their existing behavior. Unit buckets use the same CPU, memory,
 swap and compatibility limits as other host work; I/O pressure is advisory for
 ordinary units, while full fixture construction retains artifact I/O limits.

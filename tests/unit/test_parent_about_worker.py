@@ -46,7 +46,10 @@ sub get_var { $_[0] eq 'XRES' || $_[0] eq 'YRES' ? $_[1] : '1' }
 sub get_required_var { 'unit-fixture-value' }
 sub type_password { push @main::events, ['secret']; }
 sub type_string { push @main::events, ['text', $_[0]]; }
-sub send_key { push @main::events, ['key', $_[0]]; }
+sub send_key {
+    push @main::events, ['key', $_[0]];
+    die 'uncertain close' if $main::fault eq 'close-input' && $_[0] eq 'alt-f4';
+}
 sub wait_still_screen { }
 sub record_info { }
 sub save_screenshot { die 'explicit capture forbidden'; }
@@ -75,6 +78,8 @@ my $ok = eval {
     } elsif ($entry eq 'denial') {
         require onpc_parent_terminal;
         onpc_parent_terminal::run($exchange);
+    } elsif ($entry eq 'parent-links') {
+        onpc_parent_about::run_links($exchange);
     } elsif ($entry) {
         my $journey = onpc_journey->new(exchange => $exchange, prefix => 'unit', review => $review);
         my $proof = $fault eq 'missing' ? {} : $journey->seen('license');
@@ -241,6 +246,31 @@ def test_link_check_precedes_footer_and_only_about_is_closed():
         ['stage', 'about-returned'],
         ['key', 'alt-f4'], ['stage', 'parent-returned'],
     ]
+
+
+@pytest.mark.parametrize('fault', ['', 'close-input',
+    'installed-greeter', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
+    'desktop', 'parent-command', 'parent-window', 'child-picker-opened',
+    'child-choice-highlighted', 'parent-selected', 'help', 'about', 'license',
+    'license-closed', 'about-returned', 'parent-returned'])
+def test_parent_information_case_uses_complete_shared_sequence_and_stops_on_refusal(fault):
+    from parent_information import PLAN
+    result = json.loads(run_perl(PROBE, '0', fault, 'parent-links').stdout)
+    assert bool(result['ok']) == (not fault)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(PLAN.screen_tags)
+    if fault == 'close-input':
+        expected = expected[:expected.index('parent-returned')]
+    elif fault:
+        expected = expected[:expected.index(fault) + 1]
+    assert stages == expected
+    assert not any(event[0] in ('pointer', 'click', 'text')
+                   for event in result['events'])
+    assert [event for event in result['events'] if event[0] == 'power'] == (
+        [] if fault else [['power', 'off']])
+    # The only ordinary key after sign-in closes About; no external link input.
+    keys = [event[1] for event in result['events'] if event[0] == 'key']
+    assert keys.count('alt-f4') == int(fault in ('', 'close-input', 'parent-returned'))
 
 
 @pytest.mark.parametrize('window,before,after', [

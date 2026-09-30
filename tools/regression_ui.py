@@ -55,7 +55,13 @@ GROUPS = (
 # locks/logs, on this same private display/bus; it starts no real runner or VM.
 # The multi-VM grid uses up to five private synthetic memfds in this fixture;
 # cells share only its private display/bus and add no libvirt or host resources.
-# Checkout tab/grid checks add three tiny private log/lock trees and UI sockets
+# The stalled-VM check parks only a private transport thread; its event is
+# released before owned feeds are closed and joined, including failure cleanup.
+# Checkout terminal/flat-grid checks add three tiny private log/lock trees,
+# four private UI sockets and three synthetic VM memfds. Tile double clicks
+# and branch/tab changes stay on GTK's main thread on this private display.
+# They retain the same spectator reservation and compatible scheduling.
+# The singleton check adds
 # plus one waited singleton peer on that same private display/bus. No real Git
 # checkout, controller, desktop service or VM is started by the fixture.
 # Automation identity uses the standard private preview session. Fixture GUI

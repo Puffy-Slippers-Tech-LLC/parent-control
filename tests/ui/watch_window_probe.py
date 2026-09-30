@@ -7,6 +7,7 @@ import mmap
 import os
 from pathlib import Path
 import sys
+import threading
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
@@ -31,9 +32,18 @@ locks = {}
 stage = ''
 result = {}
 failure = None
+stall_vm = threading.Event()
+release_vm = threading.Event()
+stalled_vm_entered = threading.Event()
 
 
 class VM(Feed):
+    def poll(self, *, pixels=True):
+        if self.vm_name == vm_names[-1] and stall_vm.is_set():
+            stalled_vm_entered.set()
+            release_vm.wait(15)
+        return super().poll(pixels=pixels)
+
     def connect(self):
         source = vm_source if self.vm_name == vm_names[0] else extra_sources.get(self.vm_name)
         if source is None:
@@ -89,20 +99,24 @@ def tick():
                 ui_source.frames.publish(b'\x10\x20\x30\0' * 12, state='live', worker=1,
                     width=4, height=3, stride=16, format=0x20020888, test='UI first', phase='call')
                 result['run'] = ui_source.run
-                runner('sessions-host', '\x1b[32mRUN OUTPUT\x1b[0m\n' + 'wrapped text ' * 120 + '\nEND WRAPPED\n')
+                # Keep the observed header and tail in the viewport at the
+                # narrower default split, while forcing the long line to wrap.
+                columns, rows = app.terminal.get_column_count(), app.terminal.get_row_count()
+                repetitions = max(4, min(120, columns * max(1, rows - 8) // len('wrapped text ')))
+                result['wrap_repetitions'] = repetitions
+                runner('sessions-host', '\x1b[32mRUN OUTPUT\x1b[0m\n' +
+                       'wrapped text ' * repetitions + '\nEND WRAPPED\n')
             elif stage == 'both':
                 vm_source = Frames('b' * 32)
                 vm_source.publish(b'\x10\x20\x30\0' * 12, state='live', width=4, height=3,
                     stride=16, format=0x20020888, progress=dict(current=1, total=1, case_id='1',
                         title='VM test', step='VM first', operation='VM operation'))
             elif stage == 'split-check':
-                result['rows_ratio'] = app.split.get_position() / app.split.get_height()
                 # Native split position and terminal reflow are rendering checks,
                 # never coordinates for resolving or operating a test target.
                 app.pane.set_position(300)
-                app.split.set_position(220)
             elif stage == 'hide-vm':
-                assert app.selected == 'ui'
+                assert app.selected == 'ui-' + ui_source.run
                 vm_source.publish(progress=dict(vm_source.meta['progress'], step='VM next'))
                 result['hidden_vm_sequence'] = app.vm.screen.meta['updated_ns']
                 result['hidden_vm_step'] = app.vm.step.get_label()
@@ -123,6 +137,16 @@ def tick():
                 fcntl.flock(locks['sessions-host'], fcntl.LOCK_UN)
             elif stage == 'unlocked':
                 vm_source.publish(lease_locked=False)
+            elif stage == 'stall-vm':
+                release_vm.clear()
+                stall_vm.set()
+                vm_source.publish(progress=dict(vm_source.meta['progress'], step='Healthy during stall'))
+                path = directory('sessions-host', root=root) / ('a' * 32) / 'output'
+                with path.open('a') as log:
+                    log.write('RUN WHILE VM STALLED\n')
+            elif stage == 'release-vm':
+                stall_vm.clear()
+                release_vm.set()
             elif stage.startswith('vms-'):
                 count = int(stage.removeprefix('vms-'))
                 for index, name in enumerate(vm_names[1:], 1):
@@ -134,7 +158,7 @@ def tick():
                     elif index >= count and name in extra_sources:
                         extra_sources.pop(name).close()
             elif stage == 'double-click':
-                view = app.vms[app.vm_keys[vm_names[2]]]
+                view = app.cells[str(app.primary.root), app.vm_keys[vm_names[2]]][0]
                 controllers = view.observe_controllers()
                 for index in range(controllers.get_n_items()):
                     controller = controllers.get_item(index)
@@ -147,8 +171,7 @@ def tick():
             result['ui_frozen'] = (app.ui.views[ui_source.run][0].description.get_label()
                                    == result['hidden_ui_test'])
         if stage == 'split-check':
-            result['dividers_resized'] = (app.pane.get_position() == 300
-                                         and app.split.get_position() == 220)
+            result['dividers_resized'] = app.pane.get_position() == 300
             result['terminal_columns'] = app.terminal.get_column_count()
             result['no_horizontal_scroll'] = app.output_scroll.get_policy()[0] == Gtk.PolicyType.NEVER
             result['terminal_readonly'] = (not app.terminal.get_input_enabled()
@@ -167,15 +190,23 @@ def tick():
             source.publish()
         result['vm_names'] = vm_names
         result['vm_cells'] = {
-            name: list(app.vm_grid.query_child(app.vms[key]))
+            name: list(app.vm_grid.query_child(app.cells[str(app.primary.root), key][0]))
             for name, key in app.vm_keys.items()
-            if app.vms[key].get_parent() == app.vm_grid}
+            if app.cells[str(app.primary.root), key][0].get_parent() == app.vm_grid}
+        result['viewer_cells'] = {
+            key: list(app.vm_grid.query_child(cell))
+            for (name, key), (cell, _title) in app.cells.items()
+            if cell.get_parent() == app.vm_grid}
         result['vm_tabs'] = {name: app.buttons[key].get_opacity()
                              for name, key in app.vm_keys.items()}
         result['selected'] = app.selected
+        result['stage'] = stage
         result['output_active'] = app.output_active
         result['output_status'] = app.output_status.get_label()
+        result['stalled_vm_entered'] = stalled_vm_entered.is_set()
         result['terminal_text'] = app.terminal.get_text_format(Vte.Format.TEXT)
+        result['terminal_size'] = [app.terminal.get_column_count(), app.terminal.get_row_count()]
+        result['terminal_dimensions'] = [app.terminal.get_width(), app.terminal.get_height()]
         evidence.write_text(json.dumps(result))
         return True
     except BaseException as error:
@@ -188,6 +219,7 @@ GLib.timeout_add(50, tick)
 try:
     status = app.run(['watch-test'])
 finally:
+    release_vm.set()
     if ui_source is not None:
         ui_source.close()
     if vm_source is not None:

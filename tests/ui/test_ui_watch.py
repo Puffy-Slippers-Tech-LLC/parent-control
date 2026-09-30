@@ -11,7 +11,6 @@ import pytest
 from tests.support.automation_ids import audit_owned_controls
 from tests.support.request_form import launch_request, calls, events as request_events
 from ui_watch_transport import Feeds
-from ui_watch_viewer import WAITING
 from test_storage import runtime_directory
 
 pytestmark = pytest.mark.ui
@@ -33,32 +32,38 @@ def test_four_branch_tabs_grid_resize_stop_and_reconnect(
         'ONPC_UI_WATCH_EVIDENCE': str(evidence)})
     ui, wait = automation, wait_for_accessible_state
     wait(lambda: ui.showing('watch-window'), 'viewer publishes its window')
-    assert ui.text('ui-watch-status') == WAITING
+    assert ui.showing('watch-waiting')
     control.write_text('start')
-    wait(lambda: ui.text('ui-watch-status') == '4 active UI worker(s) · View only',
-         'viewer independently discovers all four workers')
+    wait(lambda: evidence.exists(), 'four workers publish their identities')
     runs = json.loads(evidence.read_text())['runs']
+    wait(lambda: all(ui.showing(f'ui-watch-grid-{run}-test') for run in runs),
+         'viewer independently discovers all four workers')
     for index, run in enumerate(runs):
         assert ui.text(f'ui-watch-grid-{run}-test') == f'case-{index + 1}'
         assert ui.showing(f'ui-watch-grid-{run}-display')
-        ui.activate('ui-watch-tab-' + run)
-        wait(lambda: ui.showing(f'ui-watch-branch-{run}-test'), 'selected branch is visible')
-        wait(lambda: ui.text(f'ui-watch-branch-{run}-test') == f'case-{index + 1}',
+        assert ui.text('watch-tab-ui-' + run) == f'UI - Worker {index + 1}'
+        ui.activate('watch-tab-ui-' + run)
+        wait(lambda: ui.showing('watch-page-ui-' + run), 'selected category is visible')
+        wait(lambda: ui.text(f'ui-watch-grid-{run}-test') == f'case-{index + 1}',
              'selected branch renders its current frame')
-        ui.activate('ui-watch-all-tab')
+        ui.activate('watch-tab-all')
         wait(lambda: all(ui.showing(f'ui-watch-grid-{worker}-test') for worker in runs),
              'All branches restores every worker view')
     audit_owned_controls(ui, 'watch-window')
     control.write_text('resize')
     wait(lambda: all(ui.text(f'ui-watch-grid-{run}-status').startswith('teardown') for run in runs),
          'all workers keep publishing after viewer resize')
+    ui.activate('watch-tab-ui-' + runs[0])
+    wait(lambda: ui.showing('watch-page-ui-' + runs[0]), 'category opens before its producer stops')
     control.write_text('stop')
-    wait(lambda: ui.text('ui-watch-status') == WAITING, 'finished workers clear from viewer')
+    wait(lambda: ui.showing('watch-waiting'), 'selected producer shutdown returns to All without a stale tile')
     control.write_text('resume')
-    wait(lambda: ui.text('ui-watch-status') == '1 active UI worker(s) · View only',
-         'same viewer discovers a subsequent worker')
+    wait(lambda: json.loads(evidence.read_text())['runs'] != runs,
+         'subsequent worker publishes its identity')
     run = json.loads(evidence.read_text())['runs'][0]
-    assert ui.text(f'ui-watch-grid-{run}-test') == 'subsequent-case'
+    wait(lambda: ui.showing(f'ui-watch-grid-{run}-test') and
+         ui.text(f'ui-watch-grid-{run}-test') == 'subsequent-case',
+         'same viewer discovers a subsequent worker')
     ui.activate('watch-close')
     wait(lambda: process.poll() is not None, 'viewer exits independently')
     assert process.returncode == 0, log.read_text()

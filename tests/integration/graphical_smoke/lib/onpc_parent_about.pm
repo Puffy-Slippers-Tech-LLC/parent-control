@@ -19,6 +19,21 @@ sub run {
     $journey->finish();
 }
 
+# Complete E2E-042/parent-links composition, independent of qualification.
+sub run_links {
+    onpc_progress::operation('Reading Parent Help and About information');
+    my ($exchange) = @_;
+    my $journey = onpc_journey->new(
+        exchange => $exchange, prefix => 'parent-links', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    my $help = onpc_about::read_help($journey, $selected);
+    my $about = onpc_about::open_from_help($journey, $help);
+    my $links = onpc_about::check_link($journey, $about, 'information');
+    onpc_about::return_to_parent($journey, $links, 'semantic-reveal');
+    $journey->finish();
+}
+
 sub run_interval {
     onpc_progress::operation('Qualifying a guarded real interval between About reads');
     my ($exchange) = @_;

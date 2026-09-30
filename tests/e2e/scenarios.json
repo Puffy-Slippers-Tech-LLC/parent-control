@@ -2180,7 +2180,7 @@
         "rationale": "Extends ready Parent About with distinct links, request surfaces and installed command documentation."
       },
       "variants": [
-        {"coverage_id": 190, "id": "parent-links", "owner": "continuous-journeys", "parameters": {"surface": "parent-links"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 190, "id": "parent-links", "owner": "continuous-journeys", "parameters": {"surface": "parent-links"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_information.py", "test_id": "parent-links"}},
         {"coverage_id": 191, "id": "child-overlay", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 192, "id": "kiosk", "owner": "continuous-journeys", "parameters": {"surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_about.py", "test_id": "kiosk"}},
         {"coverage_id": 193, "id": "command-help", "owner": "continuous-journeys", "parameters": {"surface": "command-help"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/command_help.py", "test_id": "command-help"}}

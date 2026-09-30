@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **232 — [E2E-042: parent-links](E2E-Tasks/232-case-190.md)**.
+Next task: **193 — [Change connectivity through shared system commands](E2E-Tasks/193-operate-public-connectivity-controls.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

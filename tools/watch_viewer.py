@@ -204,6 +204,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.cells = {}
             self.viewer_layout = None
             self.terminal_layout = None
+            self.syncing = False
             self.last_checkout = None
             self.discovery = discovery
 
@@ -238,7 +239,8 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.checkout_pages = Gtk.Stack(hexpand=True, vexpand=True,
                                            hhomogeneous=False, vhomogeneous=False)
             set_automation_id(self.checkout_pages, 'watch-checkout-pages')
-            self.pane = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL, wide_handle=True)
+            self.pane = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL, wide_handle=True,
+                                  hexpand=True, vexpand=True)
             set_automation_id(self.pane, 'watch-columns')
             self.pane.set_shrink_start_child(True)
             self.pane.set_shrink_end_child(True)
@@ -299,7 +301,11 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             grid = Gtk.Grid(column_homogeneous=True, row_homogeneous=True,
                             column_spacing=6, row_spacing=6, hexpand=True, vexpand=True)
             set_automation_id(grid, prefix + 'watch-viewer-grid')
-            pages.add_named(grid, 'all')
+            grid_scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True,
+                hscrollbar_policy=Gtk.PolicyType.NEVER, vscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
+            set_automation_id(grid_scroll, prefix + 'watch-viewer-scroll')
+            grid_scroll.set_child(grid)
+            pages.add_named(grid_scroll, 'all')
             blank = Gtk.Box(hexpand=True, vexpand=True)
             set_automation_id(blank, prefix + 'watch-empty-cell')
             waiting = Gtk.Label(label='Waiting for UI or VM activity.', wrap=True,
@@ -368,7 +374,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 for view in self.checkouts.values():
                     view.next_ui = view.next_discovery = 0
                     view.next_vm = dict.fromkeys(view.next_vm, 0)
-                if self.checkout_buttons:
+                if self.checkout_buttons and not self.syncing:
                     self.arrange_checkouts()
 
         def cell_pressed(self, gesture, presses, _x, _y, entry):
@@ -385,7 +391,8 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
         def entries(self):
             result = {}
             for name, view in self.checkouts.items():
-                for run, (content, _detail, tab) in view.ui.views.items():
+                for run, (content, _detail, tab) in sorted(
+                        view.ui.views.items(), key=lambda item: (item[1][2].get_label(), item[0])):
                     result[name, 'ui-' + run] = (content, 'UI - ' + tab.get_label(), True, True)
                 for vm, key in view.vm_keys.items():
                     content = view.vms[key]
@@ -393,6 +400,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             return result
 
         def sync_viewers(self, entries):
+            self.syncing = True
             for entry in tuple(self.cells):
                 if entry not in entries:
                     cell, _title = self.cells.pop(entry)
@@ -404,11 +412,14 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                     prefix = self.scopes[name]['prefix']
                     cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
                     set_automation_id(cell, prefix + 'watch-cell-' + local)
-                    title = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END,
-                                      margin_start=8, margin_top=6, margin_bottom=6)
-                    title.add_css_class('heading')
-                    set_automation_id(title, prefix + 'watch-cell-title-' + local)
-                    cell.append(title)
+                    if local.startswith('ui-'):
+                        title = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END,
+                                          margin_start=8, margin_top=6, margin_bottom=6)
+                        title.add_css_class('heading')
+                        set_automation_id(title, prefix + 'watch-cell-title-' + local)
+                        cell.append(title)
+                    else:
+                        title = content.title
                     cell.append(content)
                     click = Gtk.GestureClick(button=Gdk.BUTTON_PRIMARY)
                     click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -444,43 +455,60 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                     button = scope['buttons'][key]
                     button.set_label(label)
                     button.set_opacity(1 if locked else .45)
-                    scope['bar'].reorder_child_after(button, previous)
+                    if button.get_prev_sibling() != previous:
+                        scope['bar'].reorder_child_after(button, previous)
                     previous = button
+            self.syncing = False
 
         def arrange_checkouts(self):
             for name, view in self.checkouts.items():
                 self.checkout_buttons[name].set_opacity(1 if view.active else .45)
-            active = tuple(name for name, view in self.checkouts.items() if view.active)
+            active = tuple(name for name, view in self.checkouts.items() if view.output_active)
             if not active and self.last_checkout is not None:
                 active = (self.last_checkout,)
-            layout = self.selected_checkout, active
-            if layout == self.checkout_layout:
+            terminals = active if self.selected_checkout == 'all' else (self.selected_checkout,)
+            if terminals != self.terminal_layout:
+                self.terminal_layout = terminals
+                while self.terminal_grid.get_first_child() is not None:
+                    self.terminal_grid.remove(self.terminal_grid.get_first_child())
+                for row, name in enumerate(terminals):
+                    self.terminal_grid.attach(self.checkouts[name], 0, row, 1, 1)
+                if not terminals:
+                    self.terminal_grid.attach(self.terminal_waiting, 0, 0, 1, 1)
+
+            entries = self.entries()
+            self.sync_viewers(entries)
+            scope_name = self.selected_checkout
+            scope = self.scopes[scope_name]
+            selected = scope['selected']
+            scope['pages'].set_visible_child_name(selected)
+            shown = tuple(entry for entry, value in entries.items()
+                          if (scope_name == 'all' or entry[0] == scope_name)
+                          and (value[2] if selected == 'all' else
+                               self.entry_key(scope_name, entry) == selected))
+            for entry in shown:
+                self.cells[entry][1].set_label(
+                    scope['buttons'][self.entry_key(scope_name, entry)].get_label())
+            layout = scope_name, selected, shown
+            if layout == self.viewer_layout:
                 return
-            self.checkout_layout = layout
-            target = (self.checkout_grid if self.selected_checkout == 'all' else
-                      self.checkout_bodies[self.selected_checkout])
-            desired = ({self.checkouts[name]: (index % 2, index // 2)
-                        for index, name in enumerate(active)} if self.selected_checkout == 'all' else
-                       {self.checkouts[self.selected_checkout]: (0, 0)})
-            if self.selected_checkout == 'all':
-                if len(active) > 1 and len(active) % 2:
-                    desired[self.checkout_blank] = (1, len(active) // 2)
-                if not active:
-                    desired[self.checkout_waiting] = (0, 0)
-            for view in (*self.checkouts.values(), self.checkout_blank, self.checkout_waiting):
-                parent = view.get_parent()
-                if parent is not None and (view not in desired or parent != target):
-                    parent.remove(view)
-            for view, (column, row) in desired.items():
-                if target == self.checkout_grid:
-                    if view.get_parent() != target:
-                        target.attach(view, column, row, 1, 1)
-                    else:
-                        placement = target.get_layout_manager().get_layout_child(view)
-                        placement.set_column(column)
-                        placement.set_row(row)
-                elif view.get_parent() != target:
-                    target.append(view)
+            self.viewer_layout = layout
+            for cell, _title in self.cells.values():
+                if cell.get_parent() is not None:
+                    cell.get_parent().remove(cell)
+            for other in self.scopes.values():
+                for widget in (other['blank'], other['waiting']):
+                    if widget.get_parent() is not None:
+                        widget.get_parent().remove(widget)
+            if selected == 'all':
+                for index, entry in enumerate(shown):
+                    scope['grid'].attach(self.cells[entry][0], index % 2, index // 2, 1, 1)
+                if len(shown) > 1 and len(shown) % 2:
+                    scope['grid'].attach(scope['blank'], 1, len(shown) // 2, 1, 1)
+                if not shown:
+                    scope['grid'].attach(scope['waiting'], 0, 0, 1, 1)
+            elif shown:
+                scope['bodies'][selected].append(self.cells[shown[0]][0])
 
         def tick(self):
             if self.discovery is not None:
@@ -488,11 +516,17 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 for root, label in (discovered or {}).items():
                     self.add_checkout(root, label)
             for name, view in self.checkouts.items():
-                was_active = view.active
-                visible = (self.selected_checkout == name or
-                           (self.selected_checkout == 'all' and view.get_parent() == self.checkout_grid))
+                was_active = view.output_active
+                scope = self.scopes[self.selected_checkout]
+                selected = scope['selected']
+                visible = self.selected_checkout in ('all', name)
+                if selected != 'all' and self.selected_checkout == 'all':
+                    own_prefix = identity(Path(name)) + '-'
+                    visible = selected.startswith(own_prefix)
+                    selected = selected[len(own_prefix):] if visible else 'all'
+                view.selected = selected
                 view.tick(render=visible)
-                if was_active and not view.active:
+                if was_active and not view.output_active:
                     self.last_checkout = name
             self.arrange_checkouts()
             return True

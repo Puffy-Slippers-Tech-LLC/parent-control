@@ -143,7 +143,7 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
     branches = re.findall(r'if \(\$ready->\{(\w+)\}\) \{(.*?)\n    \}', dispatch, re.S)
     branch = [body for mode, body in branches if mode == plan.worker_mode]
     assert len(branch) == 1, plan.worker_mode
-    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none)\(', branch[0])
+    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links)\(', branch[0])
     assert len(workers) == 1, plan.worker_mode
     source = (ROOT / 'tests/integration/graphical_smoke/lib' / (workers[0] + '.pm')).read_text()
     # Logging is harmless; raw input, process/file I/O and provider selection

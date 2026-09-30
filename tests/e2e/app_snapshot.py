@@ -26,6 +26,15 @@ def mode_mismatch(xml, mode, *, now=None):
                 return 'invalid online snapshot creation time'
             if age > 24 * 60 * 60:
                 return 'online snapshot is more than 24 hours old'
+        domain = root.find('domain')
+        if domain is None:
+            return 'missing snapshot console configuration'
+        try:
+            system.validate_private_vnc(domain)
+        except system.Error:
+            return 'snapshot console configuration changed'
+        if domain.find('devices/graphics').get('type') != 'spice':
+            return 'snapshot console configuration changed'
         return None
     except (ET.ParseError, ValueError, TypeError):
         return 'missing or invalid snapshot metadata'

@@ -43,7 +43,7 @@ class Session:
         self.child = self.pidfd = self.control = None
         display = remote = None
         try:
-            display = adapter.open_display(index=1)
+            display = adapter.open_display()
             self.control, remote = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
             source = adapter.lease.source
             digest = configuration_digest(source.domain.XMLDesc(0))

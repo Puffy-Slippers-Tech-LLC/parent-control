@@ -264,6 +264,12 @@ requires the runner's share-detachment checks. Do not manually restore and boot
 the VM using a copied command sequence that bypasses these guards. External
 firmware/TPM state outside the recorded snapshot contract is refused.
 
+Guest `/etc/fstab` belongs to the VM owner. Bootstrap leaves its contents,
+permissions and SELinux label untouched, including `/Data` entries. Configure
+optional host shares with `nofail` so the isolated guest can boot without them.
+Snapshot restores still select the mount configuration saved in that snapshot;
+capture manual mount changes in the baseline before relying on them in tests.
+
 ## Interrupted or invalid state
 
 Preserve `phase.json`, `system-run.json`, snapshot metadata, run evidence and

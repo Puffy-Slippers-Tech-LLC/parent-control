@@ -1,11 +1,14 @@
 """UI17's fixed installed Parent Screen time limit qualification."""
 
 from installed_journey import InstalledJourney, JourneyPlan
+from journey_blocks import fresh_desktop
 
 
 PLAN = JourneyPlan(
     prefix='parent-toggle', worker_mode='parent_toggle',
     screen_tags={
+        **fresh_desktop('parent'),
+        'parent-command': 'ui:parent-command-launch',
         'parent-window': 'ui:parent-window',
         'child-picker-opened': 'ui:child-picker-opened',
         'child-choice-highlighted': 'ui:child-choice-highlighted',
@@ -23,6 +26,8 @@ PLAN = JourneyPlan(
     },
     phases={
         'ready': 'setup', 'setup-detached': 'setup',
+        **{stage: 'start' for stage in fresh_desktop('parent')},
+        'parent-command': 'start',
         'parent-window': 'start', 'child-picker-opened': 'step-1',
         'child-choice-highlighted': 'step-1', 'parent-selected': 'step-1',
         'wrong-control-refused': 'step-1', 'limit-enabled': 'step-1',

@@ -108,6 +108,8 @@ system-guest, provenance, package-content and snapshot modules stay compatible.
 # systemd_unit, package_payload, rpm_packaging and sandbox cleanup buckets hold.
 
 from pathlib import PurePosixPath
+# LIFE06 Parent composition retains vm_internet_cleanup_safety's private
+# journals/replies and process-local UI/libvirt doubles; compatible scheduling.
 
 # TIME03 uses fake clocks and process-local guard/UI doubles, private tmp_path
 # records and bounded waited Perl children. No VM, bus, display or shared cache.

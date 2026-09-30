@@ -35,6 +35,8 @@ from pathlib import PurePosixPath
 # process-local worker, clock and UI doubles; both existing classifications hold.
 # VM Internet cleanup uses only pytest-private journals and process-local
 # libvirt/filter/SSH doubles; it is compatible with other cleanup/unit buckets.
+# LIFE06 Parent composition adds process-local UI doubles and private recorder
+# replies to vm_internet; it opens no real display, bus, socket or guest.
 
 from regression_ui import Bucket
 from regression_resources import HOST_WORKERS

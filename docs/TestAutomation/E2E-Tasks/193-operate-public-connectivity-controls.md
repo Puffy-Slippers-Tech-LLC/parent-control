@@ -18,8 +18,12 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Task 193a qualified the minimal shared offline mechanism. Reuse its
 enter-offline, restore-online and cleanup operations without adding networking
-infrastructure. No live acceptance has been attempted for this task. This task owns LIFE06's composition
-and the Parent usability assertion below.
+infrastructure. The first live qualification failed in `20260930T231801Z-a17f2640`
+with `e2e:worker-execution-failed`, before product or collection acceptance.
+Owned cleanup and baseline restoration passed; scoped host checks passed.
+Resume by diagnosing the retained report and private evidence, then repair and
+rerun the fixed qualification on every enabled VM. This task owns LIFE06's
+composition and the Parent usability assertion below.
 
 ## Read only this context
 
@@ -38,6 +42,12 @@ Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 - `tests/unit/test_vm_internet_cleanup_safety.py` and affected recorder/worker
   cleanup tests. Helper qualification and final cleanup passed in
   `output/test-runs/host/reports/20260930T225447Z-420cdcde/report.md`.
+- `tests/e2e/offline_controls.py`: `offline_controls` owns the shared public
+  input/readback, window continuity and isolation lifetime. The finite inputs
+  live in `tests/e2e/public_connectivity_controls.py`: `CONTROLS`, `PLAN` and
+  `qualify`. `PublicConnectivityControlsQualification` reuses UI17's prepared
+  entry and unchanged worker sequence. The registered selector below is now
+  implemented; LIFE06 remains pending until live acceptance and cleanup pass.
 
 ## Implementation
 

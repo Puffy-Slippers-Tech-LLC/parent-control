@@ -27,6 +27,13 @@ owned cleanup and baseline restoration on every enabled VM. Task 193 now
 composes that helper with a normal Parent control action and public result.
 The helper qualification supplies no LIFE06 or complete-scenario acceptance.
 
+Task 193's first live qualification failed on `onpc-Ubuntu26.04` in
+`20260930T231801Z-a17f2640` with `e2e:worker-execution-failed`; product and
+collection results were not run. Owned cleanup and baseline restoration passed.
+Scoped host checks passed. Resume by diagnosing the retained report and private
+evidence, repairing the established cause, and rerunning the fixed qualification
+on every enabled VM before close-out.
+
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
 pointer; record its exact remaining work and return condition here and in its

@@ -1085,28 +1085,12 @@ class ParentToggleQualification(KioskEntryQualification):
         context.installed_snapshot = snapshot_name(version)
         return ParentToggleJourney(context, progress)
 
-    def prepare_context(self, context):
-        """Create a disposable Parent session without qualifying login or launch."""
-        with smoke.runner.operation('Preparing the Parent toggle qualification session'):
-            context.lease.start()
-            hostname = smoke.runner.address(context.lease.source, timeout=90)
-            (context.directory / 'known-hosts').write_text(f'{hostname} {context.host_key}\n')
-            config = {'directory': str(context.directory), 'hostname': hostname,
-                      'domain_uuid': context.lease.source.uuid,
-                      'domain_id': context.lease.view.domain_id,
-                      'run': context.lease.state['run']}
-            transport = smoke.Transport(
-                config, context.commands, guard=lambda _: context.lease.guard())
-            transport.probe_ready(timeout=180)
-            smoke.installed_setup.InstalledSetup(
-                context.directory, context.verified, transport).provision(context.lease.guard)
-            transport.call(smoke.runner.guest_command(
-                context.lease.state['run'], 'prepare-toggle-session'), timeout=120)
-            # The shared stop retires the backing-byte lease before QEMU closes
-            # its block graph and detaches observation for the completed boot.
-            # The graphical worker must enter a new isolated, powered-off phase.
-            context.lease.stop()
-            context.lease.guard(off=True)
-            context.lease.view.domain_id = None
-            context.lease.state['domain_id'] = None
-            context.lease.save('isolated')
+class PublicConnectivityControlsQualification(ParentToggleQualification):
+    """Reuse UI17's qualified sign-in/launch and LIFE06's public composition."""
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from public_connectivity_controls import journey
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress)

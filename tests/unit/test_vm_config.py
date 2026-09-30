@@ -229,7 +229,7 @@ def test_public_vm_commands_refuse_before_privileges_resources_or_sessions(comma
     # VM, display, socket, fixture, cache or shared output; compatible unit work.
     from tools.test_storage import scratch_descriptors
     result = subprocess.run([str(ROOT / command[0]), *command[1:], *options],
-        cwd=ROOT, capture_output=True, text=True, timeout=15,
+        cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15,
         pass_fds=scratch_descriptors())
     assert result.returncode != 0
     assert '--vm' in result.stderr or 'vm-config:' in result.stderr

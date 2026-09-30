@@ -121,3 +121,47 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch):
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0
     assert run.call_count == 1
+
+
+def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypatch, capsys):
+    names = list(authorized['registry']())
+    def answer(prompt):
+        output = capsys.readouterr().out
+        for number, name in enumerate(names, 1):
+            assert f'{number}. {name}' in output
+        assert output.index(names[0]) < output.index(names[1])
+        authorized['check'].assert_not_called()
+        return '2'
+    monkeypatch.setitem(authorized, 'input', answer)
+    def dispatch(command, **kwargs):
+        assert command[-2:] == ['--vm', names[1]]
+        print('baseline warnings')
+        return SimpleNamespace(returncode=3)
+    monkeypatch.setattr(authorized['subprocess'], 'run', dispatch)
+    assert authorized['main'](['--mode', 'auto']) == 0
+    assert capsys.readouterr().out == 'baseline warnings\n'
+
+
+def test_vm_prompt_retries_invalid_numbers(launcher, monkeypatch, capsys):
+    monkeypatch.setitem(launcher, 'registry', lambda: {'first-vm': None, 'second-vm': None})
+    answers = iter(['', 'first-vm', '0', '3', '-1', '1.5', ' 2 '])
+    monkeypatch.setitem(launcher, 'input', lambda prompt: next(answers))
+    assert launcher['choose_vm']() == 'second-vm'
+    assert capsys.readouterr().out.count('Please enter a number') == 6
+
+
+@pytest.mark.parametrize('exception', [EOFError, KeyboardInterrupt])
+def test_cancelled_vm_selection_never_dispatches(authorized, monkeypatch, capsys, exception):
+    monkeypatch.setitem(authorized, 'input', Mock(side_effect=exception))
+    run = Mock()
+    monkeypatch.setattr(authorized['subprocess'], 'run', run)
+    assert authorized['main'](['--mode', 'auto']) == 2
+    assert 'VM selection cancelled' in capsys.readouterr().err
+    authorized['check'].assert_not_called()
+    run.assert_not_called()
+
+
+def test_explicit_vm_never_prompts(authorized, monkeypatch):
+    monkeypatch.setitem(authorized, 'input', Mock(side_effect=AssertionError('unexpected prompt')))
+    monkeypatch.setattr(authorized['subprocess'], 'run', Mock(return_value=SimpleNamespace(returncode=3)))
+    assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0
